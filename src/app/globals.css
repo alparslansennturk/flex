@@ -1,26 +1,99 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* ============================================================
+     EduCore OS - Design System v1.0
+     ============================================================ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* --- BASE COLORS (Ana Sistem Renkleri) --- */
+  --color-base-primary-50: #f4f7fb;
+  --color-base-primary-100: #dde8f8;
+  --color-base-primary-200: #bcd2f1;
+  --color-base-primary-300: #92b6e8;
+  --color-base-primary-400: #689adf;
+  --color-base-primary-500: #3a7bd5;
+  --color-base-primary-600: #2867bd;
+  --color-base-primary-700: #205297;
+  --color-base-primary-800: #183e72;
+  --color-base-primary-900: #10294c;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+  --color-base-secondary-50: #f0f7f7;
+  --color-base-secondary-100: #daeaea;
+  --color-base-secondary-200: #b9d6d7;
+  --color-base-secondary-300: #8bbabc;
+  --color-base-secondary-400: #579599;
+  --color-base-secondary-500: #3d7a7e;
+  --color-base-secondary-600: #336367;
+  --color-base-secondary-700: #2c5054;
+  --color-base-secondary-800: #274346;
+  --color-base-secondary-900: #23393c;
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* --- DESIGN STUDIO (Yaratıcı Mod Renkleri) --- */
+  --color-designstudio-primary-50: #FFF4EB;
+  --color-designstudio-primary-100: #FFE9D6;
+  --color-designstudio-primary-200: #FFD4AD;
+  --color-designstudio-primary-300: #FFB97A;
+  --color-designstudio-primary-400: #FFA352;
+  --color-designstudio-primary-500: #FF8D28;
+  --color-designstudio-primary-600: #FF7800;
+  --color-designstudio-primary-700: #D66500;
+  --color-designstudio-primary-800: #AD5100;
+  --color-designstudio-primary-900: #853E00;
+
+  --color-designstudio-secondary-50: #F1F2FD;
+  --color-designstudio-secondary-100: #DDE0FA;
+  --color-designstudio-secondary-200: #C2C6F4;
+  --color-designstudio-secondary-300: #A7ADEE;
+  --color-designstudio-secondary-400: #8B91E6;
+  --color-designstudio-secondary-500: #6F74D8;
+  --color-designstudio-secondary-600: #5E63C2;
+  --color-designstudio-secondary-700: #4D52A6;
+  --color-designstudio-secondary-800: #3C3F82;
+  --color-designstudio-secondary-900: #2A2D5C;
+
+  /* --- ACCENT COLORS (Vurgu Renkleri) --- */
+  --color-accent-purple-100: #E6D1F0;
+  --color-accent-purple-500: #652980;
+  --color-accent-purple-700: #4C1F61;
+  
+  --color-accent-pink-100: #F2C0DB;
+  --color-accent-pink-500: #D94C9A;
+  --color-accent-pink-700: #931F5F;
+
+  --color-accent-turquoise-100: #AFF3F0;
+  --color-accent-turquoise-500: #1CB5AE;
+  --color-accent-turquoise-700: #0E5D59;
+
+  /* --- SURFACE (Zemin ve Katman Hiyerarşisi) --- */
+  --color-surface-white: #FFFFFF;
+  --color-surface-50: #F7F8FA;
+  --color-surface-100: #EEF0F3;
+  --color-surface-200: #E2E5EA;
+  --color-surface-300: #CDD2DA;
+  --color-surface-400: #AEB4C0;
+  --color-surface-500: #8E95A3;
+  --color-surface-600: #6F7B87;
+  --color-surface-700: #414B59;
+  --color-surface-800: #2C3440;
+  --color-surface-900: #1E222B;
+
+  /* --- TEXT (Anlamsal Yazı Renkleri) --- */
+  --color-text-primary: #1E222B;
+  --color-text-secondary: #414B59;
+  --color-text-tertiary: #8E95A3;
+  --color-text-placeholder: #AEB4C0;
+  --color-text-disabled: #CDD2DA;
+  --color-text-inverse: #FFFFFF;
+
+  /* --- STATUS (Durum ve Geri Bildirim Renkleri) --- */
+  --color-status-danger-100: #FFECEC;
+  --color-status-danger-500: #FF4D4D;
+  --color-status-danger-700: #D93636;
+
+  --color-status-success-100: #E6F5ED;
+  --color-status-success-500: #009F3E;
+  --color-status-success-700: #007A30;
+
+  --color-status-warning: #FFB020;
+  --color-status-info: #3A7BD5;
 }
