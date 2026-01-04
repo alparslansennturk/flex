@@ -2,10 +2,10 @@
 
 @theme {
   /* ============================================================
-     EduCore OS - Design System v1.0
+     Design System v1.0
      ============================================================ */
 
-  /* --- BASE COLORS (Ana Sistem Renkleri) --- */
+  /* --- BASE COLORS --- */
   --color-base-primary-50: #f4f7fb;
   --color-base-primary-100: #dde8f8;
   --color-base-primary-200: #bcd2f1;
@@ -28,7 +28,7 @@
   --color-base-secondary-800: #274346;
   --color-base-secondary-900: #23393c;
 
-  /* --- DESIGN STUDIO (Yaratıcı Mod Renkleri) --- */
+  /* --- DESIGN STUDIO --- */
   --color-designstudio-primary-50: #FFF4EB;
   --color-designstudio-primary-100: #FFE9D6;
   --color-designstudio-primary-200: #FFD4AD;
@@ -51,7 +51,7 @@
   --color-designstudio-secondary-800: #3C3F82;
   --color-designstudio-secondary-900: #2A2D5C;
 
-  /* --- ACCENT COLORS (Vurgu Renkleri) --- */
+  /* --- ACCENT COLORS --- */
   --color-accent-purple-100: #E6D1F0;
   --color-accent-purple-500: #652980;
   --color-accent-purple-700: #4C1F61;
@@ -64,7 +64,7 @@
   --color-accent-turquoise-500: #1CB5AE;
   --color-accent-turquoise-700: #0E5D59;
 
-  /* --- SURFACE (Zemin ve Katman Hiyerarşisi) --- */
+  /* --- SURFACE --- */
   --color-surface-white: #FFFFFF;
   --color-surface-50: #F7F8FA;
   --color-surface-100: #EEF0F3;
@@ -77,7 +77,7 @@
   --color-surface-800: #2C3440;
   --color-surface-900: #1E222B;
 
-  /* --- TEXT (Anlamsal Yazı Renkleri) --- */
+  /* --- TEXT --- */
   --color-text-primary: #1E222B;
   --color-text-secondary: #414B59;
   --color-text-tertiary: #8E95A3;
@@ -85,15 +85,134 @@
   --color-text-disabled: #CDD2DA;
   --color-text-inverse: #FFFFFF;
 
-  /* --- STATUS (Durum ve Geri Bildirim Renkleri) --- */
-  --color-status-danger-100: #FFECEC;
+  /* --- STATUS --- */
+  --color-status-danger-50: #FFECEC;
   --color-status-danger-500: #FF4D4D;
   --color-status-danger-700: #D93636;
-
   --color-status-success-100: #E6F5ED;
   --color-status-success-500: #009F3E;
   --color-status-success-700: #007A30;
-
   --color-status-warning: #FFB020;
   --color-status-info: #3A7BD5;
+
+  /* --- TYPOGRAPHY ENGINE --- */
+  --font-inter: "Inter", sans-serif;
+
+  --font-size-2xs: 0.75rem;
+  --font-size-xs: 0.8125rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.375rem;
+  --font-size-3xl: 1.5rem;
+  --font-size-4xl: 1.75rem;
+  --font-size-5xl: 2rem;
+  --font-size-6xl: 2.25rem;
+  --font-size-7xl: 2.5rem;
+  --font-size-8xl: 3rem;
+  --font-size-9xl: 3.5rem;
+  --font-size-10xl: 4rem;
+  --font-size-11xl: 4.5rem;
+  --font-size-12xl: 5rem;
+  --font-size-13xl: 6rem;
+  --font-size-14xl: 7.5rem;
+
+  --font-weight-thin: 100;
+  --font-weight-extralight: 200;
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+  --font-weight-black: 900;
+
+  --line-height-xs: 1rem;
+  --line-height-sm: 1.125rem;
+  --line-height-md: 1.25rem;
+  --line-height-lg: 1.375rem;
+  --line-height-xl: 1.5rem;
+  --line-height-2xl: 1.75rem;
+  --line-height-3xl: 2rem;
+  --line-height-4xl: 2.5rem;
+  --line-height-5xl: 3rem;
+  --line-height-6xl: 3.5rem;
+  --line-height-7xl: 4rem;
+  --line-height-8xl: 5rem;
+  --line-height-9xl: 5.5rem;
+  --line-height-10xl: 6rem;
+  --line-height-11xl: 7rem;
+  --line-height-12xl: 8.75rem;
+
+  --letter-spacing-xxs: -0.8px;
+  --letter-spacing-xs: -0.5px;
+  --letter-spacing-sm: -0.25px;
+  --letter-spacing-md: 0px;
+  --letter-spacing-lg: 0.4px;
+  --letter-spacing-xl: 0.8px;
+
+  /* --- SPACING & RADIUS --- */
+  --spacing-space-2: 0.125rem;
+  --spacing-space-4: 0.25rem;
+  --spacing-space-8: 0.5rem;
+  --spacing-space-12: 0.75rem;
+  --spacing-space-16: 1rem;
+  --spacing-space-20: 1.25rem;
+  --spacing-space-24: 1.5rem;
+  --spacing-space-32: 2rem;
+  --spacing-space-40: 2.5rem;
+  --spacing-space-48: 3rem;
+  --spacing-space-56: 3.5rem;
+  --spacing-space-64: 4rem;
+  --spacing-space-72: 4.5rem;
+  --spacing-space-80: 5rem;
+  --spacing-space-96: 6rem;
+  --spacing-space-120: 7.5rem;
+
+  --radius-radius-4: 0.25rem;
+  --radius-radius-8: 0.5rem;
+  --radius-radius-12: 0.75rem;
+  --radius-radius-16: 1rem;
 }
+
+/* ============================================================
+   DESIGN SYSTEM UTILITIES
+   ============================================================ */
+
+/* 1. Body */
+@utility body-lg { font-family: var(--font-inter); font-size: var(--font-size-lg); font-weight: var(--font-weight-regular); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
+@utility body-md { font-family: var(--font-inter); font-size: var(--font-size-md); font-weight: var(--font-weight-regular); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
+@utility body-sm { font-family: var(--font-inter); font-size: var(--font-size-sm); font-weight: var(--font-weight-regular); line-height: var(--line-height-lg); letter-spacing: var(--letter-spacing-md); }
+
+/* 2. Headings */
+@utility h1 { font-family: var(--font-inter); font-size: var(--font-size-6xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-5xl); letter-spacing: var(--letter-spacing-md); }
+@utility h2 { font-family: var(--font-inter); font-size: var(--font-size-5xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-4xl); letter-spacing: var(--letter-spacing-md); }
+@utility h3 { font-family: var(--font-inter); font-size: var(--font-size-4xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-3xl); letter-spacing: var(--letter-spacing-md); }
+@utility h4 { font-family: var(--font-inter); font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-2xl); letter-spacing: var(--letter-spacing-md); }
+
+/* 3. Display */
+@utility display-xl { font-family: var(--font-inter); font-size: var(--font-size-14xl); font-weight: var(--font-weight-extrabold); line-height: var(--line-height-12xl); letter-spacing: var(--letter-spacing-xxs); }
+@utility display-lg { font-family: var(--font-inter); font-size: var(--font-size-13xl); font-weight: var(--font-weight-extrabold); line-height: var(--line-height-11xl); letter-spacing: var(--letter-spacing-xs); }
+@utility display-md { font-family: var(--font-inter); font-size: var(--font-size-12xl); font-weight: var(--font-weight-extrabold); line-height: var(--line-height-10xl); letter-spacing: var(--letter-spacing-sm); }
+@utility display-sm { font-family: var(--font-inter); font-size: var(--font-size-11xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-9xl); letter-spacing: var(--letter-spacing-sm); }
+
+/* 4. UI Helper */
+@utility ui-helper-md { font-family: var(--font-inter); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); line-height: var(--line-height-md); letter-spacing: var(--letter-spacing-md); }
+@utility ui-helper-sm { font-family: var(--font-inter); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); line-height: var(--line-height-sm); letter-spacing: var(--letter-spacing-md); }
+@utility ui-helper-xs { font-family: var(--font-inter); font-size: var(--font-size-2xs); font-weight: var(--font-weight-medium); line-height: var(--line-height-xs); letter-spacing: var(--letter-spacing-md); }
+
+/* 5. UI Label */
+@utility ui-label-default { font-family: var(--font-inter); font-size: var(--font-size-md); font-weight: var(--font-weight-medium); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
+@utility ui-label-small { font-family: var(--font-inter); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); line-height: var(--line-height-md); letter-spacing: var(--letter-spacing-md); }
+@utility ui-label-subtle { font-family: var(--font-inter); font-size: var(--font-size-2xs); font-weight: var(--font-weight-medium); line-height: var(--line-height-xs); letter-spacing: var(--letter-spacing-md); }
+
+/* 6. UI Link */
+@utility ui-link-md { font-family: var(--font-inter); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); line-height: var(--line-height-md); letter-spacing: var(--letter-spacing-md); }
+@utility ui-link-sm { font-family: var(--font-inter); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); line-height: var(--line-height-sm); letter-spacing: var(--letter-spacing-md); }
+
+/* 7. UI Title */
+@utility ui-title-lg { font-family: var(--font-inter); font-size: var(--font-size-5xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-4xl); letter-spacing: var(--letter-spacing-md); }
+@utility ui-title-md { font-family: var(--font-inter); font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-3xl); letter-spacing: var(--letter-spacing-md); }
+@utility ui-title-sm { font-family: var(--font-inter); font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-2xl); letter-spacing: var(--letter-spacing-md); }
+@utility ui-title-xs { font-family: var(--font-inter); font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
