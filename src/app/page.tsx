@@ -1,47 +1,58 @@
-export default function DesignSystemTest() {
+export default function LoginPage() {
   return (
-    <div className="p-space-40 flex flex-col gap-space-32 bg-surface-50 min-h-screen">
-      
-      {/* Display Test */}
-      <section className="flex flex-col gap-space-12">
-        <h1 className="display-md text-base-primary-600">Display XL</h1>
-        <h2 className="display-md text-text-primary">Display Medium Title</h2>
-      </section>
-
-      {/* Headings Test */}
-      <section className="flex flex-col gap-space-8 border-t border-surface-200 pt-space-24">
-        <h1 className="h1 text-text-primary">Heading 1 - Dashboard Ana Başlık</h1>
-        <h3 className="h3 text-text-secondary">Heading 3 - Alt Bölüm Başlığı</h3>
-      </section>
-
-      {/* Body ve UI Elements Test */}
-      <section className="flex flex-col gap-space-16 bg-surface-white p-space-24 radius-radius-16 shadow-sm">
-        <p className="body-lg text-text-primary">
-          Bu bir <strong>Body Large</strong> metnidir. Sistemdeki Inter fontu ve line-height ayarları burada devreye giriyor.
-        </p>
-        
-        <div className="flex gap-space-12 items-center">
-          <span className="ui-label-default bg-base-primary-50 text-base-primary-700 px-space-12 py-space-4 radius-radius-8">
-            Yeni Etiket
-          </span>
-          <a href="#" className="ui-link-md text-base-primary-600 hover:underline">
-            Daha fazla bilgi...
-          </a>
+    <main className="flex min-h-screen items-center justify-center bg-surface-900">
+      {/* max-w-100 kullanımı: Senin ölçü birimine tam sadık */}
+      <div 
+        className="w-full max-w-100 border border-surface-800 bg-surface-800 p-space-40 shadow-2xl"
+        style={{ borderRadius: 'var(--radius-radius-12)' }}
+      >
+        {/* Logo Bölümü */}
+        <div className="mb-space-40 text-center">
+          <h2 className="h2 tracking-xxs text-text-inverse">
+            flex<span className="text-designstudio-primary-600">.</span>
+          </h2>
+          <p className="ui-label-small mt-space-8 text-text-tertiary uppercase tracking-lg">
+            Giriş Yap
+          </p>
         </div>
 
-        <p className="ui-helper-sm text-status-danger-500">
-          * Bu bir hata veya yardımcı mesajdır (Helper Small).
-        </p>
-      </section>
+        {/* Form Alanı */}
+        <form className="space-y-space-24">
+          <div>
+            <label className="ui-label-small mb-space-8 block text-text-secondary">E-posta</label>
+            <input 
+              type="email" 
+              className="w-full bg-surface-900 border border-surface-700 p-space-12 text-text-inverse focus:border-designstudio-primary-500 outline-none transition-all"
+              style={{ borderRadius: 'var(--radius-radius-8)' }}
+              placeholder="alp@flex.com"
+            />
+          </div>
 
-      {/* Design Studio Renk Testi */}
-      <section className="p-space-24 bg-designstudio-primary-500 radius-radius-12">
-        <h4 className="h4 text-surface-white">Design Studio Modu Aktif</h4>
-        <p className="body-sm text-surface-white opacity-90">
-          Vurgu rengi ve beyaz metin uyumu testi.
-        </p>
-      </section>
+          <div>
+            <label className="ui-label-small mb-space-8 block text-text-secondary">Şifre</label>
+            <input 
+              type="password" 
+              className="w-full bg-surface-900 border border-surface-700 p-space-12 text-text-inverse focus:border-designstudio-primary-500 outline-none transition-all"
+              style={{ borderRadius: 'var(--radius-radius-8)' }}
+              placeholder="••••••••"
+            />
+          </div>
 
-    </div>
+          <button 
+            type="submit"
+            className="w-full bg-designstudio-primary-600 py-space-16 text-text-inverse ui-label-default hover:bg-designstudio-primary-700 transition-colors border-none cursor-pointer"
+            style={{ borderRadius: 'var(--radius-radius-8)' }}
+          >
+            Sisteme Gir
+          </button>
+        </form>
+
+        <div className="mt-space-32 text-center">
+          <a href="#" className="ui-link-sm text-text-tertiary hover:text-designstudio-primary-400">
+            Şifremi unuttum
+          </a>
+        </div>
+      </div>
+    </main>
   );
 }
