@@ -6,104 +6,102 @@
      ============================================================ */
 
   /* --- BASE COLORS --- */
-  --color-base-primary-50:  #f4f7fb;
-  --color-base-primary-100: #dde8f8;
-  --color-base-primary-200: #bcd2f1;
-  --color-base-primary-300: #92b6e8;
-  --color-base-primary-400: #689adf;
-  --color-base-primary-500: #3a7bd5;
-  --color-base-primary-600: #2867bd;
-  --color-base-primary-700: #205297;
-  --color-base-primary-800: #183e72;
-  --color-base-primary-900: #10294c;
+  --base-primary-50:  #f4f7fb;
+  --base-primary-100: #dde8f8;
+  --base-primary-200: #bcd2f1;
+  --base-primary-300: #92b6e8;
+  --base-primary-400: #689adf;
+  --base-primary-500: #3a7bd5;
+  --base-primary-600: #2867bd;
+  --base-primary-700: #205297;
+  --base-primary-800: #183e72;
+  --base-primary-900: #10294c;
 
-  --color-base-secondary-50:  #f0f7f7;
-  --color-base-secondary-100: #daeaea;
-  --color-base-secondary-200: #b9d6d7;
-  --color-base-secondary-300: #8bbabc;
-  --color-base-secondary-400: #579599;
-  --color-base-secondary-500: #3d7a7e;
-  --color-base-secondary-600: #336367;
-  --color-base-secondary-700: #2c5054;
-  --color-base-secondary-800: #274346;
-  --color-base-secondary-900: #23393c;
+  --base-secondary-50:  #f0f7f7;
+  --base-secondary-100: #daeaea;
+  --base-secondary-200: #b9d6d7;
+  --base-secondary-300: #8bbabc;
+  --base-secondary-400: #579599;
+  --base-secondary-500: #3d7a7e;
+  --base-secondary-600: #336367;
+  --base-secondary-700: #2c5054;
+  --base-secondary-800: #274346;
+  --base-secondary-900: #23393c;
 
   /* --- DESIGN STUDIO --- */
-  --color-designstudio-primary-50:  #FFF4EB;
-  --color-designstudio-primary-100: #FFE9D6;
-  --color-designstudio-primary-200: #FFD4AD;
-  --color-designstudio-primary-300: #FFB97A;
-  --color-designstudio-primary-400: #FFA352;
-  --color-designstudio-primary-500: #FF8D28;
-  --color-designstudio-primary-600: #FF7800;
-  --color-designstudio-primary-700: #D66500;
-  --color-designstudio-primary-800: #AD5100;
-  --color-designstudio-primary-900: #853E00;
+  --designstudio-primary-50:  #FFF4EB;
+  --designstudio-primary-100: #FFE9D6;
+  --designstudio-primary-200: #FFD4AD;
+  --designstudio-primary-300: #FFB97A;
+  --designstudio-primary-400: #FFA352;
+  --designstudio-primary-500: #FF8D28;
+  --designstudio-primary-600: #FF7800;
+  --designstudio-primary-700: #D66500;
+  --designstudio-primary-800: #AD5100;
+  --designstudio-primary-900: #853E00;
 
-  --color-designstudio-secondary-50:  #F1F2FD;
-  --color-designstudio-secondary-100: #DDE0FA;
-  --color-designstudio-secondary-200: #C2C6F4;
-  --color-designstudio-secondary-300: #A7ADEE;
-  --color-designstudio-secondary-400: #8B91E6;
-  --color-designstudio-secondary-500: #6F74D8;
-  --color-designstudio-secondary-600: #5E63C2;
-  --color-designstudio-secondary-700: #4D52A6;
-  --color-designstudio-secondary-800: #3C3F82;
-  --color-designstudio-secondary-900: #2A2D5C;
+  --designstudio-secondary-50:  #F1F2FD;
+  --designstudio-secondary-100: #DDE0FA;
+  --designstudio-secondary-200: #C2C6F4;
+  --designstudio-secondary-300: #A7ADEE;
+  --designstudio-secondary-400: #8B91E6;
+  --designstudio-secondary-500: #6F74D8;
+  --designstudio-secondary-600: #5E63C2;
+  --designstudio-secondary-700: #4D52A6;
+  --designstudio-secondary-800: #3C3F82;
+  --designstudio-secondary-900: #2A2D5C;
 
   /* --- ACCENT COLORS --- */
-  --color-accent-purple-100: #E6D1F0;
-  --color-accent-purple-500: #652980;
-  --color-accent-purple-700: #4C1F61;
+  --accent-purple-100: #E6D1F0;
+  --accent-purple-500: #652980;
+  --accent-purple-700: #4C1F61;
   
-  --color-accent-pink-100: #F2C0DB;
-  --color-accent-pink-500: #D94C9A;
-  --color-accent-pink-700: #931F5F;
+  --accent-pink-100: #F2C0DB;
+  --accent-pink-500: #D94C9A;
+  --accent-pink-700: #931F5F;
 
-  --color-accent-turquoise-100: #AFF3F0;
-  --color-accent-turquoise-500: #1CB5AE;
-  --color-accent-turquoise-700: #0E5D59;
+  --accent-turquoise-100: #AFF3F0;
+  --accent-turquoise-500: #1CB5AE;
+  --accent-turquoise-700: #0E5D59;
 
   /* --- SURFACE --- */
-  --color-surface-white: #FFFFFF;
-  --color-surface-50: #F7F8FA;
-  --color-surface-100: #EEF0F3;
-  --color-surface-200: #E2E5EA;
-  --color-surface-300: #CDD2DA;
-  --color-surface-400: #AEB4C0;
-  --color-surface-500: #8E95A3;
-  --color-surface-600: #6F7B87;
-  --color-surface-700: #414B59;
-  --color-surface-800: #2C3440;
-  --color-surface-900: #1E222B;
+  --surface-white: #FFFFFF;
+  --surface-50: #F7F8FA;
+  --surface-100: #EEF0F3;
+  --surface-200: #E2E5EA;
+  --surface-300: #CDD2DA;
+  --surface-400: #AEB4C0;
+  --surface-500: #8E95A3;
+  --surface-600: #6F7B87;
+  --surface-700: #414B59;
+  --surface-800: #2C3440;
+  --surface-900: #1E222B;
 
   /* --- TEXT --- */
-  --color-text-primary: #1E222B;
-  --color-text-secondary: #414B59;
-  --color-text-tertiary: #8E95A3;
-  --color-text-placeholder: #AEB4C0;
-  --color-text-disabled: #CDD2DA;
-  --color-text-inverse: #FFFFFF;
-  --color-text-base-primary: #3A7BD5;
-  --color-text-base-secondary: #3D7A7E;
-  --color-text-designstudio-primary: #FF8D28;
-  --color-text-designstudio-secondary: #6F74D8;
-  --color-text-success: #009F3E;
-  --color-text-danger: #FF4D4D;  
-  --color-text-warning: #FFB020;
-  --color-text-info: #3A7BD5; 
-
-
+  --text-primary: #1E222B;
+  --text-secondary: #414B59;
+  --text-tertiary: #8E95A3;
+  --text-placeholder: #AEB4C0;
+  --text-disabled: #CDD2DA;
+  --text-inverse: #FFFFFF;
+  --text-base-primary: #3A7BD5;
+  --text-base-secondary: #3D7A7E;
+  --text-designstudio-primary: #FF8D28;
+  --text-designstudio-secondary: #6F74D8;
+  --text-success: #009F3E;
+  --text-danger: #FF4D4D;  
+  --text-warning: #FFB020;
+  --text-info: #3A7BD5; 
 
   /* --- STATUS --- */
-  --color-status-danger-50: #FFECEC;
-  --color-status-danger-500: #FF4D4D;
-  --color-status-danger-700: #D93636;
-  --color-status-success-100: #E6F5ED;
-  --color-status-success-500: #009F3E;
-  --color-status-success-700: #007A30;
-  --color-status-warning: #FFB020;
-  --color-status-info: #3A7BD5;
+  --status-danger-50: #FFECEC;
+  --status-danger-500: #FF4D4D;
+  --status-danger-700: #D93636;
+  --status-success-100: #E6F5ED;
+  --status-success-500: #009F3E;
+  --status-success-700: #007A30;
+  --status-warning: #FFB020;
+  --status-info: #3A7BD5;
 
   /* --- TYPOGRAPHY ENGINE --- */
   --font-inter: "Inter", sans-serif;
