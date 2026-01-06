@@ -1,16 +1,15 @@
-export type UserRole = 'ADMIN' | 'INSTRUCTOR';
+/**
+ * FLEX OS - User Document Contract
+ */
+import { UserRole, UserPermission } from '@/app/lib/constants';
 
-export interface User {
-  id: string;
-  name: string;
+export interface UserDocument {
+  uid: string;
   email: string;
+  displayName: string;
   role: UserRole;
-
-  // Standalone (Boş) -> FlexOS (Dolu) köprüsü
-  organizationId?: string; 
-
-  status: 'ACTIVE' | 'PASSIVE';
-
-  createdAt: string; // ISO 8601
-  lastLoginAt?: string;
+  permissions: UserPermission[];
+  status: 'active' | 'passive' | 'suspended'; // 'suspended' eklendi - Senior Review ✅
+  createdAt: any; 
+  lastLogin?: any;
 }
