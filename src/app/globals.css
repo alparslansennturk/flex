@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+:root {
+  /* Daha sakin bir büyüme oranı */
+  font-size: clamp(0.9375rem, 0.2vw + 0.85rem, 1.0625rem);
+}
+
 @theme {
   /* ============================================================
      Design System v1.0
