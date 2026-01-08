@@ -229,3 +229,11 @@
 @utility ui-title-md { font-family: var(--font-inter); font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-3xl); letter-spacing: var(--letter-spacing-md); }
 @utility ui-title-sm { font-family: var(--font-inter); font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-2xl); letter-spacing: var(--letter-spacing-md); }
 @utility ui-title-xs { font-family: var(--font-inter); font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
+
+
+/* 2k ve üstü ekranlar için düzenleme */
+@media (min-width: 2500px) {
+  html {
+    font-size: 1.15rem; 
+  }
+}

@@ -1,5 +1,3 @@
-// src/app/lib/messages.ts
-
 import { MessageType } from './constants';
 
 export interface FlexMessage {
@@ -9,58 +7,56 @@ export interface FlexMessage {
 
 /**
  * FLEX OS - Merkezi Mesaj Sözlüğü
- * Buradaki key'ler (sol taraftakiler) Firebase'den veya sistemden gelen kodlardır.
- * Değerler ise senin belirlediğin samimi metinler ve renk tipleridir.
+ * Güvenlik standartları gereği kullanıcı/şifre hataları tek tip mesajda toplandı.
  */
 export const FLEX_MESSAGES: Record<string, FlexMessage> = {
-  // --- AUTH HATALARI (Kırmızı - error) ---
+  // --- AUTH HATALARI (Giriş Güvenliği Standartı) ---
   'auth/invalid-email': {
-    text: 'Alparslan, yazdığın e-posta formatı biraz garip geldi, kontrol eder misin?',
+    text: 'Giriş bilgileri hatalı',
     type: 'error'
   },
   'auth/user-not-found': {
-    text: 'Böyle bir kullanıcı bulamadık. Kayıt olduğuna emin misin?',
+    text: 'Giriş bilgileri hatalı',
     type: 'error'
   },
   'auth/wrong-password': {
-    text: 'Şifreni yanlış girdin kanka, bir daha dene istersen.',
+    text: 'Giriş bilgileri hatalı',
     type: 'error'
   },
   'auth/too-many-requests': {
-    text: 'Çok fazla deneme yaptın, sistem kendini korumaya aldı. Biraz bekle istersen.',
+    text: 'Çok fazla deneme yapıldı. Lütfen bekleyin.',
     type: 'error'
   },
 
-  // --- UYARILAR (Turuncu - warning) ---
+  // --- UYARILAR ---
   'auth/weak-password': {
-    text: 'Bu şifre biraz zayıf kalmış, daha sağlam bir şey mi seçsek?',
+    text: 'Seçtiğiniz şifre güvenlik standartlarının altında.',
     type: 'warning'
   },
   'system/unauthorized': {
-    text: 'Buraya girmeye yetkin yok gibi görünüyor, Admin ile bir konuşalım.',
+    text: 'Bu işlem için yetkiniz bulunmuyor.',
     type: 'warning'
   },
 
-  // --- BİLGİLER (Mavi - info) ---
+  // --- BİLGİLER ---
   'auth/network-request-failed': {
-    text: 'İnternet bağlantında bir sorun var, Flex OS dünyaya bağlanamıyor.',
+    text: 'Bağlantı sorunu oluştu. İnternetinizi kontrol edin.',
     type: 'info'
   },
 
-  // --- BAŞARI (Yeşil - success) ---
+  // --- BAŞARI ---
   'auth/login-success': {
-    text: 'Harika! Giriş başarılı. Flex OS seni bekliyordu, hoş geldin!',
+    text: 'Giriş başarılı. Hoş geldiniz!',
     type: 'success'
   }
 };
 
 /**
- * Yardımcı Fonksiyon: Gelen koda göre mesajı döner.
- * Eğer kod sözlükte yoksa genel bir hata mesajı verir.
+ * Gelen koda göre merkezi sözlükten mesajı döner.
  */
 export const getFlexMessage = (code: string): FlexMessage => {
   return FLEX_MESSAGES[code] || { 
-    text: 'Beklenmedik bir durum oluştu, ama halledeceğiz!', 
+    text: 'Beklenmedik bir durum oluştu.', 
     type: 'error' 
   };
 };
