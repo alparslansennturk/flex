@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useState, Suspense } from "react"; // Suspense eklendi
+import React, { useState, Suspense } from "react";
 import { Eye, EyeOff, Loader2, ShieldCheck, Check, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "../../lib/firebase"; 
 import { updatePassword, signOut, confirmPasswordReset } from "firebase/auth";
 import { doc, updateDoc } from "firebase/firestore";
-import { getFlexMessage } from "../../lib/messages";
 
-// Asıl içeriği yeni bir fonksiyonel bileşene alıyoruz
 function ActivationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -59,7 +57,7 @@ function ActivationContent() {
       }, 2500);
 
     } catch (err: any) {
-      setError("İşlem başarısız. Bağlantı geçersiz veya süresi dolmuş olabilir.");
+      setError("Bağlantı geçersiz veya süresi dolmuş.");
       setShouldShake(true);
     } finally {
       setIsLoading(false);
@@ -75,9 +73,12 @@ function ActivationContent() {
               {oobCode ? "Yeni Parola Belirle" : "Hesabı Aktifleştir"}
             </h2>
           </div>
-          <div className="text-[24px] font-bold flex items-center">
-            <span style={{ color: 'var(--color-designstudio-primary-500)' }}>tasarım</span>
-            <span style={{ color: 'var(--color-accent-purple-500)' }}>atölyesi</span>
+          <div className="flex flex-col items-end">
+            <div className="text-[24px] font-bold flex items-center leading-none">
+              <span style={{ color: 'var(--color-designstudio-primary-500)' }}>tasarım</span>
+              <span style={{ color: 'var(--color-accent-purple-500)' }}>atölyesi</span>
+            </div>
+            <span className="text-[10px] font-bold tracking-[0.2em] mt-1" style={{ color: 'var(--color-text-tertiary)' }}>v2.0</span>
           </div>
         </div>
 
@@ -85,7 +86,7 @@ function ActivationContent() {
           <div className="flex flex-col gap-2">
             <div className="flex justify-between items-end h-5">
               <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola</label>
-              {error && <span className="text-xs font-semibold" style={{ color: 'var(--color-status-danger-500)' }}>{error}</span>}
+              {error && <span className="text-[11px] font-semibold" style={{ color: 'var(--color-status-danger-500)' }}>{error}</span>}
             </div>
             <div className="relative">
               <input
@@ -121,9 +122,8 @@ function ActivationContent() {
           </button>
 
           {isSuccess && (
-            <div className="mt-4 flex items-center gap-2 text-status-success-500 animate-in fade-in">
-              <Check size={18} />
-              <span className="text-sm font-bold">İşlem başarılı! Giriş sayfasına yönlendiriliyorsunuz...</span>
+            <div className="mt-2 flex items-center justify-center gap-2 text-status-success-500 animate-in fade-in">
+              <span className="text-[12px] font-bold text-center">İşlem başarılı! Giriş sayfasına yönlendiriliyorsunuz...</span>
             </div>
           )}
         </form>
@@ -131,13 +131,11 @@ function ActivationContent() {
   );
 }
 
-// ANA SAYFA: Burası Next.js'in istediği Suspense sarmalını yapıyor
 export default function ActivatePage() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-6 font-inter antialiased" style={{ background: 'linear-gradient(160deg, var(--color-base-primary-300) 0%, var(--color-base-secondary-300) 75%)' }}>
       <style dangerouslySetInnerHTML={{ __html: `@keyframes fast-shake { 0% { transform: translateX(0); } 20% { transform: translateX(-12px); } 40% { transform: translateX(12px); } 60% { transform: translateX(-12px); } 80% { transform: translateX(12px); } 100% { transform: translateX(0); } } .animate-fast-shake { animation: fast-shake 0.15s ease-in-out; }` }} />
-      
-      <Suspense fallback={<div className="text-white font-bold">Yükleniyor...</div>}>
+      <Suspense fallback={null}>
         <ActivationContent />
       </Suspense>
     </div>
