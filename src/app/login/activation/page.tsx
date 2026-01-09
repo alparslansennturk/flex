@@ -1,18 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, Suspense } from "react"; // Suspense eklendi
 import { Eye, EyeOff, Loader2, ShieldCheck, Check, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "../../lib/firebase"; 
-import { updatePassword, signOut, confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
+import { updatePassword, signOut, confirmPasswordReset } from "firebase/auth";
 import { doc, updateDoc } from "firebase/firestore";
 import { getFlexMessage } from "../../lib/messages";
 
-export default function ActivatePage() {
+// Asıl içeriği yeni bir fonksiyonel bileşene alıyoruz
+function ActivationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // URL'de Firebase'in gönderdiği bir 'oobCode' var mı bakıyoruz
   const oobCode = searchParams.get("oobCode");
 
   const [password, setPassword] = useState("");
@@ -28,7 +27,6 @@ export default function ActivatePage() {
     setError("");
     setShouldShake(false);
 
-    // Kriter Kontrolleri (Senin o meşhur kurallar)
     if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
       setError("Parola en az 8 karakter, 1 büyük harf ve 1 rakam içermeli");
       setShouldShake(true);
@@ -45,28 +43,22 @@ export default function ActivatePage() {
 
     try {
       if (oobCode) {
-        // SENARYO 1: ŞİFRE SIFIRLAMA (Mailden gelen link)
         await confirmPasswordReset(auth, oobCode, password);
       } else {
-        // SENARYO 2: İLK AKTİVASYON (Giriş sonrası)
         const user = auth.currentUser;
         if (!user) throw new Error("Oturum bulunamadı");
-        
         await updatePassword(user, password);
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, { isActivated: true });
       }
 
       setIsSuccess(true);
-
-      // Başarı sonrası her iki durumda da Login'e yönlendiriyoruz
       setTimeout(async () => {
         await signOut(auth);
         router.push("/login");
       }, 2500);
 
     } catch (err: any) {
-      console.error(err);
       setError("İşlem başarısız. Bağlantı geçersiz veya süresi dolmuş olabilir.");
       setShouldShake(true);
     } finally {
@@ -75,11 +67,7 @@ export default function ActivatePage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-6 font-inter antialiased" style={{ background: 'linear-gradient(160deg, var(--color-base-primary-300) 0%, var(--color-base-secondary-300) 75%)' }}>
-      <style dangerouslySetInnerHTML={{ __html: `@keyframes fast-shake { 0% { transform: translateX(0); } 20% { transform: translateX(-12px); } 40% { transform: translateX(12px); } 60% { transform: translateX(-12px); } 80% { transform: translateX(12px); } 100% { transform: translateX(0); } } .animate-fast-shake { animation: fast-shake 0.15s ease-in-out; }` }} />
-
-      <div className={`w-full max-w-[614px] bg-surface-white p-[56px] rounded-radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center 2xl:scale-110 ${shouldShake ? "animate-fast-shake" : ""}`}>
-        
+    <div className={`w-full max-w-[614px] bg-surface-white p-[56px] rounded-radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center 2xl:scale-110 ${shouldShake ? "animate-fast-shake" : ""}`}>
         <div className="flex justify-between items-center mb-10">
           <div className="flex items-center gap-2">
             <ShieldCheck size={24} style={{ color: 'var(--color-neutral-900)' }} />
@@ -94,7 +82,6 @@ export default function ActivatePage() {
         </div>
 
         <form onSubmit={handleActivate} className="w-full flex flex-col gap-5">
-          {/* YENİ PAROLA */}
           <div className="flex flex-col gap-2">
             <div className="flex justify-between items-end h-5">
               <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola</label>
@@ -116,7 +103,6 @@ export default function ActivatePage() {
             </div>
           </div>
 
-          {/* PAROLA TEKRAR */}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola (Tekrar)</label>
             <input
@@ -130,7 +116,7 @@ export default function ActivatePage() {
             />
           </div>
 
-          <button type="submit" disabled={isLoading || isSuccess} className="w-full h-12 mt-4 rounded-radius-8 font-bold text-base flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: 'var(--color-designstudio-primary-500)', color: 'var(--color-text-inverse)' }}>
+          <button type="submit" disabled={isLoading || isSuccess} className="w-full h-12 mt-4 rounded-radius-8 font-bold text-base flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]" style={{ backgroundColor: 'var(--color-designstudio-primary-500)', color: 'var(--color-text-inverse)' }}>
             {isLoading ? <Loader2 className="animate-spin" /> : isSuccess ? <Check /> : <><span>{oobCode ? "Parolayı Güncelle" : "Hesabı Aktifleştir"}</span><ChevronRight size={18} /></>}
           </button>
 
@@ -141,7 +127,19 @@ export default function ActivatePage() {
             </div>
           )}
         </form>
-      </div>
+    </div>
+  );
+}
+
+// ANA SAYFA: Burası Next.js'in istediği Suspense sarmalını yapıyor
+export default function ActivatePage() {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center p-6 font-inter antialiased" style={{ background: 'linear-gradient(160deg, var(--color-base-primary-300) 0%, var(--color-base-secondary-300) 75%)' }}>
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes fast-shake { 0% { transform: translateX(0); } 20% { transform: translateX(-12px); } 40% { transform: translateX(12px); } 60% { transform: translateX(-12px); } 80% { transform: translateX(12px); } 100% { transform: translateX(0); } } .animate-fast-shake { animation: fast-shake 0.15s ease-in-out; }` }} />
+      
+      <Suspense fallback={<div className="text-white font-bold">Yükleniyor...</div>}>
+        <ActivationContent />
+      </Suspense>
     </div>
   );
 }
