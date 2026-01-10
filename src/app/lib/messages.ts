@@ -65,7 +65,7 @@ export const FLEX_MESSAGES: Record<string, FlexMessage> = {
     type: 'success'
   },
   'auth/activation-success': {
-    text: 'Hesap başarıyla aktifleştirildi',
+    text: 'Hesabın aktifleştirildi. Giriş sayfasına yönlendiriliyorsun.',
     type: 'success'
   },
     'auth/reset-email-sent': {
