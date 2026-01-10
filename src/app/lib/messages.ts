@@ -13,11 +13,11 @@ export interface FlexMessage {
 export const FLEX_MESSAGES: Record<string, FlexMessage> = {
   // --- AUTH HATALARI (Giriş Güvenliği Standartı) ---
   'auth/invalid-email': {
-    text: 'Giriş bilgileri hatalı',
+    text: 'E-posta adresi formatı uygun değil',
     type: 'error'
   },
   'auth/user-not-found': {
-    text: 'Böyle bir kullanıcı yok',
+    text: 'Giriş bilgileri hatalı',
     type: 'error'
   },
   'auth/wrong-password': {
@@ -28,6 +28,10 @@ export const FLEX_MESSAGES: Record<string, FlexMessage> = {
     text: 'Çok fazla deneme yapıldı. Lütfen bekleyin.',
     type: 'error'
   },
+  'auth/invalid-credential': {
+  text: 'Giriş bilgileri hatalı.',
+  type: 'error'
+},
 
   // --- AKTİVASYON VE ŞİFRE HATALARI (Yeni) ---
   'auth/password-criteria-failed': {
