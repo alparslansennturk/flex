@@ -175,24 +175,14 @@ function ActivationContent() {
               )}
             </button>
 
-            {/* Başarı Mesajı ve 3.5 Saniyelik İlerleme Barı */}
+            {/* Sadece Başarı Mesajı (Yeşil Bar Kaldırıldı) */}
             {isSuccess && (
-              <div className="absolute top-[80px] left-0 w-full flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="absolute top-[80px] left-0 w-full animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-center gap-2.5" style={{ color: 'var(--color-status-success-500)' }}>
                   <Check size={18} strokeWidth={3} className="shrink-0" />
                   <span className="text-[14px] font-semibold tracking-tight leading-none text-nowrap">
                     {getFlexMessage('auth/activation-success').text}
                   </span>
-                </div>
-                {/* İnce Yönlendirme Barı */}
-                <div className="w-full h-[3px] bg-surface-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-status-success-500 transition-all ease-linear"
-                    style={{ 
-                      width: isSuccess ? '100%' : '0%',
-                      transitionDuration: '3500ms' 
-                    }}
-                  />
                 </div>
               </div>
             )}
