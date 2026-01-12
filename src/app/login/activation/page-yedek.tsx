@@ -17,12 +17,13 @@ function ActivationContent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(true); 
+  const [isSuccess, setIsSuccess] = useState(false); 
   const [error, setError] = useState("");
   const [shouldShake, setShouldShake] = useState(false);
 
-  const handleActivate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Hibrit handleActivate: Hem form hem de Enter tetiklemesini kabul eder
+  const handleActivate = async (e?: React.FormEvent | React.KeyboardEvent) => {
+    if (e) e.preventDefault();
     setError("");
     setShouldShake(false);
 
@@ -54,10 +55,11 @@ function ActivationContent() {
       }
 
       setIsSuccess(true);
+      // Yönlendirme süresi tam 3.5 saniye (3500ms) yapıldı
       setTimeout(async () => {
         await signOut(auth);
         router.push("/login");
-      }, 2500);
+      }, 3500);
 
     } catch (err: any) {
       setIsLoading(false);
@@ -83,7 +85,7 @@ function ActivationContent() {
         </div>
       </div>
 
-      <form onSubmit={handleActivate} className="w-full flex flex-col font-inter">
+      <form onSubmit={handleActivate} noValidate className="w-full flex flex-col font-inter">
         <div className="flex flex-col gap-6">
           
           <div className="flex flex-col gap-2">
@@ -97,19 +99,27 @@ function ActivationContent() {
             </div>
             <div className="relative w-full">
               <input
+                autoFocus
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
                 placeholder="••••••••••••"
                 className="w-full h-12 pl-4 pr-12 border rounded-radius-8 text-sm outline-none transition-all duration-200"
                 style={{ 
                   borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
-                  backgroundColor: error ? 'var(--color-status-danger-50)' : 'var(--color-surface-50)',
+                  backgroundColor: error ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
                   color: 'var(--color-text-primary)'
                 }}
                 required
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer transition-colors" style={{ color: error ? 'var(--color-status-danger-500)' : 'var(--color-text-placeholder)' }}>
+              <button 
+                type="button" 
+                tabIndex={-1}
+                onClick={() => setShowPassword(!showPassword)} 
+                className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer transition-colors" 
+                style={{ color: error ? 'var(--color-status-danger-500)' : 'var(--color-text-placeholder)' }}
+              >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
@@ -124,11 +134,12 @@ function ActivationContent() {
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
               placeholder="••••••••••••"
               className="w-full h-12 px-4 border rounded-radius-8 text-sm outline-none transition-all duration-200"
               style={{ 
                 borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
-                backgroundColor: error ? 'var(--color-status-danger-50)' : 'var(--color-surface-50)',
+                backgroundColor: error ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
                 color: 'var(--color-text-primary)'
               }}
               required
@@ -139,9 +150,9 @@ function ActivationContent() {
             <button 
               type="submit" 
               disabled={isLoading || isSuccess} 
-              className="w-full h-12 rounded-radius-8 font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-80 shadow-lg"
+              className="w-full h-12 rounded-radius-8 font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-100 shadow-lg"
               style={{ 
-                backgroundColor: 'var(--color-designstudio-primary-500)', 
+                backgroundColor: isSuccess ? 'var(--color-status-success-500)' : 'var(--color-designstudio-primary-500)', 
                 color: 'var(--color-text-inverse)',
                 boxShadow: '0 10px 15px -3px var(--color-designstudio-primary-500-20)' 
               }}
@@ -152,7 +163,10 @@ function ActivationContent() {
                   <span className="ui-helper-sm tracking-wide">Kontrol Ediliyor...</span>
                 </div>
               ) : isSuccess ? (
-                <Check size={20} />
+                <div className="flex items-center gap-2 animate-in zoom-in duration-300">
+                  <Check size={20} strokeWidth={3} />
+                  <span className="ui-helper-sm tracking-wide">Giriş Sayfasına Gidiliyor...</span>
+                </div>
               ) : (
                 <>
                   <span>{oobCode ? "Parolayı Güncelle" : "Parolayı Oluştur"}</span>
@@ -161,12 +175,15 @@ function ActivationContent() {
               )}
             </button>
 
+            {/* Sadece Başarı Mesajı (Yeşil Bar Kaldırıldı) */}
             {isSuccess && (
-              <div className="absolute top-[80px] left-0 flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2" style={{ color: 'var(--color-status-success-500)' }}>
-                <Check size={18} strokeWidth={3} className="shrink-0" />
-                <span className="text-[14px] font-semibold tracking-tight leading-none text-nowrap">
-                  {getFlexMessage('auth/activation-success').text}
-                </span>
+              <div className="absolute top-[80px] left-0 w-full animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-2.5" style={{ color: 'var(--color-status-success-500)' }}>
+                  <Check size={18} strokeWidth={3} className="shrink-0" />
+                  <span className="text-[14px] font-semibold tracking-tight leading-none text-nowrap">
+                    {getFlexMessage('auth/activation-success').text}
+                  </span>
+                </div>
               </div>
             )}
           </div>

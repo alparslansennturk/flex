@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Eye, EyeOff, ChevronRight, Loader2, Check } from "lucide-react";
+import { Eye, EyeOff, ChevronRight, Loader2, Check } from "lucide-react"; 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../lib/firebase";
@@ -24,6 +24,11 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<{ general?: string; isEmailError?: boolean }>({});
   const [shake, setShake] = useState(false);
 
+  // MAC'i kandırmak için dinamik tipler ve rastgele anahtar
+  const [eType, setEType] = useState("text");
+  const [pType, setPType] = useState("text");
+  const [formKey, setFormKey] = useState("");
+
   useEffect(() => {
     if (shake) {
       const timer = setTimeout(() => setShake(false), 500);
@@ -31,12 +36,15 @@ export default function LoginPage() {
     }
   }, [shake]);
 
-  // Hibrit handleLogin: Hem form submit hem de manuel Enter tetiklemesini kabul eder
+  useEffect(() => {
+    // Mac'in hafızasını her girişte sıfırlamak için rastgele bir ID oluşturur
+    setFormKey(Math.random().toString(36).substring(7));
+  }, []);
+
   const handleLogin = async (e?: React.FormEvent | React.KeyboardEvent) => {
     if (e) e.preventDefault(); 
     setErrors({});
     
-    // 1. Manuel Email Format Kontrolü (Tarayıcı baloncuğu yerine bizim sistem)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       setErrors({ 
@@ -53,11 +61,9 @@ export default function LoginPage() {
       const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
       await setPersistence(auth, persistenceType);
 
-      // 2. Firebase Auth Girişi (Hatalı şifre/mail durumunda 'auth/invalid-credential' döner)
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 3. Aktivasyon Kontrolü (Firestore)
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
 
@@ -71,7 +77,6 @@ export default function LoginPage() {
 
       router.push("/dashboard");
     } catch (error: any) {
-      // Merkezi sistemden (messages.ts) güvenli hata mesajını çekiyoruz
       console.error("Giriş Hatası:", error.code);
       setErrors({ general: getFlexMessage('auth/invalid-credential').text });
       setShake(true);
@@ -113,14 +118,20 @@ export default function LoginPage() {
 
         <div className="flex justify-between items-center mb-10">
           <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Kullanıcı Girişi</h2>
-          <div className="text-[24px] font-bold flex items-center font-inter">
+          <div className="text-[24px] font-bold flex items-center font-inter text-nowrap">
             <span style={{ color: 'var(--color-designstudio-primary-500)' }}>tasarım</span>
             <span style={{ color: 'var(--color-accent-purple-500)' }}>atölyesi</span>
           </div>
         </div>
 
-        {/* noValidate eklendi, onSubmit merkezi fonksiyonu çağırıyor */}
         <form onSubmit={handleLogin} noValidate className="w-full flex flex-col gap-6">
+          
+          {/* MAC'İ KANDIRAN TUZAKLAR */}
+          <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
+            <input type="text" name={`field_email_${formKey}`} tabIndex={-1} />
+            <input type="password" name={`field_pass_${formKey}`} tabIndex={-1} />
+          </div>
+
           <div className="flex flex-col gap-2">
             <div className="flex justify-between items-center h-5">
               <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>E-Posta</label>
@@ -131,10 +142,19 @@ export default function LoginPage() {
               )}
             </div>
             <input
+              autoComplete="new-password" 
+              name={`user_id_${formKey}`}
+              id={`user_id_${formKey}`}
+              data-lpignore="true"
+              spellCheck="false" 
               autoFocus
-              type="email"
+              type={eType}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onFocus={() => setEType("email")}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (eType === "text" && e.target.value.length > 0) setEType("email");
+              }}
               placeholder="E-Posta Giriniz"
               className="w-full h-12 px-4 border rounded-radius-8 text-sm outline-none transition-all duration-200"
               style={{
@@ -149,9 +169,16 @@ export default function LoginPage() {
             <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Parola</label>
             <div className="relative w-full">
               <input
-                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                name={`key_id_${formKey}`}
+                id={`key_id_${formKey}`}
+                type={showPassword ? "text" : pType}
+                onFocus={() => setPType("password")}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (pType === "text" && e.target.value.length > 0) setPType("password");
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     handleLogin(); 

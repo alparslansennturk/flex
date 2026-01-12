@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, Suspense, useEffect } from "react";
 import { Eye, EyeOff, Loader2, ShieldCheck, Check, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "../../lib/firebase"; 
@@ -21,7 +21,15 @@ function ActivationContent() {
   const [error, setError] = useState("");
   const [shouldShake, setShouldShake] = useState(false);
 
-  // Hibrit handleActivate: Hem form hem de Enter tetiklemesini kabul eder
+  // Mac Autofill'i durdurmak için dinamik state'ler
+  const [passType, setPassType] = useState("text");
+  const [confirmType, setConfirmType] = useState("text");
+  const [randomName, setRandomName] = useState("");
+
+  useEffect(() => {
+    setRandomName(Math.random().toString(36).substring(7));
+  }, []);
+
   const handleActivate = async (e?: React.FormEvent | React.KeyboardEvent) => {
     if (e) e.preventDefault();
     setError("");
@@ -30,14 +38,12 @@ function ActivationContent() {
     if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
       setError("Parola kriterleri karşılanmıyor");
       setShouldShake(true);
-      setTimeout(() => setShouldShake(false), 500);
       return;
     }
 
     if (password !== confirmPassword) {
       setError("Parolalar eşleşmiyor");
       setShouldShake(true);
-      setTimeout(() => setShouldShake(false), 500);
       return;
     }
 
@@ -55,7 +61,6 @@ function ActivationContent() {
       }
 
       setIsSuccess(true);
-      // Yönlendirme süresi tam 3.5 saniye (3500ms) yapıldı
       setTimeout(async () => {
         await signOut(auth);
         router.push("/login");
@@ -65,7 +70,6 @@ function ActivationContent() {
       setIsLoading(false);
       setShouldShake(true);
       setError("Bağlantı geçersiz veya süresi dolmuş.");
-      setTimeout(() => setShouldShake(false), 500);
     }
   };
 
@@ -86,8 +90,14 @@ function ActivationContent() {
       </div>
 
       <form onSubmit={handleActivate} noValidate className="w-full flex flex-col font-inter">
+        
+        {/* TUZAK KATI - Mac buraya odaklansın */}
+        <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
+          <input type="text" name={`field1_${randomName}`} tabIndex={-1} />
+          <input type="password" name={`field2_${randomName}`} tabIndex={-1} />
+        </div>
+
         <div className="flex flex-col gap-6">
-          
           <div className="flex flex-col gap-2">
             <div className="flex justify-between items-end h-5">
               <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola</label>
@@ -100,9 +110,15 @@ function ActivationContent() {
             <div className="relative w-full">
               <input
                 autoFocus
-                type={showPassword ? "text" : "password"}
+                autoComplete="off"
+                name={`p_${randomName}`}
+                type={showPassword ? "text" : passType}
+                onFocus={() => setPassType("password")}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (passType === "text") setPassType("password");
+                }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
                 placeholder="••••••••••••"
                 className="w-full h-12 pl-4 pr-12 border rounded-radius-8 text-sm outline-none transition-all duration-200"
@@ -128,12 +144,29 @@ function ActivationContent() {
             </p>
           </div>
 
+          {/* MAC'İ ŞAŞIRTAN GÖRÜNMEZ AYRAÇ */}
+          <div style={{ position: 'absolute', left: '-9999px' }} aria-hidden="true">
+            <input type="text" name={`ignore_${randomName}`} tabIndex={-1} />
+          </div>
+
           <div className="flex flex-col gap-2">
             <label className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Yeni Parola (Tekrar)</label>
             <input
-              type={showPassword ? "text" : "password"}
+              autoComplete="off"
+              name={`pc_${randomName}`}
+              type={showPassword ? "text" : confirmType}
+              onFocus={() => {
+                  // Sadece odaklanınca değil, bir şeyler yazınca password olmalı
+                  // Ama Mac'i kandırmak için focus anında hala text tutabiliriz
+              }}
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  // Kullanıcı yazmaya başladığı an şifre maskelemesi devreye girer
+                  if (confirmType === "text" && e.target.value.length > 0) {
+                      setConfirmType("password");
+                  }
+              }}
               onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
               placeholder="••••••••••••"
               className="w-full h-12 px-4 border rounded-radius-8 text-sm outline-none transition-all duration-200"
@@ -175,7 +208,6 @@ function ActivationContent() {
               )}
             </button>
 
-            {/* Sadece Başarı Mesajı (Yeşil Bar Kaldırıldı) */}
             {isSuccess && (
               <div className="absolute top-[80px] left-0 w-full animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-center gap-2.5" style={{ color: 'var(--color-status-success-500)' }}>

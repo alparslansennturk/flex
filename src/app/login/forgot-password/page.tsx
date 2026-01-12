@@ -4,45 +4,40 @@ import React, { useState } from "react";
 import { KeyRound, ChevronRight, Loader2, ArrowLeft, Check } from "lucide-react";
 import Link from "next/link";
 import { getFlexMessage } from "../../lib/messages";
-import { auth } from "../../lib/firebase"; // Firebase bağlantısı
+import { auth } from "../../lib/firebase"; 
 import { sendPasswordResetEmail } from "firebase/auth";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isSent, setIsSent] = useState(false); // Başlangıçta false olmalı
+  const [isSent, setIsSent] = useState(false); 
   const [error, setError] = useState(""); 
   const [shouldShake, setShouldShake] = useState(false);
 
   const handleResetRequest = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError("");
-  setIsSent(false);
-  setShouldShake(false);
-  setIsLoading(true);
-
-  // MÜHÜR: Firebase'e gidilecek tam adresi koldan dayatıyoruz
-  const actionCodeSettings = {
-    // Buradaki URL'in sonuna slash koyalım ve tam yolu verelim
-    url: 'https://flex-five-delta.vercel.app/login/activation/', 
-    handleCodeInApp: true,
-  };
-
-  try {
-    // actionCodeSettings'i buraya eklediğinden emin ol
-    await sendPasswordResetEmail(auth, email, actionCodeSettings);
-    
-    setIsLoading(false);
-    setIsSent(true);
+    e.preventDefault();
     setError("");
-  } catch (err: any) {
-    setIsLoading(false);
-    setShouldShake(true);
-    // Hata yönetimi (messages.ts'den çekiyoruz)
-    setError(getFlexMessage('auth/user-not-found').text);
-    setTimeout(() => setShouldShake(false), 500);
-  }
-};
+    setIsSent(false);
+    setShouldShake(false);
+    setIsLoading(true);
+
+    const actionCodeSettings = {
+      url: 'https://flex-five-delta.vercel.app/login/activation/', 
+      handleCodeInApp: true,
+    };
+
+    try {
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      setIsLoading(false);
+      setIsSent(true);
+      setError("");
+    } catch (err: any) {
+      setIsLoading(false);
+      setShouldShake(true);
+      setError(getFlexMessage('auth/user-not-found').text);
+      setTimeout(() => setShouldShake(false), 500);
+    }
+  };
 
   return (
     <div 
@@ -72,13 +67,20 @@ export default function ForgotPasswordPage() {
               Şifremi Unuttum
             </h2>
           </div>
-          <div className="text-[24px] font-bold flex items-center">
+          <div className="text-[24px] font-bold flex items-center font-inter text-nowrap">
             <span style={{ color: 'var(--color-designstudio-primary-500)' }}>tasarım</span>
             <span style={{ color: 'var(--color-accent-purple-500)' }}>atölyesi</span>
           </div>
         </div>
 
-        <form onSubmit={handleResetRequest} className="w-full flex flex-col font-inter">
+        <form onSubmit={handleResetRequest} noValidate className="w-full flex flex-col font-inter">
+          
+          {/* MAC AUTOFILL TUZAĞI */}
+          <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
+            <input type="text" name="mac-autofill-trap-email" tabIndex={-1} />
+            <input type="password" name="mac-autofill-trap-password" tabIndex={-1} />
+          </div>
+
           <div className="flex flex-col gap-6">
             
             <div className="flex flex-col gap-2">
@@ -91,6 +93,10 @@ export default function ForgotPasswordPage() {
                 )}
               </div>
               <input
+                autoComplete="new-password"
+                data-lpignore="true"
+                spellCheck="false"
+                autoFocus
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -122,7 +128,10 @@ export default function ForgotPasswordPage() {
                     <span className="ui-helper-sm tracking-wide font-semibold">Kontrol Ediliyor...</span>
                   </div>
                 ) : isSent ? (
-                  <Check size={20} />
+                  <div className="flex items-center gap-2 animate-in zoom-in duration-300">
+                    <Check size={20} strokeWidth={3} />
+                    <span className="ui-helper-sm tracking-wide">E-Posta Gönderildi</span>
+                  </div>
                 ) : (
                   <>
                     <span>Devam Et</span>
@@ -142,7 +151,7 @@ export default function ForgotPasswordPage() {
                 </Link>
 
                 {isSent && (
-                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-300">
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-300 text-nowrap">
                     <Check size={16} strokeWidth={3} style={{ color: 'var(--color-status-success-500)' }} />
                     <span className="text-[13px] font-semibold tracking-tight" style={{ color: 'var(--color-status-success-500)' }}>
                       {getFlexMessage('auth/reset-email-sent').text}
