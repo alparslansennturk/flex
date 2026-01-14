@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import { 
   LayoutDashboard, BookOpen, Trophy, Settings, LogOut, ChevronRight,
   Palette, SearchCode, Briefcase, FileText, Image as ImageIcon, Zap, Flame, 
@@ -37,6 +37,16 @@ const realActiveAssignments = [
 
 export default function DashboardPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Yön tuşları için event listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") handleScroll('left');
+      if (e.key === "ArrowRight") handleScroll('right');
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const getDisplayActive = () => {
     const count = realActiveAssignments.length;
@@ -194,7 +204,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* SECTION: ÖDEV ENVANTERİ - SADECE MEVCUT KARTLAR */}
+          {/* SECTION: ÖDEV ENVANTERİ - %100 DENGELİ OKLAR */}
           <div className="space-y-6 pb-12 relative">
              <div className="flex items-center gap-3 px-2">
                 <BookOpen className="text-slate-400" size={20} />
@@ -205,7 +215,8 @@ export default function DashboardPage() {
                 
                 <button 
                   onClick={() => handleScroll('left')} 
-                  className="absolute -left-10 top-[80px] -translate-y-1/2 z-20 w-10 h-10 bg-white border border-slate-100 rounded-full shadow-lg flex items-center justify-center text-slate-400 hover:text-[#10294C] transition-all hover:scale-110 active:scale-90"
+                  className="absolute top-[80px] -translate-y-1/2 z-20 w-10 h-10 bg-white border border-slate-100 rounded-full shadow-lg flex items-center justify-center text-slate-400 hover:text-[#10294C] transition-all hover:scale-110 active:scale-90"
+                  style={{ left: 'clamp(-40px, (1700px - 100vw) * 1000, -4px)' }}
                 >
                   <ChevronLeft size={20} />
                 </button>
@@ -233,7 +244,8 @@ export default function DashboardPage() {
 
                 <button 
                   onClick={() => handleScroll('right')} 
-                  className="absolute -right-10 top-[80px] -translate-y-1/2 z-20 w-10 h-10 bg-white border border-slate-100 rounded-full shadow-lg flex items-center justify-center text-slate-400 hover:text-[#10294C] transition-all hover:scale-110 active:scale-90"
+                  className="absolute top-[80px] -translate-y-1/2 z-20 w-10 h-10 bg-white border border-slate-100 rounded-full shadow-lg flex items-center justify-center text-slate-400 hover:text-[#10294C] transition-all hover:scale-110 active:scale-90"
+                  style={{ right: 'clamp(-40px, (1700px - 100vw) * 1000, -4px)' }}
                 >
                   <ChevronRight size={20} />
                 </button>
