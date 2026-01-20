@@ -5,26 +5,48 @@ import {
   LayoutDashboard, Users, BookOpen, Trophy, Settings, LogOut, 
   ChevronRight, ChevronLeft, Palette, Briefcase, Zap, Bell, 
   Linkedin, Facebook, Instagram, Twitter, Clock, PlusCircle,
-  Repeat, Minus, ArrowBigUpDash, ArrowBigDownDash
+  Repeat, Minus, ArrowBigUpDash, ArrowBigDownDash, LibraryBig
 } from "lucide-react";
 
 // --- TYPES & INTERFACES ---
+type ViewMode = 'Sınıflarım' | 'Kadıköy' | 'Global';
+
 interface SidebarLinkProps { icon: React.ReactNode; label: string; active?: boolean; }
 interface StatBoxProps { label: string; value: string; icon: React.ReactNode; }
 interface LeaderRowProps { 
   rank: number; 
   name: string; 
   status: string; 
+  branch: string;
   statusType: 'stable' | 'rising' | 'falling';
   xp: string; 
   avatar: string; 
+  viewMode: ViewMode;
 }
-interface ParkourCardProps { title: string; desc: string; tag: string; status: string; deadline: string; iconBg: string; btnText: string; icon: React.ReactNode; disabled?: boolean; }
+interface ParkourCardProps { 
+  title: string; 
+  desc: string; 
+  tag: string; 
+  status: string; 
+  deadline: string; 
+  iconGradient: string; 
+  tagStyles: string; 
+  btnText: string; 
+  icon: React.ReactNode; 
+  disabled?: boolean; 
+}
 interface LibraryCardProps { title: string; desc: string; }
 
 export default function DashboardPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [listType, setListType] = useState<'Haftalık' | 'Aylık'>('Haftalık');
+  const instructorBranch = "Kadıköy"; 
+  const [viewMode, setViewMode] = useState<ViewMode>('Sınıflarım');
+
+  const toggleViewMode = () => {
+    if (viewMode === 'Sınıflarım') setViewMode('Kadıköy');
+    else if (viewMode === 'Kadıköy') setViewMode('Global');
+    else setViewMode('Sınıflarım');
+  };
 
   const handleScroll = (dir: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -72,7 +94,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3 md:gap-6 shrink-0">
             <div className="relative text-text-secondary cursor-pointer hover:text-[#3A7BD5]">
               <Bell size={20} />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF4D4D] text-white text-[9px] flex items-center justify-center rounded-full font-bold">3</span>
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF4D4D] text-white text-[9px] flex items-center justify-center rounded-full font-bold border-2 border-white">3</span>
             </div>
             <div className="flex items-center gap-3 md:gap-4 border-l border-surface-200 pl-4 md:pl-6">
               <div className="text-right hidden md:block">
@@ -92,7 +114,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-12 gap-6 items-stretch">
             
             {/* ATÖLYE ANALİZİ */}
-            <div className="col-span-12 xl:col-span-8 bg-[#10294C] rounded-[32px] p-8 text-white flex flex-col justify-center relative overflow-hidden group border border-white/5">
+            <div className="col-span-12 xl:col-span-8 bg-[#10294C] rounded-[32px] p-8 text-white flex flex-col justify-center relative overflow-hidden group border border-white/5 shadow-lg">
               <div className="relative z-10 flex flex-col items-start w-full">
                 <span className="ui-helper-xs bg-white/5 px-4 py-1.5 rounded-full border border-white/10 inline-block text-[#FF8D28] font-bold capitalize">
                   Atölye analizi
@@ -111,29 +133,29 @@ export default function DashboardPage() {
             </div>
 
             {/* SINIFLAR LİGİ */}
-            <div className="col-span-12 xl:col-span-4 bg-white rounded-[32px] p-6 md:p-8 border border-surface-200 flex flex-col justify-between">
+            <div className="col-span-12 xl:col-span-4 bg-white rounded-[32px] p-6 md:p-8 border border-surface-200 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="ui-title-xs flex items-center gap-2 font-bold text-text-primary">
-                   <Trophy size={18} className="text-[#FF8D28]" /> Sınıflar Ligi
+                   <Trophy size={18} className="text-[#FF8D28]" /> Sınıf Ligi
                 </h3>
                 <button 
-                  onClick={() => setListType(listType === 'Haftalık' ? 'Aylık' : 'Haftalık')}
-                  className="flex items-center gap-1.5 text-[#3A7BD5] hover:opacity-80 transition-opacity"
+                  onClick={toggleViewMode}
+                  className="flex items-center gap-1.5 text-[#3A7BD5] hover:opacity-80 transition-opacity bg-surface-50 px-3 py-1 rounded-lg border border-surface-100"
                 >
-                  <span className="text-xs md:text-[12px] font-medium capitalize-first">{listType}</span>
-                  <Repeat size={14} className="shrink-0" />
+                  <span className="text-xs md:text-[12px] font-bold capitalize-first">{viewMode}</span>
+                  <Repeat size={14} className="shrink-0 text-[#FF8D28]" />
                 </button>
               </div>
 
               <div className="space-y-4 flex-1">
-                <LeaderRow rank={1} name="Mert Demir" status="Zirvede" statusType="stable" xp="2.850" avatar="Mert" />
-                <LeaderRow rank={2} name="Selin Yılmaz" status="Yükselişte" statusType="rising" xp="2.720" avatar="Selin" />
-                <LeaderRow rank={3} name="Caner Aydın" status="Düşüşte" statusType="falling" xp="2.450" avatar="Caner" />
+                <LeaderRow rank={1} name="Mert Demir" status="Zirvede" branch="Kadıköy" statusType="stable" xp="2.850" avatar="Mert" viewMode={viewMode} />
+                <LeaderRow rank={2} name="Selin Yılmaz" status="Yükselişte" branch="Pendik" statusType="rising" xp="2.720" avatar="Selin" viewMode={viewMode} />
+                <LeaderRow rank={3} name="Caner Aydın" status="Düşüşte" branch="Şirinevler" statusType="falling" xp="2.450" avatar="Caner" viewMode={viewMode} />
               </div>
 
-              <div className="flex justify-end mt-8">
-                <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6F74D8] text-white hover:bg-[#5E63C2] transition-all active:scale-95">
-                  <span className="text-[14px] font-semibold">Detaylar</span>
+              <div className="mt-8 w-full">
+                <button className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-[#6F74D8] text-white hover:bg-[#5E63C2] transition-all active:scale-95 shadow-sm font-bold text-[13px]">
+                  <span>Tüm Sonuçları Gör</span>
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -144,28 +166,28 @@ export default function DashboardPage() {
           <section className="space-y-6 pt-4">
             <div className="flex items-center gap-3">
               <Zap className="text-[#FF8D28]" size={24} />
-              <h3 className="ui-title-sm text-text-primary capitalize font-bold">tasarım parkuru</h3>
+              <h3 className="ui-title-sm text-text-primary font-bold capitalize-first leading-none">tasarım parkuru</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              <ParkourCard title="Kolaj Bahçesi" desc="Sürrealist kompozisyon teknikleri." tag="Ödev" status="Aktif" deadline="Son 2 Gün" iconBg="bg-[#E91E63]" btnText="Ödev Ver" icon={<Palette size={24} />} />
-              <ParkourCard title="Kurumsal Kimlik" desc="Marka kimliği ve logo sistemi." tag="Proje" status="Aktif" deadline="14.02.2026" iconBg="bg-[#009688]" btnText="Proje Ver" icon={<Briefcase size={24} />} />
-              <ParkourCard title="Kitap Dünyası" desc="Kitap kapağı ve tasarımı" tag="Ödev" status="Pasif" deadline="----------" iconBg="bg-[#FF8D28]" btnText="Ödev Ver" disabled icon={<BookOpen size={24} />} />
+              <ParkourCard title="Kolaj Bahçesi" desc="Sürrealist kompozisyon teknikleri." tag="Ödev" status="Aktif" deadline="Son 2 Gün" iconGradient="bg-gradient-to-b from-pink-500 to-[#B80E57]" tagStyles="bg-pink-100 text-[#B80E57]" btnText="Ödev Ver" icon={<Palette size={24} />} />
+              <ParkourCard title="Kurumsal Kimlik" desc="Marka kimliği ve logo sistemi." tag="Proje" status="Aktif" deadline="14.02.2026" iconGradient="bg-gradient-to-b from-[#1CB5AE] to-[#0E5D59]" tagStyles="bg-[#E0F2F1] text-[#0E5D59]" btnText="Proje Ver" icon={<Briefcase size={24} />} />
+              <ParkourCard title="Kitap Dünyası" desc="Kitap kapağı ve tasarımı" tag="Ödev" status="Pasif" deadline="----------" iconGradient="bg-gradient-to-b from-[#FF8D28] to-[#D35400]" tagStyles="bg-orange-100 text-[#FF8D28]" btnText="Ödev Ver" disabled icon={<BookOpen size={24} />} />
             </div>
           </section>
 
           {/* ÖDEV KÜTÜPHANESİ SECTION */}
-          <section className="space-y-6 pb-12 pt-4">
+          <section className="space-y-6 pt-4 pb-12">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-3 text-text-tertiary">
-                <BookOpen size={20} />
-                <h3 className="ui-title-xs uppercase font-bold italic opacity-70">ödev kütüphanesi</h3>
+                <LibraryBig size={24} />
+                <h3 className="ui-title-sm font-bold capitalize-first leading-none">ödev kütüphanesi</h3>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => handleScroll('left')} className="w-10 h-10 rounded-full border border-surface-200 bg-white flex items-center justify-center hover:border-[#FF8D28] transition-all"><ChevronLeft size={18} /></button>
-                <button onClick={() => handleScroll('right')} className="w-10 h-10 rounded-full border border-surface-200 bg-white flex items-center justify-center hover:border-[#FF8D28] transition-all"><ChevronRight size={18} /></button>
+                <button onClick={() => handleScroll('left')} className="w-10 h-10 rounded-full border border-surface-200 bg-white flex items-center justify-center hover:border-[#FF8D28] transition-all shadow-sm"><ChevronLeft size={18} /></button>
+                <button onClick={() => handleScroll('right')} className="w-10 h-10 rounded-full border border-surface-200 bg-white flex items-center justify-center hover:border-[#FF8D28] transition-all shadow-sm"><ChevronRight size={18} /></button>
               </div>
             </div>
-            <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth py-2">
+            <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth">
               <LibraryCard title="Ambalaj Tasarımı" desc="Ambalaj Tasarımı Üzerine" />
               <LibraryCard title="Logo Challange" desc="Logo Etkinlik" />
               <LibraryCard title="Raketini Tasarla" desc="Outdoor Tasarımı" />
@@ -195,6 +217,7 @@ export default function DashboardPage() {
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .capitalize-first::first-letter { text-transform: uppercase; }
       `}</style>
     </div>
   );
@@ -213,7 +236,7 @@ function SidebarLink({ icon, label, active = false }: SidebarLinkProps) {
 
 function StatBox({ label, value, icon }: StatBoxProps) {
   return (
-    <div className="bg-white/5 border border-white/5 p-4 md:p-6 rounded-[24px] flex flex-col items-center justify-center text-center h-full transition-all">
+    <div className="bg-white/5 border border-white/5 p-4 md:p-6 rounded-[24px] flex flex-col items-center justify-center text-center h-full transition-all hover:bg-white/10 shadow-sm">
       <div className="w-10 h-10 md:w-12 md:h-12 bg-white/7 rounded-[8px] flex items-center justify-center text-white/70 mb-3 md:mb-4">
         {icon}
       </div>
@@ -227,7 +250,7 @@ function StatBox({ label, value, icon }: StatBoxProps) {
   );
 }
 
-function LeaderRow({ rank, name, status, statusType, xp, avatar }: LeaderRowProps) {
+function LeaderRow({ rank, name, status, branch, statusType, xp, avatar, viewMode }: LeaderRowProps) {
   return (
     <div className="flex items-center justify-between group cursor-default p-2 -mx-2 rounded-xl hover:bg-surface-50 transition-colors">
       <div className="flex items-center gap-3 md:gap-4 truncate">
@@ -238,19 +261,17 @@ function LeaderRow({ rank, name, status, statusType, xp, avatar }: LeaderRowProp
         <div className="truncate flex flex-col">
           <div className="flex items-center gap-2">
             <p className="ui-label-small text-text-primary leading-none font-bold capitalize truncate">{name}</p>
-            {/* İkonlar: ArrowBigUpDash & ArrowBigDownDash & Minus */}
             {statusType === 'rising' && <ArrowBigUpDash size={16} className="text-[#FF8D28]" />}
-            {statusType === 'falling' && <ArrowBigDownDash size={16} className="text-text-muted" />}
-            {statusType === 'stable' && <Minus size={16} className={rank === 1 ? "text-[#FF8D28]" : "text-text-muted"} />}
+            {statusType === 'falling' && <ArrowBigDownDash size={16} className="text-text-muted opacity-50" />}
+            {statusType === 'stable' && <Minus size={16} className={rank === 1 ? "text-[#FF8D28]" : "text-text-muted opacity-50"} />}
           </div>
           <p className={`ui-helper-xs font-semibold capitalize mt-1 tracking-tighter ${rank === 1 ? 'text-[#FF8D28]' : 'text-text-tertiary'}`}>
-            {status}
+            {viewMode === 'Global' ? branch : status}
           </p>
         </div>
       </div>
       <div className="text-right shrink-0 ml-2">
-        {/* XP: Büyük harf, Bitişik (boşluksuz), 10px ve muted rengi */}
-        <span className="ui-label-small font-bold text-text-primary">
+        <span className="ui-label-small font-bold text-text-primary leading-none">
           {xp}<span className="text-text-tertiary uppercase text-[10px]">XP</span>
         </span>
       </div>
@@ -258,49 +279,75 @@ function LeaderRow({ rank, name, status, statusType, xp, avatar }: LeaderRowProp
   );
 }
 
-function ParkourCard({ title, desc, tag, status, deadline, iconBg, btnText, icon, disabled = false }: ParkourCardProps) {
+function ParkourCard({ title, desc, tag, status, deadline, iconGradient, tagStyles, btnText, icon, disabled = false }: ParkourCardProps) {
   return (
-    <div className={`bg-white p-6 md:p-8 rounded-[32px] border border-surface-200 flex flex-col justify-between transition-all ${disabled ? 'opacity-50 grayscale' : 'hover:border-surface-300'}`}>
+    <div className="bg-white p-6 md:p-8 rounded-[32px] border border-surface-200 flex flex-col justify-between transition-all hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)] hover:border-transparent group h-full">
       <div className="flex justify-between items-start mb-6 md:mb-8">
-        <div className={`w-12 h-12 md:w-14 md:h-14 ${iconBg} rounded-[20px] flex items-center justify-center text-white`}>{icon}</div>
-        <span className="px-3 md:px-4 py-1.5 bg-[#FFF4EB] text-[#FF8D28] rounded-full text-[9px] font-black uppercase tracking-[0.1em]">{tag}</span>
+        <div className={`w-14 h-14 ${iconGradient} rounded-[12px] flex items-center justify-center text-white shadow-lg`}>
+          {icon}
+        </div>
+        <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold capitalize ${tagStyles}`}>
+          {tag}
+        </span>
       </div>
+
       <div className="mb-6 md:mb-8">
-        <h4 className="ui-title-xs text-text-primary mb-1 capitalize font-bold">{title}</h4>
-        <p className="ui-helper-xs text-text-tertiary italic line-clamp-2">{desc}</p>
+        <h4 className="ui-title-xs text-text-primary mb-1.5 capitalize font-bold leading-tight">{title}</h4>
+        <p className="ui-helper-xs text-text-tertiary font-normal line-clamp-2 leading-relaxed">{desc}</p>
       </div>
-      <div className="flex items-center justify-between mb-6 md:mb-8 border-t border-surface-100 pt-6">
-        <div className="flex flex-col gap-1">
-          <span className="ui-label-subtle text-text-placeholder uppercase font-bold tracking-widest">Durum</span>
-          <span className={`ui-helper-xs font-black ${status === 'Aktif' ? 'text-text-success' : 'text-text-tertiary'}`}>{status}</span>
+
+      <div className="flex items-center justify-between mb-8 bg-[#F8FAFC] rounded-2xl px-6 py-[10px] border border-surface-100">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">Durum</span>
+          <span className={`text-[12px] font-bold ${status === 'Aktif' ? 'text-text-success' : 'text-text-tertiary opacity-50'}`}>
+            {status}
+          </span>
         </div>
-        <div className="flex flex-col gap-1 text-right">
-          <span className="ui-label-subtle text-text-placeholder uppercase font-bold tracking-widest text-nowrap">Teslim</span>
-          <span className="ui-helper-xs text-text-primary font-black flex items-center gap-1.5 justify-end"><Clock size={12} className="opacity-40" /> {deadline}</span>
+        <div className="flex flex-col gap-0.5 text-right">
+          <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">Teslim</span>
+          <span className={`text-[12px] font-bold flex items-center gap-1.5 justify-end ${disabled ? 'text-text-tertiary opacity-50' : 'text-text-primary'}`}>
+            <Clock size={12} className={disabled ? 'text-text-tertiary' : 'text-text-primary'} /> 
+            <span>{deadline}</span>
+          </span>
         </div>
       </div>
-      <button className={`w-full py-4 rounded-2xl ui-helper-sm uppercase transition-all font-bold ${disabled ? 'bg-surface-200 text-text-placeholder' : 'bg-[#6F74D8] text-white hover:bg-[#5E63C2] active:scale-95'}`}>
-        {btnText}
-      </button>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-text-placeholder italic font-semibold opacity-60">Tasarım Atölyesi</span>
+        <button 
+          disabled={disabled}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[13px] font-bold transition-all active:scale-95 shadow-sm
+            ${disabled 
+              ? 'bg-surface-200 text-text-placeholder cursor-not-allowed opacity-80' 
+              : 'bg-[#6F74D8] text-white hover:bg-[#5E63C2] shadow-indigo-100 hover:shadow-lg'
+            }`}
+        >
+          {btnText}
+          {!disabled && <ChevronRight size={16} />}
+        </button>
+      </div>
     </div>
   );
 }
 
 function LibraryCard({ title, desc }: LibraryCardProps) {
   return (
-    <div className="min-w-[280px] md:min-w-[310px] bg-white p-6 md:p-7 rounded-[28px] border border-surface-100 flex flex-col justify-between h-48 transition-all group">
+    <div className="min-w-[280px] md:min-w-[310px] bg-white p-6 md:p-7 rounded-[28px] border border-surface-100 flex flex-col justify-between h-[210px] transition-all group shadow-sm hover:border-surface-300">
       <div className="flex items-start gap-4">
-        <div className="w-12 h-12 bg-surface-50 rounded-[18px] flex items-center justify-center text-text-placeholder group-hover:bg-[#10294C] group-hover:text-white transition-all">
-          <Zap size={20} />
+        <div className="w-10 h-10 bg-neutral-200 text-neutral-400 rounded-[12px] flex items-center justify-center shrink-0">
+          <Palette size={20} />
         </div>
         <div className="truncate">
-          <h5 className="ui-label-small text-text-primary leading-tight mb-1 font-bold capitalize truncate">{title}</h5>
-          <p className="text-[11px] text-text-tertiary italic line-clamp-2">{desc}</p>
+          <h5 className="text-[14px] font-bold text-text-primary leading-tight mb-1 truncate">{title}</h5>
+          <p className="text-[11px] text-text-tertiary leading-snug line-clamp-2">{desc}</p>
         </div>
       </div>
-      <div className="flex items-center justify-between pt-5 border-t border-surface-50">
-        <span className="text-[9px] text-text-placeholder uppercase tracking-widest font-bold opacity-40">Hazır</span>
-        <button className="px-5 py-2 bg-[#2C3440] text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-[#10294C] active:scale-90">
+      
+      <div className="border-t border-neutral-200 my-4"></div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-text-placeholder italic font-semibold opacity-60">Tasarım Atölyesi</span>
+        <button className="px-5 py-2 bg-neutral-200 text-text-primary rounded-xl text-[11px] font-bold flex items-center gap-2 hover:bg-[#6F74D8] hover:text-white transition-all active:scale-90">
           Ekle <PlusCircle size={14} />
         </button>
       </div>
