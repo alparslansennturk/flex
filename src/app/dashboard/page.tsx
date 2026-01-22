@@ -36,7 +36,7 @@ export default function DashboardPage() {
       
       {/* SOL: SIDEBAR - Sabit Genişlik Kuralı */}
       <aside className="hidden lg:block h-screen sticky top-0 shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[340px] bg-[#10294C]">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+       <Sidebar />
       </aside>
       
       {/* SAĞ: CONTAINER */}
