@@ -24,12 +24,14 @@ export default function Sidebar({ activeTab, setActiveTab }: any) {
           onClick={() => setActiveTab('management')} 
         />
         <SidebarLink icon={<BookOpen size={15} />} label="Ödev Havuzu" />
-        <SidebarLink icon={<Trophy size={15} />} label="Sınıf Ligi" />
+        {/* İSİM GÜNCELLENDİ: Sınıf Ligi -> Sınıflar Ligi */}
+        <SidebarLink icon={<Trophy size={15} />} label="Sınıflar Ligi" />
         <SidebarLink icon={<Settings size={15} />} label="Atölye Ayarları" />
       </nav>
 
       <div className="p-6 mt-auto border-t border-white/5">
-        <div className="flex items-center gap-3 px-4 py-3 text-white cursor-pointer hover:bg-white/5 transition-colors text-[15px] group rounded-xl font-medium">
+        {/* FONT-WEIGHT GÜNCELLENDİ: font-medium -> font-semibold */}
+        <div className="flex items-center gap-3 px-4 py-3 text-white cursor-pointer hover:bg-white/5 transition-colors text-[15px] group rounded-xl font-semibold">
           <LogOut size={15} className="group-hover:text-[#FF8D28] transition-colors" />
           <span>Çıkış Yap</span>
         </div>
@@ -42,7 +44,8 @@ function SidebarLink({ icon, label, active, onClick }: any) {
   return (
     <div onClick={onClick} className={`flex items-center gap-4 px-6 py-4 rounded-xl transition-all duration-200 cursor-pointer group ${active ? 'bg-white/5 text-white' : 'text-white hover:bg-white/5'}`}>
       <span className={`transition-colors duration-200 ${active ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>{icon}</span>
-      <span className="text-[15px] font-medium tracking-wide">{label}</span>
+      {/* FONT-WEIGHT GÜNCELLENDİ: font-medium -> font-semibold */}
+      <span className="text-[15px] font-semibold tracking-wide">{label}</span>
     </div>
   );
 }

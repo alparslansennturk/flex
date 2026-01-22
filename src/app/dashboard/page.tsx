@@ -30,6 +30,20 @@ export default function DashboardPage() {
     }
   };
 
+  // Klavye yön tuşları ile scroll kontrolü
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        handleScroll('left');
+      } else if (e.key === "ArrowRight") {
+        handleScroll('right');
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
     <div className="flex min-h-screen bg-[#F4F7FB] font-inter antialiased text-[#1E222B] overflow-x-hidden">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -61,14 +75,14 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-[18px] font-bold text-[#10294C] flex items-center gap-2"><Trophy size={16} className="text-[#FF8D28]" /> Sınıflar ligi</h3>
                     <button onClick={() => setViewMode(viewMode === 'Sınıflarım' ? 'Şubem' : viewMode === 'Şubem' ? 'Tümü' : 'Sınıflarım')} className="flex items-center justify-center gap-2 text-[#3A7BD5] bg-[#F7F8FA] px-3 h-8 rounded-xl border border-[#EEF0F3] cursor-pointer active:scale-95 transition-all">
-                      <span className="text-[12px] font-bold">{viewMode}</span>
+                      <span className="text-[clamp(12px,0.8vw,14px)] font-bold whitespace-nowrap">{viewMode}</span>
                       <Repeat size={12} />
                     </button>
                   </div>
                   <div className="space-y-3 flex-1">
-                    <LeaderRow rank={1} name="Mert Demir" status="Zirvede" statusType="stable" xp="2.850" avatar="Mert" gender="male" />
-                    <LeaderRow rank={2} name="Selin Yılmaz" status="Yükselişte" statusType="rising" xp="2.720" avatar="Selin" gender="female" />
-                    <LeaderRow rank={3} name="Caner Aydın" status="Düşüşte" statusType="falling" xp="2.450" avatar="Caner" gender="male" />
+                    <LeaderRow rank={1} name="Mert Demir" status="Zirvede" statusType="stable" xp="2.850" avatar="Mert" gender="male" viewMode={viewMode} />
+                    <LeaderRow rank={2} name="Selin Yılmaz" status="Yükselişte" statusType="rising" xp="2.720" avatar="Selin" gender="female" viewMode={viewMode} />
+                    <LeaderRow rank={3} name="Caner Aydın" status="Düşüşte" statusType="falling" xp="2.450" avatar="Caner" gender="male" viewMode={viewMode} />
                   </div>
                   <button className="mt-6 w-full h-[48px] flex items-center justify-center gap-2 rounded-xl bg-[#6F74D8] text-white font-bold text-[13px] hover:bg-[#5E63C2] transition-all shadow-sm cursor-pointer">
                     Tüm sonuçları gör <ChevronRight size={16} />
@@ -90,11 +104,11 @@ export default function DashboardPage() {
               <section className="mt-[48px] mb-[64px] space-y-[24px]">
                 <div className="flex items-center gap-3 text-[#8E95A3] px-2"><LibraryBig size={22} /><h3 className="text-[22px] font-bold text-[#8E95A3] cursor-default">Ödev kütüphanesi</h3></div>
                 <div className="relative group overflow-visible">
-                  {/* Scroll Butonları: 140px seviyesine çekildi (Tam orta) ve cursor-pointer eklendi */}
                   <button onClick={() => handleScroll('left')} className="absolute -left-5 top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft size={24} /></button>
                   <button onClick={() => handleScroll('right')} className="absolute -right-5 top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
                   
-                  <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10 px-2">
+                  {/* SCROLL ALANI: px-2 kaldırıldı, titreme engellendi */}
+                  <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">
                     <LibraryCard title="Ambalaj tasarımı" desc="Görsel kimlik üzerine" />
                     <LibraryCard title="Logo challange" desc="Vektörel çizim" />
                     <LibraryCard title="Posterini seç" desc="Film poster tasarımı" />
@@ -131,8 +145,10 @@ function StatBox({ label, value, icon }: any) {
   );
 }
 
-function LeaderRow({ rank, name, status, statusType, xp, avatar, gender }: any) {
+function LeaderRow({ rank, name, status, statusType, xp, avatar, gender, viewMode }: any) {
   const avatarUrl = `https://api.dicebear.com/7.x/${gender === 'female' ? 'lorelei' : 'avataaars'}/svg?seed=${avatar}`;
+  const displayStatus = viewMode === 'Tümü' ? "Kadıköy Şubesi" : status;
+
   return (
     <div className="flex items-center justify-between p-2 -mx-2 rounded-xl hover:bg-[#F7F8FA] transition-colors cursor-pointer group">
       <div className="flex items-center flex-1 min-w-0 mr-2">
@@ -142,8 +158,10 @@ function LeaderRow({ rank, name, status, statusType, xp, avatar, gender }: any) 
             <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
           </div>
           <div className="flex flex-col min-w-0">
-            <p className="text-[14px] text-[#1E222B] font-bold whitespace-nowrap overflow-hidden leading-none mb-1">{name}</p>
-            <p className={`text-[11px] font-semibold truncate ${rank === 1 ? 'text-[#FF8D28]' : 'text-[#8E95A3]'}`}>{status}</p>
+            <p className="text-[clamp(14px,1vw,16px)] text-[#1E222B] font-bold whitespace-nowrap overflow-hidden leading-none mb-1">{name}</p>
+            <p className={`text-[11px] font-semibold truncate ${rank === 1 ? 'text-[#FF8D28]' : 'text-[#8E95A3]'}`}>
+              {displayStatus}
+            </p>
           </div>
         </div>
         <div className="ml-4 w-8 flex justify-center items-center shrink-0">
@@ -153,7 +171,7 @@ function LeaderRow({ rank, name, status, statusType, xp, avatar, gender }: any) 
         </div>
       </div>
       <span className="text-[14px] font-bold text-[#10294C] whitespace-nowrap shrink-0">
-        {xp}<span className="text-[10px] text-[#8E95A3] font-bold ml-0.5 uppercase">XP</span>
+        {xp}<span className="text-[clamp(11px,0.7vw,13px)] text-[#8E95A3] font-bold uppercase ml-0">XP</span>
       </span>
     </div>
   );
