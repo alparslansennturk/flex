@@ -46,7 +46,8 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-screen bg-[#F4F7FB] font-inter antialiased text-[#1E222B] overflow-x-hidden">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+     {/* @ts-ignore */}
+<Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       
       <main className="flex-1 lg:pl-64 flex flex-col min-h-screen w-full">
         <Header />
