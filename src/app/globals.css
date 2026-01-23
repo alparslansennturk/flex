@@ -191,6 +191,26 @@
 }
 
 /* ============================================================
+   KÖKTEN SCROLL ÇÖZÜMÜ (v4 @layer base)
+   ============================================================ */
+@layer base {
+  html {
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    box-sizing: border-box;
+    /* Varsayılan Arkaplan Senin base-primary-50 rengin */
+    background-color: var(--color-base-primary-50);
+    @apply antialiased;
+  }
+}
+
+/* ============================================================
    DESIGN SYSTEM UTILITIES
    ============================================================ */
 
@@ -238,6 +258,3 @@
     font-size: 1.15rem; 
   }
 }
-
-
-

@@ -9,6 +9,8 @@ export default function Footer({ setActiveTab }: any) {
   ];
 
   return (
+    /* mt-auto: İçerik az olduğunda Footer'ı sayfanın en altına iter. 
+       Zaten lacivert zemin ve beyaz border-t ile Tasarım Atölyesi kimliğinde. */
     <footer className="w-full bg-[#10294C] border-t border-white/5 mt-auto font-inter">
       {/* İÇ HİZALAMA KUTUSU: Header ve Main ile milimetrik aynı hiza */}
       <div className="w-[94%] mx-auto py-6 min-h-[80px] flex items-center justify-between transition-all duration-500 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[2000px]">
