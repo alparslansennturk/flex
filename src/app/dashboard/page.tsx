@@ -32,11 +32,11 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-[#F4F7FB] font-inter antialiased text-[#1E222B]">
+    <div className="flex min-h-screen bg-[#F4F7FB] font-inter antialiased text-text-primary">
       
-      {/* SOL: SIDEBAR - Sabit Genişlik Kuralı */}
-      <aside className="hidden lg:block h-screen sticky top-0 shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[340px] bg-[#10294C]">
-       <Sidebar />
+      {/* SOL: SIDEBAR - Tasarımcı Gözüyle Sabit Oranlar */}
+      <aside className="hidden lg:block h-screen sticky top-0 shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
+        <Sidebar />
       </aside>
       
       {/* SAĞ: CONTAINER */}
@@ -45,8 +45,8 @@ export default function DashboardPage() {
         <Header />
         
         <main className="flex-1 w-full overflow-x-hidden">
-          {/* İÇ HİZALAMA: Header ile Birebir Aynı Matematik */}
-          <div className="w-[94%] mx-auto py-8 transition-all duration-500 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[2000px] min-[3000px]:max-w-[2400px]">
+          {/* İÇ HİZALAMA: Responsive ve Jilet Gibi Keskin */}
+          <div className="w-[94%] mx-auto py-8 transition-all duration-500 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[1920px]">
             
             {activeTab === 'dashboard' ? (
               <div className="space-y-12">
@@ -54,11 +54,13 @@ export default function DashboardPage() {
                   <WorkshopAnalysis />
                   <LeaderboardWidget viewMode={viewMode} setViewMode={setViewMode} />
                 </div>
+                {/* DesignParkour ve AssignmentLibrary zaten kendi içindeki başlıkları kullanıyor */}
                 <DesignParkour />
                 <AssignmentLibrary scrollRef={scrollRef} handleScroll={handleScroll} />
               </div>
             ) : (
-              <div className="bg-white rounded-[32px] p-12 border border-[#E2E5EA] min-h-[500px] flex items-center justify-center text-[24px] font-bold text-[#10294C]">
+              /* Yönetim Paneli İçeriği: Hardcoded text-[24px] silindi, sisteme bağlandı */
+              <div className="bg-white rounded-[32px] p-12 border border-surface-200 min-h-[500px] flex items-center justify-center ui-title-md text-base-primary-900">
                 Yönetim Paneli İçeriği
               </div>
             )}

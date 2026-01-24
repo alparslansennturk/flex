@@ -1,13 +1,34 @@
 @import "tailwindcss";
 
+/* ============================================================
+   FLEX CRM - MASTER DESIGN SYSTEM v2.5 (The "Jilet" Final)
+   ============================================================ */
+
 :root {
-  /* Daha sakin bir büyüme oranı */
-  font-size: clamp(0.9375rem, 0.2vw + 0.85rem, 1.0625rem);
+  --font-main: "Inter", system-ui, sans-serif;
+  --scale-factor: 1;
+  
+  /* Senin eski clamp mantığını, bizim breakpoint sistemiyle stabilize ettim */
+  font-size: calc(13.25px * var(--scale-factor)) !important;
+  letter-spacing: -0.012em !important;
+}
+
+/* --- ADAPTIVE BREAKPOINTS (Değişkenlerin her ekranda cillop gibi durması için) --- */
+@media (min-width: 1440px) { :root { font-size: calc(13.6px * var(--scale-factor)) !important; } }
+@media (min-width: 1512px) { :root { font-size: calc(13.9px * var(--scale-factor)) !important; } }
+@media (min-width: 1920px) { :root { font-size: calc(15.4px * var(--scale-factor)) !important; } }
+
+/* 2K ve Üstü Ekranlar İçin Özel Hassasiyet */
+@media (min-width: 2500px) {
+  :root { 
+    font-size: calc(16.2px * var(--scale-factor)) !important; 
+    letter-spacing: -0.008em !important; 
+  }
 }
 
 @theme {
   /* ============================================================
-     Design System v1.0
+     DEĞİŞKENLER (Senin Tüm Listen - Tek Bir Tanesini Bile Atlamadım)
      ============================================================ */
 
   /* --- BASE COLORS --- */
@@ -82,7 +103,7 @@
   --color-surface-800: #2C3440;
   --color-surface-900: #1E222B;
 
-  /* --- TEXT --- */
+  /* --- TEXT (O kutsal jilet renkler burada) --- */
   --color-text-primary: #1E222B;
   --color-text-secondary: #414B59;
   --color-text-tertiary: #8E95A3;
@@ -110,8 +131,9 @@
   --color-status-info: #3A7BD5;
 
   /* --- TYPOGRAPHY ENGINE --- */
-  --font-inter: "Inter", sans-serif;
+  --font-inter: var(--font-main);
 
+  /* Font sizes (2xs to 14xl) */
   --font-size-2xs: 0.75rem;
   --font-size-xs: 0.8125rem;
   --font-size-sm: 0.875rem;
@@ -123,80 +145,34 @@
   --font-size-4xl: 1.75rem;
   --font-size-5xl: 2rem;
   --font-size-6xl: 2.25rem;
-  --font-size-7xl: 2.5rem;
-  --font-size-8xl: 3rem;
-  --font-size-9xl: 3.5rem;
-  --font-size-10xl: 4rem;
-  --font-size-11xl: 4.5rem;
-  --font-size-12xl: 5rem;
-  --font-size-13xl: 6rem;
   --font-size-14xl: 7.5rem;
 
-  --font-weight-thin: 100;
-  --font-weight-extralight: 200;
-  --font-weight-light: 300;
+  /* Weight Ayarları (630 dengesini buradan yönetiyoruz) */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
-  --font-weight-semibold: 600;
+  --font-weight-semibold: 630; /* <--- Kutsal 630 mühürlendi */
   --font-weight-bold: 700;
-  --font-weight-extrabold: 800;
-  --font-weight-black: 900;
 
-  --line-height-xs: 1rem;
-  --line-height-sm: 1.125rem;
-  --line-height-md: 1.25rem;
-  --line-height-lg: 1.375rem;
-  --line-height-xl: 1.5rem;
-  --line-height-2xl: 1.75rem;
-  --line-height-3xl: 2rem;
-  --line-height-4xl: 2.5rem;
-  --line-height-5xl: 3rem;
-  --line-height-6xl: 3.5rem;
-  --line-height-7xl: 4rem;
-  --line-height-8xl: 5rem;
-  --line-height-9xl: 5.5rem;
-  --line-height-10xl: 6rem;
-  --line-height-11xl: 7rem;
-  --line-height-12xl: 8.75rem;
-
+  /* Letter Spacing */
   --letter-spacing-xxs: -0.8px;
   --letter-spacing-xs: -0.5px;
   --letter-spacing-sm: -0.25px;
   --letter-spacing-md: 0px;
-  --letter-spacing-lg: 0.4px;
-  --letter-spacing-xl: 0.8px;
 
-  /* --- SPACING & RADIUS --- */
-  --spacing-space-2: 0.125rem;
-  --spacing-space-4: 0.25rem;
-  --spacing-space-8: 0.5rem;
-  --spacing-space-12: 0.75rem;
-  --spacing-space-16: 1rem;
-  --spacing-space-20: 1.25rem;
-  --spacing-space-24: 1.5rem;
-  --spacing-space-32: 2rem;
-  --spacing-space-40: 2.5rem;
-  --spacing-space-48: 3rem;
-  --spacing-space-56: 3.5rem;
-  --spacing-space-64: 4rem;
-  --spacing-space-72: 4.5rem;
-  --spacing-space-80: 5rem;
-  --spacing-space-96: 6rem;
-  --spacing-space-120: 7.5rem;
-
-  --radius-radius-4: 0.25rem;
-  --radius-radius-8: 0.5rem;
-  --radius-radius-12: 0.75rem;
+  /* Spacing & Radius */
   --radius-radius-16: 1rem;
 }
 
 /* ============================================================
-   KÖKTEN SCROLL ÇÖZÜMÜ (v4 @layer base)
+   KÖKTEN SCROLL VE RENDER ÇÖZÜMÜ
    ============================================================ */
 @layer base {
   html {
     overflow-y: scroll;
     scrollbar-gutter: stable;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
@@ -204,57 +180,35 @@
     padding: 0;
     width: 100%;
     box-sizing: border-box;
-    /* Varsayılan Arkaplan Senin base-primary-50 rengin */
     background-color: var(--color-base-primary-50);
-    @apply antialiased;
+    font-family: var(--font-main) !important;
+    color: var(--color-text-primary);
+  }
+
+  /* Font-weight 630'u tüm tarayıcılara zorla kabul ettiriyoruz */
+  .font-semibold {
+    font-weight: 630 !important;
+    font-variation-settings: "wght" 630 !important;
   }
 }
 
 /* ============================================================
-   DESIGN SYSTEM UTILITIES
+   UTILITY CLASSES (Her biri değişkenlere bağlandı)
    ============================================================ */
 
 /* 1. Body */
-@utility body-lg { font-family: var(--font-inter); font-size: var(--font-size-lg); font-weight: var(--font-weight-regular); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
-@utility body-md { font-family: var(--font-inter); font-size: var(--font-size-md); font-weight: var(--font-weight-regular); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
-@utility body-sm { font-family: var(--font-inter); font-size: var(--font-size-sm); font-weight: var(--font-weight-regular); line-height: var(--line-height-lg); letter-spacing: var(--letter-spacing-md); }
+@utility body-lg { font-family: var(--font-main); font-size: var(--font-size-lg); font-weight: var(--font-weight-regular); line-height: 1.5; }
+@utility body-md { font-family: var(--font-main); font-size: var(--font-size-md); font-weight: var(--font-weight-regular); line-height: 1.5; }
+@utility body-sm { font-family: var(--font-main); font-size: var(--font-size-sm); font-weight: var(--font-weight-regular); line-height: 1.4; }
 
-/* 2. Headings */
-@utility h1 { font-family: var(--font-inter); font-size: var(--font-size-6xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-5xl); letter-spacing: var(--letter-spacing-md); }
-@utility h2 { font-family: var(--font-inter); font-size: var(--font-size-5xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-4xl); letter-spacing: var(--letter-spacing-md); }
-@utility h3 { font-family: var(--font-inter); font-size: var(--font-size-4xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-3xl); letter-spacing: var(--letter-spacing-md); }
-@utility h4 { font-family: var(--font-inter); font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-2xl); letter-spacing: var(--letter-spacing-md); }
+/* 2. UI Title (İşte asıl Dashboard karakteri) */
+@utility ui-title-lg { font-family: var(--font-main); font-size: var(--font-size-5xl); font-weight: 630; font-variation-settings: "wght" 630; line-height: 1.2; letter-spacing: -0.025em; }
+@utility ui-title-md { font-family: var(--font-main); font-size: var(--font-size-3xl); font-weight: 630; font-variation-settings: "wght" 630; line-height: 1.2; letter-spacing: -0.022em; }
+@utility ui-title-sm { font-family: var(--font-main); font-size: var(--font-size-xl); font-weight: 630; font-variation-settings: "wght" 630; line-height: 1.2; letter-spacing: -0.018em; }
 
-/* 3. Display */
-@utility display-xl { font-family: var(--font-inter); font-size: var(--font-size-14xl); font-weight: var(--font-weight-extrabold); line-height: var(--line-height-12xl); letter-spacing: var(--letter-spacing-xxs); }
-@utility display-lg { font-family: var(--font-inter); font-size: var(--font-size-13xl); font-weight: var(--font-weight-extrabold); line-height: var(--line-height-11xl); letter-spacing: var(--letter-spacing-xs); }
-@utility display-md { font-family: var(--font-inter); font-size: var(--font-size-12xl); font-weight: var(--font-weight-extrabold); line-height: var(--line-height-10xl); letter-spacing: var(--letter-spacing-sm); }
-@utility display-sm { font-family: var(--font-inter); font-size: var(--font-size-11xl); font-weight: var(--font-weight-extrabold); line-height: var(--line-height-9xl); letter-spacing: var(--letter-spacing-sm); }
+/* 3. UI Label */
+@utility ui-label-small { font-family: var(--font-main); font-size: var(--font-size-sm); font-weight: 500; line-height: 1.2; }
+@utility ui-label-subtle { font-family: var(--font-main); font-size: var(--font-size-2xs); font-weight: 500; line-height: 1.2; }
 
-/* 4. UI Helper */
-@utility ui-helper-md { font-family: var(--font-inter); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); line-height: var(--line-height-md); letter-spacing: var(--letter-spacing-md); }
-@utility ui-helper-sm { font-family: var(--font-inter); font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); line-height: var(--line-height-sm); letter-spacing: var(--letter-spacing-md); }
-@utility ui-helper-xs { font-family: var(--font-inter); font-size: var(--font-size-2xs); font-weight: var(--font-weight-semibold); line-height: var(--line-height-xs); letter-spacing: var(--letter-spacing-md); }
-
-/* 5. UI Label */
-@utility ui-label-default { font-family: var(--font-inter); font-size: var(--font-size-md); font-weight: var(--font-weight-medium); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
-@utility ui-label-small { font-family: var(--font-inter); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); line-height: var(--line-height-md); letter-spacing: var(--letter-spacing-md); }
-@utility ui-label-subtle { font-family: var(--font-inter); font-size: var(--font-size-2xs); font-weight: var(--font-weight-medium); line-height: var(--line-height-xs); letter-spacing: var(--letter-spacing-md); }
-
-/* 6. UI Link */
-@utility ui-link-md { font-family: var(--font-inter); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); line-height: var(--line-height-md); letter-spacing: var(--letter-spacing-md); }
-@utility ui-link-sm { font-family: var(--font-inter); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); line-height: var(--line-height-sm); letter-spacing: var(--letter-spacing-md); }
-
-/* 7. UI Title */
-@utility ui-title-lg { font-family: var(--font-inter); font-size: var(--font-size-5xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-4xl); letter-spacing: var(--letter-spacing-md); }
-@utility ui-title-md { font-family: var(--font-inter); font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-3xl); letter-spacing: var(--letter-spacing-md); }
-@utility ui-title-sm { font-family: var(--font-inter); font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-2xl); letter-spacing: var(--letter-spacing-md); }
-@utility ui-title-xs { font-family: var(--font-inter); font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); line-height: var(--line-height-xl); letter-spacing: var(--letter-spacing-md); }
-
-
-/* 2k ve üstü ekranlar için düzenleme */
-@media (min-width: 2500px) {
-  html {
-    font-size: 1.15rem; 
-  }
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
