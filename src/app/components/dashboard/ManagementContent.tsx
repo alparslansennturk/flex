@@ -44,7 +44,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   ];
 
   const handleOpenForm = () => {
-    if (currentView !== "Aktif Sınıflar") return; // Güvenlik kilidi
+    if (currentView !== "Aktif Sınıflar") return;
     if (!isFormOpen) {
       setLastSelectedId(selectedGroupId);
       setSelectedGroupId(null);
@@ -92,13 +92,19 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
       return;
     }
 
+    // "Grup " ön eki mantığı
+    const formattedCode = groupCode.trim().toLowerCase().startsWith("grup") 
+      ? groupCode.trim() 
+      : `Grup ${groupCode.trim()}`;
+
     const finalSession = selectedSchedule === "Özel Grup Tanımla" ? customSchedule : selectedSchedule;
+    
     if (editingGroupId) {
-      setGroups(groups.map(g => g.id === editingGroupId ? { ...g, code: groupCode, session: finalSession } : g));
+      setGroups(groups.map(g => g.id === editingGroupId ? { ...g, code: formattedCode, session: finalSession } : g));
       setSelectedGroupId(editingGroupId);
     } else {
       const newGroupId = Date.now();
-      const newGroup = { id: newGroupId, code: groupCode, branch: "Kadıköy", instructor: "Alparslan Hoca", session: finalSession, students: 0, status: "active" };
+      const newGroup = { id: newGroupId, code: formattedCode, branch: "Kadıköy", instructor: "Alparslan Hoca", session: finalSession, students: 0, status: "active" };
       setGroups([newGroup, ...groups]);
       setSelectedGroupId(newGroupId);
     }
@@ -210,7 +216,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                   <div className="flex flex-col gap-2">
                     <label className="text-[14px] font-medium text-base-primary-900 leading-none">Grup kodu</label>
                     <div className="relative">
-                      <input type="text" value={groupCode} onChange={(e) => {setGroupCode(e.target.value); setErrors({...errors, code: undefined});}} placeholder="Grup kodu gir" className={`w-full h-12 bg-neutral-50 border rounded-xl px-4 text-sm focus:outline-none transition-all ${errors.code ? 'border-status-danger-500' : 'border-surface-300 focus:border-base-primary-500'}`} />
+                      <input type="text" value={groupCode} onChange={(e) => {setGroupCode(e.target.value); setErrors({...errors, code: undefined});}} placeholder="Örn: 121" className={`w-full h-12 bg-neutral-50 border rounded-xl px-4 text-sm focus:outline-none transition-all ${errors.code ? 'border-status-danger-500' : 'border-surface-300 focus:border-base-primary-500'}`} />
                       <Code2 size={20} className={`absolute right-4 top-1/2 -translate-y-1/2 ${errors.code ? 'text-status-danger-500' : 'text-neutral-400'}`} />
                     </div>
                     {errors.code && <span className="text-[13px] font-medium text-status-danger-500 flex items-center gap-1.5 pt-1 animate-in fade-in slide-in-from-top-1"><AlertCircle size={14} /> {errors.code}</span>}
