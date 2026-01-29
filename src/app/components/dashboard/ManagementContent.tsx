@@ -44,6 +44,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   ];
 
   const handleOpenForm = () => {
+    if (currentView !== "Aktif Sınıflar") return; // Güvenlik kilidi
     if (!isFormOpen) {
       setLastSelectedId(selectedGroupId);
       setSelectedGroupId(null);
@@ -163,7 +164,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
               {["Profil Ayarları", "Kullanıcılar", "Eğitim Yönetimi", "Header & Footer", "Sidebar"].map((label) => {
                 const currentId = label === "Eğitim Yönetimi" ? "groups" : label.toLowerCase().replace(" ", "-");
                 return (
-                  <button key={label} onClick={() => setActiveSubTab(currentId)} className="relative h-full flex items-center px-8 first:pl-0 cursor-pointer outline-none group">
+                  <button key={label} onClick={() => setActiveSubTab(currentId)} className="relative h-full flex items-center px-8 first:pl-0 cursor-pointer outline-none group transition-colors">
                     <span className={`text-[15px] font-semibold tracking-tight whitespace-nowrap ${activeSubTab === currentId ? "text-base-primary-500" : "text-text-tertiary hover:text-text-secondary"}`}>{label}</span>
                     {activeSubTab === currentId && <div className="absolute bottom-0 left-0 w-full h-[3.2px] bg-base-primary-500 rounded-t-full" />}
                   </button>
@@ -184,12 +185,19 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           {/* --- BÖLÜM 2: AKSİYON SATIRI --- */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-300 pl-[56px]">
             <div className="flex items-center gap-6">
-              <button onClick={handleOpenForm} className="w-[144px] h-[40px] bg-[#FF8D28] text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 active:scale-95 transition-all cursor-pointer">
+              <button 
+                onClick={handleOpenForm} 
+                disabled={currentView !== "Aktif Sınıflar" && !editingGroupId}
+                className={`w-[144px] h-[40px] text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer
+                  ${currentView === "Aktif Sınıflar" || editingGroupId 
+                    ? "bg-[#FF8D28] shadow-orange-500/10" 
+                    : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}
+              >
                 <span>{isFormOpen ? "Vazgeç" : (editingGroupId ? "Düzenle" : "Grup ekle")}</span>
                 {isFormOpen ? <X size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
               </button>
               <p className="text-[14px] text-neutral-400 font-medium border-l border-neutral-200 pl-6 h-6 flex items-center leading-none">
-                {editingGroupId ? "Mevcut grup bilgilerini güncelleyin." : "Yeni bir eğitim grubu veya sınıf oluşturun."}
+                {currentView !== "Aktif Sınıflar" && !editingGroupId ? "Yeni grup eklemek için Aktif Sınıflar sekmesine geçin." : (editingGroupId ? "Mevcut grup bilgilerini güncelleyin." : "Yeni bir eğitim grubu veya sınıf oluşturun.")}
               </p>
             </div>
           </div>
@@ -248,7 +256,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
               ))}
             </div>
 
-            {currentView === "Tüm Sınıflar" ? (
+            {currentView === "Tüm Sınıflar" && isAdmin ? (
               <div className="pl-[56px] w-full animate-in fade-in duration-500">
                 <div className="bg-white border border-neutral-300 rounded-[16px] overflow-hidden shadow-sm">
                   <table className="w-full text-left border-collapse">
@@ -256,6 +264,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       <tr className="bg-surface-50 border-b border-neutral-200">
                         <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Grup kodu</th>
                         <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Şube</th>
+                        <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Eğitmen</th>
                         <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight text-center">Öğrenci</th>
                         <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight text-right pr-8">İşlem</th>
                       </tr>
@@ -264,7 +273,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       {filteredGroups.map((group) => (
                         <tr key={group.id} onClick={() => setSelectedGroupId(group.id)} className={`group cursor-pointer border-b border-neutral-100 last:border-0 transition-colors ${selectedGroupId === group.id ? "bg-base-primary-50" : "hover:bg-surface-50/50"}`}>
                           <td className="px-6 py-3 font-bold text-base-primary-700">{group.code}</td>
-                          <td className="px-6 py-3 text-[14px] text-neutral-600 font-medium">{group.branch}</td>
+                          <td className="px-6 py-3 text-[14px] text-neutral-600 font-medium"><div className="flex items-center gap-2"><MapPin size={14} className="text-neutral-400" />{group.branch}</div></td>
+                          <td className="px-6 py-3 text-[14px] text-neutral-600 font-medium"><div className="flex items-center gap-2"><User size={14} className="text-neutral-400" />{group.instructor}</div></td>
                           <td className="px-6 py-3 text-center font-bold text-neutral-700">{group.students}</td>
                           <td className="px-6 py-3 text-right pr-8">
                             <button onClick={(e) => { e.stopPropagation(); handleEdit(group); }} className="p-1.5 text-neutral-400 hover:text-base-primary-600 cursor-pointer transition-colors">
