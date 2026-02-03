@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Plus, Info, Code2, ChevronDown, ChevronRight, X, AlertCircle, 
   MoreVertical, RotateCcw, Trash2, Edit2, Archive, Clock, 
-  User, MapPin, CheckCircle2, Users, PlusCircle, Search, 
+  User, MapPin, CheckCircle2, Users, PlusCircle, Search, Layout,
   Mail, FileText, PencilLine 
 } from "lucide-react";
 
@@ -45,15 +45,55 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const [studentLastName, setStudentLastName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [studentNote, setStudentNote] = useState("");
+  const [studentBranch, setStudentBranch] = useState("Kadıköy");
+  const [studentGroupCode, setStudentGroupCode] = useState("");
+  const [showAllMyGroups, setShowAllMyGroups] = useState(false);
+  const [showAllBranches, setShowAllBranches] = useState(false);
   const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
+  const [studentError, setStudentError] = useState("");
+  const [viewMode, setViewMode] = useState<'group-list' | 'all-groups' | 'all-branches'>('group-list');
 
-  // Student list data
-  const [students, setStudents] = useState([
-    { id: 1, name: "Floyd Miles", email: "tanya.hill@example.com", note: "Proje ödevlerinde çok başarılı." },
-    { id: 2, name: "Olivia Garcia", email: "olivia.garcia@example.com", note: "Very creative in projects" },
+  useEffect(() => {
+  if (!isAdmin) {
+    // Eğer eğitmen ise sadece kendi şubesi olan "Kadıköy"ü görsün
+    setStudentBranch("Kadıköy"); 
+    // Eğitmenin "Tüm Şubeler"e erişimi olmasın, kaza ile bile geçemesin
+    if (viewMode === 'all-branches') setViewMode('all-groups');
+  }
+}, [isAdmin]);
+
+// Student list data - TypeScript'e yeni alanları (branch ve groupCode) burada tanıtıyoruz
+  const [students, setStudents] = useState<{
+    id: number;
+    name: string;
+    email: string;
+    note: string;
+    groupId: number;
+    branch: string;    // Şube bilgisini ekledik
+    groupCode: string; // Grup kodunu ekledik
+  }[]>([
+    { 
+      id: 1, 
+      name: "Floyd Miles", 
+      email: "tanya.hill@example.com", 
+      note: "Proje ödevlerinde çok başarılı.", 
+      groupId: 1,
+      branch: "Kadıköy Şb.", // Örnek veri
+      groupCode: "Grup 001"  // Örnek veri
+    },
+    { 
+      id: 2, 
+      name: "Olivia Garcia", 
+      email: "olivia.garcia@example.com", 
+      note: "Very creative in projects", 
+      groupId: 1,
+      branch: "Şirinevler Şb.",
+      groupCode: "Grup 002"
+    },
   ]);
 
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
+  
   const [modalConfig, setModalConfig] = useState<{ 
     isOpen: boolean; 
     type: 'archive' | 'delete' | 'restore' | null; 
@@ -159,61 +199,86 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const confirmModalAction = () => {
     if (!modalConfig.groupId) return;
 
-    // SİLME İŞLEMİ (Hem gruplar hem öğrenciler için ortak)
     if (modalConfig.type === 'delete') {
-      // 1. Öğrenci listesinden uçur
-      setStudents(prev => prev.filter(s => s.id !== modalConfig.groupId));
-      
-      // 2. Grup listesinden uçur (Eğer silinen bir grupsa)
-      setGroups(prev => prev.filter(g => g.id !== modalConfig.groupId));
-      
-      showNotification("Kayıt kalıcı olarak silindi.");
+      const updatedGroups = groups.filter(g => g.id !== modalConfig.groupId);
+      setGroups(updatedGroups);
+
+      // Cascade Delete: Gruba ait öğrencileri sil
+      setStudents(prev => prev.filter(s => s.groupId !== modalConfig.groupId));
+
+      // Otomatik Odaklanma
+      if (selectedGroupId === modalConfig.groupId) {
+        const nextGroup = updatedGroups.find(g => g.status === 'active');
+        setSelectedGroupId(nextGroup ? nextGroup.id : null);
+      }
+      showNotification("Grup ve bağlı veriler silindi.");
     } 
     
-    // ARŞİVLEME İŞLEMİ
     else if (modalConfig.type === 'archive') {
-      setGroups(groups.map(g => g.id === modalConfig.groupId ? { ...g, status: 'archived' } : g));
-      showNotification("Kayıt arşive taşındı.");
+      const updatedGroups = groups.map(g => g.id === modalConfig.groupId ? { ...g, status: 'archived' } : g);
+      setGroups(updatedGroups);
+
+      // Arşive gidince odağı kaydır
+      if (selectedGroupId === modalConfig.groupId) {
+        const nextGroup = updatedGroups.find(g => g.status === 'active');
+        setSelectedGroupId(nextGroup ? nextGroup.id : null);
+      }
+      showNotification("Grup arşive taşındı.");
     } 
     
-    // GERİ YÜKLEME İŞLEMİ
     else if (modalConfig.type === 'restore') {
       setGroups(groups.map(g => g.id === modalConfig.groupId ? { ...g, status: 'active' } : g));
-      showNotification("Kayıt aktif listeye taşındı.");
+      showNotification("Grup aktif listeye taşındı.");
     }
 
-    // Modalı kapat ve temizle
     setModalConfig({ isOpen: false, type: null, groupId: null });
   };
+ const handleAddStudent = () => {
+    // 1. HATA KONTROLÜ: groupCode dahil hepsi dolu olmalı
+    if (!studentName.trim() || !studentLastName.trim() || !studentEmail.trim() || !studentGroupCode.trim() || !selectedGroupId) {
+      setStudentError("Lütfen tüm alanları eksiksiz doldurun.");
+      return;
+    }
 
-  /**
-   * SECTION: Student List Handlers
-   * Logic for adding and removing students from the state
-   */
-  const handleAddStudent = () => {
-    // Basic validation: Fields should not be empty
-    if (!studentName.trim() || !studentLastName.trim() || !studentEmail.trim()) return;
-
+    const fullName = `${studentName.trim()} ${studentLastName.trim()}`;
     const newStudent = {
       id: Date.now(),
-      name: `${studentName.trim()} ${studentLastName.trim()}`,
+      name: fullName,
       email: studentEmail.trim(),
-      note: studentNote.trim()
+      note: studentNote.trim(),
+      groupId: selectedGroupId,
+      groupCode: studentGroupCode, // Otomatik veya elle gelen kod
+      branch: studentBranch
     };
 
+    // 2. KAYIT İŞLEMİ
     setStudents(prev => [newStudent, ...prev]);
 
-    // Reset all form-related states
+    // Grup kartındaki öğrenci sayısını 1 artırıyoruz
+    setGroups(prev => prev.map(g => 
+      g.id === selectedGroupId ? { ...g, students: g.students + 1 } : g
+    ));
+
+    // 3. TEMİZLİK
     setStudentName("");
     setStudentLastName("");
     setStudentEmail("");
     setStudentNote("");
+    setStudentError(""); // Formdaki hata mesajını sil
     setIsStudentFormOpen(false);
     
-    showNotification("Öğrenci başarıyla eklendi.");
+    showNotification(`${fullName} başarıyla eklendi.`);
   };
 
   const handleDeleteStudent = (id: number) => {
+    // Silinen öğrencinin hangi grupta olduğunu bul (Sayıyı düşürmek için)
+    const targetStudent = students.find(s => s.id === id);
+    if (targetStudent) {
+      setGroups(prev => prev.map(g => 
+        g.id === targetStudent.groupId ? { ...g, students: Math.max(0, g.students - 1) } : g
+      ));
+    }
+    
     setStudents(prev => prev.filter(s => s.id !== id));
     showNotification("Öğrenci silindi.");
   };
@@ -228,7 +293,13 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   }, []);
 
   useEffect(() => {
-    const labels: Record<string, string> = { profile: "Profil Ayarları", users: "Kullanıcılar", groups: "Eğitim Yönetimi", "header-footer": "Header & Footer", sidebar: "Sidebar" };
+    const labels: Record<string, string> = { 
+      profile: "Profil Ayarları", 
+      users: "Kullanıcılar", 
+      groups: "Eğitim Yönetimi", 
+      "header-footer": "Header & Footer", 
+      sidebar: "Sidebar" 
+    };
     setHeaderTitle(labels[activeSubTab] || "Eğitim Yönetimi");
   }, [activeSubTab, setHeaderTitle]);
 
@@ -256,6 +327,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           </div>
         </div>
       )}
+
+      
 
       {/* --- BÖLÜM 1: NAVİGASYON --- */}
       <div className="w-full mt-6">
@@ -342,8 +415,10 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 <button key={t as string} onClick={() => setCurrentView(t as string)} className={`px-6 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer ${currentView === t ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>{t as string}</button>
               ))}
             </div>
-
-            {currentView === "Aktif Sınıflar" ? (
+{/* --- GRUP VE ÖĞRENCİ LİSTESİ BAŞLANGICI --- */}
+          {currentView === "Aktif Sınıflar" ? (
+            filteredGroups.length > 0 ? (
+              // DURUM A: GRUP VARSA KARTLAR
               <div className="pl-[56px] flex flex-wrap gap-6 animate-in fade-in duration-500">
                 {filteredGroups.map((group) => {
                   const isActive = selectedGroupId === group.id;
@@ -356,22 +431,54 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                           <button onClick={(e) => { e.stopPropagation(); requestModal(group.id, 'archive'); }} className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-neutral-700 hover:bg-surface-50 flex items-center gap-2 cursor-pointer transition-colors"><Archive size={16}/> Arşive ekle</button>
                         </div>
                       )}
-                      <div className="flex flex-col h-full justify-between pointer-events-none"><div><p className={`text-[14px] font-semibold leading-none mb-2 ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"}`}>{group.code}</p><p className={`text-[16px] font-bold leading-none ${isActive ? "text-white" : "text-base-primary-700 group-hover:text-white"}`}>{group.session}</p></div><p className={`text-[14px] font-semibold leading-none ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"}`}>Öğrenci Sayısı: {group.students}</p></div>
+                      <div className="flex flex-col h-full justify-between pointer-events-none">
+                        <div>
+                          <p className={`text-[14px] font-semibold leading-none mb-2 ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"}`}>{group.code}</p>
+                          <p className={`text-[16px] font-bold leading-none ${isActive ? "text-white" : "text-base-primary-700 group-hover:text-white"}`}>{group.session}</p>
+                        </div>
+                        <p className={`text-[14px] font-semibold leading-none ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"}`}>Öğrenci Sayısı: {group.students}</p>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="pl-[56px] w-full animate-in fade-in duration-500">
-                <div className="bg-white border border-neutral-300 rounded-[16px] overflow-hidden shadow-sm">
-                  <table className="w-full text-left border-collapse">
-                    <thead><tr className="bg-surface-50 border-b border-neutral-200">
+              // DURUM B: GRUP YOKSA GENİŞ EMPTY STATE
+              <div className="pl-[56px] pr-8 w-full animate-in fade-in zoom-in-95 duration-500">
+                <div className="w-full py-12 bg-white border border-dashed border-neutral-300 rounded-[20px] flex flex-col items-center justify-center text-center shadow-sm">
+                  <div className="w-14 h-14 bg-neutral-50 rounded-2xl flex items-center justify-center text-neutral-300 mb-4 border border-neutral-100">
+                    <Layout size={28} strokeWidth={1.5} />
+                  </div>
+                  <h3 className="text-[16px] font-bold text-neutral-700 mb-1">Aktif Grup Tanımı Bulunmuyor</h3>
+                  <p className="text-[13px] font-medium text-neutral-400 max-w-[320px] leading-relaxed">
+                    Sistemi kullanmaya başlamak için önce bir eğitim grubu oluşturmalısınız.
+                  </p>
+                  <button 
+                    onClick={handleOpenForm}
+                    className="mt-6 px-6 py-2.5 bg-base-primary-700 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-800 transition-all cursor-pointer shadow-lg shadow-base-primary-700/20 active:scale-95 flex items-center gap-2 outline-none"
+                  >
+                    <Plus size={18} />
+                    Yeni Grup Oluştur
+                  </button>
+                </div>
+              </div>
+            )
+          ) : (
+            // DURUM C: ARŞİV VEYA TÜM SINIFLAR (TABLO MODU)
+            <div className="pl-[56px] w-full animate-in fade-in duration-500">
+              <div className="bg-white border border-neutral-300 rounded-[16px] overflow-hidden shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-surface-50 border-b border-neutral-200">
                       <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Grup kodu</th>
                       <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Şube</th>
                       <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Eğitmen</th>
                       <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight text-center">Öğrenci</th>
                       <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight text-right pr-8">İşlem</th>
-                    </tr></thead>
+                    </tr>
+                  </thead>
+                  {/* Buradan sonra senin mevcut tbody kodun gelecek */}
+                    {/* Tablo gövdesi (tbody) buradan aşağı devam edecek... */}
                     <tbody>{filteredGroups.map((group) => (
                       <tr key={group.id} className="border-b border-neutral-100 last:border-0 hover:bg-surface-50/50 transition-colors">
                         <td className="px-6 py-3 font-bold text-base-primary-700">{group.code}</td>
@@ -393,128 +500,212 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             )}
           </div>
 
-       {/* --- BÖLÜM 5: ÖĞRENCİ LİSTESİ ÜST BAR (Milimetrik Spacing & rounded-lg) --- */}
-          {currentView === "Aktif Sınıflar" && (
-            <div className="mt-[64px] pl-[56px] animate-in fade-in slide-in-from-bottom-2">
-              <div className="flex items-center pb-4 border-b border-neutral-200 mb-4">
-                {/* Başlık ve Sayı */}
-                <div className="flex items-center gap-2 min-w-fit">
-                  <Users size={18} className="text-base-primary-900" />
-                  <h2 className="text-[18px] font-semibold text-base-primary-900 leading-none">Öğrenciler</h2>
-                  <span className="text-[13px] font-medium text-text-tertiary ml-2">(34 Öğrenci)</span>
-                </div>
+      {/* --- BÖLÜM 5: ÖĞRENCİ LİSTESİ KOMUTA MERKEZİ --- */}
+{currentView === "Aktif Sınıflar" && (
+  <div className="mt-[64px] pl-[56px] animate-in fade-in slide-in-from-bottom-2">
+    <div className="flex items-center pb-4 border-b border-neutral-200 mb-4">
+      
+      {/* 1. Başlık ve Sayı */}
+      <div className="flex items-center gap-2 min-w-fit">
+        <Users size={18} className="text-base-primary-900" />
+        <h2 className="text-[18px] font-bold text-base-primary-900 leading-none tracking-tight">Öğrenciler</h2>
+        <span className="text-[13px] font-medium text-neutral-400 ml-2">
+          ({students.filter(s => {
+            if (viewMode === 'all-branches') {
+              if (studentBranch === "Tümü") return true;
+              return s.branch.includes(studentBranch);
+            }
+            if (viewMode === 'all-groups') return s.branch.includes("Kadıköy"); // Eğitmen modu varsayılanı
+            return s.groupId === selectedGroupId;
+          }).length} Kayıt)
+        </span>
+      </div>
 
-                {/* 56px Boşluk ve Menu (rounded-lg) */}
-                <div className="flex items-center ml-14 bg-surface-50 p-1 rounded-lg">
-                  <button onClick={() => setStudentTab("group-list")} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${studentTab === "group-list" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Grup Listesi</button>
-                  <button onClick={() => setStudentTab("all-students")} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${studentTab === "all-students" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Tüm Öğrenciler</button>
-                </div>
+      {/* 2. Filtreleme Menüsü */}
+      <div className="flex items-center ml-14 bg-surface-50 p-1 rounded-lg border border-neutral-100 shadow-sm">
+        <button 
+          onClick={() => setViewMode("group-list")} 
+          className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${viewMode === "group-list" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}
+        >
+          Grup Listesi
+        </button>
+        <button 
+          onClick={() => setViewMode("all-groups")} 
+          className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${viewMode === "all-groups" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}
+        >
+          Tüm Gruplarım
+        </button>
+        {isAdmin && (
+          <button 
+            onClick={() => setViewMode("all-branches")} 
+            className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${viewMode === "all-branches" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}
+          >
+            Tüm Şubeler
+          </button>
+        )}
+      </div>
 
-                {/* 32px Boşluk ve Öğrenci Ekle */}
-                <button 
-                  onClick={() => setIsStudentFormOpen(!isStudentFormOpen)}
-                  className="flex items-center gap-2 ml-8 text-base-primary-500 hover:text-base-primary-600 transition-colors cursor-pointer group outline-none"
-                >
-                  {isStudentFormOpen ? <X size={20} /> : <PlusCircle size={20} className="transition-transform group-hover:scale-110" />}
-                  <span className="text-[14px] font-semibold">{isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}</span>
-                </button>
+      {/* 3. ADIM: Şube Seçim Menüsü (Admin'e Özel & Şube Modunda Görünür) */}
+      {isAdmin && viewMode === "all-branches" && (
+        <div className="flex items-center gap-2 ml-4 animate-in fade-in slide-in-from-left-4 duration-300">
+          <div className="h-6 w-px bg-neutral-200 mx-2" />
+          <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Filtrele:</span>
+          <select 
+            value={studentBranch} 
+            onChange={(e) => setStudentBranch(e.target.value)}
+            className="bg-white border border-neutral-200 rounded-lg px-3 py-1.5 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 transition-all cursor-pointer hover:border-neutral-300 shadow-sm"
+          >
+            <option value="Tümü">Tümü (Tüm Türkiye)</option>
+            <option value="Kadıköy">Kadıköy Şb.</option>
+            <option value="Şirinevler">Şirinevler Şb.</option>
+            <option value="Pendik">Pendik Şb.</option>
+          </select>
+        </div>
+      )}
 
-                {/* En Sağda Uzun Search (rounded-lg) */}
-                <div className="relative ml-auto w-[420px]">
-                  <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="İsim ile Ara" className="w-full h-[40px] bg-white border border-neutral-200 rounded-lg px-4 pr-10 text-[13px] font-medium placeholder:text-text-tertiary focus:outline-none focus:border-base-primary-500 transition-all shadow-sm" />
-                  <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                </div>
-              </div>
+      {/* 4. Öğrenci Ekle Butonu */}
+      <button 
+        onClick={() => {
+          if (!isStudentFormOpen) {
+            const currentGroup = groups.find(g => g.id === selectedGroupId);
+            setStudentGroupCode(currentGroup ? currentGroup.code : "");
+          }
+          setIsStudentFormOpen(!isStudentFormOpen);
+        }}
+        className="flex items-center gap-2 ml-8 text-base-primary-500 hover:text-base-primary-600 transition-colors cursor-pointer group outline-none"
+      >
+        {isStudentFormOpen ? <X size={20} /> : <PlusCircle size={20} className="transition-transform group-hover:scale-110" />}
+        <span className="text-[14px] font-bold">{isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}</span>
+      </button>
 
-    {/* --- SECTION 6: STUDENT ENROLLMENT FORM (4 Inputs Top / Buttons Bottom) --- */}
+      {/* 5. Arama Barı */}
+      <div className="relative ml-auto w-[320px]">
+        <input 
+          type="text" 
+          value={searchQuery} 
+          onChange={(e) => setSearchQuery(e.target.value)} 
+          placeholder="İsim ile ara..." 
+          className="w-full h-[40px] bg-white border border-neutral-200 rounded-lg px-4 pr-10 text-[13px] font-medium placeholder:text-text-tertiary focus:outline-none focus:border-base-primary-500 transition-all shadow-sm" 
+        />
+        <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+      </div>
+    </div>
+
+{/* --- SECTION 6: STUDENT ENROLLMENT FORM --- */}
           <div className={`grid transition-all duration-500 ease-in-out ${isStudentFormOpen ? 'grid-rows-[1fr] opacity-100 mt-6' : 'grid-rows-[0fr] opacity-0 overflow-hidden'}`}>
             <div className="min-h-0 overflow-hidden">
               <div className="bg-white border border-neutral-200 rounded-lg p-[36px] shadow-sm mb-8">
                 
-                {/* Header Row: 4-Column Grid for Student Information */}
-                <div className="grid grid-cols-4 gap-[16px]">
+                {/* 6'lı Grid Dağılımı */}
+                <div className="grid grid-cols-[140px_140px_1fr_1fr_1fr_2fr] gap-[16px]">
                   
-                  {/* First Name Field */}
+                  {/* 1. Şube (Seçili olan listede görünmez) */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[14px] font-medium text-base-primary-900 leading-none">Şube</label>
+                    <div className="relative">
+                   <select 
+                    value={studentBranch}
+                    onChange={(e) => setStudentBranch(e.target.value)}
+                    className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-3 text-[13px] focus:outline-none focus:border-base-primary-500 transition-all font-semibold text-base-primary-900 appearance-none cursor-pointer outline-none"
+                  >
+                    {/* Seçili olanı en üstte tut ama listede tekrar seçilemesin (disabled) */}
+                    <option value={studentBranch} disabled className="text-neutral-300">{studentBranch}</option>
+                    
+                    {/* Sadece seçili OLMAYANLARI seçenek olarak sun */}
+                    {["Kadıköy Şb.", "Şirinevler Şb.", "Pendik Şb."]
+                      .filter(branch => branch !== studentBranch)
+                      .map(branch => (
+                        <option key={branch} value={branch}>{branch}</option>
+                      ))
+                    }
+                  </select>
+                      <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* 2. Grup Kodu (Bold değil, sade koyu renk) */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[14px] font-medium text-base-primary-900 leading-none">Grup Kodu</label>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={studentGroupCode}
+                        onChange={(e) => {setStudentGroupCode(e.target.value); setStudentError("");}}
+                        placeholder="Örn: 001" 
+                        className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 placeholder:text-neutral-400 outline-none" 
+                      />
+                      <Code2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* 3. Ad Field */}
                   <div className="flex flex-col gap-2">
                     <label className="text-[14px] font-medium text-base-primary-900 leading-none">Ad</label>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        value={studentName}
-                        onChange={(e) => setStudentName(e.target.value)}
-                        placeholder="Örn: Ela" 
-                        className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 pr-10 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 placeholder:text-neutral-400" 
-                      />
-                      <User size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                    </div>
+                    <input 
+                      type="text" 
+                      value={studentName}
+                      onChange={(e) => {setStudentName(e.target.value); setStudentError("");}}
+                      placeholder="Örn: Ela" 
+                      className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 outline-none" 
+                    />
                   </div>
 
-                  {/* Last Name Field */}
+                  {/* 4. Soyad Field */}
                   <div className="flex flex-col gap-2">
                     <label className="text-[14px] font-medium text-base-primary-900 leading-none">Soyad</label>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        value={studentLastName}
-                        onChange={(e) => setStudentLastName(e.target.value)}
-                        placeholder="Örn: Yılmaz" 
-                        className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 pr-10 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 placeholder:text-neutral-400" 
-                      />
-                      <User size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                    </div>
+                    <input 
+                      type="text" 
+                      value={studentLastName}
+                      onChange={(e) => {setStudentLastName(e.target.value); setStudentError("");}}
+                      placeholder="Örn: Karaca" 
+                      className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 outline-none" 
+                    />
                   </div>
 
-                  {/* Email Field */}
+                  {/* 5. E-Posta Field */}
                   <div className="flex flex-col gap-2">
                     <label className="text-[14px] font-medium text-base-primary-900 leading-none">E-Posta</label>
-                    <div className="relative">
-                      <input 
-                        type="email" 
-                        value={studentEmail}
-                        onChange={(e) => setStudentEmail(e.target.value)}
-                        placeholder="ornek@mail.com" 
-                        className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 pr-10 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 placeholder:text-neutral-400" 
-                      />
-                      <Mail size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                    </div>
+                    <input 
+                      type="email" 
+                      value={studentEmail}
+                      onChange={(e) => {setStudentEmail(e.target.value); setStudentError("");}}
+                      placeholder="mail@ornek.com" 
+                      className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 outline-none" 
+                    />
                   </div>
 
-                  {/* Instructor Note Field */}
+                  {/* 6. Eğitmen Notu Field */}
                   <div className="flex flex-col gap-2">
                     <label className="text-[14px] font-medium text-base-primary-900 leading-none">Eğitmen Notu</label>
-                    <div className="relative">
-                      <textarea 
-                        rows={1} 
-                        value={studentNote}
-                        onChange={(e) => setStudentNote(e.target.value)}
-                        placeholder="Not ekle..." 
-                        className="w-full h-10 min-h-[40px] max-h-[100px] bg-neutral-50 border border-neutral-200 rounded-lg px-4 pr-10 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 placeholder:text-neutral-400 resize-none py-[9px] leading-[20px] scrollbar-hide block" 
-                      />
-                      <FileText size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-                    </div>
+                    <textarea 
+                      rows={1} 
+                      value={studentNote}
+                      onChange={(e) => setStudentNote(e.target.value)}
+                      className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 resize-none py-[9px] outline-none" 
+                    />
                   </div>
                 </div>
 
-                {/* Footer Row: Action Buttons Pinned Right */}
-                <div className="mt-8 flex justify-end gap-[16px]">
+                {/* Footer Row: Error Message & Action Buttons */}
+                <div className="mt-8 flex items-center justify-end gap-[16px]">
+                  {studentError && (
+                    <p className="text-red-500 text-[13px] font-bold animate-shake-fast">
+                      {studentError}
+                    </p>
+                  )}
                   <button 
                     onClick={handleAddStudent}
-                    className="h-10 px-6 bg-[var(--color-designstudio-secondary-500)] text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-500/10 active:scale-95 transition-all whitespace-nowrap outline-none"
+                    className="h-10 px-8 bg-[var(--color-designstudio-secondary-500)] text-white rounded-lg font-bold text-sm flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-500/10 active:scale-95 transition-all outline-none"
                   >
                     Kaydet <ChevronRight size={18} />
                   </button>
                   <button 
-                    onClick={() => {
-                      setIsStudentFormOpen(false);
-                      setEditingStudentId(null);
-                      setStudentName(""); setStudentLastName(""); setStudentEmail(""); setStudentNote("");
-                    }} 
-                    className="h-10 px-6 bg-neutral-500 text-white rounded-lg font-bold text-sm flex items-center justify-center cursor-pointer hover:bg-neutral-600 transition-colors whitespace-nowrap outline-none"
+                    onClick={() => {setIsStudentFormOpen(false); setStudentError("");}} 
+                    className="h-10 px-6 bg-neutral-100 text-neutral-500 rounded-lg font-bold text-sm hover:bg-neutral-200 transition-colors outline-none cursor-pointer"
                   >
                     Vazgeç
                   </button>
                 </div>
-
               </div>
             </div>
           </div>
@@ -525,46 +716,74 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
               <thead>
                 <tr className="border-b border-neutral-200 bg-neutral-50/30 h-10">
                   <th className="px-8 text-[14px] font-bold text-base-primary-900">Öğrenci İsmi</th>
+                  <th className="px-8 text-[14px] font-bold text-base-primary-900">Şube</th>
+                  <th className="px-8 text-[14px] font-bold text-base-primary-900">Grup Kodu</th>
                   <th className="px-8 text-[14px] font-bold text-base-primary-900">E-Posta Adresi</th>
                   <th className="px-8 text-[14px] font-bold text-base-primary-900">Eğitmen Notları</th>
                   <th className="px-8 text-[14px] font-bold text-base-primary-900 text-right">Aksiyonlar</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
-                {students.map((student) => (
-                  <tr key={student.id} className="hover:bg-neutral-50/50 transition-colors h-10">
-                    <td className="px-8 text-[14px] font-semibold text-base-primary-900 leading-none">{student.name}</td>
-                    <td className="px-8 text-[14px] font-medium text-neutral-400 leading-none">{student.email}</td>
-                    <td className="px-8 text-[14px] font-medium text-neutral-400 max-w-[400px] truncate leading-none">{student.note}</td>
-                    <td className="px-8 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* Edit Action: PencilLine Icon 18x18 */}
-                        <button 
-                          onClick={() => {
-                            const [fName, ...lName] = student.name.split(" ");
-                            setStudentName(fName);
-                            setStudentLastName(lName.join(" "));
-                            setStudentEmail(student.email);
-                            setStudentNote(student.note);
-                            setEditingStudentId(student.id);
-                            setIsStudentFormOpen(true);
-                          }}
-                          className="p-1.5 text-[var(--color-designstudio-secondary-500)] hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <PencilLine size={18} />
-                        </button>
-                        {/* Delete Action: Triggers Modal */}
-                        <button 
-                          onClick={() => setModalConfig({ isOpen: true, type: 'delete', groupId: student.id })}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+  {students.filter((student) => {
+    if (viewMode === 'all-branches') {
+      if (studentBranch === "Tümü") return true;
+      return student.branch.includes(studentBranch);
+    }
+    if (viewMode === 'all-groups') return student.branch.includes("Kadıköy"); 
+    return student.groupId === selectedGroupId;
+  }).length > 0 ? (
+    // EĞER ÖĞRENCİ VARSA LİSTELE
+    students
+      .filter((student) => {
+        if (viewMode === 'all-branches') {
+          if (studentBranch === "Tümü") return true;
+          return student.branch.includes(studentBranch);
+        }
+        if (viewMode === 'all-groups') return student.branch.includes("Kadıköy");
+        return student.groupId === selectedGroupId;
+      })
+      .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      .map((student) => (
+        <tr key={student.id} className="hover:bg-neutral-50/50 transition-colors h-10 group">
+          <td className="px-8 text-[14px] font-semibold text-base-primary-900 leading-none">{student.name}</td>
+          <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.branch}</td>
+          <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.groupCode}</td>
+          <td className="px-8 text-[14px] font-medium text-neutral-400 leading-none">{student.email}</td>
+          {/* Eğitmen Notu: Truncate ile satırı bozmuyoruz, title ile üzerine gelince tam metni gösteriyoruz */}
+          <td className="px-8 text-[14px] font-medium text-neutral-400 max-w-[300px] truncate leading-none" title={student.note}>
+            {student.note}
+          </td>
+          <td className="px-8 text-right">
+            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+               {/* Aksiyon butonların buraya... */}
+            </div>
+          </td>
+        </tr>
+      ))
+  ) : (
+    // EĞER ÖĞRENCİ YOKSA: EMPTY STATE (BOŞ VERİ EKRANI)
+    <tr>
+      <td colSpan={6} className="py-20 text-center">
+        <div className="flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
+          <div className="w-16 h-16 bg-neutral-50 rounded-2xl flex items-center justify-center text-neutral-300 mb-4 border border-neutral-100">
+            <Users size={32} strokeWidth={1.5} />
+          </div>
+          <h3 className="text-[16px] font-bold text-neutral-700 mb-1">Henüz Öğrenci Kaydı Yok</h3>
+          <p className="text-[13px] font-medium text-neutral-400 max-w-[280px] leading-relaxed">
+            Seçili filtreye uygun öğrenci bulunamadı. Yeni bir kayıt ekleyerek başlayabilirsiniz.
+          </p>
+          {/* Hızlı Ekle Butonu */}
+          <button 
+            onClick={() => setIsStudentFormOpen(true)}
+            className="mt-6 px-5 py-2 bg-white border border-neutral-200 rounded-lg text-[13px] font-bold text-base-primary-600 hover:bg-neutral-50 transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            Öğrenci Kaydı Başlat
+          </button>
+        </div>
+      </td>
+    </tr>
+  )}
+</tbody>
             </table>
           </div>
         </div> // Content Wrapper End
@@ -589,6 +808,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
       </div>
     </div>
   )}
-</div> // Component End
-);
-}
+
+    </div> 
+  ); 
+} 
