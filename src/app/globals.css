@@ -175,6 +175,22 @@
     text-rendering: optimizeLegibility;
   }
 
+ /* Scrollbar alanı 1px olarak kalsın (titremeyi önler) */
+::-webkit-scrollbar {
+  width: 1px;
+}
+
+/* Arka planı ve çubuğu tamamen şeffaf yapıyoruz (çizgiyi yok eder) */
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent !important;
+}
+
+
+
   body {
     margin: 0;
     padding: 0;

@@ -21,7 +21,7 @@ export default function ManagementPage() {
         {/* Header artık dinamik başlığı page.tsx'ten alıyor */}
         <Header activeTabLabel={headerTitle} />
 
-        <main className="flex-1 overflow-y-auto bg-surface-50/20">
+        <main className="flex-1 overflow-y-scroll bg-surface-50/20">
           <div className="w-full max-w-[1920px] mx-auto">
              {/* ManagementContent başlığı değiştirme yetkisine sahip oldu */}
              <ManagementContent setHeaderTitle={setHeaderTitle} />

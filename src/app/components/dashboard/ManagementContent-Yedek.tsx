@@ -7,34 +7,26 @@ import {
   Mail, FileText, PencilLine 
 } from "lucide-react";
 
-// Firebase importları
-import { db } from "@/app/lib/firebase"; 
-import { collection, onSnapshot } from "firebase/firestore";
+const INITIAL_GROUPS = [
+  { id: 1, code: "Grup 001", branch: "Kadıköy", instructor: "Alparslan Hoca", session: "Pts - Çar | 19.00 - 21.30", students: 12, status: "active" },
+  { id: 2, code: "Grup 002", branch: "Beşiktaş", instructor: "Ali Bey", session: "Sal - Per | 19.00 - 21.30", students: 16, status: "active" },
+  { id: 3, code: "Grup 003", branch: "Kadıköy", instructor: "Ayşe Hanım", session: "Cts - Paz | 09.00 - 12.00", students: 14, status: "active" },
+  { id: 4, code: "Grup 004", branch: "Online", instructor: "Mehmet Hoca", session: "Cts - Paz | 12.00 - 15.00", students: 10, status: "active" },
+];
 
 export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: (t: string) => void }) {
   const isAdmin = true; 
 
-  // --- STATE TANIMLAMALARI ---
   const [activeSubTab, setActiveSubTab] = useState("groups");
   const [currentView, setCurrentView] = useState("Aktif Sınıflar");
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [groups, setGroups] = useState(INITIAL_GROUPS);
   
-  // Firebase'den gelecek Gruplar
-  const [groups, setGroups] = useState<{
-    id: any;
-    code: string;
-    branch: string;
-    instructor: string;
-    session: string;
-    students: number;
-    status: string;
-  }[]>([]);
-  
-  const [selectedGroupId, setSelectedGroupId] = useState<number | string | null>(1);
-  const [lastSelectedId, setLastSelectedId] = useState<number | string | null>(1);
-  const [openMenuId, setOpenMenuId] = useState<number | string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(1);
+  const [lastSelectedId, setLastSelectedId] = useState<number | null>(1);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
-  const [editingGroupId, setEditingGroupId] = useState<number | string | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [groupCode, setGroupCode] = useState("");
   const [selectedSchedule, setSelectedSchedule] = useState("Grup seansı seçiniz...");
   const [customSchedule, setCustomSchedule] = useState("");
@@ -42,11 +34,13 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const [errors, setErrors] = useState<{ code?: string; schedule?: string }>({});
   const [isShaking, setIsShaking] = useState(false);
 
-  /* --- STUDENT MANAGEMENT STATES --- */
+/* --- STUDENT MANAGEMENT STATES --- */
   const [studentTab, setStudentTab] = useState("group-list");
   const [searchQuery, setSearchQuery] = useState("");
   const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
 
+  
+  // Individual states for form handling
   const [studentName, setStudentName] = useState("");
   const [studentLastName, setStudentLastName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
@@ -55,27 +49,55 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const [studentGroupCode, setStudentGroupCode] = useState("");
   const [showAllMyGroups, setShowAllMyGroups] = useState(false);
   const [showAllBranches, setShowAllBranches] = useState(false);
-  const [editingStudentId, setEditingStudentId] = useState<number | string | null>(null);
+  const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
   const [studentError, setStudentError] = useState("");
   const [viewMode, setViewMode] = useState<'group-list' | 'all-groups' | 'all-branches'>('group-list');
 
-  // Firebase'den gelecek Öğrenciler
+  useEffect(() => {
+  if (!isAdmin) {
+    // Eğer eğitmen ise sadece kendi şubesi olan "Kadıköy"ü görsün
+    setStudentBranch("Kadıköy"); 
+    // Eğitmenin "Tüm Şubeler"e erişimi olmasın, kaza ile bile geçemesin
+    if (viewMode === 'all-branches') setViewMode('all-groups');
+  }
+}, [isAdmin]);
+
+// Student list data - TypeScript'e yeni alanları (branch ve groupCode) burada tanıtıyoruz
   const [students, setStudents] = useState<{
-    id: any;
+    id: number;
     name: string;
     email: string;
     note: string;
-    groupId: any;
-    branch: string;
-    groupCode: string;
-  }[]>([]);
+    groupId: number;
+    branch: string;    // Şube bilgisini ekledik
+    groupCode: string; // Grup kodunu ekledik
+  }[]>([
+    { 
+      id: 1, 
+      name: "Floyd Miles", 
+      email: "tanya.hill@example.com", 
+      note: "Proje ödevlerinde çok başarılı.", 
+      groupId: 1,
+      branch: "Kadıköy Şb.", // Örnek veri
+      groupCode: "Grup 001"  // Örnek veri
+    },
+    { 
+      id: 2, 
+      name: "Olivia Garcia", 
+      email: "olivia.garcia@example.com", 
+      note: "Very creative in projects", 
+      groupId: 1,
+      branch: "Şirinevler Şb.",
+      groupCode: "Grup 002"
+    },
+  ]);
 
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
   
   const [modalConfig, setModalConfig] = useState<{ 
     isOpen: boolean; 
     type: 'archive' | 'delete' | 'restore' | null; 
-    groupId: number | string | null 
+    groupId: number | null 
   }>({
     isOpen: false,
     type: null,
@@ -89,31 +111,6 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     "Pts - Çar | 19.00 - 21.30", "Sal - Per | 19.00 - 21.30", "Cts - Paz | 09.00 - 12.00",
     "Cts - Paz | 12.00 - 15.00", "Cts - Paz | 15.00 - 18.00", "Özel Grup Tanımla",
   ];
-
-  // --- FIREBASE VERİ MOTORU (CAN DAMARI) ---
-  useEffect(() => {
-    // Grupları Canlı Dinle
-    const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
-      const gList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-      setGroups(gList);
-    });
-
-    // Öğrencileri Canlı Dinle
-    const unsubStudents = onSnapshot(collection(db, "students"), (snapshot) => {
-      const sList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-      setStudents(sList);
-    });
-
-    return () => { unsubGroups(); unsubStudents(); };
-  }, []);
-
-  // Admin Kontrolü
-  useEffect(() => {
-    if (!isAdmin) {
-      setStudentBranch("Kadıköy"); 
-      if (viewMode === 'all-branches') setViewMode('all-groups');
-    }
-  }, [isAdmin, viewMode]);
 
   const showNotification = (msg: string) => {
     setToast({ show: true, message: msg });
