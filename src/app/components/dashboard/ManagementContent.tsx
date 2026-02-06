@@ -9,7 +9,31 @@ import {
 
 // Firebase importları
 import { db } from "@/app/lib/firebase"; 
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, query, where, doc, updateDoc, deleteDoc } from "firebase/firestore";
+
+/**
+ * Interface Tanımlamaları: Veri yapılarını TypeScript'e tanıtarak "any" hatalarını önlüyoruz.
+ */
+interface Group {
+  id: string;
+  code: string;
+  branch: string;
+  instructor: string;
+  session: string;
+  students: number;
+  status: string;
+}
+
+interface Student {
+  id: string;
+  name: string;
+  email: string;
+  note: string;
+  groupId: string;
+  branch: string;
+  groupCode: string;
+  points: number;
+}
 
 export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: (t: string) => void }) {
   const isAdmin = true; 
@@ -19,22 +43,15 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const [currentView, setCurrentView] = useState("Aktif Sınıflar");
   const [isFormOpen, setIsFormOpen] = useState(false);
   
-  // Firebase'den gelecek Gruplar
-  const [groups, setGroups] = useState<{
-    id: any;
-    code: string;
-    branch: string;
-    instructor: string;
-    session: string;
-    students: number;
-    status: string;
-  }[]>([]);
+  // Veritabanı State'leri
+  const [students, setStudents] = useState<Student[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   
-  const [selectedGroupId, setSelectedGroupId] = useState<number | string | null>(1);
-  const [lastSelectedId, setLastSelectedId] = useState<number | string | null>(1);
-  const [openMenuId, setOpenMenuId] = useState<number | string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  const [editingGroupId, setEditingGroupId] = useState<number | string | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupCode, setGroupCode] = useState("");
   const [selectedSchedule, setSelectedSchedule] = useState("Grup seansı seçiniz...");
   const [customSchedule, setCustomSchedule] = useState("");
@@ -42,44 +59,31 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const [errors, setErrors] = useState<{ code?: string; schedule?: string }>({});
   const [isShaking, setIsShaking] = useState(false);
 
-  /* --- STUDENT MANAGEMENT STATES --- */
-  const [studentTab, setStudentTab] = useState("group-list");
+  /* --- ÖĞRENCİ YÖNETİMİ STATE'LERİ --- */
   const [searchQuery, setSearchQuery] = useState("");
   const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
-
   const [studentName, setStudentName] = useState("");
   const [studentLastName, setStudentLastName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [studentNote, setStudentNote] = useState("");
   const [studentBranch, setStudentBranch] = useState("Kadıköy");
   const [studentGroupCode, setStudentGroupCode] = useState("");
-  const [showAllMyGroups, setShowAllMyGroups] = useState(false);
-  const [showAllBranches, setShowAllBranches] = useState(false);
-  const [editingStudentId, setEditingStudentId] = useState<number | string | null>(null);
   const [studentError, setStudentError] = useState("");
   const [viewMode, setViewMode] = useState<'group-list' | 'all-groups' | 'all-branches'>('group-list');
-
-  // Firebase'den gelecek Öğrenciler
-  const [students, setStudents] = useState<{
-    id: any;
-    name: string;
-    email: string;
-    note: string;
-    groupId: any;
-    branch: string;
-    groupCode: string;
-  }[]>([]);
-
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null); // BU SATIRI EKLE
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
+  const [selectedGroupIdForStudent, setSelectedGroupIdForStudent] = useState<string>("");
   
-  const [modalConfig, setModalConfig] = useState<{ 
+const [modalConfig, setModalConfig] = useState<{ 
     isOpen: boolean; 
-    type: 'archive' | 'delete' | 'restore' | null; 
-    groupId: number | string | null 
+    type: 'archive' | 'delete' | 'restore' | 'student-delete' | null; // student-delete ekledik
+    groupId: string | null;
+    studentId?: string | null; // studentId ekledik
   }>({
     isOpen: false,
     type: null,
-    groupId: null
+    groupId: null,
+    studentId: null
   });
 
   const scheduleRef = useRef<HTMLDivElement>(null);
@@ -90,39 +94,39 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     "Cts - Paz | 12.00 - 15.00", "Cts - Paz | 15.00 - 18.00", "Özel Grup Tanımla",
   ];
 
-  // --- FIREBASE VERİ MOTORU (CAN DAMARI) ---
+  // --- FIREBASE CANLI VERİ MOTORU ---
   useEffect(() => {
-    // Grupları Canlı Dinle
     const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
-      const gList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      const gList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Group[];
       setGroups(gList);
+      // Eğer hiç grup seçilmemişse ve liste doluysa ilkini seç
+      if (gList.length > 0 && !selectedGroupId) {
+        setSelectedGroupId(gList[0].id);
+      }
     });
 
-    // Öğrencileri Canlı Dinle
     const unsubStudents = onSnapshot(collection(db, "students"), (snapshot) => {
-      const sList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      const sList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Student[];
       setStudents(sList);
     });
 
     return () => { unsubGroups(); unsubStudents(); };
-  }, []);
-
-  // Admin Kontrolü
-  useEffect(() => {
-    if (!isAdmin) {
-      setStudentBranch("Kadıköy"); 
-      if (viewMode === 'all-branches') setViewMode('all-groups');
-    }
-  }, [isAdmin, viewMode]);
+  }, [selectedGroupId]);
 
   const showNotification = (msg: string) => {
     setToast({ show: true, message: msg });
     setTimeout(() => setToast({ show: false, message: "" }), 3000);
   };
 
-  const requestModal = (id: number, type: 'archive' | 'delete' | 'restore') => {
-    setModalConfig({ isOpen: true, type, groupId: id });
-    setOpenMenuId(null);
+  // --- FORM VE İPTAL KONTROLLERİ ---
+  const handleCancel = () => {
+    setIsFormOpen(false);
+    setEditingGroupId(null);
+    setGroupCode("");
+    setSelectedSchedule("Grup seansı seçiniz...");
+    setCustomSchedule("");
+    setErrors({});
+    if (lastSelectedId) setSelectedGroupId(lastSelectedId);
   };
 
   const handleOpenForm = () => {
@@ -136,19 +140,10 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     }
   };
 
-  const handleCancel = () => {
-    setSelectedGroupId(lastSelectedId);
-    setIsFormOpen(false);
-    setEditingGroupId(null);
-    setErrors({});
-    setGroupCode("");
-    setCustomSchedule("");
-    setSelectedSchedule("Grup seansı seçiniz...");
-  };
-
-  const handleEdit = (group: any) => {
+  // --- GRUP İŞLEMLERİ (KAYDET / DÜZENLE) ---
+  const handleEdit = (group: Group) => {
     setEditingGroupId(group.id);
-    setGroupCode(group.code);
+    setGroupCode(group.code.replace("Grup ", ""));
     if (schedules.includes(group.session)) {
       setSelectedSchedule(group.session);
       setCustomSchedule("");
@@ -162,10 +157,10 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     setOpenMenuId(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const newErrors: { code?: string; schedule?: string } = {};
-    if (!groupCode.trim()) newErrors.code = "Lütfen bir grup kodu giriniz.";
-    if (selectedSchedule === "Grup seansı seçiniz...") newErrors.schedule = "Lütfen bir seans seçiniz.";
+    if (!groupCode.trim()) newErrors.code = "Grup kodu zorunludur.";
+    if (selectedSchedule === "Grup seansı seçiniz...") newErrors.schedule = "Seans seçimi zorunludur.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -180,112 +175,132 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
     const finalSession = selectedSchedule === "Özel Grup Tanımla" ? customSchedule : selectedSchedule;
     
-    if (editingGroupId) {
-      setGroups(groups.map(g => g.id === editingGroupId ? { ...g, code: formattedCode, session: finalSession } : g));
-      setSelectedGroupId(editingGroupId);
-      showNotification("Grup başarıyla güncellendi.");
-    } else {
-      const newGroupId = Date.now();
-      const newGroup = { id: newGroupId, code: formattedCode, branch: "Kadıköy", instructor: "Alparslan Hoca", session: finalSession, students: 0, status: "active" };
-      setGroups([newGroup, ...groups]);
-      setSelectedGroupId(newGroupId);
-      showNotification("Yeni grup başarıyla oluşturuldu.");
+    try {
+      if (editingGroupId) {
+        await updateDoc(doc(db, "groups", editingGroupId), {
+          code: formattedCode,
+          session: finalSession,
+          branch: "Kadıköy"
+        });
+        showNotification("Grup başarıyla güncellendi.");
+      } else {
+        const docRef = await addDoc(collection(db, "groups"), {
+          code: formattedCode,
+          branch: "Kadıköy",
+          instructor: "Alparslan Hoca",
+          session: finalSession,
+          students: 0,
+          status: "active",
+          createdAt: new Date()
+        });
+        setSelectedGroupId(docRef.id);
+        setLastSelectedId(docRef.id);
+        showNotification("Yeni grup başarıyla oluşturuldu.");
+      }
+      handleCancel();
+    } catch (error) {
+      console.error("Grup Kayıt Hatası:", error);
+      showNotification("Grup kaydedilirken bir hata oluştu.");
     }
-    setIsFormOpen(false);
-    setEditingGroupId(null);
-    setGroupCode("");
-    setCustomSchedule("");
-    setSelectedSchedule("Grup seansı seçiniz...");
-    setErrors({});
   };
 
-  const confirmModalAction = () => {
+  // --- MODAL YÖNETİMİ ---
+  const requestModal = (id: string, type: 'archive' | 'delete' | 'restore') => {
+    setModalConfig({ isOpen: true, type, groupId: id });
+    setOpenMenuId(null);
+  };
+
+  const confirmModalAction = async () => {
     if (!modalConfig.groupId) return;
-
-    if (modalConfig.type === 'delete') {
-      const updatedGroups = groups.filter(g => g.id !== modalConfig.groupId);
-      setGroups(updatedGroups);
-
-      // Cascade Delete: Gruba ait öğrencileri sil
-      setStudents(prev => prev.filter(s => s.groupId !== modalConfig.groupId));
-
-      // Otomatik Odaklanma
-      if (selectedGroupId === modalConfig.groupId) {
-        const nextGroup = updatedGroups.find(g => g.status === 'active');
-        setSelectedGroupId(nextGroup ? nextGroup.id : null);
+    try {
+      const groupRef = doc(db, "groups", modalConfig.groupId);
+      if (modalConfig.type === 'delete') {
+        await deleteDoc(groupRef);
+        if (selectedGroupId === modalConfig.groupId) setSelectedGroupId(null);
+      } 
+      else if (modalConfig.type === 'archive') {
+        await updateDoc(groupRef, { status: 'archived' });
+        if (selectedGroupId === modalConfig.groupId) setSelectedGroupId(null);
+      } 
+      else if (modalConfig.type === 'restore') {
+        await updateDoc(groupRef, { status: 'active' });
       }
-      showNotification("Grup ve bağlı veriler silindi.");
-    } 
-    
-    else if (modalConfig.type === 'archive') {
-      const updatedGroups = groups.map(g => g.id === modalConfig.groupId ? { ...g, status: 'archived' } : g);
-      setGroups(updatedGroups);
-
-      // Arşive gidince odağı kaydır
-      if (selectedGroupId === modalConfig.groupId) {
-        const nextGroup = updatedGroups.find(g => g.status === 'active');
-        setSelectedGroupId(nextGroup ? nextGroup.id : null);
-      }
-      showNotification("Grup arşive taşındı.");
-    } 
-    
-    else if (modalConfig.type === 'restore') {
-      setGroups(groups.map(g => g.id === modalConfig.groupId ? { ...g, status: 'active' } : g));
-      showNotification("Grup aktif listeye taşındı.");
+      showNotification("İşlem başarıyla gerçekleştirildi.");
+    } catch (error) {
+      console.error("Modal İşlem Hatası:", error);
     }
-
     setModalConfig({ isOpen: false, type: null, groupId: null });
   };
- const handleAddStudent = () => {
-    // 1. HATA KONTROLÜ: groupCode dahil hepsi dolu olmalı
-    if (!studentName.trim() || !studentLastName.trim() || !studentEmail.trim() || !studentGroupCode.trim() || !selectedGroupId) {
-      setStudentError("Lütfen tüm alanları eksiksiz doldurun.");
+
+  // --- ÖĞRENCİ YÖNETİMİ ---
+  const handleAddStudent = async () => {
+    if (!studentName.trim() || !studentLastName.trim() || !selectedGroupId) {
+      setStudentError("Lütfen gerekli alanları doldurun.");
       return;
     }
-
-    const fullName = `${studentName.trim()} ${studentLastName.trim()}`;
-    const newStudent = {
-      id: Date.now(),
-      name: fullName,
-      email: studentEmail.trim(),
-      note: studentNote.trim(),
-      groupId: selectedGroupId,
-      groupCode: studentGroupCode, // Otomatik veya elle gelen kod
-      branch: studentBranch
-    };
-
-    // 2. KAYIT İŞLEMİ
-    setStudents(prev => [newStudent, ...prev]);
-
-    // Grup kartındaki öğrenci sayısını 1 artırıyoruz
-    setGroups(prev => prev.map(g => 
-      g.id === selectedGroupId ? { ...g, students: g.students + 1 } : g
-    ));
-
-    // 3. TEMİZLİK
-    setStudentName("");
-    setStudentLastName("");
-    setStudentEmail("");
-    setStudentNote("");
-    setStudentError(""); // Formdaki hata mesajını sil
-    setIsStudentFormOpen(false);
     
-    showNotification(`${fullName} başarıyla eklendi.`);
-  };
+    const currentGroup = groups.find(g => g.id === selectedGroupId);
 
-  const handleDeleteStudent = (id: number) => {
-    // Silinen öğrencinin hangi grupta olduğunu bul (Sayıyı düşürmek için)
-    const targetStudent = students.find(s => s.id === id);
-    if (targetStudent) {
-      setGroups(prev => prev.map(g => 
-        g.id === targetStudent.groupId ? { ...g, students: Math.max(0, g.students - 1) } : g
-      ));
+    try {
+      const studentData = {
+        name: studentName.trim(),
+        lastName: studentLastName.trim(),
+        email: studentEmail.trim(),
+        note: studentNote.trim(),
+        branch: studentBranch,
+        groupCode: currentGroup?.code || "Tanımsız",
+        groupId: selectedGroupId,
+        updatedAt: new Date()
+      };
+
+      if (editingStudentId) {
+        await updateDoc(doc(db, "students", editingStudentId), studentData);
+        showNotification("Öğrenci bilgileri güncellendi.");
+      } else {
+        await addDoc(collection(db, "students"), {
+          ...studentData,
+          points: 0,
+          createdAt: new Date()
+        });
+        showNotification("Öğrenci başarıyla kaydedildi.");
+      }
+      setIsStudentFormOpen(false);
+      resetStudentForm();
+    } catch (error) {
+      console.error("Öğrenci İşlem Hatası:", error);
     }
-    
-    setStudents(prev => prev.filter(s => s.id !== id));
-    showNotification("Öğrenci silindi.");
   };
 
+  const handleDeleteStudent = async (id: string) => {
+    if (window.confirm("Bu öğrenciyi silmek istediğinize emin misiniz?")) {
+      try {
+        await deleteDoc(doc(db, "students", id));
+        showNotification("Öğrenci silindi.");
+      } catch (error) {
+        console.error("Öğrenci silinirken hata:", error);
+      }
+    }
+  };
+
+  const handleEditStudent = (student: any) => {
+    setEditingStudentId(student.id);
+    setStudentName(student.name);
+    setStudentLastName(student.lastName || "");
+    setStudentEmail(student.email || "");
+    setStudentNote(student.note || "");
+    setIsStudentFormOpen(true);
+  };
+
+  const resetStudentForm = () => {
+    setEditingStudentId(null);
+    setStudentName(""); 
+    setStudentLastName(""); 
+    setStudentEmail(""); 
+    setStudentNote(""); 
+    setStudentError("");
+  };
+
+  // --- EFFECTLER VE FİLTRELEME ---
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (scheduleRef.current && !scheduleRef.current.contains(event.target as Node)) setIsScheduleOpen(false);
@@ -297,11 +312,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
   useEffect(() => {
     const labels: Record<string, string> = { 
-      profile: "Profil Ayarları", 
-      users: "Kullanıcılar", 
-      groups: "Eğitim Yönetimi", 
-      "header-footer": "Header & Footer", 
-      sidebar: "Sidebar" 
+      groups: "Eğitim Yönetimi", profile: "Profil Ayarları", users: "Kullanıcılar" 
     };
     setHeaderTitle(labels[activeSubTab] || "Eğitim Yönetimi");
   }, [activeSubTab, setHeaderTitle]);
@@ -309,9 +320,10 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const filteredGroups = groups.filter(group => {
     if (currentView === "Aktif Sınıflar") return group.status === "active";
     if (currentView === "Arşiv") return group.status === "archived";
-    if (currentView === "Tüm Sınıflar" && isAdmin) return group.status === "active";
     return group.status === "active";
   });
+
+  // --- TASARIM BAŞLIYOR ---
 
   return (
     <div className="w-full font-inter select-none pb-20 relative">
@@ -714,81 +726,89 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           </div>
 
           {/* --- SECTION 7: STUDENT LIST TABLE --- */}
-          <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden mb-12 shadow-sm">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-neutral-200 bg-neutral-50/30 h-10">
-                  <th className="px-8 text-[14px] font-bold text-base-primary-900">Öğrenci İsmi</th>
-                  <th className="px-8 text-[14px] font-bold text-base-primary-900">Şube</th>
-                  <th className="px-8 text-[14px] font-bold text-base-primary-900">Grup Kodu</th>
-                  <th className="px-8 text-[14px] font-bold text-base-primary-900">E-Posta Adresi</th>
-                  <th className="px-8 text-[14px] font-bold text-base-primary-900">Eğitmen Notları</th>
-                  <th className="px-8 text-[14px] font-bold text-base-primary-900 text-right">Aksiyonlar</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200">
-  {students.filter((student) => {
-    if (viewMode === 'all-branches') {
-      if (studentBranch === "Tümü") return true;
-      return student.branch.includes(studentBranch);
-    }
-    if (viewMode === 'all-groups') return student.branch.includes("Kadıköy"); 
-    return student.groupId === selectedGroupId;
-  }).length > 0 ? (
-    // EĞER ÖĞRENCİ VARSA LİSTELE
-    students
-      .filter((student) => {
+<div className="bg-white border border-neutral-200 rounded-lg overflow-hidden mb-12 shadow-sm">
+  <table className="w-full text-left border-collapse">
+    <thead>
+      <tr className="border-b border-neutral-200 bg-neutral-50/30 h-10">
+        <th className="px-8 text-[14px] font-bold text-base-primary-900">Öğrenci İsmi</th>
+        <th className="px-8 text-[14px] font-bold text-base-primary-900">Şube</th>
+        <th className="px-8 text-[14px] font-bold text-base-primary-900">Grup Kodu</th>
+        <th className="px-8 text-[14px] font-bold text-base-primary-900">E-Posta Adresi</th>
+        <th className="px-8 text-[14px] font-bold text-base-primary-900">Eğitmen Notları</th>
+        <th className="px-8 text-[14px] font-bold text-base-primary-900 text-right">Aksiyonlar</th>
+      </tr>
+    </thead>
+    <tbody className="divide-y divide-neutral-200">
+      {students.filter((student) => {
         if (viewMode === 'all-branches') {
           if (studentBranch === "Tümü") return true;
           return student.branch.includes(studentBranch);
         }
-        if (viewMode === 'all-groups') return student.branch.includes("Kadıköy");
+        if (viewMode === 'all-groups') return student.branch.includes("Kadıköy"); 
         return student.groupId === selectedGroupId;
-      })
-      .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-      .map((student) => (
-        <tr key={student.id} className="hover:bg-neutral-50/50 transition-colors h-10 group">
-          <td className="px-8 text-[14px] font-semibold text-base-primary-900 leading-none">{student.name}</td>
-          <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.branch}</td>
-          <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.groupCode}</td>
-          <td className="px-8 text-[14px] font-medium text-neutral-400 leading-none">{student.email}</td>
-          {/* Eğitmen Notu: Truncate ile satırı bozmuyoruz, title ile üzerine gelince tam metni gösteriyoruz */}
-          <td className="px-8 text-[14px] font-medium text-neutral-400 max-w-[300px] truncate leading-none" title={student.note}>
-            {student.note}
-          </td>
-          <td className="px-8 text-right">
-            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-               {/* Aksiyon butonların buraya... */}
+      }).length > 0 ? (
+        students
+          .filter((student) => {
+            if (viewMode === 'all-branches') {
+              if (studentBranch === "Tümü") return true;
+              return student.branch.includes(studentBranch);
+            }
+            if (viewMode === 'all-groups') return student.branch.includes("Kadıköy");
+            return student.groupId === selectedGroupId;
+          })
+          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .map((student) => (
+            <tr key={student.id} className="hover:bg-neutral-50/50 transition-colors h-10 group">
+              <td className="px-8 text-[14px] font-semibold text-base-primary-900 leading-none">{student.name}</td>
+              <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.branch}</td>
+              <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.groupCode}</td>
+              <td className="px-8 text-[14px] font-medium text-neutral-400 leading-none">{student.email}</td>
+              <td className="px-8 text-[14px] font-medium text-neutral-400 max-w-[300px] truncate leading-none" title={student.note}>
+                {student.note}
+              </td>
+              <td className="px-8 text-right">
+                {/* 🟢 AKSİYON BUTONLARI BURAYA GELDİ */}
+                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => handleEditStudent(student)}
+                    className="p-1.5 text-neutral-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
+                  >
+                    <Edit2 size={16} strokeWidth={2} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteStudent(student.id)}
+                    className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all"
+                  >
+                    <Trash2 size={16} strokeWidth={2} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))
+      ) : (
+        <tr>
+          <td colSpan={6} className="py-20 text-center">
+            <div className="flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
+              <div className="w-16 h-16 bg-neutral-50 rounded-2xl flex items-center justify-center text-neutral-300 mb-4 border border-neutral-100">
+                <Users size={32} strokeWidth={1.5} />
+              </div>
+              <h3 className="text-[16px] font-bold text-neutral-700 mb-1">Henüz Öğrenci Kaydı Yok</h3>
+              <p className="text-[13px] font-medium text-neutral-400 max-w-[280px] leading-relaxed">
+                Seçili filtreye uygun öğrenci bulunamadı. Yeni bir kayıt ekleyerek başlayabilirsiniz.
+              </p>
+              <button 
+                onClick={() => setIsStudentFormOpen(true)}
+                className="mt-6 px-5 py-2 bg-white border border-neutral-200 rounded-lg text-[13px] font-bold text-base-primary-600 hover:bg-neutral-50 transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                Öğrenci Kaydı Başlat
+              </button>
             </div>
           </td>
         </tr>
-      ))
-  ) : (
-    // EĞER ÖĞRENCİ YOKSA: EMPTY STATE (BOŞ VERİ EKRANI)
-    <tr>
-      <td colSpan={6} className="py-20 text-center">
-        <div className="flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
-          <div className="w-16 h-16 bg-neutral-50 rounded-2xl flex items-center justify-center text-neutral-300 mb-4 border border-neutral-100">
-            <Users size={32} strokeWidth={1.5} />
-          </div>
-          <h3 className="text-[16px] font-bold text-neutral-700 mb-1">Henüz Öğrenci Kaydı Yok</h3>
-          <p className="text-[13px] font-medium text-neutral-400 max-w-[280px] leading-relaxed">
-            Seçili filtreye uygun öğrenci bulunamadı. Yeni bir kayıt ekleyerek başlayabilirsiniz.
-          </p>
-          {/* Hızlı Ekle Butonu */}
-          <button 
-            onClick={() => setIsStudentFormOpen(true)}
-            className="mt-6 px-5 py-2 bg-white border border-neutral-200 rounded-lg text-[13px] font-bold text-base-primary-600 hover:bg-neutral-50 transition-all cursor-pointer shadow-sm active:scale-95"
-          >
-            Öğrenci Kaydı Başlat
-          </button>
-        </div>
-      </td>
-    </tr>
-  )}
-</tbody>
-            </table>
-          </div>
+      )}
+    </tbody>
+  </table>
+</div>
         </div> // Content Wrapper End
       )}
     </div> // ActiveSubTab End
