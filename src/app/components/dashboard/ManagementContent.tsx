@@ -7,9 +7,12 @@ import {
   Mail, FileText, PencilLine 
 } from "lucide-react";
 
-// Firebase importları
+// Firebase importları (Hatasız ve increment eklenmiş hali)
 import { db } from "@/app/lib/firebase"; 
-import { collection, onSnapshot, addDoc, query, where, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { 
+  collection, onSnapshot, addDoc, query, where, doc, 
+  updateDoc, deleteDoc, increment 
+} from "firebase/firestore";
 
 /**
  * Interface Tanımlamaları: Veri yapılarını TypeScript'e tanıtarak "any" hatalarını önlüyoruz.
@@ -42,6 +45,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const [activeSubTab, setActiveSubTab] = useState("groups");
   const [currentView, setCurrentView] = useState("Aktif Sınıflar");
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, studentId: "" });
   
   // Veritabanı State'leri
   const [students, setStudents] = useState<Student[]>([]);
@@ -233,54 +237,87 @@ const [modalConfig, setModalConfig] = useState<{
   };
 
   // --- ÖĞRENCİ YÖNETİMİ ---
+
+  const handleNewStudent = () => {
+  resetStudentForm(); // Önceki düzenlemeden kalan verileri temizler
+  
+  if (selectedGroupId) {
+    // Sol panelde hangi grup seçiliyse modal direkt o grupla açılır
+    setSelectedGroupIdForStudent(selectedGroupId);
+  } else if (groups.length > 0) {
+    // Eğer hiçbir grup seçili değilse listenin en başındaki grubu seçer
+    setSelectedGroupIdForStudent(groups[0].id);
+  }
+  
+  setIsStudentFormOpen(true); // Modalı açar
+};
+
   const handleAddStudent = async () => {
-    if (!studentName.trim() || !studentLastName.trim() || !selectedGroupId) {
-      setStudentError("Lütfen gerekli alanları doldurun.");
-      return;
-    }
-    
-    const currentGroup = groups.find(g => g.id === selectedGroupId);
+  // 1. KONTROL: selectedGroupId yerine selectedGroupIdForStudent kullanıyoruz
+  if (!studentName.trim() || !studentLastName.trim() || !selectedGroupIdForStudent) {
+    setStudentError("Lütfen ad, soyad ve grup seçimini eksiksiz yapın.");
+    return;
+  }
 
-    try {
-      const studentData = {
-        name: studentName.trim(),
-        lastName: studentLastName.trim(),
-        email: studentEmail.trim(),
-        note: studentNote.trim(),
-        branch: studentBranch,
-        groupCode: currentGroup?.code || "Tanımsız",
-        groupId: selectedGroupId,
-        updatedAt: new Date()
-      };
-
-      if (editingStudentId) {
-        await updateDoc(doc(db, "students", editingStudentId), studentData);
-        showNotification("Öğrenci bilgileri güncellendi.");
-      } else {
-        await addDoc(collection(db, "students"), {
-          ...studentData,
-          points: 0,
-          createdAt: new Date()
-        });
-        showNotification("Öğrenci başarıyla kaydedildi.");
-      }
-      setIsStudentFormOpen(false);
-      resetStudentForm();
-    } catch (error) {
-      console.error("Öğrenci İşlem Hatası:", error);
-    }
+  const targetGroup = groups.find(g => g.id === selectedGroupIdForStudent);
+  const studentData = {
+    name: studentName.trim(),
+    lastName: studentLastName.trim(),
+    email: studentEmail.trim(),
+    note: studentNote.trim(),
+    groupId: selectedGroupIdForStudent,
+    groupCode: targetGroup?.code || "Tanımsız",
+    branch: targetGroup?.branch || "Kadıköy",
+    updatedAt: new Date()
   };
+
+  try {
+    if (editingStudentId) {
+      // --- DÜZENLEME MODU ---
+      const oldStudent = students.find(s => s.id === editingStudentId);
+      
+      // Eğer grup değişmişse sayaçları kaydır
+      if (oldStudent && oldStudent.groupId !== selectedGroupIdForStudent) {
+        await updateDoc(doc(db, "groups", oldStudent.groupId), { students: increment(-1) });
+        await updateDoc(doc(db, "groups", selectedGroupIdForStudent), { students: increment(1) });
+      }
+      
+      await updateDoc(doc(db, "students", editingStudentId), studentData);
+      showNotification("Öğrenci bilgileri güncellendi.");
+    } else {
+      // --- YENİ KAYIT MODU ---
+      await addDoc(collection(db, "students"), {
+        ...studentData,
+        points: 0,
+        createdAt: new Date()
+      });
+      
+      // Yeni öğrenci gelince grubun sayacını +1 yap
+      await updateDoc(doc(db, "groups", selectedGroupIdForStudent), { 
+        students: increment(1) 
+      });
+      
+      showNotification("Öğrenci başarıyla eklendi ve grup sayacı güncellendi.");
+    }
+
+    setIsStudentFormOpen(false);
+    resetStudentForm();
+  } catch (error) {
+    console.error("Firebase Hatası:", error);
+    showNotification("Bir hata oluştu, lütfen tekrar deneyin.");
+  }
+};
 
   const handleDeleteStudent = async (id: string) => {
-    if (window.confirm("Bu öğrenciyi silmek istediğinize emin misiniz?")) {
-      try {
-        await deleteDoc(doc(db, "students", id));
-        showNotification("Öğrenci silindi.");
-      } catch (error) {
-        console.error("Öğrenci silinirken hata:", error);
-      }
-    }
-  };
+  try {
+    // Tarayıcı uyarısını (confirm) kaldırdık, direkt siliyoruz
+    await deleteDoc(doc(db, "students", id));
+    showNotification("Öğrenci başarıyla silindi.");
+  } catch (error) {
+    console.error("Öğrenci silinirken hata oluştu:", error);
+    showNotification("Silme işlemi sırasında bir hata oluştu.");
+  }
+};
 
   const handleEditStudent = (student: any) => {
     setEditingStudentId(student.id);
@@ -579,19 +616,25 @@ const [modalConfig, setModalConfig] = useState<{
       )}
 
       {/* 4. Öğrenci Ekle Butonu */}
-      <button 
-        onClick={() => {
-          if (!isStudentFormOpen) {
-            const currentGroup = groups.find(g => g.id === selectedGroupId);
-            setStudentGroupCode(currentGroup ? currentGroup.code : "");
-          }
-          setIsStudentFormOpen(!isStudentFormOpen);
-        }}
-        className="flex items-center gap-2 ml-8 text-base-primary-500 hover:text-base-primary-600 transition-colors cursor-pointer group outline-none"
-      >
-        {isStudentFormOpen ? <X size={20} /> : <PlusCircle size={20} className="transition-transform group-hover:scale-110" />}
-        <span className="text-[14px] font-bold">{isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}</span>
-      </button>
+   <button 
+  onClick={() => {
+    if (!isStudentFormOpen) {
+      resetStudentForm(); // Formu temizle
+      // Sadece isim değil, ID'yi de mühürlüyoruz ki hata vermesin
+      const targetId = selectedGroupId || (groups.length > 0 ? groups[0].id : "");
+      setSelectedGroupIdForStudent(targetId);
+      
+      // Eski tasarımın için gerekliyse bunu da tutabilirsin:
+      const currentGroup = groups.find(g => g.id === targetId);
+      setStudentGroupCode(currentGroup ? currentGroup.code : "");
+    }
+    setIsStudentFormOpen(!isStudentFormOpen);
+  }}
+  className="flex items-center gap-2 ml-8 text-base-primary-500 hover:text-base-primary-600 transition-colors cursor-pointer group outline-none"
+>
+  {isStudentFormOpen ? <X size={20} /> : <PlusCircle size={20} className="transition-transform group-hover:scale-110" />}
+  <span className="text-[14px] font-bold">{isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}</span>
+</button>
 
       {/* 5. Arama Barı */}
       <div className="relative ml-auto w-[320px]">
@@ -758,32 +801,40 @@ const [modalConfig, setModalConfig] = useState<{
           })
           .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
           .map((student) => (
-            <tr key={student.id} className="hover:bg-neutral-50/50 transition-colors h-10 group">
-              <td className="px-8 text-[14px] font-semibold text-base-primary-900 leading-none">{student.name}</td>
-              <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.branch}</td>
-              <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.groupCode}</td>
-              <td className="px-8 text-[14px] font-medium text-neutral-400 leading-none">{student.email}</td>
-              <td className="px-8 text-[14px] font-medium text-neutral-400 max-w-[300px] truncate leading-none" title={student.note}>
-                {student.note}
-              </td>
-              <td className="px-8 text-right">
-                {/* 🟢 AKSİYON BUTONLARI BURAYA GELDİ */}
-                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => handleEditStudent(student)}
-                    className="p-1.5 text-neutral-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
-                  >
-                    <Edit2 size={16} strokeWidth={2} />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteStudent(student.id)}
-                    className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all"
-                  >
-                    <Trash2 size={16} strokeWidth={2} />
-                  </button>
-                </div>
-              </td>
-            </tr>
+            <tr key={student.id} className="hover:bg-neutral-50/50 transition-colors h-14 group">
+  <td className="px-8 text-[14px] font-semibold text-base-primary-900 leading-none">{student.name}</td>
+  <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.branch}</td>
+  <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.groupCode}</td>
+  <td className="px-8 text-[14px] font-medium text-neutral-400 leading-none">{student.email}</td>
+  <td className="px-8 text-[14px] font-medium text-neutral-400 max-w-[300px] truncate leading-none" title={student.note}>
+    {student.note}
+  </td>
+  
+  <td className="px-8 text-right">
+    {/* İkonlar her zaman görünür, aralarında 16px (gap-4) var */}
+    <div className="flex items-center justify-end gap-4 transition-all">
+      
+      {/* DÜZENLE - PencilLine 18x18 - Lila */}
+      <button 
+        onClick={() => handleEditStudent(student)}
+        className="cursor-pointer hover:opacity-70 transition-all"
+        style={{ color: 'var(--color-designstudio-secondary-500)' }}
+      >
+        <PencilLine size={18} strokeWidth={2} />
+      </button>
+
+      {/* SİL - Trash2 18x18 - Danger Red */}
+      <button 
+        onClick={() => setDeleteModal({ isOpen: true, studentId: student.id })} 
+        className="cursor-pointer hover:opacity-70 transition-all"
+        style={{ color: 'var(--color-text-danger)' }}
+      >
+        <Trash2 size={18} strokeWidth={2} />
+      </button>
+
+    </div>
+  </td>
+</tr>
           ))
       ) : (
         <tr>
@@ -831,7 +882,54 @@ const [modalConfig, setModalConfig] = useState<{
       </div>
     </div>
   )}
+{/* --- DELETE CONFIRMATION MODAL --- */}
+{deleteModal.isOpen && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    {/* Arka Plan Karartma */}
+    <div 
+      className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm" 
+      onClick={() => setDeleteModal({ isOpen: false, studentId: "" })} 
+    />
+    
+    {/* Modal Kutusu */}
+    <div className="bg-white rounded-2xl p-8 max-w-[400px] w-full shadow-2xl relative z-10 text-center animate-in zoom-in-95 duration-200">
+      
+      {/* İkon - Senin Danger Kırmızın */}
+      <div 
+        className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 mx-auto"
+        style={{ backgroundColor: 'var(--color-status-danger-50)', color: 'var(--color-status-danger-500)' }}
+      >
+        <Trash2 size={32} />
+      </div>
 
+      <h3 className="text-[20px] font-bold text-neutral-800 mb-2">Emin misiniz?</h3>
+      <p className="text-[14px] text-neutral-500 mb-8 leading-relaxed">
+        Bu öğrenci kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.
+      </p>
+
+      {/* Butonlar */}
+      <div className="flex gap-3">
+        <button 
+          onClick={() => setDeleteModal({ isOpen: false, studentId: "" })} 
+          className="flex-1 h-12 bg-neutral-100 text-neutral-600 rounded-xl font-bold hover:bg-neutral-200 transition-all"
+        >
+          Vazgeç
+        </button>
+        
+        <button
+          onClick={async () => {
+            await handleDeleteStudent(deleteModal.studentId); // Mevcut silme fonksiyonun
+            setDeleteModal({ isOpen: false, studentId: "" }); // Modalı kapat
+          }}
+          className="flex-1 h-12 text-white font-bold rounded-xl transition-all hover:opacity-90"
+          style={{ backgroundColor: 'var(--color-status-danger-500)' }}
+        >
+          SİL
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div> 
   ); 
 } 
