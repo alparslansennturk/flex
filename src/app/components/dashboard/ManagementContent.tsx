@@ -33,7 +33,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
-    filteredGroups, filteredStudents, toggleStudentSelection, handleSelectAll
+    filteredGroups, filteredStudents, myGroupCards, toggleStudentSelection, handleSelectAll
   } = useManagement(setHeaderTitle);
 
 
@@ -130,7 +130,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
             <GroupCards
               currentView={currentView}
-              filteredGroups={filteredGroups}
+              // BURASI KRİTİK: "Tüm Sınıflar" sekmesindeysen hepsi, "Aktif"teysen sadece seninkiler
+              filteredGroups={currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards}
               selectedGroupId={selectedGroupId}
               setSelectedGroupId={setSelectedGroupId}
               openMenuId={openMenuId}
@@ -145,7 +146,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           {/* --- BÖLÜM 5: ÖĞRENCİ LİSTESİ --- */}
           {currentView === "Aktif Sınıflar" && (
             <div className="mt-[64px] px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 animate-in fade-in duration-500">
-              
+
               {/* Üst Bar: Başlık, Filtreler ve Arama */}
               <div className="flex items-center pb-4 border-b border-neutral-200 mb-6">
                 <div className="flex items-center gap-2 min-w-fit">
@@ -191,7 +192,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
               {/* --- GEÇİŞ EFEKTLİ İÇERİK ALANI --- */}
               <div className="relative transition-all duration-500 ease-in-out" style={{ minHeight: '500px' }}>
-                
+
                 {/* Form Transition (Grid Row Hilesi) */}
                 <div className={`grid transition-all duration-500 ease-in-out ${isStudentFormOpen ? "grid-rows-[1fr] opacity-100 mb-8" : "grid-rows-[0fr] opacity-0 mb-0"}`}>
                   <div className="overflow-hidden">
@@ -225,7 +226,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     handleEditStudent={handleEditStudent}
                     setDeleteModal={setDeleteModal}
                   />
-                  
+
                   {filteredStudents.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-24 text-neutral-400">
                       <Users size={40} className="mb-2 opacity-10" />

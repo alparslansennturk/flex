@@ -46,28 +46,30 @@ export const StudentForm: React.FC<StudentFormProps> = ({
     <div className={`grid transition-all duration-500 ease-in-out ${isStudentFormOpen ? 'grid-rows-[1fr] opacity-100 mt-6' : 'grid-rows-[0fr] opacity-0 overflow-hidden'}`}>
       <div className="min-h-0 overflow-hidden">
         <div className="bg-white border border-neutral-200 rounded-lg p-[36px] shadow-sm mb-8">
-          
+
           {/* 6'lı Grid Dağılımı */}
           <div className="grid grid-cols-[140px_140px_1fr_1fr_1fr_2fr] gap-[16px]">
-            
+
             {/* 1. Şube Seçimi */}
             <div className="flex flex-col gap-2">
               <label className="text-[14px] font-medium text-base-primary-900 leading-none">Şube</label>
               <div className="relative">
                 <select
                   value={studentBranch}
-                  onChange={(e) => setStudentBranch(e.target.value)}
-                  className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-3 text-[13px] focus:outline-none focus:border-base-primary-500 transition-all font-semibold text-base-primary-900 appearance-none cursor-pointer outline-none"
+                  onChange={(e) => {
+                    setStudentBranch(e.target.value);
+                    setSelectedGroupIdForStudent("");
+                    setStudentError("");
+                  }}
+                  className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 pr-10 text-[13px] focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 appearance-none cursor-pointer outline-none"
                 >
-                  <option value={studentBranch} disabled className="text-neutral-300">{studentBranch}</option>
-                  {["Kadıköy Şb.", "Şirinevler Şb.", "Pendik Şb."]
-                    .filter(branch => branch !== studentBranch)
-                    .map(branch => (
-                      <option key={branch} value={branch}>{branch}</option>
-                    ))
-                  }
+                  <option value="Kadıköy">Kadıköy</option>
+                  <option value="Şirinevler">Şirinevler</option>
+                  <option value="Pendik">Pendik</option>
                 </select>
-                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <ChevronDown size={16} />
+                </div>
               </div>
             </div>
 
@@ -81,9 +83,16 @@ export const StudentForm: React.FC<StudentFormProps> = ({
                   className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 pr-10 text-[13px] focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 appearance-none cursor-pointer outline-none"
                 >
                   <option value="">Grup seç...</option>
-                  {groups.filter(g => g.status === 'active').map((group) => (
-                    <option key={group.id} value={group.id}>{group.code}</option>
-                  ))}
+
+                  {/* BURAYI DEĞİŞTİRİYORUZ: Sadece seçili şubeye ait aktif grupları göster */}
+                  {groups
+                    .filter(g => g.status === 'active' && g.branch === studentBranch)
+                    .map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.code}
+                      </option>
+                    ))
+                  }
                 </select>
                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
               </div>

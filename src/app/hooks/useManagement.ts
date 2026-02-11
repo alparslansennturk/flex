@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase"; // auth'u buraya ekledik
 import {
   collection, onSnapshot, addDoc, query, where, doc,
   updateDoc, deleteDoc, increment, serverTimestamp
@@ -34,7 +34,9 @@ interface Student {
 }
 
 export const useManagement = (setHeaderTitle: (t: string) => void) => {
-  const isAdmin = true;
+  // --- TEMEL TANIMLAR ---
+  const currentUser = auth.currentUser;
+  const isAdmin = true; // Sadece bir tane kalsın diye yukarıdakini sildik
 
   const [instructors, setInstructors] = useState<any[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState("");
@@ -81,7 +83,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     if (isAdmin) {
       console.log("Firebase sorgusu atılıyor: role == instructor");
       const q = query(collection(db, "users"), where("role", "==", "instructor"));
-      
+
       const unsubscribe = onSnapshot(q, (snapshot) => {
         console.log("Firebase Yanıt Verdi. Gelen Kayıt Sayısı:", snapshot.size);
         const insList = snapshot.docs.map(doc => {
@@ -94,12 +96,12 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         });
         setInstructors(insList);
       }, (err) => console.error("Firebase Hatası:", err));
-      
+
       return () => unsubscribe();
     }
   }, [isAdmin]);
 
-  
+
 
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
@@ -126,21 +128,37 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     .filter(g => currentView === "Arşiv" ? g.status === "archived" : g.status === "active")
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-// 2. KESİN FİLTRELEME MOTORU
-const filteredStudents = students.filter((s) => {
-  const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
-  const statusMatch = showPassive ? s.status === 'passive' : s.status !== 'passive';
-  if (!searchMatch || !statusMatch) return false;
+  /// 2. KESİN FİLTRELEME MOTORU
+  const filteredStudents = students.filter((s) => {
+    const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
+    const statusMatch = showPassive ? s.status === 'passive' : s.status !== 'passive';
 
-  if (viewMode === 'group-list') return s.groupId === selectedGroupId;
-  if (viewMode === 'all-groups') return s.branch === "Kadıköy";
-  if (viewMode === 'all-branches') {
-    if (studentBranch === "Tümü") return true;
-    return s.branch === studentBranch;
-  }
-  return true;
-});
+    if (!searchMatch || !statusMatch) return false;
 
+    if (viewMode === 'group-list') {
+      return s.groupId === selectedGroupId;
+    }
+
+    if (viewMode === 'all-groups') {
+      return s.branch === studentBranch;
+    }
+
+    if (viewMode === 'all-branches') {
+      if (studentBranch === "Tümü") return true;
+      return s.branch === studentBranch;
+    }
+
+    return true;
+  });
+ const myGroupCards = groups.filter(g => {
+    // Sadece senin olduğun gruplar
+    const isMine = g.instructorId === currentUser?.uid;
+    
+    // SADECE VE SADECE AKTİF OLANLAR (Arşivdekiler buraya giremez)
+    const isActiveOnly = g.status === 'active';
+
+    return isMine && isActiveOnly;
+  });
   useEffect(() => {
     const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
       const gList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Group[];
@@ -171,26 +189,28 @@ const filteredStudents = students.filter((s) => {
     }
   }, [isAdmin]);
 
- // 1. OTOMATİK GRUP VE ŞUBE EŞLEME (useManagement.ts içinde)
-useEffect(() => {
-  const isSelectedGroupInList = filteredGroups.some(g => g.id === selectedGroupId);
-  if ((!selectedGroupId || !isSelectedGroupInList) && !isFormOpen && filteredGroups.length > 0) {
-    const firstId = filteredGroups[0].id;
-    setSelectedGroupId(firstId);
-    setLastSelectedId(firstId);
-  }
+  // 1. OTOMATİK GRUP VE ŞUBE EŞLEME (useManagement.ts içinde)
+  useEffect(() => {
+    if (isStudentFormOpen) return;
 
-  if (selectedGroupId) {
-    const currentGroup = groups.find(g => g.id === selectedGroupId);
-    if (currentGroup) {
-      // Mod "Tüm Şubeler" değilse otomatik şube eşlemesi yap
-      if (viewMode !== 'all-branches') {
-        setStudentBranch(currentGroup.branch);
-      }
-      setSelectedGroupIdForStudent(selectedGroupId);
+    const isSelectedGroupInList = filteredGroups.some(g => g.id === selectedGroupId);
+
+    if ((!selectedGroupId || !isSelectedGroupInList) && !isFormOpen && filteredGroups.length > 0) {
+      const firstId = filteredGroups[0].id;
+      setSelectedGroupId(firstId);
+      setLastSelectedId(firstId);
     }
-  }
-}, [filteredGroups, isFormOpen, selectedGroupId, groups, viewMode]);
+
+    if (selectedGroupId) {
+      const currentGroup = groups.find(g => g.id === selectedGroupId);
+      if (currentGroup) {
+        if (viewMode !== 'all-branches') {
+          setStudentBranch(currentGroup.branch);
+        }
+        setSelectedGroupIdForStudent(selectedGroupId);
+      }
+    }
+  }, [filteredGroups, isFormOpen, isStudentFormOpen, selectedGroupId, groups, viewMode]);
 
   useEffect(() => {
     const labels: Record<string, string> = {
@@ -361,7 +381,9 @@ useEffect(() => {
       setStudentError("Lütfen eksik alanları doldurun.");
       return;
     }
+
     const targetGroup = groups.find(g => g.id === selectedGroupIdForStudent);
+
     const studentData: any = {
       name: studentName.trim(),
       lastName: studentLastName.trim(),
@@ -369,7 +391,7 @@ useEffect(() => {
       note: studentNote.trim(),
       groupId: selectedGroupIdForStudent,
       groupCode: targetGroup?.code || "Tanımsız",
-      branch: targetGroup?.branch || "Kadıköy",
+      branch: studentBranch,
       status: 'active',
       updatedAt: new Date()
     };
@@ -377,12 +399,14 @@ useEffect(() => {
     try {
       if (editingStudentId) {
         const oldStudent = students.find(s => s.id === editingStudentId);
+
         if (oldStudent && oldStudent.groupId !== selectedGroupIdForStudent) {
           if (oldStudent.groupId && oldStudent.groupId !== "unassigned") {
             await updateDoc(doc(db, "groups", oldStudent.groupId), { students: increment(-1) });
           }
           await updateDoc(doc(db, "groups", selectedGroupIdForStudent), { students: increment(1) });
         }
+
         await updateDoc(doc(db, "students", editingStudentId), studentData);
         showNotification("Öğrenci güncellendi.");
       } else {
@@ -392,7 +416,9 @@ useEffect(() => {
       }
       setIsStudentFormOpen(false);
       resetStudentForm();
-    } catch (error) { showNotification("Öğrenci kaydedilemedi."); }
+    } catch (error) {
+      showNotification("Öğrenci kaydedilemedi.");
+    }
   };
 
   const handleDeleteStudent = async (studentId: string) => {
@@ -446,7 +472,7 @@ useEffect(() => {
     else setSelectedStudentIds(filteredStudents.map(s => s.id));
   };
 
-return {
+  return {
     isAdmin, activeSubTab, setActiveSubTab, currentView, setCurrentView,
     isFormOpen, setIsFormOpen, students, groups,
     selectedGroupId, setSelectedGroupId, openMenuId, setOpenMenuId,
@@ -462,8 +488,8 @@ return {
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
-    filteredGroups, filteredStudents, showPassive, setShowPassive, selectedStudentIds, setSelectedStudentIds,
-    toggleStudentSelection, handleSelectAll, deleteModal,setDeleteModal 
+    filteredGroups, filteredStudents, myGroupCards, showPassive, setShowPassive, selectedStudentIds, setSelectedStudentIds,
+    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal,
     // -------------------------
   };
 };
