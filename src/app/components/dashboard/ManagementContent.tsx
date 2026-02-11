@@ -21,6 +21,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     selectedStudentIds, setSelectedStudentIds, students, groups,
     selectedGroupId, setSelectedGroupId, openMenuId, setOpenMenuId,
     editingGroupId, setEditingGroupId, groupCode, setGroupCode,
+    groupBranch, setGroupBranch, // <--- Şube yönetimi burada
+    instructors, selectedInstructorId, setSelectedInstructorId, // <--- Eğitmen yönetimi burada
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
     isScheduleOpen, setIsScheduleOpen, errors, setErrors, isShaking, setIsShaking,
     searchQuery, setSearchQuery, isStudentFormOpen, setIsStudentFormOpen,
@@ -33,6 +35,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
     filteredGroups, filteredStudents, toggleStudentSelection, handleSelectAll
   } = useManagement(setHeaderTitle);
+  
 
   // --- TASARIM (RETURN) BAŞLIYOR ---
   return (
@@ -88,23 +91,28 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
           {/* --- BÖLÜM 3: FORM ALANI --- */}
           <GroupForm
-            isFormOpen={isFormOpen}
-            isShaking={isShaking}
-            groupCode={groupCode}
-            setGroupCode={setGroupCode}
-            errors={errors}
-            setErrors={setErrors}
-            selectedSchedule={selectedSchedule}
-            setSelectedSchedule={setSelectedSchedule}
-            isScheduleOpen={isScheduleOpen}
-            setIsScheduleOpen={setIsScheduleOpen}
-            schedules={schedules}
-            customSchedule={customSchedule}
-            setCustomSchedule={setCustomSchedule}
-            handleCancel={handleCancel}
-            handleSave={handleSave}
-            scheduleRef={scheduleRef}
-          />
+  isFormOpen={isFormOpen}
+  isShaking={isShaking}
+  groupCode={groupCode}
+  setGroupCode={setGroupCode}
+  groupBranch={groupBranch}         // <--- Hook'tan gelen veri
+  setGroupBranch={setGroupBranch}     // <--- Hook'tan gelen fonksiyon
+  instructors={instructors}           // <--- Hook'tan gelen liste
+  selectedInstructorId={selectedInstructorId} // <--- Hook'tan gelen seçim
+  setSelectedInstructorId={setSelectedInstructorId} // <--- Hook'tan gelen fonksiyon
+  errors={errors}
+  setErrors={setErrors}
+  selectedSchedule={selectedSchedule}
+  setSelectedSchedule={setSelectedSchedule}
+  isScheduleOpen={isScheduleOpen}
+  setIsScheduleOpen={setIsScheduleOpen}
+  schedules={schedules}
+  customSchedule={customSchedule}
+  setCustomSchedule={setCustomSchedule}
+  handleCancel={handleCancel}
+  handleSave={handleSave}
+  scheduleRef={scheduleRef}
+/>
 
           {/* --- BÖLÜM 4: İÇERİK --- */}
           <div className="mt-6">
