@@ -7,11 +7,11 @@ import {
   Mail, FileText, PencilLine
 } from "lucide-react";
 
-// Firebase importları (Hatasız ve increment eklenmiş hali)
+// Firebase importları (Hatasız ve serverTimestamp eklenmiş hali)
 import { db } from "@/app/lib/firebase";
 import {
   collection, onSnapshot, addDoc, query, where, doc,
-  updateDoc, deleteDoc, increment
+  updateDoc, deleteDoc, increment, serverTimestamp
 } from "firebase/firestore";
 
 /**
@@ -25,6 +25,7 @@ interface Group {
   session: string;
   students: number;
   status: string;
+  createdAt?: any; // Bu satırı ekledik, '?' işareti "opsiyonel" demek
 }
 
 interface Student {
@@ -105,30 +106,26 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   ];
 
   // --- FIREBASE CANLI VERİ MOTORU ---
-  useEffect(() => {
-    const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
-      const gList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Group[];
-      setGroups(gList);
-      // Eğer hiç grup seçilmemişse ve liste doluysa ilkini seç
-      if (gList.length > 0 && !selectedGroupId) {
-        setSelectedGroupId(gList[0].id);
-      }
-    });
+useEffect(() => {
+  const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
+    const gList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Group[];
+    setGroups(gList);
+  });
 
-    const unsubStudents = onSnapshot(collection(db, "students"), (snapshot) => {
-      const sList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Student[];
-      setStudents(sList);
-    });
+  const unsubStudents = onSnapshot(collection(db, "students"), (snapshot) => {
+    const sList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Student[];
+    setStudents(sList);
+  });
 
-    return () => { unsubGroups(); unsubStudents(); };
-  }, [selectedGroupId]);
+  return () => { unsubGroups(); unsubStudents(); };
+}, []); // <--- BURAYI BOŞ BIRAKTIK (ÖNEMLİ)
 
   const showNotification = (msg: string) => {
     setToast({ show: true, message: msg });
     setTimeout(() => setToast({ show: false, message: "" }), 3000);
   };
 
-  
+
 
   // --- FORM VE İPTAL KONTROLLERİ ---
   const handleCancel = () => {
@@ -142,15 +139,16 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   };
 
   const handleOpenForm = () => {
-    if (currentView !== "Aktif Sınıflar") return;
-    if (!isFormOpen) {
-      setLastSelectedId(selectedGroupId);
-      setSelectedGroupId(null);
-      setIsFormOpen(true);
-    } else {
-      handleCancel();
-    }
-  };
+  if (currentView !== "Aktif Sınıflar") return;
+  if (!isFormOpen) {
+    // Eski seçimi yedeklemeyi bırakıyoruz, direkt sıfırlıyoruz
+    setSelectedGroupId(null);
+    setLastSelectedId(null); 
+    setIsFormOpen(true);
+  } else {
+    handleCancel();
+  }
+};
 
   // --- GRUP İŞLEMLERİ (KAYDET / DÜZENLE) ---
   const handleEdit = (group: Group) => {
@@ -170,51 +168,60 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   };
 
   const handleSave = async () => {
-    const newErrors: { code?: string; schedule?: string } = {};
-    if (!groupCode.trim()) newErrors.code = "Grup kodu zorunludur.";
-    if (selectedSchedule === "Grup seansı seçiniz...") newErrors.schedule = "Seans seçimi zorunludur.";
+  const newErrors: { code?: string; schedule?: string } = {};
+  if (!groupCode.trim()) newErrors.code = "Grup kodu zorunludur.";
+  if (selectedSchedule === "Grup seansı seçiniz...") newErrors.schedule = "Seans seçimi zorunludur.";
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 300);
-      return;
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 300);
+    return;
+  }
+
+  const formattedCode = groupCode.trim().toLowerCase().startsWith("grup")
+    ? groupCode.trim()
+    : `Grup ${groupCode.trim()}`;
+
+  const finalSession = selectedSchedule === "Özel Grup Tanımla" ? customSchedule : selectedSchedule;
+
+  try {
+    if (editingGroupId) {
+      await updateDoc(doc(db, "groups", editingGroupId), {
+        code: formattedCode,
+        session: finalSession,
+        branch: "Kadıköy"
+      });
+      showNotification("Grup başarıyla güncellendi.");
+    } else {
+      const docRef = await addDoc(collection(db, "groups"), {
+        code: formattedCode,
+        branch: "Kadıköy",
+        instructor: "Alparslan Hoca",
+        session: finalSession,
+        students: 0,
+        status: "active",
+        createdAt: serverTimestamp()
+      });
+
+      setSelectedGroupId(docRef.id);
+      setLastSelectedId(docRef.id);
+      
+      showNotification("Yeni grup başarıyla oluşturuldu.");
     }
 
-    const formattedCode = groupCode.trim().toLowerCase().startsWith("grup")
-      ? groupCode.trim()
-      : `Grup ${groupCode.trim()}`;
+    setIsFormOpen(false);
+    setEditingGroupId(null);
+    setGroupCode("");
+    setSelectedSchedule("Grup seansı seçiniz...");
+    setCustomSchedule("");
+    setErrors({});
 
-    const finalSession = selectedSchedule === "Özel Grup Tanımla" ? customSchedule : selectedSchedule;
-
-    try {
-      if (editingGroupId) {
-        await updateDoc(doc(db, "groups", editingGroupId), {
-          code: formattedCode,
-          session: finalSession,
-          branch: "Kadıköy"
-        });
-        showNotification("Grup başarıyla güncellendi.");
-      } else {
-        const docRef = await addDoc(collection(db, "groups"), {
-          code: formattedCode,
-          branch: "Kadıköy",
-          instructor: "Alparslan Hoca",
-          session: finalSession,
-          students: 0,
-          status: "active",
-          createdAt: new Date()
-        });
-        setSelectedGroupId(docRef.id);
-        setLastSelectedId(docRef.id);
-        showNotification("Yeni grup başarıyla oluşturuldu.");
-      }
-      handleCancel();
-    } catch (error) {
-      console.error("Grup Kayıt Hatası:", error);
-      showNotification("Grup kaydedilirken bir hata oluştu.");
-    }
-  };
+  } catch (error) {
+    console.error("Grup Kayıt Hatası:", error);
+    showNotification("Grup kaydedilirken bir hata oluştu.");
+  }
+};
 
   // --- MODAL YÖNETİMİ ---
   const requestModal = (id: string, type: 'archive' | 'delete' | 'restore') => {
@@ -223,28 +230,25 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   };
 
   /**
- * @function confirmModalAction
- * @description Grup silme ve arşivleme sırasında öğrenci geçmişini dondurur.
- */
+  * @function confirmModalAction
+  * @description Grup silme, arşivleme ve geri alma sırasında öğrenci geçmişini yönetir.
+  */
   const confirmModalAction = async () => {
-    if (!modalConfig.groupId) return;
+    // Guard Clause: Grup ID yoksa veya tip belirtilmemişse işlem yapma
+    if (!modalConfig.groupId || !modalConfig.type) return;
 
     try {
       const groupRef = doc(db, "groups", modalConfig.groupId);
       const targetGroup = groups.find(g => g.id === modalConfig.groupId);
       const affectedStudents = students.filter(s => s.groupId === modalConfig.groupId);
 
+      // --- 1. SİLME İŞLEMİ (Delete) ---
       if (modalConfig.type === 'delete') {
-        /**
-         * 1. ADIM ÖZEL GÜNCELLEME:
-         * Öğrencinin 'groupCode' bilgisini 'Mezun (KOD)' formatına çeviriyoruz.
-         * Böylece hem senin istediğin 'Mezun' ibaresi görünür, hem de hangi gruptan olduğu saklanır.
-         */
         const batchPromises = affectedStudents.map(student =>
           updateDoc(doc(db, "students", student.id), {
             status: 'passive',
-            lastGroupCode: targetGroup?.code || "", // Orijinal kodu (KAD-101) burada donduruyoruz
-            groupCode: `Mezun (${targetGroup?.code || "Bilinmiyor"})`, // Tabloda görünecek metin
+            lastGroupCode: targetGroup?.code || "",
+            groupCode: `Mezun (${targetGroup?.code || "Bilinmiyor"})`,
             groupId: "unassigned",
             updatedAt: new Date()
           })
@@ -257,10 +261,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         showNotification("Grup silindi; öğrenciler mezun statüsüyle arşivlendi.");
       }
 
+      // --- 2. ARŞİVLEME İŞLEMİ (Archive) ---
       else if (modalConfig.type === 'archive') {
-        /**
-         * Arşivlemede ise kodu bozmuyoruz, sadece statüyü pasife çekiyoruz.
-         */
         const batchPromises = affectedStudents.map(student =>
           updateDoc(doc(db, "students", student.id), {
             status: 'passive',
@@ -275,11 +277,29 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         showNotification("Grup ve öğrenciler arşivlendi.");
       }
 
+      // --- 3. GERİ ALMA İŞLEMİ (Restore) ---
+      else if (modalConfig.type === 'restore') {
+        // Önce grubu tekrar aktife çekiyoruz
+        await updateDoc(groupRef, { status: 'active' });
+
+        // O gruba ait olan (affected) öğrencileri de tekrar aktife çekiyoruz
+        const batchPromises = affectedStudents.map(student =>
+          updateDoc(doc(db, "students", student.id), {
+            status: 'active',
+            updatedAt: new Date()
+          })
+        );
+
+        await Promise.all(batchPromises);
+        showNotification("Grup ve öğrenciler tekrar aktif listeye taşındı.");
+      }
+
     } catch (error) {
       console.error("İşlem hatası:", error);
       showNotification("Teknik bir hata oluştu.");
     }
 
+    // Modalı kapat ve temizle
     setModalConfig({ isOpen: false, type: null, groupId: null });
   };
 
@@ -300,14 +320,16 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   };
 
   const handleAddStudent = async () => {
-    // 1. KONTROL: selectedGroupId yerine selectedGroupIdForStudent kullanıyoruz
     if (!studentName.trim() || !studentLastName.trim() || !selectedGroupIdForStudent) {
       setStudentError("Lütfen ad, soyad ve grup seçimini eksiksiz yapın.");
       return;
     }
 
     const targetGroup = groups.find(g => g.id === selectedGroupIdForStudent);
-    const studentData = {
+
+    // ÖNEMLİ: Öğrenci bir gruba atanıyorsa artık AKTİF'tir. 
+    // 'Mezun' etiketinden ve statüsünden kurtarıyoruz.
+    const studentData: any = {
       name: studentName.trim(),
       lastName: studentLastName.trim(),
       email: studentEmail.trim(),
@@ -315,36 +337,39 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
       groupId: selectedGroupIdForStudent,
       groupCode: targetGroup?.code || "Tanımsız",
       branch: targetGroup?.branch || "Kadıköy",
+      status: 'active', // Pasiften aktife çekme garantisi
       updatedAt: new Date()
     };
 
     try {
       if (editingStudentId) {
-        // --- DÜZENLEME MODU ---
         const oldStudent = students.find(s => s.id === editingStudentId);
 
-        // Eğer grup değişmişse sayaçları kaydır
+        // Grup değişikliği varsa sayaçları yönet
         if (oldStudent && oldStudent.groupId !== selectedGroupIdForStudent) {
-          await updateDoc(doc(db, "groups", oldStudent.groupId), { students: increment(-1) });
+          // Eski gruptan (eğer unassigned değilse) düş
+          if (oldStudent.groupId && oldStudent.groupId !== "unassigned") {
+            await updateDoc(doc(db, "groups", oldStudent.groupId), { students: increment(-1) });
+          }
+          // Yeni gruba ekle
           await updateDoc(doc(db, "groups", selectedGroupIdForStudent), { students: increment(1) });
         }
 
         await updateDoc(doc(db, "students", editingStudentId), studentData);
-        showNotification("Öğrenci bilgileri güncellendi.");
+        showNotification("Öğrenci bilgileri ve durumu güncellendi.");
       } else {
-        // --- YENİ KAYIT MODU ---
+        // YENİ KAYIT
         await addDoc(collection(db, "students"), {
           ...studentData,
           points: 0,
           createdAt: new Date()
         });
 
-        // Yeni öğrenci gelince grubun sayacını +1 yap
         await updateDoc(doc(db, "groups", selectedGroupIdForStudent), {
           students: increment(1)
         });
 
-        showNotification("Öğrenci başarıyla eklendi ve grup sayacı güncellendi.");
+        showNotification("Öğrenci başarıyla eklendi.");
       }
 
       setIsStudentFormOpen(false);
@@ -376,6 +401,33 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     } catch (error) {
       console.error("Silme Hatası:", error);
       showNotification("Silme işlemi sırasında hata oluştu.");
+    }
+  };
+
+  const handleBulkDeleteStudents = async () => {
+    if (selectedStudentIds.length === 0) return;
+
+    try {
+      const deletePromises = selectedStudentIds.map(async (sId) => {
+        const student = students.find(s => s.id === sId);
+        if (student) {
+          // 1. Öğrenciyi Firebase'den sil
+          await deleteDoc(doc(db, "students", sId));
+          // 2. Eğer bir gruba bağlıysa o grubun mevcudunu 1 düşür
+          if (student.groupId && student.groupId !== "unassigned") {
+            await updateDoc(doc(db, "groups", student.groupId), {
+              students: increment(-1)
+            });
+          }
+        }
+      });
+
+      await Promise.all(deletePromises);
+      setSelectedStudentIds([]); // Silme bitince seçili listesini sıfırla
+      showNotification(`${selectedStudentIds.length} öğrenci kalıcı olarak silindi.`);
+    } catch (error) {
+      console.error("Toplu silme hatası:", error);
+      showNotification("Bazı kayıtlar silinemedi.");
     }
   };
 
@@ -414,12 +466,26 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     };
     setHeaderTitle(labels[activeSubTab] || "Eğitim Yönetimi");
   }, [activeSubTab, setHeaderTitle]);
+  
 
-  const filteredGroups = groups.filter(group => {
-    if (currentView === "Aktif Sınıflar") return group.status === "active";
-    if (currentView === "Arşiv") return group.status === "archived";
-    return group.status === "active";
+const filteredGroups = groups
+  .filter(g => currentView === "Arşiv" ? g.status === "archived" : g.status === "active")
+  .sort((a: any, b: any) => {
+    // Sadece tarihe göre diz, karmaşık kontrolleri boşver
+    const tA = a.createdAt?.seconds || 0;
+    const tB = b.createdAt?.seconds || 0;
+    return tB - tA;
   });
+
+  useEffect(() => {
+  if (!selectedGroupId && !isFormOpen && filteredGroups.length > 0) {
+    const firstId = filteredGroups[0].id;
+    setSelectedGroupId(firstId);
+    setLastSelectedId(firstId);
+  }
+}, [filteredGroups, isFormOpen, selectedGroupId]);
+    
+    
   // ============================================================
   // ADIM 2: ÖĞRENCİ FİLTRELEME VE SEÇİM MOTORU (BİRLEŞTİRİLMİŞ)
   // ============================================================
@@ -429,33 +495,33 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
    * şubeye ve arama kriterlerine göre süzen ana motor.
    */
   const filteredStudents = students.filter((student) => {
-    // 1. Grup Listesi Modu Kontrolü
+    // 1. Grup Listesi Modu: Sadece seçili grubun aktiflerini göster
     if (viewMode === 'group-list') {
+      return student.status !== 'passive' && student.groupId === selectedGroupId;
+    }
+
+    // 2. Global Modlar (Tüm Gruplar/Şubeler): Sekmeye göre tam ayrım
+    if (showPassive) {
+      // Sadece Mezunlar Sekmesi
+      if (student.status !== 'passive') return false;
+    } else {
+      // Sadece Aktif Öğrenciler Sekmesi
       if (student.status === 'passive') return false;
-      if (student.groupId !== selectedGroupId) return false;
+
+      // Grubu arşivlenmiş aktifleri gizle (Opsiyonel Güvenlik)
+      const parentGroup = groups.find((g) => g.id === student.groupId);
+      if (!parentGroup || parentGroup.status === 'archived') return false;
     }
 
-    // 2. Global Modlarda (Tüm Gruplar/Şubeler) Aktif/Pasif Kontrolü
-    if (viewMode !== 'group-list' && !showPassive && student.status === 'passive') {
-      return false;
-    }
-
-    // 3. Veri Bütünlüğü (Grubu silinmiş aktif öğrencileri gizle)
-    const parentGroup = groups.find((g) => g.id === student.groupId);
-    if (student.status !== 'passive' && (!parentGroup || parentGroup.status === 'archived')) {
-      return false;
-    }
-
-    // 4. Arama Algoritması (İsim + Soyisim)
+    // 3. Arama Filtresi
     const searchNormalized = searchQuery.toLowerCase().trim();
     const fullName = `${student.name || ""} ${student.lastName || ""}`.toLowerCase();
     if (!fullName.includes(searchNormalized)) return false;
 
-    // 5. Şube Filtrelemesi
+    // 4. Şube Filtresi
     if (viewMode === 'all-branches') {
       return studentBranch === "Tümü" || student.branch === studentBranch;
     }
-
     if (viewMode === 'all-groups') {
       return student.branch === "Kadıköy";
     }
@@ -463,29 +529,29 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     return true;
   });
 
-/**
- * @description Tek bir öğrencinin seçim durumunu değiştirir.
- */
-const toggleStudentSelection = (id: string) => {
-  setSelectedStudentIds((prev) =>
-    prev.includes(id) 
-      ? prev.filter((sId) => sId !== id) 
-      : [...prev, id]
-  );
-};
+  /**
+   * @description Tek bir öğrencinin seçim durumunu değiştirir.
+   */
+  const toggleStudentSelection = (id: string) => {
+    setSelectedStudentIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((sId) => sId !== id)
+        : [...prev, id]
+    );
+  };
 
-/**
- * @description O an ekranda filtrelenmiş olan tüm öğrencileri seçer/bırakır.
- */
-const handleSelectAll = () => {
-  // Eğer seçili olanların sayısı, motorun süzdüğü (filteredStudents) sayısına eşitse; temizle.
-  if (selectedStudentIds.length === filteredStudents.length && filteredStudents.length > 0) {
-    setSelectedStudentIds([]);
-  } else {
-    // Değilse; motorun süzgecinden geçen herkesin ID'sini listeye ekle.
-    setSelectedStudentIds(filteredStudents.map((s) => s.id));
-  }
-};
+  /**
+   * @description O an ekranda filtrelenmiş olan tüm öğrencileri seçer/bırakır.
+   */
+  const handleSelectAll = () => {
+    // Eğer seçili olanların sayısı, motorun süzdüğü (filteredStudents) sayısına eşitse; temizle.
+    if (selectedStudentIds.length === filteredStudents.length && filteredStudents.length > 0) {
+      setSelectedStudentIds([]);
+    } else {
+      // Değilse; motorun süzgecinden geçen herkesin ID'sini listeye ekle.
+      setSelectedStudentIds(filteredStudents.map((s) => s.id));
+    }
+  };
 
   // --- TASARIM BAŞLIYOR ---
 
@@ -512,7 +578,7 @@ const handleSelectAll = () => {
       {/* --- BÖLÜM 1: NAVİGASYON --- */}
       <div className="w-full mt-6">
         <div className="max-w-[1920px] mx-auto px-8">
-          <div className="border-b border-surface-200 flex items-center justify-between h-20 pl-[56px]">
+          <div className="border-b border-surface-200 flex items-center justify-between h-20 ppx-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
             <nav className="flex items-center h-full">
               {["Profil Ayarları", "Kullanıcılar", "Eğitim Yönetimi", "Header & Footer", "Sidebar"].map((label) => {
                 const currentId = label === "Eğitim Yönetimi" ? "groups" : label.toLowerCase().replace(" ", "-");
@@ -531,7 +597,7 @@ const handleSelectAll = () => {
       {activeSubTab === 'groups' && (
         <div className="max-w-[1920px] mx-auto px-8 mt-[48px]">
           {/* --- BÖLÜM 2: AKSİYON SATIRI --- */}
-          <div className="flex items-center justify-between pb-4 border-b border-neutral-300 pl-[56px]">
+          <div className="flex items-center justify-between pb-4 border-b border-neutral-300 px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
             <div className="flex items-center gap-6">
               <button onClick={handleOpenForm} disabled={currentView !== "Aktif Sınıflar" && !editingGroupId} className={`w-[144px] h-[40px] text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer ${currentView === "Aktif Sınıflar" || editingGroupId ? "bg-[#FF8D28] shadow-orange-500/10" : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}><span>{isFormOpen ? "Vazgeç" : (editingGroupId ? "Düzenle" : "Grup ekle")}</span>{isFormOpen ? <X size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}</button>
               <p className="text-[14px] text-neutral-400 font-medium border-l border-neutral-200 pl-6 h-6 flex items-center leading-none">{currentView !== "Aktif Sınıflar" && !editingGroupId ? "Yeni grup eklemek için aktif sınıflar sekmesine geçin." : (editingGroupId ? "Mevcut grup bilgilerini güncelleyin." : "Yeni bir eğitim grubu veya sınıf oluşturun.")}</p>
@@ -544,7 +610,7 @@ const handleSelectAll = () => {
 
           {/* --- BÖLÜM 3: FORM ALANI --- */}
           <div className={`grid transition-all duration-500 ease-in-out ${isFormOpen ? 'grid-rows-[1fr] opacity-100 mt-6' : 'grid-rows-[0fr] opacity-0 overflow-hidden'}`}>
-            <div className="min-h-0 overflow-visible pl-[56px]">
+            <div className="min-h-0 overflow-visible px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
               <div className={`bg-white border border-surface-200 rounded-[16px] p-[36px] shadow-sm relative z-20 mb-8 ${isShaking ? 'animate-shake-fast' : ''}`}>
                 <div className="grid grid-cols-2 gap-[40px]">
                   <div className="flex flex-col gap-2">
@@ -589,7 +655,7 @@ const handleSelectAll = () => {
 
           {/* --- BÖLÜM 4: İÇERİK --- */}
           <div className="mt-6">
-            <div className="flex items-center bg-surface-50 w-fit p-1 rounded-[14px] mb-8 ml-[56px]">
+            <div className="flex items-center bg-surface-50 w-fit p-1 rounded-[14px] mb-8 px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
               {["Aktif Sınıflar", isAdmin && "Tüm Sınıflar", "Arşiv"].filter(Boolean).map((t) => (
                 <button key={t as string} onClick={() => setCurrentView(t as string)} className={`px-6 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer ${currentView === t ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>{t as string}</button>
               ))}
@@ -598,7 +664,7 @@ const handleSelectAll = () => {
             {currentView === "Aktif Sınıflar" ? (
               filteredGroups.length > 0 ? (
                 // DURUM A: GRUP VARSA KARTLAR
-                <div className="pl-[56px] flex flex-wrap gap-6 animate-in fade-in duration-500">
+                <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 flex flex-wrap gap-6 animate-in fade-in duration-500">
                   {filteredGroups.map((group) => {
                     const isActive = selectedGroupId === group.id;
                     return (
@@ -623,7 +689,7 @@ const handleSelectAll = () => {
                 </div>
               ) : (
                 // DURUM B: GRUP YOKSA GENİŞ EMPTY STATE
-                <div className="pl-[56px] pr-8 w-full animate-in fade-in zoom-in-95 duration-500">
+                <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 pr-8 w-full animate-in fade-in zoom-in-95 duration-500">
                   <div className="w-full py-12 bg-white border border-dashed border-neutral-300 rounded-[20px] flex flex-col items-center justify-center text-center shadow-sm">
                     <div className="w-14 h-14 bg-neutral-50 rounded-2xl flex items-center justify-center text-neutral-300 mb-4 border border-neutral-100">
                       <Layout size={28} strokeWidth={1.5} />
@@ -644,7 +710,7 @@ const handleSelectAll = () => {
               )
             ) : (
               // DURUM C: ARŞİV VEYA TÜM SINIFLAR (TABLO MODU)
-              <div className="pl-[56px] w-full animate-in fade-in duration-500">
+              <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 w-full animate-in fade-in duration-500">
                 <div className="bg-white border border-neutral-300 rounded-[16px] overflow-hidden shadow-sm">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -686,7 +752,7 @@ const handleSelectAll = () => {
 
           {/* --- BÖLÜM 5: ÖĞRENCİ LİSTESİ KOMUTA MERKEZİ --- */}
           {currentView === "Aktif Sınıflar" && (
-            <div className="mt-[64px] pl-[56px] animate-in fade-in slide-in-from-bottom-2">
+            <div className="mt-[64px] px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 animate-in fade-in slide-in-from-bottom-2">
               <div className="flex items-center pb-4 border-b border-neutral-200 mb-4">
 
                 {/* 1. Başlık ve Sayı (Filtrelenmiş Listeyi Kullanır) */}
@@ -895,153 +961,180 @@ const handleSelectAll = () => {
                   </div>
                 </div>
               </div>
-        {/* --- 2.3: MEZUN/AKTİF SEKMELERİ (Sadece Global Modlarda Görünür) --- */}
-{(viewMode === "all-groups" || viewMode === "all-branches") && (
-  <div className="flex items-center gap-8 mb-6 border-b border-neutral-100 px-4 animate-in fade-in">
-    
-    {/* AKTİF ÖĞRENCİLER SEKMESİ */}
-    <button
-      onClick={() => setShowPassive(false)}
-      className={`pb-3 text-[14px] font-semibold transition-all relative cursor-pointer ${
-        !showPassive ? 'text-base-primary-600' : 'text-neutral-400 hover:text-neutral-500'
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <span>Aktif Öğrenciler</span>
-        <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-bold ${
-          !showPassive ? 'bg-base-primary-50 text-base-primary-600' : 'bg-neutral-50 text-neutral-400'
-        }`}>
-          {/* Sayacı viewMode'a göre dinamik yapıyoruz ki doğru rakamı versin */}
-          {students.filter(s => s.status !== 'passive' && (
-            viewMode === 'all-branches' ? (studentBranch === "Tümü" || s.branch === studentBranch) : 
-            viewMode === 'all-groups' ? s.branch === "Kadıköy" : true
-          )).length}
-        </span>
-      </div>
-      {!showPassive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-base-primary-600 animate-in fade-in" />}
-    </button>
+              {/* --- 2.3: MEZUN/AKTİF SEKMELERİ (Sadece Global Modlarda Görünür) --- */}
+              {(viewMode === "all-groups" || viewMode === "all-branches") && (
+                <div className="flex items-center gap-8 mb-6 border-b border-neutral-100 px-4 animate-in fade-in">
 
-    {/* MEZUNLAR SEKMESİ */}
-    <button
-      onClick={() => setShowPassive(true)}
-      className={`pb-3 text-[14px] font-semibold transition-all relative cursor-pointer ${
-        showPassive ? 'text-base-primary-600' : 'text-neutral-400 hover:text-neutral-500'
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <span>Mezunlar / Pasif</span>
-        <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-bold ${
-          showPassive ? 'bg-base-primary-50 text-base-primary-600' : 'bg-neutral-50 text-neutral-400'
-        }`}>
-          {students.filter(s => s.status === 'passive' && (
-            viewMode === 'all-branches' ? (studentBranch === "Tümü" || s.branch === studentBranch) : 
-            viewMode === 'all-groups' ? s.branch === "Kadıköy" : true
-          )).length}
-        </span>
-      </div>
-      {showPassive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-base-primary-600 animate-in fade-in" />}
-    </button>
-    
-  </div>
-)}
+                  {/* AKTİF ÖĞRENCİLER SEKMESİ */}
+                  <button
+                    onClick={() => setShowPassive(false)}
+                    className={`pb-3 text-[14px] font-semibold transition-all relative cursor-pointer ${!showPassive ? 'text-base-primary-600' : 'text-neutral-400 hover:text-neutral-500'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>Aktif Öğrenciler</span>
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-bold ${!showPassive ? 'bg-base-primary-50 text-base-primary-600' : 'bg-neutral-50 text-neutral-400'
+                        }`}>
+                        {/* Sayacı viewMode'a göre dinamik yapıyoruz ki doğru rakamı versin */}
+                        {students.filter(s => s.status !== 'passive' && (
+                          viewMode === 'all-branches' ? (studentBranch === "Tümü" || s.branch === studentBranch) :
+                            viewMode === 'all-groups' ? s.branch === "Kadıköy" : true
+                        )).length}
+                      </span>
+                    </div>
+                    {!showPassive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-base-primary-600 animate-in fade-in" />}
+                  </button>
 
+                  {/* MEZUNLAR SEKMESİ */}
+                  <button
+                    onClick={() => setShowPassive(true)}
+                    className={`pb-3 text-[14px] font-semibold transition-all relative cursor-pointer ${showPassive ? 'text-base-primary-600' : 'text-neutral-400 hover:text-neutral-500'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>Mezunlar / Pasif</span>
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-bold ${showPassive ? 'bg-base-primary-50 text-base-primary-600' : 'bg-neutral-50 text-neutral-400'
+                        }`}>
+                        {students.filter(s => s.status === 'passive' && (
+                          viewMode === 'all-branches' ? (studentBranch === "Tümü" || s.branch === studentBranch) :
+                            viewMode === 'all-groups' ? s.branch === "Kadıköy" : true
+                        )).length}
+                      </span>
+                    </div>
+                    {showPassive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-base-primary-600 animate-in fade-in" />}
+                  </button>
 
-{/* --- SECTION 7: STUDENT LIST TABLE --- */}
-<div className="bg-white border border-neutral-200 rounded-lg overflow-hidden mb-12 shadow-sm">
-  <table className="w-full text-left border-collapse">
-    <thead>
-      <tr className="border-b border-neutral-200 bg-neutral-50/30 h-10">
-        {/* Master Checkbox (Tümünü Seç) */}
-        <th className="px-6 w-10 text-center">
-          <input
-            type="checkbox"
-            className="w-4 h-4 rounded border-neutral-300 text-base-primary-600 focus:ring-base-primary-500 cursor-pointer accent-base-primary-600"
-            onChange={handleSelectAll}
-            checked={selectedStudentIds.length === filteredStudents.length && filteredStudents.length > 0}
-          />
-        </th>
-
-        <th className="px-8 text-[14px] font-bold text-base-primary-900">Öğrenci İsmi</th>
-        <th className="px-8 text-[14px] font-bold text-base-primary-900">Şube</th>
-        <th className="px-8 text-[14px] font-bold text-base-primary-900">Grup Kodu</th>
-        
-        {viewMode === 'all-branches' && (
-          <th className="px-8 text-[14px] font-bold text-base-primary-900">Eğitmen</th>
-        )}
-        
-        <th className="px-8 text-[14px] font-bold text-base-primary-900 text-right">Aksiyonlar</th>
-      </tr>
-    </thead>
-
-    <tbody className="divide-y divide-neutral-200">
-      {filteredStudents.length > 0 ? (
-        filteredStudents.map((student) => (
-          <tr 
-            key={student.id} 
-            className={`h-14 transition-colors group cursor-pointer ${
-              student.status === 'passive' ? 'bg-neutral-50/30 opacity-70' : 'hover:bg-neutral-50/50'
-            }`}
-          >
-            {/* Satır Checkbox */}
-            <td className="px-6 w-10 text-center">
-              <input
-                type="checkbox"
-                className="w-4 h-4 rounded border-neutral-300 text-base-primary-600 focus:ring-base-primary-500 cursor-pointer accent-base-primary-600"
-                checked={selectedStudentIds.includes(student.id)}
-                onChange={() => toggleStudentSelection(student.id)}
-                onClick={(e) => e.stopPropagation()} 
-              />
-            </td>
-
-            {/* İsim (630 Weight) */}
-            <td className="px-8 text-[14px] font-semibold text-base-primary-900 leading-none">
-              {student.name} {student.lastName}
-              {student.status === 'passive' && (
-                <span className="ml-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Mezun</span>
+                </div>
               )}
-            </td>
 
-            <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.branch}</td>
-            <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.groupCode}</td>
 
-            {viewMode === 'all-branches' && (
-              <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">
-                {groups.find(g => g.id === student.groupId)?.instructor || "-"}
-              </td>
-            )}
+              {/* --- SECTION 7: STUDENT LIST TABLE --- */}
+              <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden mb-12 shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead className="relative">
+                    <tr className={`border-b border-neutral-200 transition-all duration-300 ${selectedStudentIds.length > 0 ? "bg-base-primary-900 text-white h-14" : "bg-neutral-50/30 h-10"
+                      }`}>
+                      <th className="px-6 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded border-neutral-300 text-base-primary-600 focus:ring-base-primary-500 cursor-pointer accent-base-primary-600"
+                          onChange={handleSelectAll}
+                          checked={selectedStudentIds.length === filteredStudents.length && filteredStudents.length > 0}
+                        />
+                      </th>
 
-            {/* Aksiyonlar */}
-            <td className="px-8 text-right">
-              <div className="flex items-center justify-end gap-4">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleEditStudent(student); }} 
-                  className="text-base-primary-400 hover:text-base-primary-600 transition-colors"
-                >
-                  <PencilLine size={18} />
-                </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id }); }} 
-                  className="text-red-400 hover:text-red-600 transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
+                      {selectedStudentIds.length > 0 ? (
+                        /* --- SEÇİM YAPILDIĞINDA GÖRÜNECEK ALAN (colSpan'ı 7 yaptık çünkü 2 yeni kolon geldi) --- */
+                        <th colSpan={viewMode === 'all-branches' ? 7 : 6} className="px-8">
+                          <div className="flex items-center justify-between w-full animate-in fade-in duration-300">
+                            <div className="flex items-center gap-4">
+                              <span className="text-[13px] font-bold uppercase tracking-widest">{selectedStudentIds.length} Seçildi</span>
+                              <div className="w-px h-4 bg-white/20" />
+                              <button
+                                onClick={() => setDeleteModal({ isOpen: true, studentId: "bulk" })}
+                                className="flex items-center gap-2 text-[13px] font-bold text-red-300 hover:text-red-100 transition-colors cursor-pointer outline-none"
+                              >
+                                <Trash2 size={16} /> Seçilenleri Sil
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => setSelectedStudentIds([])}
+                              className="text-[12px] font-bold text-white/50 hover:text-white transition-colors cursor-pointer underline underline-offset-4"
+                            >
+                              Temizle
+                            </button>
+                          </div>
+                        </th>
+                      ) : (
+                        /* --- BAŞLIKLAR (E-posta ve Not Eklendi) --- */
+                        <>
+                          <th className="px-8 text-[14px] font-bold text-base-primary-900">Öğrenci İsmi</th>
+                          <th className="px-8 text-[14px] font-bold text-base-primary-900">Şube</th>
+                          <th className="px-8 text-[14px] font-bold text-base-primary-900">Grup Kodu</th>
+                          <th className="px-8 text-[14px] font-bold text-base-primary-900">E-Posta Adresi</th>
+                          <th className="px-8 text-[14px] font-bold text-base-primary-900">Eğitmen Notu</th>
+
+                          {viewMode === 'all-branches' && (
+                            <th className="px-8 text-[14px] font-bold text-base-primary-900">Eğitmen</th>
+                          )}
+
+                          <th className="px-8 text-[14px] font-bold text-base-primary-900 text-right pr-8">Aksiyonlar</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-neutral-200">
+                    {filteredStudents.length > 0 ? (
+                      filteredStudents.map((student) => (
+                        <tr
+                          key={student.id}
+                          className={`h-14 transition-colors group cursor-pointer ${student.status === 'passive' ? 'bg-neutral-50/30 opacity-70' : 'hover:bg-neutral-50/50'
+                            }`}
+                        >
+                          <td className="px-6 w-10 text-center">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 rounded border-neutral-300 text-base-primary-600 focus:ring-base-primary-500 cursor-pointer accent-base-primary-600"
+                              checked={selectedStudentIds.includes(student.id)}
+                              onChange={() => toggleStudentSelection(student.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </td>
+
+                          <td className="px-8 text-[14px] font-semibold text-base-primary-900 leading-none">
+                            {student.name} {student.lastName}
+                            {student.status === 'passive' && (
+                              <span className="ml-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Mezun</span>
+                            )}
+                          </td>
+
+                          <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.branch}</td>
+                          <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">{student.groupCode}</td>
+
+                          {/* YENİ: E-posta Kolonu */}
+                          <td className="px-8 text-[13px] font-medium text-neutral-500 leading-none">{student.email || "-"}</td>
+
+                          {/* YENİ: Eğitmen Notu (İtalic değil, düz) */}
+                          <td className="px-8 text-[13px] font-medium text-neutral-500 leading-none max-w-[180px] truncate">{student.note || "-"}</td>
+
+                          {viewMode === 'all-branches' && (
+                            <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none">
+                              {groups.find(g => g.id === student.groupId)?.instructor || "-"}
+                            </td>
+                          )}
+
+                          <td className="px-8 text-right pr-8">
+                            <div className="flex items-center justify-end gap-4">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleEditStudent(student); }}
+                                className="text-base-primary-400 hover:text-base-primary-600 transition-colors"
+                              >
+                                <PencilLine size={18} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id }); }}
+                                className="text-red-400 hover:text-red-600 transition-colors"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={viewMode === 'all-branches' ? 8 : 7}
+                          className="py-20 text-center text-neutral-400 font-medium text-[14px]"
+                        >
+                          Gösterilecek kayıt bulunamadı.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            </td>
-          </tr>
-        ))
-      ) : (
-        <tr>
-          <td 
-            colSpan={viewMode === 'all-branches' ? 6 : 5} 
-            className="py-20 text-center text-neutral-400 font-medium text-[14px]"
-          >
-            Gösterilecek kayıt bulunamadı.
-          </td>
-        </tr>
-      )}
-    </tbody>
-  </table>
-</div>
 
             </div> // Content Wrapper End
           )}
@@ -1101,10 +1194,16 @@ const handleSelectAll = () => {
 
               <button
                 onClick={async () => {
-                  await handleDeleteStudent(deleteModal.studentId); // Mevcut silme fonksiyonun
-                  setDeleteModal({ isOpen: false, studentId: "" }); // Modalı kapat
+                  // Eğer studentId "bulk" ise toplu silme motorunu, değilse tekli silme fonksiyonunu çalıştırır
+                  if (deleteModal.studentId === "bulk") {
+                    await handleBulkDeleteStudents();
+                  } else {
+                    await handleDeleteStudent(deleteModal.studentId);
+                  }
+                  // İşlem bitince modalı her halükarda kapatır
+                  setDeleteModal({ isOpen: false, studentId: "" });
                 }}
-                className="flex-1 h-12 text-white font-bold rounded-xl transition-all hover:opacity-90"
+                className="flex-1 h-12 text-white font-bold rounded-xl transition-all hover:opacity-90 cursor-pointer"
                 style={{ backgroundColor: 'var(--color-status-danger-500)' }}
               >
                 SİL
