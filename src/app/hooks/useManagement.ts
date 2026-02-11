@@ -126,16 +126,20 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     .filter(g => currentView === "Arşiv" ? g.status === "archived" : g.status === "active")
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-  const filteredStudents = students.filter((student) => {
-    if (viewMode === 'group-list') return student.status !== 'passive' && student.groupId === selectedGroupId;
-    if (showPassive) { if (student.status !== 'passive') return false; } 
-    else { if (student.status === 'passive') return false; }
-    const search = searchQuery.toLowerCase().trim();
-    if (!`${student.name} ${student.lastName}`.toLowerCase().includes(search)) return false;
-    if (viewMode === 'all-branches') return studentBranch === "Tümü" || student.branch === studentBranch;
-    if (viewMode === 'all-groups') return student.branch === "Kadıköy";
-    return true;
-  });
+// 2. KESİN FİLTRELEME MOTORU
+const filteredStudents = students.filter((s) => {
+  const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
+  const statusMatch = showPassive ? s.status === 'passive' : s.status !== 'passive';
+  if (!searchMatch || !statusMatch) return false;
+
+  if (viewMode === 'group-list') return s.groupId === selectedGroupId;
+  if (viewMode === 'all-groups') return s.branch === "Kadıköy";
+  if (viewMode === 'all-branches') {
+    if (studentBranch === "Tümü") return true;
+    return s.branch === studentBranch;
+  }
+  return true;
+});
 
   useEffect(() => {
     const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
@@ -167,21 +171,26 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     }
   }, [isAdmin]);
 
-  useEffect(() => {
-    if (!selectedGroupId && !isFormOpen && filteredGroups.length > 0) {
-      const firstId = filteredGroups[0].id;
-      setSelectedGroupId(firstId);
-      setLastSelectedId(firstId);
-    }
+ // 1. OTOMATİK GRUP VE ŞUBE EŞLEME (useManagement.ts içinde)
+useEffect(() => {
+  const isSelectedGroupInList = filteredGroups.some(g => g.id === selectedGroupId);
+  if ((!selectedGroupId || !isSelectedGroupInList) && !isFormOpen && filteredGroups.length > 0) {
+    const firstId = filteredGroups[0].id;
+    setSelectedGroupId(firstId);
+    setLastSelectedId(firstId);
+  }
 
-    if (selectedGroupId) {
-      const currentGroup = groups.find(g => g.id === selectedGroupId);
-      if (currentGroup) {
+  if (selectedGroupId) {
+    const currentGroup = groups.find(g => g.id === selectedGroupId);
+    if (currentGroup) {
+      // Mod "Tüm Şubeler" değilse otomatik şube eşlemesi yap
+      if (viewMode !== 'all-branches') {
         setStudentBranch(currentGroup.branch);
-        setSelectedGroupIdForStudent(selectedGroupId);
       }
+      setSelectedGroupIdForStudent(selectedGroupId);
     }
-  }, [filteredGroups, isFormOpen, selectedGroupId, groups]);
+  }
+}, [filteredGroups, isFormOpen, selectedGroupId, groups, viewMode]);
 
   useEffect(() => {
     const labels: Record<string, string> = {
