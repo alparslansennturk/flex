@@ -77,6 +77,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
       {activeSubTab === 'groups' && (
         <div className="max-w-[1920px] mx-auto px-8 mt-[48px]">
+
           {/* --- BÖLÜM 2: AKSİYON SATIRI --- */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-300 px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
             <div className="flex items-center gap-6">
@@ -130,8 +131,14 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
             <GroupCards
               currentView={currentView}
-              // BURASI KRİTİK: "Tüm Sınıflar" sekmesindeysen hepsi, "Aktif"teysen sadece seninkiler
-              filteredGroups={currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards}
+              // YENİ MANTIK:
+              filteredGroups={
+                currentView === "Arşiv"
+                  ? filteredGroups // Arşivdeyken sadece arşivlenmişler (filteredGroups zaten useManagement'ta filtreleniyor)
+                  : currentView === "Tüm Sınıflar"
+                    ? filteredGroups // Tüm Sınıflar'dayken her şey
+                    : myGroupCards   // Aktif Sınıflar'dayken sadece senin derslerin
+              }
               selectedGroupId={selectedGroupId}
               setSelectedGroupId={setSelectedGroupId}
               openMenuId={openMenuId}
@@ -147,53 +154,77 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           {currentView === "Aktif Sınıflar" && (
             <div className="mt-[64px] px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 animate-in fade-in duration-500">
 
-              {/* Üst Bar: Başlık, Filtreler ve Arama */}
-              <div className="flex items-center pb-4 border-b border-neutral-200 mb-6">
-                <div className="flex items-center gap-2 min-w-fit">
-                  <Users size={18} className="text-base-primary-900" />
-                  <h2 className="text-[18px] font-bold text-base-primary-900 tracking-tight">Öğrenciler</h2>
-                  <span className="text-[13px] font-medium text-neutral-400 ml-2">({filteredStudents.length} Kayıt)</span>
-                </div>
+              {/* Üst Bar: Başlık, Filtreler ve Arama (Scale-factor uyumlu) */}
+              {/* Üst Bar: Titremeyi Önleyen Sabit Düzen */}
+              <div className="student-header-row flex items-center justify-between pb-4 border-b border-neutral-200 mb-6 w-full">
 
-                {/* Mod Butonları */}
-                <div className="flex items-center ml-14 bg-surface-50 p-1 rounded-lg border border-neutral-100 shadow-sm">
-                  <button onClick={() => setViewMode("group-list")} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all ${viewMode === "group-list" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Grup Listesi</button>
-                  <button onClick={() => setViewMode("all-groups")} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all ${viewMode === "all-groups" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Tüm Gruplarım</button>
-                  {isAdmin && (
-                    <button onClick={() => { setViewMode("all-branches"); setStudentBranch("Tümü"); }} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all ${viewMode === "all-branches" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Tüm Şubeler</button>
+                {/* SOL GRUP: Başlık ve Filtreler (Stabilize Edildi) */}
+                <div className="flex items-center gap-6">
+
+                  {/* Başlık Alanı: Genişliği sabitledik ki rakam değişince sağ taraf oynamasın */}
+                  <div className="flex items-center gap-2 min-w-[180px]">
+                    <Users size={18} className="text-base-primary-900 shrink-0" />
+                    <h2 className="text-[18px] font-bold text-base-primary-900 tracking-tight whitespace-nowrap">Öğrenciler</h2>
+                    <div className="text-[13px] font-semibold text-neutral-400 min-w-[70px]">
+                      ({filteredStudents.length} Kayıt)
+                    </div>
+                  </div>
+
+                  {/* Mod Butonları: ml-14 yerine gap kullandık */}
+                  <div className="flex items-center bg-surface-50 p-1 rounded-lg border border-neutral-100 shadow-sm shrink-0">
+                    <button onClick={() => setViewMode("group-list")} className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "group-list" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Grup Listesi</button>
+                    <button onClick={() => setViewMode("all-groups")} className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "all-groups" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Tüm Gruplarım</button>
+                    {isAdmin && (
+                      <button onClick={() => { setViewMode("all-branches"); setStudentBranch("Tümü"); }} className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "all-branches" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Tüm Şubeler</button>
+                    )}
+                  </div>
+
+                  {/* Şube Seçimi: Sadece admin ise görünür, alanı bozmaz */}
+                  {isAdmin && viewMode === "all-branches" && (
+                    <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4">
+                      <div className="h-6 w-px bg-neutral-200" />
+                      <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className="bg-white border border-neutral-200 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-base-primary-900 outline-none shadow-sm cursor-pointer min-w-[120px]">
+                        <option value="Tümü">Tümü</option>
+                        <option value="Kadıköy">Kadıköy</option>
+                        <option value="Şirinevler">Şirinevler</option>
+                        <option value="Pendik">Pendik</option>
+                      </select>
+                    </div>
                   )}
                 </div>
 
-                {/* Şube Seçimi (Admin) */}
-                {isAdmin && viewMode === "all-branches" && (
-                  <div className="flex items-center gap-2 ml-4 animate-in fade-in slide-in-from-left-4">
-                    <div className="h-6 w-px bg-neutral-200 mx-2" />
-                    <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className="bg-white border border-neutral-200 rounded-lg px-3 py-1.5 text-[13px] font-bold text-base-primary-900 outline-none shadow-sm cursor-pointer">
-                      <option value="Tümü">Tümü</option>
-                      <option value="Kadıköy">Kadıköy</option>
-                      <option value="Şirinevler">Şirinevler</option>
-                      <option value="Pendik">Pendik</option>
-                    </select>
+                {/* SAĞ GRUP: Buton ve Arama (Sağa Çakılı) */}
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setIsStudentFormOpen(!isStudentFormOpen)}
+                    className={`flex items-center justify-center px-6 py-2.5 rounded-[12px] transition-all duration-300 cursor-pointer outline-none shadow-sm group shrink-0 ${isStudentFormOpen
+                      ? "bg-surface-500 hover:bg-surface-600 text-white"
+                      : "bg-designstudio-secondary-500 hover:bg-designstudio-secondary-700 text-white"
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isStudentFormOpen ? <X size={18} strokeWidth={2.5} /> : <PlusCircle size={18} strokeWidth={2.5} />}
+                      <span className="text-[13px] font-semibold leading-none whitespace-nowrap">
+                        {isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}
+                      </span>
+                    </div>
+                  </button>
+
+                  <div className="relative w-[240px] xl:w-[300px] shrink-0">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Ara..."
+                      className="w-full h-[38px] bg-white border border-neutral-200 rounded-xl px-4 pr-10 text-[13px] font-medium focus:border-designstudio-secondary-500 transition-all outline-none"
+                    />
+                    <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
                   </div>
-                )}
-
-                {/* Ekle Butonu */}
-                <button onClick={() => setIsStudentFormOpen(!isStudentFormOpen)} className="flex items-center gap-2 ml-8 text-base-primary-500 hover:text-base-primary-600 transition-all group">
-                  {isStudentFormOpen ? <X size={20} /> : <PlusCircle size={20} className="group-hover:rotate-90 transition-transform duration-300" />}
-                  <span className="text-[14px] font-bold">{isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}</span>
-                </button>
-
-                {/* Arama */}
-                <div className="relative ml-auto w-[320px]">
-                  <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="İsim veya soyisim ile ara..." className="w-full h-[40px] bg-white border border-neutral-200 rounded-lg px-4 pr-10 text-[13px] font-medium focus:border-base-primary-500 transition-all outline-none" />
-                  <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" />
                 </div>
               </div>
 
-              {/* --- GEÇİŞ EFEKTLİ İÇERİK ALANI --- */}
+              {/* --- İÇERİK ALANI --- */}
               <div className="relative transition-all duration-500 ease-in-out" style={{ minHeight: '500px' }}>
-
-                {/* Form Transition (Grid Row Hilesi) */}
                 <div className={`grid transition-all duration-500 ease-in-out ${isStudentFormOpen ? "grid-rows-[1fr] opacity-100 mb-8" : "grid-rows-[0fr] opacity-0 mb-0"}`}>
                   <div className="overflow-hidden">
                     <StudentForm
@@ -214,7 +245,6 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                   </div>
                 </div>
 
-                {/* Tablo Transition */}
                 <div className="animate-in fade-in zoom-in-95 duration-700">
                   <StudentTable
                     students={filteredStudents}
@@ -226,7 +256,6 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     handleEditStudent={handleEditStudent}
                     setDeleteModal={setDeleteModal}
                   />
-
                   {filteredStudents.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-24 text-neutral-400">
                       <Users size={40} className="mb-2 opacity-10" />

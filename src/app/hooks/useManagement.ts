@@ -129,27 +129,21 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
   /// 2. KESİN FİLTRELEME MOTORU
-  const filteredStudents = students.filter((s) => {
-    const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
-    const statusMatch = showPassive ? s.status === 'passive' : s.status !== 'passive';
-
-    if (!searchMatch || !statusMatch) return false;
-
-    if (viewMode === 'group-list') {
-      return s.groupId === selectedGroupId;
-    }
-
-    if (viewMode === 'all-groups') {
-      return s.branch === studentBranch;
-    }
-
-    if (viewMode === 'all-branches') {
-      if (studentBranch === "Tümü") return true;
-      return s.branch === studentBranch;
-    }
-
-    return true;
-  });
+  const filteredStudents=students.filter((s)=>{
+const searchMatch=(s.name+" "+(s.lastName||"")).toLowerCase().includes(searchQuery.toLowerCase().trim());
+const statusMatch=showPassive?s.status==='passive':s.status!=='passive';
+if(!searchMatch||!statusMatch)return false;
+if(viewMode==='group-list')return s.groupId===selectedGroupId;
+if(viewMode==='all-groups'){
+const instructorName=(currentUser as any)?.displayName||(currentUser as any)?.name||"Alparslan";
+return groups.some(g=>g.id===s.groupId&&g.instructor?.toLowerCase().includes(instructorName.toLowerCase().trim()));
+}
+if(viewMode==='all-branches'){
+if(studentBranch==="Tümü")return true;
+return s.branch===studentBranch;
+}
+return true;
+});
  const myGroupCards = groups.filter(g => {
     // Sadece senin olduğun gruplar
     const isMine = g.instructorId === currentUser?.uid;
@@ -191,16 +185,28 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
   // 1. OTOMATİK GRUP VE ŞUBE EŞLEME (useManagement.ts içinde)
   useEffect(() => {
-    if (isStudentFormOpen) return;
+    if (isFormOpen || isStudentFormOpen) return;
 
-    const isSelectedGroupInList = filteredGroups.some(g => g.id === selectedGroupId);
-
-    if ((!selectedGroupId || !isSelectedGroupInList) && !isFormOpen && filteredGroups.length > 0) {
-      const firstId = filteredGroups[0].id;
-      setSelectedGroupId(firstId);
-      setLastSelectedId(firstId);
+    let targetList: Group[] = [];
+    
+    if (currentView === "Aktif Sınıflar") {
+      targetList = myGroupCards;
+    } else {
+      targetList = filteredGroups;
     }
 
+    if (targetList.length > 0) {
+      const isStillInList = targetList.some(g => g.id === selectedGroupId);
+      if (!selectedGroupId || !isStillInList) {
+        setSelectedGroupId(targetList[0].id);
+        setLastSelectedId(targetList[0].id);
+      }
+    } else {
+      setSelectedGroupId(null);
+    }
+  }, [currentView, myGroupCards, filteredGroups, isFormOpen, isStudentFormOpen]);
+
+  useEffect(() => {
     if (selectedGroupId) {
       const currentGroup = groups.find(g => g.id === selectedGroupId);
       if (currentGroup) {
@@ -210,7 +216,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         setSelectedGroupIdForStudent(selectedGroupId);
       }
     }
-  }, [filteredGroups, isFormOpen, isStudentFormOpen, selectedGroupId, groups, viewMode]);
+  }, [selectedGroupId, groups, viewMode]);
 
   useEffect(() => {
     const labels: Record<string, string> = {

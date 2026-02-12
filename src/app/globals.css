@@ -228,3 +228,20 @@
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* 1440px ve altındaki ekranlar için ölçekleme */
+@media (max-width: 1440px) {
+  .student-header-row {
+    --scale-factor: 0.92; /* Alanı %8 oranında komple küçültüyoruz */
+  }
+  
+  .student-header-row h2 {
+    font-size: calc(var(--font-size-2xl) * var(--scale-factor)) !important;
+  }
+
+  .student-header-row input, 
+  .student-header-row button {
+    transform: scale(var(--scale-factor));
+    transform-origin: right center; /* Sağdaki elemanlar sağa yaslı küçülsün */
+  }
+}

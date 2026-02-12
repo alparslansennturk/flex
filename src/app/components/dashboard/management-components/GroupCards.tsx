@@ -1,5 +1,5 @@
 import React from "react";
-import { MoreVertical, Edit2, Archive, Layout, Plus, MapPin, User, RotateCcw, Trash2, PencilLine } from "lucide-react";
+import { MoreVertical, Edit2, Archive, Layout, Plus, MapPin, User, RotateCcw, Trash2, PencilLine, Pencil } from "lucide-react";
 
 interface GroupCardsProps {
   currentView: string;
@@ -51,11 +51,50 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                   <td className="px-6 py-3 text-right pr-8">
                     {currentView === "Arşiv" ? (
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => requestModal(group.id, 'restore')} className="p-1.5 text-base-primary-500 hover:bg-base-primary-50 rounded-lg cursor-pointer"><RotateCcw size={16} /></button>
-                        <button onClick={() => requestModal(group.id, 'delete')} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer"><Trash2 size={16} /></button>
+                        <button
+                          onClick={() => requestModal(group.id, 'restore')}
+                          className="p-2 text-base-primary-500 hover:bg-neutral-50 rounded-lg cursor-pointer transition-colors"
+                          title="Geri Yükle"
+                        >
+                          <RotateCcw size={18} />
+                        </button>
+                        <button
+                          onClick={() => requestModal(group.id, 'delete')}
+                          className="p-2 text-red-500 hover:bg-neutral-50 rounded-lg cursor-pointer transition-colors"
+                          title="Tamamen Sil"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     ) : (
-                      <button onClick={() => handleEdit(group)} className="p-1.5 cursor-pointer text-[#FF8D28]"><PencilLine size={18} /></button>
+                      /* BURASI: "Tüm Sınıflar" sekmesindeki tertemiz ikon alanı */
+                      <div className="flex justify-end items-center gap-1">
+
+                        {/* 1. DÜZENLE (Lila / Design Secondary) */}
+                        <button
+                          onClick={() => handleEdit(group)}
+                          className="p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-neutral-50 group/table-edit"
+                          title="Düzenle"
+                        >
+                          <PencilLine
+                            size={18}
+                            className="text-[#8B5CF6] group-hover/table-edit:text-[#6D28D9] transition-colors"
+                          />
+                        </button>
+
+                        {/* 2. ARŞİVE GÖNDER (Kibar Gri / Neutral) */}
+                        <button
+                          onClick={() => requestModal(group.id, 'archive')}
+                          className="p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-neutral-50 group/table-archive"
+                          title="Arşive Gönder"
+                        >
+                          <Archive
+                            size={18}
+                            className="text-neutral-400 group-hover/table-archive:text-neutral-900 transition-colors"
+                          />
+                        </button>
+
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -91,47 +130,69 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
       {filteredGroups.map((group) => {
         const isActive = selectedGroupId === group.id;
         return (
-          <div 
-            key={group.id} 
-            onClick={() => setSelectedGroupId(group.id)} 
-            className={`relative w-[256px] h-[116px] rounded-[16px] p-6 transition-all cursor-pointer group ${
-              isActive 
-                ? "bg-base-primary-700 text-white shadow-xl scale-[1.02]" 
-                : "bg-white border border-neutral-300 text-text-primary hover:bg-base-primary-700 hover:text-white hover:border-transparent"
-            }`}
-          >
-            <button 
-              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }} 
-              className={`absolute top-4 right-4 p-1 rounded-lg transition-colors cursor-pointer ${
-                isActive ? "text-white/60 hover:bg-white/10" : "text-neutral-400 group-hover:text-white/60"
+          <div
+            key={group.id}
+            onClick={() => setSelectedGroupId(group.id)}
+            className={`relative w-[256px] h-[116px] rounded-[16px] p-6 transition-all cursor-pointer group ${isActive
+              ? "bg-base-primary-700 text-white shadow-xl scale-[1.02]"
+              : "bg-white border border-neutral-300 text-text-primary hover:bg-base-primary-700 hover:text-white hover:border-transparent"
               }`}
+          >
+            <button
+              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }}
+              className={`absolute top-4 right-4 p-1 rounded-lg transition-colors cursor-pointer ${isActive ? "text-white/60 hover:bg-white/10" : "text-neutral-400 group-hover:text-white/60"
+                }`}
             >
               <MoreVertical size={20} />
             </button>
 
             {openMenuId === group.id && (
-              <div ref={menuRef} className="absolute top-12 right-4 w-44 bg-white rounded-lg shadow-2xl border border-surface-200 z-[60] overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-200 cursor-default">
-                <button onClick={(e) => { e.stopPropagation(); handleEdit(group); }} className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-neutral-700 hover:bg-surface-50 flex items-center gap-2 cursor-pointer transition-colors"><Edit2 size={16} /> Düzenle</button>
-                <button onClick={(e) => { e.stopPropagation(); requestModal(group.id, 'archive'); }} className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-neutral-700 hover:bg-surface-50 flex items-center gap-2 cursor-pointer transition-colors"><Archive size={16} /> Arşive ekle</button>
+              <div ref={menuRef} className="absolute top-12 right-4 w-48 bg-white rounded-xl shadow-2xl border border-neutral-200 z-[60] overflow-hidden py-1.5 animate-in fade-in zoom-in-95 duration-200 cursor-default">
+
+                {/* 1. DÜZENLE (Zemin nötr gri, içerik lila) */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleEdit(group); }}
+                  className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-3 cursor-pointer transition-all duration-200 group/edit"
+                >
+                  <PencilLine
+                    size={18}
+                    className="text-[#8B5CF6] group-hover/edit:text-[#6D28D9] transition-colors"
+                  />
+                  <span className="group-hover/edit:text-[#6D28D9] transition-colors">
+                    Düzenle
+                  </span>
+                </button>
+
+                {/* 2. ARŞİVE EKLE (Zemin aynı nötr gri, içerik gri) */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); requestModal(group.id, 'archive'); }}
+                  className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-3 cursor-pointer transition-all duration-200 group/archive"
+                >
+                  <Archive
+                    size={18}
+                    className="text-neutral-400 group-hover/archive:text-neutral-900 transition-colors"
+                  />
+                  <span className="group-hover/archive:text-neutral-900 transition-colors">
+                    Arşive ekle
+                  </span>
+                </button>
+
               </div>
             )}
 
             <div className="flex flex-col h-full justify-between pointer-events-none">
               <div>
-                <p className={`text-[14px] font-semibold leading-none mb-2 transition-colors ${
-                  isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"
-                }`}>
+                <p className={`text-[14px] font-semibold leading-none mb-2 transition-colors ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"
+                  }`}>
                   {group.code}
                 </p>
-                <p className={`text-[16px] font-bold leading-none transition-colors ${
-                  isActive ? "text-white" : "text-base-primary-700 group-hover:text-white"
-                }`}>
+                <p className={`text-[16px] font-bold leading-none transition-colors ${isActive ? "text-white" : "text-base-primary-700 group-hover:text-white"
+                  }`}>
                   {group.session}
                 </p>
               </div>
-              <p className={`text-[14px] font-semibold leading-none transition-colors ${
-                isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"
-              }`}>
+              <p className={`text-[14px] font-semibold leading-none transition-colors ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"
+                }`}>
                 Öğrenci Sayısı: {group.students}
               </p>
             </div>
