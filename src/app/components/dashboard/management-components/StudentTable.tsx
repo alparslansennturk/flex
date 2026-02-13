@@ -84,7 +84,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                     onClick={(e) => e.stopPropagation()}
                   />
                 </td>
-                <td className="px-8 text-[14px] font-semibold text-neutral-900 leading-none truncate">{student.name} {student.lastName}</td>
+                <td className="px-8 text-[14px] font-medium text-neutral-900 leading-none truncate">{student.name} {student.lastName}</td>
                 <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none truncate">{student.branch}</td>
                 <td className="px-8 text-[13px] font-medium text-neutral-600 leading-none truncate">{student.groupCode}</td>
                 <td className="px-8 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.email || "-"}</td>
