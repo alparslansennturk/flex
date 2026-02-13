@@ -1,24 +1,21 @@
 /**
  * FLEX OS - Centralized Permission Resolver
- * Kullanıcının belirli bir eyleme yetkisi olup olmadığını denetler.
  */
 import { UserDocument } from '@/app/types/user'; 
-import { Permission, ROLES } from '@/app/lib/constants'; 
+import { ROLES } from '@/app/lib/constants'; 
 
 /**
  * Kullanıcının yetkisini kontrol eder.
- * @param user - Mevcut kullanıcı dökümanı
- * @param requiredPermission - Kontrol edilecek yetki (örn: PERMISSIONS.SALES.VIEW)
  */
 export const hasPermission = (
   user: UserDocument | null, 
-  requiredPermission: Permission
+  requiredPermission: string
 ): boolean => {
   if (!user) return false;
 
-  // 1. ADMIN kuralı: ADMIN rolüne sahip kullanıcılar tüm sistem yetkilerine sahiptir.
+  // 1. ADMIN kuralı
   if (user.role === ROLES.ADMIN) return true;
 
-  // 2. Özel Yetki Kontrolü: Kullanıcının permissions dizisinde bu yetki var mı?
-  return user.permissions.includes(requiredPermission);
+  // 2. Özel Yetki Kontrolü
+  return Array.isArray(user.permissions) && user.permissions.includes(requiredPermission);
 };
