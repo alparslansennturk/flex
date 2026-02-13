@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
+import { useUser } from "@/app/context/UserContext"; // Motoru bağladık
+import { PERMISSIONS } from "@/app/lib/constants"; // Kuralları getirdik
+
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -12,6 +15,7 @@ import AssignmentLibrary from "../components/dashboard/AssignmentLibrary";
 
 export default function DashboardPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { hasPermission } = useUser(); // Yetki kontrol mekanizması
   const [activeTab, setActiveTab] = useState<'dashboard' | 'management'>('dashboard');
   const [viewMode, setViewMode] = useState<'Sınıflarım' | 'Şubem' | 'Tümü'>('Sınıflarım');
 
@@ -32,17 +36,15 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    // bg-[#F4F7FB] yerine bg-[#F9FAFB] (neutral-50) mühürlendi
     <div className="flex min-h-screen bg-[#F9FAFB] font-inter antialiased text-text-primary">
       
-      {/* SOL: SIDEBAR */}
+      {/* SOL: SIDEBAR (Zaten kendi içinde yetki kontrolü yapıyor) */}
       <aside className="hidden lg:block h-screen sticky top-0 shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
         <Sidebar />
       </aside>
       
       {/* SAĞ: CONTAINER */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        
         <Header />
         
         <main className="flex-1 w-full overflow-x-hidden">
@@ -54,8 +56,13 @@ export default function DashboardPage() {
                   <WorkshopAnalysis />
                   <LeaderboardWidget viewMode={viewMode} setViewMode={setViewMode} />
                 </div>
+                
                 <DesignParkour />
-                <AssignmentLibrary scrollRef={scrollRef} handleScroll={handleScroll} />
+
+                {/* 🛡️ KRİTİK KALKAN: Ödev Yönetimi Yetkisi Yoksa Bu Bölüm Hiç Render Edilmez */}
+                {hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) && (
+                  <AssignmentLibrary scrollRef={scrollRef} handleScroll={handleScroll} />
+                )}
               </div>
             ) : (
               <div className="bg-white rounded-[32px] p-12 border border-surface-200 min-h-[500px] flex items-center justify-center ui-title-md text-base-primary-900">

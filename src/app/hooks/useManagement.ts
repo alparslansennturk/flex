@@ -77,7 +77,6 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
   const [selectedGroupIdForStudent, setSelectedGroupIdForStudent] = useState<string>("");
 
-  // --- SENİN PAYLAŞTIĞIN BLOĞUN HEMEN ALTINA GELECEK ---
 
   useEffect(() => {
     if (isAdmin) {
@@ -129,25 +128,25 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
   /// 2. KESİN FİLTRELEME MOTORU
-  const filteredStudents=students.filter((s)=>{
-const searchMatch=(s.name+" "+(s.lastName||"")).toLowerCase().includes(searchQuery.toLowerCase().trim());
-const statusMatch=showPassive?s.status==='passive':s.status!=='passive';
-if(!searchMatch||!statusMatch)return false;
-if(viewMode==='group-list')return s.groupId===selectedGroupId;
-if(viewMode==='all-groups'){
-const instructorName=(currentUser as any)?.displayName||(currentUser as any)?.name||"Alparslan";
-return groups.some(g=>g.id===s.groupId&&g.instructor?.toLowerCase().includes(instructorName.toLowerCase().trim()));
-}
-if(viewMode==='all-branches'){
-if(studentBranch==="Tümü")return true;
-return s.branch===studentBranch;
-}
-return true;
-});
- const myGroupCards = groups.filter(g => {
+  const filteredStudents = students.filter((s) => {
+    const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
+    const statusMatch = showPassive ? s.status === 'passive' : s.status !== 'passive';
+    if (!searchMatch || !statusMatch) return false;
+    if (viewMode === 'group-list') return s.groupId === selectedGroupId;
+    if (viewMode === 'all-groups') {
+      const instructorName = (currentUser as any)?.displayName || (currentUser as any)?.name || "Alparslan";
+      return groups.some(g => g.id === s.groupId && g.instructor?.toLowerCase().includes(instructorName.toLowerCase().trim()));
+    }
+    if (viewMode === 'all-branches') {
+      if (studentBranch === "Tümü") return true;
+      return s.branch === studentBranch;
+    }
+    return true;
+  });
+  const myGroupCards = groups.filter(g => {
     // Sadece senin olduğun gruplar
     const isMine = g.instructorId === currentUser?.uid;
-    
+
     // SADECE VE SADECE AKTİF OLANLAR (Arşivdekiler buraya giremez)
     const isActiveOnly = g.status === 'active';
 
@@ -167,16 +166,14 @@ return true;
 
   useEffect(() => {
     if (isAdmin) {
-      const q = query(collection(db, "users"), where("role", "==", "instructor"));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const insList = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            displayName: data.name ? `${data.name} ${data.surname || ""}` : data.email
-          };
-        });
+      const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+        const insList = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as any))
+          .filter(user => user.role === "instructor" || user.isInstructor === true)
+          .map(user => ({
+            ...user,
+            displayName: user.name ? `${user.name} ${user.surname || ""}` : (user.email || "İsimsiz")
+          }));
         setInstructors(insList);
       });
       return () => unsubscribe();
@@ -188,7 +185,7 @@ return true;
     if (isFormOpen || isStudentFormOpen) return;
 
     let targetList: Group[] = [];
-    
+
     if (currentView === "Aktif Sınıflar") {
       targetList = myGroupCards;
     } else {
@@ -220,9 +217,11 @@ return true;
 
   useEffect(() => {
     const labels: Record<string, string> = {
-      groups: "Eğitim Yönetimi", profile: "Profil Ayarları", users: "Kullanıcılar"
+      groups: "Sınıf Yönetimi", 
+      profile: "Profil Ayarları",
+      users: "Kullanıcı Yönetimi"
     };
-    setHeaderTitle(labels[activeSubTab] || "Eğitim Yönetimi");
+    setHeaderTitle(labels[activeSubTab] || "Sınıf Yönetimi");
   }, [activeSubTab, setHeaderTitle]);
 
   const showNotification = (msg: string) => {

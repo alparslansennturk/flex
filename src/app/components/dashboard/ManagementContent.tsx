@@ -1,28 +1,26 @@
 "use client";
 import React from "react";
-import {
-  Plus, Info, X, Users, PlusCircle, Search, CheckCircle2
-} from "lucide-react";
+import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2, BookOpen } from "lucide-react";
 
-// Dışarı aldığımız bileşenler ve Hook
+// Mevcut alt bileşenler ve Hook
 import { GlobalConfirmationModal, StudentDeleteModal } from "./management-components/Modals";
 import { StudentTable } from "./management-components/StudentTable";
 import { GroupCards } from "./management-components/GroupCards";
 import { GroupForm } from "./management-components/GroupForm";
 import { StudentForm } from "./management-components/StudentForm";
 import { useManagement } from "@/app/hooks/useManagement";
+import SubNavigation from "@/app/components/dashboard/SubNavigation";
+import UserManagement from "@/app/components/dashboard/UserManagement";
 
 export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: (t: string) => void }) {
-
-  // TÜM BEYİN (Logic) BURADAN GELİYOR
   const {
     isAdmin, activeSubTab, setActiveSubTab, currentView, setCurrentView,
     isFormOpen, setIsFormOpen, deleteModal, setDeleteModal, showPassive, setShowPassive,
     selectedStudentIds, setSelectedStudentIds, students, groups,
     selectedGroupId, setSelectedGroupId, openMenuId, setOpenMenuId,
     editingGroupId, setEditingGroupId, groupCode, setGroupCode,
-    groupBranch, setGroupBranch, // <--- Şube yönetimi burada
-    instructors, selectedInstructorId, setSelectedInstructorId, // <--- Eğitmen yönetimi burada
+    groupBranch, setGroupBranch,
+    instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
     isScheduleOpen, setIsScheduleOpen, errors, setErrors, isShaking, setIsShaking,
     searchQuery, setSearchQuery, isStudentFormOpen, setIsStudentFormOpen,
@@ -36,8 +34,6 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     filteredGroups, filteredStudents, myGroupCards, toggleStudentSelection, handleSelectAll
   } = useManagement(setHeaderTitle);
 
-
-  // --- TASARIM (RETURN) BAŞLIYOR ---
   return (
     <div className="w-full font-inter select-none pb-20 relative">
       <style jsx global>{`
@@ -56,24 +52,11 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         </div>
       )}
 
-      {/* --- BÖLÜM 1: NAVİGASYON --- */}
-      <div className="w-full mt-6">
-        <div className="max-w-[1920px] mx-auto px-8">
-          <div className="border-b border-surface-200 flex items-center justify-between h-20 px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
-            <nav className="flex items-center h-full">
-              {["Profil Ayarları", "Kullanıcılar", "Eğitim Yönetimi", "Header & Footer", "Sidebar"].map((label) => {
-                const currentId = label === "Eğitim Yönetimi" ? "groups" : label.toLowerCase().replace(" ", "-");
-                return (
-                  <button key={label} onClick={() => setActiveSubTab(currentId)} className="relative h-full flex items-center px-8 first:pl-0 cursor-pointer outline-none group transition-colors">
-                    <span className={`text-[15px] font-semibold tracking-tight whitespace-nowrap ${activeSubTab === currentId ? "text-base-primary-500" : "text-text-tertiary hover:text-text-secondary"}`}>{label}</span>
-                    {activeSubTab === currentId && <div className="absolute bottom-0 left-0 w-full h-[3.2px] bg-base-primary-500 rounded-t-full" />}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
-      </div>
+      {/* --- BÖLÜM 1: NAVİGASYON (AYRILMIŞ BİLEŞEN) --- */}
+      <SubNavigation 
+        activeTab={activeSubTab} 
+        onTabChange={setActiveSubTab} 
+      />
 
       {activeSubTab === 'groups' && (
         <div className="max-w-[1920px] mx-auto px-8 mt-[48px]">
@@ -81,14 +64,19 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           {/* --- BÖLÜM 2: AKSİYON SATIRI --- */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-300 px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
             <div className="flex items-center gap-6">
-              <button onClick={handleOpenForm} disabled={currentView !== "Aktif Sınıflar" && !editingGroupId} className={`w-[144px] h-[40px] text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer ${currentView === "Aktif Sınıflar" || editingGroupId ? "bg-[#FF8D28] shadow-orange-500/10" : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}><span>{isFormOpen ? "Vazgeç" : (editingGroupId ? "Düzenle" : "Grup ekle")}</span>{isFormOpen ? <X size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}</button>
-              <p className="text-[14px] text-neutral-400 font-medium border-l border-neutral-200 pl-6 h-6 flex items-center leading-none">{currentView !== "Aktif Sınıflar" && !editingGroupId ? "Yeni grup eklemek için aktif sınıflar sekmesine geçin." : (editingGroupId ? "Mevcut grup bilgilerini güncelleyin." : "Yeni bir eğitim grubu veya sınıf oluşturun.")}</p>
+              <button onClick={handleOpenForm} disabled={currentView !== "Aktif Sınıflar" && !editingGroupId} className={`w-[144px] h-[40px] text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer ${currentView === "Aktif Sınıflar" || editingGroupId ? "bg-[#FF8D28] shadow-orange-500/10" : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}>
+                <span>{isFormOpen ? "Vazgeç" : (editingGroupId ? "Düzenle" : "Sınıf ekle")}</span>
+                {isFormOpen ? <X size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
+              </button>
+              <p className="text-[14px] text-neutral-400 font-medium border-l border-neutral-200 pl-6 h-6 flex items-center leading-none">{currentView !== "Aktif Sınıflar" && !editingGroupId ? "Yeni sınıf eklemek için aktif sınıflar sekmesine geçin." : (editingGroupId ? "Mevcut sınıf bilgilerini güncelleyin." : "Yeni bir eğitim sınıfı veya grubu oluşturun.")}</p>
             </div>
             <div className="flex items-center gap-6 pr-4">
-              <div className="text-right hidden md:block"><p className="text-[11px] font-bold text-neutral-400 leading-none mb-1.5 tracking-wider">Sistem durumu</p><p className="text-[14px] font-bold text-neutral-700 leading-none">{groups.filter(g => g.status === 'active').length} Grup / {groups.filter(g => g.status === 'active').reduce((acc, curr) => acc + curr.students, 0)} Öğrenci</p></div>
+              <div className="text-right hidden md:block"><p className="text-[11px] font-bold text-neutral-400 leading-none mb-1.5 tracking-wider">Sistem durumu</p><p className="text-[14px] font-bold text-neutral-700 leading-none">{groups.filter(g => g.status === 'active').length} Sınıf / {groups.filter(g => g.status === 'active').reduce((acc, curr) => acc + curr.students, 0)} Öğrenci</p></div>
               <button className="w-10 h-10 rounded-lg bg-surface-50 border border-surface-100 flex items-center justify-center text-neutral-400 hover:text-base-primary-500 transition-colors cursor-pointer outline-none"><Info size={18} /></button>
             </div>
           </div>
+
+
 
           {/* --- BÖLÜM 3: FORM ALANI --- */}
           <GroupForm
@@ -96,11 +84,11 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             isShaking={isShaking}
             groupCode={groupCode}
             setGroupCode={setGroupCode}
-            groupBranch={groupBranch}         // <--- Hook'tan gelen veri
-            setGroupBranch={setGroupBranch}     // <--- Hook'tan gelen fonksiyon
-            instructors={instructors}           // <--- Hook'tan gelen liste
-            selectedInstructorId={selectedInstructorId} // <--- Hook'tan gelen seçim
-            setSelectedInstructorId={setSelectedInstructorId} // <--- Hook'tan gelen fonksiyon
+            groupBranch={groupBranch}
+            setGroupBranch={setGroupBranch}
+            instructors={instructors}
+            selectedInstructorId={selectedInstructorId}
+            setSelectedInstructorId={setSelectedInstructorId}
             errors={errors}
             setErrors={setErrors}
             selectedSchedule={selectedSchedule}
@@ -131,13 +119,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
             <GroupCards
               currentView={currentView}
-              // YENİ MANTIK:
               filteredGroups={
-                currentView === "Arşiv"
-                  ? filteredGroups // Arşivdeyken sadece arşivlenmişler (filteredGroups zaten useManagement'ta filtreleniyor)
-                  : currentView === "Tüm Sınıflar"
-                    ? filteredGroups // Tüm Sınıflar'dayken her şey
-                    : myGroupCards   // Aktif Sınıflar'dayken sadece senin derslerin
+                currentView === "Arşiv" ? filteredGroups : currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards
               }
               selectedGroupId={selectedGroupId}
               setSelectedGroupId={setSelectedGroupId}
@@ -153,33 +136,20 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           {/* --- BÖLÜM 5: ÖĞRENCİ LİSTESİ --- */}
           {currentView === "Aktif Sınıflar" && (
             <div className="mt-[64px] px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 animate-in fade-in duration-500">
-
-              {/* Üst Bar: Başlık, Filtreler ve Arama (Scale-factor uyumlu) */}
-              {/* Üst Bar: Titremeyi Önleyen Sabit Düzen */}
               <div className="student-header-row flex items-center justify-between pb-4 border-b border-neutral-200 mb-6 w-full">
-
-                {/* SOL GRUP: Başlık ve Filtreler (Stabilize Edildi) */}
                 <div className="flex items-center gap-6">
-
-                  {/* Başlık Alanı: Genişliği sabitledik ki rakam değişince sağ taraf oynamasın */}
                   <div className="flex items-center gap-2 min-w-[180px]">
                     <Users size={18} className="text-base-primary-900 shrink-0" />
                     <h2 className="text-[18px] font-bold text-base-primary-900 tracking-tight whitespace-nowrap">Öğrenciler</h2>
-                    <div className="text-[13px] font-semibold text-neutral-400 min-w-[70px]">
-                      ({filteredStudents.length} Kayıt)
-                    </div>
+                    <div className="text-[13px] font-semibold text-neutral-400 min-w-[70px]">({filteredStudents.length} Kayıt)</div>
                   </div>
-
-                  {/* Mod Butonları: ml-14 yerine gap kullandık */}
                   <div className="flex items-center bg-surface-50 p-1 rounded-lg border border-neutral-100 shadow-sm shrink-0">
-                    <button onClick={() => setViewMode("group-list")} className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "group-list" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Grup Listesi</button>
-                    <button onClick={() => setViewMode("all-groups")} className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "all-groups" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Tüm Gruplarım</button>
+                    <button onClick={() => setViewMode("group-list")} className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "group-list" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Sınıf Listesi</button>
+                    <button onClick={() => setViewMode("all-groups")} className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "all-groups" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Tüm Sınıflarım</button>
                     {isAdmin && (
                       <button onClick={() => { setViewMode("all-branches"); setStudentBranch("Tümü"); }} className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "all-branches" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>Tüm Şubeler</button>
                     )}
                   </div>
-
-                  {/* Şube Seçimi: Sadece admin ise görünür, alanı bozmaz */}
                   {isAdmin && viewMode === "all-branches" && (
                     <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4">
                       <div className="h-6 w-px bg-neutral-200" />
@@ -192,38 +162,20 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     </div>
                   )}
                 </div>
-
-                {/* SAĞ GRUP: Buton ve Arama (Sağa Çakılı) */}
                 <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => setIsStudentFormOpen(!isStudentFormOpen)}
-                    className={`flex items-center justify-center px-6 py-2.5 rounded-[12px] transition-all duration-300 cursor-pointer outline-none shadow-sm group shrink-0 ${isStudentFormOpen
-                      ? "bg-surface-500 hover:bg-surface-600 text-white"
-                      : "bg-designstudio-secondary-500 hover:bg-designstudio-secondary-700 text-white"
-                      }`}
-                  >
+                  <button onClick={() => setIsStudentFormOpen(!isStudentFormOpen)} className={`flex items-center justify-center px-6 py-2.5 rounded-[12px] transition-all duration-300 cursor-pointer outline-none shadow-sm group shrink-0 ${isStudentFormOpen ? "bg-surface-500 text-white" : "bg-designstudio-secondary-500 text-white"}`}>
                     <div className="flex items-center gap-2">
                       {isStudentFormOpen ? <X size={18} strokeWidth={2.5} /> : <PlusCircle size={18} strokeWidth={2.5} />}
-                      <span className="text-[13px] font-semibold leading-none whitespace-nowrap">
-                        {isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}
-                      </span>
+                      <span className="text-[13px] font-semibold leading-none whitespace-nowrap">{isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}</span>
                     </div>
                   </button>
-
                   <div className="relative w-[240px] xl:w-[300px] shrink-0">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Ara..."
-                      className="w-full h-[38px] bg-white border border-neutral-200 rounded-xl px-4 pr-10 text-[13px] font-medium focus:border-designstudio-secondary-500 transition-all outline-none"
-                    />
+                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Ara..." className="w-full h-[38px] bg-white border border-neutral-200 rounded-xl px-4 pr-10 text-[13px] font-medium focus:border-designstudio-secondary-500 transition-all outline-none" />
                     <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
                   </div>
                 </div>
               </div>
 
-              {/* --- İÇERİK ALANI --- */}
               <div className="relative transition-all duration-500 ease-in-out" style={{ minHeight: '500px' }}>
                 <div className={`grid transition-all duration-500 ease-in-out ${isStudentFormOpen ? "grid-rows-[1fr] opacity-100 mb-8" : "grid-rows-[0fr] opacity-0 mb-0"}`}>
                   <div className="overflow-hidden">
@@ -244,7 +196,6 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     />
                   </div>
                 </div>
-
                 <div className="animate-in fade-in zoom-in-95 duration-700">
                   <StudentTable
                     students={filteredStudents}
@@ -269,14 +220,24 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         </div>
       )}
 
-      {/* --- MODALLAR --- */}
-      <GlobalConfirmationModal
-        isOpen={modalConfig.isOpen}
-        type={modalConfig.type as any}
-        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
-        onConfirm={confirmModalAction}
-      />
+      {/* --- BÖLÜM: KULLANICI YÖNETİMİ --- */}
+      {activeSubTab === 'users' && <UserManagement />}
 
+      {/* --- BÖLÜM: ÖDEV YÖNETİMİ (TASLAK) --- */}
+      {activeSubTab === 'task-management' && (
+        <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-500">
+          <div className="bg-white border border-neutral-100 rounded-[24px] p-20 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-[#8B5CF6] mb-4">
+              <BookOpen size={32} />
+            </div>
+            <h3 className="text-[18px] font-bold text-[#10294C]">Ödev Yönetimi Paneli</h3>
+            <p className="text-neutral-400 text-[14px] mt-2 max-w-sm">Bu alan şu an geliştirme aşamasındadır. Çok yakında lila butonlarla ödev yönetimini buradan yapabileceksiniz.</p>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODALLAR --- */}
+      <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type as any} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />
       <StudentDeleteModal
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ isOpen: false, studentId: "" })}

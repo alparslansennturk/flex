@@ -2,20 +2,24 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, ChevronRight, Bell, Settings } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useUser } from "@/app/context/UserContext";
 
 export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
   const pathname = usePathname();
+  const { user } = useUser(); 
   const [selectedBranch, setSelectedBranch] = useState("Tüm Şubeler");
   const [isBranchOpen, setIsBranchOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const branches = ["Tüm Şubeler", "Kadıköy Şb.", "Şirinevler Şb.", "Pendik Şb."];
 
+  // --- İSİM AYIKLAMA MANTIĞI ---
+  // Alparslan Şentürk -> Alparslan
+  const firstName = user?.name ? user.name.split(' ')[0] : "Kullanıcı";
+
   useEffect(() => {
     const saved = localStorage.getItem("selectedBranch");
-    if (saved && branches.includes(saved)) {
-      setSelectedBranch(saved);
-    }
+    if (saved && branches.includes(saved)) setSelectedBranch(saved);
   }, []);
 
   const handleBranchSelect = (branch: string) => {
@@ -35,14 +39,14 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
   }, []);
 
   const isManagementPage = pathname?.includes("/management");
-  // Aktif şubeyi listeden gizlemek için filtrele
   const otherBranches = branches.filter((b) => b !== selectedBranch);
-  const myAvatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=Mason&scale=110`;
+  const myAvatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}&scale=110`;
 
   return (
     <header className="w-full bg-white border-b border-surface-200 font-inter shrink-0">
       <div className="max-w-[1920px] mx-auto h-20 flex items-center justify-between px-8">
         
+        {/* SOL TARAF: Karşılama ve Başlık */}
         <div className="flex items-center gap-4 truncate pr-4">
           {isManagementPage && (
             <div className="w-10 h-10 rounded-xl bg-base-primary-5 flex items-center justify-center text-base-primary-900 border border-base-primary-100 shrink-0">
@@ -59,25 +63,34 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
                   <span className="animate-in fade-in duration-500">{activeTabLabel}</span>
                 </>
               ) : (
-                "Hoş geldin, Alparslan"
+                `Hoş Geldin, ${firstName}` 
               )}
             </h1>
             <p className="text-[14px] text-neutral-400 font-medium mt-0.5 truncate leading-none">
-                Atölye, sınıf ve kullanıcı ayarlarını buradan yönet.
+                {isManagementPage 
+                  ? "Atölye, sınıf ve kullanıcı ayarlarını buradan yönet." 
+                  : "Bugün atölyende neler oluyor? İşte son durum."}
             </p>
           </div>
         </div>
 
+        {/* SAĞ TARAF: Bildirim, Profil ve Şube */}
         <div className="flex items-center shrink-0">
           <div className="relative text-neutral-900 cursor-pointer hover:text-base-primary-500 transition-colors">
             <Bell size={24} />
             <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-status-danger-500 text-white text-[11px] flex items-center justify-center rounded-full font-bold border-2 border-white leading-none">3</span>
           </div>
           <div className="h-8 w-px bg-surface-200 mx-5"></div>
+          
           <div className="text-right hidden md:block">
-            <p className="text-[14px] 2xl:text-[16px] text-base-primary-900 font-bold leading-none mb-1 whitespace-nowrap">Alparslan Şentürk</p>
-            <p className="text-[12px] 2xl:text-[13px] text-text-tertiary font-medium whitespace-nowrap">Eğitmen | Arı Bilgi</p>
+            <p className="text-[14px] 2xl:text-[16px] text-base-primary-900 font-bold leading-none mb-1 whitespace-nowrap">
+              {user?.name} {user?.surname}
+            </p>
+            <p className="text-[12px] 2xl:text-[13px] text-text-tertiary font-medium whitespace-nowrap">
+              {user?.title || "Eğitmen"} | Arı Bilgi
+            </p>
           </div>
+
           <div className="h-8 w-px bg-surface-200 mx-4"></div>
           <div className="w-10 h-10 rounded-full border-2 border-designstudio-primary-500 p-0.5 shrink-0 overflow-hidden bg-surface-50 shadow-sm cursor-pointer">
             <img src={myAvatarUrl} alt="Profil" className="w-full h-full object-cover" />
