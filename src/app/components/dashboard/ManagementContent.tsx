@@ -103,35 +103,45 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             scheduleRef={scheduleRef}
           />
 
-          {/* --- BÖLÜM 4: İÇERİK --- */}
-          <div className="mt-6">
-            <div className="flex items-center bg-surface-50 w-fit p-1 rounded-[14px] mb-8 px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
-              {["Aktif Sınıflar", isAdmin && "Tüm Sınıflar", "Arşiv"].filter(Boolean).map((t) => (
-                <button
-                  key={t as string}
-                  onClick={() => setCurrentView(t as string)}
-                  className={`px-6 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer ${currentView === t ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}
-                >
-                  {t as string}
-                </button>
-              ))}
-            </div>
+         {/* --- BÖLÜM 4: İÇERİK --- */}
+<div className="mt-6">
+  {/* Hizalama için padding dışarıda, kutu w-fit ile kilitli */}
+  <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 mb-8">
+    <div className="flex items-center bg-surface-50 w-fit p-1 rounded-[12px] border border-neutral-100 shadow-sm shrink-0">
+      {["Aktif Sınıflar", isAdmin && "Tüm Sınıflar", "Arşiv"].filter(Boolean).map((t) => (
+        <button
+          key={t as string}
+          onClick={() => setCurrentView(t as string)}
+          className={`px-6 py-1.5 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer outline-none select-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 ${
+            currentView === t 
+              ? "bg-white text-base-primary-900 shadow-sm border border-neutral-100" 
+              : "text-neutral-400 hover:text-neutral-600 border border-transparent"
+          }`}
+        >
+          {t as string}
+        </button>
+      ))}
+    </div>
+  </div>
 
-            <GroupCards
-              currentView={currentView}
-              filteredGroups={
-                currentView === "Arşiv" ? filteredGroups : currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards
-              }
-              selectedGroupId={selectedGroupId}
-              setSelectedGroupId={setSelectedGroupId}
-              openMenuId={openMenuId}
-              setOpenMenuId={setOpenMenuId}
-              handleEdit={handleEdit}
-              requestModal={requestModal}
-              handleOpenForm={handleOpenForm}
-              menuRef={menuRef}
-            />
-          </div>
+  {/* Kartlar Alanı - Propslar tertemiz */}
+  <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
+    <GroupCards
+      currentView={currentView}
+      filteredGroups={
+        currentView === "Arşiv" ? filteredGroups : currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards
+      }
+      selectedGroupId={selectedGroupId}
+      setSelectedGroupId={setSelectedGroupId}
+      openMenuId={openMenuId}
+      setOpenMenuId={setOpenMenuId}
+      handleEdit={handleEdit}
+      requestModal={requestModal}
+      handleOpenForm={handleOpenForm}
+      menuRef={menuRef}
+    />
+  </div>
+</div>
 
           {/* --- BÖLÜM 5: ÖĞRENCİ LİSTESİ --- */}
           {currentView === "Aktif Sınıflar" && (
