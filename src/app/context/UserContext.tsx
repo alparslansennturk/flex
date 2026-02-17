@@ -2,14 +2,11 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'; // onSnapshot eklendi (Header fix için)
 import { auth, db } from '@/app/lib/firebase';
 import { UserDocument } from '@/app/types/user';
 import { COLLECTIONS, ROLES, UserPermission, PERMISSIONS } from '@/app/lib/constants';
 
-/** * Rol bazlı varsayılan yetki yapılandırması.
- * Eğitmen (Trainer) artık ASSIGNMENT_MANAGE yetkisine sahip değil.
- */
 const ROLES_CONFIG: Record<string, { permissions: UserPermission[] }> = {
   [ROLES.ADMIN]: {
     permissions: [
@@ -21,7 +18,6 @@ const ROLES_CONFIG: Record<string, { permissions: UserPermission[] }> = {
     ]
   },
   [ROLES.TRAINER]: { 
-    // Eğitmenin varsayılan yetkileri KISITLI kalmalı
     permissions: [PERMISSIONS.VIEW_ALL] 
   }
 };
@@ -43,44 +39,51 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (firebaseUser) {
-          const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) setUser(userDocSnap.data() as UserDocument);
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error("Auth Error:", error);
+    // onAuthStateChanged ile sadece giriş kontrolü yapıyoruz
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // HEADER FIX: getDoc yerine onSnapshot kullanarak veritabanındaki değişikliği anlık dinliyoruz.
+        // Böylece Alparslan Şentürk bilgisi güncellendiği an Header da anında düzelir.
+        const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
+        const unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setUser(docSnap.data() as UserDocument);
+          }
+          setLoading(false);
+        });
+        return () => unsubscribeDoc();
+      } else {
         setUser(null);
-      } finally {
         setLoading(false);
       }
     });
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
-  /** Yetkinin nereden geldiğini analiz eder (Hata ayıklama ve UI için) */
+  /** Yetki Kaynağı Analizi */
   const getPermissionSource = (permission: UserPermission): 'override' | 'role' | 'legacy' | 'none' => {
     if (!user) return 'none';
     if (user.overrides && permission in user.overrides) return 'override';
-    const roleDefaults = ROLES_CONFIG[user.role]?.permissions || [];
+    
+    // BUILD FIX: user.roles (ÇOĞUL) üzerinden flatMap
+    const roleDefaults = user.roles?.flatMap((r: string) => ROLES_CONFIG[r]?.permissions || []) || [];
+    
     if (roleDefaults.includes(permission)) return 'role';
     if (user.permissions?.includes(permission)) return 'legacy';
     return 'none';
   };
 
-  /** Hiyerarşik yetki kontrolü: Önce İstisnalar (Overrides), sonra Rol, en son Statik Liste */
+  /** Yetki Kontrolü */
   const hasPermission = (permission: UserPermission): boolean => {
     if (!user) return false;
-    // 1. Kullanıcıya özel istisna (Override) kontrolü
+    // 1. Override Kontrolü
     if (user.overrides && permission in user.overrides) return !!user.overrides[permission];
-    // 2. Rol bazlı yetki kontrolü
-    const roleDefaults = ROLES_CONFIG[user.role]?.permissions || [];
+    
+    // BUILD FIX: Burada da flatMap kullanarak 'role' hatasını sildik
+    const roleDefaults = user.roles?.flatMap((r: string) => ROLES_CONFIG[r]?.permissions || []) || [];
+    
     if (roleDefaults.includes(permission)) return true;
-    // 3. Eski (Legacy) yetki dizisi kontrolü
+    // 3. Legacy Kontrolü
     return user.permissions?.includes(permission) || false;
   };
 
@@ -88,8 +91,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     <UserContext.Provider value={{ 
       user, loading, isAuthenticated: !!user, 
       hasPermission, getPermissionSource,
-      isTrainer: () => user?.role === ROLES.TRAINER,
-      isAdmin: () => user?.role === ROLES.ADMIN 
+      // BUILD FIX: includes kullanarak dizi içinde rol arıyoruz
+      isTrainer: () => user?.roles?.includes(ROLES.TRAINER) || false,
+      isAdmin: () => user?.roles?.includes(ROLES.ADMIN) || false
     }}>
       {!loading && children}
     </UserContext.Provider>
