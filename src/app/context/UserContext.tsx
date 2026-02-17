@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore'; // onSnapshot eklendi (Header fix için)
+import { doc, onSnapshot } from 'firebase/firestore'; // onSnapshot mühürlendi
 import { auth, db } from '@/app/lib/firebase';
 import { UserDocument } from '@/app/types/user';
 import { COLLECTIONS, ROLES, UserPermission, PERMISSIONS } from '@/app/lib/constants';
@@ -39,11 +39,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // onAuthStateChanged ile sadece giriş kontrolü yapıyoruz
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // HEADER FIX: getDoc yerine onSnapshot kullanarak veritabanındaki değişikliği anlık dinliyoruz.
-        // Böylece Alparslan Şentürk bilgisi güncellendiği an Header da anında düzelir.
+        // HEADER FIX: onSnapshot sayesinde Header'daki isim/ünvan anlık güncellenir
         const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
         const unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
@@ -65,7 +63,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return 'none';
     if (user.overrides && permission in user.overrides) return 'override';
     
-    // BUILD FIX: user.roles (ÇOĞUL) üzerinden flatMap
+    // BUILD FIX 1: roles.flatMap (Burası sende tamamdı)
     const roleDefaults = user.roles?.flatMap((r: string) => ROLES_CONFIG[r]?.permissions || []) || [];
     
     if (roleDefaults.includes(permission)) return 'role';
@@ -79,7 +77,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // 1. Override Kontrolü
     if (user.overrides && permission in user.overrides) return !!user.overrides[permission];
     
-    // BUILD FIX: Burada da flatMap kullanarak 'role' hatasını sildik
+    // BUILD FIX 2: Burada hala ROLES_CONFIG[user.role] yazıyordu, düzelttik!
     const roleDefaults = user.roles?.flatMap((r: string) => ROLES_CONFIG[r]?.permissions || []) || [];
     
     if (roleDefaults.includes(permission)) return true;
@@ -91,9 +89,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     <UserContext.Provider value={{ 
       user, loading, isAuthenticated: !!user, 
       hasPermission, getPermissionSource,
-      // BUILD FIX: includes kullanarak dizi içinde rol arıyoruz
+      // BUILD FIX 3: Burada da === ROLES.ADMIN gibi tekil kontroller vardı, dizi kontrolüne (includes) çevirdik
       isTrainer: () => user?.roles?.includes(ROLES.TRAINER) || false,
-      isAdmin: () => user?.roles?.includes(ROLES.ADMIN) || false
+      isAdmin: () => user?.roles?.includes(ROLES.ADMIN) || false 
     }}>
       {!loading && children}
     </UserContext.Provider>
