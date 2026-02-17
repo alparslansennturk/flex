@@ -1,10 +1,11 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { Search, Settings, ShieldAlert, Check, X, Mail, UserPlus, Camera, Trash2, Edit2, Info, Send } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, Settings, ShieldAlert, Check, X, Mail, UserPlus, Camera, Trash2, Edit2, Info, Send, ChevronDown } from "lucide-react";
 import { auth, db } from "../../lib/firebase";
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { setDoc, doc, serverTimestamp, collection, onSnapshot, query, deleteDoc } from "firebase/firestore";
 import { GlobalConfirmationModal } from "./management-components/Modals";
+import { getFlexMessage } from "../../lib/messages"; // Dosya yolun hangisiyse
 
 // Yetki Tipi Tanımı
 interface PermissionItem {
@@ -32,26 +33,38 @@ export default function UserManagement() {
     const [isFormOpen, setIsUserFormOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
-    const [selectedRole, setSelectedRole] = useState("instructor");
+    const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
     const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean>>({});
     const [editingUser, setEditingUser] = useState<any>(null);
+    const [errors, setErrors] = useState<Record<string, boolean>>({});
+    const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const [modalConfig, setModalConfig] = useState<{
-    isOpen: boolean;
-    type: 'archive' | 'delete' | 'restore' | 'student-delete' | null;
-    userId: string;
-  }>({ isOpen: false, type: null, userId: "" });
+        isOpen: boolean;
+        type: 'archive' | 'delete' | 'restore' | 'student-delete' | null;
+        userId: string;
+    }>({ isOpen: false, type: null, userId: "" });
 
 
-    // --- Kullanıcı Düzenleme ve Veri Yükleme Motoru ---
+    // --- KULLANICI DÜZENLEME MOTORU ---
     const handleEditClick = (user: any) => {
-        setEditingUser(user); // Seçilen kullanıcının tüm bilgilerini hafızaya alır
-        setSelectedRole(user.role || "instructor"); // Mevcut rolünü seçili getirir
-        setPermissionOverrides(user.overrides || {}); // Varsa daha önceden atanmış özel yetkilerini yükler
-        setIsUserFormOpen(true); // Form modalını otomatik açar
+        setEditingUser(user);
+        // Mevcut rolleri state'e aktar (Form açıldığında checkboxlar dolu gelir)
+        setSelectedRoles(user.roles || []);
+        // Kullanıcıya özel tanımlanmış yetkileri aktar
+        setPermissionOverrides(user.permissionOverrides || {});
+        // Formu aç
+        setIsUserFormOpen(true);
     };
 
-    // Veri Çekme (Real-time) - Koleksiyon ismini senin belirttiğin gibi "users" (küçük u) yaptık.
-    // Not: Eğer kayıtlarında createdAt yoksa orderBy hata verebilir, o yüzden şimdilik sade çekiyoruz.
+    // --- KULLANICI SİLME ONAY MEKANİZMASI ---
+    const handleDeleteClick = (userId: string) => {
+        setModalConfig({
+            isOpen: true,
+            type: "delete", // TypeScript'in beklediği literal tip
+            userId: userId
+        });
+    };
+
     useEffect(() => {
         const q = query(collection(db, "users"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -80,11 +93,14 @@ export default function UserManagement() {
 
     // Yetki Durum Hesaplama
     const getPermissionStatus = (permId: string) => {
-        const roleDefault = ROLE_DEFAULTS[selectedRole]?.includes(permId) || false;
+        // 1. Seçili rollerden (admin, instructor) gelen varsayılan yetki var mı?
+        const roleDefault = selectedRoles.some(role => ROLE_DEFAULTS[role]?.includes(permId)) || false;
+
+        // 2. Eğer manuel müdahale (override) varsa onu al, yoksa rolün varsayılanını göster
         const isOverridden = permissionOverrides[permId] !== undefined;
         const isEnabled = isOverridden ? permissionOverrides[permId] : roleDefault;
-        const source = isOverridden ? 'Özel' : (roleDefault ? 'Rol' : null);
-        return { isEnabled, source, roleDefault };
+
+        return { isEnabled, roleDefault };
     };
 
     // Yetki Değiştirme (Clean Override)
@@ -101,47 +117,75 @@ export default function UserManagement() {
     // --- Adım 3: Kullanıcıyı Veritabanına Yazma (Güncelleme ve Yeni Kayıt) ---
     const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        setLoading(true);
 
+        // Form verilerini al
         const formData = new FormData(e.currentTarget);
         const name = formData.get("name") as string;
         const surname = formData.get("surname") as string;
         const phone = formData.get("phone") as string;
         const email = formData.get("email") as string;
+        const title = formData.get("title") as string;
+        const birthDate = formData.get("birthDate") as string;
+        const gender = formData.get("gender") as string;
+        // Checkbox "on" gelirse true, gelmezse false döner
+        const isInstructor = formData.get("isInstructor") === "on";
+
+        // --- 1. VALIDATION VE SHAKE KONTROLÜ ---
+        let newErrors: Record<string, boolean> = {};
+        if (!name) newErrors.name = true;
+        if (!surname) newErrors.surname = true;
+        if (!title) newErrors.title = true;
+        if (!birthDate) newErrors.birthDate = true;
+        if (!gender) newErrors.gender = true;
+        // Çoklu rol seçilmediyse hata ver
+        if (selectedRoles.length === 0) newErrors.roles = true;
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            // Merkezi sözlükten hata mesajını al
+            const errorMsg = getFlexMessage('validation/required-fields');
+            alert(errorMsg.text);
+
+            // 500ms sonra shake efektini temizle (tekrar sallanabilmesi için)
+            setTimeout(() => setErrors({}), 500);
+            return;
+        }
+
+        // --- 2. VERİTABANI İŞLEMLERİ ---
+        setLoading(true);
 
         try {
+            const userData = {
+                name,
+                surname,
+                phone,
+                email,
+                title,
+                birthDate,
+                gender,
+                isInstructor,
+                roles: selectedRoles, // Artık dizi (Multiple Roles)
+                overrides: permissionOverrides,
+                updatedAt: serverTimestamp(),
+            };
+
             if (editingUser) {
-                // --- DURUM 1: MEVCUT KULLANICIYI MODERNİZE ET (GÜNCELLE) ---
+                // --- DURUM 1: GÜNCELLEME ---
                 const userRef = doc(db, "users", editingUser.id);
-
                 await setDoc(userRef, {
-                    name: name,
-                    surname: surname,
-                    phone: phone,
-                    role: selectedRole,
-                    overrides: permissionOverrides,
-                    isInstructor: selectedRole === "instructor",
-                    updatedAt: serverTimestamp(),
-                    // Eski veride isActivated yoksa bile artık mühürlüyoruz:
+                    ...userData,
                     isActivated: editingUser.isActivated || false
-                }, { merge: true }); // merge: true sayesinde Auth şifresine veya UID'ye dokunmaz
+                }, { merge: true });
 
-                alert(`${name} ${surname} bilgileri başarıyla güncellendi.`);
-            }
-            else {
-                // --- DURUM 2: SIFIRDAN YENİ KULLANICI OLUŞTUR ---
+                alert(`${name} ${surname} mühürlendi.`);
+            } else {
+                // --- DURUM 2: YENİ KAYIT ---
                 const tempPass = Math.random().toString(36).slice(-8).toUpperCase();
                 const userCredential = await createUserWithEmailAndPassword(auth, email, tempPass);
 
                 await setDoc(doc(db, "users", userCredential.user.uid), {
+                    ...userData,
                     uid: userCredential.user.uid,
-                    name: name,
-                    surname: surname,
-                    email: email,
-                    phone: phone,
-                    role: selectedRole,
-                    overrides: permissionOverrides,
-                    isInstructor: selectedRole === "instructor",
                     tempPassword: tempPass,
                     isActivated: false,
                     createdAt: serverTimestamp(),
@@ -150,14 +194,18 @@ export default function UserManagement() {
                 alert(`Yeni kullanıcı mühürlendi! Geçici şifre: ${tempPass}`);
             }
 
-            // İşlem bitince her şeyi temizle ve kapat
+            // Başarılı işlem sonrası temizlik
             setIsUserFormOpen(false);
             setEditingUser(null);
+            setErrors({});
             setPermissionOverrides({});
+            setSelectedRoles([]); // Rolleri sıfırla
 
         } catch (err: any) {
             console.error("İşlem hatası:", err);
-            alert("Bir hata oluştu: " + err.message);
+            // Firebase'den gelen hata kodunu (örn: auth/email-already-in-use) sözlüğe gönder
+            const sysMsg = getFlexMessage(err.code);
+            alert(sysMsg.text);
         } finally {
             setLoading(false);
         }
@@ -177,6 +225,44 @@ export default function UserManagement() {
         }
     };
 
+    const handleRoleToggle = (roleId: string) => {
+        const newRoles = selectedRoles.includes(roleId)
+            ? selectedRoles.filter(r => r !== roleId)
+            : [...selectedRoles, roleId];
+
+        setSelectedRoles(newRoles);
+
+        // MÜHÜR: Admin seçilirse hepsini aç, Admin listeden çıkarsa hepsini temizle
+        if (newRoles.includes('admin')) {
+            const allFull = permissionsList.reduce((acc, p) => ({ ...acc, [p.id]: true }), {});
+            setPermissionOverrides(allFull);
+        } else {
+            // Admin artık listede yoksa yetkileri sıfırla (Eğitmen varsayılanına döner)
+            setPermissionOverrides({});
+        }
+    };
+
+    const roleDropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
+                setIsRoleDropdownOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // --- YENİ KULLANICI İÇİN FORMU SIFIRLAYARAK AÇ ---
+    const handleOpenNewUserForm = () => {
+        setEditingUser(null);
+        setSelectedRoles([]);
+        setPermissionOverrides({});
+        setErrors({});
+        setIsUserFormOpen(true);
+    };
+
     return (
         <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-700">
 
@@ -186,7 +272,11 @@ export default function UserManagement() {
                     <h2 className="text-[24px] font-bold text-[#10294C] tracking-tight">Kullanıcı Yönetimi</h2>
                     <p className="text-neutral-400 text-[14px] mt-1 font-medium italic">Sistem erişimlerini ve yetki matrisini yönetin.</p>
                 </div>
-                <button onClick={() => setIsUserFormOpen(true)} className="bg-[#FF8D28] hover:bg-[#e67e22] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 transition-all shadow-lg shadow-orange-500/10 active:scale-95 cursor-pointer">
+                {/* İŞTE DEĞİŞEN BUTON BURASI */}
+                <button
+                    onClick={handleOpenNewUserForm}
+                    className="bg-[#FF8D28] hover:bg-[#e67e22] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 transition-all shadow-lg shadow-orange-500/10 active:scale-95 cursor-pointer"
+                >
                     <UserPlus size={18} strokeWidth={2.5} />
                     <span>Kullanıcı Oluştur</span>
                 </button>
@@ -195,65 +285,71 @@ export default function UserManagement() {
             {/* --- SECTION 2: USER TABLE --- */}
             <div className="mt-8 bg-white border border-neutral-100 rounded-[20px] overflow-hidden shadow-sm">
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-[#10294C]/[0.02] border-b border-neutral-100 text-neutral-500 text-[14px] 2xl:text-[16px] font-semibold">
+                    <thead className="bg-[#10294C]/[0.02] border-b border-neutral-100 text-neutral-500 text-[13px] 2xl:text-[15px] font-semibold">
                         <tr>
-                            <th className="p-6 2xl:p-8">Kullanıcı bilgisi</th>
-                            <th className="p-6 2xl:p-8">Rol</th>
-                            <th className="p-6 2xl:p-8">E-Posta</th>
-                            <th className="p-6 2xl:p-8">Telefon</th>
-                            <th className="p-6 2xl:p-8 text-center">Durum</th>
-                            <th className="p-6 2xl:p-8 text-right">İşlemler</th>
+                            <th className="p-5 2xl:p-6">Kullanıcı</th>
+                            <th className="p-5 2xl:p-6">Roller</th>
+                            <th className="p-5 2xl:p-6">Ünvan</th>
+                            <th className="p-5 2xl:p-6">E-Posta</th>
+                            <th className="p-5 2xl:p-6">Telefon</th>
+                            <th className="p-5 2xl:p-6 text-center">Durum</th>
+                            <th className="p-5 2xl:p-6 text-right">İşlemler</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-50 text-[14px] 2xl:text-[16px]">
                         {users.map((user) => (
                             <tr key={user.id} className="hover:bg-neutral-50/40 transition-colors group">
                                 {/* Kullanıcı Bilgisi */}
-                                <td className="p-6 2xl:p-8 flex items-center gap-4">
-                                    <div className="w-11 h-11 2xl:w-14 2xl:h-14 rounded-full border border-orange-100 overflow-hidden bg-neutral-100 shrink-0 shadow-sm">
-                                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} alt="Avatar" />
+                                <td className="p-5 2xl:p-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full border border-orange-100 overflow-hidden bg-neutral-100 shrink-0">
+                                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} alt="Avatar" />
+                                        </div>
+                                        <p className="font-bold text-[#10294C] text-[14px] 2xl:text-[16px]">{user.name} {user.surname}</p>
                                     </div>
-                                    <p className="font-bold text-[#10294C] text-[15px] 2xl:text-[18px]">{user.name} {user.surname}</p>
                                 </td>
 
-                                {/* Rol */}
-                                <td className="p-6 2xl:p-8">
-                                    <span className={`px-3 py-1.5 rounded-lg text-[13px] 2xl:text-[15px] font-semibold border ${user.role === 'admin' ? 'bg-purple-50 text-[#8B5CF6] border-purple-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                                        {user.role === 'admin' ? 'Yönetici' : 'Eğitmen'}
-                                    </span>
+                                {/* Çoklu Roller */}
+                                <td className="p-5 2xl:p-6">
+                                    <div className="flex flex-wrap gap-1">
+                                        {user.roles?.map((r: string) => (
+                                            <span key={r} className={`px-2 py-1 rounded-md text-[11px] font-bold border ${r === 'admin' ? 'bg-purple-50 text-[#8B5CF6] border-purple-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                                                {r === 'admin' ? 'Yön' : 'Eğt'}
+                                            </span>
+                                        )) || <span className="text-neutral-300 text-[11px]">Tanımsız</span>}
+                                    </div>
                                 </td>
 
-                                {/* E-Posta */}
-                                <td className="p-6 2xl:p-8 text-neutral-600 font-medium lowercase first-letter:uppercase">
-                                    {user.email}
+                                {/* Manuel Ünvan */}
+                                <td className="p-5 2xl:p-6 text-[#10294C] font-medium text-[13px]">
+                                    {user.title || "-"}
                                 </td>
 
-                                {/* Telefon */}
-                                <td className="p-6 2xl:p-8 text-[#10294C] font-semibold">
-                                    {user.phone ? formatPhoneNumber(user.phone) : "Belirtilmedi"}
+                                {/* E-Posta (Ayrıldı) */}
+                                <td className="p-5 2xl:p-6">
+                                    <p className="text-[13px] text-neutral-600 truncate max-w-[180px]">{user.email}</p>
+                                </td>
+
+                                {/* Telefon (Ayrıldı) */}
+                                <td className="p-5 2xl:p-6">
+                                    <p className="text-[13px] text-[#10294C] font-bold">{user.phone ? formatPhoneNumber(user.phone) : "Tel Yok"}</p>
                                 </td>
 
                                 {/* Durum */}
-                                <td className="p-6 2xl:p-8 text-center">
-                                    <span className={`px-3 py-1.5 rounded-lg text-[12px] 2xl:text-[14px] font-semibold ${user.isActivated ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                <td className="p-5 2xl:p-6 text-center">
+                                    <span className={`px-3 py-1.5 rounded-lg text-[11px] font-bold ${user.isActivated ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                                         {user.isActivated ? "Aktif" : "Pasif"}
                                     </span>
                                 </td>
 
                                 {/* İşlemler */}
-                                <td className="p-6 2xl:p-8 text-right">
-                                    <div className="flex items-center justify-end gap-3">
-                                        <button
-                                            onClick={() => handleEditClick(user)}
-                                            className="p-2.5 text-neutral-400 hover:text-[#8B5CF6] transition-colors cursor-pointer bg-neutral-50 hover:bg-purple-50 rounded-xl"
-                                        >
-                                            <Settings size={22} />
+                                <td className="p-5 2xl:p-6 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <button onClick={() => handleEditClick(user)} className="p-2 text-neutral-400 hover:text-[#8B5CF6] hover:bg-purple-50 rounded-xl transition-all cursor-pointer">
+                                            <Settings size={18} />
                                         </button>
-                                        <button
-                                            onClick={() => setModalConfig({ isOpen: true, type: 'delete', userId: user.id })}
-                                            className="p-2.5 text-neutral-400 hover:text-red-500 bg-neutral-50 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                                        >
-                                            <Trash2 size={22} />
+                                        <button onClick={() => setModalConfig({ isOpen: true, type: 'delete', userId: user.id })} className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all cursor-pointer">
+                                            <Trash2 size={18} />
                                         </button>
                                     </div>
                                 </td>
@@ -264,175 +360,146 @@ export default function UserManagement() {
             </div>
 
             {/* --- SECTION 3: HORIZONTAL FORM MODAL --- */}
-            {isFormOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-500">
-                    <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md"
-                        onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
 
-                    <form onSubmit={handleSaveUser} className="relative w-full max-w-5xl bg-white rounded-[12px] shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-500 flex flex-col text-[#10294C]">
 
-                        <div className="bg-[#10294C] p-6 text-white flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-[#FF8D28] rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/20">
-                                    {editingUser ? <Settings size={20} /> : <UserPlus size={20} />}
-                                </div>
-                                <div>
-                                    {/* Başlık Dinamik Oldu: Düzenleme mi Yeni Kayıt mı? */}
-                                    <h3 className="text-[18px] font-bold">
-                                        {editingUser ? "Hesap Güncelleme" : "Hesap Tanımlama"}
-                                    </h3>
-                                    <p className="text-white/50 text-[12px]">
-                                        {editingUser ? `${editingUser.name} kullanıcısının bilgilerini modernize edin.` : "Hoca yetkilerini bu ekrandan finalize edin."}
-                                    </p>
-                                </div>
-                            </div>
-                            <button type="button" onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"><X size={20} /></button>
-                        </div>
+           {/* --- KULLANICI FORMU: E-POSTA KİLİDİ AÇILMIŞ VE SABİTLENMİŞ YAPI --- */}
+{isFormOpen && (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-500">
+        <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md" 
+             onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
 
-                        <div className="p-10 flex gap-12 max-h-[75vh] overflow-y-auto custom-scrollbar bg-white">
-                            {/* AVATAR UPLOAD */}
-                            <div className="flex flex-col items-center gap-4 shrink-0">
-                                <div className="relative group">
-                                    <div className="w-40 h-40 rounded-[24px] bg-neutral-50 border-2 border-dashed border-neutral-200 flex items-center justify-center overflow-hidden transition-all group-hover:border-[#FF8D28]/50">
-                                        <img
-                                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${editingUser?.name || 'newuser'}`}
-                                            alt="Avatar"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                    <button type="button" className="absolute -bottom-2 -right-2 bg-[#FF8D28] text-white p-2.5 rounded-xl shadow-lg hover:scale-110 transition-all cursor-pointer border-2 border-white"><Edit2 size={16} /></button>
-                                </div>
-                                <p className="text-[11px] font-bold text-neutral-400 text-center tracking-wide">Profil Fotoğrafı</p>
-                            </div>
-
-                            {/* FORM FIELDS */}
-                            <div className="flex-1 space-y-8">
-                                <div className="grid grid-cols-2 gap-6">
-                                    {/* Her inputa defaultValue ekledik hocam */}
-                                    <div className="flex flex-col gap-1.5">
-                                        <label className="text-[11px] font-semibold text-[#10294C]">Ad</label>
-                                        <input name="name" required type="text" defaultValue={editingUser?.name || ""} className="h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[14px] focus:border-[#FF8D28] outline-none transition-all shadow-sm" />
-                                    </div>
-                                    <div className="flex flex-col gap-1.5">
-                                        <label className="text-[11px] font-semibold text-[#10294C]">Soyad</label>
-                                        <input name="surname" required type="text" defaultValue={editingUser?.surname || ""} className="h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[14px] focus:border-[#FF8D28] outline-none transition-all shadow-sm" />
-                                    </div>
-                                    <div className="flex flex-col gap-1.5">
-                                        <label className="text-[11px] font-semibold text-[#10294C]">E-Posta</label>
-                                        <input
-                                            name="email"
-                                            required
-                                            type="email"
-                                            defaultValue={editingUser?.email || ""}
-                                            disabled={!!editingUser} // Düzenleme yaparken e-posta kilitli (Güvenlik)
-                                            className="h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[14px] focus:border-[#FF8D28] outline-none transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-1.5">
-                                        <label className="text-[11px] font-semibold text-[#10294C]">Telefon</label>
-                                        <input
-                                            name="phone"
-                                            required
-                                            type="tel"
-                                            placeholder="0 (5XX) XXX XX XX"
-                                            maxLength={17}
-                                            defaultValue={editingUser?.phone || ""}
-                                            onChange={(e) => {
-                                                e.target.value = formatPhoneNumber(e.target.value);
-                                            }}
-                                            className="h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[14px] focus:border-[#FF8D28] outline-none transition-all shadow-sm font-semibold text-[#10294C]"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-1.5 col-span-2">
-                                        <label className="text-[11px] font-semibold text-[#10294C]">Sistem Rolü</label>
-                                        <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[14px] focus:border-[#FF8D28] font-bold cursor-pointer outline-none shadow-sm">
-                                            <option value="instructor">Eğitmen (Trainer)</option>
-                                            <option value="admin">Yönetici (Admin)</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-center gap-3 text-[12px] text-blue-700">
-                                    <Info size={18} className="text-blue-500 shrink-0" />
-                                    <p>Rol değiştiğinde varsayılan yetkiler güncellenir. <span className="font-bold underline">Özel</span> seçimler korunur.</p>
-                                </div>
-
-                                {/* PERMISSION MATRIX */}
-                                <div className="pt-8 border-t border-neutral-100">
-                                    <div className="flex items-center gap-2 mb-6 text-[#8B5CF6] font-semibold tracking-wide">
-                                        <ShieldAlert size={18} />
-                                        <span>Yetki Matrisi</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3 bg-neutral-50/50 p-4 rounded-xl border border-neutral-100">
-                                        {permissionsList.map((perm) => {
-                                            const { isEnabled, source } = getPermissionStatus(perm.id);
-                                            return (
-                                                <label key={perm.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-neutral-100 hover:border-[#8B5CF6]/30 cursor-pointer transition-all group shadow-sm">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="relative flex items-center justify-center">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isEnabled}
-                                                                onChange={(e) => handlePermissionChange(perm.id, e.target.checked)}
-                                                                className="peer appearance-none w-5 h-5 border-2 border-neutral-300 rounded-md checked:bg-[#8B5CF6] checked:border-[#8B5CF6] transition-all"
-                                                            />
-                                                            <Check size={14} className="absolute text-white scale-0 peer-checked:scale-100 transition-transform stroke-[4px]" />
-                                                        </div>
-                                                        <span className="text-[13px] font-semibold text-neutral-600 group-hover:text-[#10294C] transition-colors">{perm.label}</span>
-                                                    </div>
-                                                    {source && (
-                                                        <span className={`text-[9px] px-2 py-0.5 rounded font-bold shadow-sm ${source === 'Özel' ? 'bg-[#FF8D28] text-white' : 'bg-purple-100 text-[#8B5CF6]'}`}>
-                                                            {source}
-                                                        </span>
-                                                    )}
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* FOOTER ACTIONS */}
-                        <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end gap-3 shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }}
-                                className="px-8 h-12 rounded-lg font-bold text-neutral-400 hover:text-neutral-600 transition-all cursor-pointer"
-                            >
-                                Vazgeç
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="bg-[#FF8D28] hover:bg-[#e67e22] text-white px-12 h-12 rounded-lg font-bold text-[14px] transition-all shadow-lg shadow-orange-500/10 active:scale-95 cursor-pointer disabled:opacity-50"
-                            >
-                                {loading ? "İşleniyor..." : (editingUser ? "Değişiklikleri Kaydet" : "Kullanıcıyı Kaydet")}
-                            </button>
-                        </div>
-                    </form>
+        <form onSubmit={handleSaveUser} className="relative w-full max-w-6xl bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col h-[850px] text-[#10294C]">
+            
+            {/* 1. HEADER */}
+            <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center shadow-lg"><UserPlus size={20} /></div>
+                    <h3 className="text-[18px] font-bold">{editingUser ? "Hesap Güncelleme" : "Yeni Hesap Tanımlama"}</h3>
                 </div>
-            )}
+                <button type="button" onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors"><X size={20} /></button>
+            </div>
 
+            {/* 2. BODY */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-10 flex flex-col gap-10">
+                
+                {/* ÜST BÖLÜM: h-[370px] BETON SABİTLİK */}
+                <div className="flex gap-12 border-b border-neutral-100 pb-12 shrink-0 h-[370px]">
+                    <div className="w-48 h-48 rounded-[32px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shrink-0 shadow-inner">
+                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${editingUser?.name || 'flex'}`} className="w-full h-full object-cover" />
+                    </div>
+
+                    <div className="flex-1 space-y-6">
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                                <label className="text-[12px] font-bold text-neutral-400 ml-1">Ad</label>
+                                <input name="name" defaultValue={editingUser?.name} className={`h-12 w-full bg-neutral-50 border rounded-xl px-4 outline-none focus:border-orange-500 transition-all ${errors.name ? 'border-red-500 animate-shake' : 'border-neutral-200'}`} />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[12px] font-bold text-neutral-400 ml-1">Soyad</label>
+                                <input name="surname" defaultValue={editingUser?.surname} className={`h-12 w-full bg-neutral-50 border rounded-xl px-4 outline-none focus:border-orange-500 transition-all ${errors.surname ? 'border-red-500 animate-shake' : 'border-neutral-200'}`} />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                                <label className="text-[12px] font-bold text-neutral-400 ml-1">E-Posta</label>
+                                {/* DÜZENLENEBİLİR E-POSTA */}
+                                <input name="email" type="email" defaultValue={editingUser?.email} className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 text-[15px] outline-none focus:border-orange-500 transition-all" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[12px] font-bold text-neutral-400 ml-1">Telefon</label>
+                                {/* TELEFON FORMATI GERİ GELDİ */}
+                                <input name="phone" defaultValue={editingUser?.phone} onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }} placeholder="0 (5xx) xxx xx xx" className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 font-bold outline-none focus:border-orange-500" />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-6">
+                            <div className="space-y-1 relative" ref={roleDropdownRef}>
+                                <label className="text-[12px] font-bold text-neutral-400 ml-1">Sistem Rolleri</label>
+                                <div onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)} className={`h-12 w-full bg-neutral-50 border rounded-xl px-4 flex items-center justify-between cursor-pointer ${isRoleDropdownOpen ? 'border-orange-500 ring-2 ring-orange-50' : 'border-neutral-200'}`}>
+                                    <span className="text-[14px] font-bold truncate">{selectedRoles.length > 0 ? selectedRoles.map(r => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Seçiniz'}</span>
+                                    <ChevronDown size={18} />
+                                </div>
+                                {isRoleDropdownOpen && (
+                                    <div className="absolute top-full left-0 w-full mt-1 bg-white border border-neutral-100 shadow-2xl rounded-xl z-[500] overflow-hidden">
+                                        {['admin', 'instructor'].map((r) => (
+                                            <label key={r} className="flex items-center gap-3 p-4 hover:bg-neutral-50 cursor-pointer border-b last:border-0 transition-colors">
+                                                <input type="checkbox" checked={selectedRoles.includes(r)} onChange={() => handleRoleToggle(r)} className="w-5 h-5 accent-orange-500" />
+                                                <span className="text-[14px] font-bold">{r === 'admin' ? 'Admin' : 'Eğitmen'}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[12px] font-bold text-neutral-400 ml-1">Ünvan</label>
+                                <input name="title" defaultValue={editingUser?.title} className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 outline-none focus:border-orange-500" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[12px] font-bold text-neutral-400 ml-1">Cinsiyet</label>
+                                <select name="gender" defaultValue={editingUser?.gender} className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 outline-none cursor-pointer">
+                                    <option value="male">Erkek</option><option value="female">Kadın</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="w-1/3 space-y-1">
+                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Doğum Tarihi</label>
+                            <input type="date" name="birthDate" defaultValue={editingUser?.birthDate} className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 outline-none focus:border-orange-500" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3. YETKİ MATRİSİ */}
+                <div className="space-y-7 pb-10">
+                    <div className="flex items-center gap-3 text-[#8B5CF6] font-bold text-[13px] border-l-4 border-[#8B5CF6] pl-4">
+                        <ShieldAlert size={20} /><span>Sistem Erişim Yetki Matrisi</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                        {permissionsList.map((perm) => {
+                            const { isEnabled } = getPermissionStatus(perm.id);
+                            return (
+                                <label key={perm.id} className={`flex items-center justify-between p-5 rounded-2xl border transition-all cursor-pointer shadow-sm ${isEnabled ? 'bg-purple-50/50 border-purple-200' : 'bg-white border-neutral-100'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <input type="checkbox" checked={isEnabled} onChange={(e) => handlePermissionChange(perm.id, e.target.checked)} className="w-5 h-5 rounded accent-purple-600" />
+                                        <span className={`text-[14px] font-bold ${isEnabled ? 'text-purple-900' : 'text-neutral-500'}`}>{perm.label}</span>
+                                    </div>
+                                </label>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* 4. FOOTER */}
+            <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex justify-end gap-4 shrink-0">
+                <button type="button" onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} className="px-8 font-bold text-neutral-400 hover:text-neutral-600 cursor-pointer transition-all">Vazgeç</button>
+                <button type="submit" disabled={loading} className="bg-orange-500 text-white px-12 h-12 rounded-xl font-bold active:scale-95 transition-all shadow-lg shadow-orange-500/10">
+                    {loading ? "Mühürleniyor..." : "Kaydet"}
+                </button>
+            </div>
+        </form>
+    </div>
+)}
             {/* --- MODALLAR --- */}
-      <GlobalConfirmationModal 
-        isOpen={modalConfig.isOpen} 
-        type={modalConfig.type} 
-        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} 
-        onConfirm={async () => {
-          if (modalConfig.userId) {
-            setLoading(true);
-            try {
-              await deleteDoc(doc(db, "users", modalConfig.userId));
-              setModalConfig({ isOpen: false, type: null, userId: "" });
-            } catch (err: any) {
-              alert("Hata: " + err.message);
-            } finally {
-              setLoading(false);
-            }
-          }
-        }} 
-      />
+            <GlobalConfirmationModal
+                isOpen={modalConfig.isOpen}
+                type={modalConfig.type}
+                onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+                onConfirm={async () => {
+                    if (modalConfig.userId) {
+                        setLoading(true);
+                        try {
+                            await deleteDoc(doc(db, "users", modalConfig.userId));
+                            setModalConfig({ isOpen: false, type: null, userId: "" });
+                        } catch (err: any) {
+                            alert("Hata: " + err.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }}
+            />
         </div>
     );
 } 

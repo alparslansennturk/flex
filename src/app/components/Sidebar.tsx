@@ -2,14 +2,27 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
 import { LayoutDashboard, Users, BookOpen, Trophy, Settings, LogOut, ShieldAlert } from "lucide-react";
+import { auth } from "../lib/firebase";
+import { signOut } from "firebase/auth";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { hasPermission } = useUser();
+
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push("/login");
+    } catch (error) {
+      console.error("Çıkış hatası:", error);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-[#10294C] text-white transition-all duration-500">
@@ -32,8 +45,8 @@ export default function Sidebar() {
         <SidebarLink href="/dashboard/settings" icon={<Settings size={18} />} label="Atölye Ayarları" />
       </nav>
       <div className="p-6 mt-auto border-t border-white/5">
-        <div className="flex items-center gap-4 px-6 py-4 text-white cursor-pointer hover:bg-white/10 transition-all group rounded-xl">
-          <LogOut size={18} className="group-hover:text-[#FF8D28]" />
+        <div onClick={handleLogout} className="flex items-center gap-4 px-6 py-4 text-white cursor-pointer hover:bg-white/10 transition-all group rounded-xl outline-none">
+          <LogOut size={18} className="group-hover:text-[#FF8D28] transition-colors" />
           <span className="text-[15px] font-medium">Çıkış Yap</span>
         </div>
       </div>

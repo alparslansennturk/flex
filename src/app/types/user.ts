@@ -1,18 +1,16 @@
-/**
- * FLEX OS - User Document Contract
- */
 import { UserRole, UserPermission } from '@/app/lib/constants';
 
 export interface UserDocument {
-  role: string;
+  uid: string;
+  email: string;
+  name: string;
+  surname: string;
+  roles: string[]; // Çoklu rol için diziye çevrildi
+  title: string;   // Manuel giriş için zorunlu yapıldı
+  gender: 'male' | 'female'; // Yeni zorunlu alan
+  birthDate: string; // Yeni zorunlu alan
+  isInstructor: boolean; // Eğitmen listesi kontrolü
   permissions: string[];
-  uid?: string;
-  email?: string;
-  // --- BURAYI EKLE ---
-  name?: string;         
-  surname?: string;      
-  title?: string;        
-  isInstructor?: boolean; 
-  // -------------------
-  overrides?: Record<string, boolean>; // Sendeki hasPermission buna bakıyor, bu da kalsın
+  branch: string;
+  overrides?: Record<string, boolean>;
 }

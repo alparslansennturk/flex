@@ -6,17 +6,16 @@ import { useUser } from "@/app/context/UserContext";
 
 export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
   const pathname = usePathname();
-  const { user } = useUser(); 
+  const { user } = useUser();
   const [selectedBranch, setSelectedBranch] = useState("Tüm Şubeler");
   const [isBranchOpen, setIsBranchOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const branches = ["Tüm Şubeler", "Kadıköy Şb.", "Şirinevler Şb.", "Pendik Şb."];
-
-  // --- İSİM AYIKLAMA MANTIĞI ---
-  // Alparslan Şentürk -> Alparslan
-  const firstName = user?.name ? user.name.split(' ')[0] : "Kullanıcı";
-
+  const firstName = user?.name ? user.name.split(' ')[0] : "";;
+  const today = new Date();
+  const todayString = `${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+  const isBirthday = user?.birthDate?.includes(todayString);
   useEffect(() => {
     const saved = localStorage.getItem("selectedBranch");
     if (saved && branches.includes(saved)) setSelectedBranch(saved);
@@ -42,10 +41,11 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
   const otherBranches = branches.filter((b) => b !== selectedBranch);
   const myAvatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}&scale=110`;
 
+
   return (
     <header className="w-full bg-white border-b border-surface-200 font-inter shrink-0">
       <div className="max-w-[1920px] mx-auto h-20 flex items-center justify-between px-8">
-        
+
         {/* SOL TARAF: Karşılama ve Başlık */}
         <div className="flex items-center gap-4 truncate pr-4">
           {isManagementPage && (
@@ -55,7 +55,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
           )}
           <div className="truncate">
             <h1 className="text-[clamp(18px,1.2vw,22px)] text-base-primary-900 leading-tight flex items-center gap-2.5"
-                style={{ fontWeight: 630, letterSpacing: "-0.022em" }}>
+              style={{ fontWeight: 630, letterSpacing: "-0.022em" }}>
               {isManagementPage ? (
                 <>
                   <span className="text-neutral-400 font-medium">Yönetim Paneli</span>
@@ -63,13 +63,19 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
                   <span className="animate-in fade-in duration-500">{activeTabLabel}</span>
                 </>
               ) : (
-                `Hoş Geldin, ${firstName}` 
+                isBirthday ? (
+                  <span className="animate-bounce flex items-center gap-2">
+                    🎂 İyi ki Doğdun{firstName ? `, ${firstName}` : ""}! 🎉
+                  </span>
+                ) : (
+                  `Hoş Geldin${firstName ? `, ${firstName}` : ""} 😊`
+                )
               )}
             </h1>
             <p className="text-[14px] text-neutral-400 font-medium mt-0.5 truncate leading-none">
-                {isManagementPage 
-                  ? "Atölye, sınıf ve kullanıcı ayarlarını buradan yönet." 
-                  : "Bugün atölyende neler oluyor? İşte son durum."}
+              {isManagementPage
+                ? "Atölye, sınıf ve kullanıcı ayarlarını buradan yönet."
+                : "Bugün atölyende neler oluyor? İşte son durum."}
             </p>
           </div>
         </div>
@@ -81,7 +87,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
             <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-status-danger-500 text-white text-[11px] flex items-center justify-center rounded-full font-bold border-2 border-white leading-none">3</span>
           </div>
           <div className="h-8 w-px bg-surface-200 mx-5"></div>
-          
+
           <div className="text-right hidden md:block">
             <p className="text-[14px] 2xl:text-[16px] text-base-primary-900 font-bold leading-none mb-1 whitespace-nowrap">
               {user?.name} {user?.surname}
@@ -97,20 +103,20 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
           </div>
 
           <div className="relative ml-6" ref={dropdownRef}>
-            <button 
-              onClick={() => setIsBranchOpen(!isBranchOpen)} 
+            <button
+              onClick={() => setIsBranchOpen(!isBranchOpen)}
               className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl transition-all min-w-[120px] w-fit border border-transparent cursor-pointer ${isBranchOpen ? 'bg-surface-50 border-surface-200 shadow-sm' : 'bg-transparent hover:bg-surface-50'}`}
             >
               <span className="text-[13px] font-bold text-text-tertiary pl-1">{selectedBranch}</span>
               <ChevronDown size={14} className={`text-text-tertiary transition-transform duration-300 ${isBranchOpen ? 'rotate-180' : ''}`} />
             </button>
-            
+
             {isBranchOpen && (
               <div className="absolute top-[calc(100%+8px)] left-0 w-48 bg-white border border-surface-200 rounded-2xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                 {otherBranches.map((branch) => (
-                  <button 
-                    key={branch} 
-                    onClick={() => handleBranchSelect(branch)} 
+                  <button
+                    key={branch}
+                    onClick={() => handleBranchSelect(branch)}
                     className="w-full text-left px-5 py-2.5 text-[13px] font-medium text-base-primary-900 hover:bg-surface-50 border-b border-surface-50 last:border-0 transition-colors cursor-pointer"
                   >
                     {branch}

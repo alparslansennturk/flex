@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-// Path'i kendi proje yapına göre kontrol et (genelde böyledir):
+// Path'i kendi proje yapına göre kontrol et:
 import { UserProvider } from "@/app/context/UserContext"; 
 
 const geistSans = Geist({
@@ -25,8 +25,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="tr" suppressHydrationWarning>
+      <body 
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
+      >
         {/* İŞTE ÇÖZÜM: Tüm uygulamayı UserProvider ile sarmalıyoruz */}
         <UserProvider>
           {children}
