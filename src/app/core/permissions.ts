@@ -13,8 +13,8 @@ export const hasPermission = (
 ): boolean => {
   if (!user) return false;
 
-  // 1. ADMIN kuralı
-  if (user.role === ROLES.ADMIN) return true;
+  // 1. ADMIN kuralı (Çoğul kontrol mühürlendi)
+  if (user.roles?.includes(ROLES.ADMIN)) return true;
 
   // 2. Özel Yetki Kontrolü
   return Array.isArray(user.permissions) && user.permissions.includes(requiredPermission);
