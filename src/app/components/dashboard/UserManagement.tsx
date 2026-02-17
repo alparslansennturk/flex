@@ -335,11 +335,11 @@ export default function UserManagement() {
                 </table>
             </div>
 
-          {/* --- SECTION 3: FORM MODAL (PLACEHOLDER COLOR & STYLE FIX) --- */}
+            {/* --- SECTION 3: FORM MODAL (PLACEHOLDER COLOR & STYLE FIX) --- */}
             {isFormOpen && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-500">
                     <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md" onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
-                    
+
                     {(() => {
                         const isSafari = typeof navigator !== "undefined" && /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
@@ -396,12 +396,12 @@ export default function UserManagement() {
                                                 </div>
                                                 <div className="space-y-1 h-[72px]">
                                                     <label className="text-[12px] font-bold text-neutral-400 ml-1">Telefon</label>
-                                                    <input 
-                                                        name="phone" 
-                                                        defaultValue={editingUser?.phone} 
-                                                        onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }} 
+                                                    <input
+                                                        name="phone"
+                                                        defaultValue={editingUser?.phone}
+                                                        onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }}
                                                         placeholder="0 (5xx) xxx xx xx"
-                                                        className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 font-bold outline-none focus:border-orange-500 transition-all placeholder:text-neutral-400 placeholder:font-normal" 
+                                                        className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 font-bold outline-none focus:border-orange-500 transition-all placeholder:text-neutral-400 placeholder:font-normal"
                                                     />
                                                 </div>
                                             </div>
@@ -410,11 +410,10 @@ export default function UserManagement() {
                                             <div className="grid grid-cols-2 gap-6">
                                                 <div className="space-y-1 relative h-[72px]" ref={roleDropdownRef}>
                                                     <label className="text-[12px] font-bold text-neutral-400 ml-1">Sistem Rolleri</label>
-                                                    <div 
-                                                        onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)} 
-                                                        className={`h-12 w-full bg-neutral-50 border rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all ${
-                                                            isRoleDropdownOpen ? "border-orange-500 shadow-[0_0_0_2px_rgba(255,141,40,0.1)]" : "border-neutral-200"
-                                                        }`}
+                                                    <div
+                                                        onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
+                                                        className={`h-12 w-full bg-neutral-50 border rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all ${isRoleDropdownOpen ? "border-orange-500 shadow-[0_0_0_2px_rgba(255,141,40,0.1)]" : "border-neutral-200"
+                                                            }`}
                                                     >
                                                         <span className="text-[14px] font-bold truncate text-[#10294C]">
                                                             {selectedRoles.length > 0 ? selectedRoles.map(r => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Rol Seçiniz...'}
