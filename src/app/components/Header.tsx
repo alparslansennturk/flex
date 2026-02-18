@@ -12,7 +12,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const branches = ["Tüm Şubeler", "Kadıköy Şb.", "Şirinevler Şb.", "Pendik Şb."];
-  const firstName = user?.name ? user.name.split(' ')[0] : "";;
+  const firstName = user?.name?.split(' ')[0] || "";
   const today = new Date();
   const todayString = `${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
   const isBirthday = user?.birthDate?.includes(todayString);
@@ -92,8 +92,8 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
             <p className="text-[14px] 2xl:text-[16px] text-base-primary-900 font-bold leading-none mb-1 whitespace-nowrap">
               {user?.name} {user?.surname}
             </p>
-            <p className="text-[12px] 2xl:text-[13px] text-text-tertiary font-medium whitespace-nowrap">
-              {user?.title || "Eğitmen"} | Arı Bilgi
+            <p className="text-[12px] 2xl:text-[13px] text-neutral-400 font-medium whitespace-nowrap">
+              {user?.title || (user?.roles?.includes('admin') ? "Yönetici | Eğitmen" : "Eğitmen")}
             </p>
           </div>
 
