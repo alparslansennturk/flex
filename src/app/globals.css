@@ -245,3 +245,16 @@
     transform-origin: right center; /* Sağdaki elemanlar sağa yaslı küçülsün */
   }
 }
+
+@theme {
+  --animate-fast-shake: fast-shake 0.15s ease-in-out;
+
+  @keyframes fast-shake {
+    0% { transform: translateX(0); }
+    20% { transform: translateX(-12px); }
+    40% { transform: translateX(12px); }
+    60% { transform: translateX(-12px); }
+    80% { transform: translateX(12px); }
+    100% { transform: translateX(0); }
+  }
+}

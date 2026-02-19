@@ -43,6 +43,13 @@ export default function UserManagement() {
         type: 'archive' | 'delete' | 'restore' | 'student-delete' | null;
         userId: string;
     }>({ isOpen: false, type: null, userId: "" });
+    const [shake, setShake] = useState(false);
+    useEffect(() => {
+        if (shake) {
+            const timer = setTimeout(() => setShake(false), 500);
+            return () => clearTimeout(timer);
+        }
+    }, [shake]);
 
 
     // --- KULLANICI DÜZENLEME MOTORU ---
@@ -117,6 +124,9 @@ export default function UserManagement() {
     const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
+        // 1. ADIM: SHAKE TETİKLEMEK İÇİN ÖNCE HATALARI SIFIRLA
+        setErrors({});
+
         const formData = new FormData(e.currentTarget);
         const name = formData.get("name") as string;
         const surname = formData.get("surname") as string;
@@ -125,21 +135,24 @@ export default function UserManagement() {
         const title = formData.get("title") as string;
         const birthDate = formData.get("birthDate") as string;
         const gender = formData.get("gender") as string;
-        // --- KRİTİK EKSİK BURASIYDI ---
-        const branch = formData.get("branch") as string;
+        const branch = formData.get("branch") as string; // Şube bilgisini jilet gibi yakala
         const isInstructor = formData.get("isInstructor") === "on";
 
-        // --- 1. VALIDATION KONTROLÜ (ALERT SİZ) ---
+        // 2. ADIM: VALIDATION KONTROLÜ
         let newErrors: Record<string, boolean> = {};
         if (!name) newErrors.name = true;
         if (!surname) newErrors.surname = true;
         if (!email) newErrors.email = true;
-        if (!branch) newErrors.branch = true; // Şube boş olamaz
+        if (!phone) newErrors.phone = true;
+        if (!branch) newErrors.branch = true;
+        if (!gender) newErrors.gender = true;
+        if (!title) newErrors.title = true;
+        if (!birthDate) newErrors.birthDate = true;
         if (selectedRoles.length === 0) newErrors.roles = true;
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
-            // Artık alert vermiyoruz, inputların altındaki kırmızı yazılar devreye girecek
+            setShake(true); // İŞTE BURASI: Login'deki gibi bombayı patlatıyoruz
             return;
         }
 
@@ -152,7 +165,7 @@ export default function UserManagement() {
                 phone,
                 email,
                 title,
-                branch, // --- FİREBASE'E GİDEN PAKETE EKLENDİ ---
+                branch,
                 birthDate,
                 gender,
                 isInstructor,
@@ -162,15 +175,16 @@ export default function UserManagement() {
             };
 
             if (editingUser) {
+                // --- DURUM 1: GÜNCELLEME ---
                 const userRef = doc(db, "users", editingUser.id);
                 await setDoc(userRef, {
                     ...userData,
                     isActivated: editingUser.isActivated || false
                 }, { merge: true });
 
-                // Buraya şık bir Toast Notification gelebilir, şimdilik konsol kalsın
-                console.log("Mühürlendi");
+                console.log("Mühürlendi: Güncelleme Başarılı");
             } else {
+                // --- DURUM 2: YENİ KAYIT ---
                 const tempPass = Math.random().toString(36).slice(-8).toUpperCase();
                 const userCredential = await createUserWithEmailAndPassword(auth, email, tempPass);
 
@@ -181,20 +195,25 @@ export default function UserManagement() {
                     isActivated: false,
                     createdAt: serverTimestamp(),
                 });
+
+                console.log(`Mühürlendi: Yeni Kayıt. Şifre: ${tempPass}`);
             }
 
-            // Temizlik ve Kapatma
+            // 3. ADIM: BAŞARILI İŞLEM SONRASI TEMİZLİK
             setIsUserFormOpen(false);
             setEditingUser(null);
             setErrors({});
+            setPermissionOverrides({});
             setSelectedRoles([]);
+
         } catch (err: any) {
-            console.error("Hata:", err);
+            console.error("Firebase Hatası:", err);
+            // Hata durumunda (örneğin e-posta zaten kayıtlıysa) errors içine alabilirsin
+            setErrors({ email: true, firebaseError: true });
         } finally {
             setLoading(false);
         }
     };
-
     // --- Kullanıcıyı Sistemden Silme Motoru ---
     const handleDeleteUser = async (user: any) => {
         const confirmDelete = confirm(`${user.name} ${user.surname} kullanıcısını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`);
@@ -402,11 +421,17 @@ export default function UserManagement() {
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Ad</label>
-                                            <input name="name" defaultValue={editingUser?.name} className={`h-12 w-full bg-neutral-50 border rounded-xl px-4 outline-none focus:border-orange-500 transition-all ${errors.name ? 'border-red-500 animate-shake' : 'border-neutral-200'}`} />
+                                            <input name="name" defaultValue={editingUser?.name} className={`h-12 w-full border rounded-xl px-4 outline-none transition-all ${errors.name
+                                                ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                }`} />
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Soyad</label>
-                                            <input name="surname" defaultValue={editingUser?.surname} className={`h-12 w-full bg-neutral-50 border rounded-xl px-4 outline-none focus:border-orange-500 transition-all ${errors.surname ? 'border-red-500 animate-shake' : 'border-neutral-200'}`} />
+                                            <input name="surname" defaultValue={editingUser?.surname} className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] ${errors.surname
+                                                ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                }`} />
                                         </div>
                                     </div>
 
@@ -414,11 +439,23 @@ export default function UserManagement() {
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">E-Posta</label>
-                                            <input name="email" type="email" defaultValue={editingUser?.email} className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 text-[15px] outline-none focus:border-orange-500 transition-all" />
+                                            <input name="email" type="email" defaultValue={editingUser?.email} className={`h-12 w-full border rounded-xl px-4 outline-none transition-all ${errors.email
+                                                ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                }`} />
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Telefon</label>
-                                            <input name="phone" defaultValue={editingUser?.phone} onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }} placeholder="0 (5xx) xxx xx xx" className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 font-bold outline-none focus:border-orange-500" />
+                                            <input
+                                                name="phone"
+                                                defaultValue={editingUser?.phone}
+                                                onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }}
+                                                placeholder="0 (5xx) xxx xx xx"
+                                                className={`h-12 w-full border rounded-xl px-4 font-bold outline-none transition-all ${errors.phone
+                                                    ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                    : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                    }`}
+                                            />
                                         </div>
                                     </div>
 
@@ -429,7 +466,9 @@ export default function UserManagement() {
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Rol</label>
                                             <div
                                                 onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                                                className={`h-12 w-full bg-neutral-50 border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200'
+                                                className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles
+                                                    ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                    : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'
                                                     }`}
                                             >
                                                 <span className="text-[14px] font-bold truncate text-[#10294C]">
@@ -469,17 +508,26 @@ export default function UserManagement() {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Ünvan</label>
-                                            <input name="title" defaultValue={editingUser?.title} placeholder="Örn: Eğitmen | Arı Bilgi" className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 outline-none focus:border-orange-500" />
+                                            <input name="title" defaultValue={editingUser?.title} placeholder="Örn: Eğitmen | Arı Bilgi" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all ${errors.title
+                                                ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                }`} />
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Şube</label>
-                                            <select name="branch" defaultValue={editingUser?.branch} className={`h-12 w-full bg-neutral-50 border rounded-xl px-3 outline-none cursor-pointer appearance-none font-bold text-[#10294C] ${errors.branch ? 'border-red-500 bg-red-50/30' : 'border-neutral-200 focus:border-orange-500'}`}>
+                                            <select
+                                                name="branch"
+                                                defaultValue={editingUser?.branch || ""}
+                                                className={`h-12 w-full border rounded-xl px-3 outline-none cursor-pointer appearance-none font-bold text-[#10294C] transition-all ${errors.branch
+                                                        ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                        : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                    }`}
+                                            >
                                                 <option value="">Şube Seçiniz</option>
                                                 <option value="Kadıköy Şb">Kadıköy Şb</option>
                                                 <option value="Şirinevler Şb">Şirinevler Şb</option>
                                                 <option value="Pendik Şb">Pendik Şb</option>
                                             </select>
-                                            {errors.branch && <span className="text-[11px] font-bold text-red-500 ml-1 animate-in fade-in">{getFlexMessage('validation/required-fields').text}</span>}
                                         </div>
                                     </div>
 
@@ -487,13 +535,47 @@ export default function UserManagement() {
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Cinsiyet</label>
-                                            <select name="gender" defaultValue={editingUser?.gender} className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 outline-none cursor-pointer appearance-none bg-white font-medium">
-                                                <option value="male">Erkek</option><option value="female">Kadın</option>
+                                            <select
+                                                name="gender"
+                                                defaultValue={editingUser?.gender || ""}
+                                                className={`h-12 w-full border rounded-xl px-3 outline-none cursor-pointer appearance-none font-bold text-[#10294C] transition-all ${errors.gender
+                                                    ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                    : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                    }`}
+                                            >
+                                                <option value="">Seçiniz</option>
+                                                <option value="male">Erkek</option>
+                                                <option value="female">Kadın</option>
                                             </select>
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Doğum Tarihi</label>
-                                            <input type="date" name="birthDate" defaultValue={editingUser?.birthDate} className="h-12 w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 outline-none focus:border-orange-500" />
+                                            <input
+                                                name="birthDate"
+                                                defaultValue={editingUser?.birthDate}
+                                                placeholder="GG.AA.YYYY"
+                                                // Safari/Chrome Hibrit Yapı (Mevcut mantığın)
+                                                type={
+                                                    typeof window !== "undefined" &&
+                                                        /Safari/.test(navigator.userAgent) &&
+                                                        !/Chrome/.test(navigator.userAgent) &&
+                                                        !editingUser?.birthDate
+                                                        ? "text"
+                                                        : "date"
+                                                }
+                                                onFocus={(e) => (e.target.type = "date")}
+                                                onBlur={(e) => {
+                                                    if (!e.target.value) {
+                                                        const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+                                                        if (isSafari) e.target.type = "text";
+                                                    }
+                                                }}
+                                                // MÜHÜRLÜ SHAKE VE KIZARMA SINIFI
+                                                className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] outline-none transition-all ${errors.birthDate
+                                                    ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                    : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                    }`}
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -530,9 +612,28 @@ export default function UserManagement() {
                         </div>
 
                         {/* 4. FOOTER */}
-                        <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex justify-end gap-4 shrink-0">
-                            <button type="button" onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} className="px-8 font-bold text-neutral-400 hover:text-neutral-600 cursor-pointer transition-all">Vazgeç</button>
-                            <button type="submit" disabled={loading} className="bg-orange-500 text-white px-12 h-12 rounded-xl font-bold active:scale-95 transition-all shadow-lg shadow-orange-500/10">
+                        <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end shrink-0">
+
+                            {/* TEK MESAJ: Sadece hata varsa, Vazgeç'in tam 32px solunda çıkar */}
+                            {Object.keys(errors).length > 0 && (
+                                <span className="text-[13px] font-bold text-red-500 mr-8 animate-in fade-in slide-in-from-right-4">
+                                    {getFlexMessage('validation/required-fields').text}
+                                </span>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }}
+                                className="px-8 font-bold text-neutral-400 hover:text-neutral-600 cursor-pointer transition-all"
+                            >
+                                Vazgeç
+                            </button>
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="ml-4 bg-orange-500 text-white px-12 h-12 rounded-xl font-bold active:scale-95 transition-all shadow-lg shadow-orange-500/10"
+                            >
                                 {loading ? "Mühürleniyor..." : "Kaydet"}
                             </button>
                         </div>
