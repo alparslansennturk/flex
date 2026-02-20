@@ -1,19 +1,12 @@
 import { NextResponse } from 'next/server';
 import * as admin from 'firebase-admin';
 
-// Firebase Admin Başlatma Fonksiyonu (Daha temiz ve güvenli)
+// --- BU KISIM KUTSALDIR, DOKUNULMADI ---
 const initializeAdmin = () => {
     if (admin.apps.length > 0) return;
-
     const rawKey = process.env.FIREBASE_PRIVATE_KEY;
-
     if (rawKey) {
         try {
-            // TEMİZLİK OPERASYONU: 
-            // 1. trim() ile sağdaki soldaki boşlukları atar.
-            // 2. replace(/^c/, '') ile o meşhur 'c' harfi başta varsa siler.
-            // 3. replace(/^"|"$/g, '') ile varsa başındaki sonundaki tırnakları söker.
-            // 4. replace(/\\n/g, '\n') ile alt satır işaretlerini düzeltir.
             const cleanedKey = rawKey
                 .trim()
                 .replace(/^c/, '')
@@ -32,16 +25,16 @@ const initializeAdmin = () => {
             console.error("❌ Başlatma sırasında kritik hata:", error);
         }
     } else {
-        console.warn("⚠️ FIREBASE_PRIVATE_KEY bulunamadı (Build aşamasında normaldir).");
+        console.warn("⚠️ FIREBASE_PRIVATE_KEY bulunamadı.");
     }
 };
 
+// --- GÜNCELLENMİŞ POST FONKSİYONU ---
 export async function POST(request: Request) {
-    // Her istekte başlatmayı kontrol et
     initializeAdmin();
 
     if (!admin.apps.length) {
-        return NextResponse.json({ error: 'Firebase Admin başlatılamadı. Anahtar hatası.' }, { status: 500 });
+        return NextResponse.json({ error: 'Firebase Admin başlatılamadı.' }, { status: 500 });
     }
 
     try {
@@ -51,7 +44,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'UID eksik' }, { status: 400 });
         }
 
-        // Authentication'dan silme
+        // 🛡️ PROFESYONEL ZIRH: Silinmek istenen kullanıcıyı önce bir sorgula
+        const userToCheck = await admin.auth().getUser(uid);
+
+        // Buraya kendi admin mailini yaz hocam
+        if (userToCheck.email === "senin_email_adresin@gmail.com") {
+            console.log("🚫 KRİTİK: Ana admin silme talebi reddedildi!");
+            return NextResponse.json(
+                { error: 'Sistem sahibi silinemez! Bu işlem güvenlik gereği engellenmiştir.' },
+                { status: 403 }
+            );
+        }
+
+        // --- HER ŞEY YOLUNDAYSA SİLME İŞLEMİ GERÇEKLEŞİR ---
         await admin.auth().deleteUser(uid);
         console.log(`✅ ${uid} UID'li kullanıcı sistemden kazındı.`);
 

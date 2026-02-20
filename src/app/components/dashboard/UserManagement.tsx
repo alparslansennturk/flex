@@ -218,47 +218,45 @@ export default function UserManagement() {
             setLoading(false);
         }
     };
-    // --- Kullanıcıyı Sistemden Silme Motoru ---
     const handleDeleteUser = async (user: any) => {
-        // 1. Önce kiminle dans ettiğimizi konsolda görelim
-        console.log("SİLECEĞİMİZ KULLANICI DATASI:", user);
-
-        // Auth tarafı için kritik olan UID'yi bulalım
+        const myUser = auth.currentUser;
+        // Firestore'dan gelen veride hangisi doluysa onu hedef al
         const targetUid = user.uid || user.id;
-        console.log("HEDEFE KİLİTLENİLDİ (UID):", targetUid);
 
-        if (!window.confirm(`${user.name} kullanıcısını her yerden silelim mi?`)) return;
+        // 1. ÜÇLÜ EMNİYET KİLİDİ (UID, ID veya Email eşleşirse durdur)
+        if (myUser) {
+            const isMe = targetUid === myUser.uid ||
+                user.id === myUser.uid ||
+                user.email === myUser.email;
+
+            if (isMe) {
+                alert("⚠️ HOOOP! Kendi hesabınızı silemezsiniz. Sistem güvenliği için bu engellendi.");
+                return;
+            }
+        }
+
+        // 2. ONAY (Sadece başkasıysa buraya geçer)
+        if (!window.confirm(`${user.name || 'Kullanıcı'} silinsin mi?`)) return;
 
         setLoading(true);
-
         try {
-            // --- ADIM A: API'YE GİDİŞ ---
-            const authResponse = await fetch('/api/delete-user', {
+            const res = await fetch('/api/delete-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uid: targetUid }), // UID'yi açıkça gönderiyoruz
+                body: JSON.stringify({ uid: targetUid }),
             });
 
-            const apiResult = await authResponse.json();
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || "Auth silinemedi.");
 
-            if (!authResponse.ok) {
-                console.error("API CELLAT HATASI:", apiResult.error);
-                throw new Error(apiResult.error || "Auth silme işlemi başarısız.");
-            }
-
-            console.log("BİRİNCİ AŞAMA: Auth mühürlendi!");
-
-            // --- ADIM B: FIRESTORE'DAN SİL ---
+            // Firestore temizliği
             await deleteDoc(doc(db, "users", user.id));
 
-            // --- ADIM C: LİSTEYİ GÜNCELLE ---
+            // Arayüz güncelleme
             setUsers(prev => prev.filter(u => u.id !== user.id));
-
-            console.log("İKİNCİ AŞAMA: Veritabanı temizlendi!");
-
+            alert("Kullanıcı başarıyla imha edildi.");
         } catch (error: any) {
-            console.error("SİLME OPERASYON HATASI:", error);
-            alert("Silemedik hocam: " + error.message);
+            alert("Hata çıktı: " + error.message);
         } finally {
             setLoading(false);
         }
@@ -400,6 +398,7 @@ export default function UserManagement() {
                                     {/* 8. İŞLEM */}
                                     <td className="p-5 text-right">
                                         <div className="flex justify-end gap-2">
+                                            {/* DÜZENLEME BUTONU */}
                                             <button
                                                 type="button"
                                                 onClick={() => handleEditClick(user)}
@@ -407,10 +406,16 @@ export default function UserManagement() {
                                             >
                                                 <PenLine size={18} />
                                             </button>
+
+                                            {/* SİLME BUTONU - KENDİNSE DISABLED OLUR */}
                                             <button
                                                 type="button"
+                                                disabled={user.email === auth.currentUser?.email}
                                                 onClick={() => handleDeleteClick(user.id)}
-                                                className="p-2 text-neutral-400 hover:text-red-500 transition-colors cursor-pointer"
+                                                className={`p-2 transition-colors ${user.email === auth.currentUser?.email
+                                                        ? "text-neutral-200 cursor-not-allowed opacity-50" // Kendi satırın: Soluk ve tıklanamaz
+                                                        : "text-neutral-400 hover:text-red-500 cursor-pointer" // Başkasının satırı: Normal
+                                                    }`}
                                             >
                                                 <Trash2 size={18} />
                                             </button>
@@ -464,7 +469,7 @@ export default function UserManagement() {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Soyad</label>
-                                            <input name="surname" defaultValue={editingUser?.surname} className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] ${errors.surname
+                                            <input name="surname" defaultValue={editingUser?.surname} className={`h-12 w-full border rounded-xl px-4 outline-none transition-all  text-[#10294C] ${errors.surname
                                                 ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
                                                 : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
                                                 }`} />
