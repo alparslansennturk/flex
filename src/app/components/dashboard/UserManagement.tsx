@@ -38,6 +38,8 @@ export default function UserManagement() {
     const [editingUser, setEditingUser] = useState<any>(null);
     const [errors, setErrors] = useState<Record<string, boolean>>({});
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
+    const [generatedPass, setGeneratedPass] = useState("");
     const [modalConfig, setModalConfig] = useState<{
         isOpen: boolean;
         type: 'archive' | 'delete' | 'restore' | 'student-delete' | null;
@@ -123,8 +125,6 @@ export default function UserManagement() {
 
     const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-
-        // 1. ADIM: SHAKE TETİKLEMEK İÇİN ÖNCE HATALARI SIFIRLA
         setErrors({});
 
         const formData = new FormData(e.currentTarget);
@@ -135,10 +135,10 @@ export default function UserManagement() {
         const title = formData.get("title") as string;
         const birthDate = formData.get("birthDate") as string;
         const gender = formData.get("gender") as string;
-        const branch = formData.get("branch") as string; // Şube bilgisini jilet gibi yakala
+        const branch = formData.get("branch") as string;
         const isInstructor = formData.get("isInstructor") === "on";
 
-        // 2. ADIM: VALIDATION KONTROLÜ
+        // 1. VALIDATION
         let newErrors: Record<string, boolean> = {};
         if (!name) newErrors.name = true;
         if (!surname) newErrors.surname = true;
@@ -152,7 +152,7 @@ export default function UserManagement() {
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
-            setShake(true); // İŞTE BURASI: Login'deki gibi bombayı patlatıyoruz
+            setShake(true);
             return;
         }
 
@@ -175,17 +175,17 @@ export default function UserManagement() {
             };
 
             if (editingUser) {
-                // --- DURUM 1: GÜNCELLEME ---
+                // GÜNCELLEME
                 const userRef = doc(db, "users", editingUser.id);
                 await setDoc(userRef, {
                     ...userData,
                     isActivated: editingUser.isActivated || false
                 }, { merge: true });
-
-                console.log("Mühürlendi: Güncelleme Başarılı");
             } else {
-                // --- DURUM 2: YENİ KAYIT ---
+                // YENİ KAYIT
                 const tempPass = Math.random().toString(36).slice(-8).toUpperCase();
+                setGeneratedPass(tempPass); // Şifreyi ekranda göstermek için yakala
+
                 const userCredential = await createUserWithEmailAndPassword(auth, email, tempPass);
 
                 await setDoc(doc(db, "users", userCredential.user.uid), {
@@ -195,36 +195,72 @@ export default function UserManagement() {
                     isActivated: false,
                     createdAt: serverTimestamp(),
                 });
-
-                console.log(`Mühürlendi: Yeni Kayıt. Şifre: ${tempPass}`);
             }
 
-            // 3. ADIM: BAŞARILI İŞLEM SONRASI TEMİZLİK
-            setIsUserFormOpen(false);
-            setEditingUser(null);
-            setErrors({});
-            setPermissionOverrides({});
-            setSelectedRoles([]);
+            // 2. BAŞARI DURUMU TETİKLEME
+            setIsSuccess(true);
+
+            // 3. GECİKMELİ KAPANIŞ (3.5 Saniye - Şifreyi okumak için)
+            setTimeout(() => {
+                setIsUserFormOpen(false);
+                setEditingUser(null);
+                setErrors({});
+                setPermissionOverrides({});
+                setSelectedRoles([]);
+                setIsSuccess(false);
+                setGeneratedPass("");
+                setLoading(false);
+            }, 2000);
 
         } catch (err: any) {
             console.error("Firebase Hatası:", err);
-            // Hata durumunda (örneğin e-posta zaten kayıtlıysa) errors içine alabilirsin
             setErrors({ email: true, firebaseError: true });
-        } finally {
             setLoading(false);
         }
     };
     // --- Kullanıcıyı Sistemden Silme Motoru ---
     const handleDeleteUser = async (user: any) => {
-        const confirmDelete = confirm(`${user.name} ${user.surname} kullanıcısını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`);
+        // 1. Önce kiminle dans ettiğimizi konsolda görelim
+        console.log("SİLECEĞİMİZ KULLANICI DATASI:", user);
 
-        if (confirmDelete) {
-            try {
-                await deleteDoc(doc(db, "users", user.id));
-                alert("Kullanıcı sistemden başarıyla kaldırıldı.");
-            } catch (err: any) {
-                alert("Silme işlemi başarısız: " + err.message);
+        // Auth tarafı için kritik olan UID'yi bulalım
+        const targetUid = user.uid || user.id;
+        console.log("HEDEFE KİLİTLENİLDİ (UID):", targetUid);
+
+        if (!window.confirm(`${user.name} kullanıcısını her yerden silelim mi?`)) return;
+
+        setLoading(true);
+
+        try {
+            // --- ADIM A: API'YE GİDİŞ ---
+            const authResponse = await fetch('/api/delete-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uid: targetUid }), // UID'yi açıkça gönderiyoruz
+            });
+
+            const apiResult = await authResponse.json();
+
+            if (!authResponse.ok) {
+                console.error("API CELLAT HATASI:", apiResult.error);
+                throw new Error(apiResult.error || "Auth silme işlemi başarısız.");
             }
+
+            console.log("BİRİNCİ AŞAMA: Auth mühürlendi!");
+
+            // --- ADIM B: FIRESTORE'DAN SİL ---
+            await deleteDoc(doc(db, "users", user.id));
+
+            // --- ADIM C: LİSTEYİ GÜNCELLE ---
+            setUsers(prev => prev.filter(u => u.id !== user.id));
+
+            console.log("İKİNCİ AŞAMA: Veritabanı temizlendi!");
+
+        } catch (error: any) {
+            console.error("SİLME OPERASYON HATASI:", error);
+            alert("Silemedik hocam: " + error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -519,8 +555,8 @@ export default function UserManagement() {
                                                 name="branch"
                                                 defaultValue={editingUser?.branch || ""}
                                                 className={`h-12 w-full border rounded-xl px-3 outline-none cursor-pointer appearance-none font-bold text-[#10294C] transition-all ${errors.branch
-                                                        ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
-                                                        : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
+                                                    ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
+                                                    : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
                                                     }`}
                                             >
                                                 <option value="">Şube Seçiniz</option>
@@ -553,24 +589,15 @@ export default function UserManagement() {
                                             <input
                                                 name="birthDate"
                                                 defaultValue={editingUser?.birthDate}
-                                                placeholder="GG.AA.YYYY"
-                                                // Safari/Chrome Hibrit Yapı (Mevcut mantığın)
-                                                type={
-                                                    typeof window !== "undefined" &&
-                                                        /Safari/.test(navigator.userAgent) &&
-                                                        !/Chrome/.test(navigator.userAgent) &&
-                                                        !editingUser?.birthDate
-                                                        ? "text"
-                                                        : "date"
-                                                }
-                                                onFocus={(e) => (e.target.type = "date")}
-                                                onBlur={(e) => {
-                                                    if (!e.target.value) {
-                                                        const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-                                                        if (isSafari) e.target.type = "text";
-                                                    }
+                                                placeholder="gg.aa.yyyy"
+                                                type="text"
+                                                maxLength={10}
+                                                onInput={(e: any) => {
+                                                    let v = e.target.value.replace(/\D/g, '');
+                                                    if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2);
+                                                    if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9);
+                                                    e.target.value = v;
                                                 }}
-                                                // MÜHÜRLÜ SHAKE VE KIZARMA SINIFI
                                                 className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] outline-none transition-all ${errors.birthDate
                                                     ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}`
                                                     : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'
@@ -614,8 +641,8 @@ export default function UserManagement() {
                         {/* 4. FOOTER */}
                         <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end shrink-0">
 
-                            {/* TEK MESAJ: Sadece hata varsa, Vazgeç'in tam 32px solunda çıkar */}
-                            {Object.keys(errors).length > 0 && (
+                            {/* HATA MESAJI: Sadece hata varsa ve işlem henüz başarılı değilse görünür */}
+                            {!isSuccess && Object.keys(errors).length > 0 && (
                                 <span className="text-[13px] font-bold text-red-500 mr-8 animate-in fade-in slide-in-from-right-4">
                                     {getFlexMessage('validation/required-fields').text}
                                 </span>
@@ -631,11 +658,20 @@ export default function UserManagement() {
 
                             <button
                                 type="submit"
-                                disabled={loading}
-                                className="ml-4 bg-orange-500 text-white px-12 h-12 rounded-xl font-bold active:scale-95 transition-all shadow-lg shadow-orange-500/10"
+                                disabled={loading || isSuccess}
+                                className={`h-12 px-12 rounded-xl font-bold transition-all ${isSuccess ? 'bg-green-500 text-white' : 'bg-orange-500 text-white active:scale-95'
+                                    }`}
                             >
-                                {loading ? "Mühürleniyor..." : "Kaydet"}
+                                {/* Öncelik sırası: Başarı > Yükleme > Varsayılan */}
+                                {isSuccess ? "Kaydedildi" : loading ? "Kaydediliyor..." : "Kaydet"}
                             </button>
+
+                            {/* YEŞİL ONAY TIKI: Kaydet butonunun tam 24px sağında (ml-6) */}
+                            {isSuccess && (
+                                <div className="ml-6 text-green-500 animate-in fade-in zoom-in duration-500">
+                                    <Check size={28} strokeWidth={4} />
+                                </div>
+                            )}
                         </div>
                     </form>
                 </div>
@@ -649,10 +685,38 @@ export default function UserManagement() {
                     if (modalConfig.userId) {
                         setLoading(true);
                         try {
+                            // --- 1. ADIM: AUTHENTICATION'DAN SİL (API ÇAĞRISI) ---
+                            console.log("Auth silme fermanı gönderiliyor UID:", modalConfig.userId);
+
+                            const authResponse = await fetch('/api/delete-user', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ uid: modalConfig.userId }),
+                            });
+
+                            const apiResult = await authResponse.json();
+
+                            if (!authResponse.ok) {
+                                throw new Error(apiResult.error || "Auth silme başarısız!");
+                            }
+
+                            console.log("Auth silindi, şimdi Firestore sırası...");
+
+                            // --- 2. ADIM: FIRESTORE'DAN SİL ---
                             await deleteDoc(doc(db, "users", modalConfig.userId));
+
+                            // --- 3. ADIM: LİSTEYİ GÜNCELLE (UI) ---
+                            // Bu satır silinen kullanıcıyı ekrandan anında kaldırır
+                            setUsers(prev => prev.filter(u => u.id !== modalConfig.userId));
+
+                            // Modal'ı kapat ve temizle
                             setModalConfig({ isOpen: false, type: null, userId: "" });
+
+                            console.log("Kullanıcı her iki dünyadan da mühürlendi!");
+
                         } catch (err: any) {
-                            alert("Hata: " + err.message);
+                            console.error("Silme hatası:", err);
+                            alert("Silme işlemi tam tamamlanamadı: " + err.message);
                         } finally {
                             setLoading(false);
                         }
