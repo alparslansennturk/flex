@@ -1,32 +1,47 @@
 import { NextResponse } from 'next/server';
 import * as admin from 'firebase-admin';
 
-// 1. ADIM: Değişkeni dışarıda tanımlayalım
-const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+// Firebase Admin Başlatma Fonksiyonu (Daha temiz ve güvenli)
+const initializeAdmin = () => {
+    if (admin.apps.length > 0) return;
 
-// 2. ADIM: Admin SDK Başlatma (Build sırasında patlamaması için kontrol eklendi)
-if (!admin.apps.length) {
-    if (privateKey) {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: privateKey.replace(/\\n/g, '\n'),
-            }),
-        });
-        console.log("✅ Firebase Admin başarıyla başlatıldı.");
+    const rawKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (rawKey) {
+        try {
+            // TEMİZLİK OPERASYONU: 
+            // 1. trim() ile sağdaki soldaki boşlukları atar.
+            // 2. replace(/^c/, '') ile o meşhur 'c' harfi başta varsa siler.
+            // 3. replace(/^"|"$/g, '') ile varsa başındaki sonundaki tırnakları söker.
+            // 4. replace(/\\n/g, '\n') ile alt satır işaretlerini düzeltir.
+            const cleanedKey = rawKey
+                .trim()
+                .replace(/^c/, '')
+                .replace(/^"|"$/g, '')
+                .replace(/\\n/g, '\n');
+
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                    privateKey: cleanedKey,
+                }),
+            });
+            console.log("✅ Firebase Admin temizlenmiş anahtarla başlatıldı.");
+        } catch (error) {
+            console.error("❌ Başlatma sırasında kritik hata:", error);
+        }
     } else {
-        // Build sırasında terminalde bunu göreceksin, bu normaldir.
-        console.warn("⚠️ Firebase Private Key bulunamadı. Build aşamasında bu hata vermez.");
+        console.warn("⚠️ FIREBASE_PRIVATE_KEY bulunamadı (Build aşamasında normaldir).");
     }
-}
+};
 
 export async function POST(request: Request) {
-    console.log("🚀 API: Silme operasyonu tetiklendi.");
+    // Her istekte başlatmayı kontrol et
+    initializeAdmin();
 
-    // Güvenlik kontrolü: Eğer anahtar yoksa işlem yapma
     if (!admin.apps.length) {
-        return NextResponse.json({ error: 'Firebase Admin başlatılamadı.' }, { status: 500 });
+        return NextResponse.json({ error: 'Firebase Admin başlatılamadı. Anahtar hatası.' }, { status: 500 });
     }
 
     try {
@@ -38,7 +53,6 @@ export async function POST(request: Request) {
 
         // Authentication'dan silme
         await admin.auth().deleteUser(uid);
-
         console.log(`✅ ${uid} UID'li kullanıcı sistemden kazındı.`);
 
         return NextResponse.json({ message: 'Başarıyla silindi' });
