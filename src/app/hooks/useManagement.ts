@@ -169,7 +169,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
         const insList = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as any))
-          .filter(user => user.role === "instructor" || user.isInstructor === true)
+          .filter(user => 
+            user.roles?.includes("instructor") || 
+            user.role === "instructor" || 
+            user.isInstructor === true
+          )
           .map(user => ({
             ...user,
             displayName: user.name ? `${user.name} ${user.surname || ""}` : (user.email || "İsimsiz")
