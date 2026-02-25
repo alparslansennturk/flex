@@ -4,15 +4,15 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import Header from "../../components/Header"; 
-import Sidebar from "../../components/Sidebar"; 
+import Header from "../../components/Header";
+import Sidebar from "../../components/Sidebar";
 import Footer from "../../components/Footer";
 import ManagementContent from "../../components/dashboard/ManagementContent";
 
 export default function ManagementPage() {
   const [activeTab, setActiveTab] = useState('management');
   const [headerTitle, setHeaderTitle] = useState("Eğitim Yönetimi");
-  
+
   // BEKÇİ İÇİN EKLEDİĞİMİZ KISIM
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const router = useRouter();
@@ -20,7 +20,7 @@ export default function ManagementPage() {
   useEffect(() => {
     const checkAdmin = async () => {
       const user = auth.currentUser;
-      
+
       if (!user) {
         router.push("/login");
         return;
@@ -28,10 +28,19 @@ export default function ManagementPage() {
 
       try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists() && userDoc.data().role === "admin") {
+        const data = userDoc.exists() ? userDoc.data() : null;
+
+        // 🛡️ Hem eski 'role' (string) hem yeni 'roles' (array) kontrolü
+        const hasAccess = data && (
+          data.role === "admin" ||
+          data.role === "instructor" ||
+          (data.roles && (data.roles.includes("admin") || data.roles.includes("instructor")))
+        );
+
+        if (hasAccess) {
           setIsAdmin(true);
         } else {
-          router.push("/dashboard"); // Admin değilse şutla
+          router.push("/dashboard");
         }
       } catch (error) {
         console.error("Yetki hatası:", error);
@@ -63,7 +72,7 @@ export default function ManagementPage() {
 
         <main className="flex-1 overflow-y-scroll bg-surface-50/20">
           <div className="w-full max-w-[1920px] mx-auto">
-             <ManagementContent setHeaderTitle={setHeaderTitle} />
+            <ManagementContent setHeaderTitle={setHeaderTitle} />
           </div>
         </main>
 

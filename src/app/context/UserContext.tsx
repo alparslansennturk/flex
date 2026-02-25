@@ -19,7 +19,7 @@ const ROLES_CONFIG: Record<string, { permissions: UserPermission[] }> = {
     ]
   },
   [ROLES.TRAINER]: { 
-    permissions: [PERMISSIONS.VIEW_ALL] 
+    permissions: [PERMISSIONS.VIEW_ALL,] 
   }
 };
 
