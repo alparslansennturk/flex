@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useUser } from "@/app/context/UserContext"; // Motoru bağladık
 import { PERMISSIONS } from "@/app/lib/constants"; // Kuralları getirdik
+import { useRouter } from "next/navigation";
 
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
@@ -15,16 +16,23 @@ import AssignmentLibrary from "../components/dashboard/AssignmentLibrary";
 
 export default function DashboardPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { hasPermission } = useUser(); // Yetki kontrol mekanizması
+  const { hasPermission, user, loading } = useUser(); // loading'i buraya ekledik
+  const router = useRouter(); // router'ı burada tanımladık
   const [activeTab, setActiveTab] = useState<'dashboard' | 'management'>('dashboard');
   const [viewMode, setViewMode] = useState<'Sınıflarım' | 'Şubem' | 'Tümü'>('Sınıflarım');
-
   const handleScroll = (dir: 'left' | 'right') => {
     if (scrollRef.current) {
-      const amt = scrollRef.current.offsetWidth / 4.3; 
+      const amt = scrollRef.current.offsetWidth / 4.3;
       scrollRef.current.scrollBy({ left: dir === 'left' ? -amt : amt, behavior: 'smooth' });
     }
   };
+
+  useEffect(() => {
+  // Eğer yükleme bittiyse ve kullanıcı yoksa kapı dışarı et (Login'e yolla)
+  if (!loading && !user) {
+    router.push('/login'); 
+  }
+}, [user, loading, router]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -35,32 +43,41 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+useEffect(() => {
+    // Eğer yükleme bittiyse ve kullanıcı yoksa kapı dışarı et (Login'e yolla)
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+
+
   return (
     <div className="flex min-h-screen bg-[#F9FAFB] font-inter antialiased text-text-primary">
-      
+
       {/* SOL: SIDEBAR (Zaten kendi içinde yetki kontrolü yapıyor) */}
       <aside className="hidden lg:block h-screen sticky top-0 shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
         <Sidebar />
       </aside>
-      
+
       {/* SAĞ: CONTAINER */}
       <div className="flex-1 flex flex-col min-w-0 relative">
         <Header />
-        
+
         <main className="flex-1 w-full overflow-x-hidden">
           <div className="w-[94%] mx-auto py-8 transition-all duration-500 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[1920px]">
-            
+
             {activeTab === 'dashboard' ? (
               <div className="space-y-12">
                 <div className="grid grid-cols-12 gap-6 items-stretch">
                   <WorkshopAnalysis />
                   <LeaderboardWidget viewMode={viewMode} setViewMode={setViewMode} />
                 </div>
-                
+
                 <DesignParkour />
 
-                {/* 🛡️ KRİTİK KALKAN: Ödev Yönetimi Yetkisi Yoksa Bu Bölüm Hiç Render Edilmez */}
-                {hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) && (
+                {/* 🛡️ KÜTÜPHANE GÖRÜNÜMÜ: Adminler yönetir, Eğitmenler (instructor) kullanır/görür. */}
+                {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
                   <AssignmentLibrary scrollRef={scrollRef} handleScroll={handleScroll} />
                 )}
               </div>

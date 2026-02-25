@@ -6,6 +6,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/app/lib/firebase';
 import { UserDocument } from '@/app/types/user';
 import { COLLECTIONS, ROLES, UserPermission, PERMISSIONS } from '@/app/lib/constants';
+import { useRouter } from 'next/navigation';
 
 const ROLES_CONFIG: Record<string, { permissions: UserPermission[] }> = {
   [ROLES.ADMIN]: {
