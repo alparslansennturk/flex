@@ -38,9 +38,10 @@ export const GroupForm: React.FC<GroupFormProps> = ({
     <div
       className={`
         grid transition-[grid-template-rows,opacity,margin] duration-500 ease-in-out
-        ${isFormOpen ? "grid-rows-[1fr] opacity-100 mt-8 mb-4" : "grid-rows-[0fr] opacity-0 mt-0 mb-0"}
-      `}
-    >
+    max-width-[1400px] mx-auto w-full px-4 md:px-5 lg:px-3
+    ${isFormOpen ? "grid-rows-[1fr] opacity-100 mt-8 mb-4" : "grid-rows-[0fr] opacity-0 mt-0 mb-0"}
+`}>
+
       {/* KRİTİK DÜZELTME: isScheduleOpen true ise overflow-hidden'ı kaldırıyoruz 
         böylece liste dışarı taşabiliyor.
       */}
@@ -63,10 +64,9 @@ export const GroupForm: React.FC<GroupFormProps> = ({
               <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Şube</label>
               <div className="relative">
                 <select
-                  disabled={!isAdmin}
                   value={groupBranch}
                   onChange={(e) => setGroupBranch(e.target.value)}
-                  className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none disabled:opacity-50 cursor-pointer"
+                  className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer transition-all"
                 >
                   <option value="Kadıköy">Kadıköy</option>
                   <option value="Şirinevler">Şirinevler</option>
@@ -80,20 +80,27 @@ export const GroupForm: React.FC<GroupFormProps> = ({
             <div className="flex flex-col gap-2">
               <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Sorumlu Eğitmen</label>
               <div className="relative">
-                <select
-                  disabled={!isAdmin}
-                  value={selectedInstructorId}
-                  onChange={(e) => setSelectedInstructorId(e.target.value)}
-                  className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none disabled:opacity-50 cursor-pointer"
-                >
-                  <option value="">Eğitmen Seçiniz</option>
-                  {instructors?.map((ins) => (
-                    <option key={ins.id} value={ins.id}>
-                      {ins.displayName}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                {!isAdmin ? (
+                  /* ELİF İÇİN: Dropdown falan yok, dümdüz kilitli bir kutu */
+                  <div className="w-full h-11 bg-neutral-100 border border-neutral-200 rounded-lg px-4 flex items-center text-[13px] font-bold text-base-primary-900 cursor-not-allowed select-none opacity-80">
+                    {instructors.find(i => i.id === selectedInstructorId)?.displayName || "Eğitmen Tanımlanıyor..."}
+                  </div>
+                ) : (
+                  /* ADMIN İÇİN: Normal seçim listesi */
+                  <>
+                    <select
+                      value={selectedInstructorId}
+                      onChange={(e) => setSelectedInstructorId(e.target.value)}
+                      className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer"
+                    >
+                      <option value="">Eğitmen Seçiniz</option>
+                      {instructors?.map((ins) => (
+                        <option key={ins.id} value={ins.id}>{ins.displayName}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                  </>
+                )}
               </div>
             </div>
 

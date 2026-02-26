@@ -5,14 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
-import { LayoutDashboard, Users, BookOpen, Trophy, Settings, LogOut, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, ShieldAlert, PencilLine, UserCircle } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { hasPermission } = useUser();
-
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -32,28 +31,50 @@ export default function Sidebar() {
           <span className="text-[24px] font-bold text-white">atölyesi</span>
         </Link>
       </div>
+
+      {/* ANA OPERASYONEL MENÜ */}
       <nav className="flex-1 px-4 mt-[64px] space-y-[12px] overflow-y-auto no-scrollbar">
         <SidebarLink href="/dashboard" icon={<LayoutDashboard size={18} />} label="Ana Sayfa" exact />
         <SidebarLink href={NAV_CONFIG.GROUPS.path} icon={<Users size={18} />} label="Sınıf Yönetimi" />
+
         {hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) && (
-          <SidebarLink href="/dashboard/tasks" icon={<BookOpen size={18} />} label={NAV_CONFIG.ASSIGNMENTS.title} />
+          <SidebarLink href="/dashboard/tasks" icon={<BookOpen size={18} />} label="Ödev Yönetimi" />
         )}
+
+        <SidebarLink href="/dashboard/grading" icon={<PencilLine size={18} />} label="Not Girişi" />
         <SidebarLink href="/dashboard/league" icon={<Trophy size={18} />} label="Sınıflar Ligi" />
-        {hasPermission(PERMISSIONS.ROLE_MANAGE) && (
-          <SidebarLink href={NAV_CONFIG.PERMISSIONS.path} icon={<ShieldAlert size={18} />} label={NAV_CONFIG.PERMISSIONS.title} />
-        )}
-        <SidebarLink href="/dashboard/settings" icon={<Settings size={18} />} label="Atölye Ayarları" />
+        <SidebarLink href="/dashboard/profile" icon={<UserCircle size={18} />} label="Profil Ayarları" />
       </nav>
-      <div className="p-6 mt-auto border-t border-white/5">
-        <div onClick={handleLogout} className="flex items-center gap-4 px-6 py-4 text-white cursor-pointer hover:bg-white/10 transition-all group rounded-xl outline-none">
-          <LogOut size={18} className="group-hover:text-[#FF8D28] transition-colors" />
-          <span className="text-[15px] font-medium">Çıkış Yap</span>
+
+      {/* ALT BÖLÜM: Yönetim Paneli ve Çıkış (Boşluklar alındı, hizalandı) */}
+      <div className="mt-auto px-4 pb-8 flex flex-col gap-2 shrink-0">
+
+        {/* Sadece Admin İçin Yönetim Paneli */}
+        {hasPermission(PERMISSIONS.ROLE_MANAGE) && (
+          <>
+            <SidebarLink href={NAV_CONFIG.PERMISSIONS.path} icon={<ShieldAlert size={18} />} label="Yönetim Paneli" />
+            {/* DUVA RI YIKAN TAM BOY ÇİZGİ (-mx-4 eklendi) */}
+            <div className="-mx-4 my-1 border-t border-white/10"></div>
+          </>
+        )}
+
+        {/* GLOBAL ÇIKIŞ BUTONU */}
+        <div
+          onClick={handleLogout}
+          className="flex items-center gap-4 px-6 py-[16px] text-white cursor-pointer hover:bg-white/5 transition-all duration-200 group rounded-xl outline-none"
+        >
+          <span className="transition-colors duration-200 group-hover:text-[#FF8D28]">
+            <LogOut size={18} />
+          </span>
+          <span className="text-[15px] font-medium leading-tight">Çıkış Yap</span>
         </div>
+
       </div>
     </div>
   );
 }
 
+// SidebarLink BİLEŞENİ (Orijinal, dokunulmadı)
 function SidebarLink({ href, icon, label, exact = false }: { href: string, icon: any, label: string, exact?: boolean }) {
   const pathname = usePathname();
   const active = exact ? pathname === href : (pathname === href || pathname.startsWith(href + '/'));

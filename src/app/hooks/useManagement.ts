@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { db, auth } from "@/app/lib/firebase"; // auth'u buraya ekledik
+import { useUser } from "@/app/context/UserContext";
 import {
   collection, onSnapshot, addDoc, query, where, doc,
   updateDoc, deleteDoc, increment, serverTimestamp
@@ -35,8 +36,9 @@ interface Student {
 
 export const useManagement = (setHeaderTitle: (t: string) => void) => {
   // --- TEMEL TANIMLAR ---
+  const { user } = useUser();
   const currentUser = auth.currentUser;
-  const isAdmin = true; // Sadece bir tane kalsın diye yukarıdakini sildik
+  const isAdmin = user?.roles?.includes('admin') || false;
 
   const [instructors, setInstructors] = useState<any[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState("");
@@ -79,26 +81,23 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
 
   useEffect(() => {
-    if (isAdmin) {
-      console.log("Firebase sorgusu atılıyor: role == instructor");
-      const q = query(collection(db, "users"), where("role", "==", "instructor"));
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        console.log("Firebase Yanıt Verdi. Gelen Kayıt Sayısı:", snapshot.size);
-        const insList = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            displayName: data.name ? `${data.name} ${data.surname || ""}` : (data.email || "İsimsiz")
-          };
-        });
-        setInstructors(insList);
-      }, (err) => console.error("Firebase Hatası:", err));
-
-      return () => unsubscribe();
-    }
-  }, [isAdmin]);
+    // isAdmin şartını KALDIRDIK, çünkü Elif de listede kendi adını görmeli
+    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+      const insList = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .filter(u =>
+          u.roles?.includes("instructor") ||
+          u.role === "instructor" ||
+          u.isInstructor === true
+        )
+        .map(u => ({
+          ...u,
+          displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || "İsimsiz")
+        }));
+      setInstructors(insList);
+    });
+    return () => unsubscribe();
+  }, []); // Bağımlılık dizisinden de isAdmin'i sildik
 
 
 
@@ -165,24 +164,30 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) {
-      const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-        const insList = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as any))
-          .filter(user => 
-            user.roles?.includes("instructor") || 
-            user.role === "instructor" || 
-            user.isInstructor === true
-          )
-          .map(user => ({
-            ...user,
-            displayName: user.name ? `${user.name} ${user.surname || ""}` : (user.email || "İsimsiz")
-          }));
-        setInstructors(insList);
-      });
-      return () => unsubscribe();
+  const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+    let insList = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as any))
+      .filter(u => 
+        u.role === "instructor" || 
+        u.roles?.includes("instructor") || 
+        u.isInstructor === true
+      )
+      .map(u => ({
+        ...u,
+        displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || u.uid)
+      }));
+    
+    // 🔥 ELİF FİLTRESİ BURADA:
+    // Eğer kullanıcı Admin değilse, koca listeden sadece Elif'i (kendisini) süzüp bırakıyoruz.
+    if (!isAdmin && user) {
+      insList = insList.filter(u => u.id === user.uid);
     }
-  }, [isAdmin]);
+
+    setInstructors(insList);
+  });
+
+  return () => unsubscribe();
+}, [isAdmin, user]); // isAdmin ve user değiştikçe listeyi tazele
 
   // 1. OTOMATİK GRUP VE ŞUBE EŞLEME (useManagement.ts içinde)
   useEffect(() => {
@@ -220,8 +225,21 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   }, [selectedGroupId, groups, viewMode]);
 
   useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (openMenuId && menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      setOpenMenuId(null);
+    }
+  };
+
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, [openMenuId]);
+
+  useEffect(() => {
     const labels: Record<string, string> = {
-      groups: "Sınıf Yönetimi", 
+      groups: "Sınıf Yönetimi",
       profile: "Profil Ayarları",
       users: "Kullanıcı Yönetimi"
     };
@@ -238,6 +256,16 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     if (!isFormOpen) {
       setSelectedGroupId(null);
       setLastSelectedId(null);
+
+      if (!isAdmin && user) {
+        // Elif sisteme girdiğinde kendi ID'sini buraya çakıyoruz
+        setSelectedInstructorId(user.uid);
+        // Eğer şubesi de belliyse onu da set edebilirsin:
+        // setGroupBranch(user.branch || "Kadıköy"); 
+      } else {
+        setSelectedInstructorId("");
+      }
+
       setIsFormOpen(true);
     } else {
       handleCancel();

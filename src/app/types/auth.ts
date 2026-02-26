@@ -1,26 +1,22 @@
-export type PermissionAction = "view" | "edit" | "approve" | "export";
-export type PermissionDomain = "finance" | "schedule" | "users";
-export type UserRole = "admin" | "trainer" | "finance_specialist" | "owner";
+// types/auth.ts
 
-export type UserPermissions = Partial<
-  Record<PermissionDomain, PermissionAction[]>
->;
+export type UserRole = 'admin' | 'instructor' | 'student';
 
-export interface FlexUser {
-  id: string;
-  name: string;
-  role: UserRole;
-  permissions: UserPermissions;
+// Sisteme eklenecek her yeni yetkiyi buraya yazıyoruz
+export type Permission = 
+  | 'VIEW_ALL_CLASSES'
+  | 'MANAGE_USERS'
+  | 'CREATE_HOMEWORK'
+  | 'GRADE_HOMEWORK'
+  | 'SYSTEM_SETTINGS';
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName?: string;
+  roles: UserRole[];
+  // İşte hatayı çözen anahtar satır burası: 
+  // [key: string] diyerek herhangi bir string ile indexlenebileceğini söylüyoruz.
+  overrides?: Record<string, boolean>; 
+  createdAt?: any;
 }
-
-// Senior Move: Deklaratif Helperlar
-export const isOwner = (user: FlexUser): boolean => user.role === "owner";
-
-export const hasPermission = (
-  user: FlexUser,
-  domain: PermissionDomain,
-  action: PermissionAction
-): boolean => {
-  if (isOwner(user)) return true;
-  return user.permissions?.[domain]?.includes(action) ?? false;
-};

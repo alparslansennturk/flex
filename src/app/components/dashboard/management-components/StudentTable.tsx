@@ -23,8 +23,8 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   setDeleteModal
 }) => {
   return (
-    <div className="bg-white border border-neutral-200 rounded-lg overflow-x-auto mb-12 shadow-sm no-scrollbar">
-      <table className="min-w-[1200px] w-full text-left border-collapse table-fixed">
+    <div className="bg-white border border-neutral-200 rounded-lg overflow-x-auto w-full max-w-full mb-12 shadow-sm no-scrollbar">
+      <table className="w-full text-left border-collapse">
         {/* Hydration hatasını önlemek için bitişik nizam colgroup */}
         <colgroup><col className="w-[60px]"/><col className="w-[220px]"/><col className="w-[140px]"/><col className="w-[140px]"/><col className="w-[240px]"/><col className="w-[200px]"/>{viewMode === 'all-branches' && <col className="w-[180px]"/>}<col className="w-[120px]"/></colgroup>
         <thead>

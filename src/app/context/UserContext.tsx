@@ -78,18 +78,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   /** 2. YETKİ KONTROLÜ */
   const hasPermission = (permission: UserPermission): boolean => {
-    if (!user) return false;
-    
-    // İstisna (Override) kontrolü
-    if (user.overrides && permission in user.overrides) return !!user.overrides[permission];
-    
-    // BUILD FIX 2: Burada eskiden user.role kalmıştı, flatMap ile mühürledik.
-    const roleDefaults = user.roles?.flatMap((r: string) => ROLES_CONFIG[r]?.permissions || []) || [];
-    
-    if (roleDefaults.includes(permission)) return true;
-    
-    return user.permissions?.includes(permission) || false;
-  };
+  if (!user) return false;
+  const overrides = user.overrides as Record<string, boolean> | undefined;
+  if (overrides && permission in overrides) return !!overrides[permission];
+  const roleDefaults = user.roles?.flatMap((r: string) => ROLES_CONFIG[r]?.permissions || []) || [];
+  if (roleDefaults.includes(permission)) return true;
+  return user.permissions?.includes(permission) || false;
+};
 
   return (
     <UserContext.Provider value={{ 

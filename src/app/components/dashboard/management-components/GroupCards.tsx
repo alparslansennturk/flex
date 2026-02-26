@@ -29,7 +29,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
   // --- DURUM C: ARŞİV VEYA TÜM SINIFLAR (TABLO MODU) ---
   if (currentView !== "Aktif Sınıflar") {
     return (
-      <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 w-full animate-in fade-in duration-500">
+      <div className="w-full animate-in fade-in duration-500">
         <div className="bg-white border border-neutral-300 rounded-[16px] overflow-hidden shadow-sm">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -109,7 +109,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
   // --- DURUM B: GRUP YOKSA (EMPTY STATE) ---
   if (filteredGroups.length === 0) {
     return (
-      <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 pr-8 w-full animate-in fade-in zoom-in-95 duration-500">
+      <div className="w-full animate-in fade-in zoom-in-95 duration-500">
         <div className="w-full py-12 bg-white border border-dashed border-neutral-300 rounded-[20px] flex flex-col items-center justify-center text-center shadow-sm">
           <div className="w-14 h-14 bg-neutral-50 rounded-2xl flex items-center justify-center text-neutral-300 mb-4 border border-neutral-100">
             <Layout size={28} strokeWidth={1.5} />
@@ -126,7 +126,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
 
   // --- DURUM A: GRUP VARSA KARTLAR ---
   return (
-    <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 flex flex-wrap gap-6 animate-in fade-in duration-500">
+    <div className="px-4 md:px-5 lg:px-3 flex flex-wrap gap-6 xl:gap-5 2xl:gap-6">
       {filteredGroups.map((group) => {
         const isActive = selectedGroupId === group.id;
         return (

@@ -53,16 +53,16 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
       )}
 
       {/* --- BÖLÜM 1: NAVİGASYON (AYRILMIŞ BİLEŞEN) --- */}
-      <SubNavigation 
-        activeTab={activeSubTab} 
-        onTabChange={setActiveSubTab} 
+      <SubNavigation
+        activeTab={activeSubTab}
+        onTabChange={setActiveSubTab}
       />
 
       {activeSubTab === 'groups' && (
-        <div className="max-w-[1920px] mx-auto px-8 mt-[48px]">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-6 mt-[48px]">
 
           {/* --- BÖLÜM 2: AKSİYON SATIRI --- */}
-          <div className="flex items-center justify-between pb-4 border-b border-neutral-300 px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
+          <div className="flex items-center justify-between pb-4 border-b border-neutral-300 px-4 md:px-5 lg:px-3">
             <div className="flex items-center gap-6">
               <button onClick={handleOpenForm} disabled={currentView !== "Aktif Sınıflar" && !editingGroupId} className={`w-[144px] h-[40px] text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer ${currentView === "Aktif Sınıflar" || editingGroupId ? "bg-[#FF8D28] shadow-orange-500/10" : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}>
                 <span>{isFormOpen ? "Vazgeç" : (editingGroupId ? "Düzenle" : "Sınıf ekle")}</span>
@@ -80,6 +80,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
           {/* --- BÖLÜM 3: FORM ALANI --- */}
           <GroupForm
+            isAdmin={isAdmin} // KRİTİK: Bu prop Elif'in dropdownları açmasını engeller
             isFormOpen={isFormOpen}
             isShaking={isShaking}
             groupCode={groupCode}
@@ -102,50 +103,48 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             handleSave={handleSave}
             scheduleRef={scheduleRef}
           />
+          {/* --- BÖLÜM 4: İÇERİK --- */}
+          <div className="mt-6">
+            {/* Hizalama için padding dışarıda, kutu w-fit ile kilitli */}
+            <div className="px-4 md:px-5 lg:px-3 mb-8">
+              <div className="flex items-center bg-surface-50 w-fit p-1 rounded-[12px] border border-neutral-100 shadow-sm shrink-0">
+                {["Aktif Sınıflar", isAdmin && "Tüm Sınıflar", "Arşiv"].filter(Boolean).map((t) => (
+                  <button
+                    key={t as string}
+                    onClick={() => setCurrentView(t as string)}
+                    className={`px-6 py-1.5 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer outline-none select-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 ${currentView === t
+                        ? "bg-white text-base-primary-900 shadow-sm border border-neutral-100"
+                        : "text-neutral-400 hover:text-neutral-600 border border-transparent"
+                      }`}
+                  >
+                    {t as string}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-         {/* --- BÖLÜM 4: İÇERİK --- */}
-<div className="mt-6">
-  {/* Hizalama için padding dışarıda, kutu w-fit ile kilitli */}
-  <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 mb-8">
-    <div className="flex items-center bg-surface-50 w-fit p-1 rounded-[12px] border border-neutral-100 shadow-sm shrink-0">
-      {["Aktif Sınıflar", isAdmin && "Tüm Sınıflar", "Arşiv"].filter(Boolean).map((t) => (
-        <button
-          key={t as string}
-          onClick={() => setCurrentView(t as string)}
-          className={`px-6 py-1.5 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer outline-none select-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 ${
-            currentView === t 
-              ? "bg-white text-base-primary-900 shadow-sm border border-neutral-100" 
-              : "text-neutral-400 hover:text-neutral-600 border border-transparent"
-          }`}
-        >
-          {t as string}
-        </button>
-      ))}
-    </div>
-  </div>
-
-  {/* Kartlar Alanı - Propslar tertemiz */}
-  <div className="px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14">
-    <GroupCards
-      currentView={currentView}
-      filteredGroups={
-        currentView === "Arşiv" ? filteredGroups : currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards
-      }
-      selectedGroupId={selectedGroupId}
-      setSelectedGroupId={setSelectedGroupId}
-      openMenuId={openMenuId}
-      setOpenMenuId={setOpenMenuId}
-      handleEdit={handleEdit}
-      requestModal={requestModal}
-      handleOpenForm={handleOpenForm}
-      menuRef={menuRef}
-    />
-  </div>
-</div>
+            {/* Kartlar Alanı - Propslar tertemiz */}
+            <div>
+              <GroupCards
+                currentView={currentView}
+                filteredGroups={
+                  currentView === "Arşiv" ? filteredGroups : currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards
+                }
+                selectedGroupId={selectedGroupId}
+                setSelectedGroupId={setSelectedGroupId}
+                openMenuId={openMenuId}
+                setOpenMenuId={setOpenMenuId}
+                handleEdit={handleEdit}
+                requestModal={requestModal}
+                handleOpenForm={handleOpenForm}
+                menuRef={menuRef}
+              />
+            </div>
+          </div>
 
           {/* --- BÖLÜM 5: ÖĞRENCİ LİSTESİ --- */}
           {currentView === "Aktif Sınıflar" && (
-            <div className="mt-[64px] px-4 md:px-5 lg:px-3 xl:px-4 2xl:px-14 animate-in fade-in duration-500">
+            <div className="mt-[64px] px-4 md:px-5 lg:px-3 animate-in fade-in duration-500">
               <div className="student-header-row flex items-center justify-between pb-4 border-b border-neutral-200 mb-6 w-full">
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2 min-w-[180px]">
@@ -186,7 +185,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 </div>
               </div>
 
-              <div className="relative transition-all duration-500 ease-in-out" style={{ minHeight: '500px' }}>
+              <div className="relative transition-all duration-500 ease-in-out w-full max-w-full" style={{ minHeight: '500px' }}>
                 <div className={`grid transition-all duration-500 ease-in-out ${isStudentFormOpen ? "grid-rows-[1fr] opacity-100 mb-8" : "grid-rows-[0fr] opacity-0 mb-0"}`}>
                   <div className="overflow-hidden">
                     <StudentForm
@@ -195,7 +194,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       setStudentBranch={setStudentBranch}
                       selectedGroupIdForStudent={selectedGroupIdForStudent}
                       setSelectedGroupIdForStudent={setSelectedGroupIdForStudent}
-                      groups={groups}
+                      groups={isAdmin ? groups : myGroupCards}
                       studentName={studentName} setStudentName={setStudentName}
                       studentLastName={studentLastName} setStudentLastName={setStudentLastName}
                       studentEmail={studentEmail} setStudentEmail={setStudentEmail}
@@ -206,7 +205,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     />
                   </div>
                 </div>
-                <div className="animate-in fade-in zoom-in-95 duration-700">
+                <div className="animate-in fade-in zoom-in-95 duration-700 w-[calc(100vw-320px)] 2xl:w-full overflow-hidden">
                   <StudentTable
                     students={filteredStudents}
                     selectedStudentIds={selectedStudentIds}
