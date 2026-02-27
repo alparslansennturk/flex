@@ -22,7 +22,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     groupBranch, setGroupBranch,
     instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
-    isScheduleOpen, setIsScheduleOpen, errors, setErrors, isShaking, setIsShaking,
+    isScheduleOpen, setIsScheduleOpen, errors, setErrors, 
     searchQuery, setSearchQuery, isStudentFormOpen, setIsStudentFormOpen,
     studentName, setStudentName, studentLastName, setStudentLastName,
     studentEmail, setStudentEmail, studentNote, setStudentNote,
@@ -82,7 +82,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           <GroupForm
             isAdmin={isAdmin} // KRİTİK: Bu prop Elif'in dropdownları açmasını engeller
             isFormOpen={isFormOpen}
-            isShaking={isShaking}
+           
             groupCode={groupCode}
             setGroupCode={setGroupCode}
             groupBranch={groupBranch}
@@ -113,8 +113,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                     key={t as string}
                     onClick={() => setCurrentView(t as string)}
                     className={`px-6 py-1.5 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer outline-none select-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 ${currentView === t
-                        ? "bg-white text-base-primary-900 shadow-sm border border-neutral-100"
-                        : "text-neutral-400 hover:text-neutral-600 border border-transparent"
+                      ? "bg-white text-base-primary-900 shadow-sm border border-neutral-100"
+                      : "text-neutral-400 hover:text-neutral-600 border border-transparent"
                       }`}
                   >
                     {t as string}
@@ -185,77 +185,89 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 </div>
               </div>
 
-              <div className="relative transition-all duration-500 ease-in-out w-full max-w-full" style={{ minHeight: '500px' }}>
-                <div className={`grid transition-all duration-500 ease-in-out ${isStudentFormOpen ? "grid-rows-[1fr] opacity-100 mb-8" : "grid-rows-[0fr] opacity-0 mb-0"}`}>
-                  <div className="overflow-hidden">
+              <div className="relative w-full max-w-full">
+
+                <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 ${isStudentFormOpen ? "visible" : "invisible pointer-events-none"}`}>
+
+                  {/* Backdrop: Bulanıklık artık aniden değil, %100 yumuşak geliyor */}
+                  <div className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isStudentFormOpen ? "opacity-100" : "opacity-0"}`} onClick={() => setIsStudentFormOpen(false)} />
+
+                  {/* Modal Kutusu: GPU dostu transform animasyonu */}
+                  <div className={`relative w-full max-w-5xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isStudentFormOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
                     <StudentForm
                       isStudentFormOpen={isStudentFormOpen}
+                      groups={isAdmin ? groups : myGroupCards}
+                      handleAddStudent={handleAddStudent}
+                      setIsStudentFormOpen={setIsStudentFormOpen}
+                      editingStudent={null}
+                      studentName={studentName}
+                      setStudentName={setStudentName}
+                      studentLastName={studentLastName}
+                      setStudentLastName={setStudentLastName}
+                      studentEmail={studentEmail}
+                      setStudentEmail={setStudentEmail}
+                      studentNote={studentNote}
+                      setStudentNote={setStudentNote}
                       studentBranch={studentBranch}
                       setStudentBranch={setStudentBranch}
                       selectedGroupIdForStudent={selectedGroupIdForStudent}
                       setSelectedGroupIdForStudent={setSelectedGroupIdForStudent}
-                      groups={isAdmin ? groups : myGroupCards}
-                      studentName={studentName} setStudentName={setStudentName}
-                      studentLastName={studentLastName} setStudentLastName={setStudentLastName}
-                      studentEmail={studentEmail} setStudentEmail={setStudentEmail}
-                      studentNote={studentNote} setStudentNote={setStudentNote}
-                      studentError={studentError} setStudentError={setStudentError}
-                      handleAddStudent={handleAddStudent}
-                      setIsStudentFormOpen={setIsStudentFormOpen}
                     />
                   </div>
+                  </div>
+
+                  {/* Tablo Alanı - Genişlik hesaplaması stabilize edildi */}
+                  <div className="animate-in fade-in duration-700 w-full overflow-hidden">
+                    <StudentTable
+                      students={filteredStudents}
+                      selectedStudentIds={selectedStudentIds}
+                      viewMode={viewMode}
+                      groups={groups}
+                      toggleStudentSelection={toggleStudentSelection}
+                      handleSelectAll={handleSelectAll}
+                      handleEditStudent={handleEditStudent}
+                      setDeleteModal={setDeleteModal}
+                    />
+                    {filteredStudents.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-24 text-neutral-400">
+                        <Users size={40} className="mb-2 opacity-10" />
+                        <p className="text-[13px]">Kayıtlı öğrenci bulunamadı.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="animate-in fade-in zoom-in-95 duration-700 w-[calc(100vw-320px)] 2xl:w-full overflow-hidden">
-                  <StudentTable
-                    students={filteredStudents}
-                    selectedStudentIds={selectedStudentIds}
-                    viewMode={viewMode}
-                    groups={groups}
-                    toggleStudentSelection={toggleStudentSelection}
-                    handleSelectAll={handleSelectAll}
-                    handleEditStudent={handleEditStudent}
-                    setDeleteModal={setDeleteModal}
-                  />
-                  {filteredStudents.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-24 text-neutral-400">
-                      <Users size={40} className="mb-2 opacity-10" />
-                      <p className="text-[13px]">Kayıtlı öğrenci bulunamadı.</p>
-                    </div>
-                  )}
+              </div>
+          )}
+            </div>
+          )}
+
+          {/* --- BÖLÜM: KULLANICI YÖNETİMİ --- */}
+          {activeSubTab === 'users' && <UserManagement />}
+
+          {/* --- BÖLÜM: ÖDEV YÖNETİMİ (TASLAK) --- */}
+          {activeSubTab === 'task-management' && (
+            <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-500">
+              <div className="bg-white border border-neutral-100 rounded-[24px] p-20 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-[#8B5CF6] mb-4">
+                  <BookOpen size={32} />
                 </div>
+                <h3 className="text-[18px] font-bold text-[#10294C]">Ödev Yönetimi Paneli</h3>
+                <p className="text-neutral-400 text-[14px] mt-2 max-w-sm">Bu alan şu an geliştirme aşamasındadır. Çok yakında lila butonlarla ödev yönetimini buradan yapabileceksiniz.</p>
               </div>
             </div>
           )}
+
+          {/* --- MODALLAR --- */}
+          <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type as any} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />
+          <StudentDeleteModal
+            isOpen={deleteModal.isOpen}
+            onClose={() => setDeleteModal({ isOpen: false, studentId: "" })}
+            onConfirm={async () => {
+              if (deleteModal.studentId === "bulk") await handleBulkDeleteStudents();
+              else await handleDeleteStudent(deleteModal.studentId);
+              setDeleteModal({ isOpen: false, studentId: "" });
+            }}
+          />
         </div>
-      )}
-
-      {/* --- BÖLÜM: KULLANICI YÖNETİMİ --- */}
-      {activeSubTab === 'users' && <UserManagement />}
-
-      {/* --- BÖLÜM: ÖDEV YÖNETİMİ (TASLAK) --- */}
-      {activeSubTab === 'task-management' && (
-        <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-500">
-          <div className="bg-white border border-neutral-100 rounded-[24px] p-20 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-[#8B5CF6] mb-4">
-              <BookOpen size={32} />
-            </div>
-            <h3 className="text-[18px] font-bold text-[#10294C]">Ödev Yönetimi Paneli</h3>
-            <p className="text-neutral-400 text-[14px] mt-2 max-w-sm">Bu alan şu an geliştirme aşamasındadır. Çok yakında lila butonlarla ödev yönetimini buradan yapabileceksiniz.</p>
-          </div>
-        </div>
-      )}
-
-      {/* --- MODALLAR --- */}
-      <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type as any} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />
-      <StudentDeleteModal
-        isOpen={deleteModal.isOpen}
-        onClose={() => setDeleteModal({ isOpen: false, studentId: "" })}
-        onConfirm={async () => {
-          if (deleteModal.studentId === "bulk") await handleBulkDeleteStudents();
-          else await handleDeleteStudent(deleteModal.studentId);
-          setDeleteModal({ isOpen: false, studentId: "" });
-        }}
-      />
-    </div>
-  );
+      );
 }

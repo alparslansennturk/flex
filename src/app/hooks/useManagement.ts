@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { db, auth } from "@/app/lib/firebase"; // auth'u buraya ekledik
+import { db, auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import {
   collection, onSnapshot, addDoc, query, where, doc,
@@ -33,6 +33,7 @@ interface Student {
   lastGroupCode?: string;
   updatedAt?: any;
 }
+const MASTER_ID = "kYG8N01PTudh1VT1uvy2vg8vmAR2";
 
 export const useManagement = (setHeaderTitle: (t: string) => void) => {
   // --- TEMEL TANIMLAR ---
@@ -63,8 +64,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [selectedSchedule, setSelectedSchedule] = useState("Grup seansı seçiniz...");
   const [customSchedule, setCustomSchedule] = useState("");
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
-  const [errors, setErrors] = useState<{ code?: string; schedule?: string }>({});
-  const [isShaking, setIsShaking] = useState(false);
+  const [errors, setErrors] = useState<{ code?: string; schedule?: string; name?: boolean; surname?: boolean; groupId?: boolean; }>({});
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
@@ -79,12 +79,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
   const [selectedGroupIdForStudent, setSelectedGroupIdForStudent] = useState<string>("");
 
-
   useEffect(() => {
-    // isAdmin şartını KALDIRDIK, çünkü Elif de listede kendi adını görmeli
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const insList = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .filter(u => u.id !== MASTER_ID)
         .filter(u =>
           u.roles?.includes("instructor") ||
           u.role === "instructor" ||
@@ -97,9 +96,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       setInstructors(insList);
     });
     return () => unsubscribe();
-  }, []); // Bağımlılık dizisinden de isAdmin'i sildik
-
-
+  }, []);
 
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
@@ -142,15 +139,13 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     }
     return true;
   });
+
   const myGroupCards = groups.filter(g => {
-    // Sadece senin olduğun gruplar
     const isMine = g.instructorId === currentUser?.uid;
-
-    // SADECE VE SADECE AKTİF OLANLAR (Arşivdekiler buraya giremez)
     const isActiveOnly = g.status === 'active';
-
     return isMine && isActiveOnly;
   });
+
   useEffect(() => {
     const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
       const gList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Group[];
@@ -164,43 +159,36 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   }, []);
 
   useEffect(() => {
-  const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-    let insList = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as any))
-      .filter(u => 
-        u.role === "instructor" || 
-        u.roles?.includes("instructor") || 
-        u.isInstructor === true
-      )
-      .map(u => ({
-        ...u,
-        displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || u.uid)
-      }));
-    
-    // 🔥 ELİF FİLTRESİ BURADA:
-    // Eğer kullanıcı Admin değilse, koca listeden sadece Elif'i (kendisini) süzüp bırakıyoruz.
-    if (!isAdmin && user) {
-      insList = insList.filter(u => u.id === user.uid);
-    }
+    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+      let insList = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .filter(u => u.id !== MASTER_ID)
+        .filter(u =>
+          u.role === "instructor" ||
+          u.roles?.includes("instructor") ||
+          u.isInstructor === true
+        )
+        .map(u => ({
+          ...u,
+          displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || u.uid)
+        }));
 
-    setInstructors(insList);
-  });
+      if (!isAdmin && user) {
+        insList = insList.filter(u => u.id === user.uid);
+      }
+      setInstructors(insList);
+    });
+    return () => unsubscribe();
+  }, [isAdmin, user]);
 
-  return () => unsubscribe();
-}, [isAdmin, user]); // isAdmin ve user değiştikçe listeyi tazele
-
-  // 1. OTOMATİK GRUP VE ŞUBE EŞLEME (useManagement.ts içinde)
   useEffect(() => {
     if (isFormOpen || isStudentFormOpen) return;
-
     let targetList: Group[] = [];
-
     if (currentView === "Aktif Sınıflar") {
       targetList = myGroupCards;
     } else {
       targetList = filteredGroups;
     }
-
     if (targetList.length > 0) {
       const isStillInList = targetList.some(g => g.id === selectedGroupId);
       if (!selectedGroupId || !isStillInList) {
@@ -225,17 +213,16 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   }, [selectedGroupId, groups, viewMode]);
 
   useEffect(() => {
-  const handleClickOutside = (event: MouseEvent) => {
-    if (openMenuId && menuRef.current && !menuRef.current.contains(event.target as Node)) {
-      setOpenMenuId(null);
-    }
-  };
-
-  document.addEventListener("mousedown", handleClickOutside);
-  return () => {
-    document.removeEventListener("mousedown", handleClickOutside);
-  };
-}, [openMenuId]);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openMenuId && menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [openMenuId]);
 
   useEffect(() => {
     const labels: Record<string, string> = {
@@ -256,16 +243,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     if (!isFormOpen) {
       setSelectedGroupId(null);
       setLastSelectedId(null);
-
       if (!isAdmin && user) {
-        // Elif sisteme girdiğinde kendi ID'sini buraya çakıyoruz
         setSelectedInstructorId(user.uid);
-        // Eğer şubesi de belliyse onu da set edebilirsin:
-        // setGroupBranch(user.branch || "Kadıköy"); 
       } else {
         setSelectedInstructorId("");
       }
-
       setIsFormOpen(true);
     } else {
       handleCancel();
@@ -293,8 +275,6 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 300);
       return;
     }
 
@@ -359,12 +339,6 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setOpenMenuId(null);
   };
 
-  useEffect(() => {
-    if (!isAdmin && isFormOpen && !editingGroupId) {
-      // Logic for instructors
-    }
-  }, [isFormOpen, isAdmin, editingGroupId]);
-
   const requestModal = (id: string, type: 'archive' | 'delete' | 'restore') => {
     setModalConfig({ isOpen: true, type, groupId: id });
     setOpenMenuId(null);
@@ -413,6 +387,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setModalConfig({ isOpen: false, type: null, groupId: null });
   };
 
+  // ÖĞRENCİ EKLEME MERKEZİ - HATALARLA BİRLİKTE
   const handleAddStudent = async () => {
     if (!studentName.trim() || !studentLastName.trim() || !selectedGroupIdForStudent) {
       setStudentError("Lütfen eksik alanları doldurun.");
@@ -451,8 +426,9 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         await updateDoc(doc(db, "groups", selectedGroupIdForStudent), { students: increment(1) });
         showNotification("Öğrenci eklendi.");
       }
-      setIsStudentFormOpen(false);
+
       resetStudentForm();
+      setIsStudentFormOpen(false);
     } catch (error) {
       showNotification("Öğrenci kaydedilemedi.");
     }
@@ -488,6 +464,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setStudentEmail("");
     setStudentNote("");
     setStudentError("");
+    setErrors({});
   };
 
   const handleEditStudent = (student: any) => {
@@ -516,7 +493,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     editingGroupId, setEditingGroupId, groupCode, setGroupCode, groupBranch, setGroupBranch,
     instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
-    isScheduleOpen, setIsScheduleOpen, errors, setErrors, isShaking, setIsShaking,
+    isScheduleOpen, setIsScheduleOpen, errors, setErrors, 
     searchQuery, setSearchQuery, isStudentFormOpen, setIsStudentFormOpen,
     studentName, setStudentName, studentLastName, setStudentLastName,
     studentEmail, setStudentEmail, studentNote, setStudentNote,
@@ -527,6 +504,5 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
     filteredGroups, filteredStudents, myGroupCards, showPassive, setShowPassive, selectedStudentIds, setSelectedStudentIds,
     toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal,
-    // -------------------------
   };
 };

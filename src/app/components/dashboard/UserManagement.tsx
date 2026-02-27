@@ -13,6 +13,8 @@ interface PermissionItem {
     label: string;
 }
 
+const MASTER_ID = "kYG8N01PTudh1VT1uvy2vg8vmAR2";
+
 // Rol Varsayılanları
 const ROLE_DEFAULTS: Record<string, string[]> = {
     admin: ["VIEW_ALL_CLASSES", "ASSIGNMENT_MANAGE", "STUDENT_DELETE", "ROLE_MANAGE", "LEAGUE_MANAGE", "BRANCH_STATS"],
@@ -75,12 +77,16 @@ export default function UserManagement() {
     };
 
     useEffect(() => {
+        const MASTER_ID = "kYG8N01PTudh1VT1uvy2vg8vmAR2";
         const q = query(collection(db, "users"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const filteredUsers = allUsers.filter((u: any) => u.id !== MASTER_ID);
+            setUsers(filteredUsers);
         }, (error) => console.error("Firebase Hatası:", error));
         return () => unsubscribe();
     }, []);
+
     //Telefon Formatlama Fonksiyonu
     const formatPhoneNumber = (value: string) => {
         let digits = value.replace(/\D/g, "");
@@ -138,7 +144,6 @@ export default function UserManagement() {
         const branch = formData.get("branch") as string;
         const isInstructor = formData.get("isInstructor") === "on";
 
-        // 1. VALIDATION
         let newErrors: Record<string, boolean> = {};
         if (!name) newErrors.name = true;
         if (!surname) newErrors.surname = true;
@@ -153,6 +158,7 @@ export default function UserManagement() {
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
             setShake(true);
+            setTimeout(() => setShake(false), 500);
             return;
         }
 
@@ -175,16 +181,14 @@ export default function UserManagement() {
             };
 
             if (editingUser) {
-                // GÜNCELLEME
                 const userRef = doc(db, "users", editingUser.id);
                 await setDoc(userRef, {
                     ...userData,
                     isActivated: editingUser.isActivated || false
                 }, { merge: true });
             } else {
-                // YENİ KAYIT
                 const tempPass = Math.random().toString(36).slice(-8).toUpperCase();
-                setGeneratedPass(tempPass); // Şifreyi ekranda göstermek için yakala
+                setGeneratedPass(tempPass);
 
                 const userCredential = await createUserWithEmailAndPassword(auth, email, tempPass);
 
@@ -197,10 +201,9 @@ export default function UserManagement() {
                 });
             }
 
-            // 2. BAŞARI DURUMU TETİKLEME
             setIsSuccess(true);
+            setLoading(false);
 
-            // 3. GECİKMELİ KAPANIŞ (3.5 Saniye - Şifreyi okumak için)
             setTimeout(() => {
                 setIsUserFormOpen(false);
                 setEditingUser(null);
@@ -209,21 +212,23 @@ export default function UserManagement() {
                 setSelectedRoles([]);
                 setIsSuccess(false);
                 setGeneratedPass("");
-                setLoading(false);
-            }, 2000);
+            }, 1000);
 
         } catch (err: any) {
             console.error("Firebase Hatası:", err);
-            setErrors({ email: true, firebaseError: true });
+            setErrors({ firebaseError: true });
             setLoading(false);
         }
     };
     const handleDeleteUser = async (user: any) => {
         const myUser = auth.currentUser;
-        // Firestore'dan gelen veride hangisi doluysa onu hedef al
         const targetUid = user.uid || user.id;
 
-        // 1. ÜÇLÜ EMNİYET KİLİDİ (UID, ID veya Email eşleşirse durdur)
+        if (targetUid === MASTER_ID) {
+            alert("⚠️ ERİŞİM ENGELLENDİ! Bu hesap sistemin kök (root) hesabıdır ve imha edilemez.");
+            return;
+        }
+
         if (myUser) {
             const isMe = targetUid === myUser.uid ||
                 user.id === myUser.uid ||
@@ -413,8 +418,8 @@ export default function UserManagement() {
                                                 disabled={user.email === auth.currentUser?.email}
                                                 onClick={() => handleDeleteClick(user.id)}
                                                 className={`p-2 transition-colors ${user.email === auth.currentUser?.email
-                                                        ? "text-neutral-200 cursor-not-allowed opacity-50" // Kendi satırın: Soluk ve tıklanamaz
-                                                        : "text-neutral-400 hover:text-red-500 cursor-pointer" // Başkasının satırı: Normal
+                                                    ? "text-neutral-200 cursor-not-allowed opacity-50" // Kendi satırın: Soluk ve tıklanamaz
+                                                    : "text-neutral-400 hover:text-red-500 cursor-pointer" // Başkasının satırı: Normal
                                                     }`}
                                             >
                                                 <Trash2 size={18} />
@@ -432,12 +437,15 @@ export default function UserManagement() {
 
 
             {/* --- KULLANICI FORMU: ROL-ÜNVAN-ŞUBE VE ÖZEL CHECKBOX DÜZENİ --- */}
-            {isFormOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-500">
-                    <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md"
-                        onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
-
-                    <form onSubmit={handleSaveUser} className="relative w-full max-w-6xl bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col h-[850px] text-[#10294C]">
+            <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 ${isFormOpen ? "visible" : "invisible delay-100 pointer-events-none"}`}>
+                <div className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isFormOpen ? "opacity-100" : "opacity-0"}`}
+                    onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
+                <div className={`relative w-full max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isFormOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
+                    <form
+                        key={editingUser?.id || "yeni-kullanici"}
+                        onSubmit={handleSaveUser}
+                        className="relative w-full max-w-6xl bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col h-[850px] text-[#10294C]"
+                    >
 
                         {/* 1. HEADER */}
                         <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0 border-b border-white/5">
@@ -593,7 +601,11 @@ export default function UserManagement() {
                                             <label className="text-[12px] font-bold text-neutral-400 ml-1">Doğum Tarihi</label>
                                             <input
                                                 name="birthDate"
-                                                defaultValue={editingUser?.birthDate}
+                                                defaultValue={
+                                                    editingUser?.birthDate?.includes('-')
+                                                        ? editingUser.birthDate.split('-').reverse().join('.')
+                                                        : editingUser?.birthDate
+                                                }
                                                 placeholder="gg.aa.yyyy"
                                                 type="text"
                                                 maxLength={10}
@@ -644,19 +656,19 @@ export default function UserManagement() {
                         </div>
 
                         {/* 4. FOOTER */}
-                        <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end shrink-0">
+                        <div className="p-8 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end gap-4 shrink-0">
 
-                            {/* HATA MESAJI: Sadece hata varsa ve işlem henüz başarılı değilse görünür */}
+                            {/* HATA MESAJI */}
                             {!isSuccess && Object.keys(errors).length > 0 && (
-                                <span className="text-[13px] font-bold text-red-500 mr-8 animate-in fade-in slide-in-from-right-4">
-                                    {getFlexMessage('validation/required-fields').text}
+                                <span className="text-[13px] font-bold text-red-500 mr-auto animate-in fade-in slide-in-from-left-4">
+                                    Lütfen eksik alanları doldurun.
                                 </span>
                             )}
 
                             <button
                                 type="button"
                                 onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }}
-                                className="px-8 font-bold text-neutral-400 hover:text-neutral-600 cursor-pointer transition-all"
+                                className="px-8 font-bold text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors"
                             >
                                 Vazgeç
                             </button>
@@ -664,23 +676,27 @@ export default function UserManagement() {
                             <button
                                 type="submit"
                                 disabled={loading || isSuccess}
-                                className={`h-12 px-12 rounded-xl font-bold transition-all ${isSuccess ? 'bg-green-500 text-white' : 'bg-orange-500 text-white active:scale-95'
+                                className={`h-14 px-14 rounded-xl font-bold transition-all flex items-center gap-3 shadow-xl ${isSuccess
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-orange-500 text-white active:scale-95 shadow-orange-500/20 cursor-pointer hover:bg-orange-600'
                                     }`}
                             >
-                                {/* Öncelik sırası: Başarı > Yükleme > Varsayılan */}
-                                {isSuccess ? "Kaydedildi" : loading ? "Kaydediliyor..." : "Kaydet"}
+                                {isSuccess ? (
+                                    <>
+                                        <Check size={24} strokeWidth={3} />
+                                        <span>Hesap Kaydedildi</span>
+                                    </>
+                                ) : loading ? (
+                                    "Kaydediliyor..."
+                                ) : (
+                                    "Hesabı Kaydet"
+                                )}
                             </button>
-
-                            {/* YEŞİL ONAY TIKI: Kaydet butonunun tam 24px sağında (ml-6) */}
-                            {isSuccess && (
-                                <div className="ml-6 text-green-500 animate-in fade-in zoom-in duration-500">
-                                    <Check size={28} strokeWidth={4} />
-                                </div>
-                            )}
                         </div>
                     </form>
                 </div>
-            )}
+            </div>
+
             {/* --- MODALLAR --- */}
             <GlobalConfirmationModal
                 isOpen={modalConfig.isOpen}

@@ -1,13 +1,15 @@
-import React from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+"use client";
+import React, { useState, useEffect } from "react";
+import { X, Check, GraduationCap, MessageSquare, MapPin, User, Mail, Users, Camera } from "lucide-react";
+import { getFlexMessage } from "@/app/lib/messages";
 
+// SADECE TEK BİR INTERFACE (Gereksizleri sildik, errors ve shake ekledik)
 interface StudentFormProps {
   isStudentFormOpen: boolean;
-  studentBranch: string;
-  setStudentBranch: (val: string) => void;
-  selectedGroupIdForStudent: string;
-  setSelectedGroupIdForStudent: (val: string) => void;
+  setIsStudentFormOpen: (val: boolean) => void;
+  handleAddStudent: (e?: any) => void;
   groups: any[];
+  editingStudent?: any;
   studentName: string;
   setStudentName: (val: string) => void;
   studentLastName: string;
@@ -16,158 +18,198 @@ interface StudentFormProps {
   setStudentEmail: (val: string) => void;
   studentNote: string;
   setStudentNote: (val: string) => void;
-  studentError: string;
-  setStudentError: (val: string) => void;
-  handleAddStudent: () => void;
-  setIsStudentFormOpen: (val: boolean) => void;
+  studentBranch: string;
+  setStudentBranch: (val: string) => void;
+  selectedGroupIdForStudent: string;
+  setSelectedGroupIdForStudent: (val: string) => void;
+  errors?: any;
+  shake?: boolean;
+  setErrors?: (val: any) => void;
+  triggerShake?: () => void;
 }
 
 export const StudentForm: React.FC<StudentFormProps> = ({
   isStudentFormOpen,
-  studentBranch,
-  setStudentBranch,
-  selectedGroupIdForStudent,
-  setSelectedGroupIdForStudent,
-  groups,
-  studentName,
-  setStudentName,
-  studentLastName,
-  setStudentLastName,
-  studentEmail,
-  setStudentEmail,
-  studentNote,
-  setStudentNote,
-  studentError,
-  setStudentError,
+  setIsStudentFormOpen,
   handleAddStudent,
-  setIsStudentFormOpen
+  groups,
+  editingStudent,
+  studentName, setStudentName,
+  studentLastName, setStudentLastName,
+  studentEmail, setStudentEmail,
+  studentNote, setStudentNote,
+  studentBranch, setStudentBranch,
+  selectedGroupIdForStudent, setSelectedGroupIdForStudent,
+  // Bunları artık kullanmayacağız, istersen listeden de silebilirsin
 }) => {
+  // --- ADIM 1: İÇE GÖMÜLEN STATE'LER ---
+  const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  // İşte kullanıcı sayfasındaki gibi içine gömdüğümüz yerel state'ler:
+  const [localErrors, setLocalErrors] = useState<Record<string, boolean>>({});
+  const [localShake, setLocalShake] = useState(false);
+
+  // Shake etkisini temizlemek için useEffect (Kullanıcı sayfasındakiyle aynı)
+  useEffect(() => {
+    if (localShake) {
+      const timer = setTimeout(() => setLocalShake(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [localShake]);
+
+  useEffect(() => {
+    if (!isStudentFormOpen) {
+      setIsSuccess(false);
+      setLoading(false);
+      setLocalErrors({}); // Form kapanınca hataları da temizleyelim
+    }
+  }, [isStudentFormOpen]);
+
+  // Formun HTML/JSX kısmı buradan aşağısı aynı kalacak...
+  // Sadece submit ederken handleAddStudent() çağıracaksın.
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLocalErrors({});
+
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      name: studentName,
+      surname: studentLastName,
+      email: studentEmail,
+      branch: studentBranch,
+      groupId: selectedGroupIdForStudent,
+      note: studentNote,
+      gender: formData.get("gender") as string
+    };
+
+    let newErrors: Record<string, boolean> = {};
+    if (!data.name) newErrors.name = true;
+    if (!data.surname) newErrors.surname = true;
+    if (!data.email) newErrors.email = true;
+    if (!data.gender) newErrors.gender = true;
+    if (!data.branch) newErrors.branch = true;
+    if (!data.groupId) newErrors.groupId = true;
+
+    if (Object.keys(newErrors).length > 0) {
+      setLocalErrors(newErrors);
+      setLocalShake(true);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await handleAddStudent(data);
+      setIsSuccess(true);
+      setLoading(false);
+      setTimeout(() => {
+        setIsStudentFormOpen(false);
+        resetStudentForm();
+      }, 1000);
+    } catch (err) {
+      console.error("Hata:", err);
+      setLoading(false);
+    }
+  };
+
+  const resetStudentForm = () => {
+    setStudentName("");
+    setStudentLastName("");
+    setStudentEmail("");
+    setStudentNote("");
+    setStudentBranch("");
+    setSelectedGroupIdForStudent("");
+    setLocalErrors({});
+    setIsSuccess(false);
+  };
+
   return (
-    <div className={`grid transition-all duration-500 ease-in-out ${isStudentFormOpen ? 'grid-rows-[1fr] opacity-100 mt-6' : 'grid-rows-[0fr] opacity-0 overflow-hidden'}`}>
-      <div className="min-h-0 overflow-hidden">
-        <div className="bg-white border border-neutral-200 rounded-lg p-[36px] shadow-sm mb-8">
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-100">
+      {/* Arka Plan Karartma */}
+      <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md" onClick={() => setIsStudentFormOpen(false)} />
 
-          {/* 6'lı Grid Dağılımı */}
-          <div className="grid grid-cols-[140px_140px_1fr_1fr_1fr_2fr] gap-[16px]">
-
-            {/* 1. Şube Seçimi */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[14px] font-medium text-base-primary-900 leading-none">Şube</label>
-              <div className="relative">
-                <select
-                  value={studentBranch}
-                  onChange={(e) => {
-                    setStudentBranch(e.target.value);
-                    setSelectedGroupIdForStudent("");
-                    setStudentError("");
-                  }}
-                  className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 pr-10 text-[13px] focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 appearance-none cursor-pointer outline-none"
-                >
-                  <option value="Kadıköy">Kadıköy</option>
-                  <option value="Şirinevler">Şirinevler</option>
-                  <option value="Pendik">Pendik</option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <ChevronDown size={16} />
-                </div>
-              </div>
+      <form key={editingStudent?.id || "new-form"} onSubmit={handleSubmit} className={`relative w-full max-w-5xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[94vh] h-fit text-[#10294C] ${localShake ? 'animate-shake' : ''}`}>
+        <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-orange-500 rounded-[12px] flex items-center justify-center shadow-lg shadow-orange-500/20">
+              <GraduationCap size={26} strokeWidth={2.5} />
             </div>
-
-            {/* 2. Grup Seçimi */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[14px] font-medium text-base-primary-900 leading-none">Grup Seçimi</label>
-              <div className="relative">
-                <select
-                  value={selectedGroupIdForStudent}
-                  onChange={(e) => { setSelectedGroupIdForStudent(e.target.value); setStudentError(""); }}
-                  className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 pr-10 text-[13px] focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 appearance-none cursor-pointer outline-none"
-                >
-                  <option value="">Grup seç...</option>
-
-                  {/* BURAYI DEĞİŞTİRİYORUZ: Sadece seçili şubeye ait aktif grupları göster */}
-                  {groups
-                    .filter(g => g.status === 'active' && g.branch === studentBranch)
-                    .map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.code}
-                      </option>
-                    ))
-                  }
-                </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* 3. Ad */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[14px] font-medium text-base-primary-900 leading-none">Ad</label>
-              <input
-                type="text"
-                value={studentName}
-                onChange={(e) => { setStudentName(e.target.value); setStudentError(""); }}
-                placeholder="Örn: Ela"
-                className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 outline-none"
-              />
-            </div>
-
-            {/* 4. Soyad */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[14px] font-medium text-base-primary-900 leading-none">Soyad</label>
-              <input
-                type="text"
-                value={studentLastName}
-                onChange={(e) => { setStudentLastName(e.target.value); setStudentError(""); }}
-                placeholder="Örn: Karaca"
-                className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 outline-none"
-              />
-            </div>
-
-            {/* 5. E-Posta */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[14px] font-medium text-base-primary-900 leading-none">E-Posta</label>
-              <input
-                type="email"
-                value={studentEmail}
-                onChange={(e) => { setStudentEmail(e.target.value); setStudentError(""); }}
-                placeholder="mail@ornek.com"
-                className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 outline-none"
-              />
-            </div>
-
-            {/* 6. Eğitmen Notu */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[14px] font-medium text-base-primary-900 leading-none">Eğitmen Notu</label>
-              <textarea
-                rows={1}
-                value={studentNote}
-                onChange={(e) => setStudentNote(e.target.value)}
-                className="w-full h-10 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-sm focus:outline-none focus:border-base-primary-500 transition-all font-medium text-base-primary-900 resize-none py-[9px] outline-none"
-              />
+            <div>
+              <h3 className="text-[20px] font-bold">{editingStudent ? "Öğrenci Kartını Düzenle" : "Yeni Öğrenci Tanımla"}</h3>
+              <p className="text-white/50 text-[13px] font-medium">Öğrenci bilgilerini ve gelişim notlarını buradan yönetin.</p>
             </div>
           </div>
-
-          {/* Footer: Error & Buttons */}
-          <div className="mt-8 flex items-center justify-end gap-[16px]">
-            {studentError && (
-              <p className="text-red-500 text-[13px] font-bold animate-shake-fast">
-                {studentError}
-              </p>
-            )}
-            <button
-              onClick={handleAddStudent}
-              className="h-10 px-8 bg-[var(--color-designstudio-secondary-500)] text-white rounded-lg font-bold text-sm flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-500/10 active:scale-95 transition-all outline-none"
-            >
-              Kaydet <ChevronRight size={18} />
-            </button>
-            <button
-              onClick={() => { setIsStudentFormOpen(false); setStudentError(""); }}
-              className="h-10 px-6 bg-neutral-100 text-neutral-500 rounded-lg font-bold text-sm hover:bg-neutral-200 transition-colors outline-none cursor-pointer"
-            >
-              Vazgeç
-            </button>
+          <button type="button" onClick={() => setIsStudentFormOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"><X size={20} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+          <div className="flex gap-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-40 h-40 rounded-[24px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shadow-inner group">
+                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${editingStudent?.name || 'student'}`} className="w-full h-full object-cover" alt="avatar" />
+              </div>
+            </div>
+            <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><User size={14} /> Ad</label>
+                <input name="name" value={studentName} onChange={(e) => setStudentName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><User size={14} /> Soyad</label>
+                <input name="surname" value={studentLastName} onChange={(e) => setStudentLastName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><Mail size={14} /> E-Posta</label>
+                <input name="email" type="email" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold ${localErrors.email ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><Users size={14} /> Cinsiyet</label>
+                <select name="gender" defaultValue={editingStudent?.gender} className={`h-12 w-full border rounded-[12px] px-3 outline-none font-bold appearance-none cursor-pointer transition-all ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                  <option value="">Seçiniz</option>
+                  <option value="male">Erkek</option>
+                  <option value="female">Kız</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6 pt-6 border-t border-neutral-50">
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><MapPin size={14} /> Şube</label>
+              <select name="branch" value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none font-bold cursor-pointer transition-all ${localErrors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                <option value="">Şube Seçiniz</option>
+                <option value="Kadıköy">Kadıköy</option>
+                <option value="Şirinevler">Şirinevler</option>
+                <option value="Pendik">Pendik</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><GraduationCap size={14} /> Grup Seçimi</label>
+              <select name="groupId" value={selectedGroupIdForStudent} onChange={(e) => setSelectedGroupIdForStudent(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none font-bold cursor-pointer transition-all ${localErrors.groupId ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                <option value="">Bir grup seçin...</option>
+                {groups.filter(g => g && (g.code || g.name)).map((g) => (
+                  <option key={g.id} value={g.id}>{g.code}{g.branch ? ` (${g.branch})` : ""}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="space-y-4 pt-4">
+            <div className="flex items-center gap-3 text-orange-500 font-bold text-[13px] border-l-4 border-orange-500 pl-4">
+              <MessageSquare size={20} /><span>Öğrenci Gelişim ve Eğitmen Özel Notları</span>
+            </div>
+            <textarea name="instructorNote" value={studentNote} onChange={(e) => setStudentNote(e.target.value)} placeholder="Öğrencinin teknik seviyesi ve özel durumları..." className="w-full h-[140px] bg-neutral-50 border border-neutral-100 rounded-[12px] p-6 outline-none font-medium text-[15px] focus:border-orange-200 focus:bg-white transition-all resize-none" />
           </div>
         </div>
-      </div>
+        <div className="p-8 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end shrink-0">
+          {!isSuccess && Object.keys(localErrors).length > 0 && (
+            <span className="text-[13px] font-bold text-red-500 mr-8 animate-in fade-in slide-in-from-right-4">{getFlexMessage('validation/required-fields').text}</span>
+          )}
+          <button type="button" onClick={() => setIsStudentFormOpen(false)} className="px-8 font-bold text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors">Vazgeç</button>
+          <button type="submit" disabled={loading || isSuccess} className={`h-14 px-14 rounded-[12px] font-bold transition-all flex items-center gap-3 shadow-xl ${isSuccess ? 'bg-green-500 text-white' : 'bg-orange-500 text-white active:scale-95 shadow-orange-500/20 cursor-pointer hover:bg-orange-600'}`}>
+            {isSuccess ? <><Check size={24} strokeWidth={3} /><span>Öğrenci Kaydedildi</span></> : loading ? "Kaydediliyor..." : "Öğrenciyi Kaydet"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

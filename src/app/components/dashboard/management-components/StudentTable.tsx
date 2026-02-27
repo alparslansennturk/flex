@@ -28,7 +28,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
         {/* Hydration hatasını önlemek için bitişik nizam colgroup */}
         <colgroup><col className="w-[60px]"/><col className="w-[220px]"/><col className="w-[140px]"/><col className="w-[140px]"/><col className="w-[240px]"/><col className="w-[200px]"/>{viewMode === 'all-branches' && <col className="w-[180px]"/>}<col className="w-[120px]"/></colgroup>
         <thead>
-          <tr className={`border-b border-neutral-200 transition-all duration-300 ${selectedStudentIds.length > 0 ? "bg-base-primary-900 text-white h-14" : "bg-neutral-50/30 h-12"}`}>
+          <tr className={`border-b border-neutral-200 transition-colors duration-300 h-14 ${selectedStudentIds.length > 0 ? "bg-base-primary-900 text-white" : "bg-neutral-50/30"}`}>
             <th className="px-6 text-center">
               <input
                 type="checkbox"

@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { X, ChevronDown, ChevronRight } from "lucide-react";
 
 interface GroupFormProps {
   isFormOpen: boolean;
-  isShaking: boolean;
+  isShaking?: boolean;
   groupCode: string;
   setGroupCode: (val: string) => void;
   groupBranch: string;
@@ -27,12 +27,14 @@ interface GroupFormProps {
 }
 
 export const GroupForm: React.FC<GroupFormProps> = ({
-  isFormOpen, isShaking, groupCode, setGroupCode, groupBranch, setGroupBranch,
+  isFormOpen, groupCode, setGroupCode, groupBranch, setGroupBranch,
   instructors, selectedInstructorId, setSelectedInstructorId,
   errors, setErrors, selectedSchedule, setSelectedSchedule,
   isScheduleOpen, setIsScheduleOpen, schedules, customSchedule, setCustomSchedule,
   handleCancel, handleSave, scheduleRef, isAdmin = true
 }) => {
+
+  const [shake, setShake] = useState(false);
 
   return (
     <div
@@ -47,9 +49,9 @@ export const GroupForm: React.FC<GroupFormProps> = ({
       */}
       <div className={`${isScheduleOpen ? "" : "overflow-hidden"}`}>
         <div className={`
-          bg-white border border-neutral-200 rounded-[20px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]
-          ${isShaking ? "animate-shake-fast border-red-200" : ""}
-        `}>
+    bg-white border border-neutral-200 rounded-[20px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]
+    ${shake ? "animate-shake-fast border-red-200" : ""}
+`}>
 
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-[16px] font-bold text-base-primary-900 tracking-tight">Grup Yapılandırması</h3>
