@@ -24,6 +24,7 @@ interface Student {
   name: string;
   lastName: string;
   email: string;
+  gender?: string; // İŞTE BURAYA EKLEDİK
   note: string;
   groupId: string;
   branch: string;
@@ -72,7 +73,8 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [studentLastName, setStudentLastName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [studentNote, setStudentNote] = useState("");
-  const [studentBranch, setStudentBranch] = useState("Kadıköy");
+  const [studentBranch, setStudentBranch] = useState("");
+  const [studentGender, setStudentGender] = useState("");
   const [studentError, setStudentError] = useState("");
   const [viewMode, setViewMode] = useState<'group-list' | 'all-groups' | 'all-branches'>('group-list');
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
@@ -388,22 +390,34 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   };
 
   // ÖĞRENCİ EKLEME MERKEZİ - HATALARLA BİRLİKTE
-  const handleAddStudent = async () => {
-    if (!studentName.trim() || !studentLastName.trim() || !selectedGroupIdForStudent) {
-      setStudentError("Lütfen eksik alanları doldurun.");
+  const handleAddStudent = async (passedData?: any) => {
+    // 1. Eğer formdan veri gelmişse (passedData) onu kullan, yoksa eski state'lere bak
+    const name = passedData?.name || studentName;
+    const lastName = passedData?.lastName || studentLastName;
+    const email = passedData?.email || studentEmail;
+    const note = passedData?.note || studentNote;
+    const groupId = passedData?.groupId || selectedGroupIdForStudent;
+    const branch = passedData?.branch || studentBranch;
+    const gender = passedData?.gender || ""; // Cinsiyet buraya eklendi!
+
+    // 2. Validasyon (Artık gelen veriye göre kontrol ediyor)
+    if (!name?.trim() || !lastName?.trim() || !groupId) {
+      showNotification("Lütfen eksik alanları doldurun.");
       return;
     }
 
-    const targetGroup = groups.find(g => g.id === selectedGroupIdForStudent);
+    const targetGroup = groups.find(g => g.id === groupId);
 
+    // 3. Veritabanına gidecek paket
     const studentData: any = {
-      name: studentName.trim(),
-      lastName: studentLastName.trim(),
-      email: studentEmail.trim(),
-      note: studentNote.trim(),
-      groupId: selectedGroupIdForStudent,
+      name: name.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+      note: note.trim(),
+      groupId: groupId,
       groupCode: targetGroup?.code || "Tanımsız",
-      branch: studentBranch,
+      branch: branch,
+      gender: gender, // Veritabanına cinsiyeti de ekliyoruz!
       status: 'active',
       updatedAt: new Date()
     };
@@ -412,24 +426,31 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       if (editingStudentId) {
         const oldStudent = students.find(s => s.id === editingStudentId);
 
-        if (oldStudent && oldStudent.groupId !== selectedGroupIdForStudent) {
+        if (oldStudent && oldStudent.groupId !== groupId) {
           if (oldStudent.groupId && oldStudent.groupId !== "unassigned") {
             await updateDoc(doc(db, "groups", oldStudent.groupId), { students: increment(-1) });
           }
-          await updateDoc(doc(db, "groups", selectedGroupIdForStudent), { students: increment(1) });
+          await updateDoc(doc(db, "groups", groupId), { students: increment(1) });
         }
 
         await updateDoc(doc(db, "students", editingStudentId), studentData);
         showNotification("Öğrenci güncellendi.");
       } else {
-        await addDoc(collection(db, "students"), { ...studentData, points: 0, createdAt: new Date() });
-        await updateDoc(doc(db, "groups", selectedGroupIdForStudent), { students: increment(1) });
+        // Yeni öğrenci ekleme
+        await addDoc(collection(db, "students"), {
+          ...studentData,
+          points: 0,
+          createdAt: new Date()
+        });
+        await updateDoc(doc(db, "groups", groupId), { students: increment(1) });
         showNotification("Öğrenci eklendi.");
       }
 
+      // Formu temizle ve kapat
       resetStudentForm();
       setIsStudentFormOpen(false);
     } catch (error) {
+      console.error("Firebase Hatası:", error);
       showNotification("Öğrenci kaydedilemedi.");
     }
   };
@@ -473,7 +494,9 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setStudentName(student.name);
     setStudentLastName(student.lastName || "");
     setStudentEmail(student.email || "");
+    setStudentGender(student.gender || "");
     setStudentNote(student.note || "");
+    setStudentBranch(student.branch || "");
     setIsStudentFormOpen(true);
   };
 
@@ -493,7 +516,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     editingGroupId, setEditingGroupId, groupCode, setGroupCode, groupBranch, setGroupBranch,
     instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
-    isScheduleOpen, setIsScheduleOpen, errors, setErrors, 
+    isScheduleOpen, setIsScheduleOpen, errors, setErrors,
     searchQuery, setSearchQuery, isStudentFormOpen, setIsStudentFormOpen,
     studentName, setStudentName, studentLastName, setStudentLastName,
     studentEmail, setStudentEmail, studentNote, setStudentNote,
@@ -503,6 +526,6 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
     filteredGroups, filteredStudents, myGroupCards, showPassive, setShowPassive, selectedStudentIds, setSelectedStudentIds,
-    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal,
+    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal, studentGender, setStudentGender,
   };
 };

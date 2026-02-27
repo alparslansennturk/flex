@@ -40,7 +40,6 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   studentNote, setStudentNote,
   studentBranch, setStudentBranch,
   selectedGroupIdForStudent, setSelectedGroupIdForStudent,
-  // Bunları artık kullanmayacağız, istersen listeden de silebilirsin
 }) => {
   // --- ADIM 1: İÇE GÖMÜLEN STATE'LER ---
   const [loading, setLoading] = useState(false);
@@ -58,6 +57,18 @@ export const StudentForm: React.FC<StudentFormProps> = ({
     }
   }, [localShake]);
 
+  // DÜZENLEME MODU İÇİN VERİLERİ STATE'LERE YÜKLE
+  useEffect(() => {
+    if (editingStudent) {
+      setStudentName(editingStudent.name || "");
+      setStudentLastName(editingStudent.lastName || "");
+      setStudentEmail(editingStudent.email || "");
+      setStudentBranch(editingStudent.branch || "");
+      setStudentNote(editingStudent.note || "");
+      setSelectedGroupIdForStudent(editingStudent.groupId || "");
+    }
+  }, [editingStudent]);
+
   useEffect(() => {
     if (!isStudentFormOpen) {
       setIsSuccess(false);
@@ -73,21 +84,26 @@ export const StudentForm: React.FC<StudentFormProps> = ({
     e.preventDefault();
     setLocalErrors({});
 
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    // Gender değerini garantili alalım
+    const genderField = form.elements.namedItem("gender") as HTMLSelectElement;
+    const genderValue = genderField?.value;
+
     const data = {
       name: studentName,
-      surname: studentLastName,
+      lastName: studentLastName,
       email: studentEmail,
       branch: studentBranch,
       groupId: selectedGroupIdForStudent,
       note: studentNote,
-      gender: formData.get("gender") as string
+      gender: genderValue
     };
 
+    // VALIDASYON
     let newErrors: Record<string, boolean> = {};
-    if (!data.name) newErrors.name = true;
-    if (!data.surname) newErrors.surname = true;
-    if (!data.email) newErrors.email = true;
+    if (!data.name?.trim()) newErrors.name = true;
+    if (!data.lastName?.trim()) newErrors.lastName = true;
+    if (!data.email?.trim()) newErrors.email = true;
     if (!data.gender) newErrors.gender = true;
     if (!data.branch) newErrors.branch = true;
     if (!data.groupId) newErrors.groupId = true;
@@ -101,19 +117,25 @@ export const StudentForm: React.FC<StudentFormProps> = ({
     setLoading(true);
 
     try {
+      // BURASI ÇOK KRİTİK: Dışarıdaki fonksiyona datayı paslıyoruz
       await handleAddStudent(data);
+
       setIsSuccess(true);
-      setLoading(false);
+
+      // Kayıttan sonra formu temizle ve kapat
       setTimeout(() => {
         setIsStudentFormOpen(false);
-        resetStudentForm();
-      }, 1000);
+        // Eğer resetStudentForm proplardan gelmiyorsa yerelde tanımlı olmalı
+        if (typeof resetStudentForm === 'function') resetStudentForm();
+      }, 1500);
     } catch (err) {
-      console.error("Hata:", err);
+      console.error("Kayıt hatası:", err);
+      // Hata olursa kullanıcıya titreme ile bildir
+      setLocalShake(true);
+    } finally {
       setLoading(false);
     }
   };
-
   const resetStudentForm = () => {
     setStudentName("");
     setStudentLastName("");
@@ -165,7 +187,11 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               </div>
               <div className="space-y-1.5">
                 <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><Users size={14} /> Cinsiyet</label>
-                <select name="gender" defaultValue={editingStudent?.gender} className={`h-12 w-full border rounded-[12px] px-3 outline-none font-bold appearance-none cursor-pointer transition-all ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                <select
+                  name="gender"
+                  defaultValue={editingStudent?.gender || ""}
+                  className="h-12 w-full border rounded-[12px] px-3 outline-none font-bold appearance-none cursor-pointer transition-all border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white"
+                >
                   <option value="">Seçiniz</option>
                   <option value="male">Erkek</option>
                   <option value="female">Kız</option>
@@ -176,7 +202,11 @@ export const StudentForm: React.FC<StudentFormProps> = ({
           <div className="grid grid-cols-2 gap-6 pt-6 border-t border-neutral-50">
             <div className="space-y-1.5">
               <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><MapPin size={14} /> Şube</label>
-              <select name="branch" value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none font-bold cursor-pointer transition-all ${localErrors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+              <select
+                value={studentBranch} // State'e tam bağlı kalsın
+                onChange={(e) => setStudentBranch(e.target.value)}
+                className={`h-12 w-full border rounded-[12px] px-4 outline-none font-bold cursor-pointer transition-all ${localErrors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}
+              >
                 <option value="">Şube Seçiniz</option>
                 <option value="Kadıköy">Kadıköy</option>
                 <option value="Şirinevler">Şirinevler</option>

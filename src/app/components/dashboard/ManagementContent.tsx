@@ -22,7 +22,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     groupBranch, setGroupBranch,
     instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
-    isScheduleOpen, setIsScheduleOpen, errors, setErrors, 
+    isScheduleOpen, setIsScheduleOpen, errors, setErrors,
     searchQuery, setSearchQuery, isStudentFormOpen, setIsStudentFormOpen,
     studentName, setStudentName, studentLastName, setStudentLastName,
     studentEmail, setStudentEmail, studentNote, setStudentNote,
@@ -82,7 +82,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           <GroupForm
             isAdmin={isAdmin} // KRİTİK: Bu prop Elif'in dropdownları açmasını engeller
             isFormOpen={isFormOpen}
-           
+
             groupCode={groupCode}
             setGroupCode={setGroupCode}
             groupBranch={groupBranch}
@@ -214,60 +214,60 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       setSelectedGroupIdForStudent={setSelectedGroupIdForStudent}
                     />
                   </div>
-                  </div>
-
-                  {/* Tablo Alanı - Genişlik hesaplaması stabilize edildi */}
-                  <div className="animate-in fade-in duration-700 w-full overflow-hidden">
-                    <StudentTable
-                      students={filteredStudents}
-                      selectedStudentIds={selectedStudentIds}
-                      viewMode={viewMode}
-                      groups={groups}
-                      toggleStudentSelection={toggleStudentSelection}
-                      handleSelectAll={handleSelectAll}
-                      handleEditStudent={handleEditStudent}
-                      setDeleteModal={setDeleteModal}
-                    />
-                    {filteredStudents.length === 0 && (
-                      <div className="flex flex-col items-center justify-center py-24 text-neutral-400">
-                        <Users size={40} className="mb-2 opacity-10" />
-                        <p className="text-[13px]">Kayıtlı öğrenci bulunamadı.</p>
-                      </div>
-                    )}
-                  </div>
                 </div>
-              </div>
-          )}
-            </div>
-          )}
 
-          {/* --- BÖLÜM: KULLANICI YÖNETİMİ --- */}
-          {activeSubTab === 'users' && <UserManagement />}
-
-          {/* --- BÖLÜM: ÖDEV YÖNETİMİ (TASLAK) --- */}
-          {activeSubTab === 'task-management' && (
-            <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-500">
-              <div className="bg-white border border-neutral-100 rounded-[24px] p-20 flex flex-col items-center justify-center text-center">
-                <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-[#8B5CF6] mb-4">
-                  <BookOpen size={32} />
+                {/* Tablo Alanı - Genişlik hesaplaması stabilize edildi */}
+                <div className="animate-in fade-in duration-700 w-full overflow-hidden">
+                  <StudentTable
+                    students={filteredStudents}
+                    selectedStudentIds={selectedStudentIds}
+                    viewMode={viewMode}
+                    groups={groups}
+                    toggleStudentSelection={toggleStudentSelection}
+                    handleSelectAll={handleSelectAll}
+                    handleEditStudent={handleEditStudent}
+                    setDeleteModal={setDeleteModal}
+                  />
+                  {filteredStudents.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-24 text-neutral-400">
+                      <Users size={40} className="mb-2 opacity-10" />
+                      <p className="text-[13px]">Kayıtlı öğrenci bulunamadı.</p>
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-[18px] font-bold text-[#10294C]">Ödev Yönetimi Paneli</h3>
-                <p className="text-neutral-400 text-[14px] mt-2 max-w-sm">Bu alan şu an geliştirme aşamasındadır. Çok yakında lila butonlarla ödev yönetimini buradan yapabileceksiniz.</p>
               </div>
             </div>
           )}
-
-          {/* --- MODALLAR --- */}
-          <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type as any} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />
-          <StudentDeleteModal
-            isOpen={deleteModal.isOpen}
-            onClose={() => setDeleteModal({ isOpen: false, studentId: "" })}
-            onConfirm={async () => {
-              if (deleteModal.studentId === "bulk") await handleBulkDeleteStudents();
-              else await handleDeleteStudent(deleteModal.studentId);
-              setDeleteModal({ isOpen: false, studentId: "" });
-            }}
-          />
         </div>
-      );
+      )}
+
+      {/* --- BÖLÜM: KULLANICI YÖNETİMİ --- */}
+      {activeSubTab === 'users' && <UserManagement />}
+
+      {/* --- BÖLÜM: ÖDEV YÖNETİMİ (TASLAK) --- */}
+      {activeSubTab === 'task-management' && (
+        <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-500">
+          <div className="bg-white border border-neutral-100 rounded-[24px] p-20 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-[#8B5CF6] mb-4">
+              <BookOpen size={32} />
+            </div>
+            <h3 className="text-[18px] font-bold text-[#10294C]">Ödev Yönetimi Paneli</h3>
+            <p className="text-neutral-400 text-[14px] mt-2 max-w-sm">Bu alan şu an geliştirme aşamasındadır. Çok yakında lila butonlarla ödev yönetimini buradan yapabileceksiniz.</p>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODALLAR --- */}
+      <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type as any} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />
+      <StudentDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, studentId: "" })}
+        onConfirm={async () => {
+          if (deleteModal.studentId === "bulk") await handleBulkDeleteStudents();
+          else await handleDeleteStudent(deleteModal.studentId);
+          setDeleteModal({ isOpen: false, studentId: "" });
+        }}
+      />
+    </div>
+  );
 }
