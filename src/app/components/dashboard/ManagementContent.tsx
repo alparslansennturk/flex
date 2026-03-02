@@ -31,7 +31,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
-    filteredGroups, filteredStudents, myGroupCards, toggleStudentSelection, handleSelectAll, studentGender, setStudentGender
+    filteredGroups, filteredStudents, myGroupCards, toggleStudentSelection, handleSelectAll, studentGender, setStudentGender, tempStudentBranch, setTempStudentBranch
   } = useManagement(setHeaderTitle);
 
   return (
@@ -208,8 +208,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       setStudentEmail={setStudentEmail}
                       studentNote={studentNote}
                       setStudentNote={setStudentNote}
-                      studentBranch={studentBranch}
-                      setStudentBranch={setStudentBranch}
+                      studentBranch={tempStudentBranch}
+                      setStudentBranch={setTempStudentBranch}
                       studentGender={studentGender}
                       setStudentGender={setStudentGender}
                       selectedGroupIdForStudent={selectedGroupIdForStudent}

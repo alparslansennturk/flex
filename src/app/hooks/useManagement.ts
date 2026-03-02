@@ -45,6 +45,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [instructors, setInstructors] = useState<any[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState("");
   const [groupBranch, setGroupBranch] = useState("Kadıköy");
+  const [tempStudentBranch, setTempStudentBranch] = useState(""); 
 
   const [activeSubTab, setActiveSubTab] = useState("groups");
   const [currentView, setCurrentView] = useState("Aktif Sınıflar");
@@ -127,20 +128,19 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
   /// 2. KESİN FİLTRELEME MOTORU
   const filteredStudents = students.filter((s) => {
-    const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
-    const statusMatch = showPassive ? s.status === 'passive' : s.status !== 'passive';
-    if (!searchMatch || !statusMatch) return false;
-    if (viewMode === 'group-list') return s.groupId === selectedGroupId;
-    if (viewMode === 'all-groups') {
-      const instructorName = (currentUser as any)?.displayName || (currentUser as any)?.name || "Alparslan";
-      return groups.some(g => g.id === s.groupId && g.instructor?.toLowerCase().includes(instructorName.toLowerCase().trim()));
-    }
-    if (viewMode === 'all-branches') {
-      if (studentBranch === "Tümü") return true;
-      return s.branch === studentBranch;
-    }
-    return true;
-  });
+  const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
+  const statusMatch = showPassive ? s.status === 'passive' : s.status !== 'passive';
+  if (!searchMatch || !statusMatch) return false;
+  if (viewMode === 'group-list') return s.groupId === selectedGroupId;
+  if (viewMode === 'all-groups') {
+    return groups.some(g => g.id === s.groupId && (g.instructorId === auth.currentUser?.uid || g.instructor?.toLowerCase().includes("alparslan")));
+  }
+  if (viewMode === 'all-branches') {
+    if (!studentBranch || studentBranch === "Tümü") return true;
+    return s.branch === studentBranch;
+  }
+  return true;
+});
 
   const myGroupCards = groups.filter(g => {
     const isMine = g.instructorId === currentUser?.uid;
@@ -191,14 +191,13 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     } else {
       targetList = filteredGroups;
     }
-    if (targetList.length > 0) {
-      const isStillInList = targetList.some(g => g.id === selectedGroupId);
-      if (!selectedGroupId || !isStillInList) {
-        setSelectedGroupId(targetList[0].id);
-        setLastSelectedId(targetList[0].id);
-      }
-    } else {
-      setSelectedGroupId(null);
+    if (!targetList || targetList.length === 0) {
+      return;
+    }
+    const isStillInList = targetList.some(g => g.id === selectedGroupId);
+    if (!selectedGroupId || !isStillInList) {
+      setSelectedGroupId(targetList[0].id);
+      setLastSelectedId(targetList[0].id);
     }
   }, [currentView, myGroupCards, filteredGroups, isFormOpen, isStudentFormOpen]);
 
@@ -397,10 +396,14 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     const groupId = passedData?.groupId || selectedGroupIdForStudent;
     const branch = passedData?.branch || studentBranch;
     const gender = passedData?.gender || studentGender || "";
+
+    console.log("🚀 [1] BAŞLADI - viewMode:", viewMode, "| selectedGroupId:", selectedGroupId);
+
     if (!name?.trim() || !lastName?.trim() || !groupId) {
       showNotification("Lütfen eksik alanları doldurun.");
       return;
     }
+
     const targetGroup = groups.find((g) => g.id === groupId);
     const studentData: any = {
       name: name.trim(),
@@ -414,8 +417,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       status: 'active',
       updatedAt: new Date(),
     };
+
     try {
       if (editingStudentId) {
+        console.log("📝 [2] GÜNCELLEME MODU - ID:", editingStudentId);
+        
         const oldStudent = students.find((s) => s.id === editingStudentId);
         if (oldStudent && oldStudent.groupId !== groupId) {
           if (oldStudent.groupId && oldStudent.groupId !== "unassigned") {
@@ -423,32 +429,45 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           }
           await updateDoc(doc(db, "groups", groupId), { students: increment(1) });
         }
+
         await updateDoc(doc(db, "students", editingStudentId), studentData);
-        setStudents((prev) =>
-          prev.map((s) => (s.id === editingStudentId ? { ...s, ...studentData } : s))
-        );
+        console.log("✅ [3] Firebase OK.");
+
+        setStudents((prev) => {
+          const updated = prev.map((s) => (s.id === editingStudentId ? { ...s, ...studentData } : s));
+          console.log("📊 [4] Yerel Liste Güncellendi. Sayı:", updated.length);
+          return [...updated]; // Referansı zorla değiştiriyoruz
+        });
+
         showNotification("Öğrenci güncellendi.");
       } else {
+        console.log("🆕 [2] YENİ KAYIT MODU.");
         const docRef = await addDoc(collection(db, "students"), {
           ...studentData,
           points: 0,
           createdAt: new Date(),
         });
         await updateDoc(doc(db, "groups", groupId), { students: increment(1) });
-        setStudents((prev) => [
-          { id: docRef.id, ...studentData, points: 0, createdAt: new Date() },
-          ...prev,
-        ]);
+        
+        setStudents(prev => [{ id: docRef.id, ...studentData, points: 0, createdAt: new Date() }, ...prev]);
         showNotification("Öğrenci eklendi.");
       }
-      resetStudentForm();
+
+      console.log("⏲️ [5] Form Kapatılıyor...");
       setIsStudentFormOpen(false);
+
+      // 🔍 EKSTRA KRİTİK LOG: 1 Saniye sonra filtreleme motoru ne görüyor?
+      setTimeout(() => {
+        console.log("🕵️‍♂️ [6] 1.5 SN SONRA - viewMode:", viewMode);
+        console.log("🕵️‍♂️ [7] 1.5 SN SONRA - selectedGroupId:", selectedGroupId);
+        console.log("🕵️‍♂️ [8] 1.5 SN SONRA - Toplam Student State:", students.length);
+      }, 1500);
+
     } catch (error) {
-      console.error("Firebase Hatası:", error);
-      showNotification("Öğrenci kaydedilemedi.");
+      console.error("❌ HATA:", error);
+      showNotification("İşlem başarısız.");
     }
   };
-
   const handleDeleteStudent = async (studentId: string) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
@@ -490,7 +509,9 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setStudentEmail(student.email || "");
     setStudentGender(student.gender || "");
     setStudentNote(student.note || "");
-    setStudentBranch(student.branch || "");
+    setTempStudentBranch(student.branch || "");
+    setTempStudentBranch(student.branch || "");
+    //setStudentBranch(student.branch || "");
     setIsStudentFormOpen(true);
   };
 
@@ -515,11 +536,12 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     studentName, setStudentName, studentLastName, setStudentLastName,
     studentEmail, setStudentEmail, studentNote, setStudentNote,
     studentBranch, setStudentBranch, studentError, setStudentError,
+    tempStudentBranch, setTempStudentBranch, 
     viewMode, setViewMode, toast, setToast, selectedGroupIdForStudent, setSelectedGroupIdForStudent,
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
-    handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
+    handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm, 
     filteredGroups, filteredStudents, myGroupCards, showPassive, setShowPassive, selectedStudentIds, setSelectedStudentIds,
     toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal, studentGender, setStudentGender,
-  };
+};
 };
