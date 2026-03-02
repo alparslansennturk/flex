@@ -26,6 +26,9 @@ interface StudentFormProps {
   shake?: boolean;
   setErrors?: (val: any) => void;
   triggerShake?: () => void;
+  studentGender: string;
+  setStudentGender: (val: string) => void;
+
 }
 
 export const StudentForm: React.FC<StudentFormProps> = ({
@@ -40,10 +43,21 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   studentNote, setStudentNote,
   studentBranch, setStudentBranch,
   selectedGroupIdForStudent, setSelectedGroupIdForStudent,
+  studentGender,
+  setStudentGender,
 }) => {
   // --- ADIM 1: İÇE GÖMÜLEN STATE'LER ---
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [localGender, setLocalGender] = useState("");
+  useEffect(() => {
+    if (editingStudent) {
+      setLocalGender(editingStudent.gender || "");
+    } else {
+      setLocalGender("");
+    }
+  }, [editingStudent]);
+
 
   // İşte kullanıcı sayfasındaki gibi içine gömdüğümüz yerel state'ler:
   const [localErrors, setLocalErrors] = useState<Record<string, boolean>>({});
@@ -189,12 +203,13 @@ export const StudentForm: React.FC<StudentFormProps> = ({
                 <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><Users size={14} /> Cinsiyet</label>
                 <select
                   name="gender"
-                  defaultValue={editingStudent?.gender || ""}
+                  value={studentGender} // ARTIK DOĞRUDAN SENİN STATE'İNE BAĞLI
+                  onChange={(e) => setStudentGender(e.target.value)} // DEĞİŞİNCE GLOBAL STATE GÜNCELLENİR
                   className="h-12 w-full border rounded-[12px] px-3 outline-none font-bold appearance-none cursor-pointer transition-all border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white"
                 >
                   <option value="">Seçiniz</option>
                   <option value="male">Erkek</option>
-                  <option value="female">Kız</option>
+                  <option value="female">Kadın</option>
                 </select>
               </div>
             </div>

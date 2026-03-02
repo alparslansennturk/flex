@@ -389,26 +389,19 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setModalConfig({ isOpen: false, type: null, groupId: null });
   };
 
-  // ÖĞRENCİ EKLEME MERKEZİ - HATALARLA BİRLİKTE
-  const handleAddStudent = async (passedData?: any) => {
-    // 1. Eğer formdan veri gelmişse (passedData) onu kullan, yoksa eski state'lere bak
+ const handleAddStudent = async (passedData?: any) => {
     const name = passedData?.name || studentName;
     const lastName = passedData?.lastName || studentLastName;
     const email = passedData?.email || studentEmail;
     const note = passedData?.note || studentNote;
     const groupId = passedData?.groupId || selectedGroupIdForStudent;
     const branch = passedData?.branch || studentBranch;
-    const gender = passedData?.gender || ""; // Cinsiyet buraya eklendi!
-
-    // 2. Validasyon (Artık gelen veriye göre kontrol ediyor)
+    const gender = passedData?.gender || studentGender || "";
     if (!name?.trim() || !lastName?.trim() || !groupId) {
       showNotification("Lütfen eksik alanları doldurun.");
       return;
     }
-
-    const targetGroup = groups.find(g => g.id === groupId);
-
-    // 3. Veritabanına gidecek paket
+    const targetGroup = groups.find((g) => g.id === groupId);
     const studentData: any = {
       name: name.trim(),
       lastName: lastName.trim(),
@@ -417,36 +410,37 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       groupId: groupId,
       groupCode: targetGroup?.code || "Tanımsız",
       branch: branch,
-      gender: gender, // Veritabanına cinsiyeti de ekliyoruz!
+      gender: gender,
       status: 'active',
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
-
     try {
       if (editingStudentId) {
-        const oldStudent = students.find(s => s.id === editingStudentId);
-
+        const oldStudent = students.find((s) => s.id === editingStudentId);
         if (oldStudent && oldStudent.groupId !== groupId) {
           if (oldStudent.groupId && oldStudent.groupId !== "unassigned") {
             await updateDoc(doc(db, "groups", oldStudent.groupId), { students: increment(-1) });
           }
           await updateDoc(doc(db, "groups", groupId), { students: increment(1) });
         }
-
         await updateDoc(doc(db, "students", editingStudentId), studentData);
+        setStudents((prev) =>
+          prev.map((s) => (s.id === editingStudentId ? { ...s, ...studentData } : s))
+        );
         showNotification("Öğrenci güncellendi.");
       } else {
-        // Yeni öğrenci ekleme
-        await addDoc(collection(db, "students"), {
+        const docRef = await addDoc(collection(db, "students"), {
           ...studentData,
           points: 0,
-          createdAt: new Date()
+          createdAt: new Date(),
         });
         await updateDoc(doc(db, "groups", groupId), { students: increment(1) });
+        setStudents((prev) => [
+          { id: docRef.id, ...studentData, points: 0, createdAt: new Date() },
+          ...prev,
+        ]);
         showNotification("Öğrenci eklendi.");
       }
-
-      // Formu temizle ve kapat
       resetStudentForm();
       setIsStudentFormOpen(false);
     } catch (error) {
