@@ -388,86 +388,51 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setModalConfig({ isOpen: false, type: null, groupId: null });
   };
 
- const handleAddStudent = async (passedData?: any) => {
-    const name = passedData?.name || studentName;
-    const lastName = passedData?.lastName || studentLastName;
-    const email = passedData?.email || studentEmail;
-    const note = passedData?.note || studentNote;
-    const groupId = passedData?.groupId || selectedGroupIdForStudent;
-    const branch = passedData?.branch || studentBranch;
-    const gender = passedData?.gender || studentGender || "";
-
-    console.log("🚀 [1] BAŞLADI - viewMode:", viewMode, "| selectedGroupId:", selectedGroupId);
-
-    if (!name?.trim() || !lastName?.trim() || !groupId) {
-      showNotification("Lütfen eksik alanları doldurun.");
-      return;
-    }
-
-    const targetGroup = groups.find((g) => g.id === groupId);
-    const studentData: any = {
-      name: name.trim(),
-      lastName: lastName.trim(),
-      email: email.trim(),
-      note: note.trim(),
-      groupId: groupId,
-      groupCode: targetGroup?.code || "Tanımsız",
-      branch: branch,
-      gender: gender,
-      status: 'active',
-      updatedAt: new Date(),
-    };
-
-    try {
-      if (editingStudentId) {
-        console.log("📝 [2] GÜNCELLEME MODU - ID:", editingStudentId);
-        
-        const oldStudent = students.find((s) => s.id === editingStudentId);
-        if (oldStudent && oldStudent.groupId !== groupId) {
-          if (oldStudent.groupId && oldStudent.groupId !== "unassigned") {
-            await updateDoc(doc(db, "groups", oldStudent.groupId), { students: increment(-1) });
-          }
-          await updateDoc(doc(db, "groups", groupId), { students: increment(1) });
-        }
-
-        await updateDoc(doc(db, "students", editingStudentId), studentData);
-        console.log("✅ [3] Firebase OK.");
-
-        setStudents((prev) => {
-          const updated = prev.map((s) => (s.id === editingStudentId ? { ...s, ...studentData } : s));
-          console.log("📊 [4] Yerel Liste Güncellendi. Sayı:", updated.length);
-          return [...updated]; // Referansı zorla değiştiriyoruz
-        });
-
-        showNotification("Öğrenci güncellendi.");
-      } else {
-        console.log("🆕 [2] YENİ KAYIT MODU.");
-        const docRef = await addDoc(collection(db, "students"), {
-          ...studentData,
-          points: 0,
-          createdAt: new Date(),
-        });
-        await updateDoc(doc(db, "groups", groupId), { students: increment(1) });
-        
-        setStudents(prev => [{ id: docRef.id, ...studentData, points: 0, createdAt: new Date() }, ...prev]);
-        showNotification("Öğrenci eklendi.");
-      }
-
-      console.log("⏲️ [5] Form Kapatılıyor...");
-      setIsStudentFormOpen(false);
-
-      // 🔍 EKSTRA KRİTİK LOG: 1 Saniye sonra filtreleme motoru ne görüyor?
-      setTimeout(() => {
-        console.log("🕵️‍♂️ [6] 1.5 SN SONRA - viewMode:", viewMode);
-        console.log("🕵️‍♂️ [7] 1.5 SN SONRA - selectedGroupId:", selectedGroupId);
-        console.log("🕵️‍♂️ [8] 1.5 SN SONRA - Toplam Student State:", students.length);
-      }, 1500);
-
-    } catch (error) {
-      console.error("❌ HATA:", error);
-      showNotification("İşlem başarısız.");
-    }
-  };
+const handleAddStudent=async(passedData?:any)=>{
+const name=passedData?.name||studentName;
+const lastName=passedData?.lastName||studentLastName;
+const email=passedData?.email||studentEmail;
+const note=passedData?.note||studentNote;
+const groupId=passedData?.groupId||selectedGroupIdForStudent;
+const branch=passedData?.branch||studentBranch;
+const gender=passedData?.gender||studentGender||"";
+if(!name?.trim()||!lastName?.trim()||!groupId){
+return;
+}
+const targetGroup=groups.find((g)=>g.id===groupId);
+const studentData:any={
+name:name.trim(),
+lastName:lastName.trim(),
+email:email.trim(),
+note:note.trim(),
+groupId:groupId,
+groupCode:targetGroup?.code||"Tanımsız",
+branch:branch,
+gender:gender,
+status:'active',
+updatedAt:new Date(),
+};
+try{
+if(editingStudentId){
+const oldStudent=students.find((s)=>s.id===editingStudentId);
+if(oldStudent&&oldStudent.groupId!==groupId){
+if(oldStudent.groupId&&oldStudent.groupId!=="unassigned"){
+await updateDoc(doc(db,"groups",oldStudent.groupId),{students:increment(-1)});
+}
+await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
+}
+await updateDoc(doc(db,"students",editingStudentId),studentData);
+setStudents((prev)=>prev.map((s)=>(s.id===editingStudentId?{...s,...studentData}:s)));
+}else{
+const docRef=await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
+await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
+setStudents(prev=>[{id:docRef.id,...studentData,points:0,createdAt:new Date()},...prev]);
+}
+}catch(error){
+console.error("HATA:",error);
+throw error;
+}
+};
   const handleDeleteStudent = async (studentId: string) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
