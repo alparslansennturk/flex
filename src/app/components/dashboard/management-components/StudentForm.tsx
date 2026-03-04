@@ -45,14 +45,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   // --- ADIM 1: İÇE GÖMÜLEN STATE'LER ---
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [localGender, setLocalGender] = useState("");
-  useEffect(() => {
-    if (editingStudent) {
-      setLocalGender(editingStudent.gender || "");
-    } else {
-      setLocalGender("");
-    }
-  }, [editingStudent]);
+  
 
 
   // İçine gömdüğümüz yerel state'ler
@@ -83,7 +76,15 @@ export const StudentForm: React.FC<StudentFormProps> = ({
     if (!isStudentFormOpen) {
       setIsSuccess(false);
       setLoading(false);
-      setLocalErrors({}); // Form kapanınca hataları da temizleyelim
+      setLocalErrors({}); 
+
+      setStudentName("");
+      setStudentLastName("");
+      setStudentEmail("");
+      setStudentBranch("");
+      setStudentNote("");
+      setSelectedGroupIdForStudent("");
+      setStudentGender("");
     }
   }, [isStudentFormOpen]);
 
@@ -177,51 +178,51 @@ export const StudentForm: React.FC<StudentFormProps> = ({
           <div className="flex gap-12">
             <div className="flex-col items-center gap-4 hidden md:flex">
               <div className="w-40 h-40 rounded-[24px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shadow-inner group">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${editingStudent?.name || 'student'}`} className="w-full h-full object-cover" alt="avatar" />
+                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${studentName || 'student'}`} className="w-full h-full object-cover" alt="avatar" />
               </div>
             </div>
             <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-5">
               <div className="space-y-1.5">
-                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><User size={14} /> Ad</label>
-                <input name="name" placeholder="Örn: Alparslan" value={studentName} onChange={(e) => setStudentName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold placeholder:text-neutral-400 placeholder:font-normal ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Ad</label>
+                <input name="name" placeholder="Örn: Alparslan" value={studentName} onChange={(e) => setStudentName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-400 placeholder:font-normal ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><User size={14} /> Soyad</label>
-                <input name="surname" placeholder="Örn: Akdağ" value={studentLastName} onChange={(e) => setStudentLastName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold placeholder:text-neutral-400 placeholder:font-normal ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Soyad</label>
+                <input name="surname" placeholder="Örn: Akdağ" value={studentLastName} onChange={(e) => setStudentLastName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-400 placeholder:font-normal ${localErrors.lastName ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><Mail size={14} /> E-Posta</label>
-                <input name="email" type="email" placeholder="ornek@email.com" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold placeholder:text-neutral-400 placeholder:font-normal ${localErrors.email ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <label className="text-[14px] font-semibold text-neutral-500 ml-1">E-Posta</label>
+                <input name="email" type="email" placeholder="ornek@email.com" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-400 placeholder:font-normal ${localErrors.email ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
               </div>
               <div className="space-y-1.5 relative">
-                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><Users size={14} /> Cinsiyet</label>
+                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Cinsiyet</label>
                 <div className="relative">
-                  <select name="gender" value={studentGender} onChange={(e) => setStudentGender(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-semibold ${!studentGender ? '!text-neutral-600' : '!text-[#10294C] !font-bold'} ${localErrors.gender ? 'border-red-500 bg-red-50 animate-fast-shake' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                  <select name="gender" value={studentGender} onChange={(e) => setStudentGender(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-bold text-[14px] ${!studentGender ? '!text-neutral-600' : '!text-[#10294C]'} ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
                     <option value="" disabled hidden>Cinsiyet Seçiniz...</option>
-                    <option value="male" className="text-neutral-800 font-semibold">Erkek</option>
-                    <option value="female" className="text-neutral-800 font-semibold">Kadın</option>
+                    <option value="male">Erkek</option>
+                    <option value="female">Kadın</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
                 </div>
               </div>
               <div className="space-y-1.5 relative">
-                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><MapPin size={14} /> Şube</label>
+                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Şube</label>
                 <div className="relative">
-                  <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all !text-neutral-800 font-semibold ${localErrors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                  <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-bold text-[14px] ${localErrors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
                     <option value="" disabled hidden>Şube Seçiniz...</option>
-                    <option value="Kadıköy" className="text-neutral-800 font-semibold">Kadıköy</option>
-                    <option value="Şirinevler" className="text-neutral-800 font-semibold">Şirinevler</option>
-                    <option value="Pendik" className="text-neutral-800 font-semibold">Pendik</option>
+                    <option value="Kadıköy">Kadıköy</option>
+                    <option value="Şirinevler">Şirinevler</option>
+                    <option value="Pendik">Pendik</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
                 </div>
               </div>
               <div className="space-y-1.5 relative">
-                <label className="text-[12px] font-bold text-neutral-400 flex items-center gap-2 ml-1"><GraduationCap size={14} /> Grup Seçimi</label>
+                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Grup Seçimi</label>
                 <div className="relative">
-                  <select name="groupId" value={selectedGroupIdForStudent} onChange={(e) => setSelectedGroupIdForStudent(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-semibold ${localErrors.groupId ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'} ${!selectedGroupIdForStudent ? '!text-neutral-600' : '!text-[#10294C] !font-semibold'}`}>
+                  <select name="groupId" value={selectedGroupIdForStudent} onChange={(e) => setSelectedGroupIdForStudent(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-bold text-[14px] ${localErrors.groupId ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'} ${!selectedGroupIdForStudent ? '!text-neutral-600' : '!text-[#10294C]'}`}>
                     <option value="" disabled hidden>Bir grup seçin...</option>
-                    {groups.filter(g => g && (g.code || g.name)).map((g) => (<option key={g.id} value={g.id} className="text-neutral-700 font-medium">{g.code}{g.branch ? ` (${g.branch})` : ""}</option>))}
+                    {groups.filter(g => g && (g.code || g.name)).map((g) => (<option key={g.id} value={g.id}>{g.code}{g.branch ? ` (${g.branch})` : ""}</option>))}
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
                 </div>
@@ -229,8 +230,10 @@ export const StudentForm: React.FC<StudentFormProps> = ({
             </div>
           </div>
           <div className="space-y-4 pt-6 border-t border-neutral-50">
-            <div className="flex items-center gap-3 text-orange-500 font-bold text-[13px] border-l-4 border-orange-500 pl-4"><MessageSquare size={20} /><span>Öğrenci Gelişim ve Eğitmen Özel Notları</span></div>
-            <textarea name="instructorNote" value={studentNote} onChange={(e) => setStudentNote(e.target.value)} placeholder="Öğrencinin teknik seviyesi ve özel durumları..." className="w-full h-[140px] bg-neutral-50 border border-neutral-100 rounded-[12px] p-6 outline-none font-medium text-[15px] placeholder:text-neutral-400 placeholder:font-normal focus:border-orange-200 focus:bg-white transition-all resize-none" />
+            <div className="flex items-center gap-3 text-[#10294C] font-semibold text-[16px] border-l-4 border-[#10294C] pl-4">
+              <span>Öğrenci Notları</span>
+            </div>
+            <textarea name="instructorNote" value={studentNote} onChange={(e) => setStudentNote(e.target.value)} placeholder="Öğrencinin teknik seviyesi ve özel durumları..." className="w-full h-[140px] bg-neutral-50 border border-neutral-100 rounded-[12px] p-6 outline-none font-medium text-[14px] placeholder:text-neutral-400 placeholder:font-normal focus:border-orange-200 focus:bg-white transition-all resize-none" />
           </div>
         </div>
         <div className="p-8 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end shrink-0">
