@@ -1,0 +1,613 @@
+"use client";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, Settings, ShieldAlert, Check, X, Mail, UserPlus, Camera, Trash2, Edit2, Info, Send, ChevronDown, PenLine } from "lucide-react";
+import { auth, db } from "../../lib/firebase";
+import { createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { setDoc, doc, serverTimestamp, collection, onSnapshot, query, deleteDoc } from "firebase/firestore";
+import { GlobalConfirmationModal } from "./management-components/Modals";
+import { getFlexMessage } from "../../lib/messages"; // Dosya yolun hangisiyse
+
+// Yetki Tipi Tanımı
+interface PermissionItem {
+    id: string;
+    label: string;
+}
+
+const MASTER_ID = "kYG8N01PTudh1VT1uvy2vg8vmAR2";
+
+// Rol Varsayılanları
+const ROLE_DEFAULTS: Record<string, string[]> = {
+    admin: ["VIEW_ALL_CLASSES", "ASSIGNMENT_MANAGE", "STUDENT_DELETE", "ROLE_MANAGE", "LEAGUE_MANAGE", "BRANCH_STATS"],
+    instructor: ["VIEW_ALL_CLASSES", "ASSIGNMENT_MANAGE"],
+};
+
+// Yetki Listesi
+const permissionsList: PermissionItem[] = [
+    { id: "VIEW_ALL_CLASSES", label: "Tüm sınıfları gör" },
+    { id: "ASSIGNMENT_MANAGE", label: "Ödev yönetimi" },
+    { id: "STUDENT_DELETE", label: "Öğrenci silme" },
+    { id: "ROLE_MANAGE", label: "Yetki matrisi" },
+    { id: "LEAGUE_MANAGE", label: "Lig yönetimi" },
+    { id: "BRANCH_STATS", label: "Şube istatistikleri" },
+];
+
+export default function UserManagement() {
+    const [isFormOpen, setIsUserFormOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [users, setUsers] = useState<any[]>([]);
+    const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+    const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean>>({});
+    const [editingUser, setEditingUser] = useState<any>(null);
+    const [errors, setErrors] = useState<Record<string, boolean>>({});
+    const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
+    const [generatedPass, setGeneratedPass] = useState("");
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        type: 'archive' | 'delete' | 'restore' | 'student-delete' | null;
+        userId: string;
+    }>({ isOpen: false, type: null, userId: "" });
+    const [shake, setShake] = useState(false);
+    useEffect(() => {
+        if (shake) {
+            const timer = setTimeout(() => setShake(false), 500);
+            return () => clearTimeout(timer);
+        }
+    }, [shake]);
+
+
+    // --- KULLANICI DÜZENLEME MOTORU ---
+    const handleEditClick = (user: any) => {
+        setEditingUser(user);
+        // Mevcut rolleri state'e aktar (Form açıldığında checkboxlar dolu gelir)
+        setSelectedRoles(user.roles || []);
+        // Kullanıcıya özel tanımlanmış yetkileri aktar
+        setPermissionOverrides(user.permissionOverrides || {});
+        // Formu aç
+        setIsUserFormOpen(true);
+    };
+
+    // --- KULLANICI SİLME ONAY MEKANİZMASI ---
+    const handleDeleteClick = (userId: string) => {
+        setModalConfig({
+            isOpen: true,
+            type: "delete", // TypeScript'in beklediği literal tip
+            userId: userId
+        });
+    };
+
+    useEffect(() => {
+        const MASTER_ID = "kYG8N01PTudh1VT1uvy2vg8vmAR2";
+        const q = query(collection(db, "users"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const filteredUsers = allUsers.filter((u: any) => u.id !== MASTER_ID);
+            setUsers(filteredUsers);
+        }, (error) => console.error("Firebase Hatası:", error));
+        return () => unsubscribe();
+    }, []);
+
+    //Telefon Formatlama Fonksiyonu
+    const formatPhoneNumber = (value: string) => {
+        let digits = value.replace(/\D/g, "");
+
+        if (digits.length > 0 && !digits.startsWith("0")) {
+            digits = "0" + digits;
+        }
+
+        digits = digits.substring(0, 11);
+        const len = digits.length;
+
+        if (len === 0) return "";
+        if (len === 1) return digits;
+        if (len <= 4) return `${digits[0]} (${digits.slice(1, 4)}`;
+        if (len <= 7) return `${digits[0]} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}`;
+        if (len <= 9) return `${digits[0]} (${digits.slice(1, 4)}) ${digits.slice(4, 7)} ${digits.slice(7, 9)}`;
+        return `${digits[0]} (${digits.slice(1, 4)}) ${digits.slice(4, 7)} ${digits.slice(7, 9)} ${digits.slice(9, 11)}`;
+    };
+
+    // Yetki Durum Hesaplama
+    const getPermissionStatus = (permId: string) => {
+        // 1. Seçili rollerden (admin, instructor) gelen varsayılan yetki var mı?
+        const roleDefault = selectedRoles.some(role => ROLE_DEFAULTS[role]?.includes(permId)) || false;
+
+        // 2. Eğer manuel müdahale (override) varsa onu al, yoksa rolün varsayılanını göster
+        const isOverridden = permissionOverrides[permId] !== undefined;
+        const isEnabled = isOverridden ? permissionOverrides[permId] : roleDefault;
+
+        return { isEnabled, roleDefault };
+    };
+
+    // Yetki Değiştirme (Clean Override)
+    const handlePermissionChange = (permId: string, checked: boolean) => {
+        const { roleDefault } = getPermissionStatus(permId);
+        setPermissionOverrides(prev => {
+            const copy = { ...prev };
+            if (checked === roleDefault) { delete copy[permId]; }
+            else { copy[permId] = checked; }
+            return copy;
+        });
+    };
+
+    const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setErrors({});
+
+        const formData = new FormData(e.currentTarget);
+        const name = formData.get("name") as string;
+        const surname = formData.get("surname") as string;
+        const phone = formData.get("phone") as string;
+        const email = formData.get("email") as string;
+        const title = formData.get("title") as string;
+        const birthDate = formData.get("birthDate") as string;
+        const gender = formData.get("gender") as string;
+        const branch = formData.get("branch") as string;
+        const isInstructor = formData.get("isInstructor") === "on";
+
+        let newErrors: Record<string, boolean> = {};
+        if (!name) newErrors.name = true;
+        if (!surname) newErrors.surname = true;
+        if (!email) newErrors.email = true;
+        if (!phone) newErrors.phone = true;
+        if (!branch) newErrors.branch = true;
+        if (!gender) newErrors.gender = true;
+        if (!title) newErrors.title = true;
+        if (!birthDate) newErrors.birthDate = true;
+        if (selectedRoles.length === 0) newErrors.roles = true;
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            setShake(true);
+            setTimeout(() => setShake(false), 500);
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const userData = {
+                name,
+                surname,
+                phone,
+                email,
+                title,
+                branch,
+                birthDate,
+                gender,
+                isInstructor,
+                roles: selectedRoles,
+                overrides: permissionOverrides,
+                updatedAt: serverTimestamp(),
+            };
+
+            if (editingUser) {
+                const userRef = doc(db, "users", editingUser.id);
+                await setDoc(userRef, {
+                    ...userData,
+                    isActivated: editingUser.isActivated || false
+                }, { merge: true });
+            } else {
+                const tempPass = Math.random().toString(36).slice(-8).toUpperCase();
+                setGeneratedPass(tempPass);
+
+                const userCredential = await createUserWithEmailAndPassword(auth, email, tempPass);
+
+                await setDoc(doc(db, "users", userCredential.user.uid), {
+                    ...userData,
+                    uid: userCredential.user.uid,
+                    tempPassword: tempPass,
+                    isActivated: false,
+                    createdAt: serverTimestamp(),
+                });
+            }
+
+            setIsSuccess(true);
+            setLoading(false);
+
+            setTimeout(() => {
+                setIsUserFormOpen(false);
+                setEditingUser(null);
+                setErrors({});
+                setPermissionOverrides({});
+                setSelectedRoles([]);
+                setIsSuccess(false);
+                setGeneratedPass("");
+            }, 1000);
+
+        } catch (err: any) {
+            console.error("Firebase Hatası:", err);
+            setErrors({ firebaseError: true });
+            setLoading(false);
+        }
+    };
+    const handleDeleteUser = async (user: any) => {
+        const myUser = auth.currentUser;
+        const targetUid = user.uid || user.id;
+
+        if (targetUid === MASTER_ID) {
+            alert("⚠️ ERİŞİM ENGELLENDİ! Bu hesap sistemin kök (root) hesabıdır ve imha edilemez.");
+            return;
+        }
+
+        if (myUser) {
+            const isMe = targetUid === myUser.uid ||
+                user.id === myUser.uid ||
+                user.email === myUser.email;
+
+            if (isMe) {
+                alert("⚠️ HOOOP! Kendi hesabınızı silemezsiniz. Sistem güvenliği için bu engellendi.");
+                return;
+            }
+        }
+
+        // 2. ONAY (Sadece başkasıysa buraya geçer)
+        if (!window.confirm(`${user.name || 'Kullanıcı'} silinsin mi?`)) return;
+
+        setLoading(true);
+        try {
+            const res = await fetch('/api/delete-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uid: targetUid }),
+            });
+
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || "Auth silinemedi.");
+
+            // Firestore temizliği
+            await deleteDoc(doc(db, "users", user.id));
+
+            // Arayüz güncelleme
+            setUsers(prev => prev.filter(u => u.id !== user.id));
+            alert("Kullanıcı başarıyla imha edildi.");
+        } catch (error: any) {
+            alert("Hata çıktı: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRoleToggle = (roleId: string) => {
+        const newRoles = selectedRoles.includes(roleId)
+            ? selectedRoles.filter(r => r !== roleId)
+            : [...selectedRoles, roleId];
+
+        setSelectedRoles(newRoles);
+
+        // MÜHÜR: Admin seçilirse hepsini aç, Admin listeden çıkarsa hepsini temizle
+        if (newRoles.includes('admin')) {
+            const allFull = permissionsList.reduce((acc, p) => ({ ...acc, [p.id]: true }), {});
+            setPermissionOverrides(allFull);
+        } else {
+            // Admin artık listede yoksa yetkileri sıfırla (Eğitmen varsayılanına döner)
+            setPermissionOverrides({});
+        }
+    };
+
+    const roleDropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
+                setIsRoleDropdownOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // --- YENİ KULLANICI İÇİN FORMU SIFIRLAYARAK AÇ ---
+    const handleOpenNewUserForm = () => {
+        setEditingUser(null);
+        setSelectedRoles([]);
+        setPermissionOverrides({});
+        setErrors({});
+        setIsUserFormOpen(true);
+    };
+
+    // Arama filtresi ve kullanıcı listesi 
+    const [searchTerm, setSearchTerm] = useState("");
+    const filteredUsers = users.filter((user: any) =>
+        `${user.name} ${user.surname}`.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+        <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-700">
+
+            {/* --- SECTION 1: HEADER --- */}
+            <div className="flex items-center justify-between pb-8 border-b border-neutral-100">
+                <div>
+                    <h2 className="text-[24px] font-bold text-[#10294C] tracking-tight">Kullanıcı Yönetimi</h2>
+                    <p className="text-neutral-400 text-[14px] mt-1 font-medium italic">Sistem erişimlerini ve yetki matrisini yönetin.</p>
+                </div>
+                {/* İŞTE DEĞİŞEN BUTON BURASI */}
+                <button
+                    onClick={handleOpenNewUserForm}
+                    className="bg-[#FF8D28] hover:bg-[#e67e22] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 transition-all shadow-lg shadow-orange-500/10 active:scale-95 cursor-pointer"
+                >
+                    <UserPlus size={18} strokeWidth={2.5} />
+                    <span>Kullanıcı Oluştur</span>
+                </button>
+            </div>
+
+            {/* --- SECTION 2: USER TABLE --- */}
+            <div className="bg-white rounded-[24px] border border-neutral-100 overflow-hidden shadow-sm mt-6">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-neutral-100 bg-neutral-50/50">
+                                <th className="p-5 text-[13px] font-bold text-neutral-500 w-84">Kullanıcı</th>
+                                <th className="p-5 text-[13px] font-bold text-neutral-500 w-64 text-left">Roller</th>
+                                <th className="p-5 text-[13px] font-bold text-neutral-500 w-52 text-left">Ünvan</th>
+                                <th className="p-5 text-[13px] font-bold text-neutral-500 w-68 text-left">E-Posta</th>
+                                <th className="p-5 text-[13px] font-bold text-neutral-500 w-56 text-left">Telefon</th>
+                                <th className="p-5 text-[13px] font-bold text-neutral-500 w-56 text-left">Şube</th>
+                                <th className="p-5 text-[13px] font-bold text-neutral-500 w-52 text-left">Durum</th>
+                                <th className="p-5 text-[13px] font-bold text-neutral-500 text-right">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-50">
+                            {filteredUsers.map((user: any) => (
+                                <tr key={user.id} className="hover:bg-neutral-50/50 transition-colors group">
+                                    {/* 1. KULLANICI */}
+                                    <td className="p-5 w-84">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-neutral-100 border border-neutral-200 overflow-hidden shrink-0 shadow-sm">
+                                                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} alt="" />
+                                            </div>
+                                            <div className="font-bold text-[#10294C] text-[14px]">{user.name} {user.surname}</div>
+                                        </div>
+                                    </td>
+
+                                    {/* 2. ROLLER */}
+                                    <td className="p-5 w-64 text-left">
+                                        <div className="flex flex-wrap gap-2">
+                                            {user.roles?.map((role: string) => (
+                                                <span key={role} className="px-2 py-1 bg-orange-50 text-orange-600 rounded-md text-[13px] font-bold border border-orange-100 shadow-sm">
+                                                    {role === 'admin' ? 'Admin' : 'Eğitmen'}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </td>
+
+                                    {/* 3. ÜNVAN */}
+                                    <td className="p-5 w-52 text-[13px] text-[#10294C] font-medium text-left">
+                                        {user.roles?.includes('admin') ? "Yönetici | Eğitmen" : "Eğitmen"}
+                                    </td>
+
+                                    {/* 4. E-POSTA */}
+                                    <td className="p-5 w-68 text-[13px] text-neutral-400 text-left truncate">
+                                        {user.email}
+                                    </td>
+
+                                    {/* 5. TELEFON */}
+                                    <td className="p-5 w-56 text-[13px] font-bold text-[#10294C] text-left">
+                                        {user.phone || "—"}
+                                    </td>
+
+                                    {/* 6. ŞUBE */}
+                                    <td className="p-5 w-56 text-left">
+                                        <span className="text-[13px] font-semibold text-[#10294C] bg-neutral-100 px-3 py-1 rounded-lg border border-neutral-200">
+                                            {user.branch || "Kadıköy Şb"}
+                                        </span>
+                                    </td>
+
+                                    {/* 7. DURUM */}
+                                    <td className="p-5 w-52 text-left">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${user.isActivated ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${user.isActivated ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+                                            {user.isActivated ? 'Aktif' : 'Beklemede'}
+                                        </span>
+                                    </td>
+
+                                    {/* 8. İŞLEM */}
+                                    <td className="p-5 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            {/* DÜZENLEME BUTONU */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleEditClick(user)}
+                                                className="p-2 text-neutral-400 hover:text-orange-500 transition-colors cursor-pointer"
+                                            >
+                                                <PenLine size={18} />
+                                            </button>
+
+                                            {/* SİLME BUTONU - KENDİNSE DISABLED OLUR */}
+                                            <button
+                                                type="button"
+                                                disabled={user.email === auth.currentUser?.email}
+                                                onClick={() => handleDeleteClick(user.id)}
+                                                className={`p-2 transition-colors ${user.email === auth.currentUser?.email
+                                                    ? "text-neutral-200 cursor-not-allowed opacity-50" // Kendi satırın: Soluk ve tıklanamaz
+                                                    : "text-neutral-400 hover:text-red-500 cursor-pointer" // Başkasının satırı: Normal
+                                                    }`}
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* --- SECTION 3: HORIZONTAL FORM MODAL --- */}
+
+
+            {/* --- KULLANICI FORMU: ROL-ÜNVAN-ŞUBE VE ÖZEL CHECKBOX DÜZENİ --- */}
+            <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 ${isFormOpen ? "visible" : "invisible delay-100 pointer-events-none"}`}>
+                <div className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isFormOpen ? "opacity-100" : "opacity-0"}`}
+                    onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
+                <div className={`relative w-full max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isFormOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
+                    <form key={editingUser?.id || "yeni-kullanici"} onSubmit={handleSaveUser} className="relative w-full max-w-6xl bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col h-fit max-h-[92vh] xl:max-h-[85vh] 2xl:max-h-[80vh] text-[#10294C] transform-gpu will-change-transform">
+                        <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0 border-b border-white/5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center shadow-lg"><UserPlus size={20} /></div>
+                                <h3 className="text-[18px] font-bold">{editingUser ? "Hesap Güncelleme" : "Yeni Hesap Tanımlama"}</h3>
+                            </div>
+                            <button type="button" onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors"><X size={20} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-10 flex flex-col gap-10">
+                            <div className="flex gap-12 border-b border-neutral-100 pb-12 shrink-0">
+                                <div className="w-48 h-48 rounded-[32px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shrink-0 shadow-inner">
+                                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${editingUser?.name || 'flex'}`} className="w-full h-full object-cover" alt="avatar" />
+                                </div>
+                                <div className="flex-1 space-y-6">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-1">
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Ad</label>
+                                            <input name="name" defaultValue={editingUser?.name} placeholder="Örn: Alparslan" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.name ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Soyad</label>
+                                            <input name="surname" defaultValue={editingUser?.surname} placeholder="Örn: Akdağ" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.surname ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-1">
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">E-Posta</label>
+                                            <input name="email" type="email" defaultValue={editingUser?.email} placeholder="ornek@email.com" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.email ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Telefon</label>
+                                            <input name="phone" defaultValue={editingUser?.phone} onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }} placeholder="0 (5xx) xxx xx xx" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.phone ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-6">
+                                        <div className="space-y-1 relative h-[72px]" ref={roleDropdownRef}>
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Rol</label>
+                                            <div onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
+                                                <span className={`text-[14px] truncate ${selectedRoles.length > 0 ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-600'}`}>{selectedRoles.length > 0 ? selectedRoles.map(r => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Rol Seçiniz...'}</span>
+                                                <ChevronDown size={18} className={`transition-transform duration-300 ${isRoleDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
+                                            </div>
+                                            {isRoleDropdownOpen && (
+                                                <div className="absolute top-[76px] left-0 w-full bg-white border border-neutral-200 shadow-lg rounded-xl z-[999] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                    {['admin', 'instructor'].map((r: string) => (
+                                                        <label key={r} className="flex items-center gap-3 p-4 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                                                            <div className="relative flex items-center justify-center w-[18px] h-[18px] shrink-0">
+                                                                <input type="checkbox" checked={selectedRoles.includes(r)} onChange={() => handleRoleToggle(r)} className="peer absolute w-full h-full opacity-0 cursor-pointer z-10" />
+                                                                <div className="w-full h-full border-2 border-neutral-300 rounded-[4px] peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-all" />
+                                                                <Check size={14} className="absolute text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none" strokeWidth={4} />
+                                                            </div>
+                                                            <span className="text-[14px] font-medium text-neutral-700">{r === 'admin' ? 'Admin' : 'Eğitmen'}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Ünvan</label>
+                                            <input name="title" defaultValue={editingUser?.title} placeholder="Örn: Eğitmen | Arı Bilgi" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.title ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                                        </div>
+                                        <div className="space-y-1 relative">
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Şube</label>
+                                            <div className="relative">
+                                                <select name="branch" defaultValue={editingUser?.branch || ""} className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold text-neutral-800 transition-all ${errors.branch ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`}>
+                                                    <option value="" disabled hidden>Şube Seçiniz...</option>
+                                                    <option value="Kadıköy Şb" className="font-medium text-neutral-700">Kadıköy Şb</option>
+                                                    <option value="Şirinevler Şb" className="font-medium text-neutral-700">Şirinevler Şb</option>
+                                                    <option value="Pendik Şb" className="font-medium text-neutral-700">Pendik Şb</option>
+                                                </select>
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-1 relative">
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Cinsiyet</label>
+                                            <div className="relative">
+                                                <select name="gender" defaultValue={editingUser?.gender || ""} className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold transition-all ${!editingUser?.gender ? 'text-neutral-600' : 'text-[#10294C] font-bold'} ${errors.gender ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`}>
+                                                    <option value="" disabled hidden>Cinsiyet Seçiniz...</option>
+                                                    <option value="male" className="font-medium text-neutral-700">Erkek</option>
+                                                    <option value="female" className="font-medium text-neutral-700">Kadın</option>
+                                                </select>
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[12px] font-bold text-neutral-400 ml-1">Doğum Tarihi</label>
+                                            <input name="birthDate" defaultValue={editingUser?.birthDate?.includes('-') ? editingUser.birthDate.split('-').reverse().join('.') : editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: any) => { let v = e.target.value.replace(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); e.target.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="space-y-7 pb-10">
+                                <div className="flex items-center gap-3 text-[#8B5CF6] font-bold text-[13px] border-l-4 border-[#8B5CF6] pl-4"><ShieldAlert size={20} /><span>Sistem Erişim Yetki Matrisi</span></div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    {permissionsList.map((perm) => {
+                                        const { isEnabled } = getPermissionStatus(perm.id); return (
+                                            <label key={perm.id} className={`flex items-center justify-between p-5 rounded-2xl border transition-all cursor-pointer shadow-sm ${isEnabled ? 'bg-purple-50/50 border-purple-200' : 'bg-white border-neutral-100'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="relative flex items-center justify-center w-[18px] h-[18px] shrink-0">
+                                                        <input type="checkbox" checked={isEnabled} onChange={(e) => handlePermissionChange(perm.id, e.target.checked)} className="peer absolute w-full h-full opacity-0 cursor-pointer z-10" />
+                                                        <div className="w-full h-full border-2 border-neutral-300 rounded-[4px] peer-checked:bg-purple-600 peer-checked:border-purple-600 transition-all" />
+                                                        <Check size={14} className="absolute text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none" strokeWidth={4} />
+                                                    </div>
+                                                    <span className={`text-[14px] font-bold ${isEnabled ? 'text-purple-900' : 'text-neutral-500'}`}>{perm.label}</span>
+                                                </div>
+                                            </label>);
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-8 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end gap-4 shrink-0">
+                            {!isSuccess && Object.keys(errors).length > 0 && (<span className="text-[13px] font-bold text-red-500 mr-auto animate-in fade-in slide-in-from-left-4">Lütfen eksik alanları doldurun.</span>)}
+                            <button type="button" onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} className="px-8 font-bold text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors">Vazgeç</button>
+                            <button type="submit" disabled={loading || isSuccess} className={`h-14 px-14 rounded-xl font-bold transition-all flex items-center gap-3 shadow-xl ${isSuccess ? 'bg-green-500 text-white' : 'bg-[var(--color-designstudio-primary-500)] text-white active:scale-95 shadow-[var(--color-designstudio-primary-500)]/20 cursor-pointer hover:bg-[var(--color-designstudio-primary-700)]'}`}>{isSuccess ? <><Check size={24} strokeWidth={3} /><span>Hesap Kaydedildi</span></> : loading ? "Kaydediliyor..." : "Hesabı Kaydet"}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {/* --- MODALLAR --- */}
+            <GlobalConfirmationModal
+                isOpen={modalConfig.isOpen}
+                type={modalConfig.type}
+                onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+                onConfirm={async () => {
+                    if (modalConfig.userId) {
+                        setLoading(true);
+                        try {
+                            // --- 1. ADIM: AUTHENTICATION'DAN SİL (API ÇAĞRISI) ---
+                            console.log("Auth silme fermanı gönderiliyor UID:", modalConfig.userId);
+
+                            const authResponse = await fetch('/api/delete-user', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ uid: modalConfig.userId }),
+                            });
+
+                            const apiResult = await authResponse.json();
+
+                            if (!authResponse.ok) {
+                                throw new Error(apiResult.error || "Auth silme başarısız!");
+                            }
+
+                            console.log("Auth silindi, şimdi Firestore sırası...");
+
+                            // --- 2. ADIM: FIRESTORE'DAN SİL ---
+                            await deleteDoc(doc(db, "users", modalConfig.userId));
+
+                            // --- 3. ADIM: LİSTEYİ GÜNCELLE (UI) ---
+                            // Bu satır silinen kullanıcıyı ekrandan anında kaldırır
+                            setUsers(prev => prev.filter(u => u.id !== modalConfig.userId));
+
+                            // Modal'ı kapat ve temizle
+                            setModalConfig({ isOpen: false, type: null, userId: "" });
+
+                            console.log("Kullanıcı her iki dünyadan da mühürlendi!");
+
+                        } catch (err: any) {
+                            console.error("Silme hatası:", err);
+                            alert("Silme işlemi tam tamamlanamadı: " + err.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }}
+            />
+        </div>
+    );
+} 

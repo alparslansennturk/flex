@@ -72,46 +72,46 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   }, [localShake]);
 
   useEffect(() => {
-  if (isStudentFormOpen) {
-    if (editingStudent) {
-      // ... DÜZENLEME MODU AYNI KALSIN ...
-      setStudentName(editingStudent.name || "");
-      setStudentLastName(editingStudent.lastName || "");
-      setStudentEmail(editingStudent.email || "");
-      setStudentBranch(editingStudent.branch || "");
-      setStudentNote(editingStudent.note || "");
-      setSelectedGroupIdForStudent(editingStudent.groupId || "");
-      setStudentGender(editingStudent.gender || "");
-      
-      const id = editingStudent.avatarId;
-      setAvatarId(id !== undefined && id !== null ? Number(id) : null);
+    if (isStudentFormOpen) {
+      if (editingStudent) {
+        // ... DÜZENLEME MODU AYNI KALSIN ...
+        setStudentName(editingStudent.name || "");
+        setStudentLastName(editingStudent.lastName || "");
+        setStudentEmail(editingStudent.email || "");
+        setStudentBranch(editingStudent.branch || "");
+        setStudentNote(editingStudent.note || "");
+        setSelectedGroupIdForStudent(editingStudent.groupId || "");
+        setStudentGender(editingStudent.gender || "");
+
+        const id = editingStudent.avatarId;
+        setAvatarId(id !== undefined && id !== null ? Number(id) : null);
+      } else {
+        /* 2. YENİ KAYIT MODU */
+        // Sadece form açıldığında ve avatar henüz null ise bir kez çalıştır
+        if (avatarId === null) {
+          setAvatarId(Math.floor(Math.random() * 70) + 1);
+        }
+
+        if (selectedGroupId && !selectedGroupIdForStudent) {
+          setSelectedGroupIdForStudent(selectedGroupId);
+        }
+      }
     } else {
-      /* 2. YENİ KAYIT MODU */
-      // Sadece form açıldığında ve avatar henüz null ise bir kez çalıştır
-      if (avatarId === null) {
-        setAvatarId(Math.floor(Math.random() * 70) + 1);
-      }
-      
-      if (selectedGroupId && !selectedGroupIdForStudent) {
-        setSelectedGroupIdForStudent(selectedGroupId);
-      }
+      /* 3. FORM KAPANDIĞINDA TEMİZLİK */
+      setIsSuccess(false);
+      setLoading(false);
+      setLocalErrors({});
+      setStudentName("");
+      setStudentLastName("");
+      setStudentEmail("");
+      setStudentBranch("");
+      setStudentNote("");
+      setSelectedGroupIdForStudent("");
+      setStudentGender("");
+      setAvatarId(null);
     }
-  } else {
-    /* 3. FORM KAPANDIĞINDA TEMİZLİK */
-    setIsSuccess(false);
-    setLoading(false);
-    setLocalErrors({});
-    setStudentName("");
-    setStudentLastName("");
-    setStudentEmail("");
-    setStudentBranch("");
-    setStudentNote("");
-    setSelectedGroupIdForStudent("");
-    setStudentGender("");
-    setAvatarId(null);
-  }
-  // 🎯 KRİTİK DEĞİŞİKLİK: 'avatarId' BURADAN ÇIKARILDI!
-}, [isStudentFormOpen, editingStudent, selectedGroupId, setAvatarId, setStudentName, setStudentLastName, setStudentEmail, setStudentBranch, setStudentNote, setSelectedGroupIdForStudent, setStudentGender]);
+    // 🎯 KRİTİK DEĞİŞİKLİK: 'avatarId' BURADAN ÇIKARILDI!
+  }, [isStudentFormOpen, editingStudent, selectedGroupId, setAvatarId, setStudentName, setStudentLastName, setStudentEmail, setStudentBranch, setStudentNote, setSelectedGroupIdForStudent, setStudentGender]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -203,10 +203,8 @@ export const StudentForm: React.FC<StudentFormProps> = ({
 
                 {studentGender && avatarId ? (
                   <img
-                    /* public klasörü Next.js'te / ile başlar. 
-                       YOL: /avatars/male/1.svg veya /avatars/female/1.svg */
                     src={`/avatars/${studentGender}/${avatarId}.svg`}
-                    className="w-32 h-32 object-contain transition-transform duration-300 group-hover:scale-110"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 pointer-events-none"
                     alt="Öğrenci Avatarı"
                   />
                 ) : (
