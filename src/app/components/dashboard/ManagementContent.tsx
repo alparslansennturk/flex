@@ -14,7 +14,7 @@ import UserManagement from "@/app/components/dashboard/UserManagement";
 
 export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: (t: string) => void }) {
   const {
-    isAdmin, activeSubTab, setActiveSubTab, currentView, setCurrentView,
+    isAdmin, activeSubTab, setActiveSubTab, currentView, setCurrentView, editingStudent, avatarId, setAvatarId,
     isFormOpen, setIsFormOpen, deleteModal, setDeleteModal, showPassive, setShowPassive,
     selectedStudentIds, setSelectedStudentIds, students, groups,
     selectedGroupId, setSelectedGroupId, openMenuId, setOpenMenuId,
@@ -30,7 +30,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     viewMode, setViewMode, toast, setToast, selectedGroupIdForStudent, setSelectedGroupIdForStudent,
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
-    handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
+    handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm, setEditingStudentId,
     filteredGroups, filteredStudents, myGroupCards, toggleStudentSelection, handleSelectAll, studentGender, setStudentGender, tempStudentBranch, setTempStudentBranch
   } = useManagement(setHeaderTitle);
 
@@ -172,7 +172,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                   )}
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => setIsStudentFormOpen(!isStudentFormOpen)} className={`flex items-center justify-center px-6 py-2.5 rounded-[12px] transition-all duration-300 cursor-pointer outline-none shadow-sm group shrink-0 ${isStudentFormOpen ? "bg-surface-500 text-white" : "bg-designstudio-secondary-500 text-white"}`}>
+                  <button onClick={() => { if (!isStudentFormOpen) resetStudentForm(); setIsStudentFormOpen(!isStudentFormOpen); }} className={`flex items-center justify-center px-6 py-2.5 rounded-[12px] transition-all duration-300 cursor-pointer outline-none shadow-sm group shrink-0 ${isStudentFormOpen ? "bg-surface-500 text-white" : "bg-designstudio-secondary-500 text-white"}`}>
                     <div className="flex items-center gap-2">
                       {isStudentFormOpen ? <X size={18} strokeWidth={2.5} /> : <PlusCircle size={18} strokeWidth={2.5} />}
                       <span className="text-[13px] font-semibold leading-none whitespace-nowrap">{isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}</span>
@@ -199,7 +199,9 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       groups={isAdmin ? groups : myGroupCards}
                       handleAddStudent={handleAddStudent}
                       setIsStudentFormOpen={setIsStudentFormOpen}
-                      editingStudent={null}
+                      editingStudent={editingStudent}
+                      avatarId={avatarId}
+                      setAvatarId={setAvatarId}
                       studentName={studentName}
                       setStudentName={setStudentName}
                       studentLastName={studentLastName}
@@ -214,6 +216,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       setStudentGender={setStudentGender}
                       selectedGroupIdForStudent={selectedGroupIdForStudent}
                       setSelectedGroupIdForStudent={setSelectedGroupIdForStudent}
+                      selectedGroupId={selectedGroupId}
                     />
                   </div>
                 </div>

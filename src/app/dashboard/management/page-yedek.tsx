@@ -252,13 +252,12 @@ export default function ManagementPage() {
                       <button onClick={() => setShowAllStudents(false)} className={`flex-1 rounded-[10px] text-[13px] font-semibold transition-all cursor-pointer ${!showAllStudents ? 'bg-white shadow-sm text-[#10294C]' : 'text-[#64748B]'}`}>Grup Listesi</button>
                       <button onClick={() => setShowAllStudents(true)} className={`flex-1 rounded-[10px] text-[13px] font-semibold transition-all cursor-pointer ${showAllStudents ? 'bg-white shadow-sm text-[#10294C]' : 'text-[#64748B]'}`}>Tüm Kayıtlar</button>
                     </div>
-                    <button 
-                      onClick={() => { setIsStudentFormOpen(!isStudentFormOpen); setEditingStudent(null); }} 
-                      disabled={showAllStudents || activeTab === 'arsiv'} 
-                      className={`flex items-center gap-2 text-[#4D52A6] font-semibold text-[14px] transition-all shrink-0 ${(showAllStudents || activeTab === 'arsiv') ? 'opacity-20 cursor-not-allowed' : 'hover:text-[#3730A3] cursor-pointer'}`}
-                    >
-                      <PlusCircle size={18} /> Öğrenci Ekle
-                    </button>
+                   <button onClick={() => {if (!isStudentFormOpen) setEditingStudent(null);setIsStudentFormOpen(!isStudentFormOpen);}} className={`flex items-center justify-center px-6 py-2.5 rounded-[12px] transition-all duration-300 cursor-pointer outline-none shadow-sm group shrink-0 ${isStudentFormOpen ? "bg-surface-500 text-white" : "bg-designstudio-secondary-500 text-white"}`}>
+  <div className="flex items-center gap-2">
+    {isStudentFormOpen ? <X size={18} strokeWidth={2.5} /> : <PlusCircle size={18} strokeWidth={2.5} />}
+    <span className="text-[13px] font-semibold leading-none whitespace-nowrap">{isStudentFormOpen ? "Vazgeç" : "Öğrenci Ekle"}</span>
+  </div>
+</button>
                   </div>
                   <div className="relative ml-16 w-[550px]">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />

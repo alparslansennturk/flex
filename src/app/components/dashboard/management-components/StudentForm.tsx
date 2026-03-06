@@ -10,6 +10,8 @@ interface StudentFormProps {
   handleAddStudent: (e?: any) => void;
   groups: any[];
   editingStudent?: any;
+  avatarId: number | null;
+  setAvatarId: (val: number | null) => void;
   studentName: string;
   setStudentName: (val: string) => void;
   studentLastName: string;
@@ -22,9 +24,9 @@ interface StudentFormProps {
   setStudentBranch: (val: string) => void;
   selectedGroupIdForStudent: string;
   setSelectedGroupIdForStudent: (val: string) => void;
+  selectedGroupId: string | null;
   studentGender: string;
   setStudentGender: (val: string) => void;
-
 }
 
 export const StudentForm: React.FC<StudentFormProps> = ({
@@ -33,19 +35,28 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   handleAddStudent,
   groups,
   editingStudent,
-  studentName, setStudentName,
-  studentLastName, setStudentLastName,
-  studentEmail, setStudentEmail,
-  studentNote, setStudentNote,
-  studentBranch, setStudentBranch,
-  selectedGroupIdForStudent, setSelectedGroupIdForStudent,
+  selectedGroupId,
+  avatarId,
+  setAvatarId,
+  studentName,
+  setStudentName,
+  studentLastName,
+  setStudentLastName,
+  studentEmail,
+  setStudentEmail,
+  studentNote,
+  setStudentNote,
+  studentBranch,
+  setStudentBranch,
+  selectedGroupIdForStudent,
+  setSelectedGroupIdForStudent,
   studentGender,
   setStudentGender,
 }) => {
   // --- ADIM 1: İÇE GÖMÜLEN STATE'LER ---
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  
+
 
 
   // İçine gömdüğümüz yerel state'ler
@@ -60,42 +71,53 @@ export const StudentForm: React.FC<StudentFormProps> = ({
     }
   }, [localShake]);
 
-  // DÜZENLEME MODU İÇİN VERİLERİ STATE'LERE YÜKLE
   useEffect(() => {
+  if (isStudentFormOpen) {
     if (editingStudent) {
+      // ... DÜZENLEME MODU AYNI KALSIN ...
       setStudentName(editingStudent.name || "");
       setStudentLastName(editingStudent.lastName || "");
       setStudentEmail(editingStudent.email || "");
       setStudentBranch(editingStudent.branch || "");
       setStudentNote(editingStudent.note || "");
       setSelectedGroupIdForStudent(editingStudent.groupId || "");
+      setStudentGender(editingStudent.gender || "");
+      
+      const id = editingStudent.avatarId;
+      setAvatarId(id !== undefined && id !== null ? Number(id) : null);
+    } else {
+      /* 2. YENİ KAYIT MODU */
+      // Sadece form açıldığında ve avatar henüz null ise bir kez çalıştır
+      if (avatarId === null) {
+        setAvatarId(Math.floor(Math.random() * 70) + 1);
+      }
+      
+      if (selectedGroupId && !selectedGroupIdForStudent) {
+        setSelectedGroupIdForStudent(selectedGroupId);
+      }
     }
-  }, [editingStudent]);
-
-  useEffect(() => {
-    if (!isStudentFormOpen) {
-      setIsSuccess(false);
-      setLoading(false);
-      setLocalErrors({}); 
-
-      setStudentName("");
-      setStudentLastName("");
-      setStudentEmail("");
-      setStudentBranch("");
-      setStudentNote("");
-      setSelectedGroupIdForStudent("");
-      setStudentGender("");
-    }
-  }, [isStudentFormOpen]);
-
-
+  } else {
+    /* 3. FORM KAPANDIĞINDA TEMİZLİK */
+    setIsSuccess(false);
+    setLoading(false);
+    setLocalErrors({});
+    setStudentName("");
+    setStudentLastName("");
+    setStudentEmail("");
+    setStudentBranch("");
+    setStudentNote("");
+    setSelectedGroupIdForStudent("");
+    setStudentGender("");
+    setAvatarId(null);
+  }
+  // 🎯 KRİTİK DEĞİŞİKLİK: 'avatarId' BURADAN ÇIKARILDI!
+}, [isStudentFormOpen, editingStudent, selectedGroupId, setAvatarId, setStudentName, setStudentLastName, setStudentEmail, setStudentBranch, setStudentNote, setSelectedGroupIdForStudent, setStudentGender]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLocalErrors({});
 
     const form = e.currentTarget;
-    // Gender değerini garantili alalım
     const genderField = form.elements.namedItem("gender") as HTMLSelectElement;
     const genderValue = genderField?.value;
 
@@ -177,8 +199,33 @@ export const StudentForm: React.FC<StudentFormProps> = ({
         <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
           <div className="flex gap-12">
             <div className="flex-col items-center gap-4 hidden md:flex">
-              <div className="w-40 h-40 rounded-[24px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shadow-inner group">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${studentName || 'student'}`} className="w-full h-full object-cover" alt="avatar" />
+              <div className="w-40 h-40 rounded-[24px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shadow-inner group flex items-center justify-center">
+
+                {studentGender && avatarId ? (
+                  <img
+                    /* public klasörü Next.js'te / ile başlar. 
+                       YOL: /avatars/male/1.svg veya /avatars/female/1.svg */
+                    src={`/avatars/${studentGender}/${avatarId}.svg`}
+                    className="w-32 h-32 object-contain transition-transform duration-300 group-hover:scale-110"
+                    alt="Öğrenci Avatarı"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-neutral-400 px-4 text-center">
+                    <span className="text-[10px] font-bold tracking-widest uppercase">
+                      {!studentGender ? "Cinsiyet Seç" : "Avatar Seçiliyor"}
+                    </span>
+                  </div>
+                )}
+
+                {studentGender && (
+                  <button
+                    type="button"
+                    onClick={() => setAvatarId(Math.floor(Math.random() * 70) + 1)}
+                    className="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-lg shadow-md border border-neutral-100 flex items-center justify-center hover:bg-neutral-50 transition-all cursor-pointer active:scale-90 z-10"
+                  >
+                    <span className="text-[14px]">🔄</span>
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-5">

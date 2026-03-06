@@ -41,6 +41,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const { user } = useUser();
   const currentUser = auth.currentUser;
   const isAdmin = user?.roles?.includes('admin') || false;
+  const [avatarId, setAvatarId] = useState<number | null>(null);
 
   const [instructors, setInstructors] = useState<any[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState("");
@@ -396,6 +397,7 @@ const note=passedData?.note||studentNote;
 const groupId=passedData?.groupId||selectedGroupIdForStudent;
 const branch=passedData?.branch||studentBranch;
 const gender=passedData?.gender||studentGender||"";
+const avatarIdValue = passedData?.avatarId !== undefined ? passedData.avatarId : (avatarId || null);
 if(!name?.trim()||!lastName?.trim()||!groupId){
 return;
 }
@@ -409,6 +411,7 @@ groupId:groupId,
 groupCode:targetGroup?.code||"Tanımsız",
 branch:branch,
 gender:gender,
+avatarId: avatarIdValue,
 status:'active',
 updatedAt:new Date(),
 };
@@ -507,6 +510,7 @@ throw error;
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm, 
     filteredGroups, filteredStudents, myGroupCards, showPassive, setShowPassive, selectedStudentIds, setSelectedStudentIds,
-    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal, studentGender, setStudentGender,
+    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal, studentGender, setStudentGender,editingStudent: students.find(s => s.id === editingStudentId) || null,
+     editingStudentId, setEditingStudentId, avatarId, setAvatarId
 };
 };
