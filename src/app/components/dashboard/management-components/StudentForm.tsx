@@ -56,6 +56,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   // --- ADIM 1: İÇE GÖMÜLEN STATE'LER ---
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const TOTAL_AVATARS = 70;
 
 
 
@@ -74,7 +75,6 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   useEffect(() => {
     if (isStudentFormOpen) {
       if (editingStudent) {
-        // ... DÜZENLEME MODU AYNI KALSIN ...
         setStudentName(editingStudent.name || "");
         setStudentLastName(editingStudent.lastName || "");
         setStudentEmail(editingStudent.email || "");
@@ -82,22 +82,21 @@ export const StudentForm: React.FC<StudentFormProps> = ({
         setStudentNote(editingStudent.note || "");
         setSelectedGroupIdForStudent(editingStudent.groupId || "");
         setStudentGender(editingStudent.gender || "");
-
         const id = editingStudent.avatarId;
-        setAvatarId(id !== undefined && id !== null ? Number(id) : null);
-      } else {
-        /* 2. YENİ KAYIT MODU */
-        // Sadece form açıldığında ve avatar henüz null ise bir kez çalıştır
-        if (avatarId === null) {
-          setAvatarId(Math.floor(Math.random() * 70) + 1);
+        if (id !== undefined && id !== null && id !== 0) {
+          setAvatarId(Number(id));
+        } else {
+          setAvatarId((Math.abs(editingStudent.id || 0) % TOTAL_AVATARS) + 1);
         }
-
+      } else {
+        if (avatarId === null) {
+          setAvatarId(Math.floor(Math.random() * TOTAL_AVATARS) + 1);
+        }
         if (selectedGroupId && !selectedGroupIdForStudent) {
           setSelectedGroupIdForStudent(selectedGroupId);
         }
       }
     } else {
-      /* 3. FORM KAPANDIĞINDA TEMİZLİK */
       setIsSuccess(false);
       setLoading(false);
       setLocalErrors({});
@@ -110,9 +109,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
       setStudentGender("");
       setAvatarId(null);
     }
-    // 🎯 KRİTİK DEĞİŞİKLİK: 'avatarId' BURADAN ÇIKARILDI!
   }, [isStudentFormOpen, editingStudent, selectedGroupId, setAvatarId, setStudentName, setStudentLastName, setStudentEmail, setStudentBranch, setStudentNote, setSelectedGroupIdForStudent, setStudentGender]);
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLocalErrors({});
@@ -179,13 +176,13 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-100">
-      <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md" onClick={() => setIsStudentFormOpen(false)} />
+    <div className="fixed inset-0 z-[500] flex justify-center p-6 animate-in fade-in zoom-in-95 duration-100">
+  <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md" onClick={() => setIsStudentFormOpen(false)} />
 
-      <form
-        onSubmit={handleSubmit}
-        className={`relative w-full max-w-5xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] h-fit text-[#10294C] transform-gpu will-change-transform ${localShake ? 'animate-fast-shake' : ''}`}
-      >
+  <form
+    onSubmit={handleSubmit}
+    className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[53%] w-full max-w-5xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] h-fit text-[#10294C] transform-gpu will-change-transform ${localShake ? 'animate-fast-shake' : ''}`}
+  >
         <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-orange-500 rounded-[12px] flex items-center justify-center shadow-lg shadow-orange-500/20"><GraduationCap size={26} strokeWidth={2.5} /></div>
@@ -200,31 +197,28 @@ export const StudentForm: React.FC<StudentFormProps> = ({
           <div className="flex gap-12">
             <div className="flex-col items-center gap-4 hidden md:flex">
               <div className="w-40 h-40 rounded-[24px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shadow-inner group flex items-center justify-center">
-
-                {studentGender && avatarId ? (
-                  <img
-                    src={`/avatars/${studentGender}/${avatarId}.svg`}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 pointer-events-none"
-                    alt="Öğrenci Avatarı"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-neutral-400 px-4 text-center">
-                    <span className="text-[10px] font-bold tracking-widest uppercase">
-                      {!studentGender ? "Cinsiyet Seç" : "Avatar Seçiliyor"}
-                    </span>
-                  </div>
-                )}
-
-                {studentGender && (
-                  <button
-                    type="button"
-                    onClick={() => setAvatarId(Math.floor(Math.random() * 70) + 1)}
-                    className="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-lg shadow-md border border-neutral-100 flex items-center justify-center hover:bg-neutral-50 transition-all cursor-pointer active:scale-90 z-10"
-                  >
-                    <span className="text-[14px]">🔄</span>
-                  </button>
-                )}
-              </div>
+  {studentGender ? (
+    <img
+      src={`/avatars/${studentGender}/${avatarId || (studentName.length + studentLastName.length) % 70 + 1}.svg`}
+      className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 pointer-events-none"
+      alt="Öğrenci Avatarı"
+      onError={(e) => { (e.currentTarget as HTMLImageElement).src = `/avatars/${studentGender}/1.svg`; }}
+    />
+  ) : (
+    <div className="flex flex-col items-center justify-center text-neutral-400 px-4 text-center">
+      <span className="text-[10px] font-bold tracking-widest uppercase">Cinsiyet Seç</span>
+    </div>
+  )}
+ {studentGender && (
+    <button
+      type="button"
+      onClick={() => setAvatarId(Math.floor(Math.random() * 70) + 1)}
+      className="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-lg shadow-md border border-neutral-100 flex items-center justify-center hover:bg-neutral-50 transition-all cursor-pointer active:scale-90 z-10"
+    >
+      <span className="text-[14px]">🔄</span>
+    </button>
+  )}
+</div>
             </div>
             <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-5">
               <div className="space-y-1.5">
@@ -242,8 +236,8 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               <div className="space-y-1.5 relative">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Cinsiyet</label>
                 <div className="relative">
-                  <select name="gender" value={studentGender} onChange={(e) => setStudentGender(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-bold text-[14px] ${!studentGender ? '!text-neutral-600' : '!text-[#10294C]'} ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
-                    <option value="" disabled hidden>Cinsiyet Seçiniz...</option>
+                  <select name="gender" value={studentGender || ""} onChange={(e) => setStudentGender(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-bold text-[14px] ${!studentGender ? 'text-neutral-400' : 'text-[#10294C]'} ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                    <option value="" disabled>Cinsiyet Seçiniz...</option>
                     <option value="male">Erkek</option>
                     <option value="female">Kadın</option>
                   </select>
