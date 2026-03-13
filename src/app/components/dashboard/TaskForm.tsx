@@ -11,6 +11,7 @@ import {
 } from "./taskTypes";
 import IconPicker from "./IconPicker";
 import { getFlexMessage } from "@/app/lib/messages";
+import { useUser } from "@/app/context/UserContext";
 
 interface TaskFormProps {
   editingTask: Task | null;
@@ -19,6 +20,7 @@ interface TaskFormProps {
 }
 
 export default function TaskForm({ editingTask, onClose, onSaved }: TaskFormProps) {
+  const { user }                        = useUser();
   const [visible, setVisible]           = useState(false);
   const [name, setName]                 = useState(editingTask?.name ?? "");
   const [type, setType]                 = useState<TaskType>(editingTask?.type ?? "odev");
@@ -76,7 +78,10 @@ export default function TaskForm({ editingTask, onClose, onSaved }: TaskFormProp
       } else {
         await addDoc(collection(db, "tasks"), {
           ...payload,
+          isActive: false,
           createdBy: auth.currentUser?.uid ?? null,
+          createdByName: user ? `${user.name} ${user.surname}` : null,
+          branch: user?.branch ?? null,
           createdAt: serverTimestamp(),
         });
         onSaved("Kart oluşturuldu.");

@@ -2,16 +2,20 @@
 
 import React, { useState, useEffect } from "react";
 import { db } from "@/app/lib/firebase";
-import { collection, deleteDoc, doc, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, onSnapshot, query, orderBy, updateDoc } from "firebase/firestore";
 import { Plus, Filter, X, CheckCircle2 } from "lucide-react";
 import { Task, FilterTab } from "./taskTypes";
 import { StatCard, TaskList, DeleteConfirmModal } from "./TaskCardManager";
+import { useUser } from "@/app/context/UserContext";
 import TaskForm from "./TaskForm";
 
 export default function TasksContent() {
+  const { user }                        = useUser();
   const [tasks, setTasks]               = useState<Task[]>([]);
+  const [usersMap, setUsersMap]         = useState<Record<string, { name: string; branch: string }>>({});
   const [loading, setLoading]           = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("tumu");
+  const [branchFilter, setBranchFilter] = useState("tumu");
   const [formOpen, setFormOpen]         = useState(false);
   const [editingTask, setEditingTask]   = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
@@ -24,6 +28,20 @@ export default function TasksContent() {
       setLoading(false);
     });
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    getDocs(collection(db, "users")).then(snap => {
+      const map: Record<string, { name: string; branch: string }> = {};
+      snap.docs.forEach(d => {
+        const data = d.data();
+        map[d.id] = {
+          name: (data.name && data.surname) ? `${data.name} ${data.surname}` : (data.name || ""),
+          branch: data.branch || "",
+        };
+      });
+      setUsersMap(map);
+    });
   }, []);
 
   const showToast = (msg: string) => {
@@ -47,7 +65,29 @@ export default function TasksContent() {
   const openCreate = () => { setEditingTask(null); setFormOpen(true); };
   const closeForm  = () => { setFormOpen(false); setEditingTask(null); };
 
-  const filtered = tasks.filter(t => activeFilter === "tumu" || t.type === activeFilter);
+  const handleSendToLibrary = async (task: Task) => {
+    try {
+      await updateDoc(doc(db, "tasks", task.id), { isActive: false, isHidden: false, isPaused: false, endDate: null });
+      showToast(`"${task.name}" kütüphaneye gönderildi.`);
+    } catch { showToast("İşlem sırasında hata oluştu."); }
+  };
+
+  const handleActivate = async (task: Task) => {
+    try {
+      await updateDoc(doc(db, "tasks", task.id), { isActive: true, isPaused: false, isHidden: false });
+      showToast(`"${task.name}" aktife alındı.`);
+    } catch { showToast("İşlem sırasında hata oluştu."); }
+  };
+
+  const enriched = tasks.map(t => ({
+    ...t,
+    createdByName: t.createdByName || (t.createdBy ? usersMap[t.createdBy]?.name : undefined),
+    branch:        t.branch        || (t.createdBy ? usersMap[t.createdBy]?.branch : undefined),
+  }));
+
+  const filtered = enriched
+    .filter(t => activeFilter === "tumu" || t.type === activeFilter)
+    .filter(t => branchFilter === "tumu" || t.branch === branchFilter);
 
   const filterTabs: { id: FilterTab; label: string }[] = [
     { id: "tumu", label: "Tümü" },
@@ -108,6 +148,18 @@ export default function TasksContent() {
             {tab.label}
           </button>
         ))}
+        <div className="ml-auto">
+          <select
+            value={branchFilter}
+            onChange={e => setBranchFilter(e.target.value)}
+            className="h-8 px-3 rounded-xl text-[12px] xl:text-[13px] font-bold border border-surface-100 bg-white text-surface-500 outline-none cursor-pointer hover:border-surface-300 transition-all"
+          >
+            <option value="tumu">Tüm Şubeler</option>
+            <option value="Kadıköy Şb">Kadıköy Şb</option>
+            <option value="Şirinevler Şb">Şirinevler Şb</option>
+            <option value="Pendik Şb">Pendik Şb</option>
+          </select>
+        </div>
       </div>
 
       {/* LİSTE */}
@@ -118,6 +170,8 @@ export default function TasksContent() {
           onEdit={openEdit}
           onDelete={(t) => setDeletingTask(t)}
           onCreateFirst={openCreate}
+          onSendToLibrary={handleSendToLibrary}
+          onActivate={handleActivate}
         />
       </div>
 

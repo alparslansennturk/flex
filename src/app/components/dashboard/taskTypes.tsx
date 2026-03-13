@@ -19,6 +19,14 @@ export interface Task {
   startDate?: string;
   endDate?: string;
   createdAt: any;
+  createdBy?: string;
+  createdByName?: string;
+  branch?: string;
+  ownedBy?: string;     // Eğitmene ait klonlarda set edilir; şablonlarda boş
+  templateId?: string;  // Kütüphaneden klonlandıysa orijinal şablonun ID'si
+  isActive?: boolean;
+  isPaused?: boolean;   // Parkurda kalır ama buton disabled, durum "Pasif"
+  isHidden?: boolean;   // Dashboard'dan gizlenir, yalnızca yönetim sayfasında görünür
 }
 
 // Eski lowercase key'leri PascalCase'e çevir (Firestore'daki eski veriler için)
@@ -48,8 +56,8 @@ export const DEFAULT_ICON: Record<TaskType, IconKey> = {
 // --- RENK SABİTLERİ ---
 export const TYPE_GRADIENT: Record<TaskType, string> = {
   odev:     "bg-gradient-to-b from-pink-500 to-[#B80E57]",
-  proje:    "bg-gradient-to-b from-[#1CB5AE] to-[#0E5D59]",
-  etkinlik: "bg-gradient-to-b from-[#3A7BD5] to-[#10294C]",
+  proje:    "bg-gradient-to-b from-[#FF8D28] to-[#D35400]",
+  etkinlik: "bg-gradient-to-b from-[#1CB5AE] to-[#0E5D59]",
 };
 
 export const TYPE_CONFIG: Record<TaskType, { label: string; badgeBg: string; badgeText: string; dot: string }> = {
