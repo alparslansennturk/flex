@@ -54,10 +54,8 @@ export const UserForm: React.FC<UserFormProps> = ({
         setLocalGender(editingUser?.gender || "");
     }, [editingUser, isFormOpen]);
 
-    if (!isFormOpen) return null;
-
     return (
-        <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 ${isFormOpen ? "visible" : "invisible delay-100 pointer-events-none"}`}>
+        <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 transition-all duration-300 ${isFormOpen ? "visible" : "invisible pointer-events-none"}`}>
             <div className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isFormOpen ? "opacity-100" : "opacity-0"}`}
                 onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
             <div className={`relative w-full max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isFormOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
@@ -120,21 +118,21 @@ export const UserForm: React.FC<UserFormProps> = ({
                 <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-1">
                         <label className="text-[12px] font-bold text-neutral-400 ml-1">Ad</label>
-                        <input name="name" defaultValue={editingUser?.name} placeholder="Örn: Alparslan" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.name ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                        <input name="name" defaultValue={editingUser?.name} placeholder="Örn: Alparslan" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.name ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
                     </div>
                     <div className="space-y-1">
                         <label className="text-[12px] font-bold text-neutral-400 ml-1">Soyad</label>
-                        <input name="surname" defaultValue={editingUser?.surname} placeholder="Örn: Akdağ" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.surname ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                        <input name="surname" defaultValue={editingUser?.surname} placeholder="Örn: Akdağ" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.surname ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-1">
                         <label className="text-[12px] font-bold text-neutral-400 ml-1">E-Posta</label>
-                        <input name="email" type="email" defaultValue={editingUser?.email} placeholder="ornek@email.com" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.email ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                        <input name="email" type="email" defaultValue={editingUser?.email} placeholder="ornek@email.com" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.email ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
                     </div>
                     <div className="space-y-1">
                         <label className="text-[12px] font-bold text-neutral-400 ml-1">Telefon</label>
-                        <input name="phone" defaultValue={editingUser?.phone} onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }} placeholder="0 (5xx) xxx xx xx" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.phone ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                        <input name="phone" defaultValue={editingUser?.phone} onChange={(e) => { e.target.value = formatPhoneNumber(e.target.value); }} placeholder="0 (5xx) xxx xx xx" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.phone ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
                     </div>
                 </div>
             </div>
@@ -144,7 +142,7 @@ export const UserForm: React.FC<UserFormProps> = ({
         <div className="grid grid-cols-3 gap-6 shrink-0">
             <div className="space-y-1 relative h-[72px]" ref={roleDropdownRef}>
                 <label className="text-[12px] font-bold text-neutral-400 ml-1">Rol</label>
-                <div onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
+                <div onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
                     <span className={`text-[14px] truncate ${selectedRoles.length > 0 ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-600'}`}>{selectedRoles.length > 0 ? selectedRoles.map((r: any) => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Rol Seçiniz...'}</span>
                     <ChevronDown size={18} className={`transition-transform duration-300 ${isRoleDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
                 </div>
@@ -165,12 +163,12 @@ export const UserForm: React.FC<UserFormProps> = ({
             </div>
             <div className="space-y-1">
                 <label className="text-[12px] font-bold text-neutral-400 ml-1">Ünvan</label>
-                <input name="title" defaultValue={editingUser?.title} placeholder="Örn: Eğitmen | Arı Bilgi" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.title ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                <input name="title" defaultValue={editingUser?.title} placeholder="Örn: Eğitmen | Arı Bilgi" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal ${errors.title ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
             </div>
             <div className="space-y-1">
                 <label className="text-[12px] font-bold text-neutral-400 ml-1">Şube</label>
                 <div className="relative">
-                    <select name="branch" defaultValue={editingUser?.branch || ""} className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold text-neutral-800 transition-all ${errors.branch ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`}>
+                    <select name="branch" defaultValue={editingUser?.branch || ""} className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold text-neutral-800 transition-all ${errors.branch ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`}>
                         <option value="" disabled hidden>Şube Seçiniz...</option>
                         <option value="Kadıköy Şb">Kadıköy Şb</option>
                         <option value="Şirinevler Şb">Şirinevler Şb</option>
@@ -196,7 +194,7 @@ export const UserForm: React.FC<UserFormProps> = ({
                         }}
                         className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold transition-all ${!localGender ? 'text-neutral-600' : 'text-[#10294C] font-bold'} ${errors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-200 bg-neutral-50'}`}
                     >
-                        <option value="" disabled hidden>Cinsiyet Seçiniz...</option>
+                        <option value="" disabled>Cinsiyet Seçiniz...</option>
                         <option value="male">Erkek</option>
                         <option value="female">Kadın</option>
                     </select>
@@ -205,7 +203,7 @@ export const UserForm: React.FC<UserFormProps> = ({
             </div>
             <div className="space-y-1">
                 <label className="text-[12px] font-bold text-neutral-400 ml-1">Doğum Tarihi</label>
-                <input name="birthDate" defaultValue={editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: any) => { let v = e.target.value.replace(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); e.target.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'animate-fast-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                <input name="birthDate" defaultValue={editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: any) => { let v = e.target.value.replace(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); e.target.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-400 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
             </div>
         </div>
 

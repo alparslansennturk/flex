@@ -159,9 +159,17 @@
   --letter-spacing-sm: -0.25px;
   --letter-spacing-md: 0px;
 
-  /* Spacing & Radius */
-  --radius-radius-16: 1rem;
+  /* Border Radius */
+  --radius-4:  4px;
+  --radius-8:  8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
 }
+
+.radius-4  { border-radius: var(--radius-4);  }
+.radius-8  { border-radius: var(--radius-8);  }
+.radius-12 { border-radius: var(--radius-12); }
+.radius-16 { border-radius: var(--radius-16); }
 
 /* ============================================================
    KÖKTEN SCROLL VE RENDER ÇÖZÜMÜ
@@ -246,17 +254,21 @@
   }
 }
 
-@theme {
-  --animate-fast-shake: fast-shake 0.15s ease-in-out;
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-4px); }
+  20% { transform: translateX(4px); }
+  30% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  50% { transform: translateX(-4px); }
+  60% { transform: translateX(4px); }
+  70% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+  90% { transform: translateX(-4px); }
+}
 
-  @keyframes fast-shake {
-    0% { transform: translateX(0); }
-    20% { transform: translateX(-12px); }
-    40% { transform: translateX(12px); }
-    60% { transform: translateX(-12px); }
-    80% { transform: translateX(12px); }
-    100% { transform: translateX(0); }
-  }
+.error-shake {
+  animation: shake 0.14s ease-in-out;
 }
 html body #main-user-form-area::-webkit-scrollbar {
   width: 14px !important; /* Biraz geniş tutuyoruz ki içindeki boşlukla beraber düzgün dursun */

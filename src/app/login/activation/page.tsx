@@ -74,7 +74,7 @@ function ActivationContent() {
   };
 
   return (
-    <div className={`w-full max-w-[614px] bg-surface-white pt-[56px] px-[56px] pb-[64px] rounded-radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center 2xl:scale-110 ${shouldShake ? "animate-fast-shake" : ""}`}>
+    <div className={`w-full max-w-[614px] bg-surface-white pt-[56px] px-[56px] pb-[64px] radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center min-[1440px]:scale-105 2xl:scale-110 ${shouldShake ? "error-shake" : ""}`}>
       
       <div className="flex justify-between items-center mb-10">
         <div className="flex items-center gap-2">
@@ -121,7 +121,7 @@ function ActivationContent() {
                 }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
                 placeholder="••••••••••••"
-                className="w-full h-12 pl-4 pr-12 border rounded-radius-8 text-sm outline-none transition-all duration-200"
+                className="w-full h-12 pl-4 pr-12 border radius-8 text-sm outline-none transition-all duration-200"
                 style={{ 
                   borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                   backgroundColor: error ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
@@ -169,7 +169,7 @@ function ActivationContent() {
               }}
               onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
               placeholder="••••••••••••"
-              className="w-full h-12 px-4 border rounded-radius-8 text-sm outline-none transition-all duration-200"
+              className="w-full h-12 px-4 border radius-8 text-sm outline-none transition-all duration-200"
               style={{ 
                 borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                 backgroundColor: error ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
@@ -183,7 +183,7 @@ function ActivationContent() {
             <button 
               type="submit" 
               disabled={isLoading || isSuccess} 
-              className="w-full h-12 rounded-radius-8 font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-100 shadow-lg"
+              className="w-full h-12 radius-8 font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-100 shadow-lg"
               style={{ 
                 backgroundColor: isSuccess ? 'var(--color-status-success-500)' : 'var(--color-designstudio-primary-500)', 
                 color: 'var(--color-text-inverse)',
@@ -230,7 +230,6 @@ function ActivationContent() {
 export default function ActivatePage() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-6 font-inter antialiased" style={{ background: 'linear-gradient(160deg, var(--color-base-primary-300) 0%, var(--color-base-secondary-300) 75%)' }}>
-      <style dangerouslySetInnerHTML={{ __html: `@keyframes fast-shake { 0% { transform: translateX(0); } 20% { transform: translateX(-12px); } 40% { transform: translateX(12px); } 60% { transform: translateX(-12px); } 80% { transform: translateX(12px); } 100% { transform: translateX(0); } } .animate-fast-shake { animation: fast-shake 0.15s ease-in-out; }` }} />
       <Suspense fallback={null}>
         <ActivationContent />
       </Suspense>

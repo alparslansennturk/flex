@@ -94,16 +94,6 @@ export default function LoginPage() {
     >
       <style dangerouslySetInnerHTML={{
         __html: `
-        @keyframes fast-shake {
-          0% { transform: translateX(0); }
-          20% { transform: translateX(-12px); }
-          40% { transform: translateX(12px); }
-          60% { transform: translateX(-12px); }
-          80% { transform: translateX(12px); }
-          100% { transform: translateX(0); }
-        }
-        .animate-fast-shake { animation: fast-shake 0.15s ease-in-out; }
-        
         .forgot-password-link {
           color: var(--color-text-muted);
           text-decoration: none;
@@ -114,7 +104,7 @@ export default function LoginPage() {
         }
       ` }} />
 
-      <div className={`w-full max-w-[614px] bg-surface-white p-[56px] rounded-radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center 2xl:scale-110 ${shake ? 'animate-fast-shake' : ''}`}>
+      <div className={`w-full max-w-[614px] bg-surface-white p-[56px] radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center min-[1440px]:scale-105 2xl:scale-110 ${shake ? 'error-shake' : ''}`}>
 
         <div className="flex justify-between items-center mb-10">
           <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Kullanıcı Girişi</h2>
@@ -156,7 +146,7 @@ export default function LoginPage() {
                 if (eType === "text" && e.target.value.length > 0) setEType("email");
               }}
               placeholder="E-Posta Giriniz"
-              className="w-full h-12 px-4 border rounded-radius-8 text-sm outline-none transition-all duration-200"
+              className="w-full h-12 px-4 border radius-8 text-sm outline-none transition-all duration-200"
               style={{
                 borderColor: errors.general ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                 backgroundColor: errors.general ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
@@ -185,7 +175,7 @@ export default function LoginPage() {
                   }
                 }}
                 placeholder="••••••••••••"
-                className="w-full h-12 pl-4 pr-12 border rounded-radius-8 text-sm outline-none transition-all duration-200"
+                className="w-full h-12 pl-4 pr-12 border radius-8 text-sm outline-none transition-all duration-200"
                 style={{
                   borderColor: errors.general && !errors.isEmailError ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                   backgroundColor: errors.general && !errors.isEmailError ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
@@ -226,7 +216,7 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <button type="submit" disabled={isLoading} className="w-full h-12 rounded-radius-8 font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-70 shadow-lg"
+          <button type="submit" disabled={isLoading} className="w-full h-12 radius-8 font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-70 shadow-lg"
             style={{
               backgroundColor: 'var(--color-designstudio-primary-500)',
               color: 'var(--color-text-inverse)',

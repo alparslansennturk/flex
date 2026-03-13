@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, Check, GraduationCap, MessageSquare, MapPin, User, Mail, Users, Camera, ChevronDown } from "lucide-react";
+import { X, Check, GraduationCap, ChevronDown } from "lucide-react";
 import { getFlexMessage } from "@/app/lib/messages";
 
 // SADECE TEK BİR INTERFACE (Gereksizleri sildik, errors ve shake ekledik)
@@ -176,12 +176,12 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[500] flex justify-center p-6 animate-in fade-in zoom-in-95 duration-100">
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-200">
   <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md" onClick={() => setIsStudentFormOpen(false)} />
 
   <form
     onSubmit={handleSubmit}
-    className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[53%] w-full max-w-5xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] h-fit text-[#10294C] transform-gpu will-change-transform ${localShake ? 'animate-fast-shake' : ''}`}
+    className={`relative w-full max-w-5xl bg-white rounded-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] min-h-130 text-[#10294C] -mt-10 ${localShake ? 'error-shake' : ''}`}
   >
         <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
@@ -193,7 +193,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
           </div>
           <button type="button" onClick={() => setIsStudentFormOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"><X size={20} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto p-10 space-y-10 custom-scrollbar">
           <div className="flex gap-12">
             <div className="flex-col items-center gap-4 hidden md:flex">
               <div className="w-40 h-40 rounded-[24px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shadow-inner group flex items-center justify-center">
