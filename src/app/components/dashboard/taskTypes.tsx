@@ -24,6 +24,8 @@ export interface Task {
   branch?: string;
   ownedBy?: string;     // Eğitmene ait klonlarda set edilir; şablonlarda boş
   templateId?: string;  // Kütüphaneden klonlandıysa orijinal şablonun ID'si
+  classId?: string;     // Atanan grup kodu (ör. "Grup 101")
+  level?: string;       // Atanan seviye (ör. "Seviye-2")
   isActive?: boolean;
   isPaused?: boolean;   // Parkurda kalır ama buton disabled, durum "Pasif"
   isHidden?: boolean;   // Dashboard'dan gizlenir, yalnızca yönetim sayfasında görünür

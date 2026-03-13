@@ -6,7 +6,7 @@ import { db } from "@/app/lib/firebase";
 import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon } from "./taskTypes";
-import { ActivateDateModal } from "./TaskCardManager";
+import { AssignActivateModal, AssignSelection } from "./AssignActivateModal";
 
 // ---- TASK KÜTÜPHANESİ KARTI ----
 function TaskLibraryCard({ task, onActivate, onRemove }: {
@@ -30,7 +30,7 @@ function TaskLibraryCard({ task, onActivate, onRemove }: {
 
   const handleActivate = async () => {
     setLoading(true);
-    await onActivate(task);
+    onActivate(task);
     setLoading(false);
   };
 
@@ -90,24 +90,28 @@ function TaskLibraryCard({ task, onActivate, onRemove }: {
 
 // ---- ANA BİLEŞEN ----
 export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
-  const [tasks, setTasks]               = useState<Task[]>([]);
-  const [hasOverflow, setHasOverflow]   = useState(false);
-  const [dateModalTask, setDateModalTask] = useState<Task | null>(null);
+  const [tasks, setTasks]                   = useState<Task[]>([]);
+  const [hasOverflow, setHasOverflow]       = useState(false);
+  const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
   const { user } = useUser();
 
   useEffect(() => {
+    const uid = user?.uid;
     return onSnapshot(collection(db, "tasks"), snap => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
 
-      // Bu kullanıcının aktif olarak kullandığı şablon ID'leri (templateId takibi)
-      const myActiveTemplateIds = new Set(
-        all.filter(t => t.isActive && t.ownedBy === user?.uid && t.templateId).map(t => t.templateId!)
+      // Eğitmenin aktif kartları (DesignParkour ile aynı mantık)
+      const myActive = all.filter(t =>
+        t.isActive && !t.isHidden &&
+        (t.ownedBy === uid || (!t.ownedBy && t.createdBy === uid))
       );
 
-      // Kütüphane: ortak şablonlar (ownedBy yok) — aktif edilmiş olanlar hariç
-      setTasks(all.filter(t =>
-        !t.isActive && !t.isHidden && !t.ownedBy && !myActiveTemplateIds.has(t.id)
-      ));
+      // Ortak şablonlar: aktif edilmemiş, owned olmayan, gizli olmayan
+      const sharedTemplates = all.filter(t => !t.isActive && !t.isHidden && !t.ownedBy);
+
+      // İlk N şablon parkurda "ghost" olarak gösteriliyor → kütüphanede gösterme
+      const ghostCount = Math.max(0, 3 - myActive.length);
+      setTasks(sharedTemplates.slice(ghostCount));
     });
   }, [user?.uid]);
 
@@ -122,35 +126,36 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
     return () => ro.disconnect();
   }, [tasks, scrollRef]);
 
-  const cloneToUser = async (template: Task, endDate: string) => {
-    await addDoc(collection(db, "tasks"), {
-      name: template.name, description: template.description, type: template.type,
-      points: template.points, icon: template.icon ?? null,
-      endDate, isActive: true, isPaused: false, isHidden: false,
-      templateId:    template.id,
-      createdAt:     serverTimestamp(),
-      createdBy:     user?.uid ?? null,
-      createdByName: user ? `${user.name} ${user.surname}` : null,
-      branch:        user?.branch ?? null,
-      ownedBy:       user?.uid ?? null,
-    });
-  };
-
-  const handleActivate = (task: Task) => {
-    if (!task.endDate) { setDateModalTask(task); return; }
-    // Klonla: orijinal şablon kütüphanede kalır
-    cloneToUser(task, task.endDate);
+  // Grup × seviye × tarih seçilince her grup için ayrı task oluştur
+  const handleAssignConfirm = async (selections: AssignSelection[]) => {
+    if (!assignModalTask) return;
+    const t = assignModalTask;
+    for (const { classId, level, endDate } of selections) {
+      await addDoc(collection(db, "tasks"), {
+        name:          t.name,
+        description:   t.description,
+        type:          t.type,
+        points:        t.points,
+        icon:          t.icon ?? null,
+        classId,
+        level,
+        endDate,
+        isActive:      true,
+        isPaused:      false,
+        isHidden:      false,
+        templateId:    t.id,
+        createdAt:     serverTimestamp(),
+        createdBy:     user?.uid ?? null,
+        createdByName: user ? `${user.name} ${user.surname}` : null,
+        branch:        user?.branch ?? null,
+        ownedBy:       user?.uid ?? null,
+      });
+    }
+    setAssignModalTask(null);
   };
 
   const handleRemove = async (task: Task) => {
     await updateDoc(doc(db, "tasks", task.id), { isHidden: true });
-  };
-
-  const handleDateConfirm = async (date: string) => {
-    if (!dateModalTask) return;
-    // Klonla: orijinal şablon kütüphanede kalır
-    await cloneToUser(dateModalTask, date);
-    setDateModalTask(null);
   };
 
   // Kütüphanede kart yoksa section'ı gizle
@@ -171,14 +176,20 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
         )}
         <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">
           {tasks.map(task => (
-            <TaskLibraryCard key={task.id} task={task} onActivate={handleActivate} onRemove={handleRemove} />
+            <TaskLibraryCard
+              key={task.id}
+              task={task}
+              onActivate={setAssignModalTask}
+              onRemove={handleRemove}
+            />
           ))}
         </div>
       </div>
-      {dateModalTask && (
-        <ActivateDateModal
-          onConfirm={handleDateConfirm}
-          onCancel={() => setDateModalTask(null)}
+      {assignModalTask && (
+        <AssignActivateModal
+          taskName={assignModalTask.name}
+          onConfirm={handleAssignConfirm}
+          onCancel={() => setAssignModalTask(null)}
         />
       )}
     </section>

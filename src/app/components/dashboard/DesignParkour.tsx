@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Route, Clock, ChevronRight, MoreHorizontal } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon, TaskType } from "./taskTypes";
 import { PERMISSIONS } from "@/app/lib/constants";
 import { ActivateDateModal } from "./TaskCardManager";
+import { AssignActivateModal, AssignSelection } from "./AssignActivateModal";
 
 // Tip bazlı parkur renkleri — proje: turuncu, etkinlik: yeşil
 const PARKOUR_STYLE: Record<TaskType, { gradient: string; tagBg: string; tagText: string; label: string }> = {
@@ -38,6 +39,75 @@ function PlaceholderParkourCard() {
           <div className="h-2.5 w-16 bg-[#E2E5EA] rounded" />
           <div className="h-3 w-10 bg-[#E2E5EA] rounded" />
         </div>
+      </div>
+      <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-5">
+        <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Tasarım atölyesi</span>
+        <button disabled className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed">
+          Ödev ver <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---- GHOST KART (kütüphane şablonu — pasif yer tutucu, 3-dot menü aktif) ----
+function GhostParkourCard({ task, canManage, onActivate }: {
+  task: Task;
+  canManage: boolean;
+  onActivate: (task: Task) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  const style    = PARKOUR_STYLE[task.type] ?? PARKOUR_STYLE.odev;
+  const iconNode = getIcon(task.icon, task.type, 22);
+
+  return (
+    <div className="bg-white/70 p-7 rounded-[32px] border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full cursor-default opacity-70">
+      <div className="flex justify-between items-start mb-5">
+        <div className={`w-12 h-12 ${style.gradient} rounded-[14px] flex items-center justify-center text-white shadow-lg shrink-0 opacity-60`}>
+          {iconNode}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold ${style.tagBg} ${style.tagText}`}>{style.label}</span>
+          {canManage && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(v => !v)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-9 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[175px]">
+                  <button
+                    onClick={() => { onActivate(task); setMenuOpen(false); }}
+                    className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
+                  >
+                    Aktife Al
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="mb-5">
+        <h4 className="text-[20px] text-[#10294C] font-bold mb-1.5 leading-tight">{task.name}</h4>
+        <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{task.description || "Açıklama yok"}</p>
+      </div>
+      <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-6 border border-[#EEF0F3]">
+        <div className="flex flex-col"><span className="text-[11px] text-[#8E95A3]">Durum</span><span className="text-[13px] font-bold mt-0.5 text-[#AEB4C0]">Pasif</span></div>
+        <div className="flex flex-col items-end"><span className="text-[11px] text-[#8E95A3]">Teslim süresi</span><span className="text-[13px] font-bold text-[#AEB4C0] mt-0.5">—</span></div>
       </div>
       <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-5">
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Tasarım atölyesi</span>
@@ -167,7 +237,14 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, canPause = true,
       </div>
 
       <div className="mb-5">
-        <h4 className="text-[20px] text-[#10294C] font-bold mb-1.5 leading-tight">{task.name}</h4>
+        <h4 className="text-[20px] text-[#10294C] font-bold mb-1.5 leading-tight">
+          {task.name}
+          {(task.classId || task.level) && (
+            <span className="text-[14px] font-semibold text-[#8E95A3] ml-1.5">
+              ({[task.classId, task.level].filter(Boolean).join(" | ")})
+            </span>
+          )}
+        </h4>
         <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">
           {task.description || "Açıklama yok"}
         </p>
@@ -204,10 +281,11 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, canPause = true,
 
 // ---- ANA BİLEŞEN ----
 export default function DesignParkour() {
-  const [activeTasks,    setActiveTasks]    = useState<Task[]>([]);
-  const [libraryTasks,   setLibraryTasks]   = useState<Task[]>([]);
-  const [dateModalTask,  setDateModalTask]  = useState<Task | null>(null);
-  const [changeDateTask, setChangeDateTask] = useState<Task | null>(null);
+  const [activeTasks,     setActiveTasks]     = useState<Task[]>([]);
+  const [libraryTasks,    setLibraryTasks]    = useState<Task[]>([]);
+  const [changeDateTask,   setChangeDateTask]   = useState<Task | null>(null);
+  const [ghostModalTask,   setGhostModalTask]   = useState<Task | null>(null);
+  const [reactivateTask,   setReactivateTask]   = useState<Task | null>(null);
   const { hasPermission, isTrainer, isAdmin, user } = useUser();
   const canManage   = hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || isTrainer();
   const isAdminVal  = isAdmin();
@@ -228,10 +306,9 @@ export default function DesignParkour() {
         myActive.filter(t => t.templateId).map(t => t.templateId!)
       );
 
-      // Borrowed slot için: sadece ortak şablonlar (ownedBy yok), aktif edilmemiş olanlar
-      setLibraryTasks(all.filter(t =>
-        !t.isActive && !t.isHidden && !t.ownedBy && !myActiveTemplateIds.has(t.id)
-      ));
+      // Borrowed slot için: sadece ortak şablonlar (ownedBy yok), aktif edilmemiş olanlar, isim tekrarı yok
+      const lib = all.filter(t => !t.isActive && !t.isHidden && !t.ownedBy && !myActiveTemplateIds.has(t.id));
+      setLibraryTasks(lib.filter((t, i, arr) => arr.findIndex(x => x.name === t.name) === i));
     });
   }, [isAdminVal, user?.uid]);
 
@@ -253,7 +330,7 @@ export default function DesignParkour() {
   };
 
   const handleTogglePause = (task: Task) => {
-    if (!task.endDate) { setDateModalTask(task); return; }
+    if (!task.endDate) { setReactivateTask(task); return; }
     // Pasife alırken tarihi sıfırla
     updateDoc(doc(db, "tasks", task.id), task.isPaused
       ? { isPaused: false }
@@ -261,32 +338,33 @@ export default function DesignParkour() {
     );
   };
 
-  const claimFields = () => ({
-    createdBy:      user?.uid ?? null,
-    createdByName:  user ? `${user.name} ${user.surname}` : null,
-    branch:         user?.branch ?? null,
-    ownedBy:        user?.uid ?? null,
-  });
-
-  const handleActivateBorrowed = (task: Task) => {
-    if (!task.endDate) { setDateModalTask(task); return; }
-    addDoc(collection(db, "tasks"), {
-      name: task.name, description: task.description, type: task.type,
-      points: task.points, icon: task.icon ?? null,
-      endDate: task.endDate, isActive: true, isPaused: false, isHidden: false,
-      templateId: task.id, createdAt: serverTimestamp(), ...claimFields(),
-    });
+  // Ghost kart "Aktife Al" → kütüphaneden klonlama (AssignmentLibrary ile aynı mantık)
+  const handleGhostActivate = async (selections: AssignSelection[]) => {
+    if (!ghostModalTask) return;
+    const t = ghostModalTask;
+    for (const { classId, level, endDate } of selections) {
+      await addDoc(collection(db, "tasks"), {
+        name: t.name, description: t.description, type: t.type,
+        points: t.points, icon: t.icon ?? null,
+        classId, level, endDate,
+        isActive: true, isPaused: false, isHidden: false,
+        templateId:    t.id,
+        createdAt:     serverTimestamp(),
+        createdBy:     user?.uid ?? null,
+        createdByName: user ? `${user.name} ${user.surname}` : null,
+        branch:        user?.branch ?? null,
+        ownedBy:       user?.uid ?? null,
+      });
+    }
+    setGhostModalTask(null);
   };
 
-  const handleDateConfirm = async (date: string) => {
-    if (!dateModalTask) return;
-    await addDoc(collection(db, "tasks"), {
-      name: dateModalTask.name, description: dateModalTask.description, type: dateModalTask.type,
-      points: dateModalTask.points, icon: dateModalTask.icon ?? null,
-      endDate: date, isActive: true, isPaused: false, isHidden: false,
-      templateId: dateModalTask.id, createdAt: serverTimestamp(), ...claimFields(),
-    });
-    setDateModalTask(null);
+  // Pasif kartı aktife alma: mevcut kartı güncelle (yeni klon oluşturma)
+  const handleReactivateConfirm = async (selections: AssignSelection[]) => {
+    if (!reactivateTask || selections.length === 0) return;
+    const { classId, level, endDate } = selections[0];
+    await updateDoc(doc(db, "tasks", reactivateTask.id), { classId, level, endDate, isPaused: false, isActive: true });
+    setReactivateTask(null);
   };
 
   const handleChangeDateConfirm = async (date: string) => {
@@ -302,11 +380,10 @@ export default function DesignParkour() {
     return Number(aPassive) - Number(bPassive);
   });
 
-  // Aktif < 3 ise kütüphaneden ödünç al
-  const borrowedCount = Math.max(0, 3 - activeTasks.length);
-  const borrowedTasks = libraryTasks.slice(0, borrowedCount);
-  // Kütüphanede de yeterli kart yoksa iskelet doldur
-  const placeholderCount = Math.max(0, 3 - activeTasks.length - borrowedTasks.length);
+  // Ghost kartlar: aktif sayısı 3'ten azsa kütüphaneden önizleme göster
+  const ghostCount    = Math.max(0, 3 - activeTasks.length);
+  const ghostTasks    = libraryTasks.slice(0, ghostCount);
+  const placeholderCount = Math.max(0, ghostCount - ghostTasks.length);
 
   return (
     <section className="mt-[48px] space-y-[24px]">
@@ -315,7 +392,7 @@ export default function DesignParkour() {
         <h3 className="text-[22px] font-bold cursor-default">Tasarım parkuru</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {/* Aktif kartlar — ilk 3 pasife alınabilir, sonrakiler kütüphaneye gönderilebilir */}
+        {/* Aktif kartlar */}
         {sortedActiveTasks.map((task, i) => (
           <TaskParkourCard
             key={task.id}
@@ -326,34 +403,29 @@ export default function DesignParkour() {
             onSendToLibrary={handleSendToLibrary}
             onTogglePause={handleTogglePause}
             onRemove={handleRemove}
-            onActivateBorrowed={handleActivateBorrowed}
+            onActivateBorrowed={() => {}}
             onChangeDate={setChangeDateTask}
           />
         ))}
-        {/* Ödünç alınmış — disabled, 3-noktada "Aktifleştir" */}
-        {borrowedTasks.map(task => (
-          <TaskParkourCard
-            key={`borrowed-${task.id}`}
+        {/* Ghost kartlar — kütüphane şablonu, 3-dot menüden aktif edilebilir */}
+        {ghostTasks.map(task => (
+          <GhostParkourCard
+            key={`ghost-${task.id}`}
             task={task}
             canManage={canManage}
-            isBorrowed
-            canRemove={isAdminVal}
-            onSendToLibrary={handleSendToLibrary}
-            onTogglePause={handleTogglePause}
-            onRemove={handleRemove}
-            onActivateBorrowed={handleActivateBorrowed}
-            onChangeDate={setChangeDateTask}
+            onActivate={setGhostModalTask}
           />
         ))}
-        {/* İskelet — hiç kart yoksa */}
+        {/* Placeholder — kütüphanede de yeterli kart yoksa */}
         {Array.from({ length: placeholderCount }).map((_, i) => (
           <PlaceholderParkourCard key={`ph-${i}`} />
         ))}
       </div>
-      {dateModalTask && (
-        <ActivateDateModal
-          onConfirm={handleDateConfirm}
-          onCancel={() => setDateModalTask(null)}
+      {reactivateTask && (
+        <AssignActivateModal
+          taskName={reactivateTask.name}
+          onConfirm={handleReactivateConfirm}
+          onCancel={() => setReactivateTask(null)}
         />
       )}
       {changeDateTask && (
@@ -364,6 +436,13 @@ export default function DesignParkour() {
           initialDate={changeDateTask.endDate ?? ""}
           onConfirm={handleChangeDateConfirm}
           onCancel={() => setChangeDateTask(null)}
+        />
+      )}
+      {ghostModalTask && (
+        <AssignActivateModal
+          taskName={ghostModalTask.name}
+          onConfirm={handleGhostActivate}
+          onCancel={() => setGhostModalTask(null)}
         />
       )}
     </section>

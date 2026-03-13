@@ -81,8 +81,13 @@ export default function TasksContent() {
 
   const enriched = tasks.map(t => ({
     ...t,
-    createdByName: t.createdByName || (t.createdBy ? usersMap[t.createdBy]?.name : undefined),
-    branch:        t.branch        || (t.createdBy ? usersMap[t.createdBy]?.branch : undefined),
+    // Eğitmen adı: önce ownedBy kullanıcısından, sonra createdByName alanından, son olarak createdBy'dan al
+    createdByName: t.createdByName
+      || (t.ownedBy   ? usersMap[t.ownedBy]?.name   : undefined)
+      || (t.createdBy ? usersMap[t.createdBy]?.name  : undefined),
+    branch: t.branch
+      || (t.ownedBy   ? usersMap[t.ownedBy]?.branch  : undefined)
+      || (t.createdBy ? usersMap[t.createdBy]?.branch : undefined),
   }));
 
   const filtered = enriched

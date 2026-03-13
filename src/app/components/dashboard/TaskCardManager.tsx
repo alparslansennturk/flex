@@ -101,6 +101,12 @@ export function TaskRow({ task, onEdit, onDelete, onSendToLibrary, onActivate }:
       <div className="shrink-0 w-24 hidden xl:block truncate">
         <span className="text-[12px] xl:text-[13px] font-medium text-surface-400 truncate block">{task.branch || "—"}</span>
       </div>
+      <div className="shrink-0 w-20 hidden xl:block truncate">
+        <span className="text-[12px] xl:text-[13px] font-medium text-surface-600 truncate block">{task.classId || "—"}</span>
+      </div>
+      <div className="shrink-0 w-20 hidden xl:block truncate">
+        <span className="text-[12px] xl:text-[13px] font-medium text-surface-500 truncate block">{task.level || "—"}</span>
+      </div>
       <div className="flex items-center justify-center shrink-0 w-8" title={task.isHidden ? "Sadece yönetim listesinde" : "Ana ekranda görünür"}>
         {task.isHidden
           ? <XCircle size={15} className="text-status-danger-400" />
@@ -245,6 +251,12 @@ export function TaskList({ tasks, loading, onEdit, onDelete, onCreateFirst, onSe
         </div>
         <div className="w-24 hidden xl:block shrink-0">
           <span className="text-[11px] xl:text-[12px] font-bold text-surface-400">Şube</span>
+        </div>
+        <div className="w-20 hidden xl:block shrink-0">
+          <span className="text-[11px] xl:text-[12px] font-bold text-surface-400">Grup</span>
+        </div>
+        <div className="w-20 hidden xl:block shrink-0">
+          <span className="text-[11px] xl:text-[12px] font-bold text-surface-400">Seviye</span>
         </div>
         <div className="w-8 shrink-0" />
         <div className="w-16 text-center shrink-0">
