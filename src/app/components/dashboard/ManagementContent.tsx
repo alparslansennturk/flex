@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
-import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2, BookOpen } from "lucide-react";
+import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2 } from "lucide-react";
+import TaskManagementPanel from "@/app/components/dashboard/TaskManagementPanel";
 
 // Mevcut alt bileşenler ve Hook
 import { GlobalConfirmationModal, StudentDeleteModal } from "./management-components/Modals";
@@ -249,18 +250,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
       {/* --- BÖLÜM: KULLANICI YÖNETİMİ --- */}
       {activeSubTab === 'users' && <UserManagement />}
 
-      {/* --- BÖLÜM: ÖDEV YÖNETİMİ (TASLAK) --- */}
-      {activeSubTab === 'task-management' && (
-        <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-500">
-          <div className="bg-white border border-neutral-100 rounded-[24px] p-20 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-[#8B5CF6] mb-4">
-              <BookOpen size={32} />
-            </div>
-            <h3 className="text-[18px] font-bold text-[#10294C]">Ödev Yönetimi Paneli</h3>
-            <p className="text-neutral-400 text-[14px] mt-2 max-w-sm">Bu alan şu an geliştirme aşamasındadır. Çok yakında lila butonlarla ödev yönetimini buradan yapabileceksiniz.</p>
-          </div>
-        </div>
-      )}
+      {/* --- BÖLÜM: ÖDEV YÖNETİMİ --- */}
+      {activeSubTab === 'task-management' && <TaskManagementPanel />}
 
       {/* --- MODALLAR --- */}
       <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type as any} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />

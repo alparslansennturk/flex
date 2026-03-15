@@ -1,17 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Header from "../../components/Header";
 import Sidebar from "../../components/Sidebar";
 import Footer from "../../components/Footer";
-import TasksContent from "../../components/dashboard/TasksContent";
+import TaskManagementPanel from "../../components/dashboard/TaskManagementPanel";
 
 export default function TasksPage() {
-  const [headerTitle, setHeaderTitle] = useState("Ödev Yönetimi");
-  const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -25,8 +23,7 @@ export default function TasksPage() {
           data.role === "admin" ||
           (data.roles && data.roles.includes("admin"))
         );
-        if (hasAccess) setIsAllowed(true);
-        else router.push("/dashboard");
+        if (!hasAccess) router.push("/dashboard");
       } catch {
         router.push("/dashboard");
       }
@@ -34,24 +31,26 @@ export default function TasksPage() {
     checkAccess();
   }, [router]);
 
-  if (isAllowed === null) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-base-primary-500" />
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen w-full bg-white font-inter overflow-hidden">
       <div className="h-full shrink-0">
         <Sidebar />
       </div>
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header activeTabLabel={headerTitle} />
+        <Header activeTabLabel="Ödev Yönetimi" />
         <main className="flex-1 overflow-y-scroll bg-surface-50/20">
-          <div className="w-full max-w-[1920px] mx-auto">
-            <TasksContent />
+          <div className="w-full max-w-480 mx-auto pb-20">
+            <div className="px-0 pt-8">
+              <div className="px-8 pb-4">
+                <h1 className="text-[26px] xl:text-[28px] font-bold text-base-primary-900 leading-none mb-2">
+                  Ödev Yönetimi
+                </h1>
+                <p className="text-[13px] xl:text-[14px] text-surface-500 font-medium">
+                  Şablonları yönet, aktif ödevleri izle ve arşivi kontrol et.
+                </p>
+              </div>
+              <TaskManagementPanel />
+            </div>
           </div>
         </main>
         <Footer />

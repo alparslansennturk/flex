@@ -47,7 +47,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
         const unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
-            setUser(docSnap.data() as UserDocument);
+            // uid alanı Firestore document'ında olmasa bile auth uid'i garantile
+            setUser({ ...(docSnap.data() as UserDocument), uid: firebaseUser.uid });
           }
           setLoading(false);
         }, (error) => {

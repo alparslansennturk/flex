@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { db, auth } from "@/app/lib/firebase";
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { X, CheckCircle2, Star } from "lucide-react";
@@ -17,16 +17,19 @@ interface TaskFormProps {
   editingTask: Task | null;
   onClose: () => void;
   onSaved: (msg: string) => void;
+  targetCollection?: string;   // Hangi koleksiyona yazılacak (default: "tasks")
+  prefill?: Partial<Task>;     // Şablondan klonlarken alanları önceden doldur
+  sourceTemplateId?: string;   // Klonlanacak şablonun ID'si (templateId + ownedBy set edilir)
 }
 
-export default function TaskForm({ editingTask, onClose, onSaved }: TaskFormProps) {
+export default function TaskForm({ editingTask, onClose, onSaved, targetCollection = "tasks", prefill, sourceTemplateId }: TaskFormProps) {
   const { user }                        = useUser();
   const [visible, setVisible]           = useState(false);
-  const [name, setName]                 = useState(editingTask?.name ?? "");
-  const [type, setType]                 = useState<TaskType>(editingTask?.type ?? "odev");
-  const [selectedIcon, setSelectedIcon] = useState<IconKey>(editingTask?.icon ?? DEFAULT_ICON[editingTask?.type ?? "odev"]);
-  const [description, setDescription]  = useState(editingTask?.description ?? "");
-  const [points, setPoints]             = useState<number>(editingTask?.points ?? 3);
+  const [name, setName]                 = useState(editingTask?.name ?? prefill?.name ?? "");
+  const [type, setType]                 = useState<TaskType>(editingTask?.type ?? prefill?.type ?? "odev");
+  const [selectedIcon, setSelectedIcon] = useState<IconKey>(editingTask?.icon ?? prefill?.icon ?? DEFAULT_ICON[editingTask?.type ?? prefill?.type ?? "odev"]);
+  const [description, setDescription]  = useState(editingTask?.description ?? prefill?.description ?? "");
+  const [points, setPoints]             = useState<number>(editingTask?.points ?? prefill?.points ?? 3);
   const [startDate]                     = useState(editingTask?.startDate ?? "");
   const [endDate, setEndDate]           = useState(editingTask?.endDate ?? "");
   const [saving, setSaving]             = useState(false);
@@ -73,21 +76,53 @@ export default function TaskForm({ editingTask, onClose, onSaved }: TaskFormProp
         startDate: startDate || null, endDate: endDate || null,
       };
       if (editingTask) {
-        await updateDoc(doc(db, "tasks", editingTask.id), payload);
+        await updateDoc(doc(db, targetCollection, editingTask.id), payload);
         onSaved("Kart güncellendi.");
       } else {
-        await addDoc(collection(db, "tasks"), {
-          ...payload,
-          isActive: false,
-          createdBy: auth.currentUser?.uid ?? null,
+        const isClone    = !!sourceTemplateId;
+        const isTemplate = targetCollection === "templates";
+
+        // Taban veri — şablonlar ve görevler için ortak alanlar
+        const baseData: Record<string, unknown> = {
+          name:          payload.name,
+          type:          payload.type,
+          icon:          payload.icon,
+          description:   payload.description,
+          points:        payload.points,
+          startDate:     payload.startDate ?? null,
+          isActive:      false,
+          isPaused:      false,
+          isHidden:      false,
+          createdBy:     auth.currentUser?.uid ?? null,
           createdByName: user ? `${user.name} ${user.surname}` : null,
-          branch: user?.branch ?? null,
-          createdAt: serverTimestamp(),
-        });
-        onSaved("Kart oluşturuldu.");
+          branch:        user?.branch ?? null,
+          createdAt:     serverTimestamp(),
+        };
+
+        if (isTemplate) {
+          // templates koleksiyonu: endDate, status, ownedBy, classId eklenmez
+        } else {
+          // tasks koleksiyonu
+          baseData.endDate = payload.endDate ?? null;
+          baseData.status  = isClone ? "active" : "library"; // hiçbir zaman undefined değil
+          if (isClone) {
+            baseData.isActive    = true;
+            baseData.templateId  = sourceTemplateId;
+            baseData.ownedBy     = auth.currentUser?.uid ?? null;
+          }
+        }
+
+        // undefined değerleri temizle — Firestore hata vermesin
+        const cleanData = Object.fromEntries(
+          Object.entries(baseData).filter(([, v]) => v !== undefined)
+        );
+
+        await addDoc(collection(db, targetCollection), cleanData);
+        onSaved(isClone ? "Ödev başlatıldı." : "Kart oluşturuldu.");
       }
       handleClose();
-    } catch {
+    } catch (err) {
+      console.error("[TaskForm] Kayıt hatası:", err);
       setSaveError("Kayıt sırasında hata oluştu.");
       setShake(true);
       setSaving(false);
@@ -113,8 +148,12 @@ export default function TaskForm({ editingTask, onClose, onSaved }: TaskFormProp
               {getIcon(selectedIcon, type, 20)}
             </div>
             <div>
-              <h2 className="text-[17px] font-bold leading-none">{editingTask ? "Kartı Düzenle" : "Yeni Kart Oluştur"}</h2>
-              <p className="text-[12px] text-white/50 mt-0.5">Ödev kütüphanesi</p>
+              <h2 className="text-[17px] font-bold leading-none">
+                {editingTask ? "Kartı Düzenle" : sourceTemplateId ? "Ödevi Başlat" : "Yeni Kart Oluştur"}
+              </h2>
+              <p className="text-[12px] text-white/50 mt-0.5">
+                {sourceTemplateId ? "Şablondan başlatılıyor" : "Ödev kütüphanesi"}
+              </p>
             </div>
           </div>
           <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors"><X size={20} /></button>
