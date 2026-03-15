@@ -163,7 +163,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
         <div className="px-8 py-7 grid grid-cols-2 gap-x-10 gap-y-6 overflow-y-auto max-h-[82vh]">
 
           {/* Satır 1: Kart adı | Bitiş tarihi */}
-          <div className="space-y-1.5">
+          <div className={`space-y-1.5 ${targetCollection === "templates" && !sourceTemplateId ? "col-span-2" : ""}`}>
             <label className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
             <input
               value={name}
@@ -173,10 +173,12 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className={labelCls}>Bitiş tarihi</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={dateCls} />
-          </div>
+          {!(targetCollection === "templates" && !sourceTemplateId) && (
+            <div className="space-y-1.5">
+              <label className={labelCls}>Bitiş tarihi</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={dateCls} />
+            </div>
+          )}
 
           {/* Satır 2: Tür | Baz puan */}
           <div className="space-y-1.5">
