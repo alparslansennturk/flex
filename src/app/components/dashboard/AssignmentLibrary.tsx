@@ -3,16 +3,17 @@
 import { useState, useEffect, useRef } from "react";
 import { LibraryBig, ChevronLeft, ChevronRight, PlusCircle, MoreHorizontal } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import { auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon } from "./taskTypes";
 import { AssignActivateModal, AssignSelection } from "./AssignActivateModal";
 
 // ---- TASK KÜTÜPHANESİ KARTI ----
-function TaskLibraryCard({ task, onStartAssignment }: {
+function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
   task: Task;
   onStartAssignment: (task: Task) => void;
+  onRemove: (task: Task) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -52,6 +53,12 @@ function TaskLibraryCard({ task, onStartAssignment }: {
                 className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
               >
                 Ödevi Başlat
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); onRemove(task); setMenuOpen(false); }}
+                className="w-full px-4 py-3 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer border-t border-[#EEF0F3]"
+              >
+                Kaldır
               </button>
             </div>
           )}
@@ -96,8 +103,15 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
     return () => ro.disconnect();
   }, [templates, scrollRef]);
 
-  // Kütüphanede şablon yoksa section'ı gizle
-  if (templates.length === 0) return null;
+  // Sadece gizlenmemiş şablonları göster
+  const visibleTemplates = templates.filter(t => !t.isHidden);
+
+  // Kütüphanede görünür şablon yoksa section'ı gizle
+  if (visibleTemplates.length === 0) return null;
+
+  const handleRemove = async (task: Task) => {
+    await updateDoc(doc(db, "templates", task.id), { isHidden: true });
+  };
 
   return (
     <section className="mt-[48px] mb-[64px] space-y-[24px]">
@@ -113,11 +127,12 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
           </>
         )}
         <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">
-          {templates.map(task => (
+          {visibleTemplates.map(task => (
             <TaskLibraryCard
               key={task.id}
               task={task}
               onStartAssignment={setAssignModalTask}
+              onRemove={handleRemove}
             />
           ))}
         </div>

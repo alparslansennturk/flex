@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
   collection, deleteDoc, doc, getDocs, onSnapshot,
@@ -8,7 +9,7 @@ import {
 } from "firebase/firestore";
 import {
   Plus, Edit2, Trash2, MoreHorizontal, X, CheckCircle2,
-  Trophy, Star, CalendarDays, AlertTriangle,
+  Trophy, Star, CalendarDays, AlertTriangle, Check,
 } from "lucide-react";
 import { Task } from "./taskTypes";
 import { DeleteConfirmModal } from "./TaskCardManager";
@@ -133,7 +134,7 @@ function TaskQuickEditModal({
 
 // ─── Silme onay modalı (koleksiyon adı bağımsız) ─────────────────────────────
 function DeleteModal({
-  task, collectionName, onCancel, onConfirm,
+  task, onCancel, onConfirm,
 }: {
   task: Task; collectionName: string; onCancel: () => void; onConfirm: () => void;
 }) {
@@ -148,16 +149,19 @@ function DeleteModal({
 
 // ─── Şablon satırı ────────────────────────────────────────────────────────────
 function TemplateRow({
-  task, onEdit, onDelete,
+  task, onEdit, onDelete, onToggleVisibility,
 }: {
   task: Task;
   onEdit: (t: Task) => void;
   onDelete: (t: Task) => void;
+  onToggleVisibility: (t: Task) => void;
 }) {
+  const isVisible = !task.isHidden;
+
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-50 transition-colors border-b border-surface-100 last:border-0 group">
       <div className="flex-1 min-w-0">
-        <span className="text-[14px] font-bold text-base-primary-900 truncate block">{task.name}</span>
+        <span className={`text-[14px] font-bold truncate block ${isVisible ? "text-base-primary-900" : "text-surface-400"}`}>{task.name}</span>
       </div>
       <div className="flex-[2] min-w-0 hidden md:block">
         <span className="text-[13px] text-surface-500 truncate block">
@@ -166,6 +170,20 @@ function TemplateRow({
       </div>
       <div className="w-28 shrink-0 hidden lg:block">
         <span className="text-[13px] text-surface-500">{task.level || "—"}</span>
+      </div>
+      {/* Ana ekran görünürlük toggle */}
+      <div className="shrink-0">
+        <button
+          onClick={() => onToggleVisibility(task)}
+          title={isVisible ? "Ana ekrandan kaldır" : "Ana ekrana al"}
+          className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all cursor-pointer ${
+            isVisible
+              ? "bg-status-success-50 text-status-success-500 hover:bg-status-success-100"
+              : "bg-surface-100 text-surface-400 hover:bg-surface-200"
+          }`}
+        >
+          {isVisible ? <Check size={14} strokeWidth={2.5} /> : <X size={14} strokeWidth={2.5} />}
+        </button>
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <button
@@ -189,7 +207,7 @@ function TemplateRow({
 
 // ─── Task satırı (Mevcut Ödevler & Arşiv) ────────────────────────────────────
 function TaskRow({
-  task, tab, onEdit, onDelete, onArchive, onActivate,
+  task, tab, onEdit, onDelete, onArchive, onActivate, onGrade,
 }: {
   task: Task;
   tab: "active" | "archive";
@@ -197,6 +215,7 @@ function TaskRow({
   onDelete: (t: Task) => void;
   onArchive: (t: Task) => void;
   onActivate: (t: Task) => void;
+  onGrade: (t: Task) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -217,11 +236,13 @@ function TaskRow({
     return `${parseInt(day)} ${months[parseInt(m) - 1]} ${y}`;
   };
 
+  const isCompleted = task.status === "completed";
+
   return (
-    <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-50 transition-colors border-b border-surface-100 last:border-0 group">
-      {/* Ödev İsmi */}
-      <div className="w-44 shrink-0 xl:w-52">
-        <span className="text-[13px] xl:text-[14px] font-bold text-base-primary-900 truncate block">{task.name}</span>
+    <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-50 transition-colors border-b border-surface-100 last:border-0 group">
+      {/* Ödev Adı */}
+      <div className="w-36 shrink-0 xl:w-44">
+        <span className="text-[13px] font-bold text-base-primary-900 truncate block">{task.name}</span>
       </div>
       {/* Açıklama */}
       <div className="flex-1 min-w-0 hidden md:block">
@@ -230,8 +251,8 @@ function TaskRow({
         </span>
       </div>
       {/* Eğitmen */}
-      <div className="w-28 shrink-0 hidden xl:block">
-        <span className="text-[12px] text-surface-600 truncate block">{task.createdByName || "—"}</span>
+      <div className="w-32 shrink-0 hidden lg:block">
+        <span className="text-[13px] text-surface-600 truncate block">{task.createdByName || "—"}</span>
       </div>
       {/* Şube */}
       <div className="w-24 shrink-0 hidden xl:block">
@@ -244,6 +265,20 @@ function TaskRow({
       {/* Seviye */}
       <div className="w-20 shrink-0 hidden lg:block">
         <span className="text-[12px] text-surface-500 truncate block">{task.level || "—"}</span>
+      </div>
+      {/* Statü */}
+      <div className="w-28 shrink-0 hidden lg:block">
+        {isCompleted ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-status-success-50 text-status-success-600 text-[11px] font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-status-success-500" />
+            Tamamlandı
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-100 text-surface-500 text-[11px] font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-surface-400" />
+            Aktif
+          </span>
+        )}
       </div>
       {/* Puan */}
       <div className="w-14 shrink-0 flex items-center gap-1 justify-center">
@@ -259,7 +294,7 @@ function TaskRow({
         )}
       </div>
       {/* Düzenle / Sil */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="w-20 shrink-0 flex items-center gap-1">
         <button
           onClick={() => onEdit(task)}
           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-base-primary-50 hover:text-base-primary-500 transition-all cursor-pointer"
@@ -286,10 +321,18 @@ function TaskRow({
         </button>
         {menuOpen && (
           <div className="absolute right-0 top-9 z-50 bg-white border border-surface-100 rounded-2xl shadow-xl overflow-hidden min-w-[175px]">
+            {tab === "active" && isCompleted && (
+              <button
+                onClick={() => { onGrade(task); setMenuOpen(false); }}
+                className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-status-success-600 hover:bg-status-success-50 transition-colors cursor-pointer"
+              >
+                Not Ver
+              </button>
+            )}
             {tab === "active" && (
               <button
                 onClick={() => { onArchive(task); setMenuOpen(false); }}
-                className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer"
+                className={`w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer ${isCompleted ? "border-t border-surface-100" : ""}`}
               >
                 Arşive Taşı
               </button>
@@ -311,6 +354,7 @@ function TaskRow({
 
 // ─── ANA BİLEŞEN ─────────────────────────────────────────────────────────────
 export default function TaskManagementPanel() {
+  const router = useRouter();
   const [adminTab, setAdminTab] = useState<AdminTab>("templates");
 
   // Templates
@@ -361,11 +405,11 @@ export default function TaskManagementPanel() {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
       // Mevcut Ödevler: isActive=true ve arşivlenmemiş
       setActiveTasks(all.filter(t =>
-        t.isActive === true && t.status !== "archived" && t.status !== "completed"
+        t.isActive === true && t.status !== "archived"
       ));
-      // Arşiv: status alanı archived/completed
+      // Arşiv: status alanı archived
       setArchivedTasks(all.filter(t =>
-        t.status === "archived" || t.status === "completed"
+        t.status === "archived"
       ));
       setTasksLoading(false);
     });
@@ -430,6 +474,18 @@ export default function TaskManagementPanel() {
     } catch { showToast("İşlem sırasında hata oluştu."); }
   };
 
+  const handleGrade = (task: Task) => {
+    router.push(`/dashboard/notes?taskId=${task.id}`);
+  };
+
+  const handleToggleTemplateVisibility = async (task: Task) => {
+    try {
+      const newHidden = !task.isHidden;
+      await updateDoc(doc(db, "templates", task.id), { isHidden: newHidden });
+      showToast(newHidden ? `"${task.name}" ana ekrandan kaldırıldı.` : `"${task.name}" ana ekrana alındı.`);
+    } catch { showToast("İşlem sırasında hata oluştu."); }
+  };
+
   // ── Form açma fonksiyonları ────────────────────────────────────────────────
   const openTemplateCreate = () => {
     setFormCollection("templates");
@@ -464,6 +520,7 @@ export default function TaskManagementPanel() {
 
   const enrichedActive   = activeTasks.map(enrichTask);
   const enrichedArchived = archivedTasks.map(enrichTask);
+
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -504,7 +561,7 @@ export default function TaskManagementPanel() {
       {/* ── ŞABLON YÖNETİMİ ─────────────────────────────────────────────────── */}
       {adminTab === "templates" && (
         <div className="space-y-8">
-          {/* Üst kısım: Kart Oluştur butonu */}
+          {/* Üst kısım */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-[20px] font-bold text-base-primary-900 leading-none mb-1">Şablon Yönetimi</h2>
@@ -518,18 +575,21 @@ export default function TaskManagementPanel() {
             </button>
           </div>
 
-          {/* Alt kısım: Şablon listesi */}
+          {/* Şablon listesi */}
           <div className="bg-white rounded-3xl border border-surface-100 shadow-sm overflow-visible">
             {/* Başlık satırı */}
             <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100 rounded-t-3xl">
               <div className="flex-1 min-w-0">
-                <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Kart Adı</span>
+                <span className="text-[12px] font-bold text-surface-600">Kart Adı</span>
               </div>
               <div className="flex-[2] min-w-0 hidden md:block">
-                <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Açıklama</span>
+                <span className="text-[12px] font-bold text-surface-600">Açıklama</span>
               </div>
               <div className="w-28 shrink-0 hidden lg:block">
-                <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Seviye</span>
+                <span className="text-[12px] font-bold text-surface-600">Seviye</span>
+              </div>
+              <div className="w-8 shrink-0 text-center">
+                <span className="text-[12px] font-bold text-surface-600">Ana Ekran</span>
               </div>
               <div className="w-20 shrink-0" />
             </div>
@@ -552,6 +612,7 @@ export default function TaskManagementPanel() {
                   task={t}
                   onEdit={openTemplateEdit}
                   onDelete={task => { setDeletingCollection("templates"); setDeletingTask(task); }}
+                  onToggleVisibility={handleToggleTemplateVisibility}
                 />
               ))
             )}
@@ -574,6 +635,7 @@ export default function TaskManagementPanel() {
             onDelete={task => { setDeletingCollection("tasks"); setDeletingTask(task); }}
             onArchive={handleArchive}
             onActivate={handleActivate}
+            onGrade={handleGrade}
           />
         </div>
       )}
@@ -583,7 +645,7 @@ export default function TaskManagementPanel() {
         <div className="space-y-6">
           <div>
             <h2 className="text-[20px] font-bold text-base-primary-900 leading-none mb-1">Arşiv</h2>
-            <p className="text-[13px] text-surface-400">Tamamlanan veya arşivlenen ödevler. ({enrichedArchived.length} kayıt)</p>
+            <p className="text-[13px] text-surface-400">Arşivlenen ödevler. ({enrichedArchived.length} kayıt)</p>
           </div>
           <TaskTable
             tasks={enrichedArchived}
@@ -593,6 +655,7 @@ export default function TaskManagementPanel() {
             onDelete={task => { setDeletingCollection("tasks"); setDeletingTask(task); }}
             onArchive={handleArchive}
             onActivate={handleActivate}
+            onGrade={handleGrade}
           />
         </div>
       )}
@@ -644,7 +707,7 @@ export default function TaskManagementPanel() {
 
 // ─── Tasks tablosu (Mevcut Ödevler & Arşiv için ortak) ───────────────────────
 function TaskTable({
-  tasks, loading, tab, onEdit, onDelete, onArchive, onActivate,
+  tasks, loading, tab, onEdit, onDelete, onArchive, onActivate, onGrade,
 }: {
   tasks: Task[];
   loading: boolean;
@@ -653,6 +716,7 @@ function TaskTable({
   onDelete: (t: Task) => void;
   onArchive: (t: Task) => void;
   onActivate: (t: Task) => void;
+  onGrade: (t: Task) => void;
 }) {
   if (loading) {
     return (
@@ -676,30 +740,33 @@ function TaskTable({
   return (
     <div className="bg-white rounded-3xl border border-surface-100 shadow-sm overflow-visible">
       {/* Başlık satırı */}
-      <div className="flex items-center gap-3 px-5 py-3 bg-surface-50 border-b border-surface-100 rounded-t-3xl">
-        <div className="w-44 shrink-0 xl:w-52">
-          <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Ödev İsmi</span>
+      <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100 rounded-t-3xl">
+        <div className="w-36 shrink-0 xl:w-44">
+          <span className="text-[12px] font-bold text-surface-600">Ödev Adı</span>
         </div>
         <div className="flex-1 min-w-0 hidden md:block">
-          <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Açıklama</span>
+          <span className="text-[12px] font-bold text-surface-600">Açıklama</span>
         </div>
-        <div className="w-28 shrink-0 hidden xl:block">
-          <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Eğitmen</span>
+        <div className="w-32 shrink-0 hidden lg:block">
+          <span className="text-[12px] font-bold text-surface-600">Eğitmen</span>
         </div>
         <div className="w-24 shrink-0 hidden xl:block">
-          <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Şube</span>
+          <span className="text-[12px] font-bold text-surface-600">Şube</span>
         </div>
         <div className="w-20 shrink-0 hidden lg:block">
-          <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Grup</span>
+          <span className="text-[12px] font-bold text-surface-600">Grup</span>
         </div>
         <div className="w-20 shrink-0 hidden lg:block">
-          <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Seviye</span>
+          <span className="text-[12px] font-bold text-surface-600">Seviye</span>
+        </div>
+        <div className="w-28 shrink-0 hidden lg:block">
+          <span className="text-[12px] font-bold text-surface-600">Statü</span>
         </div>
         <div className="w-14 shrink-0 text-center">
-          <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Puan</span>
+          <span className="text-[12px] font-bold text-surface-600">Puan</span>
         </div>
         <div className="w-24 shrink-0 hidden lg:block">
-          <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Teslim</span>
+          <span className="text-[12px] font-bold text-surface-600">Teslim</span>
         </div>
         <div className="w-20 shrink-0" />
         <div className="w-8 shrink-0" />
@@ -714,6 +781,7 @@ function TaskTable({
           onDelete={onDelete}
           onArchive={onArchive}
           onActivate={onActivate}
+          onGrade={onGrade}
         />
       ))}
     </div>

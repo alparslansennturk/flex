@@ -176,25 +176,27 @@
    ============================================================ */
 @layer base {
   html {
-    overflow-y: scroll;
-    scrollbar-gutter: stable;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
- /* Scrollbar alanı 1px olarak kalsın (titremeyi önler) */
+ /* Sade, görünür scrollbar */
 ::-webkit-scrollbar {
-  width: 1px;
+  width: 6px;
 }
 
-/* Arka planı ve çubuğu tamamen şeffaf yapıyoruz (çizgiyi yok eder) */
 ::-webkit-scrollbar-track {
-  background: transparent !important;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: transparent !important;
+  background: #CBD2DA;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #AEB4C0;
 }
 
 

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Route, Clock, ChevronRight, MoreHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon, TaskType } from "./taskTypes";
 import { PERMISSIONS } from "@/app/lib/constants";
@@ -120,19 +121,16 @@ function GhostParkourCard({ task, canManage, onActivate }: {
 }
 
 // ---- TASK KARTI (aktif) ----
-function TaskParkourCard({ task, canManage, isBorrowed = false, canPause = true, canRemove = false, onSendToLibrary, onTogglePause, onRemove, onActivateBorrowed, onChangeDate, onComplete }: {
+function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrowed, onChangeDate, onComplete, onCancel }: {
   task: Task;
   canManage: boolean;
   isBorrowed?: boolean;
-  canPause?: boolean;
-  canRemove?: boolean;
-  onSendToLibrary: (task: Task) => void;
-  onTogglePause: (task: Task) => void;
-  onRemove: (task: Task) => void;
   onActivateBorrowed: (task: Task) => void;
   onChangeDate: (task: Task) => void;
   onComplete: (task: Task) => void;
+  onCancel: (task: Task) => void;
 }) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -157,18 +155,33 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, canPause = true,
     return `Son ${diff} Gün`;
   };
 
-  const duration  = getDuration();
-  const isExpired = duration === null;
-  const isNoDate  = !task.endDate;
-  const isDisabled = isBorrowed || isExpired || !!task.isPaused || isNoDate;
-  const style      = PARKOUR_STYLE[task.type] ?? PARKOUR_STYLE.odev;
-  const iconNode   = getIcon(task.icon, task.type, 22);
+  const duration    = getDuration();
+  const isExpired   = duration === null;
+  const isNoDate    = !task.endDate;
+  const isCompleted   = task.status === "completed";
+  const needsGrading  = isCompleted && !task.isGraded;
+  const isDisabled    = !isCompleted && (isBorrowed || isExpired || isNoDate);
+  const style       = PARKOUR_STYLE[task.type] ?? PARKOUR_STYLE.odev;
+  const iconNode    = getIcon(task.icon, task.type, 22);
 
-  const statusText  = isBorrowed ? "Pasif" : isExpired ? "Süresi Doldu" : (task.isPaused || isNoDate) ? "Pasif" : "Aktif";
-  const statusColor = (!isDisabled) ? "text-[#009F3E]" : "text-[#AEB4C0]";
+  const statusText = isCompleted
+    ? "Tamamlandı"
+    : isBorrowed
+      ? "Pasif"
+      : isExpired
+        ? "Süresi Doldu"
+        : isNoDate
+          ? "Pasif"
+          : "Aktif";
+
+  const statusColor = isCompleted
+    ? "text-[#009F3E]"
+    : (!isDisabled)
+      ? "text-[#009F3E]"
+      : "text-[#AEB4C0]";
 
   return (
-    <div className={`bg-white p-7 rounded-[32px] border border-[#E2E5EA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group ${isExpired ? "opacity-60" : ""}`}>
+    <div className={`bg-white p-7 rounded-[32px] border border-[#E2E5EA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group ${isExpired && !isCompleted ? "opacity-60" : ""}`}>
       <div className="flex justify-between items-start mb-5">
         <div className={`w-12 h-12 ${style.gradient} rounded-[14px] flex items-center justify-center text-white shadow-lg shrink-0`}>
           {iconNode}
@@ -196,39 +209,26 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, canPause = true,
                     </button>
                   ) : (
                     <>
+                      {!isCompleted && (
+                        <button
+                          onClick={() => { onComplete(task); setMenuOpen(false); }}
+                          className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#009F3E] hover:bg-green-50 transition-colors cursor-pointer"
+                        >
+                          Ödevi Bitir
+                        </button>
+                      )}
                       <button
-                        onClick={() => { onComplete(task); setMenuOpen(false); }}
-                        className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#009F3E] hover:bg-green-50 transition-colors cursor-pointer"
+                        onClick={() => { onCancel(task); setMenuOpen(false); }}
+                        className={`w-full px-4 py-3 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer ${!isCompleted ? "border-t border-[#EEF0F3]" : ""}`}
                       >
-                        Ödevi Bitir
+                        Ödevi İptal Et
                       </button>
-                      <button
-                        onClick={() => { onSendToLibrary(task); setMenuOpen(false); }}
-                        className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer border-t border-[#EEF0F3]"
-                      >
-                        Kütüphaneye Gönder
-                      </button>
-                      <button
-                        onClick={() => { onTogglePause(task); setMenuOpen(false); }}
-                        disabled={!canPause && !task.isPaused && !!task.endDate}
-                        className={`w-full px-4 py-3 text-left text-[13px] font-bold transition-colors border-t border-[#EEF0F3] ${(!canPause && !task.isPaused && !!task.endDate) ? "text-[#AEB4C0] cursor-not-allowed opacity-50" : "text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer"}`}
-                      >
-                        {(task.isPaused || !task.endDate) ? "Aktife Al" : "Pasife Al"}
-                      </button>
-                      {task.endDate && (
+                      {task.endDate && !isCompleted && (
                         <button
                           onClick={() => { onChangeDate(task); setMenuOpen(false); }}
                           className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer border-t border-[#EEF0F3]"
                         >
                           Tarihi Değiştir
-                        </button>
-                      )}
-                      {canRemove && (
-                        <button
-                          onClick={() => { onRemove(task); setMenuOpen(false); }}
-                          className="w-full px-4 py-3 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer border-t border-[#EEF0F3]"
-                        >
-                          Kaldır
                         </button>
                       )}
                     </>
@@ -260,24 +260,112 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, canPause = true,
           <span className={`text-[13px] font-bold mt-0.5 ${statusColor}`}>{statusText}</span>
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-[11px] text-[#8E95A3]">Teslim süresi</span>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <Clock size={12} className={isExpired ? "text-red-400" : "text-[#10294C]"} />
-            <span className={`text-[13px] font-bold ${isExpired ? "text-red-400" : "text-[#10294C]"}`}>
-              {isExpired ? "Süre Doldu" : (duration ?? "Süresiz")}
-            </span>
-          </div>
+          {needsGrading ? (
+            <>
+              <span className="text-[11px] text-[#8E95A3]">Bekliyor</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <ClipboardList size={12} className="text-[#009F3E]" />
+                <span className="text-[13px] font-bold text-[#009F3E]">Not Girişi</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-[11px] text-[#8E95A3]">Teslim süresi</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Clock size={12} className={isExpired && !isCompleted ? "text-red-400" : "text-[#10294C]"} />
+                <span className={`text-[13px] font-bold ${isExpired && !isCompleted ? "text-red-400" : "text-[#10294C]"}`}>
+                  {isExpired && !isCompleted ? "Süre Doldu" : (duration ?? "Süresiz")}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-5">
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Tasarım atölyesi</span>
-        <button
-          disabled={isDisabled}
-          className={`px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 ${isDisabled ? "bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed" : "bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer"}`}
-        >
-          Ödev ver <ChevronRight size={16} />
-        </button>
+        {isCompleted ? (
+          <div className="relative">
+            {needsGrading && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
+            )}
+            <button
+              onClick={() => router.push(`/dashboard/notes?taskId=${task.id}`)}
+              className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
+            >
+              Not Girişi Yap <ChevronRight size={16} />
+            </button>
+          </div>
+        ) : (
+          <button
+            disabled={isDisabled}
+            className={`px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 ${isDisabled ? "bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed" : "bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer"}`}
+          >
+            Ödev ver <ChevronRight size={16} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- ÖDEV BİTİR MODAL (turuncu) ----
+function CompleteConfirmModal({ task, onCancel, onConfirm }: {
+  task: Task; onCancel: () => void; onConfirm: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+  const handleCancel  = () => { setVisible(false); setTimeout(onCancel, 280); };
+  const handleConfirm = () => { setVisible(false); setTimeout(onConfirm, 280); };
+
+  return (
+    <div className={`fixed inset-0 z-[700] flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
+      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+      <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-5 text-center transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
+        <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
+          <CheckCircle2 size={26} className="text-orange-500" />
+        </div>
+        <div>
+          <p className="text-[17px] font-bold text-base-primary-900 mb-1">Ödevi bitir</p>
+          <p className="text-[13px] text-surface-500">
+            <span className="font-bold text-base-primary-700">"{task.name}"</span> ödevi tamamlandı olarak işaretlenecek. Emin misiniz?
+          </p>
+        </div>
+        <div className="flex gap-3 w-full">
+          <button onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+          <button onClick={handleConfirm} className="flex-1 h-11 rounded-xl bg-orange-500 text-white text-[13px] font-bold hover:bg-orange-600 active:scale-95 transition-all cursor-pointer">Bitir</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- ÖDEV İPTAL MODAL (kırmızı) ----
+function CancelConfirmModal({ task, onCancel, onConfirm }: {
+  task: Task; onCancel: () => void; onConfirm: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+  const handleCancel  = () => { setVisible(false); setTimeout(onCancel, 280); };
+  const handleConfirm = () => { setVisible(false); setTimeout(onConfirm, 280); };
+
+  return (
+    <div className={`fixed inset-0 z-[700] flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
+      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+      <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-5 text-center transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
+        <div className="w-14 h-14 rounded-full bg-status-danger-50 flex items-center justify-center">
+          <AlertTriangle size={26} className="text-status-danger-500" />
+        </div>
+        <div>
+          <p className="text-[17px] font-bold text-base-primary-900 mb-1">Ödevi iptal et</p>
+          <p className="text-[13px] text-surface-500">
+            <span className="font-bold text-base-primary-700">"{task.name}"</span> ödevi iptal edilecek ve arşive taşınacak. Emin misiniz?
+          </p>
+        </div>
+        <div className="flex gap-3 w-full">
+          <button onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+          <button onClick={handleConfirm} className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-700 active:scale-95 transition-all cursor-pointer">İptal Et</button>
+        </div>
       </div>
     </div>
   );
@@ -291,10 +379,11 @@ export default function DesignParkour() {
   const [changeDateTask, setChangeDateTask] = useState<Task | null>(null);
   const [reactivateTask, setReactivateTask] = useState<Task | null>(null);
   const [ghostModalTask, setGhostModalTask] = useState<Task | null>(null);
+  const [completeConfirmTask, setCompleteConfirmTask] = useState<Task | null>(null);
+  const [cancelConfirmTask,   setCancelConfirmTask]   = useState<Task | null>(null);
 
-  const { hasPermission, isTrainer, isAdmin, user } = useUser();
+  const { hasPermission, isTrainer, user } = useUser();
   const canManage  = hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || isTrainer();
-  const isAdminVal = isAdmin();
 
   // tasks koleksiyonu — closure sorunu yok: filter render'da yapılıyor
   useEffect(() => {
@@ -314,38 +403,18 @@ export default function DesignParkour() {
   const myUid = user?.uid ?? auth.currentUser?.uid;
   const activeTasks = allTasks.filter(t =>
     t.isActive === true && !t.isHidden &&
-    t.status !== "archived" && t.status !== "completed" &&
+    t.status !== "archived" &&
     myUid != null &&
     (t.ownedBy === myUid || (!t.ownedBy && t.createdBy === myUid))
   );
 
   // ---- Handlers ----
-  const handleSendToLibrary = async (task: Task) => {
-    if (task.ownedBy && task.templateId) {
-      await deleteDoc(doc(db, "tasks", task.id));
-    } else {
-      await updateDoc(doc(db, "tasks", task.id), { isActive: false, isPaused: false, isHidden: false, endDate: null });
-    }
-  };
-
-  const handleRemove = async (task: Task) => {
-    if (task.ownedBy) {
-      await deleteDoc(doc(db, "tasks", task.id));
-    } else {
-      await updateDoc(doc(db, "tasks", task.id), { isActive: false, isPaused: false, isHidden: true, endDate: null });
-    }
-  };
-
-  const handleTogglePause = (task: Task) => {
-    if (!task.endDate) { setReactivateTask(task); return; }
-    updateDoc(doc(db, "tasks", task.id), task.isPaused
-      ? { isPaused: false }
-      : { isPaused: true, endDate: null }
-    );
-  };
-
   const handleComplete = async (task: Task) => {
-    await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: false });
+    await updateDoc(doc(db, "tasks", task.id), { status: "completed" });
+  };
+
+  const handleCancelTask = async (task: Task) => {
+    await updateDoc(doc(db, "tasks", task.id), { status: "archived", isActive: false });
   };
 
   const handleReactivateConfirm = async (selections: AssignSelection[]) => {
@@ -391,8 +460,11 @@ export default function DesignParkour() {
     setGhostModalTask(null);
   };
 
-  // Sıralama: tarihli+aktif önce
+  // Sıralama: tamamlananlar sona, tarihli+aktif önce
   const sortedActiveTasks = [...activeTasks].sort((a, b) => {
+    const aCompleted = a.status === "completed";
+    const bCompleted = b.status === "completed";
+    if (aCompleted !== bCompleted) return Number(aCompleted) - Number(bCompleted);
     const aPassive = !!a.isPaused || !a.endDate;
     const bPassive = !!b.isPaused || !b.endDate;
     return Number(aPassive) - Number(bPassive);
@@ -403,7 +475,7 @@ export default function DesignParkour() {
     activeTasks.filter(t => t.templateId).map(t => t.templateId!)
   );
   const ghostCount       = Math.max(0, 3 - activeTasks.length);
-  const ghostTasks       = templates.filter(t => !myActiveTemplateIds.has(t.id)).slice(0, ghostCount);
+  const ghostTasks       = templates.filter(t => !myActiveTemplateIds.has(t.id) && !t.isHidden).slice(0, ghostCount);
   const placeholderCount = Math.max(0, ghostCount - ghostTasks.length);
 
   return (
@@ -413,19 +485,15 @@ export default function DesignParkour() {
         <h3 className="text-[22px] font-bold cursor-default">Tasarım parkuru</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {sortedActiveTasks.map((task, i) => (
+        {sortedActiveTasks.map(task => (
           <TaskParkourCard
             key={task.id}
             task={task}
             canManage={canManage}
-            canPause={i < 3}
-            canRemove={isAdminVal}
-            onSendToLibrary={handleSendToLibrary}
-            onTogglePause={handleTogglePause}
-            onRemove={handleRemove}
             onActivateBorrowed={() => {}}
             onChangeDate={setChangeDateTask}
-            onComplete={handleComplete}
+            onComplete={setCompleteConfirmTask}
+            onCancel={setCancelConfirmTask}
           />
         ))}
         {ghostTasks.map(task => (
@@ -463,6 +531,20 @@ export default function DesignParkour() {
           taskName={ghostModalTask.name}
           onConfirm={handleGhostActivate}
           onCancel={() => setGhostModalTask(null)}
+        />
+      )}
+      {completeConfirmTask && (
+        <CompleteConfirmModal
+          task={completeConfirmTask}
+          onCancel={() => setCompleteConfirmTask(null)}
+          onConfirm={() => { handleComplete(completeConfirmTask); setCompleteConfirmTask(null); }}
+        />
+      )}
+      {cancelConfirmTask && (
+        <CancelConfirmModal
+          task={cancelConfirmTask}
+          onCancel={() => setCancelConfirmTask(null)}
+          onConfirm={() => { handleCancelTask(cancelConfirmTask); setCancelConfirmTask(null); }}
         />
       )}
     </section>

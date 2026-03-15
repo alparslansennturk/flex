@@ -70,7 +70,7 @@ export default function ManagementPage() {
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header activeTabLabel={headerTitle} />
 
-        <main className="flex-1 overflow-y-scroll bg-surface-50/20">
+        <main className="flex-1 overflow-y-auto bg-surface-50/20 [scrollbar-gutter:stable]">
           <div className="w-full max-w-[1920px] mx-auto">
             <ManagementContent setHeaderTitle={setHeaderTitle} />
           </div>

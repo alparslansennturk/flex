@@ -53,18 +53,18 @@ useEffect(() => {
 
 
   return (
-    <div className="flex min-h-screen bg-[#F9FAFB] font-inter antialiased text-text-primary">
+    <div className="flex h-screen overflow-hidden bg-[#F9FAFB] font-inter antialiased text-text-primary">
 
       {/* SOL: SIDEBAR (Zaten kendi içinde yetki kontrolü yapıyor) */}
-      <aside className="hidden lg:block h-screen sticky top-0 shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
+      <aside className="hidden lg:block h-full shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
         <Sidebar />
       </aside>
 
       {/* SAĞ: CONTAINER */}
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 relative h-full">
         <Header />
 
-        <main className="flex-1 w-full overflow-x-hidden">
+        <main className="flex-1 w-full overflow-y-auto overflow-x-clip [scrollbar-gutter:stable]">
           <div className="w-[94%] mx-auto py-8 transition-all duration-500 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[1920px]">
 
             {activeTab === 'dashboard' ? (
