@@ -54,38 +54,36 @@ export default function ScoringSettingsPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
-      <div className="relative bg-base-primary-900 rounded-3xl p-8 overflow-hidden">
-        {/* Dekoratif arka plan katmanları */}
-        <div className="absolute inset-0 bg-gradient-to-br from-designstudio-secondary-900/60 via-base-primary-900 to-base-primary-900" />
-        <div className="absolute -top-20 -right-20 w-72 h-72 bg-designstudio-secondary-500/15 rounded-full blur-3xl" />
-        <div className="absolute -bottom-10 left-1/3 w-48 h-48 bg-designstudio-primary-500/10 rounded-full blur-3xl" />
-
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center">
-              <Settings size={20} className="text-white" />
+      <div className="bg-base-primary-50 rounded-3xl border border-base-primary-100 px-7 py-5">
+        <div className="flex items-center justify-between gap-6">
+          {/* Sol: başlık */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-9 h-9 rounded-2xl bg-designstudio-primary-50 border border-designstudio-primary-100 flex items-center justify-center">
+              <Settings size={16} className="text-designstudio-primary-500" />
             </div>
             <div>
-              <h2 className="text-[22px] font-bold text-white leading-none tracking-tight">Puanlama Kontrol Merkezi</h2>
-              <p className="text-[12px] text-white/40 mt-1">Tüm XP ve sıralama kuralları buradan yönetilir — sıfır hard-code</p>
+              <h2 className="text-[17px] font-bold text-base-primary-900 leading-none" style={{ letterSpacing: "-0.02em" }}>Puanlama Kontrol Merkezi</h2>
+              <p className="text-[12px] text-surface-400 mt-0.5">Tüm XP ve sıralama kuralları buradan yönetilir — sıfır hard-code</p>
             </div>
           </div>
 
-          {/* Quick stat kartları */}
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              { label: "Min. Bölücü",    value: local.leaderboard.minTaskDivisor,                              Icon: TrendingUp, color: "text-designstudio-primary-400" },
-              { label: "Proje Ağırlığı", value: `${(local.certificateWeights.project * 100).toFixed(0)}%`,    Icon: Award,      color: "text-designstudio-secondary-300" },
-              { label: "Maks XP",        value: local.difficultyXP.level4,                                    Icon: Zap,        color: "text-designstudio-primary-300" },
-              { label: "Geç Ceza Min.",  value: `${(local.latePenalty.week3plus * 100).toFixed(0)}%`,         Icon: Clock,      color: "text-[#FFB020]" },
-            ].map(({ label, value, Icon, color }) => (
-              <div key={label} className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/8 hover:bg-white/8 transition-colors">
-                <Icon size={15} className={`${color} mb-2.5`} />
-                <p className="text-[22px] font-bold text-white leading-none">{value}</p>
-                <p className="text-[11px] text-white/35 mt-1.5 font-medium">{label}</p>
+          {/* Sağ: kompakt stat rozetleri */}
+          <div className="flex items-center gap-2">
+            {([
+              { label: "Min. Bölücü",    value: String(local.leaderboard.minTaskDivisor),                           Icon: TrendingUp, bg: "bg-base-primary-50 border-base-primary-100",                       iconCls: "text-base-primary-400",            valCls: "text-base-primary-900"           },
+              { label: "Proje Ağırlığı", value: `${(local.certificateWeights.project * 100).toFixed(0)}%`,          Icon: Award,      bg: "bg-designstudio-secondary-50 border-designstudio-secondary-100",   iconCls: "text-designstudio-secondary-500",  valCls: "text-designstudio-secondary-700" },
+              { label: "Maks XP",        value: String(local.difficultyXP.level4),                                   Icon: Zap,        bg: "bg-designstudio-primary-50 border-designstudio-primary-100",       iconCls: "text-designstudio-primary-500",    valCls: "text-designstudio-primary-700"   },
+              { label: "Geç Ceza Min.",  value: `${(local.latePenalty.week3plus * 100).toFixed(0)}%`,               Icon: Clock,      bg: "bg-[#FFF9EB] border-[#FFE8A0]",                                    iconCls: "text-[#FFB020]",                   valCls: "text-[#C98A00]"                  },
+            ] as const).map(({ label, value, Icon, bg, iconCls, valCls }) => (
+              <div key={label} className={`${bg} border rounded-2xl px-4 py-2.5 min-w-[90px]`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Icon size={11} className={iconCls} />
+                  <span className="text-[10px] font-bold text-surface-400 uppercase tracking-wider leading-none">{label}</span>
+                </div>
+                <p className={`text-[20px] font-bold ${valCls} leading-none`}>{value}</p>
               </div>
             ))}
           </div>
@@ -93,7 +91,7 @@ export default function ScoringSettingsPanel() {
       </div>
 
       {/* ── AYAR KARTLARı 2×2 GRID ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-5">
 
         {/* 1. Leaderboard Algoritması */}
         <SettingCard
@@ -332,11 +330,11 @@ export default function ScoringSettingsPanel() {
           </div>
 
           {/* XP sonuç kartı */}
-          <div className="shrink-0 flex flex-col items-center justify-center bg-gradient-to-br from-base-primary-900 via-designstudio-secondary-900 to-base-primary-900 rounded-2xl px-10 py-6 shadow-xl min-w-[180px]">
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Kazanılacak XP</p>
-            <p className="text-[48px] font-bold text-white leading-none">{previewXP}</p>
+          <div className="shrink-0 flex flex-col items-center justify-center bg-designstudio-primary-50 border border-designstudio-primary-100 rounded-2xl px-10 py-6 min-w-45">
+            <p className="text-[10px] font-bold text-designstudio-primary-400 uppercase tracking-widest mb-2">Kazanılacak XP</p>
+            <p className="text-[48px] font-bold text-designstudio-primary-700 leading-none">{previewXP}</p>
             {previewWeeksLate > 0 ? (
-              <p className="text-[11px] text-white/40 mt-2">
+              <p className="text-[11px] text-surface-400 mt-2">
                 {baseXP} × {Math.round(penaltyMul * 100)}%
               </p>
             ) : (
@@ -395,7 +393,7 @@ function SettingCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-3xl border border-surface-100 shadow-lg p-7 flex flex-col gap-5 hover:shadow-xl transition-shadow">
+    <div className="bg-white rounded-3xl border border-surface-100 shadow-lg p-8 flex flex-col gap-6 hover:shadow-xl transition-shadow">
       <div className="flex items-start gap-3">
         <div className={`w-10 h-10 rounded-2xl ${iconBg} flex items-center justify-center shrink-0`}>
           <Icon size={18} className={iconColor} />

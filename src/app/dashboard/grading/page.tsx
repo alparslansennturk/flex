@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   doc, getDoc, collection, query, where, getDocs,
-  writeBatch, increment, updateDoc, serverTimestamp, orderBy, deleteDoc,
+  writeBatch, increment, updateDoc, serverTimestamp, orderBy,
 } from "firebase/firestore";
 import {
   ArrowLeft, CheckCircle2, Users, Zap, CalendarDays, AlertTriangle,
@@ -133,24 +133,22 @@ function GradingTabs() {
     <div className="w-full max-w-[1000px] mx-auto px-8 py-8 space-y-6">
 
       {/* Başlık */}
-      <div className="relative bg-base-primary-900 rounded-3xl p-8 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-designstudio-secondary-900/60 via-base-primary-900 to-base-primary-900" />
-        <div className="absolute -top-16 -right-16 w-64 h-64 bg-designstudio-secondary-500/15 rounded-full blur-3xl" />
-        <div className="relative flex items-start justify-between">
+      <div className="bg-white rounded-3xl border border-surface-100 shadow-sm px-8 py-7">
+        <div className="flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-9 h-9 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center">
-                <ClipboardList size={17} className="text-white" />
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-9 h-9 rounded-2xl bg-base-primary-50 border border-base-primary-100 flex items-center justify-center">
+                <ClipboardList size={17} className="text-base-primary-500" />
               </div>
-              <span className="text-[12px] font-bold text-white/40 uppercase tracking-widest">Not Girişi</span>
+              <span className="text-[12px] font-bold text-surface-400 uppercase tracking-widest">Not Girişi</span>
             </div>
-            <h1 className="text-[26px] font-bold text-white">Not Yönetimi</h1>
-            <p className="text-[13px] text-white/40 mt-1">Tamamlanan ödevlere sınıf bazında not girişi yap</p>
+            <h1 className="text-[26px] font-bold text-base-primary-900" style={{ letterSpacing: "-0.022em" }}>Not Yönetimi</h1>
+            <p className="text-[13px] text-surface-400 mt-1">Tamamlanan ödevlere sınıf bazında not girişi yap</p>
           </div>
           {pending.length > 0 && (
-            <div className="bg-designstudio-primary-500/20 border border-designstudio-primary-500/30 rounded-2xl px-5 py-3 text-center shrink-0">
-              <p className="text-[28px] font-bold text-designstudio-primary-300 leading-none">{pending.length}</p>
-              <p className="text-[11px] text-white/40 mt-1 font-medium">Bekleyen</p>
+            <div className="bg-designstudio-primary-50 border border-designstudio-primary-100 rounded-2xl px-5 py-3 text-center shrink-0">
+              <p className="text-[28px] font-bold text-designstudio-primary-600 leading-none">{pending.length}</p>
+              <p className="text-[11px] text-surface-400 mt-1 font-medium">Bekleyen</p>
             </div>
           )}
         </div>
@@ -445,55 +443,49 @@ function GradingForm({ taskId }: { taskId: string }) {
   );
 
   const typeCfg = TYPE_CONFIG[task.type ?? "odev"];
-  const grad    = TYPE_GRADIENT[task.type ?? "odev"];
 
   return (
     <div className="w-full max-w-[1100px] mx-auto px-8 py-8 space-y-5">
 
       {/* Başlık kartı */}
-      <div className="relative bg-base-primary-900 rounded-3xl p-8 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-designstudio-secondary-900/60 via-base-primary-900 to-base-primary-900" />
-        <div className="absolute -top-16 -right-16 w-64 h-64 bg-designstudio-secondary-500/15 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 w-48 h-32 bg-designstudio-primary-500/10 rounded-full blur-3xl" />
-        <div className="relative">
-          <div className="flex items-start gap-4 mb-7">
-            <button onClick={() => router.push("/dashboard/grading")}
-              className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center text-white transition-all cursor-pointer shrink-0 mt-0.5 active:scale-95">
-              <ArrowLeft size={17} />
-            </button>
-            <div>
-              <span className="text-[11px] font-bold text-white/35 uppercase tracking-widest">Not Girişi</span>
-              <h1 className="text-[24px] font-bold text-white leading-tight mt-0.5">{task.name}</h1>
-              {task.description && <p className="text-[13px] text-white/40 mt-1 line-clamp-1">{task.description}</p>}
-            </div>
+      <div className="bg-white rounded-3xl border border-surface-100 shadow-sm px-8 py-7">
+        <div className="flex items-start gap-4 mb-6">
+          <button onClick={() => router.push("/dashboard/grading")}
+            className="w-10 h-10 rounded-2xl bg-surface-50 hover:bg-surface-100 border border-surface-200 flex items-center justify-center text-base-primary-600 transition-all cursor-pointer shrink-0 mt-0.5 active:scale-95">
+            <ArrowLeft size={17} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <span className="text-[11px] font-bold text-surface-400 uppercase tracking-widest">Not Girişi</span>
+            <h1 className="text-[24px] font-bold text-base-primary-900 leading-tight mt-0.5" style={{ letterSpacing: "-0.022em" }}>{task.name}</h1>
+            {task.description && <p className="text-[13px] text-surface-400 mt-1 line-clamp-1">{task.description}</p>}
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 flex-wrap mb-7">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold ${typeCfg.badgeBg} ${typeCfg.badgeText}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${typeCfg.dot}`} />{typeCfg.label}
-            </span>
-            {task.classId && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 text-white/70 text-[12px] font-bold"><Users size={11} />{task.classId}</span>}
-            {task.level   && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 text-white/70 text-[12px] font-bold"><Zap size={11} />{task.level}</span>}
-            {task.endDate && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 text-white/70 text-[12px] font-bold"><CalendarDays size={11} />{fmtDate(task.endDate)}</span>}
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-designstudio-primary-500/20 text-designstudio-primary-300 text-[12px] font-bold"><Sparkles size={11} />Baz XP: {baseXP}</span>
+        <div className="flex items-center gap-2 flex-wrap mb-6">
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold ${typeCfg.badgeBg} ${typeCfg.badgeText}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${typeCfg.dot}`} />{typeCfg.label}
+          </span>
+          {task.classId && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-50 border border-surface-200 text-surface-600 text-[12px] font-bold"><Users size={11} />{task.classId}</span>}
+          {task.level   && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-50 border border-surface-200 text-surface-600 text-[12px] font-bold"><Zap size={11} />{task.level}</span>}
+          {task.endDate && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-50 border border-surface-200 text-surface-600 text-[12px] font-bold"><CalendarDays size={11} />{fmtDate(task.endDate)}</span>}
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-designstudio-primary-50 border border-designstudio-primary-100 text-designstudio-primary-600 text-[12px] font-bold"><Sparkles size={11} />Baz XP: {baseXP}</span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-surface-50 rounded-2xl p-4 border border-surface-100">
+            <Users size={14} className="text-surface-400 mb-2.5" />
+            <p className="text-[26px] font-bold text-base-primary-900 leading-none">{students.length}</p>
+            <p className="text-[11px] text-surface-400 mt-1.5 font-medium">Toplam Öğrenci</p>
           </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white/5 rounded-2xl p-4 border border-white/8">
-              <Users size={14} className="text-white/40 mb-2.5" />
-              <p className="text-[26px] font-bold text-white leading-none">{students.length}</p>
-              <p className="text-[11px] text-white/35 mt-1.5 font-medium">Toplam Öğrenci</p>
-            </div>
-            <div className={`rounded-2xl p-4 border transition-all ${submittedCount === students.length && students.length > 0 ? "bg-status-success-500/20 border-status-success-500/30" : "bg-white/5 border-white/8"}`}>
-              <CheckCircle2 size={14} className="text-status-success-500 mb-2.5" />
-              <p className="text-[26px] font-bold text-white leading-none">{submittedCount}</p>
-              <p className="text-[11px] text-white/35 mt-1.5 font-medium">Teslim Etti</p>
-            </div>
-            <div className="bg-designstudio-primary-500/15 rounded-2xl p-4 border border-designstudio-primary-500/20">
-              <Award size={14} className="text-designstudio-primary-400 mb-2.5" />
-              <p className="text-[26px] font-bold text-white leading-none">{totalXP}</p>
-              <p className="text-[11px] text-white/35 mt-1.5 font-medium">Dağıtılacak XP</p>
-            </div>
+          <div className={`rounded-2xl p-4 border transition-all ${submittedCount === students.length && students.length > 0 ? "bg-status-success-100 border-status-success-500/20" : "bg-surface-50 border-surface-100"}`}>
+            <CheckCircle2 size={14} className="text-status-success-500 mb-2.5" />
+            <p className="text-[26px] font-bold text-base-primary-900 leading-none">{submittedCount}</p>
+            <p className="text-[11px] text-surface-400 mt-1.5 font-medium">Teslim Etti</p>
+          </div>
+          <div className="bg-designstudio-primary-50 rounded-2xl p-4 border border-designstudio-primary-100">
+            <Award size={14} className="text-designstudio-primary-500 mb-2.5" />
+            <p className="text-[26px] font-bold text-base-primary-900 leading-none">{totalXP}</p>
+            <p className="text-[11px] text-surface-400 mt-1.5 font-medium">Dağıtılacak XP</p>
           </div>
         </div>
       </div>
