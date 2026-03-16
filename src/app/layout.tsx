@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 // Path'i kendi proje yapına göre kontrol et:
-import { UserProvider } from "@/app/context/UserContext"; 
+import { UserProvider } from "@/app/context/UserContext";
+import { ScoringProvider } from "@/app/context/ScoringContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,9 @@ export default function RootLayout({
       >
         {/* İŞTE ÇÖZÜM: Tüm uygulamayı UserProvider ile sarmalıyoruz */}
         <UserProvider>
-          {children}
+          <ScoringProvider>
+            {children}
+          </ScoringProvider>
         </UserProvider>
       </body>
     </html>

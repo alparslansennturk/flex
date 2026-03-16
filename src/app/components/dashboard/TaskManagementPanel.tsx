@@ -9,8 +9,9 @@ import {
 } from "firebase/firestore";
 import {
   Plus, Edit2, Trash2, MoreHorizontal, X, CheckCircle2,
-  Trophy, Star, CalendarDays, AlertTriangle, Check,
+  Star, CalendarDays, AlertTriangle, Check,
 } from "lucide-react";
+import ScoringSettingsPanel from "./ScoringSettingsPanel";
 import { Task } from "./taskTypes";
 import { DeleteConfirmModal } from "./TaskCardManager";
 import TaskForm from "./TaskForm";
@@ -475,7 +476,7 @@ export default function TaskManagementPanel() {
   };
 
   const handleGrade = (task: Task) => {
-    router.push(`/dashboard/notes?taskId=${task.id}`);
+    router.push(`/dashboard/grading?taskId=${task.id}`);
   };
 
   const handleToggleTemplateVisibility = async (task: Task) => {
@@ -515,7 +516,7 @@ export default function TaskManagementPanel() {
     { id: "templates", label: "Şablon Yönetimi" },
     { id: "active",    label: "Mevcut Ödevler"  },
     { id: "archive",   label: "Arşiv"            },
-    { id: "scoring",   label: "Puanlama"          },
+    { id: "scoring",   label: "Puan Yönetimi"     },
   ];
 
   const enrichedActive   = activeTasks.map(enrichTask);
@@ -661,17 +662,7 @@ export default function TaskManagementPanel() {
       )}
 
       {/* ── PUANLAMA ────────────────────────────────────────────────────────── */}
-      {adminTab === "scoring" && (
-        <div className="bg-white border border-surface-100 rounded-[24px] p-20 flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 bg-designstudio-primary-50 rounded-2xl flex items-center justify-center text-designstudio-primary-500 mb-4">
-            <Trophy size={32} />
-          </div>
-          <h3 className="text-[18px] font-bold text-base-primary-900">Puanlama Sistemi</h3>
-          <p className="text-surface-400 text-[14px] mt-2 max-w-sm">
-            Puanlama modülü çok yakında bu alanda aktif olacak.
-          </p>
-        </div>
-      )}
+      {adminTab === "scoring" && <ScoringSettingsPanel />}
 
       {/* FORM MODAL */}
       {formOpen && (

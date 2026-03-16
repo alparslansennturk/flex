@@ -290,7 +290,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             )}
             <button
-              onClick={() => router.push(`/dashboard/notes?taskId=${task.id}`)}
+              onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
               className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
             >
               Not Girişi Yap <ChevronRight size={16} />
