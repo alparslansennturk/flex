@@ -82,7 +82,7 @@ useEffect(() => {
                 )}
               </div>
             ) : (
-              <div className="bg-white rounded-[32px] p-12 border border-surface-200 min-h-[500px] flex items-center justify-center ui-title-md text-base-primary-900">
+              <div className="bg-white rounded-24 p-12 border border-surface-200 min-h-[500px] flex items-center justify-center ui-title-md text-base-primary-900">
                 Yönetim Paneli İçeriği
               </div>
             )}

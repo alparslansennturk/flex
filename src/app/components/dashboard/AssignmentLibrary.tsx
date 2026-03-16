@@ -29,7 +29,7 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
   }, [menuOpen]);
 
   return (
-    <div className="min-w-[calc((100%-80px)/4.3)] snap-start bg-white p-6 rounded-[28px] border border-[#EEF0F3] flex flex-col justify-between h-[210px] transition-all duration-500 hover:shadow-[15px_40px_80px_-20px_rgba(16,41,76,0.08)] hover:-translate-y-2 cursor-pointer group">
+    <div className="min-w-[calc((100%-80px)/4.3)] snap-start bg-white p-6 rounded-20 border border-[#EEF0F3] flex flex-col justify-between h-[210px] transition-all duration-500 hover:shadow-[15px_40px_80px_-20px_rgba(16,41,76,0.08)] hover:-translate-y-2 cursor-pointer group">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-[#F7F8FA] text-[#8E95A3] rounded-xl flex items-center justify-center shrink-0">
           {iconNode}
@@ -144,7 +144,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
           taskName={assignModalTask.name}
           onConfirm={async (selections: AssignSelection[]) => {
             const t = assignModalTask;
-            for (const { classId, level, endDate } of selections) {
+            for (const { classId, groupId, groupBranch, level, endDate } of selections) {
               await addDoc(collection(db, "tasks"), {
                 name:          t.name,
                 description:   t.description,
@@ -152,6 +152,8 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                 points:        t.points,
                 icon:          t.icon ?? null,
                 classId,
+                groupId,
+                groupBranch,
                 level,
                 endDate,
                 status:        "active",
@@ -162,7 +164,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                 createdAt:     serverTimestamp(),
                 createdBy:     user?.uid ?? null,
                 createdByName: user ? `${user.name} ${user.surname}` : null,
-                branch:        user?.branch ?? null,
+                branch:        groupBranch || user?.branch || null,
                 ownedBy:       user?.uid ?? null,
               });
             }

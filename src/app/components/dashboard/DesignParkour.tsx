@@ -21,7 +21,7 @@ const PARKOUR_STYLE: Record<TaskType, { gradient: string; tagBg: string; tagText
 // ---- PLACEHOLDER KART ----
 function PlaceholderParkourCard() {
   return (
-    <div className="bg-white/50 p-7 rounded-[32px] border border-dashed border-[#E2E5EA] flex flex-col justify-between h-full cursor-default opacity-40">
+    <div className="bg-white/50 p-7 rounded-24 border border-dashed border-[#E2E5EA] flex flex-col justify-between h-full cursor-default opacity-40">
       <div className="flex justify-between items-start mb-5">
         <div className="w-12 h-12 bg-[#F7F8FA] rounded-[14px] shrink-0" />
         <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-[#F7F8FA] text-[#AEB4C0]">—</span>
@@ -73,7 +73,7 @@ function GhostParkourCard({ task, canManage, onActivate }: {
   const iconNode = getIcon(task.icon, task.type, 22);
 
   return (
-    <div className="bg-white/70 p-7 rounded-[32px] border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full cursor-default opacity-70">
+    <div className="bg-white/70 p-7 rounded-24 border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full cursor-default opacity-70">
       <div className="flex justify-between items-start mb-5">
         <div className={`w-12 h-12 ${style.gradient} rounded-[14px] flex items-center justify-center text-white shadow-lg shrink-0 opacity-60`}>
           {iconNode}
@@ -181,7 +181,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
       : "text-[#AEB4C0]";
 
   return (
-    <div className={`bg-white p-7 rounded-[32px] border border-[#E2E5EA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group ${isExpired && !isCompleted ? "opacity-60" : ""}`}>
+    <div className={`bg-white p-7 rounded-24 border border-[#E2E5EA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group ${isExpired && !isCompleted ? "opacity-60" : ""}`}>
       <div className="flex justify-between items-start mb-5">
         <div className={`w-12 h-12 ${style.gradient} rounded-[14px] flex items-center justify-center text-white shadow-lg shrink-0`}>
           {iconNode}

@@ -3,15 +3,15 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 import {
   doc, getDoc, collection, query, where, getDocs,
-  writeBatch, increment, updateDoc, serverTimestamp, orderBy,
+  writeBatch, increment, updateDoc, serverTimestamp,
 } from "firebase/firestore";
 import {
   ArrowLeft, CheckCircle2, Users, Zap, CalendarDays, AlertTriangle,
   ClipboardList, Award, Sparkles, ChevronRight, BookOpen, Archive,
-  ChevronDown, ChevronUp, Trash2, Clock,
+  ChevronDown, ChevronUp, Trash2, Clock, RotateCcw, Eye, EyeOff,
 } from "lucide-react";
 import Header from "../../components/Header";
 import Sidebar from "../../components/Sidebar";
@@ -68,6 +68,130 @@ function TaskMeta({ task }: { task: Task }) {
   );
 }
 
+// ─── PUAN SIFIRLAMA MODALI ────────────────────────────────────────────────────
+function ResetPointsModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
+  const [password,    setPassword]    = useState("");
+  const [showPw,      setShowPw]      = useState(false);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState("");
+  const [done,        setDone]        = useState(false);
+  const [visible,     setVisible]     = useState(false);
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+
+  const handleCancel = () => { setVisible(false); setTimeout(onCancel, 280); };
+
+  const handleConfirm = async () => {
+    if (!password.trim()) { setError("Şifrenizi girin."); return; }
+    setLoading(true); setError("");
+    try {
+      const user = auth.currentUser;
+      if (!user?.email) throw new Error("no-user");
+
+      // Şifreyi doğrula
+      const cred = EmailAuthProvider.credential(user.email, password);
+      await reauthenticateWithCredential(user, cred);
+
+      // Tüm öğrenci puanlarını sıfırla (500'lük batch chunk)
+      const snap = await getDocs(collection(db, "students"));
+      for (let i = 0; i < snap.docs.length; i += 500) {
+        const batch = writeBatch(db);
+        snap.docs.slice(i, i + 500).forEach(d => batch.update(d.ref, { points: 0 }));
+        await batch.commit();
+      }
+
+      setDone(true);
+      setTimeout(() => { setVisible(false); setTimeout(onSuccess, 280); }, 1500);
+    } catch (e: any) {
+      const code = e?.code ?? "";
+      if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        setError("Şifre hatalı. Lütfen tekrar deneyin.");
+      } else if (e?.message === "no-user") {
+        setError("Oturum bilgisi alınamadı.");
+      } else {
+        setError("Bir hata oluştu. Tekrar deneyin.");
+      }
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className={`fixed inset-0 z-800 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
+      <div
+        className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
+        onClick={handleCancel}
+      />
+      <div className={`relative bg-white rounded-16 shadow-2xl w-full max-w-sm p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
+
+        {/* İkon + Başlık */}
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-status-danger-50 border border-status-danger-500/20 flex items-center justify-center">
+            <RotateCcw size={20} className="text-status-danger-500" />
+          </div>
+          <div>
+            <p className="text-[17px] font-bold text-base-primary-900">Tüm Puanları Sıfırla</p>
+            <p className="text-[13px] text-surface-400 mt-1">
+              Sistemdeki <strong className="text-base-primary-700">tüm öğrencilerin</strong> puanı 0'a çekilecek. Bu işlem geri alınamaz.
+            </p>
+          </div>
+        </div>
+
+        {done ? (
+          <div className="flex items-center justify-center gap-2 py-2">
+            <CheckCircle2 size={16} className="text-status-success-500" />
+            <span className="text-[14px] font-bold text-status-success-500">Tüm puanlar sıfırlandı.</span>
+          </div>
+        ) : (
+          <>
+            {/* Şifre */}
+            <div>
+              <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Giriş Şifreniz</p>
+              <div className="relative">
+                <input
+                  type={showPw ? "text" : "password"}
+                  value={password}
+                  onChange={e => { setPassword(e.target.value); setError(""); }}
+                  onKeyDown={e => e.key === "Enter" && handleConfirm()}
+                  placeholder="Şifrenizi girin"
+                  className="w-full h-12 px-4 pr-11 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 cursor-pointer"
+                >
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {error && <p className="text-[12px] text-status-danger-500 font-medium mt-1.5">{error}</p>}
+            </div>
+
+            {/* Butonlar */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancel}
+                className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={loading || !password.trim()}
+                className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-700 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading
+                  ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : "Sıfırla"
+                }
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── TAB LISTESI (Bekleyen + Tamamlananlar) ───────────────────────────────────
 type ListTab = "pending" | "done";
 
@@ -79,16 +203,23 @@ function GradingTabs() {
   const [expandedId,   setExpandedId]   = useState<string | null>(null);
   const [detailMap,    setDetailMap]    = useState<Record<string, Student[]>>({});
   const [archivingId,  setArchivingId]  = useState<string | null>(null);
+  const [showReset,    setShowReset]    = useState(false);
 
   useEffect(() => {
     (async () => {
       const uid = await loadUid();
       if (!uid) { setLoading(false); return; }
       try {
-        const q = query(collection(db, "tasks"), where("status", "==", "completed"), orderBy("createdAt", "desc"));
+        const q = query(collection(db, "tasks"), where("status", "==", "completed"));
         const snap = await getDocs(q);
         const all  = snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
-        setTasks(all.filter(t => t.ownedBy === uid || t.createdBy === uid));
+        const mine = all.filter(t => t.ownedBy === uid || t.createdBy === uid);
+        mine.sort((a, b) => {
+          const aT = (a as any).createdAt?.toMillis?.() ?? 0;
+          const bT = (b as any).createdAt?.toMillis?.() ?? 0;
+          return bT - aT;
+        });
+        setTasks(mine);
       } finally { setLoading(false); }
     })();
   }, []);
@@ -133,7 +264,7 @@ function GradingTabs() {
     <div className="w-full max-w-[1000px] mx-auto px-8 py-8 space-y-6">
 
       {/* Başlık */}
-      <div className="bg-white rounded-3xl border border-surface-100 shadow-sm px-8 py-7">
+      <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-7">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -145,12 +276,20 @@ function GradingTabs() {
             <h1 className="text-[26px] font-bold text-base-primary-900" style={{ letterSpacing: "-0.022em" }}>Not Yönetimi</h1>
             <p className="text-[13px] text-surface-400 mt-1">Tamamlanan ödevlere sınıf bazında not girişi yap</p>
           </div>
-          {pending.length > 0 && (
-            <div className="bg-designstudio-primary-50 border border-designstudio-primary-100 rounded-2xl px-5 py-3 text-center shrink-0">
-              <p className="text-[28px] font-bold text-designstudio-primary-600 leading-none">{pending.length}</p>
-              <p className="text-[11px] text-surface-400 mt-1 font-medium">Bekleyen</p>
-            </div>
-          )}
+          <div className="flex items-center gap-3 shrink-0">
+            {pending.length > 0 && (
+              <div className="bg-designstudio-primary-50 border border-designstudio-primary-100 rounded-2xl px-5 py-3 text-center">
+                <p className="text-[28px] font-bold text-designstudio-primary-600 leading-none">{pending.length}</p>
+                <p className="text-[11px] text-surface-400 mt-1 font-medium">Bekleyen</p>
+              </div>
+            )}
+            <button
+              onClick={() => setShowReset(true)}
+              className="flex items-center gap-2 h-9 px-4 rounded-xl border border-status-danger-500/30 bg-status-danger-50 text-status-danger-500 text-[12px] font-bold hover:bg-status-danger-500 hover:text-white transition-all cursor-pointer"
+            >
+              <RotateCcw size={13} /> Puanları Sıfırla
+            </button>
+          </div>
         </div>
       </div>
 
@@ -187,7 +326,7 @@ function GradingTabs() {
       {tab === "pending" && (
         <>
           {pending.length === 0 ? (
-            <div className="bg-white rounded-3xl border border-surface-100 shadow-sm flex flex-col items-center justify-center py-24 gap-4">
+            <div className="bg-white rounded-16 border border-surface-100 shadow-sm flex flex-col items-center justify-center py-24 gap-4">
               <div className="w-16 h-16 rounded-2xl bg-surface-50 flex items-center justify-center"><BookOpen size={28} className="text-surface-200" /></div>
               <div className="text-center">
                 <p className="text-[16px] font-bold text-surface-400">Bekleyen not girişi yok</p>
@@ -207,7 +346,7 @@ function GradingTabs() {
                   </span>
                   <div className="flex-1 h-px bg-surface-100" />
                 </div>
-                <div className="bg-white rounded-3xl border border-surface-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
                   {classTasks.map(task => (
                     <div key={task.id} className="flex items-center gap-5 px-6 py-4 border-b border-surface-100 last:border-0 hover:bg-surface-50/60 transition-colors">
                       <TaskMeta task={task} />
@@ -230,12 +369,12 @@ function GradingTabs() {
       {tab === "done" && (
         <>
           {done.length === 0 ? (
-            <div className="bg-white rounded-3xl border border-surface-100 shadow-sm flex flex-col items-center justify-center py-24 gap-4">
+            <div className="bg-white rounded-16 border border-surface-100 shadow-sm flex flex-col items-center justify-center py-24 gap-4">
               <div className="w-16 h-16 rounded-2xl bg-surface-50 flex items-center justify-center"><Archive size={28} className="text-surface-200" /></div>
               <p className="text-[16px] font-bold text-surface-400">Henüz notlandırılan ödev yok</p>
             </div>
           ) : (
-            <div className="bg-white rounded-3xl border border-surface-100 shadow-lg overflow-hidden">
+            <div className="bg-white rounded-16 border border-surface-100 shadow-lg overflow-hidden">
               {/* Başlık satırı */}
               <div className="flex items-center gap-4 px-6 py-3.5 bg-surface-50 border-b border-surface-100">
                 <div className="flex-1 min-w-0"><span className="text-[12px] font-bold text-surface-600">Ödev</span></div>
@@ -301,7 +440,7 @@ function GradingTabs() {
                               const displayName = student.name ? `${student.name} ${student.lastName}` : student.id;
 
                               return (
-                                <div key={student.id} className="flex items-center gap-3 bg-white rounded-2xl px-4 py-2.5 border border-surface-100">
+                                <div key={student.id} className="flex items-center gap-3 bg-white rounded-12 px-4 py-2.5 border border-surface-100">
                                   {avatarSrc && (
                                     <img src={avatarSrc} alt={displayName} className="w-7 h-7 rounded-xl object-cover border border-surface-100 shrink-0"
                                       onError={e => { (e.target as HTMLImageElement).src = `/avatars/male/1.svg`; }} />
@@ -337,6 +476,12 @@ function GradingTabs() {
             </div>
           )}
         </>
+      )}
+      {showReset && (
+        <ResetPointsModal
+          onCancel={() => setShowReset(false)}
+          onSuccess={() => setShowReset(false)}
+        />
       )}
     </div>
   );
@@ -448,7 +593,7 @@ function GradingForm({ taskId }: { taskId: string }) {
     <div className="w-full max-w-[1100px] mx-auto px-8 py-8 space-y-5">
 
       {/* Başlık kartı */}
-      <div className="bg-white rounded-3xl border border-surface-100 shadow-sm px-8 py-7">
+      <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-7">
         <div className="flex items-start gap-4 mb-6">
           <button onClick={() => router.push("/dashboard/grading")}
             className="w-10 h-10 rounded-2xl bg-surface-50 hover:bg-surface-100 border border-surface-200 flex items-center justify-center text-base-primary-600 transition-all cursor-pointer shrink-0 mt-0.5 active:scale-95">
@@ -492,7 +637,7 @@ function GradingForm({ taskId }: { taskId: string }) {
 
       {/* Öğrenci listesi */}
       {students.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-surface-100 shadow-sm flex flex-col items-center justify-center py-20 gap-4">
+        <div className="bg-white rounded-16 border border-surface-100 shadow-sm flex flex-col items-center justify-center py-20 gap-4">
           <ClipboardList size={28} className="text-surface-200" />
           <div className="text-center">
             <p className="text-[15px] font-bold text-surface-400">Bu sınıfta öğrenci bulunamadı.</p>
@@ -500,7 +645,7 @@ function GradingForm({ taskId }: { taskId: string }) {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl border border-surface-100 shadow-lg overflow-hidden">
+        <div className="bg-white rounded-16 border border-surface-100 shadow-lg overflow-hidden">
           <div className="flex items-center gap-4 px-6 py-3.5 bg-surface-50 border-b border-surface-100">
             <div className="w-10 shrink-0" />
             <div className="flex-1 min-w-0"><span className="text-[12px] font-bold text-surface-600">Öğrenci</span></div>

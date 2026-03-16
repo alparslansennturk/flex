@@ -164,12 +164,23 @@
   --radius-8:  8px;
   --radius-12: 12px;
   --radius-16: 16px;
+  --radius-20: 20px;
+  --radius-24: 24px;
 }
 
 .radius-4  { border-radius: var(--radius-4);  }
 .radius-8  { border-radius: var(--radius-8);  }
 .radius-12 { border-radius: var(--radius-12); }
 .radius-16 { border-radius: var(--radius-16); }
+.radius-20 { border-radius: var(--radius-20); }
+.radius-24 { border-radius: var(--radius-24); }
+
+/* 1440px ve altında radius bir kademe küçülür */
+@media (max-width: 1440px) {
+  :root {
+    --radius-24: 20px;
+  }
+}
 
 /* ============================================================
    KÖKTEN SCROLL VE RENDER ÇÖZÜMÜ

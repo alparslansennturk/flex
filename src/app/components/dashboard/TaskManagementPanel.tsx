@@ -52,7 +52,7 @@ function TaskQuickEditModal({
         className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={handleCancel}
       />
-      <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
+      <div className={`relative bg-white rounded-16 shadow-2xl w-full max-w-md p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
         <div>
           <p className="text-[17px] font-bold text-base-primary-900 mb-1">Ödevi Düzenle</p>
           <p className="text-[13px] text-surface-500">
@@ -530,7 +530,7 @@ export default function TaskManagementPanel() {
       {/* TOAST */}
       {toast.show && (
         <div className="fixed top-12 right-12 z-[200] animate-in fade-in slide-in-from-right duration-300">
-          <div className="bg-white border border-surface-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-[20px] p-5 flex items-center gap-4 min-w-[300px]">
+          <div className="bg-white border border-surface-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-16 p-5 flex items-center gap-4 min-w-[300px]">
             <div className="w-10 h-10 rounded-full bg-status-success-50 flex items-center justify-center text-status-success-500">
               <CheckCircle2 size={20} />
             </div>
@@ -577,9 +577,9 @@ export default function TaskManagementPanel() {
           </div>
 
           {/* Şablon listesi */}
-          <div className="bg-white rounded-3xl border border-surface-100 shadow-sm overflow-visible">
+          <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-visible">
             {/* Başlık satırı */}
-            <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100 rounded-t-3xl">
+            <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100 rounded-t-16">
               <div className="flex-1 min-w-0">
                 <span className="text-[12px] font-bold text-surface-600">Kart Adı</span>
               </div>
@@ -719,7 +719,7 @@ function TaskTable({
 
   if (tasks.length === 0) {
     return (
-      <div className="bg-white rounded-3xl border border-surface-100 flex flex-col items-center justify-center py-20 text-surface-300">
+      <div className="bg-white rounded-16 border border-surface-100 flex flex-col items-center justify-center py-20 text-surface-300">
         <AlertTriangle size={36} className="mb-3 opacity-30" />
         <p className="text-[14px] font-semibold">
           {tab === "active" ? "Aktif ödev bulunamadı." : "Arşivde kayıt yok."}
@@ -729,9 +729,9 @@ function TaskTable({
   }
 
   return (
-    <div className="bg-white rounded-3xl border border-surface-100 shadow-sm overflow-visible">
+    <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-visible">
       {/* Başlık satırı */}
-      <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100 rounded-t-3xl">
+      <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100 rounded-t-16">
         <div className="w-36 shrink-0 xl:w-44">
           <span className="text-[12px] font-bold text-surface-600">Ödev Adı</span>
         </div>
