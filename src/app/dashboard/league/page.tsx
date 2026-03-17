@@ -10,9 +10,7 @@ import {
   CheckSquare,
   Shield,
   TrendingUp,
-  Users,
   ChevronRight,
-  Medal,
 } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
@@ -491,7 +489,7 @@ function LeagueIntro({ onComplete }: { onComplete: () => void }) {
 
 export default function LeaguePage() {
   const [showIntro,       setShowIntro]       = useState(true);
-  const [activeTab,       setActiveTab]       = useState("league");
+  const [_activeTab,      setActiveTab]       = useState("league");
   const [baseFilter,      setBaseFilter]      = useState<"Tüm Öğrenciler" | "Sınıflarım">("Tüm Öğrenciler");
   const [branchFilter,    setBranchFilter]    = useState(ALL_BRANCH);
   const [groupFilter,     setGroupFilter]     = useState(ALL_GROUP);
@@ -661,7 +659,9 @@ export default function LeaguePage() {
   }, [rankedStudents]);
 
   const handleStudentClick = (student: RankedStudent) => {
-    setSelectedStudent(student);
+    const formattedStudent = { ...student, avatarId: Number(student.avatarId) || 0 };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setSelectedStudent(formattedStudent as any);
     setModalOpen(true);
   };
 
