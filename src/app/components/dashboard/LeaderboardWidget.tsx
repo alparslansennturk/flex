@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Trophy, Repeat, ChevronRight } from "lucide-react";
+import { Trophy, ArrowBigUpDash, ArrowBigDownDash, Minus, ChevronRight } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
+import { useScoring } from "@/app/context/ScoringContext";
+import { calculateLeaderboardScore } from "@/app/lib/scoring";
+import Link from "next/link";
 
 interface StudentRank {
   id: string;
@@ -13,57 +16,96 @@ interface StudentRank {
   gender?: string;
   groupCode: string;
   branch: string;
-  points: number;
+  points: number;           // totalXP
+  completedTasks?: number;
+  avatarId?: number;
+  latePenaltyTotal?: number;
+  rankChange?: number;      // +N = yükseldi, -N = düştü, 0 = aynı
 }
 
-function LeaderRow({ rank, name, sub, xp, gender }: {
+const MEDALS    = ["🥇", "🥈", "🥉"];
+const VIEW_MODES = ["Tümü", "Şubem", "Sınıflarım"] as const;
+
+// ─── Trend ikonu ─────────────────────────────────────────────────────────────
+function TrendIcon({ rankChange, rank }: { rankChange?: number; rank: number }) {
+  const change = rankChange ?? 0;
+  const orange = "#FF8D28";
+  const muted  = "#AEB4C0";
+
+  if (change > 0) return <ArrowBigUpDash size={15} color={orange} strokeWidth={2} />;
+  if (change < 0) return <ArrowBigDownDash size={15} color={muted}  strokeWidth={2} />;
+  return <Minus size={15} color={rank === 1 ? orange : muted} strokeWidth={2} />;
+}
+
+// ─── Tek satır ───────────────────────────────────────────────────────────────
+function LeaderRow({ rank, name, sub, score, gender, avatarId, rankChange }: {
   rank: number;
   name: string;
   sub: string;
-  xp: number;
+  score: number;
   gender?: string;
+  avatarId?: number;
+  rankChange?: number;
 }) {
-  const avatarUrl = `https://api.dicebear.com/7.x/${gender === "female" ? "lorelei" : "avataaars"}/svg?seed=${encodeURIComponent(name)}`;
+  const safeGender = gender === "female" ? "female" : "male";
+  const safeAvatar = avatarId && avatarId > 0 ? avatarId : 1;
+  const avatarUrl  = `/avatars/${safeGender}/${safeAvatar}.svg`;
 
   return (
-    <div className="flex items-center justify-between p-2 -mx-2 rounded-xl hover:bg-[#F7F8FA] transition-colors cursor-pointer group">
-      <div className="flex items-center flex-1 min-w-0 mr-2">
-        <span className={`text-[15px] font-bold w-8 shrink-0 ${rank === 1 ? "text-[#FF8D28]" : "text-[#AEB4C0]"}`}>
-          {rank}
+    <div className="flex items-center gap-3 px-2 py-2 -mx-2 rounded-xl hover:bg-surface-50 transition-colors cursor-pointer group">
+      {/* Madalya + Sıra */}
+      <div className="flex items-center shrink-0 w-11 gap-0.5">
+        <span className="text-[16px] leading-none">{MEDALS[rank - 1]}</span>
+        <span className={`text-[12px] font-bold ml-0.5 ${rank === 1 ? "text-[#FF8D28]" : "text-[#AEB4C0]"}`}>
+          {rank}.
         </span>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="w-10 h-10 rounded-full border border-[#E2E5EA] p-0.5 overflow-hidden bg-[#F7F8FA] shrink-0">
-            <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <p className="text-[clamp(14px,1vw,16px)] text-[#1E222B] font-bold whitespace-nowrap overflow-hidden leading-none mb-1">
-              {name}
-            </p>
-            <p className={`text-[11px] font-semibold truncate ${rank === 1 ? "text-[#FF8D28]" : "text-[#8E95A3]"}`}>
-              {sub}
-            </p>
+      </div>
+
+      {/* Avatar */}
+      <div className="w-9 h-9 rounded-full border border-surface-200 p-0.5 overflow-hidden bg-surface-50 shrink-0">
+        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+      </div>
+
+      {/* İsim + alt bilgi */}
+      <div className="flex-1 min-w-0">
+        {/* Üst satır: İsim — [İkon ←20px→ Skor XP] */}
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className="text-[13px] text-[#1E222B] font-bold truncate flex-1 min-w-0 leading-none">
+            {name}
+          </p>
+          {/* İkon + sabit genişlik skor kutusu — sayı kaç basamak olursa olsun ikon aynı x'te */}
+          <div className="flex items-center gap-5 shrink-0">
+            <TrendIcon rankChange={rankChange} rank={rank} />
+            <span className="w-13 text-right text-[14px] font-bold text-[#10294C] leading-none tabular-nums">
+              {Math.round(score)}<span className="text-[11px] text-[#AEB4C0] font-semibold ml-0.5">XP</span>
+            </span>
           </div>
         </div>
+        {/* Alt satır: Şube/Grup */}
+        <p className={`text-[11px] font-semibold truncate leading-none ${rank === 1 ? "text-[#FF8D28]" : "text-[#8E95A3]"}`}>
+          {sub}
+        </p>
       </div>
-      <span className="text-[14px] font-bold text-[#10294C] whitespace-nowrap shrink-0">
-        {xp.toLocaleString("tr-TR")}
-        <span className="text-[11px] text-[#8E95A3] font-bold uppercase ml-0.5">XP</span>
-      </span>
     </div>
   );
 }
 
-export default function LeaderboardWidget({ viewMode, setViewMode }: any) {
-  const { user } = useUser();
-  const [students,      setStudents]      = useState<StudentRank[]>([]);
-  const [myGroupCodes,  setMyGroupCodes]  = useState<string[] | null>(null); // null = henüz yüklenmedi
-  const [loading,       setLoading]       = useState(true);
+// ─── Ana bileşen ──────────────────────────────────────────────────────────────
+export default function LeaderboardWidget({ viewMode, setViewMode }: {
+  viewMode: string;
+  setViewMode: (v: string) => void;
+}) {
+  const { user }     = useUser();
+  const { settings } = useScoring();
 
-  // Eğitmene ait aktif grup kodlarını çek (Sınıflarım modu için)
+  const [students,     setStudents]     = useState<StudentRank[]>([]);
+  const [myGroupCodes, setMyGroupCodes] = useState<string[] | null>(null);
+  const [loading,      setLoading]      = useState(true);
+
+  // Eğitmene ait aktif grup kodları (Sınıflarım modu)
   useEffect(() => {
     const uid = user?.uid;
     if (!uid) { setMyGroupCodes([]); return; }
-
     const q = query(
       collection(db, "groups"),
       where("instructorId", "==", uid),
@@ -74,21 +116,15 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: any) {
     });
   }, [user?.uid]);
 
-  // Öğrencileri çek — viewMode ve grup listesine göre
+  // Öğrencileri çek
   useEffect(() => {
     const uid = user?.uid;
-    if (!uid || myGroupCodes === null) return; // Gruplar henüz yüklenmedi
-
+    if (!uid || myGroupCodes === null) return;
     setLoading(true);
 
     let q;
-
     if (viewMode === "Sınıflarım") {
-      if (myGroupCodes.length === 0) {
-        setStudents([]);
-        setLoading(false);
-        return;
-      }
+      if (myGroupCodes.length === 0) { setStudents([]); setLoading(false); return; }
       q = query(
         collection(db, "students"),
         where("groupCode", "in", myGroupCodes.slice(0, 30)),
@@ -101,69 +137,90 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: any) {
         where("status", "==", "active")
       );
     } else {
-      // Tümü
       q = query(collection(db, "students"), where("status", "==", "active"));
     }
 
     return onSnapshot(q, snap => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as StudentRank));
-      all.sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
-      setStudents(all.slice(0, 5));
+
+      // Runtime leaderboard score hesapla (Firestore'a kaydedilmez)
+      all.sort((a, b) => {
+        const scoreA = calculateLeaderboardScore(a.points ?? 0, a.completedTasks ?? 0, settings);
+        const scoreB = calculateLeaderboardScore(b.points ?? 0, b.completedTasks ?? 0, settings);
+        const diff   = scoreB - scoreA;
+        if (diff !== 0) return diff;
+        return (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0);
+      });
+
+      setStudents(all.slice(0, 3));
       setLoading(false);
     });
-  }, [viewMode, myGroupCodes, user?.uid, user?.branch]);
-
-  const cycleView = () =>
-    setViewMode((v: string) =>
-      v === "Sınıflarım" ? "Şubem" : v === "Şubem" ? "Tümü" : "Sınıflarım"
-    );
+  }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings]);
 
   return (
-    <div className="col-span-12 xl:col-span-4 bg-white rounded-24 p-6 border border-[#E2E5EA] flex flex-col justify-between shadow-sm">
+    <div className="col-span-12 xl:col-span-4 bg-white rounded-24 p-6 border border-surface-200 flex flex-col justify-between shadow-sm">
 
+      {/* Başlık + Filtre Sekmeleri */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-[18px] font-bold text-[#10294C] flex items-center gap-2">
           <Trophy size={16} className="text-[#FF8D28]" /> Sınıflar ligi
         </h3>
-        <button
-          onClick={cycleView}
-          className="flex items-center justify-center gap-2 text-[#3A7BD5] bg-surface-50 px-3 h-8 rounded-xl border border-surface-100 cursor-pointer active:scale-95 transition-all"
-        >
-          <span className="text-[clamp(12px,0.8vw,14px)] font-bold whitespace-nowrap">{viewMode}</span>
-          <Repeat size={12} />
-        </button>
+        <div className="flex items-center gap-1 bg-surface-50 border border-surface-100 rounded-xl p-1">
+          {VIEW_MODES.map(mode => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={`text-[11px] font-bold px-2.5 h-6 rounded-lg transition-all cursor-pointer ${
+                viewMode === mode
+                  ? "bg-[#3A7BD5] text-white shadow-sm"
+                  : "text-[#8E95A3] hover:text-[#3A7BD5]"
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Liste */}
       <div className="flex-1">
         {loading ? (
-          <div className="h-full flex items-center justify-center min-h-35">
+          <div className="h-full flex items-center justify-center min-h-32.5">
             <div className="w-5 h-5 border-2 border-surface-100 border-t-[#FF8D28] rounded-full animate-spin" />
           </div>
         ) : students.length === 0 ? (
-          <div className="h-full flex items-center justify-center min-h-35">
+          <div className="h-full flex items-center justify-center min-h-32.5">
             <p className="text-[13px] text-[#AEB4C0] font-medium text-center">
               Henüz puan kazanan öğrenci yok
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {students.map((s, i) => (
-              <LeaderRow
-                key={s.id}
-                rank={i + 1}
-                name={`${s.name} ${s.lastName}`}
-                sub={viewMode === "Tümü" ? s.branch : s.groupCode}
-                xp={s.points ?? 0}
-                gender={s.gender}
-              />
-            ))}
+          <div className="space-y-1">
+            {students.map((s, i) => {
+              const score = calculateLeaderboardScore(s.points ?? 0, s.completedTasks ?? 0, settings);
+              return (
+                <LeaderRow
+                  key={s.id}
+                  rank={i + 1}
+                  name={`${s.name} ${s.lastName}`}
+                  sub={viewMode === "Tümü" ? s.branch : s.groupCode}
+                  score={score}
+                  gender={s.gender}
+                  avatarId={s.avatarId}
+                  rankChange={s.rankChange}
+                />
+              );
+            })}
           </div>
         )}
       </div>
 
-      <button className="mt-6 w-full h-[48px] flex items-center justify-center gap-2 rounded-xl bg-[#6F74D8] text-white font-bold text-[13px] hover:bg-[#5E63C2] transition-all shadow-sm cursor-pointer">
-        Tüm sonuçları gör <ChevronRight size={16} />
-      </button>
+      {/* Tüm Sonuçları Gör */}
+      <Link href="/dashboard/league">
+        <button className="mt-6 w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-[#6F74D8] text-white font-bold text-[13px] hover:bg-designstudio-secondary-600 transition-all shadow-sm cursor-pointer">
+          Tüm sonuçları gör <ChevronRight size={16} />
+        </button>
+      </Link>
     </div>
   );
 }

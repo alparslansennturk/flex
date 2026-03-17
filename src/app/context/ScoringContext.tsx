@@ -50,8 +50,9 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
       getDocs(collection(db, "students")),
     ]);
 
-    // Her öğrenci için tüm notlanmış görevlerden XP topla
-    const studentXP: Record<string, number> = {};
+    // Her öğrenci için tüm notlanmış görevlerden XP ve tamamlanan görev sayısını topla
+    const studentXP:    Record<string, number> = {};
+    const studentTasks: Record<string, number> = {};
 
     tasksSnap.docs.forEach(d => {
       const task = d.data();
@@ -62,14 +63,18 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
       ).forEach(([studentId, grade]) => {
         if (!grade.submitted) return;
         const xp = calculateXP(task.level, grade.weeksLate ?? 0, newSettings);
-        studentXP[studentId] = (studentXP[studentId] ?? 0) + xp;
+        studentXP[studentId]    = (studentXP[studentId]    ?? 0) + xp;
+        studentTasks[studentId] = (studentTasks[studentId] ?? 0) + 1;
       });
     });
 
-    // Öğrenci puanlarını güncelle
+    // Öğrenci puanları ve tamamlanan görev sayısını güncelle
     const updates = studentsSnap.docs
       .filter(d => studentXP[d.id] !== undefined)
-      .map(d => updateDoc(doc(db, "students", d.id), { points: studentXP[d.id] }));
+      .map(d => updateDoc(doc(db, "students", d.id), {
+        points:         studentXP[d.id],
+        completedTasks: studentTasks[d.id] ?? 0,
+      }));
 
     await Promise.all(updates);
     return { updated: updates.length };

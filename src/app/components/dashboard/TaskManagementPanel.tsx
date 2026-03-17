@@ -208,7 +208,7 @@ function TemplateRow({
 
 // ─── Task satırı (Mevcut Ödevler & Arşiv) ────────────────────────────────────
 function TaskRow({
-  task, tab, onEdit, onDelete, onArchive, onActivate, onGrade,
+  task, tab, onEdit, onDelete, onArchive, onActivate, onGrade, onSendToGrading,
 }: {
   task: Task;
   tab: "active" | "archive";
@@ -217,6 +217,7 @@ function TaskRow({
   onArchive: (t: Task) => void;
   onActivate: (t: Task) => void;
   onGrade: (t: Task) => void;
+  onSendToGrading: (t: Task) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -339,12 +340,21 @@ function TaskRow({
               </button>
             )}
             {tab === "archive" && (
-              <button
-                onClick={() => { onActivate(task); setMenuOpen(false); }}
-                className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-status-success-600 hover:bg-status-success-50 transition-colors cursor-pointer"
-              >
-                Aktife Al
-              </button>
+              <>
+                <button
+                  onClick={() => { onActivate(task); setMenuOpen(false); }}
+                  className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-status-success-600 hover:bg-status-success-50 transition-colors cursor-pointer"
+                >
+                  Aktife Al
+                </button>
+                <div className="border-t border-surface-100" />
+                <button
+                  onClick={() => { onSendToGrading(task); setMenuOpen(false); }}
+                  className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-600 hover:bg-surface-50 transition-colors cursor-pointer"
+                >
+                  Not Alanına Gönder
+                </button>
+              </>
             )}
           </div>
         )}
@@ -472,6 +482,17 @@ export default function TaskManagementPanel() {
         isPaused: false,
       });
       showToast(`"${task.name}" aktife alındı.`);
+    } catch { showToast("İşlem sırasında hata oluştu."); }
+  };
+
+  const handleSendToGrading = async (task: Task) => {
+    try {
+      await updateDoc(doc(db, "tasks", task.id), {
+        status: "completed",
+        isGraded: false,
+        isActive: false,
+      });
+      showToast(`"${task.name}" not alanına gönderildi.`);
     } catch { showToast("İşlem sırasında hata oluştu."); }
   };
 
@@ -637,6 +658,7 @@ export default function TaskManagementPanel() {
             onArchive={handleArchive}
             onActivate={handleActivate}
             onGrade={handleGrade}
+            onSendToGrading={handleSendToGrading}
           />
         </div>
       )}
@@ -657,6 +679,7 @@ export default function TaskManagementPanel() {
             onArchive={handleArchive}
             onActivate={handleActivate}
             onGrade={handleGrade}
+            onSendToGrading={handleSendToGrading}
           />
         </div>
       )}
@@ -698,7 +721,7 @@ export default function TaskManagementPanel() {
 
 // ─── Tasks tablosu (Mevcut Ödevler & Arşiv için ortak) ───────────────────────
 function TaskTable({
-  tasks, loading, tab, onEdit, onDelete, onArchive, onActivate, onGrade,
+  tasks, loading, tab, onEdit, onDelete, onArchive, onActivate, onGrade, onSendToGrading,
 }: {
   tasks: Task[];
   loading: boolean;
@@ -708,6 +731,7 @@ function TaskTable({
   onArchive: (t: Task) => void;
   onActivate: (t: Task) => void;
   onGrade: (t: Task) => void;
+  onSendToGrading: (t: Task) => void;
 }) {
   if (loading) {
     return (
@@ -773,6 +797,7 @@ function TaskTable({
           onArchive={onArchive}
           onActivate={onActivate}
           onGrade={onGrade}
+          onSendToGrading={onSendToGrading}
         />
       ))}
     </div>

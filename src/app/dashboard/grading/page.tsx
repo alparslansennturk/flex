@@ -17,7 +17,7 @@ import Header from "../../components/Header";
 import Sidebar from "../../components/Sidebar";
 import Footer from "../../components/Footer";
 import { useScoring } from "@/app/context/ScoringContext";
-import { calculateXP, getLevelXP } from "@/app/lib/scoring";
+import { calculateXP, getLevelXP, calculateLeaderboardScore } from "@/app/lib/scoring";
 import { Task, TYPE_CONFIG, TYPE_GRADIENT, getIcon } from "../../components/dashboard/taskTypes";
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
@@ -548,12 +548,84 @@ function GradingForm({ taskId }: { taskId: string }) {
     if (!task) return;
     setSaving(true); setSaveError("");
     try {
+      // 1. Mevcut sıralamayı al — rankChange hesabı için not kaydetmeden önce
+      const allSnap = await getDocs(query(collection(db, "students"), where("status", "==", "active")));
+      const allStudents = allSnap.docs.map(d => ({
+        id: d.id,
+        points:           (d.data() as any).points           ?? 0,
+        completedTasks:   (d.data() as any).completedTasks   ?? 0,
+        latePenaltyTotal: (d.data() as any).latePenaltyTotal ?? 0,
+      }));
+
+      const getScore = (pts: number, tasks: number) =>
+        calculateLeaderboardScore(pts, tasks, settings);
+
+      const oldRankMap: Record<string, number> = {};
+      [...allStudents]
+        .sort((a, b) => {
+          const diff = getScore(b.points, b.completedTasks) - getScore(a.points, a.completedTasks);
+          return diff !== 0 ? diff : a.latePenaltyTotal - b.latePenaltyTotal;
+        })
+        .forEach((s, i) => { oldRankMap[s.id] = i + 1; });
+
+      // 2. Batch: puan + completedTasks + latePenaltyTotal güncelle
       const batch = writeBatch(db);
+      const baseXPVal   = getLevelXP(task.level, settings);
+      const pointsGain:  Record<string, number> = {};
+      const penaltyGain: Record<string, number> = {};
+
       Object.entries(grades).forEach(([sid, g]) => {
-        if (g.submitted && g.xp > 0) batch.update(doc(db, "students", sid), { points: increment(g.xp) });
+        if (g.submitted && g.xp > 0) {
+          const penaltyLost = baseXPVal - g.xp;
+          const updates: Record<string, any> = {
+            points:         increment(g.xp),
+            completedTasks: increment(1),
+          };
+          if (penaltyLost > 0) updates.latePenaltyTotal = increment(penaltyLost);
+          batch.update(doc(db, "students", sid), updates);
+          pointsGain[sid]  = g.xp;
+          penaltyGain[sid] = penaltyLost;
+        }
       });
+
       batch.update(doc(db, "tasks", taskId), { isGraded: true, grades, gradedAt: serverTimestamp() });
       await batch.commit();
+
+      // 3. Yeni leaderboard skorunu bellekte hesapla
+      const newPts:   Record<string, number> = {};
+      const newTasks: Record<string, number> = {};
+      const newPen:   Record<string, number> = {};
+      allStudents.forEach(s => {
+        newPts[s.id]   = s.points;
+        newTasks[s.id] = s.completedTasks;
+        newPen[s.id]   = s.latePenaltyTotal;
+      });
+      Object.entries(pointsGain).forEach(([id, g])  => { newPts[id]   = (newPts[id]   ?? 0) + g; newTasks[id] = (newTasks[id] ?? 0) + 1; });
+      Object.entries(penaltyGain).forEach(([id, p]) => { newPen[id]   = (newPen[id]   ?? 0) + p; });
+
+      const newRankMap: Record<string, number> = {};
+      [...allStudents]
+        .sort((a, b) => {
+          const diff = getScore(newPts[b.id], newTasks[b.id]) - getScore(newPts[a.id], newTasks[a.id]);
+          return diff !== 0 ? diff : newPen[a.id] - newPen[b.id];
+        })
+        .forEach((s, i) => { newRankMap[s.id] = i + 1; });
+
+      // 4. rankChange alanını güncelle — sırası değişen + not alan herkes
+      const rankUpdates = allStudents.filter(s =>
+        oldRankMap[s.id] !== newRankMap[s.id] || pointsGain[s.id] !== undefined
+      );
+
+      if (rankUpdates.length > 0) {
+        const rankBatch = writeBatch(db);
+        rankUpdates.slice(0, 500).forEach(s => {
+          const oldR = oldRankMap[s.id] ?? allStudents.length + 1;
+          const newR = newRankMap[s.id] ?? allStudents.length + 1;
+          rankBatch.update(doc(db, "students", s.id), { rankChange: oldR - newR });
+        });
+        await rankBatch.commit();
+      }
+
       setGradesSaved(true);
       setTask(p => p ? { ...p, isGraded: true } : p);
     } catch { setSaveError("Kayıt sırasında hata oluştu."); }
