@@ -94,9 +94,11 @@ function LeaderRow({ rank, name, sub, score, gender, avatarId, rankChange }: {
 }
 
 // ─── Ana bileşen ──────────────────────────────────────────────────────────────
+type ViewMode = 'Sınıflarım' | 'Şubem' | 'Tümü';
+
 export default function LeaderboardWidget({ viewMode, setViewMode }: {
-  viewMode: string;
-  setViewMode: (v: string) => void;
+  viewMode: ViewMode;
+  setViewMode: (v: ViewMode) => void;
 }) {
   const { user }                     = useUser();
   const { settings, activeSeasonId } = useScoring();
