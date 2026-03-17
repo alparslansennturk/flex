@@ -3,10 +3,10 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
-import { onAuthStateChanged, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
+import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import {
   doc, getDoc, collection, query, where, getDocs,
-  writeBatch, increment, updateDoc, serverTimestamp,
+  writeBatch, deleteField, updateDoc, serverTimestamp,
 } from "firebase/firestore";
 import {
   ArrowLeft, CheckCircle2, Users, Zap, CalendarDays, AlertTriangle,
@@ -16,8 +16,9 @@ import {
 import Header from "../../components/Header";
 import Sidebar from "../../components/Sidebar";
 import Footer from "../../components/Footer";
+import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
-import { calculateXP, getLevelXP, calculateLeaderboardScore } from "@/app/lib/scoring";
+import { calculateXP, getLevelXP, calculateLeaderboardScore, computeStudentStats, GradedTaskEntry } from "@/app/lib/scoring";
 import { Task, TYPE_CONFIG, TYPE_GRADIENT, getIcon } from "../../components/dashboard/taskTypes";
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ interface Student {
 }
 interface GradeEntry { submitted: boolean; weeksLate: number; xp: number; }
 type GradesMap = Record<string, GradeEntry>;
+type ListTab = "pending" | "done";
 
 // ─── Yardımcılar ──────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -69,47 +71,82 @@ function TaskMeta({ task }: { task: Task }) {
 }
 
 // ─── PUAN SIFIRLAMA MODALI ────────────────────────────────────────────────────
-function ResetPointsModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
-  const [password,    setPassword]    = useState("");
-  const [showPw,      setShowPw]      = useState(false);
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState("");
-  const [done,        setDone]        = useState(false);
-  const [visible,     setVisible]     = useState(false);
+// filterGroupCodes varsa sadece o sınıfların öğrencileri sıfırlanır (not girişi scope)
+// filterGroupCodes yoksa tüm öğrenciler sıfırlanır (ödev yönetimi scope)
+function ResetPointsModal({
+  onCancel,
+  onSuccess,
+  filterGroupCodes,
+}: {
+  onCancel: () => void;
+  onSuccess: () => void;
+  filterGroupCodes?: string[];
+}) {
+  const [step,     setStep]     = useState<1 | 2>(1);
+  const [password, setPassword] = useState("");
+  const [showPw,   setShowPw]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+  const [done,     setDone]     = useState(false);
+  const [visible,  setVisible]  = useState(false);
+
+  const { bumpSeason } = useScoring();
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
   const handleCancel = () => { setVisible(false); setTimeout(onCancel, 280); };
+  const isMineScope  = filterGroupCodes && filterGroupCodes.length > 0;
 
   const handleConfirm = async () => {
     if (!password.trim()) { setError("Şifrenizi girin."); return; }
     setLoading(true); setError("");
     try {
       const user = auth.currentUser;
-      if (!user?.email) throw new Error("no-user");
+      if (!user) throw new Error("no-user");
+      if (!user.email) throw new Error("no-email");
 
-      // Şifreyi doğrula
-      const cred = EmailAuthProvider.credential(user.email, password);
-      await reauthenticateWithCredential(user, cred);
+      await signInWithEmailAndPassword(auth, user.email, password);
 
-      // Tüm öğrenci puanlarını sıfırla (500'lük batch chunk)
-      const snap = await getDocs(collection(db, "students"));
+      let snap;
+      if (isMineScope) {
+        snap = await getDocs(query(
+          collection(db, "students"),
+          where("groupCode", "in", filterGroupCodes!.slice(0, 30)),
+        ));
+      } else {
+        snap = await getDocs(collection(db, "students"));
+      }
+
+      // SOFT RESET:
+      // 1. Yeni sezon başlat → yeni görevler bu sezonda kaydedilir (veri karışmaz)
+      // 2. isScoreHidden=true → leaderboard soft reset öncesini 0 gösterir
+      await bumpSeason();
+
       for (let i = 0; i < snap.docs.length; i += 500) {
         const batch = writeBatch(db);
-        snap.docs.slice(i, i + 500).forEach(d => batch.update(d.ref, { points: 0 }));
+        snap.docs.slice(i, i + 500).forEach(d =>
+          batch.update(d.ref, { isScoreHidden: true, rankChange: 0 })
+        );
         await batch.commit();
       }
 
       setDone(true);
       setTimeout(() => { setVisible(false); setTimeout(onSuccess, 280); }, 1500);
     } catch (e: any) {
+      console.error("[ResetPointsModal] hata:", e);
       const code = e?.code ?? "";
-      if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
-        setError("Şifre hatalı. Lütfen tekrar deneyin.");
+      if (
+        code === "auth/wrong-password" ||
+        code === "auth/invalid-credential" ||
+        code === "auth/invalid-login-credentials"
+      ) {
+        setError("Şifre yanlış.");
       } else if (e?.message === "no-user") {
-        setError("Oturum bilgisi alınamadı.");
+        setError("Oturum bilgisi alınamadı. Lütfen sayfayı yenileyip tekrar deneyin.");
+      } else if (e?.message === "no-email") {
+        setError("Bu işlem için email ile giriş yapmalısınız.");
       } else {
-        setError("Bir hata oluştu. Tekrar deneyin.");
+        setError("Şifre yanlış veya işlem sırasında hata oluştu.");
       }
     } finally { setLoading(false); }
   };
@@ -122,15 +159,19 @@ function ResetPointsModal({ onCancel, onSuccess }: { onCancel: () => void; onSuc
       />
       <div className={`relative bg-white rounded-16 shadow-2xl w-full max-w-sm p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
 
-        {/* İkon + Başlık */}
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="w-12 h-12 rounded-2xl bg-status-danger-50 border border-status-danger-500/20 flex items-center justify-center">
             <RotateCcw size={20} className="text-status-danger-500" />
           </div>
           <div>
-            <p className="text-[17px] font-bold text-base-primary-900">Tüm Puanları Sıfırla</p>
+            <p className="text-[17px] font-bold text-base-primary-900">
+              {isMineScope ? "Sınıflarımın Puanlarını Sıfırla" : "Tüm Puanları Sıfırla"}
+            </p>
             <p className="text-[13px] text-surface-400 mt-1">
-              Sistemdeki <strong className="text-base-primary-700">tüm öğrencilerin</strong> puanı 0'a çekilecek. Bu işlem geri alınamaz.
+              {isMineScope
+                ? <>Kendi <strong className="text-base-primary-700">sınıflarındaki</strong> öğrencilerin puanları gizlenecek.</>
+                : <>Sistemdeki <strong className="text-base-primary-700">tüm öğrencilerin</strong> puanları gizlenecek.</>
+              }{" "}Veri silinmez, yalnızca gizlenir.
             </p>
           </div>
         </div>
@@ -140,9 +181,33 @@ function ResetPointsModal({ onCancel, onSuccess }: { onCancel: () => void; onSuc
             <CheckCircle2 size={16} className="text-status-success-500" />
             <span className="text-[14px] font-bold text-status-success-500">Tüm puanlar sıfırlandı.</span>
           </div>
+
+        ) : step === 1 ? (
+          <>
+            <div className="bg-status-danger-50 rounded-xl px-4 py-3 border border-status-danger-100">
+              <p className="text-[13px] text-status-danger-600">
+                Bu işlem tüm öğrencilerin puanlarını gizler. Leaderboard'da herkes 0 XP görecek.
+                İşlem geri alınabilir (Admin → Veri Yönetimi → Gizli Puanları Aç).
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancel}
+                className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={() => setStep(2)}
+                className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-600 active:scale-95 transition-all cursor-pointer"
+              >
+                Devam Et →
+              </button>
+            </div>
+          </>
+
         ) : (
           <>
-            {/* Şifre */}
             <div>
               <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Giriş Şifreniz</p>
               <div className="relative">
@@ -165,19 +230,17 @@ function ResetPointsModal({ onCancel, onSuccess }: { onCancel: () => void; onSuc
               </div>
               {error && <p className="text-[12px] text-status-danger-500 font-medium mt-1.5">{error}</p>}
             </div>
-
-            {/* Butonlar */}
             <div className="flex gap-3">
               <button
-                onClick={handleCancel}
+                onClick={() => { setStep(1); setPassword(""); setError(""); }}
                 className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer"
               >
-                Vazgeç
+                ← Geri
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={loading || !password.trim()}
-                className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-700 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 h-11 rounded-xl bg-status-danger-500 text-white text-[13px] font-bold hover:bg-status-danger-600 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading
                   ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -192,25 +255,46 @@ function ResetPointsModal({ onCancel, onSuccess }: { onCancel: () => void; onSuc
   );
 }
 
-// ─── TAB LISTESI (Bekleyen + Tamamlananlar) ───────────────────────────────────
-type ListTab = "pending" | "done";
+// ─── TAB LİSTESİ (Bekleyen + Tamamlananlar) ─────────────────────────────────
 
-function GradingTabs() {
+function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
   const router = useRouter();
-  const [tab,          setTab]          = useState<ListTab>("pending");
+  const { user } = useUser();
+
+  const [tab,          setTab]          = useState<ListTab>(initialTab);
   const [tasks,        setTasks]        = useState<Task[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [expandedId,   setExpandedId]   = useState<string | null>(null);
   const [detailMap,    setDetailMap]    = useState<Record<string, Student[]>>({});
   const [archivingId,  setArchivingId]  = useState<string | null>(null);
   const [showReset,    setShowReset]    = useState(false);
+  const [myGroupCodes, setMyGroupCodes] = useState<string[]>([]);
+  const [toast,        setToast]        = useState({ show: false, message: "" });
+
+  const showToast = (msg: string) => {
+    setToast({ show: true, message: msg });
+    setTimeout(() => setToast({ show: false, message: "" }), 3000);
+  };
+
+  // Eğitmenin kendi grup kodlarını çek (reset scope için)
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid) return;
+    getDocs(query(
+      collection(db, "groups"),
+      where("instructorId", "==", uid),
+      where("status", "==", "active"),
+    )).then(snap => {
+      setMyGroupCodes(snap.docs.map(d => (d.data() as any).code).filter(Boolean));
+    });
+  }, [user?.uid]);
 
   useEffect(() => {
     (async () => {
       const uid = await loadUid();
       if (!uid) { setLoading(false); return; }
       try {
-        const q = query(collection(db, "tasks"), where("status", "==", "completed"));
+        const q    = query(collection(db, "tasks"), where("status", "==", "completed"));
         const snap = await getDocs(q);
         const all  = snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
         const mine = all.filter(t => t.ownedBy === uid || t.createdBy === uid);
@@ -227,7 +311,7 @@ function GradingTabs() {
   const pending = tasks.filter(t => !t.isGraded);
   const done    = tasks.filter(t => !!t.isGraded);
 
-  // Detay genişlet — öğrencileri lazy yükle
+  // Detay genişlet — öğrencileri lazy yükle (sadece expand butonu için)
   const toggleDetail = async (task: Task) => {
     const id = task.id;
     if (expandedId === id) { setExpandedId(null); return; }
@@ -239,7 +323,7 @@ function GradingTabs() {
     }
   };
 
-  // Arşivle (Tamamlananlar sekmesindeki sil)
+  // Arşivle
   const handleArchive = async (task: Task) => {
     setArchivingId(task.id);
     try {
@@ -261,7 +345,7 @@ function GradingTabs() {
   );
 
   return (
-    <div className="w-full max-w-[1000px] mx-auto px-8 py-8 space-y-6">
+    <div className="w-full max-w-250 mx-auto px-8 py-8 space-y-6">
 
       {/* Başlık */}
       <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-7">
@@ -320,9 +404,7 @@ function GradingTabs() {
         ))}
       </div>
 
-      {/* ── SEKMELERİN İÇERİĞİ ── */}
-
-      {/* BEKLEYENLEr */}
+      {/* ── BEKLEYENLEr ── */}
       {tab === "pending" && (
         <>
           {pending.length === 0 ? (
@@ -365,7 +447,7 @@ function GradingTabs() {
         </>
       )}
 
-      {/* TAMAMLANANLAR */}
+      {/* ── TAMAMLANANLAR ── */}
       {tab === "done" && (
         <>
           {done.length === 0 ? (
@@ -384,17 +466,20 @@ function GradingTabs() {
               </div>
 
               {done.map(task => {
-                const grades  = (task as any).grades as GradesMap | undefined;
+                const grades         = (task as any).grades as GradesMap | undefined;
                 const submittedCount = grades ? Object.values(grades).filter(g => g.submitted).length : 0;
                 const totalStudents  = grades ? Object.keys(grades).length : 0;
                 const totalXP        = grades ? Object.values(grades).reduce((s, g) => s + g.xp, 0) : 0;
-                const isExpanded = expandedId === task.id;
-                const students   = detailMap[task.id] ?? [];
+                const isExpanded     = expandedId === task.id;
+                const students       = detailMap[task.id] ?? [];
 
                 return (
                   <div key={task.id} className="border-b border-surface-100 last:border-0">
-                    {/* Ana satır */}
-                    <div className="flex items-center gap-4 px-6 py-4 hover:bg-surface-50/40 transition-colors">
+                    {/* Ana satır — tıklayınca not girişi formuna git */}
+                    <div
+                      onClick={() => router.push(`/dashboard/grading?taskId=${task.id}&from=done`)}
+                      className="flex items-center gap-4 px-6 py-4 hover:bg-surface-50/40 transition-colors cursor-pointer group"
+                    >
                       <TaskMeta task={task} />
                       <div className="w-24 shrink-0 text-center">
                         <span className="text-[13px] font-bold text-base-primary-900">{submittedCount}</span>
@@ -406,14 +491,16 @@ function GradingTabs() {
                         </span>
                       </div>
                       <div className="w-36 shrink-0 flex items-center gap-2 justify-end">
+                        {/* Detay genişlet */}
                         <button
-                          onClick={() => toggleDetail(task)}
+                          onClick={e => { e.stopPropagation(); toggleDetail(task); }}
                           className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-base-primary-50 text-base-primary-600 text-[12px] font-bold hover:bg-base-primary-100 transition-all cursor-pointer"
                         >
                           Detay {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                         </button>
+                        {/* Arşivle */}
                         <button
-                          onClick={() => handleArchive(task)}
+                          onClick={e => { e.stopPropagation(); handleArchive(task); }}
                           disabled={archivingId === task.id}
                           title="Arşive taşı"
                           className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-status-danger-50 hover:text-status-danger-500 transition-all cursor-pointer disabled:opacity-50"
@@ -435,10 +522,9 @@ function GradingTabs() {
                         ) : (
                           <div className="pt-4 space-y-2">
                             {(students.length > 0 ? students : Object.keys(grades ?? {}).map(id => ({ id } as Student))).map(student => {
-                              const grade = grades?.[student.id] ?? { submitted: false, weeksLate: 0, xp: 0 };
-                              const avatarSrc = student.gender ? `/avatars/${student.gender}/${student.avatarId ?? 1}.svg` : null;
+                              const grade      = grades?.[student.id] ?? { submitted: false, weeksLate: 0, xp: 0 };
+                              const avatarSrc  = student.gender ? `/avatars/${student.gender}/${student.avatarId ?? 1}.svg` : null;
                               const displayName = student.name ? `${student.name} ${student.lastName}` : student.id;
-
                               return (
                                 <div key={student.id} className="flex items-center gap-3 bg-white rounded-12 px-4 py-2.5 border border-surface-100">
                                   {avatarSrc && (
@@ -477,30 +563,46 @@ function GradingTabs() {
           )}
         </>
       )}
+
       {showReset && (
         <ResetPointsModal
+          filterGroupCodes={myGroupCodes}
           onCancel={() => setShowReset(false)}
-          onSuccess={() => setShowReset(false)}
+          onSuccess={() => { setShowReset(false); showToast("Tüm puanlar sıfırlandı"); }}
         />
+      )}
+
+      {/* TOAST */}
+      {toast.show && (
+        <div className="fixed top-12 right-12 z-200 animate-in fade-in slide-in-from-right duration-300">
+          <div className="bg-white border border-surface-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-16 p-5 flex items-center gap-4 min-w-75">
+            <div className="w-10 h-10 rounded-full bg-status-success-50 flex items-center justify-center text-status-success-500">
+              <CheckCircle2 size={20} />
+            </div>
+            <p className="text-[14px] font-bold text-text-primary">{toast.message}</p>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
 // ─── NOT GİRİŞİ FORMU ────────────────────────────────────────────────────────
-function GradingForm({ taskId }: { taskId: string }) {
+function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab }) {
   const router       = useRouter();
-  const { settings } = useScoring();
+  const backUrl      = fromTab === "done" ? "/dashboard/grading?tab=done" : "/dashboard/grading";
+  const { settings, activeSeasonId } = useScoring();
 
-  const [task,        setTask]        = useState<Task | null>(null);
-  const [students,    setStudents]    = useState<Student[]>([]);
-  const [grades,      setGrades]      = useState<GradesMap>({});
-  const [loading,     setLoading]     = useState(true);
-  const [saving,      setSaving]      = useState(false);
-  const [gradesSaved, setGradesSaved] = useState(false);
-  const [archiving,   setArchiving]   = useState(false);
-  const [archived,    setArchived]    = useState(false);
-  const [saveError,   setSaveError]   = useState("");
+  const [task,             setTask]             = useState<Task | null>(null);
+  const [students,         setStudents]         = useState<Student[]>([]);
+  const [grades,           setGrades]           = useState<GradesMap>({});
+  const [loading,          setLoading]          = useState(true);
+  const [saving,           setSaving]           = useState(false);
+  const [justSaved,        setJustSaved]        = useState(false);
+  const [wasAlreadyGraded, setWasAlreadyGraded] = useState(false);
+  const [archiving,        setArchiving]        = useState(false);
+  const [archived,         setArchived]         = useState(false);
+  const [saveError,        setSaveError]        = useState("");
 
   useEffect(() => {
     (async () => {
@@ -509,7 +611,9 @@ function GradingForm({ taskId }: { taskId: string }) {
         if (!taskSnap.exists()) { setLoading(false); return; }
         const taskData = { id: taskSnap.id, ...taskSnap.data() } as Task;
         setTask(taskData);
-        if (taskData.isGraded) setGradesSaved(true);
+
+        // Görevi açtığımızda zaten notlandırılmış mı?
+        if (taskData.isGraded) setWasAlreadyGraded(true);
 
         if (taskData.classId) {
           const q    = query(collection(db, "students"), where("groupCode", "==", taskData.classId), where("status", "==", "active"));
@@ -544,78 +648,85 @@ function GradingForm({ taskId }: { taskId: string }) {
     });
   };
 
+  // ── Not kaydet — gradedTasks haritası yaklaşımı (unique görev, exploit-proof) ──
   const handleSaveGrades = async () => {
     if (!task) return;
     setSaving(true); setSaveError("");
+
+    const baseXP = getLevelXP(task.level, settings);
+
     try {
-      // 1. Mevcut sıralamayı al — rankChange hesabı için not kaydetmeden önce
+      // 1. Tüm aktif öğrencileri gradedTasks haritasıyla çek
       const allSnap = await getDocs(query(collection(db, "students"), where("status", "==", "active")));
-      const allStudents = allSnap.docs.map(d => ({
-        id: d.id,
-        points:           (d.data() as any).points           ?? 0,
-        completedTasks:   (d.data() as any).completedTasks   ?? 0,
-        latePenaltyTotal: (d.data() as any).latePenaltyTotal ?? 0,
-      }));
+      const allStudents = allSnap.docs.map(d => {
+        const data = d.data() as any;
+        const gradedTasks: Record<string, GradedTaskEntry> = data.gradedTasks ?? {};
+        const isScoreHidden: boolean = data.isScoreHidden ?? false;
+        const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(gradedTasks, isScoreHidden, activeSeasonId);
+        return { id: d.id, gradedTasks, isScoreHidden, totalXP, completedTasks, latePenaltyTotal };
+      });
 
-      const getScore = (pts: number, tasks: number) =>
-        calculateLeaderboardScore(pts, tasks, settings);
+      const getScore = (xp: number, tasks: number) =>
+        calculateLeaderboardScore(xp, tasks, settings);
 
+      // 2. Eski sıralamayı hesapla
       const oldRankMap: Record<string, number> = {};
       [...allStudents]
         .sort((a, b) => {
-          const diff = getScore(b.points, b.completedTasks) - getScore(a.points, a.completedTasks);
+          const diff = getScore(b.totalXP, b.completedTasks) - getScore(a.totalXP, a.completedTasks);
           return diff !== 0 ? diff : a.latePenaltyTotal - b.latePenaltyTotal;
         })
         .forEach((s, i) => { oldRankMap[s.id] = i + 1; });
 
-      // 2. Batch: puan + completedTasks + latePenaltyTotal güncelle
+      // 3. Batch: her öğrenci için gradedTasks.${taskId} SET veya DELETE
+      //    Aynı görev kaç kez tamamlanırsa tek kayıt kalır — XP farm imkânsız
       const batch = writeBatch(db);
-      const baseXPVal   = getLevelXP(task.level, settings);
-      const pointsGain:  Record<string, number> = {};
-      const penaltyGain: Record<string, number> = {};
+      const touchedStudents = new Set<string>();
 
       Object.entries(grades).forEach(([sid, g]) => {
         if (g.submitted && g.xp > 0) {
-          const penaltyLost = baseXPVal - g.xp;
-          const updates: Record<string, any> = {
-            points:         increment(g.xp),
-            completedTasks: increment(1),
-          };
-          if (penaltyLost > 0) updates.latePenaltyTotal = increment(penaltyLost);
-          batch.update(doc(db, "students", sid), updates);
-          pointsGain[sid]  = g.xp;
-          penaltyGain[sid] = penaltyLost;
+          const penalty = Math.max(baseXP - g.xp, 0);
+          const entry: GradedTaskEntry = { xp: g.xp, penalty, seasonId: activeSeasonId };
+          batch.update(doc(db, "students", sid), {
+            [`gradedTasks.${taskId}`]: entry,
+            isScoreHidden: false,   // yeni görev kaydedilince artık gizli değil
+          });
+        } else {
+          batch.update(doc(db, "students", sid), {
+            [`gradedTasks.${taskId}`]: deleteField(),
+          });
         }
+        touchedStudents.add(sid);
       });
 
       batch.update(doc(db, "tasks", taskId), { isGraded: true, grades, gradedAt: serverTimestamp() });
       await batch.commit();
 
-      // 3. Yeni leaderboard skorunu bellekte hesapla
-      const newPts:   Record<string, number> = {};
-      const newTasks: Record<string, number> = {};
-      const newPen:   Record<string, number> = {};
-      allStudents.forEach(s => {
-        newPts[s.id]   = s.points;
-        newTasks[s.id] = s.completedTasks;
-        newPen[s.id]   = s.latePenaltyTotal;
+      // 4. Yeni sıralamayı bellekte hesapla (Firestore'dan okumaya gerek yok)
+      const adjStudents = allStudents.map(s => {
+        const g = grades[s.id];
+        const newTasks = { ...s.gradedTasks };
+        if (g?.submitted && g.xp > 0) {
+          newTasks[taskId] = { xp: g.xp, penalty: Math.max(baseXP - g.xp, 0), seasonId: activeSeasonId };
+        } else {
+          delete newTasks[taskId];
+        }
+        const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(newTasks, false, activeSeasonId);
+        return { ...s, totalXP, completedTasks, latePenaltyTotal };
       });
-      Object.entries(pointsGain).forEach(([id, g])  => { newPts[id]   = (newPts[id]   ?? 0) + g; newTasks[id] = (newTasks[id] ?? 0) + 1; });
-      Object.entries(penaltyGain).forEach(([id, p]) => { newPen[id]   = (newPen[id]   ?? 0) + p; });
 
       const newRankMap: Record<string, number> = {};
-      [...allStudents]
+      [...adjStudents]
         .sort((a, b) => {
-          const diff = getScore(newPts[b.id], newTasks[b.id]) - getScore(newPts[a.id], newTasks[a.id]);
-          return diff !== 0 ? diff : newPen[a.id] - newPen[b.id];
+          const diff = getScore(b.totalXP, b.completedTasks) - getScore(a.totalXP, a.completedTasks);
+          return diff !== 0 ? diff : a.latePenaltyTotal - b.latePenaltyTotal;
         })
         .forEach((s, i) => { newRankMap[s.id] = i + 1; });
 
-      // 4. rankChange alanını güncelle — sırası değişen + not alan herkes
+      // 5. rankChange güncelle
       const rankUpdates = allStudents.filter(s =>
-        oldRankMap[s.id] !== newRankMap[s.id] || pointsGain[s.id] !== undefined
+        oldRankMap[s.id] !== newRankMap[s.id] || touchedStudents.has(s.id)
       );
-
       if (rankUpdates.length > 0) {
         const rankBatch = writeBatch(db);
         rankUpdates.slice(0, 500).forEach(s => {
@@ -626,8 +737,13 @@ function GradingForm({ taskId }: { taskId: string }) {
         await rankBatch.commit();
       }
 
-      setGradesSaved(true);
+      setJustSaved(true);
       setTask(p => p ? { ...p, isGraded: true } : p);
+
+      // İlk kez kaydediyorsa → tamamlananlar listesine git
+      if (!wasAlreadyGraded) {
+        setTimeout(() => router.push("/dashboard/grading?tab=done"), 900);
+      }
     } catch { setSaveError("Kayıt sırasında hata oluştu."); }
     finally { setSaving(false); }
   };
@@ -637,7 +753,7 @@ function GradingForm({ taskId }: { taskId: string }) {
     try {
       await updateDoc(doc(db, "tasks", taskId), { status: "archived", isActive: false });
       setArchived(true);
-      setTimeout(() => router.push("/dashboard/grading"), 2000);
+      setTimeout(() => router.push(backUrl), 2000);
     } finally { setArchiving(false); }
   };
 
@@ -655,19 +771,19 @@ function GradingForm({ taskId }: { taskId: string }) {
     <div className="flex flex-col items-center justify-center py-40 gap-4">
       <AlertTriangle size={32} className="text-surface-200" />
       <p className="text-[14px] font-bold text-surface-400">Görev bulunamadı.</p>
-      <button onClick={() => router.push("/dashboard/grading")} className="text-[13px] text-base-primary-500 font-bold hover:underline cursor-pointer">Listeye dön</button>
+      <button onClick={() => router.push(backUrl)} className="text-[13px] text-base-primary-500 font-bold hover:underline cursor-pointer">Listeye dön</button>
     </div>
   );
 
   const typeCfg = TYPE_CONFIG[task.type ?? "odev"];
 
   return (
-    <div className="w-full max-w-[1100px] mx-auto px-8 py-8 space-y-5">
+    <div className="w-full max-w-275 mx-auto px-8 py-8 space-y-5">
 
       {/* Başlık kartı */}
       <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-7">
         <div className="flex items-start gap-4 mb-6">
-          <button onClick={() => router.push("/dashboard/grading")}
+          <button onClick={() => router.push(backUrl)}
             className="w-10 h-10 rounded-2xl bg-surface-50 hover:bg-surface-100 border border-surface-200 flex items-center justify-center text-base-primary-600 transition-all cursor-pointer shrink-0 mt-0.5 active:scale-95">
             <ArrowLeft size={17} />
           </button>
@@ -676,6 +792,11 @@ function GradingForm({ taskId }: { taskId: string }) {
             <h1 className="text-[24px] font-bold text-base-primary-900 leading-tight mt-0.5" style={{ letterSpacing: "-0.022em" }}>{task.name}</h1>
             {task.description && <p className="text-[13px] text-surface-400 mt-1 line-clamp-1">{task.description}</p>}
           </div>
+          {wasAlreadyGraded && (
+            <span className="px-3 py-1.5 rounded-xl bg-status-success-100 text-status-success-700 text-[12px] font-bold flex items-center gap-1.5 shrink-0 mt-0.5">
+              <CheckCircle2 size={12} /> Notlandırıldı
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap mb-6">
@@ -731,6 +852,13 @@ function GradingForm({ taskId }: { taskId: string }) {
             </div>
             <div className="w-64 shrink-0 text-center"><span className="text-[12px] font-bold text-surface-600">Gecikme</span></div>
             <div className="w-20 shrink-0 text-right"><span className="text-[12px] font-bold text-surface-600">XP</span></div>
+            <button
+              onClick={() => markAll(false)}
+              title="Tüm notları sıfırla"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-surface-300 hover:bg-status-danger-50 hover:text-status-danger-500 transition-all cursor-pointer shrink-0"
+            >
+              <RotateCcw size={14} />
+            </button>
           </div>
 
           {students.map(student => {
@@ -780,37 +908,67 @@ function GradingForm({ taskId }: { taskId: string }) {
         </div>
       )}
 
-      {/* Alt bar */}
+      {/* ── Alt bar ── */}
       {students.length > 0 && (
         <div className="flex items-center justify-between bg-white rounded-2xl border border-surface-100 px-6 py-4 shadow-sm gap-4">
           <div className="flex-1">
             {saveError ? (
-              <div className="flex items-center gap-2"><AlertTriangle size={14} className="text-status-danger-500" /><span className="text-[13px] font-bold text-status-danger-500">{saveError}</span></div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={14} className="text-status-danger-500" />
+                <span className="text-[13px] font-bold text-status-danger-500">{saveError}</span>
+              </div>
             ) : archived ? (
-              <div className="flex items-center gap-2 animate-in fade-in"><CheckCircle2 size={14} className="text-status-success-500" /><span className="text-[13px] font-bold text-status-success-500">Ödev arşive taşındı. Yönlendiriliyor…</span></div>
-            ) : gradesSaved ? (
-              <div className="flex items-center gap-2"><CheckCircle2 size={14} className="text-status-success-500" /><span className="text-[13px] font-bold text-status-success-500">Notlar kaydedildi.</span><span className="text-[13px] text-surface-400 ml-1">Ödevi arşivlemek için Tamamla'ya bas.</span></div>
+              <div className="flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 size={14} className="text-status-success-500" />
+                <span className="text-[13px] font-bold text-status-success-500">Ödev arşive taşındı. Yönlendiriliyor…</span>
+              </div>
+            ) : justSaved && !wasAlreadyGraded ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={14} className="text-status-success-500" />
+                <span className="text-[13px] font-bold text-status-success-500">Notlar kaydedildi.</span>
+                <span className="text-[13px] text-surface-400 ml-1">Tamamlananlar listesine yönlendiriliyor…</span>
+              </div>
+            ) : justSaved ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={14} className="text-status-success-500" />
+                <span className="text-[13px] font-bold text-status-success-500">Notlar güncellendi.</span>
+              </div>
             ) : (
               <p className="text-[13px] text-surface-400">
-                <strong className="text-base-primary-900">{submittedCount}</strong><span className="text-surface-300">/{students.length}</span> öğrenci · Toplam <strong className="text-designstudio-primary-500">{totalXP} XP</strong>
+                <strong className="text-base-primary-900">{submittedCount}</strong>
+                <span className="text-surface-300">/{students.length}</span> öğrenci · Toplam <strong className="text-designstudio-primary-500">{totalXP} XP</strong>
               </p>
             )}
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {/* Notları Kaydet */}
-            {!gradesSaved && (
-              <button onClick={handleSaveGrades} disabled={saving}
-                className="flex items-center gap-2 h-11 px-6 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-sm">
-                {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Kaydediliyor…</> : <><ClipboardList size={14} />Notları Kaydet</>}
+            {/* Notları Kaydet — arşivlenmedikçe her zaman görünür */}
+            {!archived && (
+              <button
+                onClick={handleSaveGrades}
+                disabled={saving}
+                className="flex items-center gap-2 h-11 px-6 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-sm"
+              >
+                {saving
+                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Kaydediliyor…</>
+                  : <><ClipboardList size={14} />Notları Kaydet</>
+                }
               </button>
             )}
 
-            {/* Tamamla ve Arşivle */}
-            <button onClick={handleArchive} disabled={archiving || archived || !gradesSaved}
-              className="flex items-center gap-2 h-11 px-6 rounded-xl bg-designstudio-primary-500 text-white text-[13px] font-bold hover:bg-designstudio-primary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-lg shadow-designstudio-primary-500/25">
-              {archiving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />İşleniyor…</> : <><Archive size={14} />Tamamla ve Arşivle</>}
-            </button>
+            {/* Tamamla ve Arşive Gönder — sadece tamamlananlar'dan açıldığında (wasAlreadyGraded) */}
+            {wasAlreadyGraded && (
+              <button
+                onClick={handleArchive}
+                disabled={archiving || archived}
+                className="flex items-center gap-2 h-11 px-6 rounded-xl bg-designstudio-primary-500 text-white text-[13px] font-bold hover:bg-designstudio-primary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-lg shadow-designstudio-primary-500/25"
+              >
+                {archiving
+                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />İşleniyor…</>
+                  : <><Archive size={14} />Tamamla ve Arşive Gönder</>
+                }
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -821,8 +979,12 @@ function GradingForm({ taskId }: { taskId: string }) {
 // ─── Router + Sayfa kabuğu ────────────────────────────────────────────────────
 function GradingRouter() {
   const searchParams = useSearchParams();
-  const taskId = searchParams.get("taskId");
-  return taskId ? <GradingForm taskId={taskId} /> : <GradingTabs />;
+  const taskId    = searchParams.get("taskId");
+  const tabParam  = searchParams.get("tab") as ListTab | null;
+  const fromParam = searchParams.get("from") as ListTab | null;
+  return taskId
+    ? <GradingForm taskId={taskId} fromTab={fromParam === "done" ? "done" : "pending"} />
+    : <GradingTabs initialTab={tabParam === "done" ? "done" : "pending"} />;
 }
 
 export default function GradingPage() {

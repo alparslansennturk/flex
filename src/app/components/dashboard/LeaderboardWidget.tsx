@@ -6,7 +6,7 @@ import { db } from "@/app/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
-import { calculateLeaderboardScore } from "@/app/lib/scoring";
+import { calculateLeaderboardScore, computeStudentStats } from "@/app/lib/scoring";
 import Link from "next/link";
 
 interface StudentRank {
@@ -16,11 +16,14 @@ interface StudentRank {
   gender?: string;
   groupCode: string;
   branch: string;
-  points: number;           // totalXP
-  completedTasks?: number;
+  gradedTasks?: Record<string, { xp: number; penalty: number }>;
+  isScoreHidden?: boolean;
   avatarId?: number;
-  latePenaltyTotal?: number;
   rankChange?: number;      // +N = yükseldi, -N = düştü, 0 = aynı
+  // computed at runtime — not read directly from Firestore
+  points?: number;
+  completedTasks?: number;
+  latePenaltyTotal?: number;
 }
 
 const MEDALS    = ["🥇", "🥈", "🥉"];
@@ -95,8 +98,8 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
   viewMode: string;
   setViewMode: (v: string) => void;
 }) {
-  const { user }     = useUser();
-  const { settings } = useScoring();
+  const { user }                     = useUser();
+  const { settings, activeSeasonId } = useScoring();
 
   const [students,     setStudents]     = useState<StudentRank[]>([]);
   const [myGroupCodes, setMyGroupCodes] = useState<string[] | null>(null);
@@ -141,9 +144,13 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
     }
 
     return onSnapshot(q, snap => {
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as StudentRank));
+      const all = snap.docs.map(d => {
+        const data = { id: d.id, ...d.data() } as StudentRank;
+        const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(data.gradedTasks, data.isScoreHidden, activeSeasonId);
+        return { ...data, points: totalXP, completedTasks, latePenaltyTotal };
+      });
 
-      // Runtime leaderboard score hesapla (Firestore'a kaydedilmez)
+      // Runtime leaderboard score hesapla (gradedTasks'tan — Firestore'a kaydedilmez)
       all.sort((a, b) => {
         const scoreA = calculateLeaderboardScore(a.points ?? 0, a.completedTasks ?? 0, settings);
         const scoreB = calculateLeaderboardScore(b.points ?? 0, b.completedTasks ?? 0, settings);
@@ -155,7 +162,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
       setStudents(all.slice(0, 3));
       setLoading(false);
     });
-  }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings]);
+  }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings, activeSeasonId]);
 
   return (
     <div className="col-span-12 xl:col-span-4 bg-white rounded-24 p-6 border border-surface-200 flex flex-col justify-between shadow-sm">

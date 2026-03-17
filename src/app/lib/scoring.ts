@@ -56,3 +56,36 @@ export function calculateLeaderboardScore(
 ): number {
   return totalXP / Math.max(completedTasks, settings.leaderboard.minTaskDivisor);
 }
+
+/**
+ * Öğrencinin gradedTasks haritasından unique görev istatistiklerini hesaplar.
+ * XP event bazlı artırılmaz — her taskId için tek kayıt tutulur.
+ */
+export interface GradedTaskEntry {
+  xp:        number;
+  penalty:   number;
+  seasonId?: string;  // hangi sezona ait (undefined = "season_1")
+}
+
+/**
+ * Öğrencinin gradedTasks haritasından unique görev istatistiklerini hesaplar.
+ * - isScoreHidden = true → soft reset uygulanmış, tüm değerler 0 döner
+ * - activeSeasonId verilirse sadece o sezondaki görevler sayılır
+ * - seasonId'siz eski kayıtlar "season_1" olarak kabul edilir
+ */
+export function computeStudentStats(
+  gradedTasks:    Record<string, GradedTaskEntry> | undefined,
+  isScoreHidden?: boolean,
+  activeSeasonId?: string,
+): { totalXP: number; completedTasks: number; latePenaltyTotal: number } {
+  if (isScoreHidden) return { totalXP: 0, completedTasks: 0, latePenaltyTotal: 0 };
+  const all = Object.values(gradedTasks ?? {});
+  const entries = activeSeasonId
+    ? all.filter(v => (v.seasonId ?? "season_1") === activeSeasonId)
+    : all;
+  return {
+    totalXP:          entries.reduce((s, v) => s + (v.xp      ?? 0), 0),
+    completedTasks:   entries.length,
+    latePenaltyTotal: entries.reduce((s, v) => s + (v.penalty ?? 0), 0),
+  };
+}
