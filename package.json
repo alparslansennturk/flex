@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@vercel/toolbar": "^0.2.2",
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.1",
     "lucide-react": "^0.562.0",

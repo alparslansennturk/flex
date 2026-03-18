@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-// Path'i kendi proje yapına göre kontrol et:
 import { UserProvider } from "@/app/context/UserContext";
 import { ScoringProvider } from "@/app/context/ScoringContext";
+import VercelToolbarWrapper from "@/app/components/VercelToolbarWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +36,7 @@ export default function RootLayout({
           <ScoringProvider>
             {children}
           </ScoringProvider>
+          <VercelToolbarWrapper />
         </UserProvider>
       </body>
     </html>
