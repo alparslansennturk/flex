@@ -40,9 +40,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | null = null;
+    let activeUid: string | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        // Aynı kullanıcının token refresh'i → yeni listener açma, mevcut çalışmaya devam etsin
+        if (activeUid === firebaseUser.uid) return;
+
+        activeUid = firebaseUser.uid;
         const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
         unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
@@ -54,7 +59,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
         });
       } else {
-        // Logout: listener'ı burada temizle
+        activeUid = null;
         if (unsubscribeDoc) {
           unsubscribeDoc();
           unsubscribeDoc = null;
