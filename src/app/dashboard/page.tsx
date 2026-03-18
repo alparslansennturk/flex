@@ -28,11 +28,10 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-  // Eğer yükleme bittiyse ve kullanıcı yoksa kapı dışarı et (Login'e yolla)
-  if (!loading && !user) {
-    router.push('/login'); 
-  }
-}, [user, loading, router]);
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -43,14 +42,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-useEffect(() => {
-    // Eğer yükleme bittiyse ve kullanıcı yoksa kapı dışarı et (Login'e yolla)
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
-
+  if (loading || !user) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F9FAFB] font-inter antialiased text-text-primary">
