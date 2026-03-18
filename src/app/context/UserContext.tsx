@@ -39,18 +39,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let unsubscribeDoc: (() => void) | null = null;
-
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-      // Önceki Firestore listener'ı her auth değişiminde temizle
-      if (unsubscribeDoc) {
-        unsubscribeDoc();
-        unsubscribeDoc = null;
-      }
-
       if (firebaseUser) {
         const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
-        unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
+        const unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             setUser({ ...(docSnap.data() as UserDocument), uid: firebaseUser.uid });
           }
@@ -59,19 +51,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           console.error("Firestore Dinleme Hatası:", error);
           setLoading(false);
         });
+        return () => unsubscribeDoc();
       } else {
         setUser(null);
         setLoading(false);
       }
     });
-
-    return () => {
-      unsubscribeAuth();
-      if (unsubscribeDoc) {
-        unsubscribeDoc();
-        unsubscribeDoc = null;
-      }
-    };
+    return () => unsubscribeAuth();
   }, []);
 
   /** 1. YETKİ KAYNAĞI ANALİZİ */

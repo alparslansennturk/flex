@@ -8,9 +8,6 @@ import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
 import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, ShieldAlert, PencilLine, UserCircle } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
-import { enableNetwork } from "firebase/firestore";
-import { db } from "../lib/firebase";
-
 export default function Sidebar() {
   const pathname = usePathname();
   const { hasPermission } = useUser();
@@ -19,7 +16,6 @@ export default function Sidebar() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      await enableNetwork(db);
       router.push("/login");
     } catch (error) {
       console.error("Çıkış hatası:", error);

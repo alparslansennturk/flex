@@ -82,23 +82,6 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
   const [selectedGroupIdForStudent, setSelectedGroupIdForStudent] = useState<string>("");
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-      const insList = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(u =>
-          u.roles?.includes("instructor") ||
-          u.role === "instructor" ||
-          u.isInstructor === true
-        )
-        .map(u => ({
-          ...u,
-          displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || "İsimsiz")
-        }));
-      setInstructors(insList);
-    }, () => {});
-    return () => unsubscribe();
-  }, []);
 
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
@@ -164,9 +147,10 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       let insList = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
         .filter(u =>
-          u.role === "instructor" ||
+          (u.role === "instructor" ||
           u.roles?.includes("instructor") ||
-          u.isInstructor === true
+          u.isInstructor === true) &&
+          u.id !== MASTER_ID
         )
         .map(u => ({
           ...u,
