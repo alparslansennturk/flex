@@ -3,8 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Yardımcı fonksiyonlar ────────────────────────────────────────────────
-
     function isSignedIn() {
       return request.auth != null;
     }
@@ -13,61 +11,35 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
-    // Kullanıcının Firestore'daki roles alanını okur
-    function getUserRoles() {
-      return get(/databases/$(database)/documents/users/$(currentUid())).data.roles;
+    // Gizli sistem sahibi — Firestore'a bakmadan tam yetki
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email == 'flexos.platform@gmail.com';
+    }
+
+    // Firestore dokümanındaki rollere bak (diğer kullanıcılar için)
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(currentUid())).data;
     }
 
     function isAdmin() {
-      return isSignedIn() && getUserRoles().hasAny(['admin']);
+      return isSuperAdmin() ||
+        (isSignedIn() && getUserData().get('roles', []).hasAny(['admin'])) ||
+        (isSignedIn() && getUserData().get('role', '') == 'admin');
     }
 
     function isInstructor() {
-      return isSignedIn() && getUserRoles().hasAny(['instructor']);
+      return isAdmin() ||
+        (isSignedIn() && getUserData().get('roles', []).hasAny(['instructor'])) ||
+        (isSignedIn() && getUserData().get('role', '') == 'instructor');
     }
 
     // ─── students ─────────────────────────────────────────────────────────────
 
     match /students/{studentId} {
-
-      // Okuma:
-      //   Admin   → hepsini görebilir
-      //   Eğitmen → sadece kendi öğrencilerini (groupId kendi grubunda olmalı)
-      //             veya kendi mezun ettiği öğrencileri
-      allow read: if isSignedIn() && (
-        isAdmin() ||
-        // Aktif öğrenci: kendi grubunda mı? (group doc'unda instructorId kontrol edilir)
-        // NOT: Firestore'da çapraz koleksiyon join'i yoktur; bu kontrol
-        // client'ta yapılır. Frontend zaten groupId listesiyle filtreler.
-        // Güvenlik için: eğitmen her zaman kendi öğrencilerini okuyabilir;
-        // hassas alanlara erişim iş kuralıyla sınırlandırılır.
-        isInstructor()
-      );
-
-      // Oluşturma: Admin veya eğitmen (yeni öğrenci ekleme)
+      allow read: if isSignedIn() && (isAdmin() || isInstructor());
       allow create: if isAdmin() || isInstructor();
-
-      // Güncelleme kuralları
-      allow update: if isSignedIn() && (
-        isAdmin() ||
-
-        // Eğitmen kendi öğrencisini mezun edebilir:
-        // - status'ü 'passive' yapıyor ve graduatedBy kendi uid'i
-        (isInstructor() &&
-          request.resource.data.graduatedBy == currentUid() &&
-          request.resource.data.status == 'passive') ||
-
-        // Eğitmen kendi mezun ettiği öğrenciyi geri alabilir:
-        // - Mevcut doc'ta graduatedBy kendi uid'i olmalı
-        (isInstructor() &&
-          resource.data.graduatedBy == currentUid() &&
-          request.resource.data.status == 'active') ||
-
-        // Normal öğrenci düzenleme (eğitmen)
-        isInstructor()
-      );
-
-      // Silme: Sadece admin
+      allow update: if isAdmin() || isInstructor();
       allow delete: if isAdmin();
     }
 
@@ -75,23 +47,16 @@ service cloud.firestore {
 
     match /groups/{groupId} {
       allow read: if isSignedIn();
-
-      // Güncelleme: Admin veya grubun sahibi eğitmen
       allow update: if isAdmin() ||
         (isInstructor() && resource.data.instructorId == currentUid());
-
       allow create, delete: if isAdmin();
     }
 
     // ─── users ────────────────────────────────────────────────────────────────
 
     match /users/{userId} {
-      // Herkes kendi profilini okuyabilir; admin hepsini görebilir
       allow read: if isSignedIn() && (isAdmin() || currentUid() == userId);
-
-      // Herkes kendi profilini güncelleyebilir; admin hepsini
       allow update: if isSignedIn() && (isAdmin() || currentUid() == userId);
-
       allow create: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -101,6 +66,25 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read: if isSignedIn();
       allow write: if isAdmin() || isInstructor();
+    }
+
+    // ─── templates ────────────────────────────────────────────────────────────
+
+    match /templates/{templateId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isInstructor();
+    }
+
+    // ─── scores_backup ────────────────────────────────────────────────────────
+
+    match /scores_backup/{docId} {
+      allow read: if isAdmin() || isInstructor();
+      allow write: if isAdmin();
+    }
+
+    match /scores_backup_entries/{docId} {
+      allow read: if isAdmin() || isInstructor();
+      allow write: if isAdmin();
     }
   }
 }

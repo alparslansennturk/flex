@@ -62,6 +62,9 @@ export const TASK_STATUS = {
 } as const;
 export type TaskStatus = typeof TASK_STATUS[keyof typeof TASK_STATUS];
 
+// Gizli süper admin hesabı (flexos.platform@gmail.com) — listelerden filtrelenir
+export const MASTER_ID = "zzHgnUEqECOVLDxCfJGBnQ90D9T2";
+
 export const MESSAGE_TYPES = {
   ERROR: 'error',
   WARNING: 'warning',

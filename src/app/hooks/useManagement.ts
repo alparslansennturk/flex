@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { db, auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
+import { MASTER_ID } from "@/app/lib/constants";
 import {
-  collection, onSnapshot, addDoc, query, where, doc,
-  updateDoc, deleteDoc, increment, serverTimestamp
+  collection, onSnapshot, addDoc, doc,
+  updateDoc, deleteDoc, increment, serverTimestamp, writeBatch
 } from "firebase/firestore";
 
 // --- INTERFACES ---
@@ -34,8 +35,6 @@ interface Student {
   lastGroupCode?: string;
   updatedAt?: any;
 }
-const MASTER_ID = "kYG8N01PTudh1VT1uvy2vg8vmAR2";
-
 export const useManagement = (setHeaderTitle: (t: string) => void) => {
   // --- TEMEL TANIMLAR ---
   const { user } = useUser();
@@ -87,7 +86,6 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const insList = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(u => u.id !== MASTER_ID)
         .filter(u =>
           u.roles?.includes("instructor") ||
           u.role === "instructor" ||
@@ -98,7 +96,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || "İsimsiz")
         }));
       setInstructors(insList);
-    });
+    }, () => {});
     return () => unsubscribe();
   }, []);
 
@@ -153,11 +151,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
       const gList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Group[];
       setGroups(gList);
-    });
+    }, () => {});
     const unsubStudents = onSnapshot(collection(db, "students"), (snapshot) => {
       const sList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Student[];
       setStudents(sList);
-    });
+    }, () => {});
     return () => { unsubGroups(); unsubStudents(); };
   }, []);
 
@@ -165,7 +163,6 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       let insList = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(u => u.id !== MASTER_ID)
         .filter(u =>
           u.role === "instructor" ||
           u.roles?.includes("instructor") ||
@@ -353,35 +350,36 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       const groupRef = doc(db, "groups", modalConfig.groupId);
       const targetGroup = groups.find(g => g.id === modalConfig.groupId);
       const affectedStudents = students.filter(s => s.groupId === modalConfig.groupId);
+      const batch = writeBatch(db);
 
       if (modalConfig.type === 'delete') {
-        const batchPromises = affectedStudents.map(student =>
-          updateDoc(doc(db, "students", student.id), {
+        affectedStudents.forEach(student => {
+          batch.update(doc(db, "students", student.id), {
             status: 'passive',
             lastGroupCode: targetGroup?.code || "",
             groupCode: `Mezun (${targetGroup?.code || "Bilinmiyor"})`,
             groupId: "unassigned",
             updatedAt: new Date()
-          })
-        );
-        await Promise.all(batchPromises);
-        await deleteDoc(groupRef);
+          });
+        });
+        batch.delete(groupRef);
+        await batch.commit();
         if (selectedGroupId === modalConfig.groupId) setSelectedGroupId(null);
         showNotification("Grup silindi.");
       } else if (modalConfig.type === 'archive') {
-        const batchPromises = affectedStudents.map(student =>
-          updateDoc(doc(db, "students", student.id), { status: 'passive', updatedAt: new Date() })
-        );
-        await Promise.all(batchPromises);
-        await updateDoc(groupRef, { status: 'archived' });
+        affectedStudents.forEach(student => {
+          batch.update(doc(db, "students", student.id), { status: 'passive', updatedAt: new Date() });
+        });
+        batch.update(groupRef, { status: 'archived' });
+        await batch.commit();
         if (selectedGroupId === modalConfig.groupId) setSelectedGroupId(null);
         showNotification("Grup arşivlendi.");
       } else if (modalConfig.type === 'restore') {
-        await updateDoc(groupRef, { status: 'active' });
-        const batchPromises = affectedStudents.map(student =>
-          updateDoc(doc(db, "students", student.id), { status: 'active', updatedAt: new Date() })
-        );
-        await Promise.all(batchPromises);
+        batch.update(groupRef, { status: 'active' });
+        affectedStudents.forEach(student => {
+          batch.update(doc(db, "students", student.id), { status: 'active', updatedAt: new Date() });
+        });
+        await batch.commit();
         showNotification("Grup geri yüklendi.");
       }
     } catch (error) { showNotification("Hata oluştu."); }

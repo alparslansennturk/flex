@@ -7,8 +7,7 @@ import { setDoc, doc, serverTimestamp, collection, onSnapshot, query, deleteDoc 
 import { GlobalConfirmationModal } from "./management-components/Modals";
 import { UserTable } from "./management-components/UserTable";
 import { UserForm } from "./management-components/UserForm";
-
-const MASTER_ID = "kYG8N01PTudh1VT1uvy2vg8vmAR2";
+import { MASTER_ID } from "../../lib/constants";
 const ROLE_DEFAULTS: Record<string, string[]> = {
     admin: ["VIEW_ALL_CLASSES", "ASSIGNMENT_MANAGE", "STUDENT_DELETE", "ROLE_MANAGE", "LEAGUE_MANAGE", "BRANCH_STATS"],
     instructor: ["VIEW_ALL_CLASSES", "ASSIGNMENT_MANAGE"],
