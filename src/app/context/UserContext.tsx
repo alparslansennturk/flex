@@ -1,12 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore'; 
 import { auth, db } from '@/app/lib/firebase';
 import { UserDocument } from '@/app/types/user';
 import { COLLECTIONS, ROLES, UserPermission, PERMISSIONS } from '@/app/lib/constants';
-import { useRouter } from 'next/navigation';
 
 const ROLES_CONFIG: Record<string, { permissions: UserPermission[] }> = {
   [ROLES.ADMIN]: {
@@ -40,14 +39,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribeDoc: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      // Önceki Firestore listener'ı her auth değişiminde temizle
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+
       if (firebaseUser) {
-        // HEADER FIX: onSnapshot kullanarak Alparslan hayaletini kovuyoruz.
-        // Veritabanında veri değiştiği an Header anında güncellenir.
         const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
-        const unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
+        unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
-            // uid alanı Firestore document'ında olmasa bile auth uid'i garantile
             setUser({ ...(docSnap.data() as UserDocument), uid: firebaseUser.uid });
           }
           setLoading(false);
@@ -55,13 +59,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           console.error("Firestore Dinleme Hatası:", error);
           setLoading(false);
         });
-        return () => unsubscribeDoc();
       } else {
         setUser(null);
         setLoading(false);
       }
     });
-    return () => unsubscribeAuth();
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+    };
   }, []);
 
   /** 1. YETKİ KAYNAĞI ANALİZİ */
