@@ -39,10 +39,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribeDoc: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
-        const unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
+        unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             setUser({ ...(docSnap.data() as UserDocument), uid: firebaseUser.uid });
           }
@@ -51,13 +53,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           console.error("Firestore Dinleme Hatası:", error);
           setLoading(false);
         });
-        return () => unsubscribeDoc();
       } else {
+        // Logout: listener'ı burada temizle
+        if (unsubscribeDoc) {
+          unsubscribeDoc();
+          unsubscribeDoc = null;
+        }
         setUser(null);
         setLoading(false);
       }
     });
-    return () => unsubscribeAuth();
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+    };
   }, []);
 
   /** 1. YETKİ KAYNAĞI ANALİZİ */
