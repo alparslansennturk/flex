@@ -4,6 +4,7 @@ import "./globals.css";
 import { UserProvider } from "@/app/context/UserContext";
 import { ScoringProvider } from "@/app/context/ScoringContext";
 import VercelToolbarWrapper from "@/app/components/VercelToolbarWrapper";
+import FirebaseErrorSuppressor from "@/app/components/FirebaseErrorSuppressor";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
             {children}
           </ScoringProvider>
           <VercelToolbarWrapper />
+          <FirebaseErrorSuppressor />
         </UserProvider>
       </body>
     </html>
