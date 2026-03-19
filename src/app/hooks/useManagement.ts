@@ -34,6 +34,7 @@ interface Student {
   points: number;
   status?: 'active' | 'passive';
   lastGroupCode?: string;
+  hiddenFromInstructors?: string[];
   updatedAt?: any;
 }
 export const useManagement = (setHeaderTitle: (t: string) => void) => {
