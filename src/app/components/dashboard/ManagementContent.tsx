@@ -82,7 +82,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
               disabled={currentView !== "Aktif Sınıflar" || isFormOpen || !!editingGroupId}
               className={`w-36 h-10 text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer ${currentView === "Aktif Sınıflar" && !isFormOpen && !editingGroupId ? "bg-[#FF8D28] shadow-orange-500/10" : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}
             >
-              <span>Sınıf ekle</span>
+              <span>Grup ekle</span>
               <Plus size={14} strokeWidth={3} />
             </button>
             <p className="text-[13px] text-neutral-400 font-medium border-l border-neutral-200 pl-6 h-6 flex items-center leading-none">
