@@ -41,14 +41,6 @@ export default function TasksPage() {
         <main className="flex-1 overflow-y-auto bg-surface-50/20 [scrollbar-gutter:stable]">
           <div className="w-full max-w-480 mx-auto pb-20">
             <div className="px-0 pt-8">
-              <div className="px-8 pb-4">
-                <h1 className="text-[26px] xl:text-[28px] font-bold text-base-primary-900 leading-none mb-2">
-                  Ödev Yönetimi
-                </h1>
-                <p className="text-[13px] xl:text-[14px] text-surface-500 font-medium">
-                  Şablonları yönet, aktif ödevleri izle ve arşivi kontrol et.
-                </p>
-              </div>
               <TaskManagementPanel />
             </div>
           </div>

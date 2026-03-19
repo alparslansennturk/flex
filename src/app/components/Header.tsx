@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, Bell, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, Bell, Settings, LayoutGrid, BookOpen } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 
@@ -37,7 +37,25 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const isManagementPage = pathname?.includes("/management");
+  type PageConfig = { icon: React.ReactNode; title: string; description: string };
+  const pageConfigs: Record<string, PageConfig> = {
+    "/dashboard/management": {
+      icon: <LayoutGrid size={22} strokeWidth={2.5} />,
+      title: "Sınıf Yönetimi",
+      description: "Sınıf ve öğrenci yönetimini buradan yapabilirsin.",
+    },
+    "/dashboard/tasks": {
+      icon: <BookOpen size={22} strokeWidth={2.5} />,
+      title: "Ödev Yönetimi",
+      description: "Şablonları yönet, aktif ödevleri izle ve arşivi kontrol et.",
+    },
+    "/dashboard/admin": {
+      icon: <Settings size={22} strokeWidth={2.5} />,
+      title: "Yönetim Paneli",
+      description: "Atölye, sınıf ve kullanıcı ayarlarını buradan yönet.",
+    },
+  };
+  const currentPage = pathname ? Object.entries(pageConfigs).find(([key]) => pathname.startsWith(key))?.[1] : null;
   const otherBranches = branches.filter((b) => b !== selectedBranch);
   const myAvatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}&scale=110`;
 
@@ -48,20 +66,16 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
 
         {/* SOL TARAF: Karşılama ve Başlık */}
         <div className="flex items-center gap-4 truncate pr-4">
-          {isManagementPage && (
+          {currentPage && (
             <div className="w-10 h-10 rounded-xl bg-base-primary-5 flex items-center justify-center text-base-primary-900 border border-base-primary-100 shrink-0">
-              <Settings size={22} strokeWidth={2.5} />
+              {currentPage.icon}
             </div>
           )}
           <div className="truncate">
             <h1 className="text-[clamp(18px,1.2vw,22px)] text-base-primary-900 leading-tight flex items-center gap-2.5"
               style={{ fontWeight: 630, letterSpacing: "-0.022em" }}>
-              {isManagementPage ? (
-                <>
-                  <span className="text-neutral-400 font-medium">Yönetim Paneli</span>
-                  <span className="text-neutral-300 font-light select-none">|</span>
-                  <span className="animate-in fade-in duration-500">{activeTabLabel}</span>
-                </>
+              {currentPage ? (
+                <span className="animate-in fade-in duration-500">{currentPage.title}</span>
               ) : (
                 isBirthday ? (
                   <span className="animate-bounce flex items-center gap-2">
@@ -73,8 +87,8 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
               )}
             </h1>
             <p className="text-[14px] text-neutral-400 font-medium mt-0.5 truncate leading-none">
-              {isManagementPage
-                ? "Atölye, sınıf ve kullanıcı ayarlarını buradan yönet."
+              {currentPage
+                ? currentPage.description
                 : "Bugün atölyende neler oluyor? İşte son durum."}
             </p>
           </div>

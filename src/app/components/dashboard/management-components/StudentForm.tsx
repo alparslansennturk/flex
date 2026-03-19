@@ -223,15 +223,15 @@ export const StudentForm: React.FC<StudentFormProps> = ({
             <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-5">
               <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Ad</label>
-                <input name="name" placeholder="Örn: Alparslan" value={studentName} onChange={(e) => setStudentName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-400 placeholder:font-normal ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <input name="name" placeholder="Örn: Alparslan" value={studentName} onChange={(e) => setStudentName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.name ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Soyad</label>
-                <input name="surname" placeholder="Örn: Akdağ" value={studentLastName} onChange={(e) => setStudentLastName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-400 placeholder:font-normal ${localErrors.lastName ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <input name="surname" placeholder="Örn: Akdağ" value={studentLastName} onChange={(e) => setStudentLastName(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.lastName ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">E-Posta</label>
-                <input name="email" type="email" placeholder="ornek@email.com" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-400 placeholder:font-normal ${localErrors.email ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <input name="email" type="email" placeholder="ornek@email.com" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.email ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
               </div>
               <div className="space-y-1.5 relative">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Cinsiyet</label>
@@ -272,7 +272,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
             <div className="flex items-center gap-3 text-[#10294C] font-semibold text-[16px] border-l-4 border-[#10294C] pl-4">
               <span>Öğrenci Notları</span>
             </div>
-            <textarea name="instructorNote" value={studentNote} onChange={(e) => setStudentNote(e.target.value)} placeholder="Öğrencinin teknik seviyesi ve özel durumları..." className="w-full h-[140px] bg-neutral-50 border border-neutral-100 rounded-[12px] p-6 outline-none font-medium text-[14px] placeholder:text-neutral-400 placeholder:font-normal focus:border-orange-200 focus:bg-white transition-all resize-none" />
+            <textarea name="instructorNote" value={studentNote} onChange={(e) => setStudentNote(e.target.value)} placeholder="Öğrencinin teknik seviyesi ve özel durumları..." className="w-full h-[140px] bg-neutral-50 border border-neutral-100 rounded-[12px] p-6 outline-none font-medium text-[14px] placeholder:text-neutral-500 placeholder:font-normal focus:border-orange-200 focus:bg-white transition-all resize-none" />
           </div>
         </div>
         <div className="p-8 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end shrink-0">

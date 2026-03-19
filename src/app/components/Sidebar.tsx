@@ -5,12 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
-import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, PencilLine, UserCircle } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, PencilLine, UserCircle, Settings2 } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
 export default function Sidebar() {
   const pathname = usePathname();
-  const { hasPermission } = useUser();
+  const { hasPermission, user } = useUser();
+  const isAdmin = user?.roles?.includes('admin') || false;
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -45,10 +46,18 @@ export default function Sidebar() {
         <SidebarLink href="/dashboard/profile" icon={<UserCircle size={18} />} label="Profil Ayarları" />
       </nav>
 
-      {/* ALT BÖLÜM: Yönetim Paneli ve Çıkış (Boşluklar alındı, hizalandı) */}
+      {/* ALT BÖLÜM */}
       <div className="mt-auto px-4 pb-8 flex flex-col gap-2 shrink-0">
 
-{/* GLOBAL ÇIKIŞ BUTONU */}
+        {/* YÖNETİM PANELİ — Sadece admin */}
+        {isAdmin && (
+          <>
+            <SidebarLink href="/dashboard/admin" icon={<Settings2 size={18} />} label="Yönetim Paneli" />
+            <div className="mx-2 my-1 border-t border-white/10" />
+          </>
+        )}
+
+        {/* ÇIKIŞ */}
         <div
           onClick={handleLogout}
           className="flex items-center gap-4 px-6 py-[16px] text-white cursor-pointer hover:bg-white/5 transition-all duration-200 group rounded-xl outline-none"

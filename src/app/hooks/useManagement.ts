@@ -56,8 +56,10 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [activeSubTab, setActiveSubTab] = useState("groups");
   const [currentView, setCurrentView] = useState("Aktif Sınıflar");
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, studentId: "" });
-  const [showPassive, setShowPassive] = useState(false);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, studentId: "", deleteType: 'active' as 'active' | 'graduated' | 'graduate' });
+  const [studentPanel, setStudentPanel] = useState<'active' | 'passive'>('active');
+  const [activePage, setActivePage] = useState(1);
+  const [passivePage, setPassivePage] = useState(1);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -91,8 +93,9 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
-    type: 'archive' | 'delete' | 'restore' | 'student-delete' | null;
+    type: 'archive' | 'delete' | 'restore' | 'student-delete' | 'bulk-delete' | null;
     groupId: string | null;
+    groupIds?: string[];
     studentId?: string | null;
   }>({
     isOpen: false,
@@ -116,21 +119,48 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     .filter(g => currentView === "Arşiv" ? g.status === "archived" : g.status === "active")
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-  /// 2. KESİN FİLTRELEME MOTORU
+  const ITEMS_PER_PAGE = 20;
+
+  /// 2. FİLTRELEME MOTORU
   const filteredStudents = students.filter((s) => {
-  const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
-  const statusMatch = showPassive ? s.status === 'passive' : s.status !== 'passive';
-  if (!searchMatch || !statusMatch) return false;
-  if (viewMode === 'group-list') return s.groupId === selectedGroupId;
-  if (viewMode === 'all-groups') {
-    return groups.some(g => g.id === s.groupId && (g.instructorId === auth.currentUser?.uid || g.instructor?.toLowerCase().includes("alparslan")));
-  }
-  if (viewMode === 'all-branches') {
-    if (!studentBranch || studentBranch === "Tümü") return true;
-    return s.branch === studentBranch;
-  }
-  return true;
-});
+    // Panel filtresi
+    if (studentPanel === 'active' && s.status === 'passive') return false;
+    if (studentPanel === 'passive') {
+      if (s.status !== 'passive') return false;
+      // Eğitmen: sadece kendi gruplarından mezun öğrenciler, gizlenenleri hariç
+      if (!isAdminRef.current) {
+        const uid = auth.currentUser?.uid;
+        const myGroupIds = groups.filter(g => g.instructorId === uid).map(g => g.id);
+        if (!myGroupIds.includes(s.groupId)) return false;
+        if (uid && s.hiddenFromInstructors?.includes(uid)) return false;
+      }
+    }
+    // Arama (aktif panelde)
+    if (studentPanel === 'active') {
+      const searchMatch = (s.name + " " + (s.lastName || "")).toLowerCase().includes(searchQuery.toLowerCase().trim());
+      if (!searchMatch) return false;
+    }
+    // Görünüm modu filtresi
+    if (viewMode === 'group-list') return s.groupId === selectedGroupId;
+    if (viewMode === 'all-groups') {
+      return groups.some(g => g.id === s.groupId && (g.instructorId === auth.currentUser?.uid || g.instructor?.toLowerCase().includes("alparslan")));
+    }
+    if (viewMode === 'all-branches') {
+      if (!studentBranch || studentBranch === "Tümü") return true;
+      return s.branch === studentBranch;
+    }
+    return true;
+  });
+
+  const currentPage = studentPanel === 'active' ? activePage : passivePage;
+  const totalPages = Math.ceil(filteredStudents.length / ITEMS_PER_PAGE);
+  const pagedStudents = viewMode === 'group-list'
+    ? filteredStudents
+    : filteredStudents.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const filteredArchiveGroups = isAdminRef.current
+    ? filteredGroups
+    : filteredGroups.filter(g => g.instructorId === auth.currentUser?.uid);
 
   const now = Date.now() / 1000;
   const myGroupCards = groups
@@ -248,6 +278,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     };
     setHeaderTitle(labels[activeSubTab] || "Sınıf Yönetimi");
   }, [activeSubTab, setHeaderTitle]);
+
+  useEffect(() => {
+    setActivePage(1);
+    setPassivePage(1);
+  }, [searchQuery, viewMode, selectedGroupId, studentPanel]);
 
   const showNotification = (msg: string) => {
     setToast({ show: true, message: msg });
@@ -368,8 +403,41 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setOpenMenuId(null);
   };
 
+  const requestBulkDeleteArchive = (ids: string[]) => {
+    setModalConfig({ isOpen: true, type: 'bulk-delete', groupId: null, groupIds: ids });
+  };
+
   const confirmModalAction = async () => {
-    if (!modalConfig.groupId || !modalConfig.type) return;
+    if (!modalConfig.type) return;
+
+    // Toplu arşiv silme
+    if (modalConfig.type === 'bulk-delete' && modalConfig.groupIds?.length) {
+      setIsProcessing(true);
+      try {
+        const batch = writeBatch(db);
+        for (const gid of modalConfig.groupIds) {
+          const targetGroup = groups.find(g => g.id === gid);
+          const affectedStudents = students.filter(s => s.groupId === gid);
+          affectedStudents.forEach(student => {
+            batch.update(doc(db, "students", student.id), {
+              status: 'passive',
+              lastGroupCode: targetGroup?.code || "",
+              groupCode: `Mezun (${targetGroup?.code || "Bilinmiyor"})`,
+              groupId: "unassigned",
+              updatedAt: new Date()
+            });
+          });
+          batch.delete(doc(db, "groups", gid));
+        }
+        await batch.commit();
+        if (modalConfig.groupIds.includes(selectedGroupId ?? '')) setSelectedGroupId(null);
+        showNotification(`${modalConfig.groupIds.length} grup silindi.`);
+      } catch { showNotification("Hata oluştu."); }
+      finally { setIsProcessing(false); setModalConfig({ isOpen: false, type: null, groupId: null }); }
+      return;
+    }
+
+    if (!modalConfig.groupId) return;
     setIsProcessing(true);
     try {
       const groupRef = doc(db, "groups", modalConfig.groupId);
@@ -459,6 +527,55 @@ console.error("HATA:",error);
 throw error;
 }
 };
+  const handleGraduateStudent = async (studentId: string) => {
+    try {
+      await updateDoc(doc(db, "students", studentId), { status: 'passive', graduatedAt: new Date(), updatedAt: new Date() });
+      showNotification("Öğrenci mezun edildi.");
+    } catch { showNotification("Hata oluştu."); }
+  };
+
+  const handleBulkGraduateStudents = async (ids: string[]) => {
+    if (!ids.length) return;
+    try {
+      const batch = writeBatch(db);
+      ids.forEach(id => batch.update(doc(db, "students", id), { status: 'passive', graduatedAt: new Date(), updatedAt: new Date() }));
+      await batch.commit();
+      setSelectedStudentIds([]);
+      showNotification(`${ids.length} öğrenci mezun edildi.`);
+    } catch { showNotification("Hata oluştu."); }
+  };
+
+  const handleRestoreStudent = async (studentId: string) => {
+    try {
+      await updateDoc(doc(db, "students", studentId), { status: 'active', updatedAt: new Date() });
+      showNotification("Öğrenci aktif listeye alındı.");
+    } catch { showNotification("Hata oluştu."); }
+  };
+
+  const handleDeleteGraduatedStudent = async (studentId: string) => {
+    if (isAdminRef.current) {
+      const student = students.find(s => s.id === studentId);
+      try {
+        await deleteDoc(doc(db, "students", studentId));
+        if (student?.groupId && student.groupId !== 'unassigned') {
+          await updateDoc(doc(db, "groups", student.groupId), { students: increment(-1) });
+        }
+        showNotification("Öğrenci silindi.");
+      } catch { showNotification("Hata oluştu."); }
+    } else {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      const student = students.find(s => s.id === studentId);
+      const hidden: string[] = student?.hiddenFromInstructors || [];
+      if (!hidden.includes(uid)) {
+        try {
+          await updateDoc(doc(db, "students", studentId), { hiddenFromInstructors: [...hidden, uid] });
+          showNotification("Öğrenci listenizden kaldırıldı.");
+        } catch { showNotification("Hata oluştu."); }
+      }
+    }
+  };
+
   const handleDeleteStudent = async (studentId: string) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
@@ -530,10 +647,15 @@ throw error;
     tempStudentBranch, setTempStudentBranch, 
     viewMode, setViewMode, toast, setToast, selectedGroupIdForStudent, setSelectedGroupIdForStudent,
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
-    handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
+    handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, requestBulkDeleteArchive, confirmModalAction,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
-    filteredGroups, filteredStudents, myGroupCards, showPassive, setShowPassive, selectedStudentIds, setSelectedStudentIds,
-    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal, studentGender, setStudentGender, editingStudent: students.find(s => s.id === editingStudentId) || null,
+    handleGraduateStudent, handleBulkGraduateStudents, handleRestoreStudent, handleDeleteGraduatedStudent,
+    filteredGroups, filteredArchiveGroups, filteredStudents, pagedStudents, myGroupCards,
+    totalPages, activePage, setActivePage, passivePage, setPassivePage,
+    studentPanel, setStudentPanel,
+    selectedStudentIds, setSelectedStudentIds,
+    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal, studentGender, setStudentGender,
+    editingStudent: students.find(s => s.id === editingStudentId) || null,
     editingStudentId, setEditingStudentId, avatarId, setAvatarId, formRef
 };
 };

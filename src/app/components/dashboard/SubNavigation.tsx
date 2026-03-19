@@ -9,12 +9,11 @@ interface SubNavigationProps {
 const SubNavigation: React.FC<SubNavigationProps> = ({ activeTab, onTabChange }) => {
   // Yönetim Paneli Menüsü Ayarları
   const tabs = [
-    { id: "profil-ayarlari", label: "Profil Ayarları" },
-    { id: "users", label: "Kullanıcılar" },
-    { id: "groups", label: "Sınıf Yönetimi" }, // Artık "Sınıf Yönetimi"
-    { id: "task-management", label: "Ödev Yönetimi" }, // Yeni sekmemiz geldi!
+    { id: "general", label: "Genel Ayarlar" },
+    { id: "users", label: "Kullanıcı Yönetimi" },
     { id: "header-footer", label: "Header & Footer" },
-    { id: "sidebar", label: "Sidebar" },
+    { id: "sidebar-management", label: "Sidebar Yönetimi" },
+    { id: "logs", label: "Logs ve Yedekleme" },
   ];
 
   return (

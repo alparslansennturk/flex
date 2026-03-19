@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { MoreVertical, Edit2, Archive, Layout, Plus, MapPin, User, RotateCcw, Trash2, PencilLine, Pencil } from "lucide-react";
 
 interface GroupCardsProps {
@@ -10,6 +10,7 @@ interface GroupCardsProps {
   setOpenMenuId: (id: string | null) => void;
   handleEdit: (group: any) => void;
   requestModal: (id: string, type: 'archive' | 'delete' | 'restore') => void;
+  onBulkDeleteArchive?: (ids: string[]) => void;
   handleOpenForm: () => void;
   menuRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -23,33 +24,92 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
   setOpenMenuId,
   handleEdit,
   requestModal,
+  onBulkDeleteArchive,
   handleOpenForm,
   menuRef
 }) => {
+  const [selectedArchiveIds, setSelectedArchiveIds] = useState<string[]>([]);
+
+  const toggleArchiveSelection = (id: string) => {
+    setSelectedArchiveIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const handleArchiveSelectAll = () => {
+    setSelectedArchiveIds(prev => prev.length === filteredGroups.length ? [] : filteredGroups.map(g => g.id));
+  };
+
   // --- DURUM C: ARŞİV VEYA TÜM SINIFLAR (TABLO MODU) ---
   if (currentView !== "Aktif Sınıflar") {
+    const isArchive = currentView === "Arşiv";
+    const hasSelection = selectedArchiveIds.length > 0;
+    const colCount = 5;
+
     return (
       <div className="w-full">
         <div className="bg-white border border-neutral-300 rounded-[16px] overflow-hidden shadow-sm">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-surface-50 border-b border-neutral-200">
-                <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Grup kodu</th>
-                <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Şube</th>
-                <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Eğitmen</th>
-                <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight text-center">Öğrenci</th>
-                <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight text-right pr-8">İşlem</th>
+              <tr className={`border-b transition-colors duration-300 h-12 ${isArchive && hasSelection ? "bg-base-primary-900 text-white" : "bg-surface-50 border-neutral-200"}`}>
+                {isArchive && (
+                  <th className="px-5 text-center w-[52px]">
+                    <input
+                      type="checkbox"
+                      className="w-3.5 h-3.5 rounded border-neutral-300 cursor-pointer accent-base-primary-600"
+                      checked={hasSelection && selectedArchiveIds.length === filteredGroups.length}
+                      onChange={handleArchiveSelectAll}
+                    />
+                  </th>
+                )}
+                {isArchive && hasSelection ? (
+                  <th colSpan={colCount - 1} className="px-6">
+                    <div className="flex items-center justify-between w-full animate-in fade-in duration-200">
+                      <div className="flex items-center gap-4">
+                        <span className="text-[12px] font-bold tracking-tight">{selectedArchiveIds.length} Seçildi</span>
+                        <div className="w-px h-4 bg-white/20" />
+                        <button
+                          onClick={() => { onBulkDeleteArchive?.(selectedArchiveIds); setSelectedArchiveIds([]); }}
+                          className="flex items-center gap-1.5 text-[12px] font-bold text-red-300 hover:text-red-100 transition-colors cursor-pointer outline-none"
+                        >
+                          <Trash2 size={14} /> Seçilenleri Sil
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => setSelectedArchiveIds([])}
+                        className="text-[11px] font-bold text-white/50 hover:text-white transition-colors cursor-pointer underline underline-offset-4"
+                      >
+                        Temizle
+                      </button>
+                    </div>
+                  </th>
+                ) : (
+                  <>
+                    <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Grup kodu</th>
+                    <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Şube</th>
+                    <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight">Eğitmen</th>
+                    <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight text-center">Öğrenci</th>
+                    <th className="px-6 py-3 text-[14px] font-semibold text-base-primary-900 tracking-tight text-right pr-8">İşlem</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
               {filteredGroups.map((group) => (
                 <tr key={group.id} className="border-b border-neutral-100 last:border-0 hover:bg-surface-50/50 transition-colors">
+                  {isArchive && (
+                    <td className="px-5 text-center w-[52px]">
+                      <input
+                        type="checkbox"
+                        className="w-3.5 h-3.5 rounded border-neutral-300 cursor-pointer accent-base-primary-600"
+                        checked={selectedArchiveIds.includes(group.id)}
+                        onChange={() => toggleArchiveSelection(group.id)}
+                      />
+                    </td>
+                  )}
                   <td className="px-6 py-3 font-bold text-base-primary-700">{group.code}</td>
                   <td className="px-6 py-3 text-[14px] text-neutral-600 font-medium"><div className="flex items-center gap-2"><MapPin size={14} className="text-neutral-400" />{group.branch}</div></td>
                   <td className="px-6 py-3 text-[14px] text-neutral-600 font-medium"><div className="flex items-center gap-2"><User size={14} className="text-neutral-400" />{group.instructor}</div></td>
                   <td className="px-6 py-3 text-center font-bold text-neutral-700">{group.students}</td>
                   <td className="px-6 py-3 text-right pr-8">
-                    {currentView === "Arşiv" ? (
+                    {isArchive ? (
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => requestModal(group.id, 'restore')}
