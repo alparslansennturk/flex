@@ -40,6 +40,11 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const { user } = useUser();
   const currentUser = auth.currentUser;
   const isAdmin = user?.roles?.includes('admin') || false;
+
+  const isAdminRef = useRef(isAdmin);
+  const userRef = useRef(user);
+  isAdminRef.current = isAdmin;
+  userRef.current = user;
   const [avatarId, setAvatarId] = useState<number | null>(null);
 
   const [instructors, setInstructors] = useState<any[]>([]);
@@ -157,13 +162,13 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || u.uid)
         }));
 
-      if (!isAdmin && user) {
-        insList = insList.filter(u => u.id === user.uid);
+      if (!isAdminRef.current && userRef.current) {
+        insList = insList.filter(u => u.id === userRef.current!.uid);
       }
       setInstructors(insList);
     });
     return () => unsubscribe();
-  }, [isAdmin, user]);
+  }, []);
 
   useEffect(() => {
     if (isFormOpen || isStudentFormOpen) return;
