@@ -149,8 +149,28 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-      let insList = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+      const allDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+
+      // ── DEBUG: Bozuk kayıtları logla ──────────────────────────────────────
+      const broken = allDocs.filter(u =>
+        !u ||
+        typeof u.email !== 'string' ||
+        (!u.role && (!Array.isArray(u.roles) || u.roles.length === 0)) ||
+        (Array.isArray(u.roles) && u.roles.some((r: unknown) => typeof r !== 'string'))
+      );
+      if (broken.length > 0) {
+        console.warn('[DEBUG] Bozuk user kayıtları:', broken.map(u => ({ id: u.id, email: u.email, role: u.role, roles: u.roles })));
+      }
+
+      // ── SAFE FILTER: Bozuk kayıtları ele ─────────────────────────────────
+      const safeUsers = allDocs.filter(u =>
+        u &&
+        typeof u.email === 'string' &&
+        (typeof u.role === 'string' || (Array.isArray(u.roles) && u.roles.length > 0))
+      );
+      // ─────────────────────────────────────────────────────────────────────
+
+      let insList = safeUsers
         .filter(u =>
           (u.role === "instructor" ||
           u.roles?.includes("instructor") ||

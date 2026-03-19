@@ -7,6 +7,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Schema validation: zorunlu user field'larını kontrol eder
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'name', 'surname', 'roles']) &&
+             data.email is string &&
+             data.name is string &&
+             data.surname is string &&
+             data.roles is list;
+    }
+
     function currentUid() {
       return request.auth.uid;
     }
@@ -57,7 +66,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn() && (isAdmin() || currentUid() == userId);
       allow update: if isSignedIn() && (isAdmin() || currentUid() == userId);
-      allow create: if isAdmin();
+      allow create: if isAdmin() && isValidUser(request.resource.data);
       allow delete: if isAdmin();
     }
 
