@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
-import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, ShieldAlert, PencilLine, UserCircle } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, PencilLine, UserCircle } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
 export default function Sidebar() {
@@ -48,16 +48,7 @@ export default function Sidebar() {
       {/* ALT BÖLÜM: Yönetim Paneli ve Çıkış (Boşluklar alındı, hizalandı) */}
       <div className="mt-auto px-4 pb-8 flex flex-col gap-2 shrink-0">
 
-        {/* Sadece Admin İçin Yönetim Paneli */}
-        {hasPermission(PERMISSIONS.ROLE_MANAGE) && (
-          <>
-            <SidebarLink href={NAV_CONFIG.PERMISSIONS.path} icon={<ShieldAlert size={18} />} label="Yönetim Paneli" />
-            {/* DUVA RI YIKAN TAM BOY ÇİZGİ (-mx-4 eklendi) */}
-            <div className="-mx-4 my-1 border-t border-white/10"></div>
-          </>
-        )}
-
-        {/* GLOBAL ÇIKIŞ BUTONU */}
+{/* GLOBAL ÇIKIŞ BUTONU */}
         <div
           onClick={handleLogout}
           className="flex items-center gap-4 px-6 py-[16px] text-white cursor-pointer hover:bg-white/5 transition-all duration-200 group rounded-xl outline-none"
