@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2 } from "lucide-react";
 import TaskManagementPanel from "@/app/components/dashboard/TaskManagementPanel";
 
@@ -30,10 +30,21 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     studentBranch, setStudentBranch, studentError, setStudentError,
     viewMode, setViewMode, toast, setToast, selectedGroupIdForStudent, setSelectedGroupIdForStudent,
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
-    handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
+    handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction, formRef,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm, setEditingStudentId,
     filteredGroups, filteredStudents, myGroupCards, toggleStudentSelection, handleSelectAll, studentGender, setStudentGender, tempStudentBranch, setTempStudentBranch
   } = useManagement(setHeaderTitle);
+
+  useEffect(() => {
+    if (!isFormOpen || !editingGroupId) return;
+    const t1 = setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    const t2 = setTimeout(() => {
+      formRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+    }, 500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [isFormOpen]);
 
   return (
     <div className="w-full font-inter select-none pb-20 relative">
@@ -65,9 +76,9 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           {/* --- BÖLÜM 2: AKSİYON SATIRI --- */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-300 px-4 md:px-5 lg:px-3">
             <div className="flex items-center gap-6">
-              <button onClick={handleOpenForm} disabled={currentView !== "Aktif Sınıflar" && !editingGroupId} className={`w-[144px] h-[40px] text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer ${currentView === "Aktif Sınıflar" || editingGroupId ? "bg-[#FF8D28] shadow-orange-500/10" : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}>
-                <span>{isFormOpen ? "Vazgeç" : (editingGroupId ? "Düzenle" : "Sınıf ekle")}</span>
-                {isFormOpen ? <X size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
+              <button onClick={handleOpenForm} disabled={currentView !== "Aktif Sınıflar" || isFormOpen || !!editingGroupId} className={`w-[144px] h-[40px] text-white rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg cursor-pointer ${currentView === "Aktif Sınıflar" && !isFormOpen && !editingGroupId ? "bg-[#FF8D28] shadow-orange-500/10" : "bg-neutral-300 shadow-none opacity-50 cursor-not-allowed pointer-events-none"}`}>
+                <span>Sınıf ekle</span>
+                <Plus size={14} strokeWidth={3} />
               </button>
               <p className="text-[14px] text-neutral-400 font-medium border-l border-neutral-200 pl-6 h-6 flex items-center leading-none">{currentView !== "Aktif Sınıflar" && !editingGroupId ? "Yeni sınıf eklemek için aktif sınıflar sekmesine geçin." : (editingGroupId ? "Mevcut sınıf bilgilerini güncelleyin." : "Yeni bir eğitim sınıfı veya grubu oluşturun.")}</p>
             </div>
@@ -80,6 +91,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
 
           {/* --- BÖLÜM 3: FORM ALANI --- */}
+          <div ref={formRef}>
           <GroupForm
             isAdmin={isAdmin} // KRİTİK: Bu prop Elif'in dropdownları açmasını engeller
             isFormOpen={isFormOpen}
@@ -104,6 +116,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             handleSave={handleSave}
             scheduleRef={scheduleRef}
           />
+          </div>
           {/* --- BÖLÜM 4: İÇERİK --- */}
           <div className="mt-6">
             {/* Hizalama için padding dışarıda, kutu w-fit ile kilitli */}

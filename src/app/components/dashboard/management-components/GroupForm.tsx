@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, ChevronDown, ChevronRight } from "lucide-react";
 
 interface GroupFormProps {
@@ -11,7 +11,7 @@ interface GroupFormProps {
   instructors: any[];
   selectedInstructorId: string;
   setSelectedInstructorId: (val: string) => void;
-  errors: { code?: string; schedule?: string };
+  errors: { code?: string; schedule?: string; instructor?: string; duplicate?: string };
   setErrors: (val: any) => void;
   selectedSchedule: string;
   setSelectedSchedule: (val: string) => void;
@@ -35,6 +35,14 @@ export const GroupForm: React.FC<GroupFormProps> = ({
 }) => {
 
   const [shake, setShake] = useState(false);
+
+  useEffect(() => {
+    const hasErrors = Object.values(errors).some(Boolean);
+    if (!hasErrors) return;
+    setShake(true);
+    const t = setTimeout(() => setShake(false), 300);
+    return () => clearTimeout(t);
+  }, [errors]);
 
   return (
     <div
@@ -67,7 +75,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
               <div className="relative">
                 <select
                   value={groupBranch}
-                  onChange={(e) => setGroupBranch(e.target.value)}
+                  onChange={(e) => { setGroupBranch(e.target.value); if (errors.duplicate) setErrors({ ...errors, duplicate: "" }); }}
                   className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer transition-all"
                 >
                   <option value="Kadıköy">Kadıköy</option>
@@ -92,8 +100,8 @@ export const GroupForm: React.FC<GroupFormProps> = ({
                   <>
                     <select
                       value={selectedInstructorId}
-                      onChange={(e) => setSelectedInstructorId(e.target.value)}
-                      className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer"
+                      onChange={(e) => { setSelectedInstructorId(e.target.value); if (errors.instructor) setErrors({ ...errors, instructor: "" }); }}
+                      className={`w-full h-11 border rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer ${errors.instructor ? "bg-red-50 border-red-300" : "bg-neutral-50 border-neutral-200"}`}
                     >
                       <option value="">Eğitmen Seçiniz</option>
                       {instructors?.map((ins) => (
@@ -112,7 +120,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
               <input
                 type="text"
                 value={groupCode}
-                onChange={(e) => { setGroupCode(e.target.value); if (errors.code) setErrors({ ...errors, code: "" }); }}
+                onChange={(e) => { setGroupCode(e.target.value); if (errors.code || errors.duplicate) setErrors({ ...errors, code: "", duplicate: "" }); }}
                 placeholder="Örn: 101"
                 className={`w-full h-11 bg-neutral-50 border ${errors.code ? "border-red-300" : "border-neutral-200"} rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 transition-all`}
               />
@@ -159,6 +167,9 @@ export const GroupForm: React.FC<GroupFormProps> = ({
           )}
 
           <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-neutral-100">
+            {errors.duplicate && (
+              <span className="text-[12px] font-medium text-red-500 mr-5">{errors.duplicate}</span>
+            )}
             <button onClick={handleCancel} className="px-4 py-2 text-[13px] font-bold text-neutral-400 hover:text-neutral-600 transition-all cursor-pointer">Vazgeç</button>
             <button
               onClick={handleSave}

@@ -29,7 +29,7 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
   // --- DURUM C: ARŞİV VEYA TÜM SINIFLAR (TABLO MODU) ---
   if (currentView !== "Aktif Sınıflar") {
     return (
-      <div className="w-full animate-in fade-in duration-500">
+      <div className="w-full">
         <div className="bg-white border border-neutral-300 rounded-[16px] overflow-hidden shadow-sm">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -191,10 +191,14 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                   {group.session}
                 </p>
               </div>
-              <p className={`text-[14px] font-semibold leading-none transition-colors ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"
-                }`}>
-                Öğrenci Sayısı: {group.students}
-              </p>
+              <div className="flex items-end justify-between">
+                <p className={`text-[14px] font-semibold leading-none transition-colors ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"}`}>
+                  Öğrenci Sayısı: {group.students}
+                </p>
+                <p className={`text-[11px] font-normal leading-none transition-colors ${isActive ? "text-white/60" : "text-neutral-400 group-hover:text-white/60"}`}>
+                  {group.branch} Şb
+                </p>
+              </div>
             </div>
           </div>
         );

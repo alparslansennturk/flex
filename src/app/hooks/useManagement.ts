@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { db, auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { MASTER_ID } from "@/app/lib/constants";
+import { getFlexMessage } from "@/app/lib/messages";
 import {
   collection, onSnapshot, addDoc, doc,
   updateDoc, deleteDoc, increment, serverTimestamp, writeBatch
@@ -71,7 +72,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [selectedSchedule, setSelectedSchedule] = useState("Grup seansı seçiniz...");
   const [customSchedule, setCustomSchedule] = useState("");
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
-  const [errors, setErrors] = useState<{ code?: string; schedule?: string; name?: boolean; surname?: boolean; groupId?: boolean; }>({});
+  const [errors, setErrors] = useState<{ code?: string; schedule?: string; instructor?: string; duplicate?: string; name?: boolean; surname?: boolean; groupId?: boolean; }>({});
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
@@ -103,6 +104,8 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const scheduleRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const pendingSelectIdRef = useRef<string | null>(null);
 
   const schedules = [
     "Pts - Çar | 19.00 - 21.30", "Sal - Per | 19.00 - 21.30", "Cts - Paz | 09.00 - 12.00",
@@ -129,11 +132,10 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   return true;
 });
 
-  const myGroupCards = groups.filter(g => {
-    const isMine = g.instructorId === currentUser?.uid;
-    const isActiveOnly = g.status === 'active';
-    return isMine && isActiveOnly;
-  });
+  const now = Date.now() / 1000;
+  const myGroupCards = groups
+    .filter(g => g.instructorId === currentUser?.uid && g.status === 'active')
+    .sort((a, b) => (b.createdAt?.seconds ?? now) - (a.createdAt?.seconds ?? now));
 
   useEffect(() => {
     const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
@@ -194,15 +196,19 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
   useEffect(() => {
     if (isFormOpen || isStudentFormOpen) return;
-    let targetList: Group[] = [];
-    if (currentView === "Aktif Sınıflar") {
-      targetList = myGroupCards;
-    } else {
-      targetList = filteredGroups;
-    }
-    if (!targetList || targetList.length === 0) {
+    const targetList = currentView === "Aktif Sınıflar" ? myGroupCards : filteredGroups;
+    if (!targetList || targetList.length === 0) return;
+
+    if (pendingSelectIdRef.current) {
+      const isInList = targetList.some(g => g.id === pendingSelectIdRef.current);
+      if (isInList) {
+        setSelectedGroupId(pendingSelectIdRef.current);
+        setLastSelectedId(pendingSelectIdRef.current);
+        pendingSelectIdRef.current = null;
+      }
       return;
     }
+
     const isStillInList = targetList.some(g => g.id === selectedGroupId);
     if (!selectedGroupId || !isStillInList) {
       setSelectedGroupId(targetList[0].id);
@@ -249,19 +255,15 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   };
 
   const handleOpenForm = () => {
-    if (currentView !== "Aktif Sınıflar") return;
-    if (!isFormOpen) {
-      setSelectedGroupId(null);
-      setLastSelectedId(null);
-      if (!isAdmin && user) {
-        setSelectedInstructorId(user.uid);
-      } else {
-        setSelectedInstructorId("");
-      }
-      setIsFormOpen(true);
+    if (currentView !== "Aktif Sınıflar" || isFormOpen || editingGroupId) return;
+    setSelectedGroupId(null);
+    setLastSelectedId(null);
+    if (!isAdmin && user) {
+      setSelectedInstructorId(user.uid);
     } else {
-      handleCancel();
+      setSelectedInstructorId("");
     }
+    setIsFormOpen(true);
   };
 
   const handleCancel = () => {
@@ -276,9 +278,10 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   };
 
   const handleSave = async () => {
-    const newErrors: { code?: string; schedule?: string } = {};
+    const newErrors: { code?: string; schedule?: string; instructor?: string } = {};
     if (!groupCode.trim()) newErrors.code = "Grup kodu zorunludur.";
     if (selectedSchedule === "Grup seansı seçiniz...") newErrors.schedule = "Seans seçimi zorunludur.";
+    if (isAdmin && !selectedInstructorId) newErrors.instructor = "Eğitmen seçimi zorunludur.";
     if (selectedSchedule === "Özel Grup Tanımla" && !customSchedule.trim()) {
       newErrors.schedule = "Özel seans detayı zorunludur.";
     }
@@ -289,6 +292,18 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     }
 
     const formattedCode = groupCode.trim().toLowerCase().startsWith("grup") ? groupCode.trim() : `Grup ${groupCode.trim()}`;
+
+    const isDuplicate = groups.some(g =>
+      g.code?.toLowerCase() === formattedCode.toLowerCase() &&
+      g.branch === groupBranch &&
+      g.status === 'active' &&
+      g.id !== editingGroupId
+    );
+    if (isDuplicate) {
+      setErrors({ duplicate: `"${formattedCode}" ${getFlexMessage('group/duplicate-code').text}` });
+      return;
+    }
+
     const finalSession = selectedSchedule === "Özel Grup Tanımla" ? customSchedule : selectedSchedule;
 
     const instructorObj = instructors.find(i => i.id === selectedInstructorId);
@@ -315,8 +330,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           status: "active",
           createdAt: serverTimestamp()
         });
-        setSelectedGroupId(docRef.id);
-        setLastSelectedId(docRef.id);
+        pendingSelectIdRef.current = docRef.id;
         showNotification("Yeni grup başarıyla oluşturuldu.");
       }
       setIsFormOpen(false);
@@ -517,9 +531,9 @@ throw error;
     viewMode, setViewMode, toast, setToast, selectedGroupIdForStudent, setSelectedGroupIdForStudent,
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, confirmModalAction,
-    handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm, 
+    handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
     filteredGroups, filteredStudents, myGroupCards, showPassive, setShowPassive, selectedStudentIds, setSelectedStudentIds,
-    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal, studentGender, setStudentGender,editingStudent: students.find(s => s.id === editingStudentId) || null,
-     editingStudentId, setEditingStudentId, avatarId, setAvatarId
+    toggleStudentSelection, handleSelectAll, deleteModal, setDeleteModal, studentGender, setStudentGender, editingStudent: students.find(s => s.id === editingStudentId) || null,
+    editingStudentId, setEditingStudentId, avatarId, setAvatarId, formRef
 };
 };

@@ -34,9 +34,15 @@ export const FLEX_MESSAGES: Record<string, FlexMessage> = {
     text: 'Geçerli bir telefon numarası giriniz.', 
     type: 'error' 
   },
-  'validation/role-required': { 
-    text: 'En az bir kullanıcı rolü seçmelisiniz.', 
-    type: 'error' 
+  'validation/role-required': {
+    text: 'En az bir kullanıcı rolü seçmelisiniz.',
+    type: 'error'
+  },
+
+  // --- GRUP YÖNETİMİ ---
+  'group/duplicate-code': {
+    text: 'Bu şubede aynı isimde bir sınıf zaten mevcut.',
+    type: 'warning'
   }
 };
 
