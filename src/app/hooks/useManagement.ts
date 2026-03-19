@@ -155,8 +155,9 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       const broken = allDocs.filter(u =>
         !u ||
         typeof u.email !== 'string' ||
-        (!u.role && (!Array.isArray(u.roles) || u.roles.length === 0)) ||
-        (Array.isArray(u.roles) && u.roles.some((r: unknown) => typeof r !== 'string'))
+        !Array.isArray(u.roles) ||
+        u.roles.length === 0 ||
+        u.roles.some((r: unknown) => typeof r !== 'string')
       );
       if (broken.length > 0) {
         console.warn('[DEBUG] Bozuk user kayıtları:', broken.map(u => ({ id: u.id, email: u.email, role: u.role, roles: u.roles })));
@@ -166,7 +167,8 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       const safeUsers = allDocs.filter(u =>
         u &&
         typeof u.email === 'string' &&
-        (typeof u.role === 'string' || (Array.isArray(u.roles) && u.roles.length > 0))
+        Array.isArray(u.roles) &&
+        u.roles.length > 0
       );
       // ─────────────────────────────────────────────────────────────────────
 

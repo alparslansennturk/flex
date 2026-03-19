@@ -12,8 +12,7 @@ const EXPECTED_FIELDS: Record<string, string> = {
   name:               'string',
   surname:            'string',
   email:              'string',
-  role:               'string',
-  roles:              'array',
+  roles:              'array',   // Tek otorite: roles array (birden çok rol desteklenir)
   isActivated:        'boolean',
   branch:             'string',
 };
@@ -52,8 +51,11 @@ export async function runUserAudit() {
       }
     });
 
-    // 2. roles array ise içeriği kontrol et
+    // 2. roles array boş mu?
     if (Array.isArray(u.roles)) {
+      if (u.roles.length === 0) {
+        issues.push(`❌ roles array boş — kullanıcının en az bir rolü olmalı`);
+      }
       u.roles.forEach((r: unknown, i: number) => {
         if (typeof r !== 'string') {
           issues.push(`❌ roles[${i}] string değil: ${JSON.stringify(r)}`);
@@ -61,11 +63,9 @@ export async function runUserAudit() {
       });
     }
 
-    // 3. role vs roles tutarlı mı?
-    if (u.role && Array.isArray(u.roles)) {
-      if (!u.roles.includes(u.role)) {
-        issues.push(`⚠️  role="${u.role}" roles array'inde yok: ${JSON.stringify(u.roles)}`);
-      }
+    // 3. role (tekil, eski alan) varsa roles ile tutarlı mı? — opsiyonel kontrol
+    if (u.role && Array.isArray(u.roles) && !u.roles.includes(u.role)) {
+      issues.push(`⚠️  Eski "role" alanı ("${u.role}") roles array'inde yok: ${JSON.stringify(u.roles)} — güncellenmeli`);
     }
 
     // 4. null değer var mı?
