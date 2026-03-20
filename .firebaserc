@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "firebase deploy --only firestore:rules": "flexos-10ac4"
+  },
+  "targets": {},
+  "etags": {}
+}

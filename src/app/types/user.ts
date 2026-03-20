@@ -13,4 +13,5 @@ export interface UserDocument {
   permissions: string[];
   branch: string;
   overrides?: Record<string, boolean>;
+  permissionOverrides?: Record<string, boolean>;
 }

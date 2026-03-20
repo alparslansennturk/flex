@@ -39,9 +39,9 @@ interface Student {
 }
 export const useManagement = (setHeaderTitle: (t: string) => void) => {
   // --- TEMEL TANIMLAR ---
-  const { user } = useUser();
+  const { user, hasPermission } = useUser();
   const currentUser = auth.currentUser;
-  const isAdmin = user?.roles?.includes('admin') || false;
+  const isAdmin = user?.roles?.includes('admin') || hasPermission('CLASS_MANAGE') || false;
 
   const isAdminRef = useRef(isAdmin);
   const userRef = useRef(user);
@@ -186,6 +186,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       if (user) {
         setInstructors([{
           ...user,
+          id: user.uid,
           displayName: user.name ? `${user.name} ${(user as any).surname || ""}` : ((user as any).email || user.uid)
         }]);
       }
@@ -229,7 +230,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         }));
 
       setInstructors(insList);
-    });
+    }, () => {});
     return () => unsubscribe();
   }, [isAdmin]);
 

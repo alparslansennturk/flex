@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, UserPlus, Check, ChevronDown, ShieldAlert, MoreVertical } from "lucide-react";
+import { X, UserPlus, Check, ChevronDown, ClipboardList, Users, LayoutDashboard, Lock } from "lucide-react";
 
 interface UserData {
     id: string;
@@ -207,26 +207,59 @@ export const UserForm: React.FC<UserFormProps> = ({
             </div>
         </div>
 
-        {/* YETKİ MATRİSİ */}
-        <div className="space-y-7 pb-10">
-            <div className="flex items-center gap-3 text-[#8B5CF6] font-bold text-[13px] border-l-4 border-[#8B5CF6] pl-4">
-                <ShieldAlert size={20} />
-                <span>Sistem Erişim Yetki Matrisi</span>
+        {/* EK YETKİLER */}
+        <div className="space-y-4 pb-10">
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-[15px] font-bold text-[#10294C]">Ek Yetkiler</p>
+                    <p className="text-[12px] text-neutral-400 mt-0.5">Rol dışında tanımlanan özel erişim izinleri</p>
+                </div>
+                {selectedRoles.includes('admin') && (
+                    <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-full">
+                        <Lock size={11} className="text-purple-500" />
+                        <span className="text-[11px] font-bold text-purple-600">Admin — tüm yetkiler aktif</span>
+                    </div>
+                )}
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="flex flex-col gap-3">
                 {permissionsList.map((perm: any) => {
-                    const { isEnabled } = getPermissionStatus(perm.id); 
+                    const { isEnabled, roleDefault } = getPermissionStatus(perm.id);
+                    const isLocked = selectedRoles.includes('admin');
+                    const IconComponent = perm.icon === 'assignment' ? ClipboardList : perm.icon === 'class' ? Users : LayoutDashboard;
                     return (
-                        <label key={perm.id} className={`flex items-center justify-between p-5 rounded-2xl border transition-all cursor-pointer shadow-sm ${isEnabled ? 'bg-purple-50/50 border-purple-200' : 'bg-white border-neutral-100'}`}>
-                            <div className="flex items-center gap-3">
-                                <div className="relative flex items-center justify-center w-[18px] h-[18px] shrink-0">
-                                    <input type="checkbox" checked={isEnabled} onChange={(e) => handlePermissionChange(perm.id, e.target.checked)} className="peer absolute w-full h-full opacity-0 cursor-pointer z-10" />
-                                    <div className="w-full h-full border-2 border-neutral-300 rounded-[4px] peer-checked:bg-purple-600 peer-checked:border-purple-600 transition-all" />
-                                    <Check size={14} className="absolute text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none" strokeWidth={4} />
-                                </div>
-                                <span className={`text-[14px] font-bold ${isEnabled ? 'text-purple-900' : 'text-neutral-500'}`}>{perm.label}</span>
+                        <div
+                            key={perm.id}
+                            onClick={() => !isLocked && handlePermissionChange(perm.id, !isEnabled)}
+                            className={`flex items-center gap-4 p-4 rounded-2xl border-l-[3px] transition-all duration-200 select-none ${
+                                isLocked
+                                    ? 'bg-purple-50/60 border-l-purple-400 cursor-default'
+                                    : isEnabled
+                                    ? 'bg-indigo-50/50 border-l-indigo-500 cursor-pointer hover:bg-indigo-50'
+                                    : 'bg-neutral-50 border-l-transparent border border-neutral-100 cursor-pointer hover:bg-neutral-100/70'
+                            }`}
+                        >
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                isLocked ? 'bg-purple-100 text-purple-500' : isEnabled ? 'bg-indigo-100 text-indigo-600' : 'bg-neutral-100 text-neutral-400'
+                            }`}>
+                                <IconComponent size={18} />
                             </div>
-                        </label>
+                            <div className="flex-1 min-w-0">
+                                <p className={`text-[14px] font-bold leading-tight ${isLocked ? 'text-purple-800' : isEnabled ? 'text-indigo-900' : 'text-neutral-600'}`}>
+                                    {perm.label}
+                                </p>
+                                <p className={`text-[12px] mt-0.5 ${isLocked ? 'text-purple-500' : isEnabled ? 'text-indigo-500' : 'text-neutral-400'}`}>
+                                    {perm.description}
+                                </p>
+                            </div>
+                            {/* Toggle */}
+                            <div className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ${
+                                isLocked ? 'bg-purple-400' : isEnabled ? 'bg-indigo-500' : 'bg-neutral-200'
+                            }`}>
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                                    isEnabled || isLocked ? 'translate-x-5' : 'translate-x-0'
+                                }`} />
+                            </div>
+                        </div>
                     );
                 })}
             </div>

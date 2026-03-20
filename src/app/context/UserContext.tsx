@@ -11,14 +11,14 @@ const ROLES_CONFIG: Record<string, { permissions: UserPermission[] }> = {
   [ROLES.ADMIN]: {
     permissions: [
       PERMISSIONS.VIEW_ALL,
-      PERMISSIONS.STUDENT_DELETE,
-      PERMISSIONS.ROLE_MANAGE,
+      PERMISSIONS.MANAGE_USERS,
       PERMISSIONS.ASSIGNMENT_MANAGE,
-      PERMISSIONS.MANAGE_USERS
+      PERMISSIONS.CLASS_MANAGE,
+      PERMISSIONS.MANAGEMENT_PANEL,
     ]
   },
-  [ROLES.TRAINER]: { 
-    permissions: [PERMISSIONS.VIEW_ALL,] 
+  [ROLES.TRAINER]: {
+    permissions: [PERMISSIONS.VIEW_ALL]
   }
 };
 
@@ -81,7 +81,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   /** 1. YETKİ KAYNAĞI ANALİZİ */
   const getPermissionSource = (permission: UserPermission): 'override' | 'role' | 'legacy' | 'none' => {
     if (!user) return 'none';
-    if (user.overrides && permission in user.overrides) return 'override';
+    if (user.permissionOverrides && permission in user.permissionOverrides) return 'override';
     
     // BUILD FIX 1: roles.flatMap (Çoğul kullanım)
     const roleDefaults = user.roles?.flatMap((r: string) => ROLES_CONFIG[r]?.permissions || []) || [];
@@ -94,7 +94,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   /** 2. YETKİ KONTROLÜ */
   const hasPermission = (permission: UserPermission): boolean => {
   if (!user) return false;
-  const overrides = user.overrides as Record<string, boolean> | undefined;
+  const overrides = user.permissionOverrides as Record<string, boolean> | undefined;
   if (overrides && permission in overrides) return !!overrides[permission];
   const roleDefaults = user.roles?.flatMap((r: string) => ROLES_CONFIG[r]?.permissions || []) || [];
   if (roleDefaults.includes(permission)) return true;

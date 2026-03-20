@@ -9,16 +9,28 @@ import { UserTable } from "./management-components/UserTable";
 import { UserForm } from "./management-components/UserForm";
 import { MASTER_ID } from "../../lib/constants";
 const ROLE_DEFAULTS: Record<string, string[]> = {
-    admin: ["VIEW_ALL_CLASSES", "ASSIGNMENT_MANAGE", "STUDENT_DELETE", "ROLE_MANAGE", "LEAGUE_MANAGE", "BRANCH_STATS"],
-    instructor: ["VIEW_ALL_CLASSES", "ASSIGNMENT_MANAGE"],
+    admin: ["ASSIGNMENT_MANAGE", "CLASS_MANAGE", "MANAGEMENT_PANEL"],
+    instructor: [],
 };
 const permissionsList = [
-    { id: "VIEW_ALL_CLASSES", label: "Tüm sınıfları gör" },
-    { id: "ASSIGNMENT_MANAGE", label: "Ödev yönetimi" },
-    { id: "STUDENT_DELETE", label: "Öğrenci silme" },
-    { id: "ROLE_MANAGE", label: "Yetki matrisi" },
-    { id: "LEAGUE_MANAGE", label: "Lig yönetimi" },
-    { id: "BRANCH_STATS", label: "Şube istatistikleri" },
+    {
+        id: "ASSIGNMENT_MANAGE",
+        label: "Ödev Yönetimi",
+        description: "Ödev oluşturma, düzenleme ve yayınlama",
+        icon: "assignment",
+    },
+    {
+        id: "CLASS_MANAGE",
+        label: "Sınıf Yönetimi",
+        description: "Tüm şubelerdeki sınıfları ve öğrencileri yönetme",
+        icon: "class",
+    },
+    {
+        id: "MANAGEMENT_PANEL",
+        label: "Yönetim Paneli",
+        description: "Yönetim paneline erişim ve düzenleme",
+        icon: "panel",
+    },
 ];
 interface UserData {
   id: string;
@@ -90,13 +102,7 @@ export default function UserManagement() {
     };
 
     const handlePermissionChange = (permId: string, checked: boolean) => {
-        const { roleDefault } = getPermissionStatus(permId);
-        setPermissionOverrides(prev => {
-            const copy = { ...prev };
-            if (checked === roleDefault) delete copy[permId];
-            else copy[permId] = checked;
-            return copy;
-        });
+        setPermissionOverrides(prev => ({ ...prev, [permId]: checked }));
     };
 
     const handleRoleToggle = (roleId: string) => {

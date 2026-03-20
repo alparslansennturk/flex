@@ -43,28 +43,32 @@ service cloud.firestore {
         (isSignedIn() && getUserData().get('role', '') == 'instructor');
     }
 
+    function hasPermissionOverride(perm) {
+      return isSignedIn() && getUserData().get('permissionOverrides', {}).get(perm, false) == true;
+    }
+
     // ─── students ─────────────────────────────────────────────────────────────
 
     match /students/{studentId} {
       allow read: if isSignedIn() && (isAdmin() || isInstructor());
       allow create: if isAdmin() || isInstructor();
       allow update: if isAdmin() || isInstructor();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || hasPermissionOverride('CLASS_MANAGE');
     }
 
     // ─── groups ───────────────────────────────────────────────────────────────
 
     match /groups/{groupId} {
       allow read: if isSignedIn();
-      allow update: if isAdmin() ||
+      allow update: if isAdmin() || hasPermissionOverride('CLASS_MANAGE') ||
         (isInstructor() && resource.data.instructorId == currentUid());
-      allow create, delete: if isAdmin();
+      allow create, delete: if isAdmin() || hasPermissionOverride('CLASS_MANAGE');
     }
 
     // ─── users ────────────────────────────────────────────────────────────────
 
     match /users/{userId} {
-      allow read: if isSignedIn() && (isAdmin() || currentUid() == userId);
+      allow read: if isSignedIn() && (isAdmin() || isInstructor() || currentUid() == userId);
       allow update: if isSignedIn() && (isAdmin() || currentUid() == userId);
       allow create: if isAdmin() && isValidUser(request.resource.data);
       allow delete: if isAdmin();
@@ -88,12 +92,12 @@ service cloud.firestore {
 
     match /scores_backup/{docId} {
       allow read: if isAdmin() || isInstructor();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || hasPermissionOverride('ASSIGNMENT_MANAGE');
     }
 
     match /scores_backup_entries/{docId} {
       allow read: if isAdmin() || isInstructor();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || hasPermissionOverride('ASSIGNMENT_MANAGE');
     }
   }
 }

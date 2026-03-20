@@ -26,7 +26,8 @@ export default function AdminPage() {
         const data = userDoc.exists() ? userDoc.data() : null;
         const hasAccess = data && (
           data.role === "admin" ||
-          (data.roles && data.roles.includes("admin"))
+          (data.roles && data.roles.includes("admin")) ||
+          data.permissionOverrides?.MANAGEMENT_PANEL === true
         );
         if (hasAccess) {
           setIsAdmin(true);

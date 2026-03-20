@@ -49,8 +49,8 @@ export default function Sidebar() {
       {/* ALT BÖLÜM */}
       <div className="mt-auto px-4 pb-8 flex flex-col gap-2 shrink-0">
 
-        {/* YÖNETİM PANELİ — Sadece admin */}
-        {isAdmin && (
+        {/* YÖNETİM PANELİ — Admin veya MANAGEMENT_PANEL yetkisi */}
+        {(isAdmin || hasPermission(PERMISSIONS.MANAGEMENT_PANEL)) && (
           <>
             <SidebarLink href="/dashboard/admin" icon={<Settings2 size={18} />} label="Yönetim Paneli" />
             <div className="mx-2 my-1 border-t border-white/10" />
