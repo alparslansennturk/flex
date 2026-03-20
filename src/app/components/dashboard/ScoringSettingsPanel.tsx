@@ -7,7 +7,7 @@ import {
   TrendingUp, Sparkles,
 } from "lucide-react";
 import { useScoring } from "@/app/context/ScoringContext";
-import { ScoringSettings, calculateXP, getLevelXP, getLatePenalty } from "@/app/lib/scoring";
+import { ScoringSettings, calculateXP, getLevelXP, getLatePenalty, calcTaskBonus } from "@/app/lib/scoring";
 
 // ─── Ana Panel ────────────────────────────────────────────────────────────────
 export default function ScoringSettingsPanel() {
@@ -100,6 +100,7 @@ export default function ScoringSettingsPanel() {
           description="Sıralama puanı nasıl hesaplanır"
         >
           <div className="space-y-4">
+            {/* Min. Bölücü slider */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[12px] font-bold text-surface-500">Minimum Görev Bölücüsü</label>
@@ -108,7 +109,7 @@ export default function ScoringSettingsPanel() {
               <input
                 type="range" min={1} max={10} step={1}
                 value={local.leaderboard.minTaskDivisor}
-                onChange={e => setLocal(p => ({ ...p, leaderboard: { minTaskDivisor: Number(e.target.value) } }))}
+                onChange={e => setLocal(p => ({ ...p, leaderboard: { ...p.leaderboard, minTaskDivisor: Number(e.target.value) } }))}
                 className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-surface-100
                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
                   [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-base-primary-900
@@ -123,16 +124,68 @@ export default function ScoringSettingsPanel() {
               </div>
             </div>
 
-            {/* Formül kutusu */}
-            <div className="bg-base-primary-50 rounded-2xl p-4 border border-base-primary-100">
-              <p className="text-[10px] font-bold text-base-primary-400 uppercase tracking-wider mb-2">Formül</p>
-              <p className="text-[13px] font-mono text-base-primary-700">
-                score = totalXP ÷ Math.max(
-                <br />
-                <span className="ml-4">completedTasks, <strong className="text-base-primary-900">{local.leaderboard.minTaskDivisor}</strong></span>
-                <br />)
-              </p>
+            {/* Bonus Tabanı + Bonus Gücü */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-bold text-surface-500 block mb-1.5">Bonus Tabanı (logBase)</label>
+                <input
+                  type="number" min={2} max={10} step={0.5}
+                  value={local.leaderboard.logBase}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v >= 2)
+                      setLocal(p => ({ ...p, leaderboard: { ...p.leaderboard, logBase: v } }));
+                  }}
+                  className="w-full h-10 px-3 rounded-xl border border-surface-200 bg-surface-50 text-[14px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 focus:bg-white transition-all"
+                />
+                <p className="text-[10px] text-surface-400 mt-1 leading-snug">
+                  Görev artışının bonusu ne hızlı büyüteceğini belirler. Min: 2
+                </p>
+              </div>
+              <div>
+                <label className="text-[12px] font-bold text-surface-500 block mb-1.5">Bonus Gücü (multiplier)</label>
+                <input
+                  type="number" min={0.1} max={5} step={0.1}
+                  value={local.leaderboard.bonusMultiplier}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v >= 0.1)
+                      setLocal(p => ({ ...p, leaderboard: { ...p.leaderboard, bonusMultiplier: v } }));
+                  }}
+                  className="w-full h-10 px-3 rounded-xl border border-surface-200 bg-surface-50 text-[14px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 focus:bg-white transition-all"
+                />
+                <p className="text-[10px] text-surface-400 mt-1 leading-snug">
+                  Bonus etkisini artırır / azaltır. Min: 0.1
+                </p>
+              </div>
             </div>
+
+            {/* Formül kutusu */}
+            <div className="bg-base-primary-50 rounded-2xl p-4 border border-base-primary-100 space-y-2">
+              <p className="text-[10px] font-bold text-base-primary-400 uppercase tracking-wider">Formül</p>
+              <p className="text-[12px] font-mono text-base-primary-700 leading-relaxed">
+                bonus = 1 + (log<sub className="text-[10px]">{local.leaderboard.logBase}</sub>(tasks) ×{" "}
+                <strong className="text-base-primary-900">{local.leaderboard.bonusMultiplier}</strong>)
+                <br />
+                score = XP ÷ max(tasks,{" "}
+                <strong className="text-base-primary-900">{local.leaderboard.minTaskDivisor}</strong>) × bonus
+              </p>
+              {/* Mini canlı tablo */}
+              <div className="pt-1 border-t border-base-primary-100">
+                <p className="text-[10px] font-bold text-base-primary-400 uppercase tracking-wider mb-1.5">Görev → Bonus Önizleme</p>
+                <div className="flex gap-3">
+                  {[1, 3, 5, 10, 20].map(n => (
+                    <div key={n} className="text-center">
+                      <p className="text-[10px] text-base-primary-400 font-medium">{n} görev</p>
+                      <p className="text-[13px] font-bold text-base-primary-800">
+                        ×{calcTaskBonus(n, local.leaderboard.logBase, local.leaderboard.bonusMultiplier).toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <p className="text-[11px] text-surface-400 leading-relaxed">
               Az ödev yapan kullanıcıların aşırı yüksek puan almasını önler.
             </p>

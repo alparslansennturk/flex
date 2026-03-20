@@ -88,6 +88,13 @@ service cloud.firestore {
       allow write: if isAdmin() || isInstructor();
     }
 
+    // ─── settings ─────────────────────────────────────────────────────────────
+
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // ─── scores_backup ────────────────────────────────────────────────────────
 
     match /scores_backup/{docId} {
