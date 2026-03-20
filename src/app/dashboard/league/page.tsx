@@ -487,8 +487,10 @@ function LeagueIntro({ onComplete }: { onComplete: () => void }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+let _leagueIntroShown = false; // refresh'e kadar intro'yu bir kez göster
+
 export default function LeaguePage() {
-  const [showIntro,       setShowIntro]       = useState(true);
+  const [showIntro,       setShowIntro]       = useState(!_leagueIntroShown);
   const [_activeTab,      setActiveTab]       = useState("league");
   const [baseFilter,      setBaseFilter]      = useState<"Tüm Öğrenciler" | "Sınıflarım">("Tüm Öğrenciler");
   const [branchFilter,    setBranchFilter]    = useState(ALL_BRANCH);
@@ -668,7 +670,7 @@ export default function LeaguePage() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-    {showIntro && <LeagueIntro onComplete={() => setShowIntro(false)} />}
+    {showIntro && <LeagueIntro onComplete={() => { _leagueIntroShown = true; setShowIntro(false); }} />}
     <div className="flex h-screen overflow-hidden bg-surface-50 font-inter antialiased text-text-primary">
 
       {/* Sidebar */}

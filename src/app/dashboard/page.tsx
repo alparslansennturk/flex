@@ -45,7 +45,8 @@ export default function DashboardPage() {
   if (loading || !user) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F9FAFB] font-inter antialiased text-text-primary">
+    <>
+<div className="flex h-screen overflow-hidden bg-[#F9FAFB] font-inter antialiased text-text-primary">
 
       {/* SOL: SIDEBAR (Zaten kendi içinde yetki kontrolü yapıyor) */}
       <aside className="hidden lg:block h-full shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
@@ -89,5 +90,6 @@ export default function DashboardPage() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
+    </>
   );
 }

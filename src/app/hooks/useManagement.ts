@@ -181,6 +181,17 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   }, []);
 
   useEffect(() => {
+    // Eğitmen users koleksiyonunu okuyamaz (Firestore kuralı: sadece admin veya kendi dokümanı)
+    if (!isAdmin) {
+      if (user) {
+        setInstructors([{
+          ...user,
+          displayName: user.name ? `${user.name} ${(user as any).surname || ""}` : ((user as any).email || user.uid)
+        }]);
+      }
+      return;
+    }
+
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const allDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
@@ -205,7 +216,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       );
       // ─────────────────────────────────────────────────────────────────────
 
-      let insList = safeUsers
+      const insList = safeUsers
         .filter(u =>
           (u.role === "instructor" ||
           u.roles?.includes("instructor") ||
@@ -217,13 +228,10 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || u.uid)
         }));
 
-      if (!isAdminRef.current && userRef.current) {
-        insList = insList.filter(u => u.id === userRef.current!.uid);
-      }
       setInstructors(insList);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (isFormOpen || isStudentFormOpen) return;

@@ -115,9 +115,9 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
 
   return (
     <section className="mt-[48px] mb-[64px] space-y-[24px]">
-      <div className="flex items-center gap-3 text-[#8E95A3] px-2">
+      <div className="flex items-center gap-3 text-[#5C6370] px-2">
         <LibraryBig size={22} />
-        <h3 className="text-[22px] font-bold text-[#8E95A3] cursor-default">Ödev kütüphanesi</h3>
+        <h3 className="text-[22px] font-bold text-[#5C6370] cursor-default">Ödev kütüphanesi</h3>
       </div>
       <div className="relative overflow-visible">
         {hasOverflow && (

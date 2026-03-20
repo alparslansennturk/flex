@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList } from "lucide-react";
+import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
 import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
@@ -10,6 +10,102 @@ import { Task, getIcon, TaskType } from "./taskTypes";
 import { PERMISSIONS } from "@/app/lib/constants";
 import { ActivateDateModal } from "./TaskCardManager";
 import { AssignActivateModal, AssignSelection } from "./AssignActivateModal";
+
+// ─── Design Intro ─────────────────────────────────────────────────────────────
+
+const DESIGN_SHAPES = [
+  { x: -120, y:  -90, s: 8, r: 45 }, { x:  110, y:  -85, s: 6, r: 30 },
+  { x:  150, y:   30, s: 9, r: 60 }, { x:   90, y:  120, s: 7, r: 15 },
+  { x: -140, y:   70, s: 6, r: 75 }, { x: -155, y:  -20, s: 5, r: 20 },
+  { x:  -50, y:  140, s: 7, r: 50 }, { x:   55, y: -140, s: 5, r: 40 },
+  { x:  170, y:  -50, s: 5, r: 35 }, { x: -165, y:   50, s: 6, r: 55 },
+  { x:   75, y:  160, s: 5, r: 25 }, { x:  -75, y: -145, s: 8, r: 65 },
+];
+
+export function DesignIntro({ onComplete }: { onComplete: () => void }) {
+  const [phase, setPhase] = useState<"enter" | "hold" | "exit">("enter");
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase("hold"),  60);
+    const t2 = setTimeout(() => setPhase("exit"), 1700);
+    const t3 = setTimeout(onComplete,             2250);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [onComplete]);
+
+  const isIn  = phase !== "enter";
+  const isOut = phase === "exit";
+
+  return (
+    <div
+      className="fixed inset-0 z-9999 flex flex-col items-center justify-center overflow-hidden select-none"
+      style={{
+        background: "radial-gradient(ellipse at 50% 40%, #3D1A6E 0%, #0D0820 80%)",
+        transform:  isOut ? "translateX(110%)" : "translateX(0)",
+        transition: isOut ? "transform 0.55s cubic-bezier(0.7,0,1,1)" : "none",
+      }}
+    >
+      {/* Violet glow */}
+      <div
+        className="absolute w-120 h-120 rounded-full pointer-events-none"
+        style={{
+          background: "radial-gradient(circle, rgba(168,85,247,0.28) 0%, transparent 65%)",
+          transform:  isIn ? "scale(1)" : "scale(0)",
+          transition: "transform 1s cubic-bezier(0.22,1,0.36,1)",
+        }}
+      />
+
+      {/* Icon + title */}
+      <div
+        className="relative z-10 flex flex-col items-center gap-8"
+        style={{
+          transform:  isIn ? "scale(1) translateY(0)" : "scale(0.3) translateY(60px)",
+          opacity:    isIn ? 1 : 0,
+          transition: "all 0.65s cubic-bezier(0.34,1.56,0.64,1)",
+        }}
+      >
+        <div
+          className="w-28 h-28 rounded-3xl flex items-center justify-center"
+          style={{ background: "rgba(168,85,247,0.18)", boxShadow: "0 0 80px rgba(168,85,247,0.25)" }}
+        >
+          <div className="w-18 h-18 rounded-2xl flex items-center justify-center" style={{ background: "rgba(168,85,247,0.30)" }}>
+            <Palette size={38} className="text-[#A855F7]" strokeWidth={1.8} />
+          </div>
+        </div>
+
+        <div className="text-center">
+          <p className="text-[11px] font-bold text-white/40 tracking-[0.5em] uppercase mb-3">Hoş Geldiniz</p>
+          <h1 className="text-[56px] font-black text-white leading-none" style={{ letterSpacing: "-0.03em" }}>
+            Tasarım
+          </h1>
+          <h1 className="text-[56px] font-black leading-none" style={{ letterSpacing: "-0.03em", color: "#A855F7" }}>
+            Atölyesi
+          </h1>
+        </div>
+      </div>
+
+      {/* Dönen kare şekiller */}
+      {DESIGN_SHAPES.map((sh, i) => (
+        <div
+          key={i}
+          className="absolute pointer-events-none"
+          style={{
+            width:        sh.s,
+            height:       sh.s,
+            background:   i % 3 === 0 ? "#A855F7" : i % 3 === 1 ? "#E879F9" : "rgba(255,255,255,0.7)",
+            borderRadius: 2,
+            left:         "calc(50% - 4px)",
+            top:          "calc(50% - 64px)",
+            transform:    isIn
+              ? `translate(${sh.x}px, ${sh.y}px) rotate(${sh.r}deg) scale(1)`
+              : "translate(0,0) rotate(0deg) scale(0)",
+            opacity:    isIn ? 0.8 : 0,
+            transition: `transform ${0.6 + i * 0.02}s cubic-bezier(0.22,1,0.36,1) ${i * 0.02}s, opacity 0.3s ease`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 // Tip bazlı parkur renkleri
 const PARKOUR_STYLE: Record<TaskType, { gradient: string; tagBg: string; tagText: string; label: string }> = {
@@ -23,7 +119,7 @@ function PlaceholderParkourCard() {
   return (
     <div className="bg-white/50 p-7 rounded-24 border border-dashed border-[#E2E5EA] flex flex-col justify-between h-full cursor-default opacity-40">
       <div className="flex justify-between items-start mb-5">
-        <div className="w-12 h-12 bg-[#F7F8FA] rounded-[14px] shrink-0" />
+        <div className="w-12 h-12 bg-[#F7F8FA] radius-12 shrink-0" />
         <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-[#F7F8FA] text-[#AEB4C0]">—</span>
       </div>
       <div className="mb-5">
@@ -73,9 +169,9 @@ function GhostParkourCard({ task, canManage, onActivate }: {
   const iconNode = getIcon(task.icon, task.type, 22);
 
   return (
-    <div className="bg-white/70 p-7 rounded-24 border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full cursor-default opacity-70">
+    <div className="bg-white p-7 rounded-24 border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full cursor-default opacity-90">
       <div className="flex justify-between items-start mb-5">
-        <div className={`w-12 h-12 ${style.gradient} rounded-[14px] flex items-center justify-center text-white shadow-lg shrink-0 opacity-60`}>
+        <div className={`w-12 h-12 ${style.gradient} radius-12 flex items-center justify-center text-white shadow-lg shrink-0`}>
           {iconNode}
         </div>
         <div className="flex items-center gap-2">
@@ -111,7 +207,7 @@ function GhostParkourCard({ task, canManage, onActivate }: {
         <div className="flex flex-col items-end"><span className="text-[11px] text-[#8E95A3]">Teslim süresi</span><span className="text-[13px] font-bold text-[#AEB4C0] mt-0.5">—</span></div>
       </div>
       <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-5">
-        <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Tasarım atölyesi</span>
+        <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Tasarım atölyesi</span>
         <button disabled className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed">
           Ödev ver <ChevronRight size={16} />
         </button>
@@ -183,7 +279,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
   return (
     <div className={`bg-white p-7 rounded-24 border border-[#E2E5EA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group ${isExpired && !isCompleted ? "opacity-60" : ""}`}>
       <div className="flex justify-between items-start mb-5">
-        <div className={`w-12 h-12 ${style.gradient} rounded-[14px] flex items-center justify-center text-white shadow-lg shrink-0`}>
+        <div className={`w-12 h-12 ${style.gradient} radius-12 flex items-center justify-center text-white shadow-lg shrink-0`}>
           {iconNode}
         </div>
         <div className="flex items-center gap-2">
