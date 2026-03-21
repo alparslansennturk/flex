@@ -6,7 +6,7 @@ import { db } from "@/app/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
-import { calculateLeaderboardScore, computeStudentStats } from "@/app/lib/scoring";
+import { calcScore, computeStudentStats } from "@/app/lib/scoring";
 import Link from "next/link";
 
 interface StudentRank {
@@ -80,7 +80,7 @@ function LeaderRow({ rank, name, sub, score, gender, avatarId, rankChange }: {
           <div className="flex items-center gap-5 shrink-0">
             <TrendIcon rankChange={rankChange} rank={rank} />
             <span className="w-13 text-right text-[14px] font-bold text-[#10294C] leading-none tabular-nums">
-              {Math.round(score)}<span className="text-[11px] text-[#AEB4C0] font-semibold ml-0.5">XP</span>
+              {Math.round(score)}<span className="text-[11px] text-[#AEB4C0] font-semibold ml-0.5">P</span>
             </span>
           </div>
         </div>
@@ -149,14 +149,12 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
       const all = snap.docs.map(d => {
         const data = { id: d.id, ...d.data() } as StudentRank;
         const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(data.gradedTasks, data.isScoreHidden, activeSeasonId);
-        return { ...data, points: totalXP, completedTasks, latePenaltyTotal };
+        const score = calcScore(totalXP, completedTasks, settings);
+        return { ...data, points: score, completedTasks, latePenaltyTotal };
       });
 
-      // Runtime leaderboard score hesapla (gradedTasks'tan — Firestore'a kaydedilmez)
       all.sort((a, b) => {
-        const scoreA = calculateLeaderboardScore(a.points ?? 0, a.completedTasks ?? 0, settings);
-        const scoreB = calculateLeaderboardScore(b.points ?? 0, b.completedTasks ?? 0, settings);
-        const diff   = scoreB - scoreA;
+        const diff = (b.points ?? 0) - (a.points ?? 0);
         if (diff !== 0) return diff;
         return (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0);
       });
@@ -205,21 +203,18 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
           </div>
         ) : (
           <div className="space-y-1">
-            {students.map((s, i) => {
-              const score = calculateLeaderboardScore(s.points ?? 0, s.completedTasks ?? 0, settings);
-              return (
-                <LeaderRow
-                  key={s.id}
-                  rank={i + 1}
-                  name={`${s.name} ${s.lastName}`}
-                  sub={viewMode === "Tümü" ? s.branch : s.groupCode}
-                  score={score}
-                  gender={s.gender}
-                  avatarId={s.avatarId}
-                  rankChange={s.rankChange}
-                />
-              );
-            })}
+            {students.map((s, i) => (
+              <LeaderRow
+                key={s.id}
+                rank={i + 1}
+                name={`${s.name} ${s.lastName}`}
+                sub={viewMode === "Tümü" ? s.branch : s.groupCode}
+                score={s.points ?? 0}
+                gender={s.gender}
+                avatarId={s.avatarId}
+                rankChange={s.rankChange}
+              />
+            ))}
           </div>
         )}
       </div>
