@@ -62,6 +62,7 @@ export default function UserManagement() {
     const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: null, userId: "" });
     const [avatarId, setAvatarId] = useState<number>(1);
     const [shake, setShake] = useState(false);
+    const [formKey, setFormKey] = useState(0);
 
     useEffect(() => {
         const q = query(collection(db, "users"));
@@ -148,8 +149,15 @@ export default function UserManagement() {
             const secondaryApp = initializeApp(auth.app.options, "Secondary");
             const secondaryAuth = getAuth(secondaryApp);
             const userCredential = await createSecondaryUser(secondaryAuth, data.email, tempPass);
-            await setDoc(doc(db, "users", userCredential.user.uid), { ...finalUserData, uid: userCredential.user.uid, tempPassword: tempPass, isActivated: false, createdAt: serverTimestamp() });
+            await setDoc(doc(db, "users", userCredential.user.uid), { ...finalUserData, uid: userCredential.user.uid, isActivated: false, createdAt: serverTimestamp() });
             await deleteApp(secondaryApp);
+
+            // Hoş geldiniz maili — geçici şifre sadece mail ile iletilir, DB'ye yazılmaz
+            fetch("/api/welcome", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: data.email, name: data.name, tempPass }),
+            }).catch((err) => console.error("[UserManagement] Mail gönderilemedi:", err));
         }
 
         setIsSuccess(true);
@@ -171,13 +179,13 @@ export default function UserManagement() {
                     <h2 className="text-[24px] font-bold text-[#10294C]">Kullanıcı Yönetimi</h2>
                     <p className="text-neutral-400 text-[14px] mt-1 font-medium italic">Sistem erişimlerini ve yetki matrisini yönetin.</p>
                 </div>
-               <button onClick={() => { setEditingUser(null); setSelectedRoles([]); setPermissionOverrides({}); setErrors({}); setAvatarId(Math.floor(Math.random() * 70) + 1); setIsUserFormOpen(true); }} className="bg-[#FF8D28] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer"><UserPlus size={18} /><span>Kullanıcı Oluştur</span></button>
+               <button onClick={() => { setEditingUser(null); setSelectedRoles([]); setPermissionOverrides({}); setErrors({}); setAvatarId(Math.floor(Math.random() * 70) + 1); setFormKey(k => k + 1); setIsUserFormOpen(true); }} className="bg-[#FF8D28] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer"><UserPlus size={18} /><span>Kullanıcı Oluştur</span></button>
             </div>
 
             <UserTable users={users} onEdit={handleEditClick} onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id })} />
 
             <UserForm
-                key={editingUser ? editingUser.id : "new-user-form"} // 👈 SİHİRLİ SATIR: Hafızayı bu temizler
+                key={editingUser ? editingUser.id : `new-user-form-${formKey}`} // 👈 SİHİRLİ SATIR: Hafızayı bu temizler
                 isFormOpen={isFormOpen}
                 setIsUserFormOpen={setIsUserFormOpen}
                 editingUser={editingUser}

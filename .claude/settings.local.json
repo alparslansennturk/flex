@@ -4,7 +4,11 @@
       "Bash(npx tsc:*)",
       "Bash(rm -rf .next)",
       "Bash(npm install:*)",
-      "Bash(firebase deploy:*)"
+      "Bash(firebase deploy:*)",
+      "Bash(curl -s -X POST http://localhost:3000/api/otp -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"alparslansnturk@icloud.com\"\"\"\",\"\"\"\"name\"\"\"\":\"\"\"\"Alparslan\"\"\"\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/otp -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"flexos.platform@gmail.com\"\"\"\",\"\"\"\"name\"\"\"\":\"\"\"\"Alparslan\"\"\"\"}')",
+      "Bash(npm remove:*)",
+      "Bash(curl -s -X POST http://localhost:3000/api/otp -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"flex.tasarimatolyesi@gmail.com\"\"\"\",\"\"\"\"name\"\"\"\":\"\"\"\"Alparslan\"\"\"\"}')"
     ]
   }
 }

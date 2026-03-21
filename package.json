@@ -9,11 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@react-email/components": "^1.0.10",
+    "@types/nodemailer": "^7.0.11",
     "@vercel/toolbar": "^0.2.2",
     "firebase": "^12.10.0",
     "firebase-admin": "^13.6.1",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
+    "nodemailer": "^8.0.3",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
