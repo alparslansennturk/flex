@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import * as LucideIcons from "lucide-react";
 import { Search, ChevronDown, X } from "lucide-react";
-import { TaskType, TYPE_GRADIENT } from "./taskTypes";
+import { TaskType, TYPE_GRADIENT } from "./assignment/taskTypes";
 
 // ~150 ikonluk seçilmiş liste — label Türkçe (arama için)
 const RAW_ICON_LIST = [

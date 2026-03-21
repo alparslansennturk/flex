@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { PenLine, Trash2 } from "lucide-react";
-import { auth } from "../../../lib/firebase";
+import { auth } from "@/app/lib/firebase";
 
 interface UserData {
   id: string;

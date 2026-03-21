@@ -4,9 +4,9 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import Header from "../../components/Header";
-import Sidebar from "../../components/Sidebar";
-import Footer from "../../components/Footer";
+import Header from "../../components/layout/Header";
+import Sidebar from "../../components/layout/Sidebar";
+import Footer from "../../components/layout/Footer";
 import ManagementContent from "../../components/dashboard/ManagementContent";
 
 export default function ManagementPage() {

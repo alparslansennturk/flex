@@ -5,14 +5,14 @@ import { useUser } from "@/app/context/UserContext"; // Motoru bağladık
 import { PERMISSIONS } from "@/app/lib/constants"; // Kuralları getirdik
 import { useRouter } from "next/navigation";
 
-import Sidebar from "../components/Sidebar";
-import Header from "../components/Header";
-import Footer from "../components/Footer";
+import Sidebar from "../components/layout/Sidebar";
+import Header from "../components/layout/Header";
+import Footer from "../components/layout/Footer";
 
-import WorkshopAnalysis from "../components/dashboard/WorkshopAnalysis";
-import LeaderboardWidget from "../components/dashboard/LeaderboardWidget";
-import DesignParkour from "../components/dashboard/DesignParkour";
-import AssignmentLibrary from "../components/dashboard/AssignmentLibrary";
+import WorkshopAnalysis from "../components/dashboard/scoring/WorkshopAnalysis";
+import LeaderboardWidget from "../components/dashboard/scoring/LeaderboardWidget";
+import DesignParkour from "../components/dashboard/scoring/DesignParkour";
+import AssignmentLibrary from "../components/dashboard/assignment/AssignmentLibrary";
 
 export default function DashboardPage() {
   const scrollRef = useRef<HTMLDivElement>(null);

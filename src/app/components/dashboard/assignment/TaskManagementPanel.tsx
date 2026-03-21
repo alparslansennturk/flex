@@ -12,7 +12,7 @@ import {
   Star, CalendarDays, AlertTriangle, Check,
   Database, RotateCcw, Eye, EyeOff, Flame,
 } from "lucide-react";
-import ScoringSettingsPanel from "./ScoringSettingsPanel";
+import ScoringSettingsPanel from "../scoring/ScoringSettingsPanel";
 import { Task } from "./taskTypes";
 import { DeleteConfirmModal } from "./TaskCardManager";
 import TaskForm from "./TaskForm";

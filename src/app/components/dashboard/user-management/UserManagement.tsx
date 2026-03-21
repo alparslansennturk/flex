@@ -1,13 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { UserPlus } from "lucide-react";
-import { auth, db } from "../../lib/firebase";
+import { auth, db } from "@/app/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { setDoc, doc, serverTimestamp, collection, onSnapshot, query, deleteDoc } from "firebase/firestore";
-import { GlobalConfirmationModal } from "./management-components/Modals";
-import { UserTable } from "./management-components/UserTable";
-import { UserForm } from "./management-components/UserForm";
-import { MASTER_ID } from "../../lib/constants";
+import { GlobalConfirmationModal } from "../management-components/Modals";
+import { UserTable } from "./UserTable";
+import { UserForm } from "./UserForm";
+import { MASTER_ID } from "@/app/lib/constants";
 const ROLE_DEFAULTS: Record<string, string[]> = {
     admin: ["ASSIGNMENT_MANAGE", "CLASS_MANAGE", "MANAGEMENT_PANEL"],
     instructor: [],

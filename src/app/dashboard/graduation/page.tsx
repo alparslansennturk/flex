@@ -21,9 +21,9 @@ import {
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { ROLES } from "@/app/lib/constants";
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
-import Footer from "../../components/Footer";
+import Sidebar from "../../components/layout/Sidebar";
+import Header from "../../components/layout/Header";
+import Footer from "../../components/layout/Footer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

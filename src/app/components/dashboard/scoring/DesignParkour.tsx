@@ -6,10 +6,10 @@ import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2
 import { db, auth } from "@/app/lib/firebase";
 import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
-import { Task, getIcon, TaskType } from "./taskTypes";
+import { Task, getIcon, TaskType } from "../assignment/taskTypes";
 import { PERMISSIONS } from "@/app/lib/constants";
-import { ActivateDateModal } from "./TaskCardManager";
-import { AssignActivateModal, AssignSelection } from "./AssignActivateModal";
+import { ActivateDateModal } from "../assignment/TaskCardManager";
+import { AssignActivateModal, AssignSelection } from "../assignment/AssignActivateModal";
 
 // ─── Design Intro ─────────────────────────────────────────────────────────────
 

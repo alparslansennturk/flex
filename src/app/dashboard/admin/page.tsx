@@ -4,12 +4,12 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import Header from "../../components/Header";
-import Sidebar from "../../components/Sidebar";
-import Footer from "../../components/Footer";
-import SubNavigation from "../../components/dashboard/SubNavigation";
-import UserManagement from "../../components/dashboard/UserManagement";
-import TaskManagementPanel from "../../components/dashboard/TaskManagementPanel";
+import Header from "../../components/layout/Header";
+import Sidebar from "../../components/layout/Sidebar";
+import Footer from "../../components/layout/Footer";
+import SubNavigation from "../../components/layout/SubNavigation";
+import UserManagement from "../../components/dashboard/user-management/UserManagement";
+import TaskManagementPanel from "../../components/dashboard/assignment/TaskManagementPanel";
 
 export default function AdminPage() {
   const [headerTitle, setHeaderTitle] = useState("Yönetim Paneli");

@@ -49,16 +49,26 @@ export const UserForm: React.FC<UserFormProps> = ({
     getPermissionStatus, handlePermissionChange, loading, isSuccess, avatarId, setAvatarId
 }) => {
     const [localGender, setLocalGender] = useState<string>(editingUser?.gender || "");
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        if (isFormOpen) {
+            const frame = requestAnimationFrame(() => setIsVisible(true));
+            return () => cancelAnimationFrame(frame);
+        } else {
+            setIsVisible(false);
+        }
+    }, [isFormOpen]);
 
     useEffect(() => {
         setLocalGender(editingUser?.gender || "");
     }, [editingUser, isFormOpen]);
 
     return (
-        <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 transition-all duration-300 ${isFormOpen ? "visible" : "invisible pointer-events-none"}`}>
-            <div className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isFormOpen ? "opacity-100" : "opacity-0"}`}
+        <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 transition-all duration-300 ${isVisible ? "visible" : "invisible pointer-events-none"}`}>
+            <div className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isVisible ? "opacity-100" : "opacity-0"}`}
                 onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
-            <div className={`relative w-full max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isFormOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
+            <div className={`relative w-full max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isVisible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
                 <form 
     key={editingUser?.id || "yeni-kullanici"} 
     onSubmit={handleSaveUser} 

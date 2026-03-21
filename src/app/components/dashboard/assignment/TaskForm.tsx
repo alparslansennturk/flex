@@ -9,7 +9,7 @@ import {
   DEFAULT_ICON, TYPE_GRADIENT,
   TypeBadge, getIcon,
 } from "./taskTypes";
-import IconPicker from "./IconPicker";
+import IconPicker from "../IconPicker";
 import { getFlexMessage } from "@/app/lib/messages";
 import { useUser } from "@/app/context/UserContext";
 

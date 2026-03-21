@@ -19,10 +19,10 @@ import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
 import { ROLES } from "@/app/lib/constants";
 import { computeStudentStats, calcScore, calcFinalScore, safe } from "@/app/lib/scoring";
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
-import Footer from "../../components/Footer";
-import StudentDetailModal, { ModalStudent } from "@/app/components/dashboard/StudentDetailModal";
+import Sidebar from "../../components/layout/Sidebar";
+import Header from "../../components/layout/Header";
+import Footer from "../../components/layout/Footer";
+import StudentDetailModal, { ModalStudent } from "@/app/components/dashboard/student-management/StudentDetailModal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

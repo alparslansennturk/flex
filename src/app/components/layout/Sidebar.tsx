@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
 import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, PencilLine, UserCircle, Settings2 } from "lucide-react";
-import { auth } from "../lib/firebase";
+import { auth } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
 export default function Sidebar() {
   const pathname = usePathname();

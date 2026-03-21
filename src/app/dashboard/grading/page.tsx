@@ -13,13 +13,13 @@ import {
   ClipboardList, Award, Sparkles, ChevronRight, BookOpen, Archive,
   ChevronDown, ChevronUp, Trash2, Clock, RotateCcw, Eye, EyeOff,
 } from "lucide-react";
-import Header from "../../components/Header";
-import Sidebar from "../../components/Sidebar";
-import Footer from "../../components/Footer";
+import Header from "../../components/layout/Header";
+import Sidebar from "../../components/layout/Sidebar";
+import Footer from "../../components/layout/Footer";
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
 import { calculateXP, getLevelXP, calculateLeaderboardScore, computeStudentStats, GradedTaskEntry } from "@/app/lib/scoring";
-import { Task, TYPE_CONFIG, TYPE_GRADIENT, getIcon } from "../../components/dashboard/taskTypes";
+import { Task, TYPE_CONFIG, TYPE_GRADIENT, getIcon } from "../../components/dashboard/assignment/taskTypes";
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 interface Student {

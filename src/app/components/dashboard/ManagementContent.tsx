@@ -2,10 +2,10 @@
 import React, { useEffect } from "react";
 import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react";
 import { GlobalConfirmationModal, StudentDeleteModal } from "./management-components/Modals";
-import { StudentTable } from "./management-components/StudentTable";
-import { GroupCards } from "./management-components/GroupCards";
-import { GroupForm } from "./management-components/GroupForm";
-import { StudentForm } from "./management-components/StudentForm";
+import { StudentTable } from "./student-management/StudentTable";
+import { GroupCards } from "./class-management/GroupCards";
+import { GroupForm } from "./class-management/GroupForm";
+import { StudentForm } from "./student-management/StudentForm";
 import { useManagement } from "@/app/hooks/useManagement";
 
 export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: (t: string) => void }) {
