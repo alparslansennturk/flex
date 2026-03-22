@@ -19,8 +19,9 @@ import TaskForm from "./TaskForm";
 import { auth } from "@/app/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useScoring } from "@/app/context/ScoringContext";
+import AssignmentPoolPanel from "./pool/AssignmentPoolPanel";
 
-type AdminTab = "templates" | "active" | "archive" | "scoring";
+type AdminTab = "templates" | "active" | "archive" | "scoring" | "pools";
 
 const GROUPS = ["Grup 101", "Grup 102", "Grup 103"];
 const LEVELS = ["Seviye-1", "Seviye-2", "Seviye-3", "Seviye-4"];
@@ -1027,7 +1028,8 @@ export default function TaskManagementPanel() {
     { id: "templates", label: "Şablon Yönetimi" },
     { id: "active",    label: "Mevcut Ödevler"  },
     { id: "archive",   label: "Arşiv"            },
-    { id: "scoring",   label: "Puan Yönetimi"     },
+    { id: "scoring",   label: "Puan Yönetimi"    },
+    { id: "pools",     label: "Ödev Havuzları"   },
   ];
 
   const enrichedActive   = activeTasks.map(enrichTask);
@@ -1278,6 +1280,11 @@ export default function TaskManagementPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── ÖDEV HAVUZLARI ──────────────────────────────────────────────────── */}
+      {adminTab === "pools" && (
+        <AssignmentPoolPanel />
       )}
 
       {/* FORM MODAL */}

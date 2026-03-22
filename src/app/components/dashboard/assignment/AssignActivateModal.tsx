@@ -27,10 +27,12 @@ interface Group {
 
 export function AssignActivateModal({
   taskName,
+  templateId,
   onConfirm,
   onCancel,
 }: {
   taskName: string;
+  templateId?: string; // verilirse sadece bu şablon için grubun busy olup olmadığını kontrol eder
   onConfirm: (selections: AssignSelection[]) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -57,10 +59,11 @@ export function AssignActivateModal({
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Group));
       setGroups(all.filter(g => g.status === "active"));
 
-      // Halihazırda aktif görevi olan grupları bul
-      const taskSnap = await getDocs(
-        query(collection(db, "tasks"), where("ownedBy", "==", uid), where("status", "==", "active"))
-      );
+      // Bu şablon için grubu daha önce almış olanları bul (templateId varsa şablon bazlı, yoksa herhangi aktif görev)
+      const busyConstraints = templateId
+        ? [where("ownedBy", "==", uid), where("templateId", "==", templateId)]
+        : [where("ownedBy", "==", uid), where("status", "==", "active")];
+      const taskSnap = await getDocs(query(collection(db, "tasks"), ...busyConstraints));
       const busy = taskSnap.docs
         .map(d => d.data().groupId as string)
         .filter(Boolean);
@@ -168,7 +171,7 @@ export function AssignActivateModal({
                         {g.code}
                       </span>
                       {isBusy && (
-                        <span className="text-[10px] text-surface-400 font-medium ml-auto shrink-0">Aktif görev var</span>
+                        <span className="text-[10px] text-surface-400 font-medium ml-auto shrink-0">✓</span>
                       )}
                     </div>
                   </button>

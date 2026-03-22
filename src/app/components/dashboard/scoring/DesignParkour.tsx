@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette } from "lucide-react";
+import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon, TaskType } from "../assignment/taskTypes";
 import { PERMISSIONS } from "@/app/lib/constants";
-import { ActivateDateModal } from "../assignment/TaskCardManager";
 import { AssignActivateModal, AssignSelection } from "../assignment/AssignActivateModal";
+
+const GROUPS = ["Grup 101", "Grup 102", "Grup 103"];
+const LEVELS = ["Seviye-1", "Seviye-2", "Seviye-3", "Seviye-4"];
 
 // ─── Design Intro ─────────────────────────────────────────────────────────────
 
@@ -188,7 +190,7 @@ function GhostParkourCard({ task, canManage, onActivate }: {
                 <div className="absolute right-0 top-9 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[175px]">
                   <button
                     onClick={() => { onActivate(task); setMenuOpen(false); }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
+                    className="w-full px-4 py-2 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
                   >
                     Ödevi Başlat
                   </button>
@@ -217,14 +219,15 @@ function GhostParkourCard({ task, canManage, onActivate }: {
 }
 
 // ---- TASK KARTI (aktif) ----
-function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrowed, onChangeDate, onComplete, onCancel }: {
+function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrowed, onEdit, onComplete, onCancel, onDetail }: {
   task: Task;
   canManage: boolean;
   isBorrowed?: boolean;
   onActivateBorrowed: (task: Task) => void;
-  onChangeDate: (task: Task) => void;
+  onEdit: (task: Task) => void;
   onComplete: (task: Task) => void;
   onCancel: (task: Task) => void;
+  onDetail: (task: Task) => void;
 }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -299,7 +302,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
                   {isBorrowed ? (
                     <button
                       onClick={() => { onActivateBorrowed(task); setMenuOpen(false); }}
-                      className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
+                      className="w-full px-4 py-2 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
                     >
                       Aktifleştir
                     </button>
@@ -308,23 +311,23 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
                       {!isCompleted && (
                         <button
                           onClick={() => { onComplete(task); setMenuOpen(false); }}
-                          className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#009F3E] hover:bg-green-50 transition-colors cursor-pointer"
+                          className="w-full px-4 py-2 text-left text-[13px] font-bold text-[#009F3E] hover:bg-green-50 transition-colors cursor-pointer"
                         >
                           Ödevi Bitir
                         </button>
                       )}
                       <button
                         onClick={() => { onCancel(task); setMenuOpen(false); }}
-                        className={`w-full px-4 py-3 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer ${!isCompleted ? "border-t border-[#EEF0F3]" : ""}`}
+                        className={`w-full px-4 py-2 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer ${!isCompleted ? "border-t border-[#EEF0F3]" : ""}`}
                       >
                         Ödevi İptal Et
                       </button>
-                      {task.endDate && !isCompleted && (
+                      {!isCompleted && (
                         <button
-                          onClick={() => { onChangeDate(task); setMenuOpen(false); }}
-                          className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer border-t border-[#EEF0F3]"
+                          onClick={() => { onEdit(task); setMenuOpen(false); }}
+                          className="w-full px-4 py-2 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer border-t border-[#EEF0F3]"
                         >
-                          Tarihi Değiştir
+                          Ödevi Düzenle
                         </button>
                       )}
                     </>
@@ -394,10 +397,10 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
           </div>
         ) : (
           <button
-            disabled={isDisabled}
-            className={`px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 ${isDisabled ? "bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed" : "bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer"}`}
+            onClick={() => onDetail(task)}
+            className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer"
           >
-            Ödev ver <ChevronRight size={16} />
+            Ödev Detay <ChevronRight size={16} />
           </button>
         )}
       </div>
@@ -467,12 +470,168 @@ function CancelConfirmModal({ task, onCancel, onConfirm }: {
   );
 }
 
+// ---- ÖDEV DÜZENLE MODAL ----
+interface EditGroup { id: string; code: string; branch?: string; status?: string; }
+
+function TaskEditModal({ task, onSave, onCancel }: {
+  task: Task;
+  onSave: (groupId: string, classId: string, groupBranch: string, level: string, endDate: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [selectedGroupId, setSelectedGroupId] = useState(task.groupId ?? "");
+  const [level,           setLevel]           = useState(task.level   ?? "");
+  const [endDate,         setEndDate]         = useState(task.endDate  ?? "");
+  const [loading,         setLoading]         = useState(false);
+  const [visible,         setVisible]         = useState(false);
+  const [groups,          setGroups]          = useState<EditGroup[]>([]);
+  const [groupsLoading,   setGroupsLoading]   = useState(true);
+  const [busyGroupIds,    setBusyGroupIds]    = useState<string[]>([]);
+
+  const { user } = useUser();
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid) { setGroupsLoading(false); return; }
+    const q = query(collection(db, "groups"), where("instructorId", "==", uid));
+    const unsub = onSnapshot(q, async snap => {
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as EditGroup));
+      const active = all.filter(g => g.status === "active");
+      setGroups(active);
+      // groupId yoksa classId üzerinden eşle
+      if (!task.groupId && task.classId) {
+        const match = active.find(g => g.code === task.classId);
+        if (match) setSelectedGroupId(match.id);
+      }
+      // Aynı şablondan ödev almış diğer grupları bul (bu task hariç)
+      if (task.templateId) {
+        const taskSnap = await getDocs(query(collection(db, "tasks"), where("templateId", "==", task.templateId)));
+        const busy = taskSnap.docs
+          .filter(d => d.id !== task.id)
+          .map(d => d.data().groupId as string)
+          .filter(Boolean);
+        setBusyGroupIds(busy);
+      }
+      setGroupsLoading(false);
+    });
+    return () => unsub();
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCancel = () => { setVisible(false); setTimeout(onCancel, 280); };
+  const handleSave   = async () => {
+    const g = groups.find(gr => gr.id === selectedGroupId);
+    if (!g) return;
+    setLoading(true);
+    await onSave(g.id, g.code, g.branch ?? "", level, endDate);
+    setVisible(false);
+    setLoading(false);
+  };
+
+  const canSubmit = !!selectedGroupId && !!level && !!endDate;
+
+  return (
+    <div className={`fixed inset-0 z-800 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
+      <div className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+      <div className={`relative bg-white rounded-16 shadow-2xl w-full max-w-md p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
+        <div>
+          <p className="text-[17px] font-bold text-base-primary-900 mb-1">Ödevi Düzenle</p>
+          <p className="text-[13px] text-surface-500">
+            <span className="font-bold text-base-primary-700">"{task.name}"</span> — grup, seviye ve tarihi güncelle.
+          </p>
+        </div>
+
+        {/* Grup */}
+        <div>
+          <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Grup Seçimi</p>
+          {groupsLoading ? (
+            <div className="flex items-center justify-center h-24 bg-surface-50 rounded-12 border border-surface-100">
+              <div className="w-5 h-5 border-2 border-surface-200 border-t-base-primary-500 rounded-full animate-spin" />
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-24 bg-surface-50 rounded-12 border border-surface-100 gap-2">
+              <Users size={20} className="text-surface-300" />
+              <p className="text-[12px] text-surface-400 font-medium text-center">Size atanmış aktif grup bulunamadı</p>
+            </div>
+          ) : (
+            <div className="max-h-28 overflow-y-auto rounded-12 border border-surface-200 divide-y divide-surface-100">
+              {groups.map(g => {
+                const isSelected = selectedGroupId === g.id;
+                const isBusy    = busyGroupIds.includes(g.id);
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => { if (!isBusy) setSelectedGroupId(g.id); }}
+                    disabled={isBusy}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                      isBusy
+                        ? "bg-surface-50 cursor-not-allowed opacity-50"
+                        : isSelected
+                        ? "bg-base-primary-50 cursor-pointer"
+                        : "bg-white hover:bg-surface-50 cursor-pointer"
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${isSelected ? "bg-base-primary-900 border-base-primary-900" : "border-surface-300"}`}>
+                      {isSelected && <Check size={9} className="text-white" strokeWidth={3} />}
+                    </div>
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      <span className="w-20 text-[11px] font-medium text-surface-400 shrink-0 truncate">{g.branch ?? ""}</span>
+                      <span className="text-surface-200 text-[10px] shrink-0">—</span>
+                      <span className={`text-[12px] font-bold truncate ${isSelected ? "text-base-primary-900" : isBusy ? "text-surface-400" : "text-surface-700"}`}>{g.code}</span>
+                      {isBusy && <span className="text-[10px] text-surface-400 font-medium ml-auto shrink-0">✓</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Seviye */}
+        <div>
+          <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Seviye</p>
+          <div className="grid grid-cols-4 gap-2">
+            {LEVELS.map(l => (
+              <button key={l} onClick={() => setLevel(l)}
+                className={`py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
+                  level === l
+                    ? "bg-base-primary-900 text-white border-base-primary-900"
+                    : "bg-white border-surface-200 text-surface-600 hover:border-base-primary-400 hover:text-base-primary-700"
+                }`}
+              >{l}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Bitiş Tarihi */}
+        <div>
+          <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Bitiş Tarihi</p>
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="w-full h-12 px-4 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all cursor-pointer"
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={handleCancel} className="flex-1 h-11 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer">Vazgeç</button>
+          <button onClick={handleSave} disabled={!canSubmit || loading} className="flex-1 h-11 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center">
+            {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Kaydet"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---- ANA BİLEŞEN ----
 export default function DesignParkour() {
+  const router = useRouter();
   // Tüm task'ları state'e al — filter render'da yapılır (closure sorunu önlenir)
   const [allTasks,      setAllTasks]      = useState<Task[]>([]);
   const [templates,     setTemplates]     = useState<Task[]>([]);
-  const [changeDateTask, setChangeDateTask] = useState<Task | null>(null);
+  const [editTask, setEditTask] = useState<Task | null>(null);
   const [reactivateTask, setReactivateTask] = useState<Task | null>(null);
   const [ghostModalTask, setGhostModalTask] = useState<Task | null>(null);
   const [completeConfirmTask, setCompleteConfirmTask] = useState<Task | null>(null);
@@ -515,15 +674,15 @@ export default function DesignParkour() {
 
   const handleReactivateConfirm = async (selections: AssignSelection[]) => {
     if (!reactivateTask || selections.length === 0) return;
-    const { classId, level, endDate } = selections[0];
-    await updateDoc(doc(db, "tasks", reactivateTask.id), { classId, level, endDate, isPaused: false, isActive: true });
+    const { classId, groupId, groupBranch, level, endDate } = selections[0];
+    await updateDoc(doc(db, "tasks", reactivateTask.id), { classId, groupId, groupBranch, level, endDate, isPaused: false, isActive: true });
     setReactivateTask(null);
   };
 
-  const handleChangeDateConfirm = async (date: string) => {
-    if (!changeDateTask) return;
-    await updateDoc(doc(db, "tasks", changeDateTask.id), { endDate: date, isPaused: false });
-    setChangeDateTask(null);
+  const handleEditConfirm = async (groupId: string, classId: string, groupBranch: string, level: string, endDate: string) => {
+    if (!editTask) return;
+    await updateDoc(doc(db, "tasks", editTask.id), { groupId, classId, groupBranch, level, endDate });
+    setEditTask(null);
   };
 
   // Ghost kart → AssignActivateModal → klon oluştur
@@ -531,7 +690,7 @@ export default function DesignParkour() {
     if (!ghostModalTask) return;
     const t = ghostModalTask;
     const uid = user?.uid ?? auth.currentUser?.uid ?? null;
-    for (const { classId, level, endDate } of selections) {
+    for (const { classId, groupId, groupBranch, level, endDate } of selections) {
       await addDoc(collection(db, "tasks"), {
         name:          t.name,
         description:   t.description,
@@ -539,6 +698,8 @@ export default function DesignParkour() {
         points:        t.points,
         icon:          t.icon ?? null,
         classId,
+        groupId,
+        groupBranch,
         level,
         endDate,
         status:        "active",
@@ -549,7 +710,7 @@ export default function DesignParkour() {
         createdAt:     serverTimestamp(),
         createdBy:     uid,
         createdByName: user ? `${user.name} ${user.surname}` : null,
-        branch:        user?.branch ?? null,
+        branch:        groupBranch || user?.branch || null,
         ownedBy:       uid,
       });
     }
@@ -587,9 +748,10 @@ export default function DesignParkour() {
             task={task}
             canManage={canManage}
             onActivateBorrowed={() => {}}
-            onChangeDate={setChangeDateTask}
+            onEdit={setEditTask}
             onComplete={setCompleteConfirmTask}
             onCancel={setCancelConfirmTask}
+            onDetail={t => router.push(`/dashboard/kolaj?taskId=${t.id}`)}
           />
         ))}
         {ghostTasks.map(task => (
@@ -608,23 +770,22 @@ export default function DesignParkour() {
       {reactivateTask && (
         <AssignActivateModal
           taskName={reactivateTask.name}
+          templateId={reactivateTask.templateId}
           onConfirm={handleReactivateConfirm}
           onCancel={() => setReactivateTask(null)}
         />
       )}
-      {changeDateTask && (
-        <ActivateDateModal
-          title="Tarihi Değiştir"
-          subtitle="Kartın bitiş tarihini güncelleyin. Pasifse otomatik aktife alınır."
-          confirmLabel="Kaydet"
-          initialDate={changeDateTask.endDate ?? ""}
-          onConfirm={handleChangeDateConfirm}
-          onCancel={() => setChangeDateTask(null)}
+      {editTask && (
+        <TaskEditModal
+          task={editTask}
+          onSave={handleEditConfirm}
+          onCancel={() => setEditTask(null)}
         />
       )}
       {ghostModalTask && (
         <AssignActivateModal
           taskName={ghostModalTask.name}
+          templateId={ghostModalTask.id}
           onConfirm={handleGhostActivate}
           onCancel={() => setGhostModalTask(null)}
         />

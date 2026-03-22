@@ -106,5 +106,12 @@ service cloud.firestore {
       allow read: if isAdmin() || isInstructor();
       allow write: if isAdmin() || hasPermissionOverride('ASSIGNMENT_MANAGE');
     }
+
+    // ─── lottery_configs ──────────────────────────────────────────────────────
+
+    match /lottery_configs/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || hasPermissionOverride('ASSIGNMENT_MANAGE');
+    }
   }
 }

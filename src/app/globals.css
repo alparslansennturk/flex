@@ -54,6 +54,14 @@
   --color-base-secondary-800: #274346;
   --color-base-secondary-900: #23393c;
 
+  /* --- KOLAJ BAHÇESİ --- */
+  --color-kolaj-deep:   #060D1A;
+  --color-kolaj-forest: #0D1F38;
+  --color-kolaj-mid:    #183e72;
+  --color-kolaj-leaf:   #3a7bd5;
+  --color-kolaj-sage:   #689adf;
+  --color-kolaj-mint:   #92b6e8;
+
   /* --- DESIGN STUDIO --- */
   --color-designstudio-primary-50:  #FFF4EB;
   --color-designstudio-primary-100: #FFE9D6;

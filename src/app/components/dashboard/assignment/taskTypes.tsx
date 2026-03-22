@@ -25,6 +25,8 @@ export interface Task {
   ownedBy?: string;     // Eğitmene ait klonlarda set edilir; şablonlarda boş
   templateId?: string;  // Kütüphaneden klonlandıysa orijinal şablonun ID'si
   classId?: string;     // Atanan grup kodu (ör. "Grup 101")
+  groupId?: string;     // Atanan grubun Firestore doc ID'si
+  groupBranch?: string; // Atanan grubun şubesi
   level?: string;       // Atanan seviye (ör. "Seviye-2")
   isActive?: boolean;
   isPaused?: boolean;   // Parkurda kalır ama buton disabled, durum "Pasif"
