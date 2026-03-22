@@ -113,5 +113,12 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isAdmin() || hasPermissionOverride('ASSIGNMENT_MANAGE');
     }
+
+    // ─── lottery_results ──────────────────────────────────────────────────────
+
+    match /lottery_results/{taskId} {
+      allow read: if isSignedIn() && (isAdmin() || isInstructor());
+      allow write: if isAdmin() || isInstructor() || hasPermissionOverride('ASSIGNMENT_MANAGE');
+    }
   }
 }

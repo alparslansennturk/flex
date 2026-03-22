@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Layers, ArrowLeft, Settings, Check, Users, ChevronRight } from "lucide-react";
+import { Layers, ArrowLeft, Check, Users, ChevronRight } from "lucide-react";
+import GameScreen from "./GameScreen";
 import { db } from "@/app/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { useUser } from "@/app/context/UserContext";
-import { PERMISSIONS } from "@/app/lib/constants";
 
 // ─── Tipler ──────────────────────────────────────────────────────────────────
 
 interface Student {
   id: string;
   name: string;
-  surname: string;
+  lastName: string;
   email?: string;
 }
 
@@ -328,7 +327,7 @@ function EntryScreen({
                         className="text-[14px] font-semibold transition-colors"
                         style={{ color: isSel ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.38)" }}
                       >
-                        {s.name} {s.surname}
+                        {s.name} {s.lastName}
                       </span>
                     </button>
                   );
@@ -362,132 +361,6 @@ function EntryScreen({
   );
 }
 
-// ─── Oyun ekranı (stub) ───────────────────────────────────────────────────────
-
-function GameScreen({
-  task,
-  students,
-}: {
-  task: TaskData;
-  students: Student[];
-}) {
-  const router = useRouter();
-  const { hasPermission } = useUser();
-  const isAdmin = hasPermission(PERMISSIONS.MANAGEMENT_PANEL);
-
-  return (
-    <div
-      className="min-h-screen flex"
-      style={{ background: "#060D1A" }}
-    >
-      {/* Sol: öğrenci listesi */}
-      <div
-        className="w-72 flex flex-col shrink-0"
-        style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}
-      >
-        <div
-          className="px-6 py-5"
-          style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
-        >
-          <p
-            className="text-[11px] font-bold tracking-[0.45em] uppercase"
-            style={{ color: "rgba(255,255,255,0.25)" }}
-          >
-            Katılımcılar
-          </p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {students.length === 0 ? (
-            <div className="px-6 py-10 text-center text-[13px]" style={{ color: "rgba(255,255,255,0.18)" }}>
-              Öğrenci yok
-            </div>
-          ) : (
-            students.map(s => (
-              <div
-                key={s.id}
-                className="flex items-center gap-3 px-6 py-3"
-                style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black text-white shrink-0"
-                  style={{ background: "rgba(74,148,98,0.18)" }}
-                >
-                  {s.name[0]}
-                </div>
-                <span className="text-[13px] font-semibold truncate" style={{ color: "rgba(255,255,255,0.55)" }}>
-                  {s.name} {s.surname}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Sağ: çekiliş alanı */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Üst bar */}
-        <div
-          className="flex items-center justify-between px-8 py-5"
-          style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
-        >
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="flex items-center gap-2 cursor-pointer transition-colors"
-            style={{ color: "rgba(255,255,255,0.30)" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.30)")}
-          >
-            <ArrowLeft size={15} />
-            <span className="text-[12px] font-semibold">Ana Sayfa</span>
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div
-              className="w-7 h-7 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(74,148,98,0.18)" }}
-            >
-              <Layers size={14} style={{ color: "#689adf" }} />
-            </div>
-            <span className="text-[14px] font-bold text-white">{task.name}</span>
-          </div>
-
-          {isAdmin ? (
-            <button
-              onClick={() => router.push("/dashboard/admin/migrate")}
-              className="flex items-center gap-2 px-4 h-8 rounded-xl text-[12px] font-bold cursor-pointer transition-all"
-              style={{
-                color:       "rgba(255,255,255,0.40)",
-                border:      "1px solid rgba(255,255,255,0.10)",
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = "rgba(255,255,255,0.75)";
-                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = "rgba(255,255,255,0.40)";
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <Settings size={13} />
-              Ayarlar
-            </button>
-          ) : (
-            <div className="w-20" />
-          )}
-        </div>
-
-        {/* Çekiliş alanı — yapım aşamasında */}
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-[14px]" style={{ color: "rgba(255,255,255,0.15)" }}>
-            Çekiliş ekranı yakında...
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Ana bileşen ─────────────────────────────────────────────────────────────
 
 export default function KolajScreen({ taskId }: { taskId: string }) {
@@ -496,17 +369,34 @@ export default function KolajScreen({ taskId }: { taskId: string }) {
   const [task,         setTask]         = useState<TaskData | null>(null);
   const [taskLoading,  setTaskLoading]  = useState(true);
   const [participants, setParticipants] = useState<Student[]>([]);
+  const skipEntryRef = useRef(false);
 
   useEffect(() => {
     if (!taskId) { setTaskLoading(false); return; }
     getDoc(doc(db, "tasks", taskId))
-      .then(snap => {
-        if (snap.exists()) setTask({ id: snap.id, ...snap.data() } as TaskData);
+      .then(async snap => {
+        if (!snap.exists()) return;
+        const taskData = { id: snap.id, ...snap.data() } as TaskData;
+        setTask(taskData);
+
+        // Daha önce çekiliş başlamış mı? Varsa entry ekranını atla
+        const resultSnap = await getDoc(doc(db, "lottery_results", taskId));
+        if (resultSnap.exists() && taskData.groupId) {
+          const studentsSnap = await getDocs(
+            query(collection(db, "students"), where("groupId", "==", taskData.groupId))
+          );
+          const list = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student));
+          setParticipants(list);
+          skipEntryRef.current = true;
+        }
       })
       .finally(() => setTaskLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
-  const handleIntroComplete = useCallback(() => setPhase("entry"), []);
+  const handleIntroComplete = useCallback(() => {
+    setPhase(skipEntryRef.current ? "game" : "entry");
+  }, []);
   const handleStart         = useCallback((students: Student[]) => {
     setParticipants(students);
     setPhase("game");

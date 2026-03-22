@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   // WatchChangeAggregator'da ca9 assertion'a yol açar.
   // Firebase ekibinin önerisi: reactStrictMode: false (Issue #7638)
   reactStrictMode: false,
+  transpilePackages: ["@react-pdf/renderer"],
+
 };
 
 export default nextConfig;

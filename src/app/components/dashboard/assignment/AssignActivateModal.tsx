@@ -61,7 +61,7 @@ export function AssignActivateModal({
 
       // Bu şablon için grubu daha önce almış olanları bul (templateId varsa şablon bazlı, yoksa herhangi aktif görev)
       const busyConstraints = templateId
-        ? [where("ownedBy", "==", uid), where("templateId", "==", templateId)]
+        ? [where("ownedBy", "==", uid), where("templateId", "==", templateId), where("status", "==", "active")]
         : [where("ownedBy", "==", uid), where("status", "==", "active")];
       const taskSnap = await getDocs(query(collection(db, "tasks"), ...busyConstraints));
       const busy = taskSnap.docs

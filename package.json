@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@react-email/components": "^1.0.10",
+    "@react-pdf/renderer": "^4.3.2",
     "@types/nodemailer": "^7.0.11",
     "@vercel/toolbar": "^0.2.2",
     "firebase": "^12.10.0",
@@ -17,6 +18,7 @@
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "nodemailer": "^8.0.3",
+    "pako": "^2.1.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
