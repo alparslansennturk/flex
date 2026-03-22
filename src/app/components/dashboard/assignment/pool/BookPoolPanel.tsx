@@ -10,7 +10,7 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-const EMPTY: Omit<BookItem, "id"> = { bookId: "", title: "", author: "", isbn: "", publisher: "" };
+const EMPTY: Omit<BookItem, "id"> = { bookId: "", title: "", author: "", genre: "", subGenre: "", isbn: "", publisher: "", pageCount: "", dimensions: "", backCover: "" };
 
 function BookRow({
   item,
