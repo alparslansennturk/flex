@@ -373,7 +373,7 @@ function GameScreen({
 }) {
   const router = useRouter();
   const { hasPermission } = useUser();
-  const isAdmin = hasPermission(PERMISSIONS.ADMIN);
+  const isAdmin = hasPermission(PERMISSIONS.MANAGEMENT_PANEL);
 
   return (
     <div
