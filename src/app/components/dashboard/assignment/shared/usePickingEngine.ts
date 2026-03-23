@@ -86,10 +86,11 @@ export function usePickingEngine({ remainingStudents, onStudentReady }: Options)
     timeoutRefs.current.push(t0);
   }, [remainingStudents, clearAll, onStudentReady]);
 
-  // YENİ SEÇİM → idle'a dönünce otomatik picking başlat
-  const resetToIdle = useCallback(() => {
+  // autoPick=true → idle'a dönünce otomatik picking başlat (Yeni Seçim)
+  // autoPick=false → sadece sıfırla, kullanıcı manuel başlatır (Kapat)
+  const resetToIdle = useCallback((autoPick = true) => {
     clearAll();
-    autoPickRef.current = true;
+    autoPickRef.current = autoPick;
     setPhase("idle");
     setPickHighlightId(null);
     setNameVisible(false);

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Mail, FileDown, Check, ChevronRight } from "lucide-react";
+import { ArrowLeft, Mail, FileDown, Check, ChevronRight, BookOpen } from "lucide-react";
 import {
   doc, getDoc, setDoc, addDoc, collection, serverTimestamp,
   getDocs, query, where, updateDoc,
@@ -42,14 +42,17 @@ function easeInOutExpo(t: number) {
 
 // ─── SpinnerCard ──────────────────────────────────────────────────────────────
 
-function SpinnerCard({ book }: { book: BookItem }) {
+const SPINNER_COLORS = ["#1e3a6e", "#2563eb", "#1d4ed8", "#3b82f6", "#1e3a6e", "#2563eb"];
+
+function SpinnerCard({ book, colorIdx }: { book: BookItem; colorIdx: number }) {
+  const bg = SPINNER_COLORS[colorIdx % SPINNER_COLORS.length];
   return (
     <div style={{
       width: CARD_W, height: CARD_H,
       flexShrink: 0,
       borderRadius: 10,
-      background: "#f1f5f9",
-      border: "1px solid #dde4ed",
+      background: bg,
+      border: "1px solid rgba(255,255,255,0.10)",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -57,17 +60,23 @@ function SpinnerCard({ book }: { book: BookItem }) {
       padding: "12px 8px",
       gap: 6,
       position: "relative",
+      overflow: "hidden",
     }}>
       {/* Kitap sırtı şeridi */}
       <div style={{
-        position: "absolute", left: 8, top: 10, bottom: 10,
-        width: 3, borderRadius: 2, background: "#cbd5e1",
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 7, borderRadius: "10px 0 0 10px", background: "rgba(0,0,0,0.40)",
       }} />
-      <div style={{ fontSize: 22 }}>📚</div>
+      {/* Parlama */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "linear-gradient(145deg, rgba(255,255,255,0.09) 0%, transparent 50%)",
+      }} />
+      <BookOpen size={22} strokeWidth={1.4} style={{ color: "rgba(255,255,255,0.55)", position: "relative" }} />
       <p style={{
-        fontSize: 9, fontWeight: 700, color: "#94a3b8",
+        fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.75)",
         textAlign: "center", lineHeight: 1.3,
-        margin: 0, padding: "0 4px",
+        margin: 0, padding: "0 4px", position: "relative",
       }}>
         {book.title}
       </p>
@@ -165,7 +174,7 @@ function BookCarousel({
         willChange: "transform", flexShrink: 0,
       }}>
         {track.map((book, i) => (
-          <SpinnerCard key={`${book.id}-${i}`} book={book} />
+          <SpinnerCard key={`${book.id}-${i}`} book={book} colorIdx={i} />
         ))}
       </div>
     </div>
@@ -187,33 +196,36 @@ function WinnerReveal({ book }: { book: BookItem }) {
       display: "flex", flexDirection: "column",
       alignItems: "center", gap: 24,
     }}>
-      {/* Kitap kartı — yukarıdan kayar */}
-      <div style={{ animation: "bkSlideDown 0.65s cubic-bezier(0.34,1.56,0.64,1)" }}>
+      {/* Kitap kartı — mavi, bounce ile büyür */}
+      <div style={{ animation: "bkWinReveal 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards" }}>
         <div style={{
-          width: CARD_W * 1.3,
-          height: CARD_H * 1.3,
-          borderRadius: 14,
-          background: "white",
-          border: "2px solid #93c5fd",
-          boxShadow: "0 12px 40px rgba(37,99,235,0.14), 0 2px 8px rgba(37,99,235,0.08)",
+          width: CARD_W * 2.1,
+          height: CARD_H * 2.1,
+          borderRadius: 12,
+          background: "#2563eb",
+          border: "1px solid rgba(147,197,253,0.35)",
+          boxShadow: "0 0 60px rgba(37,99,235,0.45), 8px 16px 40px rgba(0,0,0,0.5)",
           display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center",
           padding: "20px 14px", gap: 10,
-          position: "relative",
+          position: "relative", overflow: "hidden",
         }}>
+          {/* Sırt şeridi */}
           <div style={{
-            position: "absolute", left: 10, top: 12, bottom: 12,
-            width: 4, borderRadius: 2,
-            background: "linear-gradient(to bottom, #93c5fd, #3b82f6)",
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: 10, borderRadius: "12px 0 0 12px",
+            background: "rgba(0,0,0,0.40)",
           }} />
+          {/* Parlama */}
           <div style={{
-            position: "absolute", inset: 0, borderRadius: 14, pointerEvents: "none",
-            background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.06) 0%, transparent 65%)",
+            position: "absolute", inset: 0,
+            background: "linear-gradient(145deg, rgba(255,255,255,0.10) 0%, transparent 50%)",
           }} />
-          <div style={{ fontSize: 32 }}>📚</div>
+          <BookOpen size={42} strokeWidth={1.1} style={{ color: "rgba(255,255,255,0.60)", position: "relative" }} />
           <p style={{
-            fontSize: 12, fontWeight: 700, color: "#64748b",
+            fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.80)",
             textAlign: "center", lineHeight: 1.4, margin: 0, padding: "0 6px",
+            position: "relative",
           }}>
             {book.title}
           </p>
@@ -375,7 +387,7 @@ function BookResultModal({
       >
         {/* Header */}
         <div style={{
-          padding: "32px 40px 26px",
+          padding: "40px 52px 32px",
           borderBottom: "2px solid #ecf0f1",
           textAlign: "center",
           position: "relative",
@@ -406,7 +418,7 @@ function BookResultModal({
           {/* Sol kolon */}
           <div style={{
             width: 270, flexShrink: 0,
-            padding: "32px 28px 32px 40px",
+            padding: "40px 32px 40px 52px",
             borderRight: "1px solid #e8ecf2",
             overflowY: "auto",
           }}>
@@ -468,7 +480,7 @@ function BookResultModal({
           </div>
 
           {/* Sağ kolon — arka kapak */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "32px 40px 32px 28px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "40px 52px 40px 32px" }}>
             <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#94a3b8", margin: "0 0 16px" }}>
               Arka Kapak Yazısı
             </p>
@@ -483,7 +495,7 @@ function BookResultModal({
 
         {/* Footer */}
         <div style={{
-          padding: "16px 40px",
+          padding: "20px 52px",
           borderTop: "1px solid #eee",
           display: "flex", justifyContent: "space-between", alignItems: "center",
           flexShrink: 0,
@@ -566,6 +578,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
   const [currentBook,      setCurrentBook]      = useState<BookItem | null>(null);
   const [showCarousel,     setShowCarousel]     = useState(false);
   const [spinDone,         setSpinDone]         = useState(false);
+  const [winnerRevealed,   setWinnerRevealed]   = useState(false);
   const [showModal,        setShowModal]        = useState(false);
   const [drawingStudentId, setDrawingStudentId] = useState<string | null>(null);
   const [previewDraw,      setPreviewDraw]      = useState<BookStudentDraw | null>(null);
@@ -573,7 +586,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
   const [archived,  setArchived]  = useState(false);
   const [archiving, setArchiving] = useState(false);
 
-  const modalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const modalTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     getDoc(doc(db, "lottery_configs", "book")).then(snap => {
@@ -592,7 +606,10 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     });
   }, [pool, task.id]);
 
-  useEffect(() => () => { if (modalTimerRef.current) clearTimeout(modalTimerRef.current); }, []);
+  useEffect(() => () => {
+    if (modalTimerRef.current)  clearTimeout(modalTimerRef.current);
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+  }, []);
 
   const drawnStudentIds   = bookDraws.map(d => d.studentId);
   const remainingStudents = students.filter(s => !drawnStudentIds.includes(s.id));
@@ -611,16 +628,30 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     ? students.find(s => s.id === selectedStudentId) ?? null
     : null;
 
+  const resetGameState = useCallback(() => {
+    setCurrentBook(null);
+    setShowCarousel(false);
+    setSpinDone(false);
+    setWinnerRevealed(false);
+    setShowModal(false);
+    setDrawingStudentId(null);
+    if (modalTimerRef.current)  clearTimeout(modalTimerRef.current);
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+  }, []);
+
   const handleSpin = useCallback(() => {
     if (!selectedStudent || availableBooks.length === 0) return;
     const book = availableBooks[Math.floor(Math.random() * availableBooks.length)];
     setCurrentBook(book);
     setShowCarousel(true);
     setSpinDone(false);
+    setWinnerRevealed(false);
   }, [selectedStudent, availableBooks]);
 
   const handleSpinComplete = useCallback(() => {
     if (!selectedStudent || !currentBook) return;
+    // Çift kayıt güvencesi: aynı kitap daha önce atanmışsa kaydetme
+    if (bookDraws.some(d => d.book.id === currentBook.id)) return;
     setSpinDone(true);
     const newDraw: BookStudentDraw = { studentId: selectedStudent.id, book: currentBook };
     const updated = [...bookDraws, newDraw];
@@ -628,17 +659,23 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     setDoc(doc(db, "lottery_results", task.id), {
       draws: updated, groupId: task.groupId ?? "", lastUpdated: serverTimestamp(),
     });
-    modalTimerRef.current = setTimeout(() => setShowModal(true), 2200);
+    // 3 pulse (~1.4s) sonra kitabı büyüt
+    revealTimerRef.current = setTimeout(() => setWinnerRevealed(true), 1400);
+    // Sonra modal
+    modalTimerRef.current = setTimeout(() => setShowModal(true), 5200);
   }, [selectedStudent, currentBook, bookDraws, task]);
 
-  const handleAdvance = useCallback(() => {
-    setCurrentBook(null);
-    setShowCarousel(false);
-    setSpinDone(false);
-    setShowModal(false);
-    setDrawingStudentId(null);
-    resetToIdle();
-  }, [resetToIdle]);
+  // Kapat → sadece sıfırla, kullanıcı "Başlat"a basar
+  const handleClose = useCallback(() => {
+    resetGameState();
+    resetToIdle(false);
+  }, [resetGameState, resetToIdle]);
+
+  // Yeni Seçim → sıfırla + otomatik çekiliş başlat
+  const handleNewPick = useCallback(() => {
+    resetGameState();
+    resetToIdle(true);
+  }, [resetGameState, resetToIdle]);
 
   const studentDraws: StudentDraw[] = bookDraws.map(d => ({
     studentId: d.studentId,
@@ -805,16 +842,15 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                   </p>
                 )}
                 <p style={{
-                  fontSize:   nameVisible ? 44 : 4,
-                  fontWeight: 900,
-                  color:      "#1e293b",
+                  fontSize:      44,
+                  fontWeight:    900,
                   letterSpacing: "-0.025em",
-                  opacity:   nameVisible ? 1 : 0,
-                  transform: nameVisible ? "scale(1)" : "scale(0.05)",
-                  transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
-                  margin: spinDone ? "0 0 8px" : 0,
+                  opacity:       nameVisible ? 1 : 0,
+                  animation:     nameVisible ? "nameBounce 0.75s ease forwards" : "none",
+                  margin:        spinDone ? "0 0 8px" : 0,
                 }}>
-                  {selectedStudent?.name} {selectedStudent?.lastName}
+                  <span style={{ color: "#1e293b" }}>{selectedStudent?.name} </span>
+                  <span style={{ color: "#2563eb" }}>{selectedStudent?.lastName}</span>
                 </p>
                 {spinDone && (
                   <p style={{ fontSize: 12, color: "#94a3b8", margin: 0, animation: "bkFadeIn 0.4s ease" }}>
@@ -826,14 +862,34 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
               {/* Carousel (spin bitmeden) */}
               {showCarousel && !spinDone && (
                 <BookCarousel
-                  allBooks={pool.items}
+                  allBooks={availableBooks}
                   winnerBook={currentBook!}
                   onSpinComplete={handleSpinComplete}
                 />
               )}
 
-              {/* Winner reveal (spin bittikten sonra — overflow dışında) */}
-              {spinDone && currentBook && (
+              {/* Spin bitti → 3 pulse */}
+              {spinDone && !winnerRevealed && currentBook && (
+                <div style={{ animation: "bkWinPulse 0.44s ease-in-out 3" }}>
+                  <div style={{
+                    width: CARD_W, height: CARD_H, borderRadius: 12,
+                    background: "#2563eb",
+                    border: "2px solid #93c5fd",
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center",
+                    padding: "16px 10px", gap: 8, position: "relative", overflow: "hidden",
+                  }}>
+                    <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 8, background: "rgba(0,0,0,0.35)", borderRadius: "12px 0 0 12px" }} />
+                    <BookOpen size={28} strokeWidth={1.3} style={{ color: "rgba(255,255,255,0.6)", position: "relative" }} />
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.8)", textAlign: "center", margin: 0, position: "relative" }}>
+                      {currentBook.title}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Winner reveal (pulse bittikten sonra — bounce ile büyür) */}
+              {spinDone && winnerRevealed && currentBook && (
                 <WinnerReveal book={currentBook} />
               )}
             </>
@@ -936,10 +992,23 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           @keyframes bkPulse    { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.6)} }
           @keyframes bkSpin     { to{transform:rotate(360deg)} }
           @keyframes bkFadeIn   { from{opacity:0} to{opacity:1} }
-          @keyframes bkSlideDown {
-            0%   { transform:translateY(-55px) scale(0.88); opacity:0; }
-            60%  { transform:translateY(5px) scale(1.02); opacity:1; }
-            100% { transform:translateY(0) scale(1); opacity:1; }
+          @keyframes nameBounce {
+            0%   { transform:scale(0.05); opacity:0; }
+            45%  { transform:scale(1.22); opacity:1; }
+            65%  { transform:scale(0.90); }
+            82%  { transform:scale(1.07); }
+            100% { transform:scale(1.00); }
+          }
+          @keyframes bkWinPulse {
+            0%,100% { transform:scale(1);    filter:brightness(1);   }
+            50%     { transform:scale(1.09); filter:brightness(1.5); }
+          }
+          @keyframes bkWinReveal {
+            0%   { transform:scale(0.20) translateY(20px); opacity:0; }
+            45%  { transform:scale(1.15) translateY(-8px);  opacity:1; }
+            65%  { transform:scale(0.95) translateY(3px); }
+            82%  { transform:scale(1.05) translateY(-2px); }
+            100% { transform:scale(1.00) translateY(0);   opacity:1; }
           }
         `}</style>
       </div>
@@ -950,8 +1019,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           student={selectedStudent}
           book={currentBook}
           task={task}
-          onAdvance={handleAdvance}
-          onClose={() => setShowModal(false)}
+          onAdvance={handleNewPick}
+          onClose={handleClose}
         />
       )}
 
