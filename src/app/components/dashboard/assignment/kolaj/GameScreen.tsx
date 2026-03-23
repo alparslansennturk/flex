@@ -4,23 +4,21 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Layers, Settings, Check, Mail, FileDown,
-  ChevronRight, FileText,
+  ChevronRight,
 } from "lucide-react";
-import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, addDoc, collection, serverTimestamp, getDocs, query, where, updateDoc } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS } from "@/app/lib/constants";
 import type { CollagePool, CollageItem } from "../pool/poolTypes";
 import { generateKolajPdf } from "./generateKolajPdf";
+import type { Student, TaskData, Phase } from "../shared/types";
+import SharedStudentPanel from "../shared/StudentPanel";
 
-// ─── Tipler ───────────────────────────────────────────────────────────────────
+// ─── Kolaj'a özgü tipler ──────────────────────────────────────────────────────
 
-interface Student { id: string; name: string; lastName: string; email?: string; }
-interface TaskData  { id: string; name: string; classId?: string; groupId?: string; level?: string; endDate?: string; }
 interface DrawResult { category: string; item: CollageItem; }
 interface StudentDraw { studentId: string; draws: DrawResult[]; }
-
-type Phase = "idle" | "picking" | "ready" | "drawing" | "done";
 
 const CAT_ORDER   = ["Gök", "Yer", "Obje 1", "Obje 2"];
 const CARD_COLORS = ["#3a7bd5", "#689adf", "#5a9ed5", "#4a84c4"];
@@ -30,130 +28,45 @@ const CARD_COLORS = ["#3a7bd5", "#689adf", "#5a9ed5", "#4a84c4"];
 function DroppedCard({ draw, index }: { draw: DrawResult; index: number }) {
   const [dropped, setDropped] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setDropped(true), 30 + index * 100);
+    const t = setTimeout(() => setDropped(true), 30 + index * 120);
     return () => clearTimeout(t);
   }, [index]);
 
+  const accent = CARD_COLORS[index % 4];
+
   return (
     <div style={{
-      width: 210, minHeight: 190, flexShrink: 0,
+      width: 175, minHeight: 192, flexShrink: 0,
       background: "white",
-      border: "1px solid #e2e8f0",
-      borderBottom: `6px solid ${CARD_COLORS[index % 4]}`,
-      borderRadius: 16,
+      border: "1px solid #e8ecf2",
+      borderBottom: `7px solid ${accent}`,
+      borderRadius: 14,
       display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
-      padding: "20px 14px", position: "relative", textAlign: "center",
+      padding: "28px 16px 20px", position: "relative", textAlign: "center",
       boxShadow: "0 4px 20px rgba(0,0,0,0.07)",
-      opacity:   dropped ? 1 : 0,
-      transform: dropped ? "translateY(0)" : "translateY(-44px)",
-      transition: "opacity 0.5s ease, transform 0.6s cubic-bezier(0.175,0.885,0.32,1.275)",
+      opacity: dropped ? 1 : 0,
+      animation: dropped ? `cardDrop 0.4s cubic-bezier(0.34,1.4,0.64,1) forwards` : "none",
     }}>
+      {/* üst orta badge */}
       <div style={{
-        position: "absolute", top: -13, left: "50%", transform: "translateX(-50%)",
-        width: 26, height: 26, borderRadius: "50%",
-        background: CARD_COLORS[index % 4], color: "white",
+        position: "absolute", top: 18, left: "50%", transform: "translateX(-50%)",
+        width: 22, height: 22, borderRadius: "50%",
+        background: accent,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontWeight: 900, fontSize: 12, border: "3px solid #f5f7fb",
+        fontWeight: 900, fontSize: 11, color: "white",
+        boxShadow: `0 2px 8px ${accent}55`,
       }}>
         {index + 1}
       </div>
-      <p style={{ fontSize: 13, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
+
+      <p style={{ fontSize: 11, color: accent, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
         {draw.category}
       </p>
-      {draw.item.emoji && <div style={{ fontSize: 30, marginBottom: 9, lineHeight: 1 }}>{draw.item.emoji}</div>}
-      <p style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", lineHeight: 1.2 }}>
+      {draw.item.emoji && <div style={{ fontSize: 32, marginBottom: 10, lineHeight: 1 }}>{draw.item.emoji}</div>}
+      <p style={{ fontSize: 17, fontWeight: 800, color: "#1e293b", lineHeight: 1.25 }}>
         {draw.item.name}
       </p>
-    </div>
-  );
-}
-
-// ─── StudentPanel ─────────────────────────────────────────────────────────────
-// Picking animasyonu bu listede döner.
-
-function StudentPanel({
-  students, draws, catCount, taskLabel,
-  onViewResult, pickHighlightId, drawingStudentId,
-}: {
-  students: Student[];
-  draws: StudentDraw[];
-  catCount: number;
-  taskLabel: string;
-  onViewResult: (studentId: string) => void;
-  pickHighlightId: string | null;
-  drawingStudentId: string | null;
-}) {
-  return (
-    <div className="w-72 flex flex-col shrink-0" style={{ background: "#060D1A", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
-      <div className="px-5 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        <p className="text-[15px] font-black truncate" style={{ color: "rgba(255,255,255,0.82)", letterSpacing: "-0.01em" }}>
-          {taskLabel || "—"}
-        </p>
-        <p className="text-[13px] font-semibold mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>
-          Katılımcılar
-        </p>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        {students.map(s => {
-          const draw       = draws.find(d => d.studentId === s.id);
-          const isDone     = !!(draw && draw.draws.length >= catCount && catCount > 0);
-          const isHighlit  = pickHighlightId === s.id;
-          const isDrawing  = drawingStudentId === s.id;
-
-          return (
-            <div key={s.id} className="px-4 py-3" style={{
-              borderBottom: "1px solid rgba(255,255,255,0.04)",
-              background: isHighlit  ? "#689adf"
-                        : isDrawing  ? "rgba(104,154,223,0.10)"
-                        : "transparent",
-              transition: "background 0.06s ease-out",
-            }}>
-              <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0" style={{
-                  background: isHighlit  ? "rgba(255,255,255,0.25)"
-                            : isDone     ? "rgba(74,148,98,0.25)"
-                            : isDrawing  ? "rgba(104,154,223,0.25)"
-                            : "rgba(255,255,255,0.06)",
-                  color:      isHighlit  ? "white"
-                            : isDone     ? "#68d391"
-                            : isDrawing  ? "#689adf"
-                            : "rgba(255,255,255,0.35)",
-                  transition: "background 0.06s ease-out, color 0.06s ease-out",
-                }}>
-                  {isDone ? <Check size={12} strokeWidth={3} /> : s.name[0]}
-                </div>
-
-                <span className="flex-1 text-[13px] font-semibold truncate" style={{
-                  color: isHighlit  ? "white"
-                       : isDone     ? "rgba(255,255,255,0.6)"
-                       : isDrawing  ? "white"
-                       : "white",
-                  transition: "color 0.06s ease-out",
-                }}>
-                  {s.name} {s.lastName}
-                </span>
-
-                {isDone && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Check size={12} strokeWidth={3} style={{ color: "#68d391" }} />
-                    <button
-                      onClick={() => onViewResult(s.id)}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer"
-                      style={{ background: "rgba(104,154,223,0.12)", color: "#689adf" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(104,154,223,0.28)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "rgba(104,154,223,0.12)")}
-                    >
-                      <FileText size={12} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -370,6 +283,10 @@ export default function GameScreen({
 
   // Grup kodu
   const [groupCode, setGroupCode] = useState<string>("");
+
+  // Arşiv
+  const [archived,   setArchived]   = useState(false);
+  const [archiving,  setArchiving]  = useState(false);
 
   const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRefs  = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -641,6 +558,35 @@ export default function GameScreen({
     setShowFinal(true);
   }, []);
 
+  const handleArchive = useCallback(async () => {
+    if (!task.groupId || archiving || archived) return;
+    setArchiving(true);
+    try {
+      // Duplicate koruması: bu task için zaten arşiv kaydı varsa yeni kayıt oluşturma
+      const existing = await getDocs(
+        query(collection(db, "assignment_archive"), where("taskId", "==", task.id))
+      );
+      if (existing.empty) {
+        await addDoc(collection(db, "assignment_archive"), {
+          groupId:     task.groupId,
+          taskId:      task.id,
+          taskName:    task.name,
+          type:        "kolaj",
+          completedAt: serverTimestamp(),
+          draws:       drawsRef.current,
+          students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+        });
+      }
+
+      // Her durumda görevi tamamlandı yap ve ana ekrana dön
+      await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      setArchived(true);
+      setTimeout(() => router.push("/dashboard"), 2200);
+    } finally {
+      setArchiving(false);
+    }
+  }, [task, archiving, archived, students, router]);
+
   // ─── Loading ─────────────────────────────────────────────────────────────
 
   if (poolLoading) {
@@ -667,7 +613,7 @@ export default function GameScreen({
     <div className="min-h-screen flex" style={{ background: "#f5f7fb" }}>
 
       {/* Sol panel — animasyon burada döner */}
-      <StudentPanel
+      <SharedStudentPanel
         students={students}
         draws={draws}
         catCount={categories.length}
@@ -818,10 +764,61 @@ export default function GameScreen({
 
           {/* TÜMÜ TAMAMLANDI */}
           {allDone && (
-            <div className="text-center">
-              <div className="text-4xl mb-4">🎉</div>
+            <div className="text-center flex flex-col items-center gap-4">
+              <div className="text-4xl">🎉</div>
               <p className="text-[18px] font-bold text-slate-700">Tüm katılımcılar tamamlandı!</p>
-              <p className="text-[13px] text-slate-400 mt-2">Çekiliş başarıyla sonuçlandı.</p>
+              <p className="text-[13px] text-slate-400">Çekiliş başarıyla sonuçlandı.</p>
+              <button
+                onClick={handleArchive}
+                disabled={archiving || archived}
+                className="mt-2 px-8 py-3 rounded-full text-[14px] font-bold text-white cursor-pointer active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 6px 20px rgba(58,123,213,0.25)" }}
+              >
+                {archiving ? "Kaydediliyor..." : "Arşive Kaydet"}
+              </button>
+            </div>
+          )}
+
+          {/* ARŞİV OVERLAY */}
+          {(archiving || archived) && (
+            <div
+              style={{
+                position: "fixed", inset: 0, zIndex: 9999,
+                background: "rgba(6,13,26,0.82)",
+                backdropFilter: "blur(12px)",
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: 20,
+                animation: "fadeIn 0.3s ease",
+              }}
+            >
+              {archiving && !archived ? (
+                <div style={{
+                  width: 48, height: 48, borderRadius: "50%",
+                  border: "3px solid rgba(255,255,255,0.15)",
+                  borderTopColor: "#689adf",
+                  animation: "spin 0.8s linear infinite",
+                }} />
+              ) : (
+                <div style={{
+                  width: 64, height: 64, borderRadius: "50%",
+                  background: "rgba(56,161,105,0.18)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 32,
+                  animation: "popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+                }}>
+                  ✓
+                </div>
+              )}
+              <div style={{ textAlign: "center" }}>
+                <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
+                  {archiving && !archived ? "Kaydediliyor..." : "Ödev Tamamlandı"}
+                </p>
+                {archived && (
+                  <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 8 }}>
+                    Ana sayfaya dönülüyor...
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -867,12 +864,23 @@ export default function GameScreen({
           0%,100% { opacity:0.35; transform:scale(1); }
           50%      { opacity:1;    transform:scale(1.4); }
         }
+        @keyframes cardDrop {
+          0%   { opacity:0; transform: scale(0.88) translateY(-16px); filter: blur(3px); }
+          100% { opacity:1; transform: scale(1)    translateY(0);     filter: blur(0); }
+        }
         @keyframes popIn {
           0%   { transform:scale(0.04); opacity:0; }
           20%  { opacity:1; }
           55%  { transform:scale(1.08); }
           75%  { transform:scale(0.97); }
           100% { transform:scale(1);   opacity:1; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+          from { opacity:0; }
+          to   { opacity:1; }
         }
       `}</style>
 

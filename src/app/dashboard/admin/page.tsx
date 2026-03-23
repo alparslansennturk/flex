@@ -10,6 +10,7 @@ import Footer from "../../components/layout/Footer";
 import SubNavigation from "../../components/layout/SubNavigation";
 import UserManagement from "../../components/dashboard/user-management/UserManagement";
 import TaskManagementPanel from "../../components/dashboard/assignment/TaskManagementPanel";
+import SystemPanel from "../../components/dashboard/admin/SystemPanel";
 
 export default function AdminPage() {
   const [headerTitle, setHeaderTitle] = useState("Yönetim Paneli");
@@ -67,6 +68,7 @@ export default function AdminPage() {
             <SubNavigation activeTab={activeSubTab} onTabChange={setActiveSubTab} />
             {activeSubTab === "users" && <UserManagement />}
             {activeSubTab === "task-management" && <TaskManagementPanel />}
+            {activeSubTab === "logs" && <SystemPanel />}
           </div>
         </main>
         <Footer />

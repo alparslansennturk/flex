@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
-import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, PencilLine, UserCircle, Settings2 } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, PencilLine, UserCircle, Settings2, Archive } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
 export default function Sidebar() {
@@ -39,6 +39,10 @@ export default function Sidebar() {
 
         {hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) && (
           <SidebarLink href="/dashboard/tasks" icon={<BookOpen size={18} />} label="Ödev Yönetimi" />
+        )}
+
+        {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
+          <SidebarLink href="/dashboard/archive" icon={<Archive size={18} />} label="Ödev Arşivi" />
         )}
 
         <SidebarLink href="/dashboard/grading" icon={<PencilLine size={18} />} label="Not Girişi" />

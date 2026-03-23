@@ -120,5 +120,23 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isAdmin() || isInstructor());
       allow write: if isAdmin() || isInstructor() || hasPermissionOverride('ASSIGNMENT_MANAGE');
     }
+
+    // ─── assignment_archive ───────────────────────────────────────────────────
+
+    match /assignment_archive/{entryId} {
+      allow read: if isSignedIn() && (isAdmin() || isInstructor());
+      allow create: if isAdmin() || isInstructor() || hasPermissionOverride('ASSIGNMENT_MANAGE');
+      allow delete: if isAdmin();
+    }
+
+    // ─── system_backups ───────────────────────────────────────────────────────
+
+    match /system_backups/{backupId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /system_backups/{backupId}/{col}/{docId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
