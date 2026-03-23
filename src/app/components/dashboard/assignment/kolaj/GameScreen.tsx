@@ -127,7 +127,7 @@ function StudentPanel({
 
                 <span className="flex-1 text-[13px] font-semibold truncate" style={{
                   color: isHighlit  ? "white"
-                       : isDone     ? "rgba(255,255,255,0.68)"
+                       : isDone     ? "rgba(255,255,255,0.6)"
                        : isDrawing  ? "white"
                        : "white",
                   transition: "color 0.06s ease-out",
@@ -711,13 +711,13 @@ export default function GameScreen({
           {/* IDLE — kimse belli değil */}
           {phase === "idle" && !allDone && (
             <div className="flex flex-col items-center gap-4 text-center">
-              <p className="text-[11px] font-bold tracking-[0.4em] uppercase text-slate-400">
+              <p className="text-[15px] font-bold tracking-[0.4em] uppercase text-slate-400">
                 Çekiliş Hazır
               </p>
               <p className="text-[15px] text-slate-500">
                 Sıradaki katılımcıyı belirlemek için başlat'a bas.
               </p>
-              <p className="text-[12px] text-slate-400">
+              <p className="text-[15px] font-semibold text-slate-400">
                 {remainingStudents.length} katılımcı kaldı
               </p>
             </div>
@@ -742,12 +742,12 @@ export default function GameScreen({
           {/* READY — seçilen isim bounce animasyonuyla ortaya çıkar */}
           {phase === "ready" && selectedStudent && (
             <div className="flex flex-col items-center gap-10 text-center">
-              <p className="text-[11px] font-bold tracking-[0.4em] uppercase text-slate-400"
+              <p className="text-[15px] font-bold tracking-[0.4em] uppercase text-slate-400"
                 style={{ opacity: nameVisible ? 1 : 0, transition: "opacity 0.4s ease 0.7s" }}>
                 Ödev Alacak Katılımcı
               </p>
               {nameVisible && (
-                <div style={{ animation: "popIn 0.68s cubic-bezier(0.34,1.3,0.64,1) forwards" }}>
+                <div style={{ animation: "popIn 0.28s cubic-bezier(0.22,1,0.36,1) forwards" }}>
                   <h1 style={{
                     fontSize: "clamp(38px, 4.5vw, 60px)",
                     fontWeight: 900, color: "#1e293b",
@@ -869,10 +869,9 @@ export default function GameScreen({
         }
         @keyframes popIn {
           0%   { transform:scale(0.04); opacity:0; }
-          30%  { opacity:1; }
-          58%  { transform:scale(1.11); }
-          76%  { transform:scale(0.96); }
-          90%  { transform:scale(1.03); }
+          20%  { opacity:1; }
+          55%  { transform:scale(1.08); }
+          75%  { transform:scale(0.97); }
           100% { transform:scale(1);   opacity:1; }
         }
       `}</style>
