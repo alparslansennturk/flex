@@ -32,7 +32,8 @@ export interface Task {
   isPaused?: boolean;   // Parkurda kalır ama buton disabled, durum "Pasif"
   isHidden?: boolean;   // Dashboard'dan gizlenir, yalnızca yönetim sayfasında görünür
   status?: 'active' | 'archived' | 'completed'; // Admin panel durum yönetimi
-  isGraded?: boolean;   // Not girişi yapıldıysa true
+  isGraded?: boolean;       // Not girişi yapıldıysa true
+  assignmentType?: "kolaj" | "kitap" | "sosyal_medya"; // Ödev tipi yönlendirmesi için
 }
 
 // Eski lowercase key'leri PascalCase'e çevir (Firestore'daki eski veriler için)

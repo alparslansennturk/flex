@@ -692,26 +692,27 @@ export default function DesignParkour() {
     const uid = user?.uid ?? auth.currentUser?.uid ?? null;
     for (const { classId, groupId, groupBranch, level, endDate } of selections) {
       await addDoc(collection(db, "tasks"), {
-        name:          t.name,
-        description:   t.description,
-        type:          t.type,
-        points:        t.points,
-        icon:          t.icon ?? null,
+        name:           t.name,
+        description:    t.description,
+        type:           t.type,
+        points:         t.points,
+        icon:           t.icon ?? null,
         classId,
         groupId,
         groupBranch,
         level,
         endDate,
-        status:        "active",
-        isActive:      true,
-        isPaused:      false,
-        isHidden:      false,
-        templateId:    t.id,
-        createdAt:     serverTimestamp(),
-        createdBy:     uid,
-        createdByName: user ? `${user.name} ${user.surname}` : null,
-        branch:        groupBranch || user?.branch || null,
-        ownedBy:       uid,
+        status:         "active",
+        isActive:       true,
+        isPaused:       false,
+        isHidden:       false,
+        templateId:     t.id,
+        assignmentType: t.assignmentType ?? null,
+        createdAt:      serverTimestamp(),
+        createdBy:      uid,
+        createdByName:  user ? `${user.name} ${user.surname}` : null,
+        branch:         groupBranch || user?.branch || null,
+        ownedBy:        uid,
       });
     }
     setGhostModalTask(null);
@@ -751,7 +752,12 @@ export default function DesignParkour() {
             onEdit={setEditTask}
             onComplete={setCompleteConfirmTask}
             onCancel={setCancelConfirmTask}
-            onDetail={t => router.push(`/dashboard/kolaj?taskId=${t.id}`)}
+            onDetail={t => {
+              const route = t.assignmentType === "kitap" ? "kitap"
+                          : t.assignmentType === "kolaj" ? "kolaj"
+                          : null;
+              if (route) router.push(`/dashboard/${route}?taskId=${t.id}`);
+            }}
           />
         ))}
         {ghostTasks.map(task => (

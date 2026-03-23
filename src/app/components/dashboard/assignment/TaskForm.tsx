@@ -32,6 +32,9 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
   const [points, setPoints]             = useState<number>(editingTask?.points ?? prefill?.points ?? 3);
   const [startDate]                     = useState(editingTask?.startDate ?? "");
   const [endDate, setEndDate]           = useState(editingTask?.endDate ?? "");
+  const [assignmentType, setAssignmentType] = useState<"kolaj" | "kitap" | "sosyal_medya" | null>(
+    editingTask?.assignmentType ?? prefill?.assignmentType ?? null
+  );
   const [saving, setSaving]             = useState(false);
   const [errors, setErrors]             = useState<Record<string, boolean>>({});
   const [shake, setShake]               = useState(false);
@@ -74,6 +77,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
         name: name.trim(), type, icon: selectedIcon,
         description: description.trim(), points,
         startDate: startDate || null, endDate: endDate || null,
+        assignmentType: assignmentType ?? null,
       };
       if (editingTask) {
         await updateDoc(doc(db, targetCollection, editingTask.id), payload);
@@ -84,19 +88,20 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
 
         // Taban veri — şablonlar ve görevler için ortak alanlar
         const baseData: Record<string, unknown> = {
-          name:          payload.name,
-          type:          payload.type,
-          icon:          payload.icon,
-          description:   payload.description,
-          points:        payload.points,
-          startDate:     payload.startDate ?? null,
-          isActive:      false,
-          isPaused:      false,
-          isHidden:      false,
-          createdBy:     auth.currentUser?.uid ?? null,
-          createdByName: user ? `${user.name} ${user.surname}` : null,
-          branch:        user?.branch ?? null,
-          createdAt:     serverTimestamp(),
+          name:           payload.name,
+          type:           payload.type,
+          icon:           payload.icon,
+          description:    payload.description,
+          points:         payload.points,
+          startDate:      payload.startDate ?? null,
+          assignmentType: payload.assignmentType,
+          isActive:       false,
+          isPaused:       false,
+          isHidden:       false,
+          createdBy:      auth.currentUser?.uid ?? null,
+          createdByName:  user ? `${user.name} ${user.surname}` : null,
+          branch:         user?.branch ?? null,
+          createdAt:      serverTimestamp(),
         };
 
         if (isTemplate) {
@@ -230,6 +235,44 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
                 <Star size={11} className="text-designstudio-primary-500 fill-designstudio-primary-500" />
                 {points}
               </div>
+            </div>
+          </div>
+
+          {/* Ödev Tipi — list menü */}
+          <div className="col-span-2 space-y-1.5">
+            <label className={labelCls}>Ödev Tipi</label>
+            <div className="rounded-2xl border border-surface-200 overflow-y-auto" style={{ maxHeight: 160 }}>
+              {([
+                { val: null,           label: "Belirtilmemiş", sub: "Henüz bir ödev tipi seçilmedi",           dot: "#cbd5e1" },
+                { val: "kolaj",        label: "Kolaj Bahçesi", sub: "Çekiliş ile kolaj elemanı dağıtımı",      dot: "#689adf" },
+                { val: "kitap",        label: "Kitap Dünyası", sub: "Çekiliş ile kitap ataması",               dot: "#60a5fa" },
+                { val: "sosyal_medya", label: "Sosyal Medya",  sub: "Yakında eklenecek",                       dot: "#a78bfa" },
+              ] as const).map(({ val, label, sub, dot }, i) => {
+                const isSelected = assignmentType === val;
+                return (
+                  <button
+                    key={String(val)}
+                    type="button"
+                    onClick={() => setAssignmentType(val)}
+                    className="w-full flex items-center gap-4 px-5 py-3.5 text-left cursor-pointer transition-colors"
+                    style={{
+                      borderTop:  i === 0 ? "none" : "1px solid #f1f5f9",
+                      background: isSelected ? "#f8faff" : "white",
+                    }}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: dot, opacity: isSelected ? 1 : 0.4 }} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[13px] font-bold leading-tight ${isSelected ? "text-base-primary-900" : "text-surface-500"}`}>{label}</p>
+                      <p className="text-[11px] text-surface-400 mt-0.5">{sub}</p>
+                    </div>
+                    {isSelected && (
+                      <div className="w-5 h-5 rounded-full bg-base-primary-900 flex items-center justify-center shrink-0">
+                        <CheckCircle2 size={12} className="text-white" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
