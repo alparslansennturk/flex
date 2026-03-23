@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BookOpen, ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { BookOpen } from "lucide-react";
 import AssignmentScreen from "../shared/AssignmentScreen";
-import StudentPanel from "../shared/StudentPanel";
-import type { Student, TaskData } from "../shared/types";
+import BookGameScreen from "./BookGameScreen";
 
 // ─── Kitap introsu için şekiller (kitap/sayfa formunda dikdörtgenler) ─────────
 
@@ -114,75 +112,6 @@ function BookIntro({ onComplete }: { onComplete: () => void }) {
           <h1 className="text-[56px] font-black leading-none" style={{ letterSpacing: "-0.03em", color: "#60a5fa" }}>
             Dünyası
           </h1>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Kitap oyun ekranı — sol panel ortak, sağ alan 2. fazda ─────────────────
-
-function BookGameScreen({ task, students }: { task: TaskData; students: Student[] }) {
-  const router = useRouter();
-
-  return (
-    <div className="min-h-screen flex" style={{ background: "#060D1A" }}>
-
-      {/* Sol panel — tüm ödevlerde ortak */}
-      <StudentPanel
-        students={students}
-        draws={[]}
-        catCount={1}
-        taskLabel={task.name}
-        onViewResult={() => {}}
-        pickHighlightId={null}
-        drawingStudentId={null}
-        accentColor="#60a5fa"
-      />
-
-      {/* Sağ alan */}
-      <div className="flex-1 flex flex-col min-w-0">
-
-        {/* Üst bar */}
-        <div
-          className="flex items-center justify-between px-8 py-5 shrink-0"
-          style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "#060D1A" }}
-        >
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="flex items-center gap-2 cursor-pointer transition-colors"
-            style={{ color: "rgba(255,255,255,0.35)" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}
-          >
-            <ArrowLeft size={15} />
-            <span className="text-[12px] font-semibold">Ana Sayfa</span>
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "rgba(96,165,250,0.12)" }}>
-              <BookOpen size={14} style={{ color: "#60a5fa" }} />
-            </div>
-            <span className="text-[14px] font-bold" style={{ color: "rgba(255,255,255,0.85)" }}>{task.name}</span>
-          </div>
-
-          <div className="w-24" />
-        </div>
-
-        {/* Oyun alanı — 2. fazda dolacak */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.15)" }}
-          >
-            <BookOpen size={28} style={{ color: "#60a5fa" }} />
-          </div>
-          <p className="text-[15px] font-bold tracking-[0.3em] uppercase" style={{ color: "rgba(96,165,250,0.5)" }}>
-            Kitap Dünyası
-          </p>
-          <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.20)" }}>
-            {students.length} öğrenci hazır — oyun alanı yakında
-          </p>
         </div>
       </div>
     </div>

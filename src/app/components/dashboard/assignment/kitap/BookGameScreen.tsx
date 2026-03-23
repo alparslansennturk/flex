@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowLeft, Mail, FileDown, Check, ChevronRight } from "lucide-react";
 import {
   doc, getDoc, setDoc, addDoc, collection, serverTimestamp,
   getDocs, query, where, updateDoc,
@@ -12,124 +13,542 @@ import type { Student, TaskData, StudentDraw } from "../shared/types";
 import StudentPanel from "../shared/StudentPanel";
 import { usePickingEngine } from "../shared/usePickingEngine";
 
-// ─── Tipleri ─────────────────────────────────────────────────────────────────
+// ─── Tipler ───────────────────────────────────────────────────────────────────
 
 interface BookStudentDraw {
   studentId: string;
   book: BookItem;
 }
 
-// ─── Kitap kartı ─────────────────────────────────────────────────────────────
+// ─── Carousel sabitleri ───────────────────────────────────────────────────────
 
-function BookCard({ book }: { book: BookItem }) {
+const CARD_W     = 110;
+const CARD_H     = 160;
+const CARD_GAP   = 10;
+const SLOT_W     = CARD_W + CARD_GAP;
+const VISIBLE    = 5;
+const VIEWPORT_W = VISIBLE * CARD_W + (VISIBLE - 1) * CARD_GAP; // 590
+const TRACK_REPS = 8;
+const SPIN_MS    = 4800;
+
+// ─── Easing ───────────────────────────────────────────────────────────────────
+
+function easeInOutExpo(t: number) {
+  if (t === 0 || t === 1) return t;
+  return t < 0.5
+    ? Math.pow(2, 20 * t - 10) / 2
+    : (2 - Math.pow(2, -20 * t + 10)) / 2;
+}
+
+// ─── SpinnerCard ──────────────────────────────────────────────────────────────
+
+function SpinnerCard({ book }: { book: BookItem }) {
   return (
     <div style={{
-      width: 360,
-      background: "linear-gradient(145deg, #162544 0%, #1e3260 100%)",
-      borderRadius: 22,
-      padding: "36px 32px",
-      border: "1px solid rgba(104,154,223,0.22)",
-      boxShadow: "0 30px 80px rgba(0,0,0,0.55)",
+      width: CARD_W, height: CARD_H,
+      flexShrink: 0,
+      borderRadius: 10,
+      background: "#f1f5f9",
+      border: "1px solid #dde4ed",
       display: "flex",
       flexDirection: "column",
-      gap: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "12px 8px",
+      gap: 6,
+      position: "relative",
     }}>
-      {/* İkon */}
+      {/* Kitap sırtı şeridi */}
       <div style={{
-        width: 56, height: 56, borderRadius: 16,
-        background: "rgba(104,154,223,0.14)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 28,
+        position: "absolute", left: 8, top: 10, bottom: 10,
+        width: 3, borderRadius: 2, background: "#cbd5e1",
+      }} />
+      <div style={{ fontSize: 22 }}>📚</div>
+      <p style={{
+        fontSize: 9, fontWeight: 700, color: "#94a3b8",
+        textAlign: "center", lineHeight: 1.3,
+        margin: 0, padding: "0 4px",
       }}>
-        📚
-      </div>
-
-      {/* Başlık + Yazar */}
-      <div>
-        <p style={{
-          color: "white", fontSize: 24, fontWeight: 900,
-          lineHeight: 1.2, letterSpacing: "-0.02em", margin: 0,
-        }}>
-          {book.title}
-        </p>
-        <p style={{
-          color: "rgba(255,255,255,0.5)", fontSize: 14,
-          marginTop: 8, fontWeight: 600,
-        }}>
-          {book.author}
-        </p>
-      </div>
-
-      {/* Tür etiketleri */}
-      {(book.genre || book.subGenre) && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {book.genre && (
-            <span style={{
-              padding: "5px 14px", borderRadius: 50,
-              background: "rgba(104,154,223,0.15)",
-              color: "#689adf", fontSize: 12, fontWeight: 700,
-            }}>
-              {book.genre}
-            </span>
-          )}
-          {book.subGenre && (
-            <span style={{
-              padding: "5px 14px", borderRadius: 50,
-              background: "rgba(104,154,223,0.08)",
-              color: "rgba(104,154,223,0.65)", fontSize: 12, fontWeight: 600,
-            }}>
-              {book.subGenre}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Alt bilgiler */}
-      {(book.publisher || book.pageCount || book.dimensions) && (
-        <div style={{
-          borderTop: "1px solid rgba(255,255,255,0.07)",
-          paddingTop: 18,
-          display: "flex", gap: 24,
-        }}>
-          {book.publisher && (
-            <div>
-              <p style={{ color: "rgba(255,255,255,0.22)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>Yayınevi</p>
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: 600, marginTop: 4 }}>{book.publisher}</p>
-            </div>
-          )}
-          {book.pageCount && (
-            <div>
-              <p style={{ color: "rgba(255,255,255,0.22)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>Sayfa</p>
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: 600, marginTop: 4 }}>{book.pageCount}</p>
-            </div>
-          )}
-          {book.dimensions && (
-            <div>
-              <p style={{ color: "rgba(255,255,255,0.22)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>Boyut</p>
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: 600, marginTop: 4 }}>{book.dimensions}</p>
-            </div>
-          )}
-        </div>
-      )}
+        {book.title}
+      </p>
     </div>
   );
 }
 
-// ─── Kitap önizleme overlay (tamamlanan öğrenci kitabını görme) ───────────────
+// ─── BookCarousel — sadece dönen kısım ───────────────────────────────────────
 
-function BookPreviewOverlay({ draw, onClose }: { draw: BookStudentDraw; onClose: () => void }) {
+function BookCarousel({
+  allBooks, winnerBook, onSpinComplete,
+}: {
+  allBooks: BookItem[];
+  winnerBook: BookItem;
+  onSpinComplete: () => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const rafRef   = useRef<number | null>(null);
+
+  const track = useMemo(() => {
+    const arr: BookItem[] = [];
+    for (let i = 0; i < TRACK_REPS; i++) arr.push(...allBooks);
+    return arr;
+  }, [allBooks]);
+
+  const targetTrackIdx = useMemo(() => {
+    const base = allBooks.findIndex(b => b.id === winnerBook.id);
+    return Math.floor(TRACK_REPS / 2) * allBooks.length + (base >= 0 ? base : 0);
+  }, [allBooks, winnerBook]);
+
+  const targetX = useMemo(
+    () => -(targetTrackIdx * SLOT_W + CARD_W / 2 - VIEWPORT_W / 2),
+    [targetTrackIdx],
+  );
+
+  useEffect(() => {
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const t     = Math.min((now - startTime) / SPIN_MS, 1);
+      const eased = easeInOutExpo(t);
+      if (trackRef.current) {
+        trackRef.current.style.transform = `translateX(${targetX * eased}px)`;
+      }
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        onSpinComplete();
+      }
+    };
+
+    const delay = setTimeout(() => {
+      rafRef.current = requestAnimationFrame(animate);
+    }, 150);
+
+    return () => {
+      clearTimeout(delay);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div style={{
+      width: VIEWPORT_W,
+      height: CARD_H + 16,
+      overflow: "hidden",
+      position: "relative",
+      display: "flex",
+      alignItems: "center",
+    }}>
+      {/* Kenar maskesi */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0, width: 80, zIndex: 2, pointerEvents: "none",
+        background: "linear-gradient(to right, #f5f7fb, transparent)",
+      }} />
+      <div style={{
+        position: "absolute", right: 0, top: 0, bottom: 0, width: 80, zIndex: 2, pointerEvents: "none",
+        background: "linear-gradient(to left, #f5f7fb, transparent)",
+      }} />
+
+      {/* Merkez hedef işareti */}
+      <div style={{
+        position: "absolute",
+        left: "50%", transform: "translateX(-50%)",
+        top: 8, bottom: 8,
+        width: CARD_W + 6, borderRadius: 12,
+        border: "2px dashed #cbd5e1",
+        zIndex: 1, pointerEvents: "none",
+      }} />
+
+      {/* Track */}
+      <div ref={trackRef} style={{
+        display: "flex", gap: CARD_GAP,
+        willChange: "transform", flexShrink: 0,
+      }}>
+        {track.map((book, i) => (
+          <SpinnerCard key={`${book.id}-${i}`} book={book} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── WinnerReveal — overflow dışında, serbest animasyon ──────────────────────
+
+function WinnerReveal({ book }: { book: BookItem }) {
+  const [titleVisible, setTitleVisible] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setTitleVisible(true), 500);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column",
+      alignItems: "center", gap: 24,
+    }}>
+      {/* Kitap kartı — yukarıdan kayar */}
+      <div style={{ animation: "bkSlideDown 0.65s cubic-bezier(0.34,1.56,0.64,1)" }}>
+        <div style={{
+          width: CARD_W * 1.3,
+          height: CARD_H * 1.3,
+          borderRadius: 14,
+          background: "white",
+          border: "2px solid #93c5fd",
+          boxShadow: "0 12px 40px rgba(37,99,235,0.14), 0 2px 8px rgba(37,99,235,0.08)",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          padding: "20px 14px", gap: 10,
+          position: "relative",
+        }}>
+          <div style={{
+            position: "absolute", left: 10, top: 12, bottom: 12,
+            width: 4, borderRadius: 2,
+            background: "linear-gradient(to bottom, #93c5fd, #3b82f6)",
+          }} />
+          <div style={{
+            position: "absolute", inset: 0, borderRadius: 14, pointerEvents: "none",
+            background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.06) 0%, transparent 65%)",
+          }} />
+          <div style={{ fontSize: 32 }}>📚</div>
+          <p style={{
+            fontSize: 12, fontWeight: 700, color: "#64748b",
+            textAlign: "center", lineHeight: 1.4, margin: 0, padding: "0 6px",
+          }}>
+            {book.title}
+          </p>
+        </div>
+      </div>
+
+      {/* İsim — küçükten büyüğe patlar */}
+      <div style={{
+        textAlign: "center",
+        opacity:   titleVisible ? 1 : 0,
+        transform: titleVisible ? "scale(1) translateY(0)" : "scale(0.08) translateY(10px)",
+        transition: "all 0.40s cubic-bezier(0.34,1.56,0.64,1)",
+      }}>
+        <p style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: "0.4em",
+          textTransform: "uppercase", color: "#94a3b8",
+          margin: "0 0 8px",
+        }}>
+          Kazanan Kitap
+        </p>
+        <p style={{
+          fontSize: 26, fontWeight: 900, color: "#1e293b",
+          letterSpacing: "-0.02em", margin: "0 0 5px",
+        }}>
+          {book.title}
+        </p>
+        <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
+          {book.author}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── BookResultModal ──────────────────────────────────────────────────────────
+
+function BookResultModal({
+  student, book, task, onAdvance, onClose, isPastView,
+}: {
+  student: Student;
+  book: BookItem;
+  task: TaskData;
+  onAdvance: () => void;
+  onClose: () => void;
+  isPastView?: boolean;
+}) {
+  const [visible,     setVisible]     = useState(false);
+  const [sendingMail, setSendingMail] = useState(false);
+  const [mailSent,    setMailSent]    = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 30);
+    return () => clearTimeout(t);
+  }, []);
+
+  const deadline = task.endDate || (() => {
+    const d = new Date(); d.setDate(d.getDate() + 14);
+    return d.toLocaleDateString("tr-TR");
+  })();
+
+  const handlePrint = () => {
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Kitap Kapağı — ${student.name} ${student.lastName}</title>
+      <style>
+        *{box-sizing:border-box}
+        body{font-family:system-ui,sans-serif;padding:48px;background:#fff;margin:0;color:#1e293b}
+        .header{text-align:center;border-bottom:2px solid #e2e8f0;padding-bottom:24px;margin-bottom:32px;position:relative}
+        .header h1{font-size:19px;font-weight:900;text-transform:uppercase;margin:0 0 6px}
+        .congrats{font-size:26px;font-weight:900;color:#2563eb}
+        .deadline{position:absolute;top:0;right:0;font-size:12px;font-weight:700;color:#94a3b8}
+        .body{display:flex;gap:0}
+        .left{width:230px;flex-shrink:0;padding-right:28px;border-right:1px solid #e2e8f0}
+        .right{flex:1;padding-left:28px}
+        .micro{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:#94a3b8;margin:0 0 10px}
+        .book-title{font-size:20px;font-weight:900;color:#2563eb;margin:0 0 5px;line-height:1.2}
+        .author{font-size:13px;font-style:italic;color:#475569;margin:0 0 2px}
+        .publisher{font-size:11px;color:#94a3b8;margin:0 0 22px}
+        .specs{border-top:1px solid #e2e8f0;padding-top:16px}
+        .spec-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px}
+        .spec-key{color:#64748b}.spec-val{font-weight:700;color:#1e293b}
+        .back-text{font-size:13px;line-height:1.8;color:#334155;text-align:justify;white-space:pre-wrap}
+      </style>
+    </head><body>
+      <div class="header">
+        <div class="deadline">Teslim: ${deadline}</div>
+        <h1>${student.name} ${student.lastName} — Kitap Kapağı Ödeviniz</h1>
+        <div class="congrats">BAŞARILAR...</div>
+      </div>
+      <div class="body">
+        <div class="left">
+          <div class="micro">Atanan Kitap</div>
+          <div class="book-title">${book.title}</div>
+          <div class="author">${book.author}</div>
+          <div class="publisher">${book.publisher ?? ""}</div>
+          <div class="specs">
+            <div class="micro">Teknik Özellikler</div>
+            ${book.dimensions ? `<div class="spec-row"><span class="spec-key">Kitap Ölçüsü</span><span class="spec-val">${book.dimensions}</span></div>` : ""}
+            ${book.pageCount  ? `<div class="spec-row"><span class="spec-key">Sayfa Sayısı</span><span class="spec-val">${book.pageCount} sf</span></div>` : ""}
+            ${book.isbn       ? `<div class="spec-row"><span class="spec-key">ISBN No</span><span class="spec-val">${book.isbn}</span></div>` : ""}
+          </div>
+        </div>
+        <div class="right">
+          <div class="micro">Arka Kapak Yazısı</div>
+          <div class="back-text">${(book.backCover ?? "").replace(/\n/g, "<br>")}</div>
+        </div>
+      </div>
+    </body></html>`;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1200);
+    };
+  };
+
+  const handleMail = async () => {
+    if (!student.email) return;
+    setSendingMail(true);
+    try {
+      await fetch("/api/send-kitap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: student.email,
+          studentName: student.name,
+          studentLastName: student.lastName,
+          taskName: task.name,
+          book, deadline,
+        }),
+      });
+      setMailSent(true);
+    } finally {
+      setSendingMail(false);
+    }
+  };
+
   return (
     <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{
-        position: "fixed", inset: 0, zIndex: 500,
-        background: "rgba(6,13,26,0.85)", backdropFilter: "blur(12px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        animation: "fadeIn 0.2s ease",
+        background: visible ? "rgba(15,23,42,0.75)" : "rgba(15,23,42,0)",
+        transition: "background 0.45s ease",
+        backdropFilter: "blur(8px)",
       }}
-      onClick={onClose}
     >
-      <div onClick={e => e.stopPropagation()} style={{ animation: "bookCardIn 0.35s cubic-bezier(0.34,1.56,0.64,1)" }}>
-        <BookCard book={draw.book} />
+      <div
+        className="w-full flex flex-col overflow-hidden"
+        style={{
+          maxWidth: 900, maxHeight: "92vh",
+          background: "white", borderRadius: 24,
+          boxShadow: "0 40px 120px rgba(0,0,0,0.55)",
+          opacity:   visible ? 1 : 0,
+          transform: visible ? "scale(1) translateY(0)" : "scale(0.90) translateY(28px)",
+          transition: "all 0.45s cubic-bezier(0.34,1.56,0.64,1)",
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          padding: "32px 40px 26px",
+          borderBottom: "2px solid #ecf0f1",
+          textAlign: "center",
+          position: "relative",
+          flexShrink: 0,
+        }}>
+          <div style={{
+            position: "absolute", top: 20, right: 32,
+            fontSize: 12, fontWeight: 700, color: "#94a3b8",
+          }}>
+            Teslim: {deadline}
+          </div>
+          <h2 style={{
+            fontSize: 17, fontWeight: 900, color: "#1e293b",
+            textTransform: "uppercase", margin: "0 0 6px",
+          }}>
+            {student.name} {student.lastName} — Kitap Kapağı Ödeviniz
+          </h2>
+          <span style={{
+            display: "block", fontSize: 28, fontWeight: 900, color: "#2563eb",
+          }}>
+            BAŞARILAR...
+          </span>
+        </div>
+
+        {/* Body */}
+        <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+
+          {/* Sol kolon */}
+          <div style={{
+            width: 270, flexShrink: 0,
+            padding: "32px 28px 32px 40px",
+            borderRight: "1px solid #e8ecf2",
+            overflowY: "auto",
+          }}>
+            <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#94a3b8", margin: "0 0 12px" }}>
+              Atanan Kitap
+            </p>
+            <h3 style={{ fontSize: 20, fontWeight: 900, color: "#2563eb", margin: "0 0 5px", lineHeight: 1.2 }}>
+              {book.title}
+            </h3>
+            <p style={{ fontSize: 13, fontStyle: "italic", color: "#475569", margin: "0 0 2px" }}>
+              {book.author}
+            </p>
+            <p style={{ fontSize: 12, color: "#94a3b8", margin: "0 0 22px" }}>
+              {book.publisher}
+            </p>
+
+            {(book.genre || book.subGenre) && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 22 }}>
+                {book.genre && (
+                  <span style={{
+                    padding: "4px 11px", borderRadius: 50, fontSize: 11, fontWeight: 700,
+                    background: "rgba(37,99,235,0.08)", color: "#2563eb",
+                  }}>{book.genre}</span>
+                )}
+                {book.subGenre && (
+                  <span style={{
+                    padding: "4px 11px", borderRadius: 50, fontSize: 11, fontWeight: 600,
+                    background: "#f1f5f9", color: "#64748b",
+                  }}>{book.subGenre}</span>
+                )}
+              </div>
+            )}
+
+            <div style={{ borderTop: "1px solid #e8ecf2", paddingTop: 20 }}>
+              <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#94a3b8", margin: "0 0 14px" }}>
+                Teknik Özellikler
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {book.dimensions && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <span style={{ color: "#64748b" }}>Kitap Ölçüsü</span>
+                    <span style={{ fontWeight: 700, color: "#1e293b" }}>{book.dimensions}</span>
+                  </div>
+                )}
+                {book.pageCount && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <span style={{ color: "#64748b" }}>Sayfa Sayısı</span>
+                    <span style={{ fontWeight: 700, color: "#1e293b" }}>{book.pageCount} sf</span>
+                  </div>
+                )}
+                {book.isbn && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <span style={{ color: "#64748b" }}>ISBN No</span>
+                    <span style={{ fontWeight: 700, color: "#1e293b", fontSize: 11 }}>{book.isbn}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sağ kolon — arka kapak */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "32px 40px 32px 28px" }}>
+            <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#94a3b8", margin: "0 0 16px" }}>
+              Arka Kapak Yazısı
+            </p>
+            <p style={{
+              fontSize: 14, lineHeight: 1.85, color: "#334155",
+              whiteSpace: "pre-wrap", textAlign: "justify", margin: 0,
+            }}>
+              {book.backCover || "—"}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: "16px 40px",
+          borderTop: "1px solid #eee",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={handlePrint} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "0 16px", height: 38, borderRadius: 10,
+              background: "#e74c3c", color: "white",
+              fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none",
+            }}>
+              <FileDown size={13} /> PDF İndir
+            </button>
+            {student.email && (
+              mailSent ? (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "0 16px", height: 38, borderRadius: 10,
+                  background: "#27ae60", color: "white", fontSize: 13, fontWeight: 700,
+                }}>
+                  <Check size={12} strokeWidth={3} /> Mail Gönderildi
+                </div>
+              ) : (
+                <button onClick={handleMail} disabled={sendingMail} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "0 16px", height: 38, borderRadius: 10,
+                  background: "#2980b9", color: "white",
+                  fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none",
+                  opacity: sendingMail ? 0.55 : 1,
+                }}>
+                  {sendingMail ? (
+                    <><div style={{
+                      width: 12, height: 12, borderRadius: "50%",
+                      border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white",
+                      animation: "bkSpin 0.8s linear infinite",
+                    }} /> Gönderiliyor</>
+                  ) : (
+                    <><Mail size={13} /> Mail Gönder</>
+                  )}
+                </button>
+              )
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            {!isPastView && (
+              <button onClick={onAdvance} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "0 26px", height: 42, borderRadius: 50,
+                background: "#2563eb", color: "white",
+                fontSize: 14, fontWeight: 900, cursor: "pointer", border: "none",
+                boxShadow: "0 6px 18px rgba(37,99,235,0.30)",
+              }}>
+                YENİ SEÇİM <ChevronRight size={15} strokeWidth={2.5} />
+              </button>
+            )}
+            <button onClick={onClose} style={{
+              padding: "0 22px", height: 42, borderRadius: 50,
+              background: "transparent", border: "2px solid #dde2e8",
+              color: "#94a3b8", fontSize: 14, fontWeight: 700, cursor: "pointer",
+            }}>
+              Kapat
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -143,16 +562,19 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
   const [pool,        setPool]        = useState<BookPool | null>(null);
   const [poolLoading, setPoolLoading] = useState(true);
 
-  const [bookDraws,    setBookDraws]    = useState<BookStudentDraw[]>([]);
-  const [currentBook,  setCurrentBook]  = useState<BookItem | null>(null);
-  const [bookRevealed, setBookRevealed] = useState(false);
+  const [bookDraws,        setBookDraws]        = useState<BookStudentDraw[]>([]);
+  const [currentBook,      setCurrentBook]      = useState<BookItem | null>(null);
+  const [showCarousel,     setShowCarousel]     = useState(false);
+  const [spinDone,         setSpinDone]         = useState(false);
+  const [showModal,        setShowModal]        = useState(false);
   const [drawingStudentId, setDrawingStudentId] = useState<string | null>(null);
-  const [previewDraw,  setPreviewDraw]  = useState<BookStudentDraw | null>(null);
+  const [previewDraw,      setPreviewDraw]      = useState<BookStudentDraw | null>(null);
 
   const [archived,  setArchived]  = useState(false);
   const [archiving, setArchiving] = useState(false);
 
-  // Havuzu yükle
+  const modalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     getDoc(doc(db, "lottery_configs", "book")).then(snap => {
       if (snap.exists()) setPool(snap.data() as BookPool);
@@ -160,7 +582,6 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     });
   }, []);
 
-  // Mevcut ilerlemeyi yükle
   useEffect(() => {
     if (!pool) return;
     getDoc(doc(db, "lottery_results", task.id)).then(snap => {
@@ -171,15 +592,15 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     });
   }, [pool, task.id]);
 
-  // Kalan öğrenciler + kitaplar
-  const drawnStudentIds  = bookDraws.map(d => d.studentId);
+  useEffect(() => () => { if (modalTimerRef.current) clearTimeout(modalTimerRef.current); }, []);
+
+  const drawnStudentIds   = bookDraws.map(d => d.studentId);
   const remainingStudents = students.filter(s => !drawnStudentIds.includes(s.id));
   const allDone = remainingStudents.length === 0 && students.length > 0;
 
   const usedBookIds    = bookDraws.map(d => d.book.id);
   const availableBooks = (pool?.items ?? []).filter(b => !usedBookIds.includes(b.id));
 
-  // Öğrenci seçim motoru
   const { phase, pickHighlightId, selectedStudentId, nameVisible, beginPicking, resetToIdle } =
     usePickingEngine({
       remainingStudents,
@@ -190,35 +611,40 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     ? students.find(s => s.id === selectedStudentId) ?? null
     : null;
 
-  // Kitap çek
-  const handleDrawBook = useCallback(() => {
+  const handleSpin = useCallback(() => {
     if (!selectedStudent || availableBooks.length === 0) return;
     const book = availableBooks[Math.floor(Math.random() * availableBooks.length)];
     setCurrentBook(book);
-    const newDraw: BookStudentDraw = { studentId: selectedStudent.id, book };
+    setShowCarousel(true);
+    setSpinDone(false);
+  }, [selectedStudent, availableBooks]);
+
+  const handleSpinComplete = useCallback(() => {
+    if (!selectedStudent || !currentBook) return;
+    setSpinDone(true);
+    const newDraw: BookStudentDraw = { studentId: selectedStudent.id, book: currentBook };
     const updated = [...bookDraws, newDraw];
     setBookDraws(updated);
     setDoc(doc(db, "lottery_results", task.id), {
       draws: updated, groupId: task.groupId ?? "", lastUpdated: serverTimestamp(),
     });
-    setTimeout(() => setBookRevealed(true), 80);
-  }, [selectedStudent, availableBooks, bookDraws, task]);
+    modalTimerRef.current = setTimeout(() => setShowModal(true), 2200);
+  }, [selectedStudent, currentBook, bookDraws, task]);
 
-  // Sonraki öğrenciye geç
   const handleAdvance = useCallback(() => {
     setCurrentBook(null);
-    setBookRevealed(false);
+    setShowCarousel(false);
+    setSpinDone(false);
+    setShowModal(false);
     setDrawingStudentId(null);
     resetToIdle();
   }, [resetToIdle]);
 
-  // StudentPanel için uyumlu format (catCount=1)
   const studentDraws: StudentDraw[] = bookDraws.map(d => ({
     studentId: d.studentId,
     draws: [{ category: "Kitap", item: { name: d.book.title, emoji: "📚" } }],
   }));
 
-  // Arşive kaydet
   const handleArchive = useCallback(async () => {
     if (!task.groupId || archiving || archived) return;
     setArchiving(true);
@@ -228,13 +654,11 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
       );
       if (existing.empty) {
         await addDoc(collection(db, "assignment_archive"), {
-          groupId:     task.groupId,
-          taskId:      task.id,
-          taskName:    task.name,
-          type:        "kitap",
+          groupId: task.groupId, taskId: task.id,
+          taskName: task.name, type: "kitap",
           completedAt: serverTimestamp(),
-          draws:       studentDraws,
-          students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+          draws: studentDraws,
+          students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
         });
       }
       await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
@@ -245,29 +669,25 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     }
   }, [task, archiving, archived, students, studentDraws, router]);
 
-  if (poolLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#060D1A" }}>
-        <div className="w-6 h-6 border-2 rounded-full animate-spin"
-          style={{ borderColor: "rgba(255,255,255,0.08)", borderTopColor: "#689adf" }} />
-      </div>
-    );
-  }
+  if (poolLoading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#f5f7fb" }}>
+      <div className="w-6 h-6 border-2 rounded-full animate-spin"
+        style={{ borderColor: "#e2e8f0", borderTopColor: "#2563eb" }} />
+    </div>
+  );
 
-  if (!pool || pool.items.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "#060D1A" }}>
-        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Kitap havuzu boş veya yüklenmemiş.</p>
-        <button onClick={() => router.push("/dashboard")}
-          style={{ color: "#689adf", fontSize: 13, fontWeight: 700, cursor: "pointer", background: "none", border: "none" }}>
-          Ana sayfaya dön
-        </button>
-      </div>
-    );
-  }
+  if (!pool || pool.items.length === 0) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "#f5f7fb" }}>
+      <p style={{ color: "#94a3b8", fontSize: 14 }}>Kitap havuzu boş veya yüklenmemiş.</p>
+      <button onClick={() => router.push("/dashboard")}
+        style={{ color: "#2563eb", fontSize: 13, fontWeight: 700, cursor: "pointer", background: "none", border: "none" }}>
+        Ana sayfaya dön
+      </button>
+    </div>
+  );
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#060D1A", overflow: "hidden" }}>
+    <div style={{ display: "flex", height: "100vh", background: "#f5f7fb", overflow: "hidden" }}>
 
       {/* Sol: Öğrenci paneli */}
       <StudentPanel
@@ -281,88 +701,152 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         }}
         pickHighlightId={pickHighlightId}
         drawingStudentId={drawingStudentId}
+        accentColor="#2563eb"
       />
 
       {/* Sağ: Oyun alanı */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
 
-        {/* Başlık */}
+        {/* Üst bar */}
         <div style={{
-          padding: "20px 32px",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          padding: "18px 32px",
+          borderBottom: "1px solid #e8ecf2",
+          background: "white",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 20 }}>📚</span>
+          <button
+            onClick={() => router.push("/dashboard")}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              color: "#94a3b8", background: "none", border: "none",
+              cursor: "pointer", fontSize: 15, fontWeight: 600,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#475569")}
+            onMouseLeave={e => (e.currentTarget.style.color = "#94a3b8")}
+          >
+            <ArrowLeft size={17} />
+            Ana Sayfa
+          </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 18 }}>📚</span>
             <div>
-              <p style={{ color: "rgba(255,255,255,0.85)", fontWeight: 800, fontSize: 15, margin: 0 }}>
+              <p style={{ color: "#1e293b", fontWeight: 800, fontSize: 15, margin: 0 }}>
                 Kitap Seçimi
               </p>
-              <p style={{ color: "rgba(255,255,255,0.32)", fontSize: 12, marginTop: 3 }}>
+              <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 2 }}>
                 {bookDraws.length} / {students.length} tamamlandı
               </p>
             </div>
           </div>
+
+          <div style={{ width: 120 }} />
         </div>
 
         {/* Ana alan */}
         <div style={{
           flex: 1, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          padding: "40px 60px", gap: 32,
+          alignItems: "center",
+          paddingTop: 64, paddingBottom: 32,
+          paddingLeft: 48, paddingRight: 48,
+          gap: 36, overflowY: "auto",
         }}>
 
-          {/* Öğrenci isim alanı */}
-          {(phase === "picking" || phase === "ready") && selectedStudentId && (
+          {/* IDLE */}
+          {phase === "idle" && !allDone && (
+            <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <p style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
+                textTransform: "uppercase", color: "#94a3b8", margin: 0,
+              }}>
+                Çekiliş Hazır
+              </p>
+              <p style={{ fontSize: 15, color: "#64748b", margin: 0 }}>
+                Sıradaki katılımcıyı belirlemek için başlat&apos;a bas.
+              </p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#64748b", margin: 0 }}>
+                {remainingStudents.length} öğrenci katılacak
+              </p>
+            </div>
+          )}
+
+          {/* PICKING */}
+          {phase === "picking" && (
             <div style={{ textAlign: "center" }}>
               <p style={{
-                color: "rgba(255,255,255,0.32)", fontSize: 15,
-                fontWeight: 700, letterSpacing: "0.1em",
-                textTransform: "uppercase", marginBottom: 20,
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
+                textTransform: "uppercase", color: "#94a3b8", marginBottom: 18,
               }}>
-                Kitap Alacak Katılımcı
+                Katılımcı Seçiliyor
               </p>
-              <p style={{
-                fontSize: nameVisible ? 52 : 4,
-                fontWeight: 900,
-                color: "white",
-                letterSpacing: "-0.02em",
-                opacity: nameVisible ? 1 : 0,
-                transition: "all 0.28s cubic-bezier(0.34,1.56,0.64,1)",
-                transform: nameVisible ? "scale(1)" : "scale(0.04)",
-                margin: 0,
-              }}>
-                {selectedStudent?.name} {selectedStudent?.lastName}
-              </p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: 9, height: 9, borderRadius: "50%", background: "#2563eb",
+                    animation: `bkPulse 1s ease-in-out ${i * 0.2}s infinite`,
+                  }} />
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Idle: kaç kişi kaldı */}
-          {phase === "idle" && !allDone && !currentBook && (
-            <p style={{ color: "rgba(255,255,255,0.32)", fontSize: 15, fontWeight: 600 }}>
-              {remainingStudents.length} katılımcı kaldı
-            </p>
+          {/* READY */}
+          {phase === "ready" && selectedStudentId && (
+            <>
+              {/* Öğrenci ismi */}
+              <div style={{ textAlign: "center" }}>
+                {!spinDone && (
+                  <p style={{
+                    fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
+                    textTransform: "uppercase", color: "#94a3b8",
+                    margin: "0 0 14px",
+                  }}>
+                    Kitap Alacak Katılımcı
+                  </p>
+                )}
+                <p style={{
+                  fontSize:   nameVisible ? 44 : 4,
+                  fontWeight: 900,
+                  color:      "#1e293b",
+                  letterSpacing: "-0.025em",
+                  opacity:   nameVisible ? 1 : 0,
+                  transform: nameVisible ? "scale(1)" : "scale(0.05)",
+                  transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+                  margin: spinDone ? "0 0 8px" : 0,
+                }}>
+                  {selectedStudent?.name} {selectedStudent?.lastName}
+                </p>
+                {spinDone && (
+                  <p style={{ fontSize: 12, color: "#94a3b8", margin: 0, animation: "bkFadeIn 0.4s ease" }}>
+                    kitabı belirlendi
+                  </p>
+                )}
+              </div>
+
+              {/* Carousel (spin bitmeden) */}
+              {showCarousel && !spinDone && (
+                <BookCarousel
+                  allBooks={pool.items}
+                  winnerBook={currentBook!}
+                  onSpinComplete={handleSpinComplete}
+                />
+              )}
+
+              {/* Winner reveal (spin bittikten sonra — overflow dışında) */}
+              {spinDone && currentBook && (
+                <WinnerReveal book={currentBook} />
+              )}
+            </>
           )}
 
-          {/* Kitap kartı */}
-          {currentBook && (
-            <div style={{
-              opacity: bookRevealed ? 1 : 0,
-              transform: bookRevealed ? "scale(1) translateY(0)" : "scale(0.85) translateY(20px)",
-              transition: "all 0.45s cubic-bezier(0.34,1.56,0.64,1)",
-            }}>
-              <BookCard book={currentBook} />
-            </div>
-          )}
-
-          {/* Tamamlandı */}
-          {allDone && !currentBook && (
+          {/* DONE */}
+          {allDone && (
             <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
               <div style={{ fontSize: 48 }}>🎉</div>
-              <p style={{ color: "white", fontSize: 20, fontWeight: 900, margin: 0 }}>
+              <p style={{ color: "#1e293b", fontSize: 20, fontWeight: 900, margin: 0 }}>
                 Tüm katılımcılar tamamlandı!
               </p>
-              <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 13 }}>
+              <p style={{ color: "#64748b", fontSize: 13 }}>
                 Kitap dağılımı başarıyla tamamlandı.
               </p>
               <button
@@ -370,10 +854,9 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                 disabled={archiving || archived}
                 style={{
                   marginTop: 8, padding: "13px 36px", borderRadius: 50,
-                  background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)",
-                  color: "white", fontWeight: 700, fontSize: 14,
-                  border: "none", cursor: "pointer",
-                  boxShadow: "0 6px 20px rgba(58,123,213,0.25)",
+                  background: "#2563eb", color: "white",
+                  fontWeight: 700, fontSize: 14, border: "none", cursor: "pointer",
+                  boxShadow: "0 6px 20px rgba(37,99,235,0.25)",
                   opacity: archiving ? 0.6 : 1,
                 }}
               >
@@ -386,54 +869,32 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         {/* Alt buton */}
         <div style={{
           padding: "20px 40px",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
+          borderTop: "1px solid #e8ecf2",
+          background: "white",
           display: "flex", justifyContent: "center", alignItems: "center",
           minHeight: 88,
         }}>
-          {phase === "idle" && !allDone && !currentBook && (
-            <button
-              onClick={beginPicking}
-              style={{
-                padding: "16px 56px", borderRadius: 50,
-                background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)",
-                color: "white", fontWeight: 900, fontSize: 16,
-                border: "none", cursor: "pointer",
-                boxShadow: "0 8px 28px rgba(58,123,213,0.28)",
-              }}
-            >
+          {phase === "idle" && !allDone && (
+            <button onClick={beginPicking} style={{
+              padding: "16px 60px", borderRadius: 50,
+              background: "#2563eb", color: "white",
+              fontWeight: 900, fontSize: 16, border: "none", cursor: "pointer",
+              boxShadow: "0 8px 24px rgba(37,99,235,0.28)",
+            }}>
               Başlat
             </button>
           )}
 
-          {phase === "ready" && !currentBook && (
-            <button
-              onClick={handleDrawBook}
-              style={{
-                padding: "16px 56px", borderRadius: 50,
-                background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)",
-                color: "white", fontWeight: 900, fontSize: 16,
-                border: "none", cursor: "pointer",
-                boxShadow: "0 8px 28px rgba(58,123,213,0.28)",
-                animation: "fadeIn 0.3s ease",
-              }}
-            >
-              Kitap Çek
-            </button>
-          )}
-
-          {currentBook && bookRevealed && !allDone && (
-            <button
-              onClick={handleAdvance}
-              style={{
-                padding: "15px 48px", borderRadius: 50,
-                background: "rgba(104,154,223,0.12)",
-                color: "#689adf", fontWeight: 800, fontSize: 15,
-                border: "1px solid rgba(104,154,223,0.2)",
-                cursor: "pointer",
-                animation: "fadeIn 0.3s ease",
-              }}
-            >
-              Devam →
+          {phase === "ready" && !showCarousel && nameVisible && (
+            <button onClick={handleSpin} style={{
+              padding: "16px 60px", borderRadius: 50,
+              background: "#2563eb", color: "white",
+              fontWeight: 900, fontSize: 18, border: "none", cursor: "pointer",
+              boxShadow: "0 8px 24px rgba(37,99,235,0.28)",
+              letterSpacing: "0.06em",
+              animation: "bkFadeIn 0.35s ease",
+            }}>
+              ÇEVİR
             </button>
           )}
         </div>
@@ -442,60 +903,68 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         {(archiving || archived) && (
           <div style={{
             position: "fixed", inset: 0, zIndex: 9999,
-            background: "rgba(6,13,26,0.82)", backdropFilter: "blur(12px)",
+            background: "rgba(15,23,42,0.75)", backdropFilter: "blur(10px)",
             display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 20,
-            animation: "fadeIn 0.3s ease",
           }}>
             {archiving && !archived ? (
               <div style={{
                 width: 48, height: 48, borderRadius: "50%",
-                border: "3px solid rgba(255,255,255,0.12)",
-                borderTopColor: "#689adf",
-                animation: "spin 0.8s linear infinite",
+                border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#60a5fa",
+                animation: "bkSpin 0.8s linear infinite",
               }} />
             ) : (
               <div style={{
                 width: 64, height: 64, borderRadius: "50%",
-                background: "rgba(56,161,105,0.18)",
+                background: "rgba(56,161,105,0.22)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 32, animation: "popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+                fontSize: 32,
               }}>✓</div>
             )}
-            <div style={{ textAlign: "center" }}>
-              <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
-                {archiving && !archived ? "Kaydediliyor..." : "Ödev Tamamlandı"}
+            <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
+              {archiving && !archived ? "Kaydediliyor..." : "Ödev Tamamlandı"}
+            </p>
+            {archived && (
+              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>
+                Ana sayfaya dönülüyor...
               </p>
-              {archived && (
-                <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 13, marginTop: 8 }}>
-                  Ana sayfaya dönülüyor...
-                </p>
-              )}
-            </div>
+            )}
           </div>
         )}
 
-        {/* Keyframes */}
         <style>{`
-          @keyframes bookCardIn {
-            0%   { opacity:0; transform:scale(0.85) translateY(20px); }
-            100% { opacity:1; transform:scale(1) translateY(0); }
-          }
-          @keyframes spin    { to { transform:rotate(360deg); } }
-          @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
-          @keyframes popIn {
-            0%   { transform:scale(0.04); opacity:0; }
-            20%  { opacity:1; }
-            55%  { transform:scale(1.08); }
-            75%  { transform:scale(0.97); }
-            100% { transform:scale(1); opacity:1; }
+          @keyframes bkPulse    { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.6)} }
+          @keyframes bkSpin     { to{transform:rotate(360deg)} }
+          @keyframes bkFadeIn   { from{opacity:0} to{opacity:1} }
+          @keyframes bkSlideDown {
+            0%   { transform:translateY(-55px) scale(0.88); opacity:0; }
+            60%  { transform:translateY(5px) scale(1.02); opacity:1; }
+            100% { transform:translateY(0) scale(1); opacity:1; }
           }
         `}</style>
       </div>
 
-      {/* Kitap önizleme */}
+      {/* Sonuç modal */}
+      {showModal && selectedStudent && currentBook && (
+        <BookResultModal
+          student={selectedStudent}
+          book={currentBook}
+          task={task}
+          onAdvance={handleAdvance}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* Geçmiş önizleme */}
       {previewDraw && (
-        <BookPreviewOverlay draw={previewDraw} onClose={() => setPreviewDraw(null)} />
+        <BookResultModal
+          student={students.find(s => s.id === previewDraw.studentId)!}
+          book={previewDraw.book}
+          task={task}
+          onAdvance={() => {}}
+          onClose={() => setPreviewDraw(null)}
+          isPastView
+        />
       )}
     </div>
   );

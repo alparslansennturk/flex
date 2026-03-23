@@ -631,8 +631,8 @@ export default function GameScreen({
           style={{ borderBottom: "1px solid #e8ecf2" }}>
           <button onClick={() => router.push("/dashboard")}
             className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-slate-700 transition-colors">
-            <ArrowLeft size={15} />
-            <span className="text-[12px] font-semibold">Ana Sayfa</span>
+            <ArrowLeft size={17} />
+            <span className="text-[15px] font-semibold">Ana Sayfa</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -664,7 +664,7 @@ export default function GameScreen({
                 Sıradaki katılımcıyı belirlemek için başlat'a bas.
               </p>
               <p className="text-[15px] font-semibold text-slate-400">
-                {remainingStudents.length} katılımcı kaldı
+                {remainingStudents.length} öğrenci katılacak
               </p>
             </div>
           )}

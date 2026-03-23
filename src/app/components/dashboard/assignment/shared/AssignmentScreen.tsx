@@ -80,8 +80,8 @@ function EntryScreen({
           onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
           onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}
         >
-          <ArrowLeft size={15} />
-          <span className="text-[13px] font-semibold">Ana Sayfa</span>
+          <ArrowLeft size={17} />
+          <span className="text-[15px] font-semibold">Ana Sayfa</span>
         </button>
 
         <div className="flex items-center gap-3">

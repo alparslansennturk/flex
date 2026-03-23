@@ -13,14 +13,17 @@
     "@react-pdf/renderer": "^4.3.2",
     "@types/nodemailer": "^7.0.11",
     "@vercel/toolbar": "^0.2.2",
-    "firebase": "^12.10.0",
+    "clsx": "^2.1.1",
+    "firebase": "^12.11.0",
     "firebase-admin": "^13.6.1",
+    "framer-motion": "^12.38.0",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "nodemailer": "^8.0.3",
     "pako": "^2.1.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
