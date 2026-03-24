@@ -138,7 +138,7 @@ function FinalOverlay({
         draws:           draw.draws,
         deadline,
       });
-      await fetch("/api/send-kolaj", {
+      const res = await fetch("/api/send-kolaj", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -151,6 +151,7 @@ function FinalOverlay({
           pdfBase64,
         }),
       });
+      if (!res.ok) throw new Error("Mail gönderilemedi.");
       setMailSent(true);
     } finally {
       setSendingMail(false);

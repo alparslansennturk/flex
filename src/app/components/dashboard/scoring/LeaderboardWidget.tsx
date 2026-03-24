@@ -192,11 +192,11 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
       {/* Liste */}
       <div className="flex-1">
         {loading ? (
-          <div className="h-full flex items-center justify-center min-h-32.5">
+          <div className="h-full flex items-center justify-center min-h-[168px]">
             <div className="w-5 h-5 border-2 border-surface-100 border-t-[#FF8D28] rounded-full animate-spin" />
           </div>
         ) : students.length === 0 ? (
-          <div className="h-full flex items-center justify-center min-h-32.5">
+          <div className="h-full flex items-center justify-center min-h-[168px]">
             <p className="text-[13px] text-[#AEB4C0] font-medium text-center">
               Henüz puan kazanan öğrenci yok
             </p>

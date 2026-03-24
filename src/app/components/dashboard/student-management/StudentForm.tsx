@@ -236,10 +236,10 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               <div className="space-y-1.5 relative">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Cinsiyet</label>
                 <div className="relative">
-                  <select name="gender" value={studentGender || ""} onChange={(e) => setStudentGender(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-bold text-[14px] ${!studentGender ? 'text-neutral-400' : 'text-[#10294C]'} ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                  <select name="gender" value={studentGender || ""} onChange={(e) => setStudentGender(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all text-[14px] ${!studentGender ? 'text-neutral-400 font-normal' : 'text-[#10294C] font-bold'} ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
                     <option value="" disabled>Cinsiyet Seçiniz...</option>
-                    <option value="male">Erkek</option>
-                    <option value="female">Kadın</option>
+                    <option value="male" style={{ color: "#10294C", fontWeight: 600 }}>Erkek</option>
+                    <option value="female" style={{ color: "#10294C", fontWeight: 600 }}>Kadın</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
                 </div>
@@ -247,11 +247,11 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               <div className="space-y-1.5 relative">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Şube</label>
                 <div className="relative">
-                  <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-bold text-[14px] ${localErrors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
-                    <option value="" disabled hidden>Şube Seçiniz...</option>
-                    <option value="Kadıköy">Kadıköy</option>
-                    <option value="Şirinevler">Şirinevler</option>
-                    <option value="Pendik">Pendik</option>
+                  <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all text-[14px] ${!studentBranch ? 'text-neutral-400 font-normal' : 'text-[#10294C] font-bold'} ${localErrors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                    <option value="" disabled>Şube Seçiniz...</option>
+                    <option value="Kadıköy" style={{ color: "#10294C", fontWeight: 600 }}>Kadıköy</option>
+                    <option value="Şirinevler" style={{ color: "#10294C", fontWeight: 600 }}>Şirinevler</option>
+                    <option value="Pendik" style={{ color: "#10294C", fontWeight: 600 }}>Pendik</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
                 </div>

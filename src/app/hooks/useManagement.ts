@@ -528,9 +528,8 @@ await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
 await updateDoc(doc(db,"students",editingStudentId),studentData);
 setStudents((prev)=>prev.map((s)=>(s.id===editingStudentId?{...s,...studentData}:s)));
 }else{
-const docRef=await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
+await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
 await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
-setStudents(prev=>[{id:docRef.id,...studentData,points:0,createdAt:new Date()},...prev]);
 }
 }catch(error){
 console.error("HATA:",error);

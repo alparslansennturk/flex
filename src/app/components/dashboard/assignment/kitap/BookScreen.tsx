@@ -5,212 +5,116 @@ import { BookOpen } from "lucide-react";
 import AssignmentScreen from "../shared/AssignmentScreen";
 import BookGameScreen from "./BookGameScreen";
 
-// ─── Slot kitap verileri ──────────────────────────────────────────────────────
-// Renk paleti orijinal BOOK_SHAPES'ten alındı
+// ─── Kitap introsu için şekiller (kitap/sırt formunda dikdörtgenler) ──────────
 
-const SLOT_BOOKS = [
-  { c: "#1e3a6e" },
-  { c: "#2563eb" },
-  { c: "#1d4ed8" },
-  { c: "#3b82f6" },
-  { c: "#1e3a6e" }, // merkez (index 4)
-  { c: "#2563eb" },
-  { c: "#1d4ed8" },
-  { c: "#3b82f6" },
-  { c: "#1e3a6e" },
+const BOOK_SHAPES = [
+  { x: -145, y:  -85, w: 56, h: 72, r: -8,  c: "#1e40af", o: 0.55 },
+  { x:  130, y:  -75, w: 44, h: 58, r:  6,  c: "#2563eb", o: 0.45 },
+  { x:  158, y:   28, w: 60, h: 78, r: -5,  c: "#1d4ed8", o: 0.40 },
+  { x:   88, y:  128, w: 48, h: 62, r:  9,  c: "#3b82f6", o: 0.50 },
+  { x: -150, y:   68, w: 52, h: 68, r: -7,  c: "#2563eb", o: 0.45 },
+  { x: -158, y:  -25, w: 40, h: 52, r:  4,  c: "#1e40af", o: 0.40 },
+  { x:  -55, y:  148, w: 60, h: 76, r: -6,  c: "#3b82f6", o: 0.52 },
+  { x:   52, y: -148, w: 44, h: 56, r:  8,  c: "#2563eb", o: 0.45 },
+  { x:  168, y:  -55, w: 38, h: 50, r: -4,  c: "#1d4ed8", o: 0.36 },
+  { x: -162, y:   48, w: 52, h: 66, r:  7,  c: "#3b82f6", o: 0.40 },
+  { x:   78, y:  162, w: 44, h: 58, r: -9,  c: "#2563eb", o: 0.46 },
+  { x:  -78, y: -155, w: 56, h: 72, r:  5,  c: "#1e40af", o: 0.52 },
+  { x:   -5, y: -165, w: 36, h: 48, r: -3,  c: "#2563eb", o: 0.35 },
+  { x:  -92, y:   28, w: 32, h: 42, r:  6,  c: "#3b82f6", o: 0.30 },
 ];
-
-const BOOK_W    = 220;
-const BOOK_H    = 360;
-const BOOK_GAP  = 28;
-const BOOK_STEP = BOOK_W + BOOK_GAP;
-const CTR_IDX   = 4;
-
-// ease-out quart: hızlı başlar, yavaşlayarak durur
-function easeOutQuart(t: number) {
-  return 1 - Math.pow(1 - t, 4);
-}
 
 // ─── Kitap introsu ────────────────────────────────────────────────────────────
 
-type Phase = "init" | "spin" | "pulse" | "zoom" | "title" | "exit";
-
 function BookIntro({ onComplete }: { onComplete: () => void }) {
-  const [phase, setPhase]   = useState<Phase>("init");
-  const [stripX, setStripX] = useState(3000);
+  const [phase, setPhase] = useState<"enter" | "hold" | "exit">("enter");
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const w      = window.innerWidth;
-    const startX = w + 280;
-    const endX   = w / 2 - CTR_IDX * BOOK_STEP - BOOK_W / 2;
-    const dur    = 2000; // ms — slot dönüş süresi
-
-    setStripX(startX);
-
-    let startTs: number | null = null;
-    let raf: number;
-
-    const tick = (ts: number) => {
-      if (!startTs) startTs = ts;
-      const t = Math.min((ts - startTs) / dur, 1);
-      setStripX(startX + (endX - startX) * easeOutQuart(t));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-
-    const raf0 = requestAnimationFrame(() => { raf = requestAnimationFrame(tick); });
-
-    const t1 = setTimeout(() => setPhase("spin"),  60);
-    const t2 = setTimeout(() => setPhase("pulse"), 2200);
-    const t3 = setTimeout(() => setPhase("zoom"),  2900);
-    const t4 = setTimeout(() => setPhase("title"), 3700);
-    const t5 = setTimeout(() => setPhase("exit"),  4900);
-    const t6 = setTimeout(onComplete,              5400);
-
-    return () => {
-      cancelAnimationFrame(raf0);
-      cancelAnimationFrame(raf);
-      [t1, t2, t3, t4, t5, t6].forEach(clearTimeout);
-    };
+    const t1 = setTimeout(() => setPhase("hold"),   60);
+    const t2 = setTimeout(() => setPhase("exit"), 2100);
+    const t3 = setTimeout(onComplete,             2650);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onComplete]);
 
-  const isExit  = phase === "exit";
-  const isPulse = phase === "pulse";
-  const isZoom  = phase === "zoom" || phase === "title" || phase === "exit";
-  const isTitle = phase === "title" || phase === "exit";
+  const isIn  = phase !== "enter";
+  const isOut = phase === "exit";
 
   return (
-    <>
-      <style>{`
-        @keyframes bkPulse {
-          0%,100% { transform: scale(1)    translateY(0);     filter: brightness(1);   }
-          50%      { transform: scale(1.09) translateY(-7px);  filter: brightness(1.6); }
-        }
-        @keyframes bkDrop {
-          0%   { transform: scale(1)    translateY(0px);  }
-          28%  { transform: scale(0.95) translateY(52px); }
-          55%  { transform: scale(1.28) translateY(-22px);}
-          72%  { transform: scale(1.18) translateY(-8px); }
-          86%  { transform: scale(1.22) translateY(-14px);}
-          100% { transform: scale(1.20) translateY(-11px);}
-        }
-        @keyframes maskReveal {
-          from { clip-path: inset(0 0 0 100%); }
-          to   { clip-path: inset(0 0 0 0%);   }
-        }
-      `}</style>
-
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden select-none"
+      style={{
+        background: "radial-gradient(ellipse at 50% 38%, #0f1f45 0%, #060D1A 82%)",
+        transform:  isOut ? "translateX(110%)" : "translateX(0)",
+        transition: isOut ? "transform 0.55s cubic-bezier(0.7,0,1,1)" : "none",
+      }}
+    >
+      {/* Mavi glow */}
       <div
-        className="fixed inset-0 z-9999 flex items-center justify-center overflow-hidden select-none"
+        className="absolute w-120 h-120 rounded-full pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse at 50% 50%, #0e1f4a 0%, #060D1A 72%)",
-          transform:  isExit ? "translateX(110%)" : "translateX(0)",
-          transition: isExit ? "transform 0.55s cubic-bezier(0.7,0,1,1)" : "none",
+          background: "radial-gradient(circle, rgba(37,99,235,0.22) 0%, transparent 65%)",
+          transform:  isIn ? "scale(1)" : "scale(0)",
+          transition: "transform 1.1s cubic-bezier(0.22,1,0.36,1)",
+        }}
+      />
+
+      {/* Kitap şekilleri */}
+      {BOOK_SHAPES.map((sh, i) => (
+        <div
+          key={i}
+          className="absolute pointer-events-none"
+          style={{
+            width:        sh.w,
+            height:       sh.h,
+            background:   sh.c,
+            opacity:      isIn ? sh.o : 0,
+            borderRadius: "3px 3px 4px 4px",
+            left:  `calc(50% - ${sh.w / 2}px)`,
+            top:   `calc(50% - ${sh.h / 2}px)`,
+            transform: isIn
+              ? `translate(${sh.x}px, ${sh.y}px) rotate(${sh.r}deg) scale(1)`
+              : `translate(0px, 0px) rotate(${sh.r}deg) scale(0)`,
+            transition: isIn
+              ? `transform 0.9s cubic-bezier(0.34,1.56,0.64,1) ${i * 0.035}s, opacity 0.7s ease ${i * 0.035}s`
+              : "none",
+          }}
+        />
+      ))}
+
+      {/* İkon + başlık */}
+      <div
+        className="relative z-10 flex flex-col items-center gap-8"
+        style={{
+          transform:  isIn ? "scale(1) translateY(0)" : "scale(0.28) translateY(70px)",
+          opacity:    isIn ? 1 : 0,
+          transition: "all 0.7s cubic-bezier(0.34,1.56,0.64,1)",
         }}
       >
-        {/* Arka glow */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: "radial-gradient(circle at 50% 50%, rgba(37,99,235,0.13) 0%, transparent 58%)",
-        }} />
-
-        {/* ── Slot şeridi ── */}
         <div
-          className="absolute overflow-hidden"
-          style={{ width: "100%", height: BOOK_H + 80, top: "50%", transform: "translateY(-50%)" }}
+          className="w-28 h-28 rounded-3xl flex items-center justify-center"
+          style={{ background: "rgba(37,99,235,0.16)", boxShadow: "0 0 90px rgba(37,99,235,0.20)" }}
         >
           <div
-            style={{
-              position: "absolute",
-              top: 40,
-              height: BOOK_H,
-              display: "flex",
-              alignItems: "center",
-              gap: BOOK_GAP,
-              transform: `translateX(${stripX}px)`,
-              willChange: "transform",
-            }}
+            className="w-18 h-18 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(37,99,235,0.28)" }}
           >
-            {SLOT_BOOKS.map((bk, i) => {
-              const isC = i === CTR_IDX;
-              return (
-                <div
-                  key={i}
-                  style={{
-                    width:       BOOK_W,
-                    height:      BOOK_H,
-                    flexShrink:  0,
-                    borderRadius: "3px 4px 4px 3px",
-                    background: bk.c,
-                    border: isC
-                      ? "1px solid rgba(96,165,250,0.45)"
-                      : "1px solid rgba(255,255,255,0.07)",
-                    boxShadow: isC
-                      ? "0 0 70px rgba(96,165,250,0.35), 6px 12px 32px rgba(0,0,0,0.75)"
-                      : "4px 8px 22px rgba(0,0,0,0.55)",
-                    opacity:    isZoom && !isC ? 0.35 : 1,
-                    filter:     isZoom && !isC ? "blur(1px)" : "none",
-                    transition: isZoom ? "opacity 0.35s ease, filter 0.35s ease" : "none",
-                    animation:  isC && isPulse
-                      ? "bkPulse 0.22s ease-in-out 3"
-                      : isC && isZoom
-                      ? "bkDrop 0.95s cubic-bezier(0.34,1.56,0.64,1) forwards"
-                      : undefined,
-                    position: "relative",
-                    overflow: "hidden",
-                  }}
-                >
-                  {/* İnce sırt şeridi */}
-                  <div style={{
-                    position: "absolute", left: 0, top: 0, bottom: 0, width: 8,
-                    background: "rgba(0,0,0,0.45)", borderRadius: "3px 0 0 3px",
-                  }} />
-                  {/* Hafif parlama */}
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    background: "linear-gradient(148deg, rgba(255,255,255,0.07) 0%, transparent 50%)",
-                  }} />
-                  {/* Merkez kitap ikonu — sabit */}
-                  {isC && (
-                    <div style={{
-                      position: "absolute", inset: 0, display: "flex",
-                      alignItems: "center", justifyContent: "center",
-                      opacity: 0.5,
-                    }}>
-                      <BookOpen size={56} strokeWidth={1.1} style={{ color: "#93c5fd" }} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            <BookOpen size={38} strokeWidth={1.7} style={{ color: "#60a5fa" }} />
           </div>
         </div>
 
-        {/* ── Yazı — ikon altında ortalı, maske sağdan sola açılır ── */}
-        {isTitle && (
-          <div
-            className="absolute text-center pointer-events-none"
-            style={{
-              top:       "calc(50% + 36px)", // ikon merkezi (50%) + yarı ikon (28px) + 8px boşluk
-              left:      "50%",
-              transform: "translateX(-50%)",
-              animation: "maskReveal 0.65s cubic-bezier(0.22,1,0.36,1) forwards",
-            }}
-          >
-            <p style={{
-              color: "rgba(147,197,253,0.5)", fontSize: 11, fontWeight: 700,
-              letterSpacing: "0.45em", textTransform: "uppercase", marginBottom: 8,
-            }}>
-              Okuma Atölyesi
-            </p>
-            <div style={{ fontSize: 44, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>
-              <span style={{ color: "#fff" }}>Kitap </span>
-              <span style={{ color: "#60a5fa" }}>Dünyası</span>
-            </div>
-          </div>
-        )}
+        <div className="text-center">
+          <p className="text-[11px] font-bold tracking-[0.5em] uppercase mb-3" style={{ color: "rgba(147,197,253,0.5)" }}>
+            Okuma Atölyesi
+          </p>
+          <h1 className="text-[56px] font-black text-white leading-none" style={{ letterSpacing: "-0.03em" }}>
+            Kitap
+          </h1>
+          <h1 className="text-[56px] font-black leading-none" style={{ letterSpacing: "-0.03em", color: "#60a5fa" }}>
+            Dünyası
+          </h1>
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 
