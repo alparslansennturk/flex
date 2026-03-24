@@ -1,184 +1,142 @@
 # FLEX_CORE_LOG — Proje Beyni
-> Son güncelleme: 2026-03-23
-> Bu dosya her büyük commit sonrası güncellenir. PC'ye geçince buradan devam.
+> Son güncelleme: 2026-03-24
+> Bu dosya PC'ye geçince Claude'a verilir, kaldığı yerden devam eder.
 
 ---
 
 ## PROJE STACK
 
-- **Framework**: Next.js 14 App Router (Client Components — `"use client"`)
-- **Veritabanı**: Firebase Firestore (ana veri) + Firebase RTDB (kaynak havuz — eski sistem)
+- **Framework**: Next.js 14 App Router (`"use client"`)
+- **Veritabanı**: Firebase Firestore
 - **Auth**: Firebase Auth
 - **Mail**: Nodemailer (SMTP) — `src/app/lib/email.ts`
-- **PDF**: `@react-pdf/renderer` — client-side üretim, base64 çıktı
 - **Stil**: Tailwind CSS + inline styles
 
 ---
 
-## MEVCUT DURUM (Current State)
+## BUGÜN YAPILAN DEĞİŞİKLİKLER (2026-03-24)
 
-### PDF Motoru
-- Dosya: `src/app/components/dashboard/assignment/kolaj/generateKolajPdf.tsx`
-- `@react-pdf/renderer` kullanır, **client-side** üretilir
-- Font: Roboto (Google Fonts CDN) — Türkçe karakter desteği için
-- `Font.registerHyphenationCallback` ile kelime bölünmesi kapatıldı
-- PDF base64 string olarak üretilip mail route'una gönderilir
-- **Pratik limit**: Vercel serverless body limit ~160KB — büyük PDF'lerde API 413 hatası verir
-- Şu an sadece **Kolaj** için aktif. Kitap PDF'i henüz yapılmadı.
+### 1. BookGameScreen.tsx — Carousel Animasyon Sistemi
+Dosya: `src/app/components/dashboard/assignment/kitap/BookGameScreen.tsx`
 
-### Mail Hattı
-- API route: `src/app/api/send-kolaj/route.ts`
-- Lib: `src/app/lib/email.ts` (Nodemailer singleton transporter)
-- Servis: `src/app/services/emailService.ts`
-- Akış: `GameScreen → generateKolajPdf() → base64 → POST /api/send-kolaj → sendMail()`
-- Mail içeriği: HTML tablo (kategori + öğe) + PDF ek
-- `email.ts`'de sertifika PDF gönderimi için de TODO notu var (henüz yapılmadı)
-- Öğrenci e-postası yoksa mail butonu gizlenir
+**Yapılanlar:**
+- Slot machine carousel: `BookCarousel` tek bileşen, hiç unmount olmaz (kesinti sorunu çözüldü)
+- `spinDone` ve `revealed` prop'ları ile aşamalar yönetilir: spin → pulse → zoom
+- Spin sırasında kitap başlıkları bulanık (`filter: blur(2.5px)`), zoom olunca netleşir
+- Spin durduğunda merkez kart 3x pulse (`bkWinPulse 0.36s`)
+- 1150ms sonra merkez kart `bkCarouselZoom` ile aşağıya büyür (`transform-origin: top center`)
+- Yan kartlar eş zamanlı `opacity 0 + scale(0.65)` ile kaybolur
+- `overflow: visible` + `visibility: hidden` ile zoomed kart kesilmez
+- Renkler: `#1e3a6e` (çok koyu) kaldırıldı → `#1e40af` ile değiştirildi
+- Yazar ismi kart içinde, blur ile birlikte gelir/gider
 
-### Çekiliş / Picking Engine (Sol Panel Animasyonu)
-- Hook: `src/app/components/dashboard/assignment/shared/usePickingEngine.ts`
-- Aşamalar: `idle → picking → ready`
-- Mantık: `remainingStudents` listesinde `setInterval` ile highlight döner, 2800ms sonra kazanan belirlenir (1 kişi kaldıysa 0ms)
-- Sol panel (`StudentPanel`) highlight animasyonunu bu hook'tan alır
-- `accentColor` prop'u ile her ödev kendi rengini kullanır (kolaj: `#689adf`, kitap: `#60a5fa`)
-- Not: "Beyaz Slider / Çarkıfelek" bu projede yok — başka bir projeye ait
+**Keyframe'ler:**
+```
+bkWinPulse:    0.36s × 3 — merkez kart yanıp söner
+bkCarouselZoom: 0→3.2→2.4→2.9→2.7 scale, 0.42s — bounce efekti
+```
 
-### Nükleer Sıfırlama (Hard Reset)
-- Dosya: `src/app/components/dashboard/admin/SystemPanel.tsx`
-- `HardResetModal`: 2 adımlı — şifre doğrulama (Firebase re-auth) → `deleteCollection()` ile toplu silme
-- `deleteCollection()`: 500'lük batch'lerle tüm koleksiyonu temizler
-- Hangi koleksiyonları siler: puan/sezon verileri (scoring)
-- Admin paneli: `/dashboard/admin/migrate`
+**Label davranışı:**
+- "Kitap Alacak Katılımcı" üstte sabit kalır (isim kaymasın diye)
+- Spin bitince ismin ALTINDA "Kitap Belirlendi" fade-in ile çıkar
+- `margin: 0` sabit — conditional margin kaldırıldı (isim kayması düzeltildi)
 
-### Ödev Arşivi
-- Sayfa: `src/app/dashboard/archive/page.tsx`
-- Firestore'dan `assignment_archive` koleksiyonunu çeker
-- Her kayıt: `groupId, groupName, taskId, taskName, type, completedAt, draws[], students[]`
-- Grup bazında gruplandırılmış gösterim
+**Layout:**
+- Ana alan `gap: 16`, `paddingTop: 64`
+- İsim div'i `marginTop: 32`
+- Carousel altında büyüyünce isimle arası korunur (`transform-origin: top center`)
 
----
+### 2. SystemPanel.tsx — Yedek/Restore/Puan Sistemi
+Dosya: `src/app/components/dashboard/admin/SystemPanel.tsx`
 
-## KARAR GÜNLÜĞÜ (Decision Log)
+- **RestoreSystemModal**: groups, students, tasks, lottery_results, assignment_archive koleksiyonlarını backup subcollection'dan geri yükler. Önce `deleteCollection()` ile temizler, sonra batch write.
+- **Puan Yedeği Al**: Manuel score backup butonu eklendi
+- **Layout**: "Sistem Yönetimi" başlık → 2 kolonlu grid (Sistem Yedekleme + Tehlikeli Bölge) → "Puan Yönetimi" başlık → 2 kolonlu grid (Puan Yedekleme + Puan Sıfırlama)
 
-### Ödev Tipleri — `assignmentType` Sistemi
-- `taskTypes.tsx`'teki `Task` interface'ine `assignmentType?: "kolaj" | "kitap" | "sosyal_medya"` eklendi
-- `TaskForm`'da "Ödev Tipi" list menüsü var — template oluştururken seçilir
-- Template'den task klonlanırken (`handleGhostActivate` in `DesignParkour.tsx`) `assignmentType` kopyalanır
-- Routing: `DesignParkour.tsx` → `assignmentType` boşsa hiçbir yere gitmiyor (null route — bilerek)
-- **Yapılması gereken**: Mevcut tüm kolaj template'leri → "Kolaj Bahçesi", kitap template'leri → "Kitap Dünyası" seçilmeli
+### 3. Sidebar.tsx — Compact Mode
+Dosya: `src/app/components/layout/Sidebar.tsx`
 
-### Shared Assignment Mimarisi
-- `AssignmentScreen` (shared): task yükleme, status kontrolü, entry screen (öğrenci seçimi), akış yönetimi
-- Her ödev kendi `renderIntro` ve `renderGame` prop'unu sağlar
-- `StudentPanel` (shared): tüm ödevlerde sol panel aynı, sadece `accentColor` değişir
-- Entry screen ("Katılımcıları Seç"): 100% ortak, tüm ödevlerde aynı görünüm
-- Intro animasyonları: her ödevde farklı (kolaj: yaprak şekilleri/yeşil, kitap: dikdörtgenler/lacivert)
+- `useCompact()` hook: `window.innerHeight < 820` → hafif daraltma
+- Compact modda: logo padding 40→32px, nav mt-12 space-y-2, items py-3.25, bottom pb-6
 
-### Ödev Arşivinin Ayrılması
-- Tamamlanan çekilişler ana parkurdan kaldırılır, `assignment_archive` koleksiyonuna yazılır
-- Arşiv sayfası eğitmene geçmiş sonuçları gösterir, parkur temiz kalır
-- `lottery_results/{taskId}` ayrı tutulur — aynı task yeniden açılırsa entry atlanır
+### 4. BookScreen.tsx — Intro Animasyonu
+Dosya: `src/app/components/dashboard/assignment/kitap/BookScreen.tsx`
 
-### RTDB → Firestore Migrasyon (Arı Bilgi Bağlantısı)
-- Eski sistem: `grafik-tasarim-portali-default-rtdb.europe-west1.firebasedatabase.app` (Firebase RTDB)
-- Bu RTDB, kolaj elemanları / kitap kapakları / sosyal medya brand havuzlarını tutar
-- Migrasyon kodu: `src/app/lib/migration/assignmentDataMigration.ts`
-- `fetchRtdb()` ile RTDB'den çeker → `parseCollageItems()` / `parseBookCovers()` / `parseSMBrands()` ile dönüştürür → Firestore `lottery_configs/{type}` dokümanına yazar
-- Admin migrate sayfasından tetiklenir: `/dashboard/admin/migrate`
-- **Önemli**: RTDB ham verisi değişirse parse fonksiyonları güncellenmelidir
+- Slot machine: 9 kitap, ortadaki (index 4) kazanan
+- `easeOutQuart` ile 2000ms'de hızlı gelip yavaş durur
+- Duruktan sonra merkez kitap 3x pulse, sonra bounce ile büyür
+- "Kitap Dünyası" yazısı sağdan sola `clip-path: inset()` mask reveal ile açılır
+- İkon kitabın içinde sabit, yazı `top: calc(50% + 36px)` konumunda
+
+### 5. usePickingEngine.ts — resetToIdle parametresi
+Dosya: `src/app/components/dashboard/assignment/shared/usePickingEngine.ts`
+
+- `resetToIdle(autoPick = true)` parametresi eklendi
+- `handleClose` → `resetToIdle(false)` (kullanıcı manuel Başlat'a basar)
+- `handleNewPick` → `resetToIdle(true)` (otomatik çekiliş başlar)
 
 ---
 
-## TEKNİK BORÇLAR (Tech Debt)
+## MEVCUT DURUM
 
-### "Parsing failed" Hataları — Migrasyon
-- `parseCollageItems()`, `parseBookCovers()`, `parseSMBrands()` fonksiyonları RTDB'nin tam yapısını bekler
-- RTDB'de kategori objesi yerine `null` veya string gelirse sessizce atlanır
-- Hata: `throw new Error("RTDB verisi bulunamadı: {path}")` — path null dönünce
-- Çözüm: Her parse fonksiyonu önce `typeof catValue !== "object" || catValue === null` kontrolü yapıyor
-- Yine de yeni veri tipleri RTDB'ye eklenirse tip tanımları (`assignmentMigration.types.ts`) güncellenmeli
+### Kitap Ödevi (TAM ÇALIŞIYOR)
+- Picking engine: sol panelde öğrenci seçimi
+- Carousel: slot machine efekti, kazanan kitap animasyonlu reveal
+- Duplicate koruması: `availableBooks` filtresi + carousel + `handleSpinComplete` kontrolü
+- Firestore'a `lottery_results/{taskId}` kaydı
+- `BookResultModal`: PDF indirme + mail gönderme
+- Arşive kaydet: `assignment_archive` koleksiyonu
 
-### assignmentType Geriye Dönük Uyumluluk
-- Eski task'larda Firestore'da `assignmentType` alanı yok → "Ödev Detay" butonu çalışmaz
-- Tüm aktif ve arşiv task'larına manuel `assignmentType` set edilmeli (Firestore console'dan)
-
-### BookGameScreen Placeholder
-- `BookScreen.tsx` → `BookGameScreen` şu an sadece sol panel + boş sağ alan
-- `src/app/components/dashboard/assignment/kitap/BookGameScreen.tsx` dosyası var ama henüz bağlanmadı
-- 2. fazda: picking engine + kitap çekiliş mekanizması + PDF/mail
-
-### Mail — Sadece Kolaj
-- `/api/send-kolaj` sadece kolaj formatını biliyor
-- Kitap ödevi için ayrı `/api/send-kitap` route'u yazılacak (farklı mail şablonu)
-- `email.ts`'deki attachment yapısı hazır, sadece route + template eksik
+### Kolaj Ödevi (TAM ÇALIŞIYOR)
+- `GameScreen.tsx` — picking + çekiliş + PDF + mail
 
 ---
 
-## SIRADAKI HEDEFLER (Next Steps)
+## KRİTİK DOSYALAR
 
-### Kitap Oyun Alanı (Faz 2)
-- `BookGameScreen.tsx`'i `BookScreen.tsx`'e bağla (şu an placeholder var)
-- `usePickingEngine` hook'unu kitap için adapte et
-- Çekiliş: `lottery_configs/book` → her öğrenciye 1 kitap
-- `lottery_results/{taskId}` → sonuçları Firestore'a yaz
-- Sonuç overlay + PDF + mail
+```
+src/app/components/dashboard/assignment/
+├── shared/
+│   ├── AssignmentScreen.tsx    ← Ortak çerçeve (intro + game geçişi)
+│   ├── StudentPanel.tsx        ← Sol panel
+│   ├── usePickingEngine.ts     ← Picking hook (resetToIdle autoPick param'lı)
+│   └── types.ts
+├── kitap/
+│   ├── BookScreen.tsx          ← Intro animasyonu + AssignmentScreen wrapper
+│   └── BookGameScreen.tsx      ← TÜM OYUN BURADA (carousel + modal + firestore)
+├── kolaj/
+│   ├── KolajScreen.tsx
+│   └── GameScreen.tsx
+└── pool/
+    └── poolTypes.ts            ← BookPool, BookItem tipleri
 
-### Sosyal Medya Ödevi
-- `assignmentType: "sosyal_medya"` tanımlı, route yok
-- `/dashboard/sosyal-medya/page.tsx` oluşturulacak
-- `SocialMediaPoolPanel.tsx` var — havuz yönetimi hazır
-- Çekiliş mantığı: brand + sector + format kombinasyonu
+src/app/components/dashboard/admin/
+└── SystemPanel.tsx             ← Yedek/Restore/Puan/HardReset
 
-### Yoklama Modülü (Planlandı — Kodda Yok)
-- Öğrenci yoklaması için ayrı modül
-- Firestore'da `attendance` koleksiyonu
-- Grup bazında, tarih bazında kayıt
-- Dashboard'a entegrasyon
+src/app/components/layout/
+└── Sidebar.tsx                 ← Compact mode hook burada
+
+src/app/api/
+└── send-kitap/route.ts         ← Kitap mail API
+```
 
 ---
 
-## ORTAM / TERCIHLER
+## FIRESTORE KOLEKSIYONLARI
 
-- **VS Code font**: `"editor.fontSize": 13` (varsa settings.json'da)
-- **Node**: proje kök dizininde `.nvmrc` yoksa sistem Node kullanılıyor
+- `tasks` — aktif ödevler
+- `templates` — task şablonları
+- `students`, `groups`
+- `lottery_results/{taskId}` — çekiliş sonuçları (draws[])
+- `lottery_configs/book` — kitap havuzu (BookPool)
+- `lottery_configs/kolaj` — kolaj havuzu
+- `assignment_archive` — tamamlanan ödevler
+- `scores` — puanlar
+
+---
+
+## ORTAM
+
 - **Firebase proje ID**: `grafik-tasarim-portali`
 - **RTDB bölge**: `europe-west1`
-- **Firestore koleksiyonları**: `tasks`, `templates`, `students`, `groups`, `lottery_results`, `lottery_configs`, `assignment_archive`, `scores`
-
----
-
-## DOSYA HARİTASI (Kritik Dosyalar)
-
-```
-src/app/
-├── components/dashboard/
-│   ├── assignment/
-│   │   ├── shared/
-│   │   │   ├── AssignmentScreen.tsx   ← Tüm ödevlerin ortak çerçevesi
-│   │   │   ├── StudentPanel.tsx       ← Sol panel (accentColor prop'lu)
-│   │   │   ├── usePickingEngine.ts    ← Picking animasyon hook'u
-│   │   │   └── types.ts               ← Student, TaskData, DrawResult vb.
-│   │   ├── kolaj/
-│   │   │   ├── KolajScreen.tsx        ← Intro + AssignmentScreen wrapper
-│   │   │   ├── GameScreen.tsx         ← Kolaj çekiliş ekranı (tam)
-│   │   │   └── generateKolajPdf.tsx   ← PDF motoru
-│   │   ├── kitap/
-│   │   │   ├── BookScreen.tsx         ← Intro + sol panel + placeholder sağ
-│   │   │   └── BookGameScreen.tsx     ← Henüz bağlanmadı (faz 2)
-│   │   ├── TaskForm.tsx               ← "Ödev Tipi" list menüsü burada
-│   │   └── taskTypes.tsx              ← Task interface + assignmentType
-│   ├── scoring/
-│   │   └── DesignParkour.tsx          ← Ana parkur + routing
-│   └── admin/
-│       └── SystemPanel.tsx            ← Hard Reset
-├── api/
-│   └── send-kolaj/route.ts            ← Mail API
-├── lib/
-│   ├── email.ts                       ← Nodemailer transporter
-│   └── migration/
-│       └── assignmentDataMigration.ts ← RTDB → Firestore
-└── dashboard/
-    ├── kolaj/page.tsx
-    ├── kitap/page.tsx
-    └── archive/page.tsx
-```
+- **Mail API**: `/api/send-kitap`, `/api/send-kolaj`

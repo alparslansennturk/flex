@@ -26,9 +26,9 @@ const BOOK_GAP  = 28;
 const BOOK_STEP = BOOK_W + BOOK_GAP;
 const CTR_IDX   = 4;
 
-// ease-in-out cubic: yavaş → hızlı → yavaş
-function easeInOutCubic(t: number) {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+// ease-out quart: hızlı başlar, yavaşlayarak durur
+function easeOutQuart(t: number) {
+  return 1 - Math.pow(1 - t, 4);
 }
 
 // ─── Kitap introsu ────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ function BookIntro({ onComplete }: { onComplete: () => void }) {
     const w      = window.innerWidth;
     const startX = w + 280;
     const endX   = w / 2 - CTR_IDX * BOOK_STEP - BOOK_W / 2;
-    const dur    = 3600; // ms — slot dönüş süresi (uzun, yumuşak)
+    const dur    = 2000; // ms — slot dönüş süresi
 
     setStripX(startX);
 
@@ -55,18 +55,18 @@ function BookIntro({ onComplete }: { onComplete: () => void }) {
     const tick = (ts: number) => {
       if (!startTs) startTs = ts;
       const t = Math.min((ts - startTs) / dur, 1);
-      setStripX(startX + (endX - startX) * easeInOutCubic(t));
+      setStripX(startX + (endX - startX) * easeOutQuart(t));
       if (t < 1) raf = requestAnimationFrame(tick);
     };
 
     const raf0 = requestAnimationFrame(() => { raf = requestAnimationFrame(tick); });
 
     const t1 = setTimeout(() => setPhase("spin"),  60);
-    const t2 = setTimeout(() => setPhase("pulse"), 3800);
-    const t3 = setTimeout(() => setPhase("zoom"),  4750);
-    const t4 = setTimeout(() => setPhase("title"), 5550);
-    const t5 = setTimeout(() => setPhase("exit"),  6700);
-    const t6 = setTimeout(onComplete,              7200);
+    const t2 = setTimeout(() => setPhase("pulse"), 2200);
+    const t3 = setTimeout(() => setPhase("zoom"),  2900);
+    const t4 = setTimeout(() => setPhase("title"), 3700);
+    const t5 = setTimeout(() => setPhase("exit"),  4900);
+    const t6 = setTimeout(onComplete,              5400);
 
     return () => {
       cancelAnimationFrame(raf0);
@@ -95,9 +95,9 @@ function BookIntro({ onComplete }: { onComplete: () => void }) {
           86%  { transform: scale(1.22) translateY(-14px);}
           100% { transform: scale(1.20) translateY(-11px);}
         }
-        @keyframes titleUp {
-          from { transform: translateY(30px); opacity: 0; }
-          to   { transform: translateY(0px);  opacity: 1; }
+        @keyframes maskReveal {
+          from { clip-path: inset(0 0 0 100%); }
+          to   { clip-path: inset(0 0 0 0%);   }
         }
       `}</style>
 
@@ -152,7 +152,7 @@ function BookIntro({ onComplete }: { onComplete: () => void }) {
                     filter:     isZoom && !isC ? "blur(1px)" : "none",
                     transition: isZoom ? "opacity 0.35s ease, filter 0.35s ease" : "none",
                     animation:  isC && isPulse
-                      ? "bkPulse 0.36s ease-in-out 3"
+                      ? "bkPulse 0.22s ease-in-out 3"
                       : isC && isZoom
                       ? "bkDrop 0.95s cubic-bezier(0.34,1.56,0.64,1) forwards"
                       : undefined,
@@ -170,14 +170,14 @@ function BookIntro({ onComplete }: { onComplete: () => void }) {
                     position: "absolute", inset: 0,
                     background: "linear-gradient(148deg, rgba(255,255,255,0.07) 0%, transparent 50%)",
                   }} />
-                  {/* Merkez kitap ikonu */}
+                  {/* Merkez kitap ikonu — sabit */}
                   {isC && (
                     <div style={{
                       position: "absolute", inset: 0, display: "flex",
                       alignItems: "center", justifyContent: "center",
-                      opacity: 0.45,
+                      opacity: 0.5,
                     }}>
-                      <BookOpen size={52} strokeWidth={1.1} style={{ color: "#93c5fd" }} />
+                      <BookOpen size={56} strokeWidth={1.1} style={{ color: "#93c5fd" }} />
                     </div>
                   )}
                 </div>
@@ -186,15 +186,15 @@ function BookIntro({ onComplete }: { onComplete: () => void }) {
           </div>
         </div>
 
-        {/* ── Kitap Dünyası yazısı ── */}
+        {/* ── Yazı — ikon altında ortalı, maske sağdan sola açılır ── */}
         {isTitle && (
           <div
             className="absolute text-center pointer-events-none"
             style={{
-              top:       "50%",
+              top:       "calc(50% + 36px)", // ikon merkezi (50%) + yarı ikon (28px) + 8px boşluk
               left:      "50%",
-              transform: `translate(-50%, calc(50% + ${BOOK_H / 2 + 24}px))`,
-              animation: "titleUp 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards",
+              transform: "translateX(-50%)",
+              animation: "maskReveal 0.65s cubic-bezier(0.22,1,0.36,1) forwards",
             }}
           >
             <p style={{
@@ -203,9 +203,7 @@ function BookIntro({ onComplete }: { onComplete: () => void }) {
             }}>
               Okuma Atölyesi
             </p>
-            <div style={{
-              fontSize: 44, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1,
-            }}>
+            <div style={{ fontSize: 44, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>
               <span style={{ color: "#fff" }}>Kitap </span>
               <span style={{ color: "#60a5fa" }}>Dünyası</span>
             </div>

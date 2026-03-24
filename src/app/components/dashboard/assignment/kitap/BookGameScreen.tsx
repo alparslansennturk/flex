@@ -42,9 +42,9 @@ function easeInOutExpo(t: number) {
 
 // ─── SpinnerCard ──────────────────────────────────────────────────────────────
 
-const SPINNER_COLORS = ["#1e3a6e", "#2563eb", "#1d4ed8", "#3b82f6", "#1e3a6e", "#2563eb"];
+const SPINNER_COLORS = ["#2563eb", "#1d4ed8", "#3b82f6", "#1e40af", "#2563eb", "#1d4ed8"];
 
-function SpinnerCard({ book, colorIdx }: { book: BookItem; colorIdx: number }) {
+function SpinnerCard({ book, colorIdx, blurred = true }: { book: BookItem; colorIdx: number; blurred?: boolean }) {
   const bg = SPINNER_COLORS[colorIdx % SPINNER_COLORS.length];
   return (
     <div style={{
@@ -74,28 +74,42 @@ function SpinnerCard({ book, colorIdx }: { book: BookItem; colorIdx: number }) {
       }} />
       <BookOpen size={22} strokeWidth={1.4} style={{ color: "rgba(255,255,255,0.55)", position: "relative" }} />
       <p style={{
-        fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.75)",
+        fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.88)",
         textAlign: "center", lineHeight: 1.3,
         margin: 0, padding: "0 4px", position: "relative",
+        filter: blurred ? "blur(2.5px)" : "none",
+        transition: "filter 0.5s ease",
       }}>
         {book.title}
       </p>
+      {book.author && (
+        <p style={{
+          fontSize: 7.5, fontWeight: 500, color: "rgba(255,255,255,0.55)",
+          textAlign: "center", lineHeight: 1.2, fontStyle: "italic",
+          margin: 0, padding: "0 4px", position: "relative",
+          filter: blurred ? "blur(2px)" : "none",
+          transition: "filter 0.5s ease",
+        }}>
+          {book.author}
+        </p>
+      )}
     </div>
   );
 }
 
-// ─── BookCarousel — sadece dönen kısım ───────────────────────────────────────
+// ─── BookCarousel — spin + pulse + zoom, tek bileşen ─────────────────────────
 
 function BookCarousel({
-  allBooks, winnerBook, onSpinComplete,
+  allBooks, winnerBook, onSpinComplete, spinDone, revealed,
 }: {
   allBooks: BookItem[];
   winnerBook: BookItem;
   onSpinComplete: () => void;
+  spinDone: boolean;
+  revealed: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const rafRef   = useRef<number | null>(null);
-
   const track = useMemo(() => {
     const arr: BookItem[] = [];
     for (let i = 0; i < TRACK_REPS; i++) arr.push(...allBooks);
@@ -112,9 +126,9 @@ function BookCarousel({
     [targetTrackIdx],
   );
 
+  // Spin animasyonu — yalnızca mount'ta çalışır
   useEffect(() => {
     const startTime = performance.now();
-
     const animate = (now: number) => {
       const t     = Math.min((now - startTime) / SPIN_MS, 1);
       const eased = easeInOutExpo(t);
@@ -127,11 +141,7 @@ function BookCarousel({
         onSpinComplete();
       }
     };
-
-    const delay = setTimeout(() => {
-      rafRef.current = requestAnimationFrame(animate);
-    }, 150);
-
+    const delay = setTimeout(() => { rafRef.current = requestAnimationFrame(animate); }, 150);
     return () => {
       clearTimeout(delay);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -139,123 +149,77 @@ function BookCarousel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <div style={{
-      width: VIEWPORT_W,
-      height: CARD_H + 16,
-      overflow: "hidden",
-      position: "relative",
-      display: "flex",
-      alignItems: "center",
-    }}>
-      {/* Kenar maskesi */}
-      <div style={{
-        position: "absolute", left: 0, top: 0, bottom: 0, width: 80, zIndex: 2, pointerEvents: "none",
-        background: "linear-gradient(to right, #f5f7fb, transparent)",
-      }} />
-      <div style={{
-        position: "absolute", right: 0, top: 0, bottom: 0, width: 80, zIndex: 2, pointerEvents: "none",
-        background: "linear-gradient(to left, #f5f7fb, transparent)",
-      }} />
-
-      {/* Merkez hedef işareti */}
-      <div style={{
-        position: "absolute",
-        left: "50%", transform: "translateX(-50%)",
-        top: 8, bottom: 8,
-        width: CARD_W + 6, borderRadius: 12,
-        border: "2px dashed #cbd5e1",
-        zIndex: 1, pointerEvents: "none",
-      }} />
-
-      {/* Track */}
-      <div ref={trackRef} style={{
-        display: "flex", gap: CARD_GAP,
-        willChange: "transform", flexShrink: 0,
-      }}>
-        {track.map((book, i) => (
-          <SpinnerCard key={`${book.id}-${i}`} book={book} colorIdx={i} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── WinnerReveal — overflow dışında, serbest animasyon ──────────────────────
-
-function WinnerReveal({ book }: { book: BookItem }) {
-  const [titleVisible, setTitleVisible] = useState(false);
-
+  // spinDone olunca track'i dondur
   useEffect(() => {
-    const t = setTimeout(() => setTitleVisible(true), 500);
-    return () => clearTimeout(t);
-  }, []);
+    if (spinDone && trackRef.current) {
+      trackRef.current.style.transform = `translateX(${targetX}px)`;
+    }
+  }, [spinDone, targetX]);
 
   return (
-    <div style={{
-      display: "flex", flexDirection: "column",
-      alignItems: "center", gap: 24,
-    }}>
-      {/* Kitap kartı — mavi, bounce ile büyür */}
-      <div style={{ animation: "bkWinReveal 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards" }}>
-        <div style={{
-          width: CARD_W * 2.1,
-          height: CARD_H * 2.1,
-          borderRadius: 12,
-          background: "#2563eb",
-          border: "1px solid rgba(147,197,253,0.35)",
-          boxShadow: "0 0 60px rgba(37,99,235,0.45), 8px 16px 40px rgba(0,0,0,0.5)",
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          padding: "20px 14px", gap: 10,
-          position: "relative", overflow: "hidden",
-        }}>
-          {/* Sırt şeridi */}
-          <div style={{
-            position: "absolute", left: 0, top: 0, bottom: 0,
-            width: 10, borderRadius: "12px 0 0 12px",
-            background: "rgba(0,0,0,0.40)",
-          }} />
-          {/* Parlama */}
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(145deg, rgba(255,255,255,0.10) 0%, transparent 50%)",
-          }} />
-          <BookOpen size={42} strokeWidth={1.1} style={{ color: "rgba(255,255,255,0.60)", position: "relative" }} />
-          <p style={{
-            fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.80)",
-            textAlign: "center", lineHeight: 1.4, margin: 0, padding: "0 6px",
-            position: "relative",
-          }}>
-            {book.title}
-          </p>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{
+        width: VIEWPORT_W, height: CARD_H + 16,
+        overflow: spinDone ? "visible" : "hidden", position: "relative",
+        display: "flex", alignItems: "center",
+      }}>
+        {/* Kenar maskeleri — sadece spin sırasında */}
+        {!spinDone && (
+          <>
+            <div style={{
+              position: "absolute", left: 0, top: 0, bottom: 0, width: 80, zIndex: 2, pointerEvents: "none",
+              background: "linear-gradient(to right, #f5f7fb, transparent)",
+            }} />
+            <div style={{
+              position: "absolute", right: 0, top: 0, bottom: 0, width: 80, zIndex: 2, pointerEvents: "none",
+              background: "linear-gradient(to left, #f5f7fb, transparent)",
+            }} />
+            <div style={{
+              position: "absolute", left: "50%", transform: "translateX(-50%)",
+              top: 8, bottom: 8, width: CARD_W + 6, borderRadius: 12,
+              border: "2px dashed #cbd5e1", zIndex: 1, pointerEvents: "none",
+            }} />
+          </>
+        )}
+
+        {/* Track — asla unmount olmaz */}
+       {/* Track — asla unmount olmaz */}
+        <div ref={trackRef} style={{ display: "flex", gap: CARD_GAP, willChange: "transform", flexShrink: 0 }}>
+          {track.map((book, i) => {
+            const offset   = i - targetTrackIdx;
+            const isCenter = offset === 0;
+            const isSide   = spinDone && !isCenter;
+
+            // Hızlı, tok ve AŞAĞI DOĞRU yaylanan animasyon (Pulse beklemesi yok)
+            const cardAnimation = spinDone && isCenter
+              ? "bkSmoothDrop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards"
+              : "none";
+
+            return (
+              <div
+                key={`${book.id}-${i}`}
+                style={{
+                  flexShrink: 0,
+                  visibility: spinDone && Math.abs(offset) > 2 ? "hidden" : "visible",
+                  opacity: isSide ? 0 : 1,
+                  transform: isSide ? "scale(0.8)" : "scale(1)",
+                  transition: isSide ? "all 0.5s ease" : "none",
+                  animation: cardAnimation,
+                  transformOrigin: "top center", // AŞAĞI DOĞRU büyüme için kilit ayar
+                  zIndex: isCenter ? 10 : 1,
+                }}
+              >
+                <SpinnerCard
+                  book={book}
+                  colorIdx={i}
+                  blurred={!(spinDone && isCenter)} // Durduğu an netleşsin
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* İsim — küçükten büyüğe patlar */}
-      <div style={{
-        textAlign: "center",
-        opacity:   titleVisible ? 1 : 0,
-        transform: titleVisible ? "scale(1) translateY(0)" : "scale(0.08) translateY(10px)",
-        transition: "all 0.40s cubic-bezier(0.34,1.56,0.64,1)",
-      }}>
-        <p style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: "0.4em",
-          textTransform: "uppercase", color: "#94a3b8",
-          margin: "0 0 8px",
-        }}>
-          Kazanan Kitap
-        </p>
-        <p style={{
-          fontSize: 26, fontWeight: 900, color: "#1e293b",
-          letterSpacing: "-0.02em", margin: "0 0 5px",
-        }}>
-          {book.title}
-        </p>
-        <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
-          {book.author}
-        </p>
-      </div>
     </div>
   );
 }
@@ -659,8 +623,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     setDoc(doc(db, "lottery_results", task.id), {
       draws: updated, groupId: task.groupId ?? "", lastUpdated: serverTimestamp(),
     });
-    // 3 pulse (~1.4s) sonra kitabı büyüt
-    revealTimerRef.current = setTimeout(() => setWinnerRevealed(true), 1400);
+    // 3 pulse (~1.1s) sonra kitabı büyüt
+    revealTimerRef.current = setTimeout(() => setWinnerRevealed(true), 1150);
     // Sonra modal
     modalTimerRef.current = setTimeout(() => setShowModal(true), 5200);
   }, [selectedStudent, currentBook, bookDraws, task]);
@@ -786,7 +750,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           alignItems: "center",
           paddingTop: 64, paddingBottom: 32,
           paddingLeft: 48, paddingRight: 48,
-          gap: 36, overflowY: "auto",
+          gap: 16, overflowY: "auto",
         }}>
 
           {/* IDLE */}
@@ -830,67 +794,46 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           {/* READY */}
           {phase === "ready" && selectedStudentId && (
             <>
-              {/* Öğrenci ismi */}
-              <div style={{ textAlign: "center" }}>
-                {!spinDone && (
-                  <p style={{
-                    fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
-                    textTransform: "uppercase", color: "#94a3b8",
-                    margin: "0 0 14px",
-                  }}>
-                    Kitap Alacak Katılımcı
-                  </p>
-                )}
+             {/* Öğrenci ismi */}
+              <div style={{ textAlign: "center", marginTop: 32, marginBottom: 32 }}> {/* 60 yerine 32 yaptık */}
+                <p style={{
+                  fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
+                  textTransform: "uppercase", color: "#94a3b8",
+                  margin: "0 0 14px",
+                }}>
+                  Kitap Alacak Katılımcı
+                </p>
                 <p style={{
                   fontSize:      44,
                   fontWeight:    900,
                   letterSpacing: "-0.025em",
                   opacity:       nameVisible ? 1 : 0,
                   animation:     nameVisible ? "nameBounce 0.75s ease forwards" : "none",
-                  margin:        spinDone ? "0 0 8px" : 0,
+                  margin:        0,
                 }}>
                   <span style={{ color: "#1e293b" }}>{selectedStudent?.name} </span>
                   <span style={{ color: "#2563eb" }}>{selectedStudent?.lastName}</span>
                 </p>
                 {spinDone && (
-                  <p style={{ fontSize: 12, color: "#94a3b8", margin: 0, animation: "bkFadeIn 0.4s ease" }}>
-                    kitabı belirlendi
+                  <p style={{
+                    fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
+                    textTransform: "uppercase", color: "#94a3b8",
+                    margin: "14px 0 0", animation: "bkFadeIn 0.4s ease",
+                  }}>
+                    Kitap Belirlendi
                   </p>
                 )}
               </div>
 
-              {/* Carousel (spin bitmeden) */}
-              {showCarousel && !spinDone && (
+              {/* Carousel — spin + pulse + zoom, hiç unmount olmaz */}
+              {showCarousel && currentBook && (
                 <BookCarousel
                   allBooks={availableBooks}
-                  winnerBook={currentBook!}
+                  winnerBook={currentBook}
                   onSpinComplete={handleSpinComplete}
+                  spinDone={spinDone}
+                  revealed={winnerRevealed}
                 />
-              )}
-
-              {/* Spin bitti → 3 pulse */}
-              {spinDone && !winnerRevealed && currentBook && (
-                <div style={{ animation: "bkWinPulse 0.44s ease-in-out 3" }}>
-                  <div style={{
-                    width: CARD_W, height: CARD_H, borderRadius: 12,
-                    background: "#2563eb",
-                    border: "2px solid #93c5fd",
-                    display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center",
-                    padding: "16px 10px", gap: 8, position: "relative", overflow: "hidden",
-                  }}>
-                    <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 8, background: "rgba(0,0,0,0.35)", borderRadius: "12px 0 0 12px" }} />
-                    <BookOpen size={28} strokeWidth={1.3} style={{ color: "rgba(255,255,255,0.6)", position: "relative" }} />
-                    <p style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.8)", textAlign: "center", margin: 0, position: "relative" }}>
-                      {currentBook.title}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Winner reveal (pulse bittikten sonra — bounce ile büyür) */}
-              {spinDone && winnerRevealed && currentBook && (
-                <WinnerReveal book={currentBook} />
               )}
             </>
           )}
@@ -988,7 +931,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           </div>
         )}
 
-        <style>{`
+       <style>{`
           @keyframes bkPulse    { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.6)} }
           @keyframes bkSpin     { to{transform:rotate(360deg)} }
           @keyframes bkFadeIn   { from{opacity:0} to{opacity:1} }
@@ -999,16 +942,12 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
             82%  { transform:scale(1.07); }
             100% { transform:scale(1.00); }
           }
-          @keyframes bkWinPulse {
-            0%,100% { transform:scale(1);    filter:brightness(1);   }
-            50%     { transform:scale(1.09); filter:brightness(1.5); }
-          }
-          @keyframes bkWinReveal {
-            0%   { transform:scale(0.20) translateY(20px); opacity:0; }
-            45%  { transform:scale(1.15) translateY(-8px);  opacity:1; }
-            65%  { transform:scale(0.95) translateY(3px); }
-            82%  { transform:scale(1.05) translateY(-2px); }
-            100% { transform:scale(1.00) translateY(0);   opacity:1; }
+          @keyframes bkSmoothDrop {
+            0%   { transform: scale(1) translateY(0); }
+            40%  { transform: scale(1.95) translateY(12px); } /* Hafifçe isme binmeden aşağı büyüme */
+            60%  { transform: scale(1.75) translateY(6px); }  /* Pürüzsüz geri yaylanma */
+            80%  { transform: scale(1.85) translateY(10px); } /* Hafif ikinci sekme */
+            100% { transform: scale(1.80) translateY(8px); }  /* Tok bir şekilde yerine oturma */
           }
         `}</style>
       </div>

@@ -416,7 +416,7 @@ function Modal({ children, visible, onClose, overlayColor = "bg-base-primary-900
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
       <div className={`absolute inset-0 ${overlayColor} backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
-      <div className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
+      <div className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-xl p-8 flex flex-col gap-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
         {children}
       </div>
     </div>
@@ -475,7 +475,7 @@ function Section({ title, description, icon, iconBg, iconColor, border, children
           {React.cloneElement(icon, { size: 20, className: iconColor })}
         </div>
         <div>
-          <p className="text-[16px] font-bold text-base-primary-900 leading-none">{title}</p>
+          <p className="text-[20px] font-bold text-base-primary-900 leading-none">{title}</p>
           <p className="text-[12px] text-surface-400 mt-1">{description}</p>
         </div>
       </div>
@@ -500,8 +500,48 @@ export default function SystemPanel() {
   const [loadingBackups, setLoadingBackups]  = useState(true);
   const [deletingBackup, setDeletingBackup]  = useState<string | null>(null);
 
+  const [scoreBacking, setScoreBacking] = useState(false);
+  const [scoreBackupDone, setScoreBackupDone] = useState(false);
+
   const [toast, setToast] = useState("");
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
+
+  const handleScoreBackup = async () => {
+    setScoreBacking(true); setScoreBackupDone(false);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("no-user");
+      const allSnap = await getDocs(collection(db, "students"));
+      const backupRef = await addDoc(collection(db, "scores_backup"), {
+        createdAt: serverTimestamp(), createdBy: user.uid,
+        studentCount: allSnap.docs.length, seasonId: activeSeasonId,
+      });
+      for (let i = 0; i < allSnap.docs.length; i += 500) {
+        const batch = writeBatch(db);
+        allSnap.docs.slice(i, i + 500).forEach(d => {
+          const data = d.data() as any;
+          batch.set(doc(collection(db, "scores_backup_entries")), {
+            backupId: backupRef.id, studentId: d.id,
+            gradedTasks: data.gradedTasks ?? {}, isScoreHidden: data.isScoreHidden ?? false,
+          });
+        });
+        await batch.commit();
+      }
+      // Son 5 yedeği koru
+      const allB = await getDocs(query(collection(db, "scores_backup"), orderBy("createdAt", "desc")));
+      for (const old of allB.docs.slice(5)) {
+        const oldE = await getDocs(query(collection(db, "scores_backup_entries"), where("backupId", "==", old.id)));
+        const b = writeBatch(db);
+        oldE.docs.forEach(e => b.delete(e.ref));
+        b.delete(old.ref);
+        await b.commit();
+      }
+      setScoreBackupDone(true);
+      showToast("Puan yedeği alındı.");
+    } catch (e) {
+      console.error(e); showToast("Yedekleme sırasında hata oluştu.");
+    } finally { setScoreBacking(false); }
+  };
 
   const loadBackups = () => {
     setLoadingBackups(true);
@@ -555,7 +595,13 @@ export default function SystemPanel() {
 
   return (
     <div className="w-full max-w-[1920px] mx-auto px-8 py-8">
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-8">
+
+        {/* ── Sistem Yönetimi ───────────────────────────────────────────────────── */}
+        <div>
+          <h1 className="text-[26px] font-black text-base-primary-900 leading-none">Sistem Yönetimi</h1>
+          <p className="text-[13px] text-surface-400 mt-1">Yedekleme, geri yükleme ve sıfırlama işlemleri</p>
+        </div>
 
         {/* ── Satır 1: Sistem Yedekleme + Tehlikeli Bölge ─────────────────────── */}
         <div className="grid grid-cols-2 gap-6">
@@ -635,35 +681,65 @@ export default function SystemPanel() {
         </div>
 
         {/* ── Satır 2: Puan Yönetimi — tam genişlik ───────────────────────────── */}
-        <Section
-          title="Puan Yönetimi"
-          description="Öğrenci puanlarını sıfırla, yedeğe geri dön veya gizlenmiş puanları aç"
-          icon={<Flame />} iconBg="bg-amber-50" iconColor="text-amber-500"
-        >
-          <div className="grid grid-cols-3 gap-4">
-            <ActionCard
-              icon={<Flame size={18} className="text-status-danger-500" />} iconBg="bg-status-danger-50"
-              title="Puanları Sıfırla"
-              desc="Tüm öğrenci puanlarını ve görev kayıtlarını kalıcı olarak siler. İşlem öncesi otomatik yedek oluşturulur."
-              onClick={() => setShowHardReset(true)}
-              btnLabel="Sıfırla" btnClass="text-status-danger-600 border-status-danger-200 hover:bg-status-danger-50"
-            />
-            <ActionCard
-              icon={<RotateCcw size={18} className="text-base-primary-500" />} iconBg="bg-base-primary-50"
-              title="Yedeği Geri Yükle"
-              desc="Önceki bir puan yedeğini seçerek tüm öğrencilerin puanlarını o ana geri alır."
-              onClick={() => setShowRestore(true)}
-              btnLabel="Yedekleri Gör" btnClass="text-base-primary-600 border-base-primary-200 hover:bg-base-primary-50"
-            />
-            <ActionCard
-              icon={<Eye size={18} className="text-[#FFB020]" />} iconBg="bg-[#FFF9EB]"
-              title="Gizli Puanları Aç"
-              desc="Eğitmenin 'Puanları Sıfırla' işlemiyle gizlenen öğrenci puanlarını tekrar görünür hale getirir."
-              onClick={() => setShowUnhide(true)}
-              btnLabel="Puanları Aç" btnClass="text-[#C98A00] border-[#FFE8A0] hover:bg-[#FFF9EB]"
-            />
-          </div>
-        </Section>
+        {/* ── Satır 2: Puan Yönetimi başlık ────────────────────────────────────── */}
+        <div>
+          <h2 className="text-[20px] font-black text-base-primary-900 leading-none">Puan Yönetimi</h2>
+          <p className="text-[13px] text-surface-400 mt-1">Öğrenci puanlarını yedekle, geri yükle veya sıfırla</p>
+        </div>
+
+        {/* ── Satır 3: Puan Yedekleme + Puan Sıfırlama ────────────────────────── */}
+        <div className="grid grid-cols-2 gap-6">
+
+          {/* Puan Yedekleme */}
+          <Section
+            title="Puan Yedekleme"
+            description="Öğrenci puanlarını yedekle veya önceki bir yedeğe geri dön — son 5 yedek saklanır"
+            icon={<Database />} iconBg="bg-emerald-50" iconColor="text-emerald-600"
+          >
+            <div className="flex items-center gap-3">
+              <button onClick={handleScoreBackup} disabled={scoreBacking}
+                className="flex items-center gap-2 h-10 px-5 rounded-xl bg-emerald-600 text-white text-[13px] font-bold hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                {scoreBacking
+                  ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Yedekleniyor…</>
+                  : scoreBackupDone
+                    ? <><Check size={14} />Yedeklendi</>
+                    : <><Plus size={14} />Yedek Al</>}
+              </button>
+              <button onClick={() => setShowRestore(true)}
+                className="flex items-center gap-2 h-10 px-5 rounded-xl border border-emerald-200 text-emerald-700 text-[13px] font-bold hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer">
+                <RotateCcw size={14} /> Geri Yükle
+              </button>
+            </div>
+          </Section>
+
+          {/* Puan Sıfırlama */}
+          <Section
+            title="Puan Sıfırlama"
+            description="Bu işlemler geri alınamaz — dikkatli kullanın"
+            icon={<Flame />} iconBg="bg-red-50" iconColor="text-red-500"
+            border="border-red-200"
+          >
+            <div className="flex items-start justify-between gap-6 py-1">
+              <div>
+                <p className="text-[14px] font-bold text-base-primary-900">Puanları Sıfırla</p>
+                <p className="text-[12px] text-surface-400 mt-0.5 leading-relaxed max-w-xs">
+                  Tüm öğrenci puanlarını sıfırla veya gizlenmiş puanları tekrar göster
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => setShowHardReset(true)}
+                  className="flex items-center gap-2 h-10 px-5 rounded-xl bg-red-600 text-white text-[13px] font-bold hover:bg-red-700 active:scale-95 transition-all cursor-pointer shadow-sm">
+                  <Flame size={14} /> Sıfırla
+                </button>
+                <button onClick={() => setShowUnhide(true)}
+                  className="flex items-center gap-2 h-10 px-5 rounded-xl border border-[#FFE8A0] text-[#C98A00] text-[13px] font-bold hover:bg-[#FFF9EB] active:scale-95 transition-all cursor-pointer">
+                  <Eye size={14} /> Gizlileri Aç
+                </button>
+              </div>
+            </div>
+          </Section>
+
+        </div>
 
       </div>
 
@@ -682,18 +758,3 @@ export default function SystemPanel() {
   );
 }
 
-function ActionCard({ icon, iconBg, title, desc, onClick, btnLabel, btnClass }: any) {
-  return (
-    <div className="flex flex-col gap-5 p-6 rounded-2xl border border-surface-100 bg-surface-50/50">
-      <div className={`w-11 h-11 rounded-2xl ${iconBg} flex items-center justify-center shrink-0`}>{icon}</div>
-      <div className="flex-1">
-        <p className="text-[15px] font-bold text-base-primary-900 leading-none">{title}</p>
-        <p className="text-[12px] text-surface-400 mt-2 leading-relaxed">{desc}</p>
-      </div>
-      <button onClick={onClick}
-        className={`h-10 px-4 rounded-xl border text-[13px] font-bold transition-all cursor-pointer ${btnClass}`}>
-        {btnLabel}
-      </button>
-    </div>
-  );
-}
