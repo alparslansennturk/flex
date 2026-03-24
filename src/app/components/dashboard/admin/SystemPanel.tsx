@@ -244,6 +244,112 @@ function UnhideModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess:
   );
 }
 
+// ─── Modal: Sistem Yedeğini Geri Yükle ───────────────────────────────────────
+const BACKUP_COLS = ["groups", "students", "tasks", "lottery_results", "assignment_archive"] as const;
+
+function RestoreSystemModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
+  const [backups,   setBackups]   = useState<any[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [applying,  setApplying]  = useState<string | null>(null);
+  const [progress,  setProgress]  = useState("");
+  const [done,      setDone]      = useState(false);
+  const [error,     setError]     = useState("");
+  const [visible,   setVisible]   = useState(false);
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+  useEffect(() => {
+    getDocs(query(collection(db, "system_backups"), orderBy("createdAt", "desc"), limit(5)))
+      .then(s => setBackups(s.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(() => setError("Yedek listesi yüklenemedi."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleCancel = () => { setVisible(false); setTimeout(onCancel, 280); };
+
+  const handleRestore = async (backupId: string) => {
+    if (!confirm("Bu yedek geri yüklenecek. Mevcut tüm veriler silinip yedeğe dönülecek. Emin misiniz?")) return;
+    setApplying(backupId); setError("");
+    try {
+      for (const col of BACKUP_COLS) {
+        setProgress(`Temizleniyor: ${col}…`);
+        await deleteCollection(col);
+
+        setProgress(`Geri yükleniyor: ${col}…`);
+        const snap = await getDocs(collection(db, "system_backups", backupId, col));
+        for (let i = 0; i < snap.docs.length; i += 450) {
+          const batch = writeBatch(db);
+          snap.docs.slice(i, i + 450).forEach(d =>
+            batch.set(doc(db, col, d.id), d.data())
+          );
+          await batch.commit();
+        }
+      }
+      setProgress("");
+      setDone(true);
+      setTimeout(() => { setVisible(false); setTimeout(onSuccess, 280); }, 2000);
+    } catch (e) {
+      console.error(e);
+      setError("Geri yükleme sırasında hata oluştu.");
+      setProgress("");
+    } finally { setApplying(null); }
+  };
+
+  return (
+    <Modal visible={visible} onClose={handleCancel}>
+      {done ? <SuccessView text="Sistem geri yüklendi" sub="Tüm veriler yedeğe döndürüldü." /> : (
+        <>
+          <ModalHeader
+            icon={<Database size={18} className="text-base-primary-500" />}
+            iconBg="bg-base-primary-50"
+            title="Sistem Yedeğini Geri Yükle"
+            sub="Seçilen yedek anına geri dönülür — mevcut veriler silinir"
+          />
+          {error && <ErrorBanner text={error} />}
+          {progress && (
+            <div className="flex items-center gap-3 bg-base-primary-50 rounded-xl px-4 py-3 border border-base-primary-100">
+              <span className="w-4 h-4 border-2 border-base-primary-200 border-t-base-primary-500 rounded-full animate-spin shrink-0" />
+              <span className="text-[13px] font-semibold text-base-primary-700">{progress}</span>
+            </div>
+          )}
+          {loading
+            ? <div className="flex justify-center py-6"><span className="w-6 h-6 border-2 border-surface-200 border-t-base-primary-400 rounded-full animate-spin" /></div>
+            : backups.length === 0
+              ? <p className="text-[13px] text-surface-400 text-center py-4">Kayıtlı sistem yedeği bulunamadı</p>
+              : (
+                <div className="flex flex-col gap-2">
+                  {backups.map(b => (
+                    <div key={b.id} className="flex items-center justify-between gap-4 p-4 rounded-xl border border-surface-100 bg-surface-50">
+                      <div>
+                        <p className="text-[13px] font-bold text-base-primary-900">{fmt(b.createdAt)}</p>
+                        {b.counts && (
+                          <p className="text-[11px] text-surface-400 mt-0.5">
+                            {b.counts.groups ?? 0} grup · {b.counts.students ?? 0} öğrenci · {b.counts.tasks ?? 0} görev
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleRestore(b.id)}
+                        disabled={!!applying}
+                        className="h-8 px-4 rounded-lg bg-base-primary-500 text-white text-[12px] font-bold hover:bg-base-primary-600 transition-all cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                      >
+                        {applying === b.id
+                          ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : <><RotateCcw size={11} /> Uygula</>}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+          <button onClick={handleCancel} disabled={!!applying}
+            className="h-10 rounded-xl border border-surface-200 text-[13px] font-bold text-surface-600 hover:bg-surface-50 transition-all cursor-pointer disabled:opacity-40">
+            Kapat
+          </button>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 // ─── Modal: Sistemi Sıfırla ───────────────────────────────────────────────────
 function SystemResetModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
   const [confirmText, setConfirmText] = useState("");
@@ -382,10 +488,11 @@ function Section({ title, description, icon, iconBg, iconColor, border, children
 export default function SystemPanel() {
   const { activeSeasonId } = useScoring();
 
-  const [showHardReset,   setShowHardReset]   = useState(false);
-  const [showRestore,     setShowRestore]     = useState(false);
-  const [showUnhide,      setShowUnhide]      = useState(false);
-  const [showSystemReset, setShowSystemReset] = useState(false);
+  const [showHardReset,     setShowHardReset]     = useState(false);
+  const [showRestore,       setShowRestore]       = useState(false);
+  const [showUnhide,        setShowUnhide]        = useState(false);
+  const [showSystemReset,   setShowSystemReset]   = useState(false);
+  const [showSystemRestore, setShowSystemRestore] = useState(false);
 
   const [backingUp,      setBackingUp]      = useState(false);
   const [backupDone,     setBackupDone]      = useState(false);
@@ -460,14 +567,20 @@ export default function SystemPanel() {
             icon={<Database />} iconBg="bg-base-primary-50" iconColor="text-base-primary-500"
           >
             <div className="flex flex-col gap-4">
-              <button onClick={handleSystemBackup} disabled={backingUp}
-                className="self-start flex items-center gap-2 h-10 px-5 rounded-xl bg-base-primary-500 text-white text-[13px] font-bold hover:bg-base-primary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {backingUp
-                  ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Yedekleniyor...</>
-                  : backupDone
-                    ? <><Check size={14} />Yedeklendi</>
-                    : <><Plus size={14} />Yedek Al</>}
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={handleSystemBackup} disabled={backingUp}
+                  className="flex items-center gap-2 h-10 px-5 rounded-xl bg-base-primary-500 text-white text-[13px] font-bold hover:bg-base-primary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                  {backingUp
+                    ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Yedekleniyor...</>
+                    : backupDone
+                      ? <><Check size={14} />Yedeklendi</>
+                      : <><Plus size={14} />Yedek Al</>}
+                </button>
+                <button onClick={() => setShowSystemRestore(true)}
+                  className="flex items-center gap-2 h-10 px-5 rounded-xl border border-base-primary-200 text-base-primary-600 text-[13px] font-bold hover:bg-base-primary-50 active:scale-95 transition-all cursor-pointer">
+                  <RotateCcw size={14} /> Geri Yükle
+                </button>
+              </div>
 
               {loadingBackups
                 ? <div className="flex justify-center py-4"><span className="w-5 h-5 border-2 border-surface-200 border-t-base-primary-400 rounded-full animate-spin" /></div>
@@ -557,7 +670,8 @@ export default function SystemPanel() {
       {showHardReset   && <HardResetModal   seasonId={activeSeasonId} onCancel={() => setShowHardReset(false)}   onSuccess={() => { setShowHardReset(false);   showToast("Puanlar sıfırlandı."); }} />}
       {showRestore     && <RestoreModal     onCancel={() => setShowRestore(false)}     onSuccess={() => { setShowRestore(false);     showToast("Yedek geri yüklendi."); }} />}
       {showUnhide      && <UnhideModal      onCancel={() => setShowUnhide(false)}      onSuccess={() => { setShowUnhide(false);      showToast("Gizli puanlar açıldı."); }} />}
-      {showSystemReset && <SystemResetModal onCancel={() => setShowSystemReset(false)} onSuccess={() => { setShowSystemReset(false); showToast("Sistem sıfırlandı."); }} />}
+      {showSystemReset   && <SystemResetModal   onCancel={() => setShowSystemReset(false)}   onSuccess={() => { setShowSystemReset(false);   showToast("Sistem sıfırlandı."); }} />}
+      {showSystemRestore && <RestoreSystemModal onCancel={() => setShowSystemRestore(false)} onSuccess={() => { setShowSystemRestore(false); showToast("Sistem geri yüklendi."); }} />}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-base-primary-900 text-white text-[13px] font-semibold px-5 py-3 rounded-full shadow-xl z-50 animate-in fade-in slide-in-from-bottom-2">
