@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useUser } from "@/app/context/UserContext"; // Motoru bağladık
 import { PERMISSIONS } from "@/app/lib/constants"; // Kuralları getirdik
 import { useRouter } from "next/navigation";
@@ -57,8 +57,8 @@ export default function DashboardPage() {
       <div className="flex-1 flex flex-col min-w-0 relative h-full">
         <Header />
 
-        <main className="flex-1 w-full overflow-y-auto overflow-x-clip [scrollbar-gutter:stable]">
-          <div className="w-[94%] mx-auto py-8 transition-all duration-500 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[1920px]">
+        <main className="flex-1 w-full overflow-y-scroll overflow-x-clip [scrollbar-gutter:stable]">
+          <div className="w-[94%] mx-auto py-8 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[1920px]">
 
             {activeTab === 'dashboard' ? (
               <div className="space-y-12">

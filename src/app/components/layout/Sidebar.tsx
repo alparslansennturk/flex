@@ -11,10 +11,11 @@ import { signOut } from "firebase/auth";
 
 // 880px altı → hafif compact (1440x900 ekranlar ~820-840px viewport)
 function useCompact() {
-  const [compact, setCompact] = useState(false);
+  const [compact, setCompact] = useState(() =>
+    typeof window !== "undefined" ? window.innerHeight < 820 : false
+  );
   useEffect(() => {
     const check = () => setCompact(window.innerHeight < 820);
-    check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
