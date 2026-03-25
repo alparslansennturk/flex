@@ -792,6 +792,7 @@ export default function DesignParkour() {
         <AssignActivateModal
           taskName={ghostModalTask.name}
           templateId={ghostModalTask.id}
+          templateLevel={ghostModalTask.level}
           onConfirm={handleGhostActivate}
           onCancel={() => setGhostModalTask(null)}
         />

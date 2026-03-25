@@ -359,16 +359,16 @@ function GroupTable({ groups }: { groups: RankedGroup[] }) {
       <table className="w-full">
         <thead>
           <tr className="border-b border-surface-100">
-            <th className="text-left text-[11px] font-semibold text-text-tertiary px-8 py-4 w-20">#</th>
-            <th className="text-left text-[11px] font-semibold text-text-tertiary px-6 py-4">Grup</th>
-            <th className="text-right text-[11px] font-semibold text-text-tertiary px-6 py-4">
-              <span title="Grup puanı, öğrenci ortalamasına göre hesaplanır" className="cursor-help border-b border-dashed border-text-tertiary">
+            <th className="text-left text-[14px] font-bold text-text-secondary px-8 py-4 w-20">#</th>
+            <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4">Grup</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4">
+              <span title="Grup puanı, öğrenci ortalamasına göre hesaplanır" className="cursor-help border-b border-dashed border-text-secondary">
                 Puan
               </span>
             </th>
-            <th className="text-right text-[11px] font-semibold text-text-tertiary px-6 py-4 hidden md:table-cell">Öğrenci</th>
-            <th className="text-right text-[11px] font-semibold text-text-tertiary px-6 py-4 hidden xl:table-cell">Aktif</th>
-            <th className="text-right text-[11px] font-semibold text-text-tertiary px-6 py-4 hidden xl:table-cell">Toplam Puan</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">Öğrenci</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Aktif</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Toplam Puan</th>
           </tr>
         </thead>
         <tbody>
@@ -379,50 +379,50 @@ function GroupTable({ groups }: { groups: RankedGroup[] }) {
                 key={group.code}
                 className={`border-b border-surface-50 last:border-0 ${isTop3 ? "bg-surface-50/50" : ""}`}
               >
-                <td className="px-8 py-5">
+                <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
                     {isTop3 && <span className="text-[14px] leading-none">{MEDALS[group.rank - 1]}</span>}
-                    <span className={`text-[13px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>
+                    <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>
                       {group.rank}.
                     </span>
                   </div>
                 </td>
-                <td className="px-6 py-5">
+                <td className="px-6 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-surface-100 flex items-center justify-center shrink-0">
-                      <Users size={16} className="text-text-tertiary" />
+                    <div className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center shrink-0">
+                      <Users size={13} className="text-text-tertiary" />
                     </div>
                     <div>
-                      <p className="text-[13px] font-bold text-text-primary leading-none">{group.code}</p>
-                      <p className="text-[11px] text-text-tertiary leading-snug mt-0.5">{group.branch}</p>
+                      <p className="text-[14px] font-bold text-text-primary leading-none">{group.code}</p>
+                      <p className="text-[12px] text-text-tertiary leading-snug mt-0.5">{group.branch}</p>
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-5 text-right">
+                <td className="px-6 py-3 text-right">
                   <div
                     className="flex flex-col items-end gap-0.5"
                     title="Grup puanı, öğrenci ortalamasına göre hesaplanır"
                   >
-                    <span className={`text-[14px] font-bold tabular-nums ${isTop3 && group.rank === 1 ? "text-[#FF8D28]" : "text-text-primary"}`}>
+                    <span className={`text-[15px] font-bold tabular-nums ${isTop3 && group.rank === 1 ? "text-[#FF8D28]" : "text-text-primary"}`}>
                       {Math.round(group.rawScore).toLocaleString("tr-TR")}
                     </span>
-                    <span className="text-[10px] font-medium text-text-disabled tabular-nums">
+                    <span className="text-[11px] font-medium text-text-disabled tabular-nums">
                       {group.totalXP.toLocaleString("tr-TR")} XP
                     </span>
                   </div>
                 </td>
-                <td className="px-6 py-5 text-right hidden md:table-cell">
-                  <span className="text-[12px] font-semibold text-text-tertiary tabular-nums">
+                <td className="px-6 py-3 text-right hidden md:table-cell">
+                  <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
                     {group.studentCount}
                   </span>
                 </td>
-                <td className="px-6 py-5 text-right hidden xl:table-cell">
-                  <span className="text-[12px] font-semibold text-text-secondary tabular-nums">
+                <td className="px-6 py-3 text-right hidden xl:table-cell">
+                  <span className="text-[13px] font-semibold text-text-secondary tabular-nums">
                     {group.activeCount}
                   </span>
                 </td>
-                <td className="px-6 py-5 text-right hidden xl:table-cell">
-                  <span className="text-[12px] font-semibold text-text-tertiary tabular-nums">
+                <td className="px-6 py-3 text-right hidden xl:table-cell">
+                  <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
                     {group.displayScore.toLocaleString("tr-TR")}
                   </span>
                 </td>
@@ -449,13 +449,13 @@ function LeaderTable({
       <table className="w-full">
         <thead>
           <tr className="border-b border-surface-100">
-            <th className="text-left text-[11px] font-semibold text-text-tertiary px-8 py-4 w-20">#</th>
-            <th className="text-left text-[11px] font-semibold text-text-tertiary px-6 py-4">Öğrenci</th>
-            <th className="text-right text-[11px] font-semibold text-text-tertiary px-6 py-4">Puan</th>
-            <th className="text-right text-[11px] font-semibold text-text-tertiary px-6 py-4 hidden md:table-cell">XP</th>
-            <th className="text-right text-[11px] font-semibold text-text-tertiary px-6 py-4 hidden xl:table-cell">Görev</th>
-            <th className="text-right text-[11px] font-semibold text-text-tertiary px-6 py-4 hidden xl:table-cell">Ceza</th>
-            <th className="text-center text-[11px] font-semibold text-text-tertiary px-6 py-4">Trend</th>
+            <th className="text-left text-[14px] font-bold text-text-secondary px-8 py-4 w-20">#</th>
+            <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4">Öğrenci</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4">Puan</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">XP</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Görev</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Ceza</th>
+            <th className="text-center text-[14px] font-bold text-text-secondary px-6 py-4">Trend</th>
             <th className="px-8 py-4 w-20" />
           </tr>
         </thead>
@@ -470,63 +470,63 @@ function LeaderTable({
                   isTop3 ? "bg-surface-50/50" : ""
                 }`}
               >
-                <td className="px-8 py-5">
+                <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
                     {isTop3 && <span className="text-[14px] leading-none">{MEDALS[student.rank - 1]}</span>}
-                    <span className={`text-[13px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>
+                    <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>
                       {student.rank}.
                     </span>
                   </div>
                 </td>
 
-                <td className="px-6 py-5">
+                <td className="px-6 py-3">
                   <div className="flex items-center gap-3">
-                    <Avatar gender={student.gender} avatarId={student.avatarId} size={36} />
+                    <Avatar gender={student.gender} avatarId={student.avatarId} size={28} />
                     <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-text-primary leading-none truncate">
+                      <p className="text-[14px] font-bold text-text-primary leading-none truncate">
                         {student.name} {student.lastName}
                       </p>
-                      <p className="text-[11px] text-text-tertiary leading-snug truncate mt-0.5">
+                      <p className="text-[12px] text-text-tertiary leading-snug truncate mt-0.5">
                         {student.branch} · {student.groupCode}
                       </p>
                     </div>
                   </div>
                 </td>
 
-                <td className="px-6 py-5 text-right">
-                  <span className={`text-[14px] font-bold tabular-nums ${isTop3 && student.rank === 1 ? "text-[#FF8D28]" : "text-text-primary"}`}>
+                <td className="px-6 py-3 text-right">
+                  <span className={`text-[15px] font-bold tabular-nums ${isTop3 && student.rank === 1 ? "text-[#FF8D28]" : "text-text-primary"}`}>
                     {Math.round(student.score)}
                   </span>
                 </td>
 
-                <td className="px-6 py-5 text-right hidden md:table-cell">
-                  <span className="text-[12px] font-semibold text-text-tertiary tabular-nums">
+                <td className="px-6 py-3 text-right hidden md:table-cell">
+                  <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
                     {student.points ?? 0} XP
                   </span>
                 </td>
 
-                <td className="px-6 py-5 text-right hidden xl:table-cell">
-                  <span className="text-[12px] font-semibold text-text-secondary tabular-nums">
+                <td className="px-6 py-3 text-right hidden xl:table-cell">
+                  <span className="text-[13px] font-semibold text-text-secondary tabular-nums">
                     {student.completedTasks ?? 0}
                   </span>
                 </td>
 
-                <td className="px-6 py-5 text-right hidden xl:table-cell">
-                  <span className="text-[12px] font-semibold text-text-tertiary tabular-nums">
+                <td className="px-6 py-3 text-right hidden xl:table-cell">
+                  <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
                     {student.latePenaltyTotal ?? 0}
                   </span>
                 </td>
 
-                <td className="px-6 py-5">
+                <td className="px-6 py-3">
                   <div className="flex justify-center">
                     <TrendIcon rankChange={student.rankChange} rank={student.rank} />
                   </div>
                 </td>
 
-                <td className="px-8 py-5 text-right">
+                <td className="px-8 py-3 text-right">
                   <button
                     onClick={(e) => { e.stopPropagation(); onStudentClick(student); }}
-                    className="text-[11px] font-semibold text-[#3A7BD5] hover:text-[#2867BD] transition-colors cursor-pointer opacity-0 group-hover:opacity-100 flex items-center gap-0.5 ml-auto"
+                    className="text-[12px] font-semibold text-[#3A7BD5] hover:text-[#2867BD] transition-colors cursor-pointer opacity-0 group-hover:opacity-100 flex items-center gap-0.5 ml-auto"
                   >
                     Detay <ChevronRight size={12} />
                   </button>

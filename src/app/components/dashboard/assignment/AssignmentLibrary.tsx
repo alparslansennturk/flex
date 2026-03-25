@@ -142,6 +142,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
       {assignModalTask && (
         <AssignActivateModal
           taskName={assignModalTask.name}
+          templateLevel={assignModalTask.level}
           onConfirm={async (selections: AssignSelection[]) => {
             const t = assignModalTask;
             for (const { classId, groupId, groupBranch, level, endDate } of selections) {

@@ -28,16 +28,18 @@ interface Group {
 export function AssignActivateModal({
   taskName,
   templateId,
+  templateLevel,
   onConfirm,
   onCancel,
 }: {
   taskName: string;
-  templateId?: string; // verilirse sadece bu şablon için grubun busy olup olmadığını kontrol eder
+  templateId?: string;
+  templateLevel?: string; // şablonda belirlendiyse seçim disabled gelir
   onConfirm: (selections: AssignSelection[]) => Promise<void>;
   onCancel: () => void;
 }) {
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
-  const [level,           setLevel]           = useState("");
+  const [level,           setLevel]           = useState(templateLevel ?? "");
   const [endDate,         setEndDate]         = useState("");
   const [loading,         setLoading]         = useState(false);
   const [visible,         setVisible]         = useState(false);
@@ -183,17 +185,29 @@ export function AssignActivateModal({
 
         {/* Seviye */}
         <div>
-          <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Seviye</p>
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide">Seviye</p>
+            {templateLevel && (
+              <span className="text-[10px] font-semibold text-base-primary-500 bg-base-primary-50 px-2 py-0.5 rounded-full">
+                Şablonda belirlendi
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-4 gap-2">
             {LEVELS.map(l => (
               <button
                 key={l}
-                onClick={() => setLevel(l)}
-                className={`py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
+                onClick={() => !templateLevel && setLevel(l)}
+                disabled={!!templateLevel}
+                className={`py-2 rounded-xl text-[12px] font-bold border transition-all ${
                   level === l
-                    ? "bg-base-primary-900 text-white border-base-primary-900"
-                    : "bg-white border-surface-200 text-surface-600 hover:border-base-primary-400 hover:text-base-primary-700"
-                }`}
+                    ? templateLevel
+                      ? "bg-base-primary-700 text-white border-base-primary-700"
+                      : "bg-base-primary-900 text-white border-base-primary-900"
+                    : templateLevel
+                      ? "bg-surface-100 border-surface-200 text-surface-400"
+                      : "bg-white border-surface-200 text-surface-600 cursor-pointer hover:border-base-primary-400 hover:text-base-primary-700"
+                } ${templateLevel ? "cursor-not-allowed" : ""}`}
               >
                 {l}
               </button>

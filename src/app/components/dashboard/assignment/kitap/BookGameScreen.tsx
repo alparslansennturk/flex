@@ -245,6 +245,14 @@ function BookResultModal({
     return () => clearTimeout(t);
   }, []);
 
+  // Otomatik mail — modal açılınca öğrencinin maili varsa gönder
+  useEffect(() => {
+    if (visible && student.email && !isPastView && !mailSent) {
+      handleMail();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   const deadline = task.endDate || (() => {
     const d = new Date(); d.setDate(d.getDate() + 14);
     return d.toLocaleDateString("tr-TR");
@@ -625,8 +633,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     });
     // 3 pulse (~1.1s) sonra kitabı büyüt
     revealTimerRef.current = setTimeout(() => setWinnerRevealed(true), 1150);
-    // Sonra modal
-    modalTimerRef.current = setTimeout(() => setShowModal(true), 5200);
+    // 3sn sonra modal
+    modalTimerRef.current = setTimeout(() => setShowModal(true), 3000);
   }, [selectedStudent, currentBook, bookDraws, task]);
 
   // Kapat → sadece sıfırla, kullanıcı "Başlat"a basar
@@ -838,8 +846,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
             </>
           )}
 
-          {/* DONE */}
-          {allDone && (
+          {/* DONE — sadece idle fazında göster, carousel/spin sırasında gizle */}
+          {allDone && phase === "idle" && (
             <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
               <div style={{ fontSize: 48 }}>🎉</div>
               <p style={{ color: "#1e293b", fontSize: 20, fontWeight: 900, margin: 0 }}>

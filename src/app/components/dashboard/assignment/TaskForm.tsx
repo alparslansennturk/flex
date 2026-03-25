@@ -3,13 +3,15 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "@/app/lib/firebase";
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
-import { X, CheckCircle2, Star } from "lucide-react";
+import { X, CheckCircle2, ChevronDown } from "lucide-react";
 import {
   Task, TaskType, IconKey,
   DEFAULT_ICON, TYPE_GRADIENT,
   TypeBadge, getIcon,
 } from "./taskTypes";
 import IconPicker from "../IconPicker";
+
+const LEVELS = ["Seviye-1", "Seviye-2", "Seviye-3", "Seviye-4"];
 import { getFlexMessage } from "@/app/lib/messages";
 import { useUser } from "@/app/context/UserContext";
 
@@ -29,12 +31,12 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
   const [type, setType]                 = useState<TaskType>(editingTask?.type ?? prefill?.type ?? "odev");
   const [selectedIcon, setSelectedIcon] = useState<IconKey>(editingTask?.icon ?? prefill?.icon ?? DEFAULT_ICON[editingTask?.type ?? prefill?.type ?? "odev"]);
   const [description, setDescription]  = useState(editingTask?.description ?? prefill?.description ?? "");
-  const [points, setPoints]             = useState<number>(editingTask?.points ?? prefill?.points ?? 3);
   const [startDate]                     = useState(editingTask?.startDate ?? "");
   const [endDate, setEndDate]           = useState(editingTask?.endDate ?? "");
   const [assignmentType, setAssignmentType] = useState<"kolaj" | "kitap" | "sosyal_medya" | null>(
     editingTask?.assignmentType ?? prefill?.assignmentType ?? null
   );
+  const [level, setLevel] = useState<string>(editingTask?.level ?? prefill?.level ?? "");
   const [saving, setSaving]             = useState(false);
   const [errors, setErrors]             = useState<Record<string, boolean>>({});
   const [shake, setShake]               = useState(false);
@@ -75,9 +77,10 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
     try {
       const payload = {
         name: name.trim(), type, icon: selectedIcon,
-        description: description.trim(), points,
+        description: description.trim(),
         startDate: startDate || null, endDate: endDate || null,
         assignmentType: assignmentType ?? null,
+        level: level || null,
       };
       if (editingTask) {
         await updateDoc(doc(db, targetCollection, editingTask.id), payload);
@@ -92,9 +95,9 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
           type:           payload.type,
           icon:           payload.icon,
           description:    payload.description,
-          points:         payload.points,
           startDate:      payload.startDate ?? null,
           assignmentType: payload.assignmentType,
+          level:          payload.level ?? null,
           isActive:       false,
           isPaused:       false,
           isHidden:       false,
@@ -167,8 +170,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
         {/* Body — 2 kolon, 4 satır */}
         <div className="px-8 py-7 grid grid-cols-2 gap-x-10 gap-y-6 overflow-y-auto max-h-[82vh]">
 
-          {/* Satır 1: Kart adı | Bitiş tarihi */}
-          <div className={`space-y-1.5 ${targetCollection === "templates" && !sourceTemplateId ? "col-span-2" : ""}`}>
+          {/* Satır 1: Kart adı | Seviye (şablon) veya Bitiş tarihi (görev) */}
+          <div className="space-y-1.5">
             <label className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
             <input
               value={name}
@@ -178,7 +181,22 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
             />
           </div>
 
-          {!(targetCollection === "templates" && !sourceTemplateId) && (
+          {targetCollection === "templates" && !sourceTemplateId ? (
+            <div className="space-y-1.5">
+              <label className={labelCls}>Seviye</label>
+              <div className="relative">
+                <select
+                  value={level}
+                  onChange={e => setLevel(e.target.value)}
+                  className="w-full h-12 px-4 pr-10 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all appearance-none cursor-pointer"
+                >
+                  <option value="">Seviye seçiniz</option>
+                  {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+                <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+              </div>
+            </div>
+          ) : !sourceTemplateId && (
             <div className="space-y-1.5">
               <label className={labelCls}>Bitiş tarihi</label>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={dateCls} />
@@ -200,41 +218,31 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className={labelCls}>Baz puan</label>
-            <div className="grid grid-cols-4 gap-2">
-              {[1, 3, 5, 10].map(p => (
-                <button key={p} onClick={() => setPoints(p)}
-                  className={`h-11 rounded-xl text-[14px] font-bold transition-all cursor-pointer border ${
-                    points === p ? "bg-designstudio-primary-500 text-white border-designstudio-primary-500"
-                    : "bg-surface-50 text-surface-500 border-surface-200 hover:border-surface-400 hover:text-surface-700"}`}>
-                  {p}
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-surface-400 ml-1">Eğitmen bu değeri sonradan ayarlayabilir.</p>
-          </div>
 
-          {/* Satır 3: İkon | Önizleme */}
+          {/* Satır 3: İkon */}
           <div className="space-y-1.5">
             <label className={labelCls}>İkon</label>
             <IconPicker value={selectedIcon} onChange={handleIconSelect} type={type} />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" />
+
+          {/* Satır 4: Önizleme — tam genişlik */}
+          <div className="col-span-2 space-y-1.5">
             <label className={labelCls}>Önizleme</label>
-            <div className="bg-surface-50 rounded-2xl border border-surface-100 p-4 h-14 flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-xl ${TYPE_GRADIENT[type]} flex items-center justify-center text-white shadow-md shrink-0`}>
-                {getIcon(selectedIcon, type, 16)}
+            <div className="bg-surface-50 rounded-2xl border border-surface-100 px-8 py-5 flex items-center gap-5">
+              <div className={`w-14 h-14 rounded-2xl ${TYPE_GRADIENT[type]} flex items-center justify-center text-white shadow-md shrink-0`}>
+                {getIcon(selectedIcon, type, 26)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-bold text-base-primary-900 truncate leading-tight">{name || "Kart adı"}</p>
-                <TypeBadge type={type} />
+                <p className="text-[18px] font-bold text-base-primary-900 truncate leading-tight">{name || "Kart adı"}</p>
+                <div className="mt-1"><TypeBadge type={type} /></div>
               </div>
-              <div className="flex items-center gap-1 text-[12px] font-bold text-surface-500 shrink-0">
-                <Star size={11} className="text-designstudio-primary-500 fill-designstudio-primary-500" />
-                {points}
-              </div>
+              {level && (
+                <span className="text-[12px] font-bold text-base-primary-600 bg-base-primary-50 border border-base-primary-100 px-3 py-1.5 rounded-full shrink-0">
+                  {level}
+                </span>
+              )}
             </div>
           </div>
 
