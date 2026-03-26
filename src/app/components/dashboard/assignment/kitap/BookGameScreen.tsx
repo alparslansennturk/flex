@@ -836,7 +836,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
               {/* Carousel — spin + pulse + zoom, hiç unmount olmaz */}
               {showCarousel && currentBook && (
                 <BookCarousel
-                  allBooks={availableBooks}
+                  allBooks={pool?.items ?? []}
                   winnerBook={currentBook}
                   onSpinComplete={handleSpinComplete}
                   spinDone={spinDone}
@@ -848,8 +848,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
 
           {/* DONE — sadece idle fazında göster, carousel/spin sırasında gizle */}
           {allDone && phase === "idle" && (
-            <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-              <div style={{ fontSize: 48 }}>🎉</div>
+            <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 48 }}>
               <p style={{ color: "#1e293b", fontSize: 20, fontWeight: 900, margin: 0 }}>
                 Tüm katılımcılar tamamlandı!
               </p>

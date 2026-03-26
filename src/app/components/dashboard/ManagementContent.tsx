@@ -242,6 +242,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 <StudentForm
                   isStudentFormOpen={isStudentFormOpen}
                   groups={isAdmin ? groups : myGroupCards}
+                  students={students}
                   handleAddStudent={handleAddStudent}
                   setIsStudentFormOpen={setIsStudentFormOpen}
                   editingStudent={editingStudent}
@@ -280,7 +281,6 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 handleEditStudent={handleEditStudent}
                 handleRestoreStudent={handleRestoreStudent}
                 handleGraduateStudent={handleGraduateStudent}
-                handleBulkGraduateStudents={handleBulkGraduateStudents}
                 setDeleteModal={setDeleteModal}
               />
               {filteredStudents.length === 0 && (

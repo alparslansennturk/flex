@@ -3,12 +3,31 @@ import React, { useState, useEffect } from "react";
 import { X, Check, GraduationCap, ChevronDown } from "lucide-react";
 import { getFlexMessage } from "@/app/lib/messages";
 
+// Tüm aktif öğrenciler arasında kullanılmayan bir avatar ID seçer
+function getUnusedAvatar(
+  gender: string,
+  students: any[],
+  excludeId: string | null,
+  total: number
+): number {
+  const usedIds = new Set(
+    students
+      .filter(s => s.status !== "passive" && s.gender === gender && s.id !== excludeId)
+      .map(s => s.avatarId)
+      .filter(Boolean)
+  );
+  const available = Array.from({ length: total }, (_, i) => i + 1).filter(id => !usedIds.has(id));
+  const pool = available.length > 0 ? available : Array.from({ length: total }, (_, i) => i + 1);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 // SADECE TEK BİR INTERFACE (Gereksizleri sildik, errors ve shake ekledik)
 interface StudentFormProps {
   isStudentFormOpen: boolean;
   setIsStudentFormOpen: (val: boolean) => void;
   handleAddStudent: (e?: any) => void;
   groups: any[];
+  students: any[];
   editingStudent?: any;
   avatarId: number | null;
   setAvatarId: (val: number | null) => void;
@@ -34,6 +53,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   setIsStudentFormOpen,
   handleAddStudent,
   groups,
+  students,
   editingStudent,
   selectedGroupId,
   avatarId,
@@ -212,7 +232,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
  {studentGender && (
     <button
       type="button"
-      onClick={() => setAvatarId(Math.floor(Math.random() * 70) + 1)}
+      onClick={() => setAvatarId(getUnusedAvatar(studentGender, students, editingStudent?.id ?? null, TOTAL_AVATARS))}
       className="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-lg shadow-md border border-neutral-100 flex items-center justify-center hover:bg-neutral-50 transition-all cursor-pointer active:scale-90 z-10"
     >
       <span className="text-[14px]">🔄</span>
@@ -236,7 +256,11 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               <div className="space-y-1.5 relative">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Cinsiyet</label>
                 <div className="relative">
-                  <select name="gender" value={studentGender || ""} onChange={(e) => setStudentGender(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all text-[14px] ${!studentGender ? 'text-neutral-400 font-normal' : 'text-[#10294C] font-bold'} ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
+                  <select name="gender" value={studentGender || ""} onChange={(e) => {
+                    const g = e.target.value;
+                    setStudentGender(g);
+                    setAvatarId(getUnusedAvatar(g, students, editingStudent?.id ?? null, TOTAL_AVATARS));
+                  }} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all text-[14px] ${!studentGender ? 'text-neutral-400 font-normal' : 'text-[#10294C] font-bold'} ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
                     <option value="" disabled>Cinsiyet Seçiniz...</option>
                     <option value="male" style={{ color: "#10294C", fontWeight: 600 }}>Erkek</option>
                     <option value="female" style={{ color: "#10294C", fontWeight: 600 }}>Kadın</option>

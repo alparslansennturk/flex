@@ -13,7 +13,6 @@ interface StudentTableProps {
   handleEditStudent: (student: any) => void;
   handleRestoreStudent: (id: string) => void;
   handleGraduateStudent: (id: string) => void;
-  handleBulkGraduateStudents: (ids: string[]) => void;
   setDeleteModal: (config: { isOpen: boolean; studentId: string; deleteType: 'active' | 'graduated' | 'graduate' }) => void;
 }
 
@@ -29,7 +28,6 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   handleEditStudent,
   handleRestoreStudent,
   handleGraduateStudent,
-  handleBulkGraduateStudents,
   setDeleteModal
 }) => {
   const isPassive = studentPanel === 'passive';
@@ -70,10 +68,10 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                     <span className="text-[12px] font-bold tracking-tight">{selectedStudentIds.length} Seçildi</span>
                     <div className="w-px h-4 bg-white/20" />
                     <button
-                      onClick={() => handleBulkGraduateStudents(selectedStudentIds)}
-                      className="flex items-center gap-1.5 text-[12px] font-bold text-green-300 hover:text-green-100 transition-colors cursor-pointer outline-none"
+                      onClick={() => setDeleteModal({ isOpen: true, studentId: "bulk", deleteType: 'active' })}
+                      className="flex items-center gap-1.5 text-[12px] font-bold text-red-300 hover:text-red-100 transition-colors cursor-pointer outline-none"
                     >
-                      <GraduationCap size={14} /> Seçilenleri Mezun Et
+                      <Trash2 size={14} /> Seçilenleri Sil
                     </button>
                   </div>
                   <button
@@ -160,14 +158,23 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                         </button>
                       </>
                     ) : (
-                      /* AKTİF PANELİ: Mezun Et */
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'graduate' }); }}
-                        title="Mezun Et"
-                        className="text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer outline-none"
-                      >
-                        <GraduationCap size={16} />
-                      </button>
+                      /* AKTİF PANELİ: Mezun Et + Sil */
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'graduate' }); }}
+                          title="Mezun Et"
+                          className="text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer outline-none"
+                        >
+                          <GraduationCap size={16} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'active' }); }}
+                          title="Sil"
+                          className="text-red-400 hover:text-red-600 transition-colors cursor-pointer outline-none"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </>
                     )}
                   </div>
                 </td>
