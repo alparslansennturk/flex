@@ -17,7 +17,7 @@ import { db } from "@/app/lib/firebase";
 import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
-import { ROLES } from "@/app/lib/constants";
+
 import { computeStudentStats, calcScore, calcFinalScore, safe } from "@/app/lib/scoring";
 import Sidebar from "../../components/layout/Sidebar";
 import Header from "../../components/layout/Header";
@@ -69,9 +69,8 @@ interface RankedGroup {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const MEDALS     = ["🥇", "🥈", "🥉"];
-const BASE_TABS  = ["Tüm Öğrenciler", "Sınıflarım"] as const;
 const ALL_BRANCH = "Tüm Şubeler";
-const ALL_GROUP  = "Tüm Gruplar";
+const ALL_GROUP  = "Tüm Gruplarım";
 
 type ScoreMode = "monthly" | "total";
 type ViewMode  = "students" | "groups";
@@ -184,6 +183,54 @@ function AnalyticsGrid({
             ) : (
               <p className="text-[13px] relative z-10" style={{ color: subColor }}>Veri yok</p>
             )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Group Analytics Grid ─────────────────────────────────────────────────────
+
+const GROUP_ANALYTICS_CELLS = [
+  { key: "topScore",     label: "En Yüksek Puan",     icon: Trophy,      bg: "#FFF0E0", iconBg: "#FFDDB8", iconColor: "#C45000", nameColor: "#7A3200", subColor: "#A84400" },
+  { key: "topXP",        label: "En Yüksek Toplam XP", icon: Zap,        bg: "#E0EDFF", iconBg: "#B8D4FF", iconColor: "#1850C4", nameColor: "#0E2860", subColor: "#1840A0" },
+  { key: "mostStudents", label: "En Fazla Öğrenci",   icon: Users,       bg: "#E0F8F6", iconBg: "#B0EEE8", iconColor: "#0A7A74", nameColor: "#084840", subColor: "#0D6A64" },
+  { key: "mostActive",   label: "En Aktif Grup",       icon: TrendingUp,  bg: "#EEE0FA", iconBg: "#DDB8F5", iconColor: "#6018A4", nameColor: "#380A68", subColor: "#5010A0" },
+] as const;
+
+function GroupAnalyticsGrid({ analytics }: {
+  analytics: { topScore: RankedGroup; topXP: RankedGroup; mostStudents: RankedGroup; mostActive: RankedGroup };
+}) {
+  const getSub = (key: string, g: RankedGroup) => {
+    if (key === "topScore")     return `${Math.round(g.rawScore)} puan`;
+    if (key === "topXP")        return `${g.totalXP.toLocaleString("tr-TR")} XP`;
+    if (key === "mostStudents") return `${g.studentCount} öğrenci`;
+    if (key === "mostActive")   return `${g.activeCount} aktif`;
+    return "—";
+  };
+  return (
+    <div className="rounded-20 overflow-hidden grid grid-cols-2" style={{ boxShadow: "0 4px 36px rgba(0,0,0,0.05)" }}>
+      {GROUP_ANALYTICS_CELLS.map(({ key, label, icon: Icon, bg, iconBg, iconColor, nameColor, subColor }, i) => {
+        const group    = analytics[key as keyof typeof analytics];
+        const borderR  = i % 2 === 0 ? "border-r-2 border-white/70" : "";
+        const borderB  = i < 2       ? "border-b-2 border-white/70" : "";
+        return (
+          <div key={key} className={`${borderR} ${borderB} p-5 flex flex-col gap-3 relative overflow-hidden`} style={{ background: bg }}>
+            <Icon size={80} strokeWidth={0.8} className="absolute -right-4 -bottom-4 pointer-events-none" style={{ color: iconColor, opacity: 0.07 }} />
+            <div className="flex items-center gap-2.5 relative z-10">
+              <div className="w-9 h-9 rounded-12 flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+                <Icon size={17} style={{ color: iconColor }} />
+              </div>
+              <p className="text-[11px] font-bold uppercase tracking-wide leading-none" style={{ color: subColor }}>{label}</p>
+            </div>
+            <div className="flex items-center gap-2 relative z-10">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+                <Users size={14} style={{ color: iconColor }} />
+              </div>
+              <p className="text-[14px] font-bold leading-tight truncate" style={{ color: nameColor }}>{group.code}</p>
+            </div>
+            <p className="text-[22px] font-black tabular-nums leading-none relative z-10" style={{ color: iconColor }}>{getSub(key, group)}</p>
           </div>
         );
       })}
@@ -353,7 +400,7 @@ function GroupPodium({ groups }: { groups: RankedGroup[] }) {
 
 // ─── Group Table ──────────────────────────────────────────────────────────────
 
-function GroupTable({ groups }: { groups: RankedGroup[] }) {
+function GroupTable({ groups, groupsMap }: { groups: RankedGroup[]; groupsMap: Record<string, string> }) {
   return (
     <div className="bg-white rounded-20 border border-surface-200 overflow-hidden" style={{ boxShadow: "0 4px 40px rgba(0,0,0,0.04)" }}>
       <table className="w-full">
@@ -361,14 +408,12 @@ function GroupTable({ groups }: { groups: RankedGroup[] }) {
           <tr className="border-b border-surface-100">
             <th className="text-left text-[14px] font-bold text-text-secondary px-8 py-4 w-20">#</th>
             <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4">Grup</th>
-            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4">
-              <span title="Grup puanı, öğrenci ortalamasına göre hesaplanır" className="cursor-help border-b border-dashed border-text-secondary">
-                Puan
-              </span>
-            </th>
+            <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4 hidden lg:table-cell">Eğitmen</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4">Puan</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">Toplam XP</th>
             <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">Öğrenci</th>
             <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Aktif</th>
-            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Toplam Puan</th>
+            <th className="text-center text-[14px] font-bold text-text-secondary px-6 py-4">Trend</th>
           </tr>
         </thead>
         <tbody>
@@ -377,7 +422,7 @@ function GroupTable({ groups }: { groups: RankedGroup[] }) {
             return (
               <tr
                 key={group.code}
-                className={`border-b border-surface-50 last:border-0 ${isTop3 ? "bg-surface-50/50" : ""}`}
+                className={`border-b border-surface-50 last:border-0 hover:bg-surface-50 transition-colors ${isTop3 ? "bg-surface-50/50" : ""}`}
               >
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
@@ -387,44 +432,51 @@ function GroupTable({ groups }: { groups: RankedGroup[] }) {
                     </span>
                   </div>
                 </td>
+
                 <td className="px-6 py-3">
                   <div className="flex items-center gap-3">
                     <div className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center shrink-0">
                       <Users size={13} className="text-text-tertiary" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-[14px] font-bold text-text-primary leading-none">{group.code}</p>
-                      <p className="text-[12px] text-text-tertiary leading-snug mt-0.5">{group.branch}</p>
+                      <p className="text-[12px] text-text-tertiary leading-snug mt-0.5 truncate">{group.branch}</p>
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-3 text-right">
-                  <div
-                    className="flex flex-col items-end gap-0.5"
-                    title="Grup puanı, öğrenci ortalamasına göre hesaplanır"
-                  >
-                    <span className={`text-[15px] font-bold tabular-nums ${isTop3 && group.rank === 1 ? "text-[#FF8D28]" : "text-text-primary"}`}>
-                      {Math.round(group.rawScore).toLocaleString("tr-TR")}
-                    </span>
-                    <span className="text-[11px] font-medium text-text-disabled tabular-nums">
-                      {group.totalXP.toLocaleString("tr-TR")} XP
-                    </span>
-                  </div>
+
+                <td className="px-6 py-3 hidden lg:table-cell">
+                  <span className="text-[13px] font-medium text-text-tertiary">{groupsMap[group.code] || "—"}</span>
                 </td>
+
+                <td className="px-6 py-3 text-right">
+                  <span className={`text-[15px] font-bold tabular-nums ${isTop3 && group.rank === 1 ? "text-[#FF8D28]" : "text-text-primary"}`}>
+                    {Math.round(group.rawScore).toLocaleString("tr-TR")}
+                  </span>
+                </td>
+
+                <td className="px-6 py-3 text-right hidden md:table-cell">
+                  <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
+                    {group.totalXP.toLocaleString("tr-TR")} XP
+                  </span>
+                </td>
+
                 <td className="px-6 py-3 text-right hidden md:table-cell">
                   <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
                     {group.studentCount}
                   </span>
                 </td>
+
                 <td className="px-6 py-3 text-right hidden xl:table-cell">
                   <span className="text-[13px] font-semibold text-text-secondary tabular-nums">
                     {group.activeCount}
                   </span>
                 </td>
-                <td className="px-6 py-3 text-right hidden xl:table-cell">
-                  <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
-                    {group.displayScore.toLocaleString("tr-TR")}
-                  </span>
+
+                <td className="px-6 py-3">
+                  <div className="flex justify-center">
+                    <Minus size={15} className="text-[#AEB4C0]" strokeWidth={2} />
+                  </div>
                 </td>
               </tr>
             );
@@ -440,9 +492,11 @@ function GroupTable({ groups }: { groups: RankedGroup[] }) {
 function LeaderTable({
   students,
   onStudentClick,
+  groupsMap,
 }: {
   students: RankedStudent[];
   onStudentClick: (s: RankedStudent) => void;
+  groupsMap: Record<string, string>;
 }) {
   return (
     <div className="bg-white rounded-20 border border-surface-200 overflow-hidden" style={{ boxShadow: "0 4px 40px rgba(0,0,0,0.04)" }}>
@@ -451,8 +505,10 @@ function LeaderTable({
           <tr className="border-b border-surface-100">
             <th className="text-left text-[14px] font-bold text-text-secondary px-8 py-4 w-20">#</th>
             <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4">Öğrenci</th>
+            <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">Sınıf</th>
+            <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4 hidden lg:table-cell">Eğitmen</th>
             <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4">Puan</th>
-            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">XP</th>
+            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">Toplam XP</th>
             <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Görev</th>
             <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Ceza</th>
             <th className="text-center text-[14px] font-bold text-text-secondary px-6 py-4">Trend</th>
@@ -487,10 +543,18 @@ function LeaderTable({
                         {student.name} {student.lastName}
                       </p>
                       <p className="text-[12px] text-text-tertiary leading-snug truncate mt-0.5">
-                        {student.branch} · {student.groupCode}
+                        {student.branch}
                       </p>
                     </div>
                   </div>
+                </td>
+
+                <td className="px-6 py-3 hidden md:table-cell">
+                  <span className="text-[13px] font-semibold text-text-secondary">{student.groupCode || "—"}</span>
+                </td>
+
+                <td className="px-6 py-3 hidden lg:table-cell">
+                  <span className="text-[13px] font-medium text-text-tertiary">{groupsMap[student.groupCode] || "—"}</span>
                 </td>
 
                 <td className="px-6 py-3 text-right">
@@ -501,7 +565,7 @@ function LeaderTable({
 
                 <td className="px-6 py-3 text-right hidden md:table-cell">
                   <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
-                    {student.points ?? 0} XP
+                    {(student.points ?? 0).toLocaleString("tr-TR")} XP
                   </span>
                 </td>
 
@@ -540,19 +604,6 @@ function LeaderTable({
   );
 }
 
-// ─── Empty State ──────────────────────────────────────────────────────────────
-
-function EmptyState() {
-  return (
-    <div className="bg-white rounded-20 border border-surface-200 min-h-80 flex flex-col items-center justify-center gap-3 p-12" style={{ boxShadow: "0 4px 40px rgba(0,0,0,0.04)" }}>
-      <Trophy size={40} className="text-surface-200" />
-      <p className="text-[14px] font-semibold text-text-placeholder">Öğrenci bulunamadı</p>
-      <p className="text-[12px] text-text-disabled text-center max-w-60">
-        Bu filtre için henüz aktif öğrenci yok.
-      </p>
-    </div>
-  );
-}
 
 // ─── League Intro ─────────────────────────────────────────────────────────────
 
@@ -659,21 +710,24 @@ let _leagueIntroShown = false;
 export default function LeaguePage() {
   const [showIntro,       setShowIntro]       = useState(!_leagueIntroShown);
   const [_activeTab,      setActiveTab]       = useState("league");
-  const [baseFilter,      setBaseFilter]      = useState<"Tüm Öğrenciler" | "Sınıflarım">("Tüm Öğrenciler");
-  const [branchFilter,    setBranchFilter]    = useState(ALL_BRANCH);
-  const [groupFilter,     setGroupFilter]     = useState(ALL_GROUP);
-  const [scoreMode,       setScoreMode]       = useState<ScoreMode>("total");
+  const [filterMode,         setFilterMode]         = useState<"trainer" | "branch">("trainer");
+  const [trainerGroupFilter, setTrainerGroupFilter] = useState(ALL_GROUP);
+  const [branchSubFilter,    setBranchSubFilter]    = useState(ALL_BRANCH);
+  const [scoreMode,          setScoreMode]          = useState<ScoreMode>("total");
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
   const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: any }>>({});
+  const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({}); // groupCode → instructor name
+  const [groupBranches,   setGroupBranches]   = useState<string[]>([]); // şube listesi groups'tan
   const [myGroupCodes,    setMyGroupCodes]    = useState<string[] | null>(null);
   const [loading,         setLoading]         = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<ModalStudent | null>(null);
   const [modalOpen,       setModalOpen]       = useState(false);
+  const [openDropdown,    setOpenDropdown]    = useState<"groups" | "branches" | null>(null);
 
   const { user }                     = useUser();
   const { settings, activeSeasonId } = useScoring();
-  const isAdmin = user?.roles?.includes(ROLES.ADMIN) ?? false;
+
 
   // ── Eğitmene ait aktif grup kodları ────────────────────────────────────────
   useEffect(() => {
@@ -689,6 +743,21 @@ export default function LeaguePage() {
     });
   }, [user?.uid]);
 
+  // ── Grupları çek (eğitmen adı için) ───────────────────────────────────────
+  useEffect(() => {
+    getDocs(collection(db, "groups")).then((snap) => {
+      const map: Record<string, string> = {};
+      const branches = new Set<string>();
+      snap.docs.forEach((d) => {
+        const data = d.data() as any;
+        if (data.code) map[data.code] = data.instructor || "";
+        if (data.branch) branches.add(data.branch);
+      });
+      setGroupsMap(map);
+      setGroupBranches([ALL_BRANCH, ...Array.from(branches).sort()]);
+    }).catch(() => {});
+  }, []);
+
   // ── Görevleri çek ─────────────────────────────────────────────────────────
   useEffect(() => {
     getDocs(collection(db, "tasks")).then((snap) => {
@@ -701,54 +770,33 @@ export default function LeaguePage() {
     }).catch(() => {});
   }, []);
 
-  // ── Şube değişince grup filtresini sıfırla ──────────────────────────────────
-  useEffect(() => { setGroupFilter(ALL_GROUP); }, [branchFilter]);
 
   // ── Öğrencileri çek ────────────────────────────────────────────────────────
   useEffect(() => {
     const uid = user?.uid;
-    if (!uid || myGroupCodes === null) return;
+    if (!uid) return;
     setLoading(true);
-
-    let q;
-    if (baseFilter === "Sınıflarım") {
-      if (myGroupCodes.length === 0) { setRawStudents([]); setLoading(false); return; }
-      q = query(
-        collection(db, "students"),
-        where("groupCode", "in", myGroupCodes.slice(0, 30)),
-        where("status", "==", "active"),
-      );
-    } else {
-      q = query(collection(db, "students"), where("status", "==", "active"));
-    }
-
+    const q = query(collection(db, "students"), where("status", "==", "active"));
     return onSnapshot(q, (snap) => {
       setRawStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() } as StudentData)));
       setLoading(false);
     });
-  }, [baseFilter, myGroupCodes, user?.uid]);
+  }, [user?.uid]);
 
   // ── Şube ve grup seçenekleri ───────────────────────────────────────────────
-  const branchOptions = useMemo(() => {
-    const set = new Set(rawStudents.map((s) => s.branch).filter(Boolean));
-    return [ALL_BRANCH, ...Array.from(set).sort()];
-  }, [rawStudents]);
-
   const groupOptions = useMemo(() => {
-    const allowedCodes = isAdmin ? null : (myGroupCodes ?? []);
-    const pool = rawStudents.filter((s) => {
-      if (branchFilter !== ALL_BRANCH && s.branch !== branchFilter) return false;
-      if (allowedCodes !== null && !allowedCodes.includes(s.groupCode)) return false;
-      return true;
-    });
-    const set = new Set(pool.map((s) => s.groupCode).filter(Boolean));
-    return [ALL_GROUP, ...Array.from(set).sort()];
-  }, [rawStudents, branchFilter, isAdmin, myGroupCodes]);
+    return [ALL_GROUP, ...(myGroupCodes ?? [])];
+  }, [myGroupCodes]);
 
-  // ── Runtime sıralama ───────────────────────────────────────────────────────
-  const rankedStudents = useMemo<RankedStudent[]>(() => {
-    // Son 30 günün task ID'lerini Set olarak derle — O(|tasksMap|) tek seferlik,
-    // öğrenci döngüsü içinde tekrarlanan tarih karşılaştırmalarını önler.
+  // Groups + öğrencilerden türetilen şube listesi
+  const branchOptions = useMemo(() => {
+    const branches = new Set<string>(groupBranches.filter(b => b !== ALL_BRANCH));
+    rawStudents.forEach(s => { if (s.branch) branches.add(s.branch); });
+    return [ALL_BRANCH, ...Array.from(branches).sort()];
+  }, [rawStudents, groupBranches]);
+
+  // ── Puan hesaplama (filtresiz) ─────────────────────────────────────────────
+  const withScores = useMemo(() => {
     const thirtyDaysAgo = Date.now() - 30 * 86400000;
     const recentTaskIds = new Set<string>(
       Object.entries(tasksMap)
@@ -760,118 +808,120 @@ export default function LeaguePage() {
         })
         .map(([id]) => id)
     );
-
-    const withScores = rawStudents.map((s) => {
+    return rawStudents.map((s) => {
       const tasks = s.gradedTasks ?? {};
-
-      // Tüm zamanlardaki istatistikler
-      const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(
-        tasks, s.isScoreHidden, activeSeasonId
-      );
-
-      // Son 30 günün istatistikleri — Set ile O(1) lookup, unique taskId garantili
-      const recentEntries = s.isScoreHidden
-        ? []
-        : Object.entries(tasks).filter(([taskId]) => recentTaskIds.has(taskId));
+      const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
+      const recentEntries   = s.isScoreHidden ? [] : Object.entries(tasks).filter(([tid]) => recentTaskIds.has(tid));
       const recentXP        = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
       const recentCompleted = recentEntries.length;
-
-      const generalScore = calcScore(totalXP, completedTasks, settings);
-      const recentScore  = calcScore(recentXP, recentCompleted, settings);
-      const finalScore   = calcFinalScore(generalScore, recentScore);
-      const displayScore = scoreMode === "monthly" ? recentScore : finalScore;
-
-      return {
-        ...s,
-        points:           totalXP,
-        completedTasks,
-        latePenaltyTotal,
-        generalScore,
-        recentScore,
-        finalScore,
-        score: displayScore,
-      };
+      const generalScore    = calcScore(totalXP, completedTasks, settings);
+      const recentScore     = calcScore(recentXP, recentCompleted, settings);
+      const finalScore      = calcFinalScore(generalScore, recentScore);
+      return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore, score: scoreMode === "monthly" ? recentScore : finalScore };
     });
+  }, [rawStudents, settings, activeSeasonId, scoreMode, tasksMap]);
 
-    const filtered = withScores.filter((s) => {
-      if (branchFilter !== ALL_BRANCH && s.branch !== branchFilter) return false;
-      if (groupFilter !== ALL_GROUP && s.groupCode !== groupFilter) return false;
-      return true;
-    });
+  const sortFn = (a: typeof withScores[0], b: typeof withScores[0]) => {
+    const sd = b.score - a.score; if (sd !== 0) return sd;
+    const pd = (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0); if (pd !== 0) return pd;
+    return (b.points ?? 0) - (a.points ?? 0);
+  };
 
-    filtered.sort((a, b) => {
-      const sd = b.score - a.score;
-      if (sd !== 0) return sd;
-      const pd = (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0);
-      if (pd !== 0) return pd;
-      return (b.points ?? 0) - (a.points ?? 0);
-    });
+  // ── Tablo sıralaması (tüm filtreleri takip eder) ──────────────────────────
+  const rankedStudents = useMemo<RankedStudent[]>(() => {
+    let filtered: typeof withScores;
+    if (viewMode === "groups") {
+      filtered = withScores;
+    } else if (filterMode === "trainer") {
+      if (trainerGroupFilter !== ALL_GROUP) {
+        filtered = withScores.filter(s => s.groupCode === trainerGroupFilter);
+      } else if (myGroupCodes?.length) {
+        filtered = withScores.filter(s => myGroupCodes.includes(s.groupCode));
+      } else {
+        filtered = withScores;
+      }
+    } else {
+      filtered = branchSubFilter !== ALL_BRANCH
+        ? withScores.filter(s => s.branch === branchSubFilter)
+        : withScores;
+    }
+    return [...filtered].sort(sortFn).map((s, i) => ({ ...s, rank: i + 1 }));
+  }, [withScores, viewMode, filterMode, trainerGroupFilter, branchSubFilter, myGroupCodes]);
 
-    return filtered.map((s, i) => ({ ...s, rank: i + 1 }));
-  }, [rawStudents, settings, activeSeasonId, branchFilter, groupFilter, scoreMode, tasksMap]);
+  // ── Podyum öğrencileri (mod düzeyinde, spesifik grup takip etmez) ─────────
+  const podiumStudents = useMemo<RankedStudent[]>(() => {
+    let filtered: typeof withScores;
+    if (filterMode === "trainer") {
+      filtered = myGroupCodes?.length
+        ? withScores.filter(s => myGroupCodes.includes(s.groupCode))
+        : withScores;
+    } else {
+      filtered = branchSubFilter !== ALL_BRANCH
+        ? withScores.filter(s => s.branch === branchSubFilter)
+        : withScores;
+    }
+    return [...filtered].sort(sortFn).map((s, i) => ({ ...s, rank: i + 1 }));
+  }, [withScores, filterMode, branchSubFilter, myGroupCodes]);
 
-  // ── Grup sıralaması ───────────────────────────────────────────────────────
+  // ── Grup sıralaması (filterMode + branchSubFilter + myGroupCodes takip eder) ──
   const rankedGroups = useMemo<RankedGroup[]>(() => {
+    let base: typeof withScores;
+    if (filterMode === "trainer") {
+      base = myGroupCodes?.length
+        ? withScores.filter(s => myGroupCodes.includes(s.groupCode))
+        : withScores;
+    } else {
+      base = branchSubFilter !== ALL_BRANCH
+        ? withScores.filter(s => s.branch === branchSubFilter)
+        : withScores;
+    }
     const byGroup: Record<string, RankedStudent[]> = {};
-    for (const s of rankedStudents) {
+    const all = [...base].sort(sortFn).map((s, i) => ({ ...s, rank: i + 1 })) as RankedStudent[];
+    for (const s of all) {
       if (!s.groupCode) continue;
       if (!byGroup[s.groupCode]) byGroup[s.groupCode] = [];
       byGroup[s.groupCode].push(s);
     }
-
     return Object.entries(byGroup)
       .map(([code, students]) => {
-        const activeCount = students.filter((s) => (s.completedTasks ?? 0) >= 1).length;
+        const activeCount  = students.filter(s => (s.completedTasks ?? 0) >= 1).length;
         const studentCount = students.length;
-        // rawScore: ortalama öğrenci puanı — sıralama adaleti için
-        const rawScore = safe(
-          students.reduce((acc, s) => acc + s.score, 0) / Math.max(studentCount, 1)
-        );
-        // displayScore: rawScore × öğrenci sayısı — UI'da güçlü görünür
+        const rawScore     = safe(students.reduce((acc, s) => acc + s.score, 0) / Math.max(studentCount, 1));
         const displayScore = Math.round(rawScore * studentCount);
-        const totalXP = students.reduce((acc, s) => acc + (s.points ?? 0), 0);
-        return {
-          code,
-          students,
-          activeCount,
-          studentCount,
-          rawScore,
-          displayScore,
-          totalXP,
-          branch: students[0]?.branch ?? "",
-        };
+        const totalXP      = students.reduce((acc, s) => acc + (s.points ?? 0), 0);
+        return { code, students, activeCount, studentCount, rawScore, displayScore, totalXP, branch: students[0]?.branch ?? "" };
       })
       .sort((a, b) => b.rawScore - a.rawScore)
       .map((g, i) => ({ ...g, rank: i + 1 }));
-  }, [rankedStudents]);
-
-  const podium = rankedStudents.slice(0, 3);
+  }, [withScores, filterMode, branchSubFilter, myGroupCodes]);
 
   // ── Özet istatistikler ────────────────────────────────────────────────────
   const summaryStats = useMemo(() => ({
     studentCount:   rankedStudents.length,
     totalCompleted: rankedStudents.reduce((s, x) => s + (x.completedTasks ?? 0), 0),
     totalXP:        rankedStudents.reduce((s, x) => s + (x.points ?? 0), 0),
-    avgScore:       rankedStudents.length > 0
-      ? rankedStudents.reduce((s, x) => s + x.score, 0) / rankedStudents.length
-      : 0,
+    avgScore:       rankedStudents.length > 0 ? rankedStudents.reduce((s, x) => s + x.score, 0) / rankedStudents.length : 0,
   }), [rankedStudents]);
 
-  // ── Analytics ─────────────────────────────────────────────────────────────
+  // ── Analytics (podyum verisi takip eder) ──────────────────────────────────
   const analytics = useMemo(() => {
-    if (rankedStudents.length === 0) return null;
-    const topXP = rankedStudents.reduce((a, b) => (a.points ?? 0) >= (b.points ?? 0) ? a : b);
-    const rising = rankedStudents.filter((s) => (s.rankChange ?? 0) > 0)
-      .sort((a, b) => (b.rankChange ?? 0) - (a.rankChange ?? 0));
+    if (podiumStudents.length === 0) return null;
+    const topXP         = podiumStudents.reduce((a, b) => (a.points ?? 0) >= (b.points ?? 0) ? a : b);
+    const rising        = podiumStudents.filter(s => (s.rankChange ?? 0) > 0).sort((a, b) => (b.rankChange ?? 0) - (a.rankChange ?? 0));
     const fastestRising = rising[0] ?? null;
-    const mostTasks = rankedStudents.reduce((a, b) =>
-      (a.completedTasks ?? 0) >= (b.completedTasks ?? 0) ? a : b
-    );
-    const leastPenalty = [...rankedStudents].sort(
-      (a, b) => (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0)
-    )[0];
+    const mostTasks     = podiumStudents.reduce((a, b) => (a.completedTasks ?? 0) >= (b.completedTasks ?? 0) ? a : b);
+    const leastPenalty  = [...podiumStudents].sort((a, b) => (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0))[0];
     return { topXP, fastestRising, mostTasks, leastPenalty };
-  }, [rankedStudents]);
+  }, [podiumStudents]);
+
+  const groupAnalytics = useMemo(() => {
+    if (rankedGroups.length === 0) return null;
+    const topScore     = rankedGroups[0];
+    const topXP        = [...rankedGroups].sort((a, b) => b.totalXP - a.totalXP)[0];
+    const mostStudents = [...rankedGroups].sort((a, b) => b.studentCount - a.studentCount)[0];
+    const mostActive   = [...rankedGroups].sort((a, b) => b.activeCount - a.activeCount)[0];
+    return { topScore, topXP, mostStudents, mostActive };
+  }, [rankedGroups]);
 
   const handleStudentClick = (student: RankedStudent) => {
     const formattedStudent = { ...student, avatarId: Number(student.avatarId) || 0 };
@@ -932,67 +982,204 @@ export default function LeaguePage() {
               <div className="bg-white rounded-20 border border-surface-200 flex items-center justify-center h-64" style={{ boxShadow: "0 4px 40px rgba(0,0,0,0.04)" }}>
                 <div className="w-6 h-6 border-2 border-surface-100 border-t-[#FF8D28] rounded-full animate-spin" />
               </div>
-            ) : rankedStudents.length === 0 ? (
-              <EmptyState />
             ) : (
               <div className="space-y-4">
 
-                {/* ── TABLO BAŞLIK SATIRI ── */}
-                <div className="flex items-center justify-between mt-2">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-[24px] font-semibold text-text-primary leading-none">Lig Tablosu</h2>
-                    <span className="text-[13px] font-medium text-text-tertiary">
-                      {viewMode === "groups"
-                        ? `${rankedGroups.length} grup`
-                        : `${rankedStudents.length} öğrenci`}
-                    </span>
+                {/* ── GENEL GÖRÜNÜŞ — her zaman görünür ── */}
+                <div className="flex items-center justify-between mt-8 pb-4 border-b border-neutral-300">
+                  <div className="flex items-center gap-2.5">
+                    <Trophy size={17} className="text-[#FF8D28]" />
+                    <h2 className="text-[16px] font-bold text-base-primary-900 tracking-tight">Genel Görünüş</h2>
                   </div>
+                  <span className="px-3 py-1 rounded-full text-[12px] font-semibold bg-[#FFF0E0] text-[#C45000] border border-[#FFDDB8]">
+                    {new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {viewMode === "students" ? (
+                    <>
+                      {podiumStudents.length > 0 && <PodiumSection students={podiumStudents.slice(0, 3)} onStudentClick={handleStudentClick} />}
+                      {analytics && <AnalyticsGrid analytics={analytics} />}
+                    </>
+                  ) : (
+                    <>
+                      {rankedGroups.length >= 2 && <GroupPodium groups={rankedGroups.slice(0, 3)} />}
+                      {groupAnalytics && <GroupAnalyticsGrid analytics={groupAnalytics} />}
+                    </>
+                  )}
+                </div>
 
-                  <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {/* Tüm Öğrenciler / Sınıflarım */}
-                    <div className="flex items-center gap-0.5 bg-surface-100 rounded-10 p-0.5">
-                      {BASE_TABS.map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => setBaseFilter(f)}
-                          className={`text-[12px] font-semibold px-3 h-7 rounded-8 transition-all cursor-pointer whitespace-nowrap ${
-                            baseFilter === f
-                              ? "bg-white text-text-primary shadow-sm"
-                              : "text-text-tertiary hover:text-text-primary"
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
+                {/* ── LİG TABLOSU BAŞLIĞI ── */}
+                <div className="flex items-center mt-8 pb-4 border-b border-neutral-300">
+                  <Users size={17} className="text-base-primary-900 shrink-0" />
+                  <h2 className="text-[16px] font-bold text-base-primary-900 tracking-tight ml-2.5">Lig Tablosu</h2>
+                  <span className="text-[13px] font-medium text-neutral-400 border-l border-neutral-200 pl-3 ml-3 h-5 flex items-center shrink-0">
+                    {rankedGroups.length} grup · {rankedStudents.length} öğrenci
+                  </span>
+                  {/* Öğrenci / Grup Bazlı — 32px sağda */}
+                  <div className="ml-8 flex items-center bg-surface-50 p-1 rounded-xl border border-neutral-100 shadow-sm">
+                    {(["students", "groups"] as ViewMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => {
+                          setViewMode(mode);
+                          if (mode === "groups") {
+                            setFilterMode("branch");
+                            setBranchSubFilter(ALL_BRANCH);
+                            setOpenDropdown(null);
+                          }
+                        }}
+                        className={`px-4 py-1.5 rounded-[10px] text-[13px] font-semibold transition-all cursor-pointer outline-none select-none whitespace-nowrap ${
+                          viewMode === mode
+                            ? "bg-white text-base-primary-900 shadow-sm border border-neutral-100"
+                            : "text-neutral-400 hover:text-neutral-600 border border-transparent"
+                        }`}
+                      >
+                        {mode === "students" ? "Öğrenci Bazlı" : "Grup Bazlı"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dropdown dış tıklama kapatma */}
+                {openDropdown && (
+                  <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
+                )}
+
+                {/* ── FİLTRE SATIRI (her iki modda da görünür) ── */}
+                <div className="mt-6 flex items-center justify-between">
+
+                    {/* Sol: Eğitmen/Şube toggle + seçim butonları */}
+                    <div className="flex items-center">
+                      {/* Eğitmen Bazlı / Şube Bazlı toggle — aktif lacivert */}
+                      <div className="flex items-center gap-0.5 bg-surface-100 border border-surface-200 rounded-10 p-0.5">
+                        {(["trainer", "branch"] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            onClick={() => {
+                              setFilterMode(mode);
+                              setTrainerGroupFilter(ALL_GROUP);
+                              setBranchSubFilter(
+                                mode === "branch" && user?.branch && branchOptions.includes(user.branch)
+                                  ? user.branch
+                                  : ALL_BRANCH
+                              );
+                              setOpenDropdown(null);
+                            }}
+                            className={`text-[12px] font-semibold px-3 h-7 rounded-8 transition-all cursor-pointer outline-none whitespace-nowrap ${
+                              filterMode === mode
+                                ? "bg-base-primary-900 text-white shadow-sm"
+                                : "text-text-tertiary hover:text-text-primary"
+                            }`}
+                          >
+                            {mode === "trainer" ? "Eğitmen Bazlı" : "Şube Bazlı"}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Seçim butonları — Trendyol pill stili, 64px sağda */}
+                      <div className="ml-16 flex items-center gap-2">
+                        {filterMode === "trainer" && viewMode === "groups" ? null : filterMode === "trainer" ? (
+                          <>
+                            {/* Tüm Gruplarım — sade text buton */}
+                            <button
+                              onClick={() => { setTrainerGroupFilter(ALL_GROUP); setOpenDropdown(null); }}
+                              className={`text-[12px] transition-colors cursor-pointer outline-none whitespace-nowrap ${
+                                trainerGroupFilter === ALL_GROUP
+                                  ? "font-bold text-base-primary-900 underline underline-offset-2 decoration-base-primary-400"
+                                  : "font-semibold text-neutral-400 hover:text-base-primary-700"
+                              }`}
+                            >
+                              Tüm Gruplarım
+                            </button>
+                            {/* Gruplarım dropdown — pill buton */}
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenDropdown(openDropdown === "groups" ? null : "groups")}
+                                className={`flex items-center gap-1 px-3 h-7 rounded-full text-[12px] font-medium border transition-all cursor-pointer outline-none whitespace-nowrap ${
+                                  trainerGroupFilter !== ALL_GROUP
+                                    ? "border-base-primary-900 text-base-primary-900 font-semibold bg-white"
+                                    : "border-neutral-300 text-neutral-500 bg-white hover:border-neutral-400 hover:text-neutral-700"
+                                }`}
+                              >
+                                {trainerGroupFilter !== ALL_GROUP ? trainerGroupFilter : "Gruplarım"}
+                                <ChevronRight size={11} className={`transition-transform ${openDropdown === "groups" ? "rotate-90" : ""}`} />
+                              </button>
+                              {openDropdown === "groups" && (
+                                <div className="absolute top-full left-0 mt-1.5 bg-white border border-neutral-200 rounded-12 shadow-lg z-20 py-1 min-w-[150px]">
+                                  {groupOptions.filter(g => g !== ALL_GROUP).map((g) => (
+                                    <button
+                                      key={g}
+                                      onClick={() => { setTrainerGroupFilter(g); setOpenDropdown(null); }}
+                                      className={`w-full text-left px-4 py-2.5 text-[13px] transition-colors cursor-pointer outline-none ${
+                                        trainerGroupFilter === g
+                                          ? "font-semibold text-base-primary-900 bg-base-primary-50"
+                                          : "font-medium text-neutral-600 hover:bg-surface-50"
+                                      }`}
+                                    >
+                                      {g}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {/* Tüm Şubeler — sade text buton */}
+                            <button
+                              onClick={() => { setBranchSubFilter(ALL_BRANCH); setOpenDropdown(null); }}
+                              className={`text-[12px] transition-colors cursor-pointer outline-none whitespace-nowrap ${
+                                branchSubFilter === ALL_BRANCH
+                                  ? "font-bold text-base-primary-900 underline underline-offset-2 decoration-base-primary-400"
+                                  : "font-semibold text-neutral-400 hover:text-base-primary-700"
+                              }`}
+                            >
+                              Tüm Şubeler
+                            </button>
+                            {/* Şubeler dropdown — pill buton */}
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenDropdown(openDropdown === "branches" ? null : "branches")}
+                                className={`flex items-center gap-1 px-3 h-7 rounded-full text-[12px] font-medium border transition-all cursor-pointer outline-none whitespace-nowrap ${
+                                  branchSubFilter !== ALL_BRANCH
+                                    ? "border-base-primary-900 text-base-primary-900 font-semibold bg-white"
+                                    : "border-neutral-300 text-neutral-500 bg-white hover:border-neutral-400 hover:text-neutral-700"
+                                }`}
+                              >
+                                {branchSubFilter !== ALL_BRANCH ? branchSubFilter : "Şubeler"}
+                                <ChevronRight size={11} className={`transition-transform ${openDropdown === "branches" ? "rotate-90" : ""}`} />
+                              </button>
+                              {openDropdown === "branches" && (
+                                <div className="absolute top-full left-0 mt-1.5 bg-white border border-neutral-200 rounded-12 shadow-lg z-20 py-1 min-w-[160px]">
+                                  {branchOptions.filter(b => b !== ALL_BRANCH).map((b) => (
+                                    <button
+                                      key={b}
+                                      onClick={() => { setBranchSubFilter(b); setOpenDropdown(null); }}
+                                      className={`w-full text-left px-4 py-2.5 text-[13px] transition-colors cursor-pointer outline-none ${
+                                        branchSubFilter === b
+                                          ? "font-semibold text-base-primary-900 bg-base-primary-50"
+                                          : "font-medium text-neutral-600 hover:bg-surface-50"
+                                      }`}
+                                    >
+                                      {b}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="w-px h-5 bg-surface-200 shrink-0" />
-
-                    <select
-                      value={branchFilter}
-                      onChange={(e) => setBranchFilter(e.target.value)}
-                      className="h-8 px-3 rounded-10 bg-white border border-surface-200 text-text-primary text-[12px] font-medium outline-none cursor-pointer"
-                    >
-                      {branchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
-                    </select>
-
-                    <select
-                      value={groupFilter}
-                      onChange={(e) => setGroupFilter(e.target.value)}
-                      className="h-8 px-3 rounded-10 bg-white border border-surface-200 text-text-primary text-[12px] font-medium outline-none cursor-pointer"
-                    >
-                      {groupOptions.map((g) => <option key={g} value={g}>{g}</option>)}
-                    </select>
-
-                    <div className="w-px h-5 bg-surface-200 shrink-0" />
-
-                    {/* Toplam / Aylık */}
-                    <div className="flex items-center gap-0.5 bg-surface-100 rounded-10 p-0.5">
+                    {/* Sağ: Toplam / Aylık — sadece öğrenci modunda */}
+                    {viewMode === "students" && <div className="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-full p-1">
                       {(["total", "monthly"] as ScoreMode[]).map((mode) => (
                         <button
                           key={mode}
                           onClick={() => setScoreMode(mode)}
-                          className={`text-[12px] font-semibold px-3 h-7 rounded-8 transition-all cursor-pointer ${
+                          className={`text-[11px] font-semibold px-3 h-6 rounded-full transition-all cursor-pointer outline-none whitespace-nowrap ${
                             scoreMode === mode
                               ? "bg-white text-text-primary shadow-sm"
                               : "text-text-tertiary hover:text-text-primary"
@@ -1001,48 +1188,34 @@ export default function LeaguePage() {
                           {mode === "total" ? "Toplam" : "Aylık"}
                         </button>
                       ))}
-                    </div>
+                    </div>}
 
-                    <div className="w-px h-5 bg-surface-200 shrink-0" />
-
-                    {/* Öğrenciler / Gruplar */}
-                    <div className="flex items-center gap-0.5 bg-surface-100 rounded-10 p-0.5">
-                      {(["students", "groups"] as ViewMode[]).map((mode) => (
-                        <button
-                          key={mode}
-                          onClick={() => setViewMode(mode)}
-                          className={`text-[12px] font-semibold px-3 h-7 rounded-8 transition-all cursor-pointer ${
-                            viewMode === mode
-                              ? "bg-white text-text-primary shadow-sm"
-                              : "text-text-tertiary hover:text-text-primary"
-                          }`}
-                        >
-                          {mode === "students" ? "Öğrenciler" : "Gruplar"}
-                        </button>
-                      ))}
-                    </div>
                   </div>
-                </div>
 
-                {/* ── GÖRÜNÜM ── */}
-                {viewMode === "students" ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      {podium.length > 0 && (
-                        <PodiumSection students={podium} onStudentClick={handleStudentClick} />
-                      )}
-                      {analytics && <AnalyticsGrid analytics={analytics} />}
-                    </div>
-                    <LeaderTable students={rankedStudents} onStudentClick={handleStudentClick} />
-                  </>
-                ) : (
-                  <>
-                    {rankedGroups.length >= 2 && (
-                      <GroupPodium groups={rankedGroups.slice(0, 3)} />
-                    )}
-                    <GroupTable groups={rankedGroups} />
-                  </>
-                )}
+                {/* ── TABLO ── */}
+                <div className="mt-4">
+                  {viewMode === "students" ? (
+                    rankedStudents.length === 0 ? (
+                      <div className="bg-white rounded-20 border border-surface-200 min-h-48 flex flex-col items-center justify-center gap-3 p-12" style={{ boxShadow: "0 4px 40px rgba(0,0,0,0.04)" }}>
+                        <Users size={36} className="text-surface-200" />
+                        <p className="text-[14px] font-semibold text-text-placeholder">Öğrenci bulunamadı</p>
+                        <p className="text-[12px] text-text-disabled text-center max-w-60">Bu filtreye ait öğrenci kaydı bulunmamaktadır.</p>
+                      </div>
+                    ) : (
+                      <LeaderTable students={rankedStudents} onStudentClick={handleStudentClick} groupsMap={groupsMap} />
+                    )
+                  ) : (
+                    rankedGroups.length === 0 ? (
+                      <div className="bg-white rounded-20 border border-surface-200 min-h-48 flex flex-col items-center justify-center gap-3 p-12" style={{ boxShadow: "0 4px 40px rgba(0,0,0,0.04)" }}>
+                        <Users size={36} className="text-surface-200" />
+                        <p className="text-[14px] font-semibold text-text-placeholder">Grup bulunamadı</p>
+                        <p className="text-[12px] text-text-disabled text-center max-w-60">Bu filtreye ait grup bilgisi bulunmamaktadır.</p>
+                      </div>
+                    ) : (
+                      <GroupTable groups={rankedGroups} groupsMap={groupsMap} />
+                    )
+                  )}
+                </div>
 
               </div>
             )}

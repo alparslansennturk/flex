@@ -291,6 +291,12 @@
 .error-shake {
   animation: shake 0.14s ease-in-out;
 }
+
+/* Login sayfası yardımcı küçük metin — root font-size'dan bağımsız sabit baz */
+.ui-helper-sm {
+  font-size: 13px !important;
+  line-height: 1.4;
+}
 html body #main-user-form-area::-webkit-scrollbar {
   width: 14px !important; /* Biraz geniş tutuyoruz ki içindeki boşlukla beraber düzgün dursun */
 }
