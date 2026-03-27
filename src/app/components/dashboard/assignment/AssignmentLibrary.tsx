@@ -153,6 +153,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                 points:        t.points,
                 icon:           t.icon ?? null,
                 assignmentType: t.assignmentType ?? null,
+                module:        t.module ?? null,
                 classId,
                 groupId,
                 groupBranch,

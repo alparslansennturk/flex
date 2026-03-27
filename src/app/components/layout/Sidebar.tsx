@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
-import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, PencilLine, UserCircle, Settings2, Archive } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
 
@@ -61,7 +61,7 @@ export default function Sidebar() {
           <SidebarLink href="/dashboard/archive" icon={<Archive size={18} />} label="Ödev Arşivi" compact={compact} />
         )}
 
-        <SidebarLink href="/dashboard/grading" icon={<PencilLine size={18} />} label="Not Girişi" compact={compact} />
+        <SidebarLink href="/dashboard/grading" icon={<GraduationCap size={18} />} label="Sertifikasyon" compact={compact} />
         <SidebarLink href="/dashboard/league" icon={<Trophy size={18} />} label="Sınıflar Ligi" compact={compact} />
         <SidebarLink href="/dashboard/profile" icon={<UserCircle size={18} />} label="Profil Ayarları" compact={compact} />
       </nav>

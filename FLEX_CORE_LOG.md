@@ -1,17 +1,29 @@
 # FLEX_CORE_LOG — Proje Beyni
-> Son güncelleme: 2026-03-27
+> Son güncelleme: 2026-03-28
 > Bu dosya PC'ye geçince Claude'a verilir, kaldığı yerden devam eder.
+
+---
+
+## Sidebar Güncellemesi
+
+**Dosya:** `src/app/components/layout/Sidebar.tsx`
+
+- "Not Girişi" menü öğesi **"Sertifikasyon"** olarak yeniden adlandırıldı.
+- İkonu `PencilLine` → `GraduationCap` olarak değiştirildi.
+- Menü `/dashboard/grading` yoluna yönlendirmeye devam ediyor, sadece görünen ad ve ikon değişti.
 
 ---
 
 ## Modül Alanı — Ödev Şablonları
 
-**Dosyalar:** `TaskForm.tsx`, `TaskManagementPanel.tsx`, `taskTypes.tsx`
+**Dosyalar:** `TaskForm.tsx`, `TaskManagementPanel.tsx`, `taskTypes.tsx`, `AssignmentLibrary.tsx`
 
 - `Task` arayüzüne `module?: "GRAFIK_1" | "GRAFIK_2"` eklendi.
 - Şablon formu 3 sütunlu yapıya geçirildi: **Kart Adı | Modül\* | Seviye**
 - Modül seçimi şablonlarda zorunlu alan olarak işaretlendi.
 - Şablon tablosuna Seviyeden önce **Modül** sütunu eklendi (Grafik 1 / Grafik 2 pill badge).
+- **Bug fix:** Şablondan ödev başlatılırken `module` alanı task dokümanına kopyalanmıyordu. `AssignmentLibrary.tsx` → `addDoc` çağrısına `module: t.module ?? null` eklendi.
+- ⚠️ Bu düzeltme öncesi başlatılan task'larda `module` alanı Firestore'da manuel set edilmeli.
 
 ---
 
@@ -19,7 +31,7 @@
 
 **Dosya:** `src/app/dashboard/grading/page.tsx`
 
-- Not Girişi sayfasına üst sekme olarak **Sertifikasyon** eklendi.
+- Grading sayfasına (`/dashboard/grading?section=certification`) **Sertifikasyon** bölümü eklendi.
 - İç sekmeler: **Grafik 1** / **Grafik 2**
 - Her sekme: grup dropdown, öğrenci tablosu (Öğrenci Adı | Proje Notu | Ödev Puanı | Toplam Not)
 - Kayıt: `projectGrades/{studentId}_{groupId}_{module}` dokümana `setDoc merge`
@@ -28,6 +40,7 @@
 - `odevPuani = (studentXP / maxXP) × 30`
 - `finalNot = projectScore × 0.7 + odevPuani`
 - Task verileri `onSnapshot` ile realtime güncelleniyor (`isGraded: true` + modül filtresi)
+- **Önemli:** `onSnapshot` task'ın `module` alanını filtreler — bu alan task dokümanında yoksa ödev puanı "—" görünür (yukarıdaki bug fix bunu çözüyor)
 
 ### Grafik X Bitir Butonu
 - Tablo altında finalize butonu
@@ -96,4 +109,4 @@ match /projectGrades/{gradeId} {
 - Task'lar `classId` (grup kodu), notlar `studentId` ile bağlanır — kod değişse de puanlar kaybolmaz
 - Composite Firestore index sorunundan kaçınmak için tek `where` + JS-side filtreleme kullanılır
 - Öğrenci koleksiyonu hem `groupId` (stabil) hem `groupCode` (görüntü) taşır; kod değişince her ikisi de güncellenir
-1
+- Sertifikasyon ödev puanı hesabı task'ın `module` alanına bağımlıdır — bu alan `AssignmentLibrary.tsx` üzerinden artık otomatik taşınıyor
