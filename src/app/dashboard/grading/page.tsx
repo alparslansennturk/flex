@@ -6,12 +6,13 @@ import { db, auth } from "@/app/lib/firebase";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import {
   doc, getDoc, collection, query, where, getDocs,
-  writeBatch, deleteField, updateDoc, serverTimestamp,
+  writeBatch, deleteField, updateDoc, serverTimestamp, setDoc, onSnapshot,
 } from "firebase/firestore";
 import {
   ArrowLeft, CheckCircle2, Users, Zap, CalendarDays, AlertTriangle,
   ClipboardList, Award, Sparkles, ChevronRight, BookOpen, Archive,
   ChevronDown, ChevronUp, Trash2, Clock, RotateCcw, Eye, EyeOff,
+  GraduationCap,
 } from "lucide-react";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
@@ -24,11 +25,13 @@ import { Task, TYPE_CONFIG, TYPE_GRADIENT, getIcon } from "../../components/dash
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 interface Student {
   id: string; name: string; lastName: string;
-  gender: "male" | "female"; avatarId?: number; groupCode: string;
+  gender: "male" | "female"; avatarId?: number; groupCode: string; groupId?: string;
 }
 interface GradeEntry { submitted: boolean; weeksLate: number; xp: number; }
 type GradesMap = Record<string, GradeEntry>;
 type ListTab = "pending" | "done";
+type CertTab = "GRAFIK_1" | "GRAFIK_2";
+interface Group { id: string; code: string; originalCode?: string; }
 
 // ─── Yardımcılar ──────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -976,15 +979,533 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
   );
 }
 
+// ─── SERTİFİKASYON — MODÜL SEKMESİ ──────────────────────────────────────────
+function CertModuleTab({ module }: { module: CertTab }) {
+  const { user } = useUser();
+  const { settings } = useScoring();
+
+  const [groups,          setGroups]          = useState<Group[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [students,        setStudents]        = useState<Student[]>([]);
+  const [scores,          setScores]          = useState<Record<string, number | "">>({});
+  const [studentXPs,      setStudentXPs]      = useState<Record<string, number>>({});
+  const [maxXP,           setMaxXP]           = useState(0);
+  const [groupsLoading,   setGroupsLoading]   = useState(true);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [saving,          setSaving]          = useState(false);
+  const [saved,           setSaved]           = useState(false);
+  const [showFinalize,    setShowFinalize]     = useState(false);
+  const [finalizing,      setFinalizing]      = useState(false);
+  const [finalized,       setFinalized]       = useState(false);
+
+  // Grupları çek (tek seferlik)
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid) return;
+    getDocs(query(
+      collection(db, "groups"),
+      where("instructorId", "==", uid),
+      where("status", "==", "active"),
+    )).then(async snap => {
+      const rawGroups = snap.docs.map(d => ({
+        id: d.id,
+        code: (d.data() as any).code ?? d.id,
+        // codeAt_GRAFIK_1 / codeAt_GRAFIK_2: finalize sırasında group doc'a yazılır
+        originalCode: (d.data() as any)[`codeAt_${module}`] as string | undefined,
+      }));
+
+      // Eski veriler için fallback: projectGrades'deki groupCode alanından orijinal kodu çek
+      const gradeSnap = await getDocs(query(
+        collection(db, "projectGrades"),
+        where("isFinalized", "==", true),
+      ));
+      const codeFromGrades: Record<string, string> = {};
+      gradeSnap.docs.forEach(d => {
+        const data = d.data() as any;
+        if (data.module === module && data.groupId && data.groupCode) {
+          codeFromGrades[data.groupId] = data.groupCode;
+        }
+      });
+
+      setGroups(rawGroups.map(g => ({
+        ...g,
+        originalCode: g.originalCode ?? codeFromGrades[g.id],
+      })));
+      setGroupsLoading(false);
+    });
+  }, [user?.uid]);
+
+  // Grup değişince öğrencileri ve proje notlarını çek (tek seferlik)
+  useEffect(() => {
+    if (!selectedGroupId) { setStudents([]); setScores({}); setFinalized(false); return; }
+    const group = groups.find(g => g.id === selectedGroupId);
+    if (!group) return;
+
+    setStudentsLoading(true);
+    getDocs(query(
+      collection(db, "projectGrades"),
+      where("groupId", "==", selectedGroupId),
+    )).then(gradeSnap => {
+      const moduleGrades = gradeSnap.docs
+        .map(d => ({ docId: d.id, ...d.data() } as any))
+        .filter(d => d.module === module);
+
+      const isAlreadyFinalized = moduleGrades.some(d => d.isFinalized === true);
+      setFinalized(isAlreadyFinalized);
+
+      const initScores: Record<string, number | ""> = {};
+      moduleGrades.forEach(d => {
+        if (d.studentId != null) initScores[d.studentId] = d.projectScore ?? "";
+      });
+
+      if (isAlreadyFinalized) {
+        // Finalize edilmiş → öğrenci listesini projectGrades'den oluştur (o andaki öğrenciler)
+        const frozenList: Student[] = moduleGrades
+          .filter(d => d.studentName)
+          .map(d => ({
+            id:        d.studentId,
+            name:      d.studentName?.split(" ")[0] ?? "",
+            lastName:  d.studentName?.split(" ").slice(1).join(" ") ?? "",
+            gender:    d.gender ?? "male",
+            avatarId:  d.avatarId ?? 1,
+            groupCode: d.groupCode ?? group.originalCode ?? group.code,
+          } as Student))
+          .sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
+        setStudents(frozenList);
+        setScores(initScores);
+        setStudentsLoading(false);
+      } else {
+        // Henüz finalize edilmemiş → canlı öğrenci listesi (groupId ile stabil sorgu)
+        getDocs(query(
+          collection(db, "students"),
+          where("groupId", "==", selectedGroupId),
+          where("status",  "==", "active"),
+        )).then(studSnap => {
+          const list = studSnap.docs
+            .map(d => ({ id: d.id, ...d.data() } as Student))
+            .sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
+          setStudents(list);
+          // Mevcut kayıtlı notları doldur
+          list.forEach(s => { if (!(s.id in initScores)) initScores[s.id] = ""; });
+          setScores(initScores);
+          setStudentsLoading(false);
+        });
+      }
+    });
+  }, [selectedGroupId, module, groups]);
+
+  // Realtime task aboneliği → maxXP ve studentXPs otomatik güncellenir
+  useEffect(() => {
+    if (!selectedGroupId) { setMaxXP(0); setStudentXPs({}); return; }
+    const group = groups.find(g => g.id === selectedGroupId);
+    if (!group) return;
+
+    // originalCode: finalize öncesi grup kodunu kullan (kod değişmiş olabilir)
+    const q = query(collection(db, "tasks"), where("classId", "==", group.originalCode ?? group.code));
+    const unsub = onSnapshot(q, snap => {
+      const moduleTasks = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Task))
+        .filter(t => (t as any).module === module && (t as any).isGraded === true);
+
+      // maxXP: her görev için on-time XP toplamı
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const mx = moduleTasks.reduce((sum, t) => sum + getLevelXP(t.level, settings), 0);
+      setMaxXP(mx);
+
+      // Her öğrencinin aldığı XP (task.grades içinden)
+      const xpMap: Record<string, number> = {};
+      moduleTasks.forEach(t => {
+        const grades = (t as any).grades as Record<string, any> | undefined;
+        if (!grades) return;
+        Object.entries(grades).forEach(([sid, g]) => {
+          xpMap[sid] = (xpMap[sid] ?? 0) + (g?.xp ?? 0);
+        });
+      });
+      setStudentXPs(xpMap);
+    });
+
+    return () => unsub();
+  }, [selectedGroupId, module, groups]);
+
+  // Proje notlarını kaydet
+  const handleSave = async () => {
+    if (!selectedGroupId) return;
+    setSaving(true);
+    setSaved(false);
+    try {
+      await Promise.all(students.map(s => {
+        const docId = `${s.id}_${selectedGroupId}_${module}`;
+        const group = groups.find(g => g.id === selectedGroupId)!;
+        return setDoc(doc(db, "projectGrades", docId), {
+          studentId:    s.id,
+          groupId:      selectedGroupId,
+          groupCode:    group.code,
+          module,
+          projectScore: scores[s.id] === "" ? null : Number(scores[s.id]),
+          updatedAt:    serverTimestamp(),
+        }, { merge: true });
+      }));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally { setSaving(false); }
+  };
+
+  // Modülü bitir: nihai notları hesapla ve kaydet
+  const handleFinalize = async () => {
+    if (!selectedGroupId) return;
+    const group = groups.find(g => g.id === selectedGroupId)!;
+    setFinalizing(true);
+    try {
+      await Promise.all(students.map(s => {
+        const odevPuani = maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * 30 : 0;
+        const ps        = scores[s.id];
+        const finalNote = ps !== "" && ps != null
+          ? Number(ps) * 0.7 + odevPuani
+          : null;
+        const docId = `${s.id}_${selectedGroupId}_${module}`;
+        return setDoc(doc(db, "projectGrades", docId), {
+          studentId:    s.id,
+          studentName:  `${s.name} ${s.lastName}`,
+          gender:       s.gender ?? "male",
+          avatarId:     s.avatarId ?? 1,
+          groupId:      selectedGroupId,
+          groupCode:    group.code,
+          module,
+          projectScore: ps === "" ? null : Number(ps),
+          odevPuani:    parseFloat(odevPuani.toFixed(2)),
+          finalNote:    finalNote != null ? parseFloat(finalNote.toFixed(2)) : null,
+          isFinalized:  true,
+          finalizedAt:  serverTimestamp(),
+        }, { merge: true });
+      }));
+      // Grup dokümanına finalize anındaki kodu kaydet (gelecekte kod değişse bile orijinal bilinsin)
+      await updateDoc(doc(db, "groups", selectedGroupId), {
+        [`codeAt_${module}`]: group.code,
+      });
+      setFinalized(true);
+      setShowFinalize(false);
+    } finally { setFinalizing(false); }
+  };
+
+  const selectedGroup = groups.find(g => g.id === selectedGroupId);
+  const moduleLabel   = module === "GRAFIK_1" ? "Grafik 1" : "Grafik 2";
+
+  const getOdevPuani = (studentId: string) =>
+    maxXP > 0 ? (studentXPs[studentId] ?? 0) / maxXP * 30 : 0;
+
+  const getFinalNot = (studentId: string): number | null => {
+    const ps = scores[studentId];
+    if (ps === "" || ps == null) return null;
+    return Number(ps) * 0.7 + getOdevPuani(studentId);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Grup seçimi */}
+      <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-6">
+        <label className="text-[12px] font-bold text-surface-500 uppercase tracking-wide block mb-2">Grup Seçimi</label>
+        <div className="relative w-72">
+          <select
+            value={selectedGroupId}
+            onChange={e => { setSelectedGroupId(e.target.value); setSaved(false); setFinalized(false); }}
+            disabled={groupsLoading}
+            className="w-full h-12 px-4 pr-10 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50"
+          >
+            <option value="">{groupsLoading ? "Yükleniyor…" : "Grup seçiniz"}</option>
+            {groups.map(g => (
+              <option key={g.id} value={g.id}>
+                {g.originalCode && g.originalCode !== g.code
+                  ? `${g.originalCode} (şimdi: ${g.code})`
+                  : g.code}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+        </div>
+        {selectedGroupId && !studentsLoading && (
+          <p className="text-[12px] text-surface-400 mt-3">
+            Max XP: <strong className="text-base-primary-900">{maxXP}</strong>
+            {maxXP === 0 && <span className="ml-2 text-surface-400">— Bu modüle ait notlandırılmış ödev yok</span>}
+          </p>
+        )}
+      </div>
+
+      {/* Öğrenci tablosu */}
+      {selectedGroupId && (
+        studentsLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
+          </div>
+        ) : students.length === 0 ? (
+          <div className="bg-white rounded-16 border border-surface-100 shadow-sm flex flex-col items-center justify-center py-16 gap-3">
+            <Users size={24} className="text-surface-200" />
+            <p className="text-[14px] font-bold text-surface-400">Bu grupta aktif öğrenci bulunamadı.</p>
+          </div>
+        ) : (
+          <>
+            <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
+              {/* Tablo başlığı */}
+              <div className="flex items-center gap-4 px-6 py-3.5 bg-surface-50 border-b border-surface-100">
+                <div className="flex-1 min-w-0">
+                  <span className="text-[12px] font-bold text-surface-600">Öğrenci Adı</span>
+                </div>
+                <div className="w-36 shrink-0 text-center">
+                  <span className="text-[12px] font-bold text-surface-600">Proje Notu</span>
+                  <span className="block text-[10px] text-surface-400 font-medium">× 0.70</span>
+                </div>
+                <div className="w-28 shrink-0 text-center">
+                  <span className="text-[12px] font-bold text-surface-600">Ödev Puanı</span>
+                  <span className="block text-[10px] text-surface-400 font-medium">/ 30</span>
+                </div>
+                <div className="w-28 shrink-0 text-center">
+                  <span className="text-[12px] font-bold text-surface-600">Toplam Not</span>
+                  <span className="block text-[10px] text-surface-400 font-medium">/ 100</span>
+                </div>
+              </div>
+
+              {/* Satırlar */}
+              {students.map(s => {
+                const odevPuani = getOdevPuani(s.id);
+                const finalNot  = getFinalNot(s.id);
+                return (
+                  <div key={s.id} className="flex items-center gap-4 px-6 py-3.5 border-b border-surface-100 last:border-0 hover:bg-surface-50/60 transition-colors">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-9 h-9 rounded-2xl overflow-hidden shrink-0 border border-surface-100">
+                        <img
+                          src={`/avatars/${s.gender}/${s.avatarId ?? 1}.svg`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).src = `/avatars/${s.gender}/1.svg`; }}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-bold text-base-primary-900 truncate">{s.name} {s.lastName}</p>
+                        <p className="text-[11px] text-surface-400">{s.groupCode}</p>
+                      </div>
+                    </div>
+
+                    {/* Proje Notu input */}
+                    <div className="w-36 shrink-0 flex justify-center">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={scores[s.id] ?? ""}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setScores(prev => ({ ...prev, [s.id]: val === "" ? "" : Math.min(100, Math.max(0, Number(val))) }));
+                        }}
+                        placeholder="—"
+                        className="w-20 h-10 text-center rounded-xl border border-surface-200 bg-surface-50 text-[14px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 focus:bg-white transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                    </div>
+
+                    {/* Ödev Puanı */}
+                    <div className="w-28 shrink-0 text-center">
+                      {maxXP > 0
+                        ? <span className="text-[14px] font-bold text-base-primary-900">{odevPuani.toFixed(2)}</span>
+                        : <span className="text-[13px] text-surface-300">—</span>
+                      }
+                    </div>
+
+                    {/* Toplam Not */}
+                    <div className="w-28 shrink-0 text-center">
+                      {finalNot != null
+                        ? <span className={`text-[14px] font-bold ${finalNot >= 50 ? "text-status-success-600" : "text-status-danger-500"}`}>{finalNot.toFixed(2)}</span>
+                        : <span className="text-[13px] text-surface-300">—</span>
+                      }
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-6 py-4 bg-surface-50 border-t border-surface-100">
+                <p className="text-[13px] text-surface-400">
+                  <strong className="text-base-primary-900">{students.length}</strong> öğrenci · {selectedGroup?.code}
+                </p>
+                <div className="flex items-center gap-3">
+                  {saved && (
+                    <div className="flex items-center gap-1.5 text-status-success-500 animate-in fade-in">
+                      <CheckCircle2 size={14} />
+                      <span className="text-[13px] font-bold">Kaydedildi.</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center gap-2 h-11 px-6 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-sm"
+                  >
+                    {saving
+                      ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Kaydediliyor…</>
+                      : <><ClipboardList size={14} />Notları Kaydet</>
+                    }
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Bitirme kartı */}
+            <div className={`rounded-16 border px-8 py-6 flex items-center justify-between ${finalized ? "bg-status-success-50 border-status-success-200" : "bg-white border-surface-100 shadow-sm"}`}>
+              <div>
+                <p className="text-[14px] font-bold text-base-primary-900">
+                  {finalized ? `${moduleLabel} tamamlandı` : `${moduleLabel} Modülünü Bitir`}
+                </p>
+                <p className="text-[12px] text-surface-400 mt-0.5">
+                  {finalized
+                    ? "Nihai notlar hesaplanıp kaydedildi."
+                    : "Nihai notları hesaplayıp Firestore'a kalıcı olarak kaydeder."}
+                </p>
+              </div>
+              {finalized ? (
+                <div className="flex items-center gap-2 text-status-success-600">
+                  <CheckCircle2 size={20} />
+                  <span className="text-[13px] font-bold">Tamamlandı</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowFinalize(true)}
+                  className="flex items-center gap-2 h-11 px-6 rounded-xl bg-designstudio-secondary-500 text-white text-[13px] font-bold hover:bg-designstudio-secondary-600 active:scale-95 transition-all cursor-pointer shadow-lg shadow-designstudio-secondary-500/25"
+                >
+                  <GraduationCap size={15} />{moduleLabel} Bitir
+                </button>
+              )}
+            </div>
+          </>
+        )
+      )}
+
+      {/* Finalize onay modalı */}
+      {showFinalize && (
+        <div className="fixed inset-0 z-600 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-base-primary-900/40 backdrop-blur-md" onClick={() => setShowFinalize(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
+            <div className="w-12 h-12 rounded-2xl bg-designstudio-secondary-50 border border-designstudio-secondary-100 flex items-center justify-center mb-5">
+              <GraduationCap size={22} className="text-designstudio-secondary-500" />
+            </div>
+            <h3 className="text-[18px] font-bold text-base-primary-900 mb-2">{moduleLabel} Modülünü Bitir</h3>
+            <p className="text-[13px] text-surface-500 mb-6">
+              <strong>{students.length}</strong> öğrenci için nihai notlar hesaplanacak ve Firestore'a kaydedilecek.
+              Daha sonra "Notları Kaydet" ile güncelleme yapılabilir.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowFinalize(false)}
+                className="flex-1 h-11 rounded-xl border border-surface-200 text-surface-500 text-[13px] font-bold hover:border-surface-400 transition-all cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={handleFinalize}
+                disabled={finalizing}
+                className="flex-1 h-11 rounded-xl bg-designstudio-secondary-500 text-white text-[13px] font-bold hover:bg-designstudio-secondary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {finalizing
+                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />İşleniyor…</>
+                  : "Onayla ve Bitir"
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SERTİFİKASYON PANELİ ────────────────────────────────────────────────────
+function CertificationPanel() {
+  const [certTab, setCertTab] = useState<CertTab>("GRAFIK_1");
+
+  return (
+    <div className="w-full max-w-250 mx-auto px-8 py-8 space-y-6">
+      {/* Başlık */}
+      <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-7">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-9 h-9 rounded-2xl bg-base-primary-50 border border-base-primary-100 flex items-center justify-center">
+                <GraduationCap size={17} className="text-base-primary-500" />
+              </div>
+              <span className="text-[12px] font-bold text-surface-400 uppercase tracking-widest">Sertifikasyon</span>
+            </div>
+            <h1 className="text-[26px] font-bold text-base-primary-900" style={{ letterSpacing: "-0.022em" }}>Proje Notları</h1>
+            <p className="text-[13px] text-surface-400 mt-1">Modül bazında proje notlarını gir</p>
+          </div>
+        </div>
+
+        {/* İç sekmeler */}
+        <div className="flex items-center gap-1 bg-surface-100/60 w-fit p-1 rounded-[14px] border border-surface-100 mt-6">
+          {([
+            { id: "GRAFIK_1" as CertTab, label: "Grafik 1" },
+            { id: "GRAFIK_2" as CertTab, label: "Grafik 2" },
+          ]).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setCertTab(t.id)}
+              className={`px-6 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer ${
+                certTab === t.id
+                  ? "bg-white text-base-primary-900 shadow-sm border border-surface-100"
+                  : "text-surface-400 hover:text-surface-600 border border-transparent"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <CertModuleTab key={certTab} module={certTab} />
+    </div>
+  );
+}
+
 // ─── Router + Sayfa kabuğu ────────────────────────────────────────────────────
 function GradingRouter() {
   const searchParams = useSearchParams();
+  const router    = useRouter();
   const taskId    = searchParams.get("taskId");
   const tabParam  = searchParams.get("tab") as ListTab | null;
   const fromParam = searchParams.get("from") as ListTab | null;
-  return taskId
-    ? <GradingForm taskId={taskId} fromTab={fromParam === "done" ? "done" : "pending"} />
-    : <GradingTabs initialTab={tabParam === "done" ? "done" : "pending"} />;
+  const section   = searchParams.get("section");
+
+  if (taskId) {
+    return <GradingForm taskId={taskId} fromTab={fromParam === "done" ? "done" : "pending"} />;
+  }
+
+  return (
+    <>
+      {/* Üst bölüm sekmeleri */}
+      <div className="w-full max-w-250 mx-auto px-8 pt-8">
+        <div className="flex items-center gap-1 bg-surface-50 w-fit p-1 rounded-[14px] border border-surface-100 shadow-sm">
+          {([
+            { id: null,            label: "Not Girişi",    icon: <ClipboardList size={13} /> },
+            { id: "certification", label: "Sertifikasyon", icon: <GraduationCap size={13} /> },
+          ] as const).map(t => {
+            const isActive = t.id === null ? !section : section === t.id;
+            return (
+              <button
+                key={String(t.id)}
+                onClick={() => router.push(t.id ? `/dashboard/grading?section=${t.id}` : "/dashboard/grading")}
+                className={`flex items-center gap-2 px-5 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-white text-base-primary-900 shadow-sm border border-surface-100"
+                    : "text-surface-400 hover:text-surface-600 border border-transparent"
+                }`}
+              >
+                {t.icon}{t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {section === "certification"
+        ? <CertificationPanel />
+        : <GradingTabs initialTab={tabParam === "done" ? "done" : "pending"} />
+      }
+    </>
+  );
 }
 
 export default function GradingPage() {

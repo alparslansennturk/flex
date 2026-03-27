@@ -170,7 +170,16 @@ function TemplateRow({
           {task.description || <span className="italic text-surface-300">Açıklama yok</span>}
         </span>
       </div>
-      <div className="w-28 shrink-0 hidden lg:block">
+      <div className="w-24 shrink-0 hidden lg:block">
+        {task.module ? (
+          <span className="text-[11px] font-bold text-designstudio-secondary-600 bg-designstudio-secondary-50 border border-designstudio-secondary-100 px-2.5 py-1 rounded-full">
+            {task.module === "GRAFIK_1" ? "Grafik 1" : "Grafik 2"}
+          </span>
+        ) : (
+          <span className="text-[13px] text-surface-300">—</span>
+        )}
+      </div>
+      <div className="w-24 shrink-0 hidden lg:block">
         <span className="text-[13px] text-surface-500">{task.level || "—"}</span>
       </div>
       {/* Ana ekran görünürlük toggle */}
@@ -648,7 +657,10 @@ export default function TaskManagementPanel() {
               <div className="flex-2 min-w-0 hidden md:block">
                 <span className="text-[12px] font-bold text-surface-600">Açıklama</span>
               </div>
-              <div className="w-28 shrink-0 hidden lg:block">
+              <div className="w-24 shrink-0 hidden lg:block">
+                <span className="text-[12px] font-bold text-surface-600">Modül</span>
+              </div>
+              <div className="w-24 shrink-0 hidden lg:block">
                 <span className="text-[12px] font-bold text-surface-600">Seviye</span>
               </div>
               <div className="w-8 shrink-0 text-center">

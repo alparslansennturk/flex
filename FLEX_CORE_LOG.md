@@ -1,178 +1,98 @@
 # FLEX_CORE_LOG — Proje Beyni
-> Son güncelleme: 2026-03-26
+> Son güncelleme: 2026-03-27
 > Bu dosya PC'ye geçince Claude'a verilir, kaldığı yerden devam eder.
 
 ---
 
-## PROJE STACK
+## Modül Alanı — Ödev Şablonları
 
-- **Framework**: Next.js 14 App Router (`"use client"`)
-- **Veritabanı**: Firebase Firestore
-- **Auth**: Firebase Auth
-- **Mail**: Brevo HTTP API — `src/app/lib/email.ts`
-- **Stil**: Tailwind CSS + inline styles
+**Dosyalar:** `TaskForm.tsx`, `TaskManagementPanel.tsx`, `taskTypes.tsx`
 
----
-
-## BUGÜN YAPILAN DEĞİŞİKLİKLER (2026-03-26)
-
-### 1. email.ts — Brevo'ya Geçiş
-Dosya: `src/app/lib/email.ts`
-
-- Nodemailer (Gmail SMTP) tamamen kaldırıldı
-- Brevo HTTP API ile değiştirildi (`https://api.brevo.com/v3/smtp/email`)
-- Env değişkenleri: `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`
-- Vercel'de Gmail SMTP datacenter IP bloğu sorunu bu şekilde aşıldı
-
-### 2. league/page.tsx — Lig Tablosu Komple Revize
-Dosya: `src/app/dashboard/league/page.tsx`
-
-**Filtre Sistemi:**
-- Eski dropdown/select yapısı tamamen kaldırıldı
-- Yeni 2-katmanlı filtre: `Eğitmen Bazlı | Şube Bazlı` toggle (aktif = lacivert `bg-base-primary-900`)
-- Eğitmen Bazlı altı: `Tüm Gruplarım` (text buton) + `Gruplarım ▼` (pill dropdown)
-- Şube Bazlı altı: `Tüm Şubeler` (text buton) + `Şubeler ▼` (pill dropdown)
-- Aktif text buton: `font-bold + underline` ile pasiften net ayrışıyor
-- Dropdown dış tıklama: şeffaf overlay (`z-10`) ile kapanır
-- Şube Bazlı seçilince varsayılan → `user.branch` (branchOptions'ta varsa), yoksa `Tüm Şubeler`
-- Grup Bazlı'ya geçişte varsayılan → `filterMode = "branch"`, `branchSubFilter = ALL_BRANCH`
-
-**State Değişkenleri:**
-- `filterMode`: `"trainer" | "branch"`
-- `trainerGroupFilter`: seçili tek grup kodu veya `ALL_GROUP`
-- `branchSubFilter`: seçili şube veya `ALL_BRANCH`
-- `openDropdown`: `"groups" | "branches" | null`
-- `groupBranches`: groups koleksiyonundan çekilen şube listesi
-
-**Filtreleme Mantığı:**
-- `rankedStudents`: tüm filtreleri takip eder (viewMode + filterMode + group/branch)
-- `podiumStudents`: spesifik grup seçimini takip etmez, mod düzeyinde filtreler
-- `rankedGroups`: `filterMode + branchSubFilter + myGroupCodes` takip eder
-- `isAdmin` kontrolü kaldırıldı → admin de olsa Eğitmen Bazlı'da sadece kendi grupları görünür
-- `branchOptions`: `groups` koleksiyonu + öğrenci `branch` alanından türetilir (statik liste değil)
-- `user.branch` doğrulaması: `branchOptions.includes(user.branch)` kontrolü ile string mismatch önlendi
-
-**Layout Değişiklikleri:**
-- Başlık satırı: `Lig Tablosu | 3 grup · 17 öğrenci` → 32px → `[Öğrenci Bazlı] [Grup Bazlı]`
-- Toplam/Aylık switch → başlık satırı sağına taşındı, sadece Öğrenci Bazlı'da görünür
-- Filtre satırı: `justify-between`, sol filtreler + sağda oval Toplam/Aylık
-- Filtre → tablo arası: 16px (`mt-4`)
-- Header → filtre arası: 24px (`mt-6`)
-
-**Tablo Değişiklikleri:**
-- `GroupTable` komple yeniden yazıldı → `LeaderTable` ile aynı stil
-- Her iki tabloda "XP" → "Toplam XP" olarak değiştirildi
-- `GroupTable`'a Eğitmen kolonu eklendi (`groupsMap` prop ile)
-- `GroupTable`'a `groupsMap` prop geçildi
-
-### 3. globals.css — Login Hata Mesajı Boyutu
-Dosya: `src/app/globals.css`
-
-- `.ui-helper-sm { font-size: 13px !important; }` eklendi
-- `:root` font-size (1920px'de 15.4px, 2500px'de 16.2px) + kart `scale-110` transform'u ile hata mesajları çok büyüyordu
-- `!important` gerekli: Tailwind v4 `@layer` sıralaması `:root !important`'ı geçemiyordu
+- `Task` arayüzüne `module?: "GRAFIK_1" | "GRAFIK_2"` eklendi.
+- Şablon formu 3 sütunlu yapıya geçirildi: **Kart Adı | Modül\* | Seviye**
+- Modül seçimi şablonlarda zorunlu alan olarak işaretlendi.
+- Şablon tablosuna Seviyeden önce **Modül** sütunu eklendi (Grafik 1 / Grafik 2 pill badge).
 
 ---
 
-## ÖNCEKİ OTURUM (2026-03-24)
+## Sertifikasyon Sekmesi
 
-### BookGameScreen.tsx — Carousel Animasyon Sistemi
-Dosya: `src/app/components/dashboard/assignment/kitap/BookGameScreen.tsx`
+**Dosya:** `src/app/dashboard/grading/page.tsx`
 
-- Slot machine carousel: `BookCarousel` tek bileşen, hiç unmount olmaz
-- `spinDone` ve `revealed` prop'ları: spin → pulse → zoom aşamaları
-- Spin sırasında kitap başlıkları bulanık, zoom olunca netleşir
-- Spin durduğunda merkez kart 3x pulse (`bkWinPulse 0.36s`)
-- 1150ms sonra merkez kart `bkCarouselZoom` ile aşağıya büyür
-- Yan kartlar eş zamanlı `opacity 0 + scale(0.65)` ile kaybolur
+- Not Girişi sayfasına üst sekme olarak **Sertifikasyon** eklendi.
+- İç sekmeler: **Grafik 1** / **Grafik 2**
+- Her sekme: grup dropdown, öğrenci tablosu (Öğrenci Adı | Proje Notu | Ödev Puanı | Toplam Not)
+- Kayıt: `projectGrades/{studentId}_{groupId}_{module}` dokümana `setDoc merge`
 
-### SystemPanel.tsx — Yedek/Restore/Puan Sistemi
-Dosya: `src/app/components/dashboard/admin/SystemPanel.tsx`
+### Ödev Puanı Hesabı
+- `odevPuani = (studentXP / maxXP) × 30`
+- `finalNot = projectScore × 0.7 + odevPuani`
+- Task verileri `onSnapshot` ile realtime güncelleniyor (`isGraded: true` + modül filtresi)
 
-- `RestoreSystemModal`: groups, students, tasks, lottery_results, assignment_archive geri yükleme
-- Manuel score backup butonu eklendi
-- Layout: 2 kolonlu grid (Sistem Yedekleme + Tehlikeli Bölge) + Puan Yönetimi
+### Grafik X Bitir Butonu
+- Tablo altında finalize butonu
+- Onay modalı sonrası `isFinalized: true`, `finalizedAt`, `studentName`, `gender`, `avatarId` kaydediliyor
+- Finalize sırasında grup dokümanına `codeAt_GRAFIK_1` / `codeAt_GRAFIK_2` alanı yazılıyor (orijinal kod korunur)
 
-### Sidebar.tsx — Compact Mode
-Dosya: `src/app/components/layout/Sidebar.tsx`
-
-- `useCompact()` hook: `window.innerHeight < 820` → hafif daraltma
-
-### usePickingEngine.ts
-Dosya: `src/app/components/dashboard/assignment/shared/usePickingEngine.ts`
-
-- `resetToIdle(autoPick = true)` parametresi eklendi
+### Öğrenci Listesi Dondurma
+- Finalize edilmiş modülde öğrenci listesi `projectGrades` snapshot'ından yüklenir (o andaki öğrenciler)
+- Finalize edilmemiş modülde `students` koleksiyonundan `groupId` ile canlı sorgu
 
 ---
 
-## MEVCUT DURUM
+## Firestore Güvenlik Kuralları
 
-### Kitap Ödevi (TAM ÇALIŞIYOR)
-- Picking engine + Carousel slot machine + BookResultModal (PDF + mail)
-- Firestore: `lottery_results/{taskId}` + `assignment_archive`
-
-### Kolaj Ödevi (TAM ÇALIŞIYOR)
-- `GameScreen.tsx` — picking + çekiliş + PDF + mail
-
-### Sınıflar Ligi (TAM ÇALIŞIYOR)
-- Öğrenci Bazlı / Grup Bazlı view modes
-- Eğitmen Bazlı / Şube Bazlı 2-katmanlı filtreleme
-- Podyum + analitik kartlar + sıralama tablosu
-
----
-
-## KRİTİK DOSYALAR
+**Dosya:** `firestore.rules`
 
 ```
-src/app/components/dashboard/assignment/
-├── shared/
-│   ├── AssignmentScreen.tsx
-│   ├── StudentPanel.tsx
-│   ├── usePickingEngine.ts     ← resetToIdle autoPick param'lı
-│   └── types.ts
-├── kitap/
-│   ├── BookScreen.tsx
-│   └── BookGameScreen.tsx      ← TÜM OYUN BURADA
-├── kolaj/
-│   ├── KolajScreen.tsx
-│   └── GameScreen.tsx
-└── pool/
-    └── poolTypes.ts
-
-src/app/dashboard/league/
-└── page.tsx                    ← Lig Tablosu (2-katmanlı filtre sistemi)
-
-src/app/components/dashboard/admin/
-└── SystemPanel.tsx
-
-src/app/components/layout/
-└── Sidebar.tsx
-
-src/app/lib/
-└── email.ts                    ← Brevo HTTP API
-
-src/app/api/
-└── send-kitap/route.ts
+match /projectGrades/{gradeId} {
+  allow read: if isSignedIn() && (isAdmin() || isInstructor());
+  allow write: if isAdmin() || isInstructor();
+}
 ```
 
 ---
 
-## FIRESTORE KOLEKSİYONLARI
+## Modül Değişikliği Engeli — Grup Yönetimi
 
-- `tasks` — aktif ödevler
-- `templates` — task şablonları
-- `students`, `groups`
-- `lottery_results/{taskId}` — çekiliş sonuçları (draws[])
-- `lottery_configs/book` — kitap havuzu (BookPool)
-- `lottery_configs/kolaj` — kolaj havuzu
-- `assignment_archive` — tamamlanan ödevler
-- `scores` — puanlar
+**Dosyalar:** `useManagement.ts`, `GroupForm.tsx`, `ManagementContent.tsx`
+
+- Grup formuna **Modül** dropdown eklendi (5. sütun): Belirtilmemiş / Grafik 1 / Grafik 2
+- `Group` arayüzüne `module?: "GRAFIK_1" | "GRAFIK_2"` eklendi
+- Modül değiştirilmek istendiğinde `projectGrades`'de mevcut modülün finalize edilip edilmediği kontrol edilir
+- Finalize edilmemişse modal: *"Önce Sertifikasyon → Grafik X Bitir butonuna basın"*
+- Finalize edildikten sonra not girişi açık kalmaya devam eder
 
 ---
 
-## ORTAM
+## Grup Kodu Değişince Öğrenci Senkronizasyonu
 
-- **Firebase proje ID**: `grafik-tasarim-portali`
-- **RTDB bölge**: `europe-west1`
-- **Mail API**: `/api/send-kitap`, `/api/send-kolaj`
-- **Mail servisi**: Brevo (ücretsiz plan, 300 mail/gün)
+**Dosya:** `useManagement.ts`
+
+- Grup kodu değiştiğinde `groupId` üzerinden gruptaki tüm öğrenciler `writeBatch` ile yeni koda güncellenir
+- Böylece Not Girişi'ndeki `where("groupCode", "==", task.classId)` sorgusu tüm öğrencileri bulur
+- Yeni eklenen öğrenciler zaten güncel `group.code` ile oluşturulur, sorun yaşanmaz
+
+---
+
+## Sertifikasyon — Grup Kodu Değişikliği Sonrası Stabil Çalışma
+
+**Dosya:** `src/app/dashboard/grading/page.tsx`
+
+- `Group` arayüzüne `originalCode?: string` eklendi
+- Gruplar yüklenirken grup dokümanındaki `codeAt_${module}` alanı `originalCode` olarak okunur
+- Fallback: `projectGrades`'deki `groupCode` alanından da orijinal kod çekilir
+- Öğrenci sorgusu `groupCode` yerine `groupId` (stabil Firestore ID) kullanır
+- Task XP sorgusu `originalCode ?? group.code` ile doğru `classId`'ye bakar
+- Dropdown: kodu değişmiş finalize gruplar `"Grup 121 (şimdi: Grup 300)"` formatında gösterilir
+- `handleSave` ve `handleFinalize`'da `groupCode` alanı `projectGrades`'e kaydedilir
+
+---
+
+## Mimari Notlar
+
+- `projectGrades` belge ID formatı: `{studentId}_{groupId}_{module}`
+- Grup geçişi (GRAFIK_1 → GRAFIK_2) aynı Firestore grup ID'si üzerinde yapılır — tarihsel veri bozulmaz
+- Task'lar `classId` (grup kodu), notlar `studentId` ile bağlanır — kod değişse de puanlar kaybolmaz
+- Composite Firestore index sorunundan kaçınmak için tek `where` + JS-side filtreleme kullanılır
+- Öğrenci koleksiyonu hem `groupId` (stabil) hem `groupCode` (görüntü) taşır; kod değişince her ikisi de güncellenir

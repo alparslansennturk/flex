@@ -12,6 +12,10 @@ import {
 import IconPicker from "../IconPicker";
 
 const LEVELS = ["Seviye-1", "Seviye-2", "Seviye-3", "Seviye-4"];
+const MODULES: { value: "GRAFIK_1" | "GRAFIK_2"; label: string }[] = [
+  { value: "GRAFIK_1", label: "Grafik 1" },
+  { value: "GRAFIK_2", label: "Grafik 2" },
+];
 import { getFlexMessage } from "@/app/lib/messages";
 import { useUser } from "@/app/context/UserContext";
 
@@ -37,6 +41,9 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
     editingTask?.assignmentType ?? prefill?.assignmentType ?? null
   );
   const [level, setLevel] = useState<string>(editingTask?.level ?? prefill?.level ?? "");
+  const [module, setModule] = useState<"GRAFIK_1" | "GRAFIK_2" | "">(
+    (editingTask?.module ?? prefill?.module ?? "") as "GRAFIK_1" | "GRAFIK_2" | ""
+  );
   const [saving, setSaving]             = useState(false);
   const [errors, setErrors]             = useState<Record<string, boolean>>({});
   const [shake, setShake]               = useState(false);
@@ -67,6 +74,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
   const handleSave = async () => {
     const newErrors: Record<string, boolean> = {};
     if (!name.trim()) newErrors.name = true;
+    if (targetCollection === "templates" && !sourceTemplateId && !module) newErrors.module = true;
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setShake(true);
@@ -81,6 +89,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
         startDate: startDate || null, endDate: endDate || null,
         assignmentType: assignmentType ?? null,
         level: level || null,
+        module: module || null,
       };
       if (editingTask) {
         await updateDoc(doc(db, targetCollection, editingTask.id), payload);
@@ -98,6 +107,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
           startDate:      payload.startDate ?? null,
           assignmentType: payload.assignmentType,
           level:          payload.level ?? null,
+          module:         payload.module ?? null,
           isActive:       false,
           isPaused:       false,
           isHidden:       false,
@@ -170,37 +180,76 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
         {/* Body — 2 kolon, 4 satır */}
         <div className="px-8 py-7 grid grid-cols-2 gap-x-10 gap-y-6 overflow-y-auto max-h-[82vh]">
 
-          {/* Satır 1: Kart adı | Seviye (şablon) veya Bitiş tarihi (görev) */}
-          <div className="space-y-1.5">
-            <label className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
-            <input
-              value={name}
-              onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: false })); }}
-              placeholder="ör. Kolaj bahçesi"
-              className={`${inputCls} ${errors.name ? "border-status-danger-500 bg-status-danger-50" : "border-surface-200 bg-surface-50 focus:border-base-primary-500 focus:bg-white"}`}
-            />
-          </div>
-
+          {/* Satır 1: Kart adı | Modül | Seviye (şablon) veya Kart adı | Bitiş tarihi (görev) */}
           {targetCollection === "templates" && !sourceTemplateId ? (
-            <div className="space-y-1.5">
-              <label className={labelCls}>Seviye</label>
-              <div className="relative">
-                <select
-                  value={level}
-                  onChange={e => setLevel(e.target.value)}
-                  className="w-full h-12 px-4 pr-10 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all appearance-none cursor-pointer"
-                >
-                  <option value="">Seviye seçiniz</option>
-                  {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
-                <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+            <div className="col-span-2 grid grid-cols-3 gap-x-6">
+              {/* Kart adı */}
+              <div className="space-y-1.5">
+                <label className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
+                <input
+                  value={name}
+                  onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: false })); }}
+                  placeholder="ör. Kolaj bahçesi"
+                  className={`${inputCls} ${errors.name ? "border-status-danger-500 bg-status-danger-50" : "border-surface-200 bg-surface-50 focus:border-base-primary-500 focus:bg-white"}`}
+                />
+              </div>
+
+              {/* Modül */}
+              <div className="space-y-1.5">
+                <label className={labelCls}>Modül <span className="text-status-danger-500">*</span></label>
+                <div className="relative">
+                  <select
+                    value={module}
+                    onChange={e => { setModule(e.target.value as "GRAFIK_1" | "GRAFIK_2" | ""); setErrors(p => ({ ...p, module: false })); }}
+                    className={`w-full h-12 px-4 pr-10 rounded-xl border text-[14px] font-medium outline-none transition-all appearance-none cursor-pointer ${
+                      errors.module
+                        ? "border-status-danger-500 bg-status-danger-50 text-text-primary"
+                        : "border-surface-200 bg-surface-50 text-text-primary focus:border-base-primary-500 focus:bg-white"
+                    }`}
+                  >
+                    <option value="">Modül seçiniz</option>
+                    {MODULES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                  <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Seviye */}
+              <div className="space-y-1.5">
+                <label className={labelCls}>Seviye</label>
+                <div className="relative">
+                  <select
+                    value={level}
+                    onChange={e => setLevel(e.target.value)}
+                    className="w-full h-12 px-4 pr-10 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">Seviye seçiniz</option>
+                    {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                  <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+                </div>
               </div>
             </div>
-          ) : !sourceTemplateId && (
-            <div className="space-y-1.5">
-              <label className={labelCls}>Bitiş tarihi</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={dateCls} />
-            </div>
+          ) : (
+            <>
+              {/* Kart adı */}
+              <div className="space-y-1.5">
+                <label className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
+                <input
+                  value={name}
+                  onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: false })); }}
+                  placeholder="ör. Kolaj bahçesi"
+                  className={`${inputCls} ${errors.name ? "border-status-danger-500 bg-status-danger-50" : "border-surface-200 bg-surface-50 focus:border-base-primary-500 focus:bg-white"}`}
+                />
+              </div>
+
+              {!sourceTemplateId && (
+                <div className="space-y-1.5">
+                  <label className={labelCls}>Bitiş tarihi</label>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={dateCls} />
+                </div>
+              )}
+            </>
           )}
 
           {/* Satır 2: Tür | Baz puan */}
@@ -238,11 +287,18 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
                 <p className="text-[18px] font-bold text-base-primary-900 truncate leading-tight">{name || "Kart adı"}</p>
                 <div className="mt-1"><TypeBadge type={type} /></div>
               </div>
-              {level && (
-                <span className="text-[12px] font-bold text-base-primary-600 bg-base-primary-50 border border-base-primary-100 px-3 py-1.5 rounded-full shrink-0">
-                  {level}
-                </span>
-              )}
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                {module && (
+                  <span className="text-[11px] font-bold text-designstudio-secondary-600 bg-designstudio-secondary-50 border border-designstudio-secondary-100 px-3 py-1 rounded-full">
+                    {MODULES.find(m => m.value === module)?.label}
+                  </span>
+                )}
+                {level && (
+                  <span className="text-[12px] font-bold text-base-primary-600 bg-base-primary-50 border border-base-primary-100 px-3 py-1.5 rounded-full">
+                    {level}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

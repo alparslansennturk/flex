@@ -5,7 +5,8 @@ import { MASTER_ID } from "@/app/lib/constants";
 import { getFlexMessage } from "@/app/lib/messages";
 import {
   collection, onSnapshot, addDoc, doc,
-  updateDoc, deleteDoc, increment, serverTimestamp, writeBatch
+  updateDoc, deleteDoc, increment, serverTimestamp, writeBatch,
+  getDocs, query, where,
 } from "firebase/firestore";
 
 // --- INTERFACES ---
@@ -19,6 +20,7 @@ interface Group {
   students: number;
   status: string;
   createdAt?: any;
+  module?: "GRAFIK_1" | "GRAFIK_2";
 }
 
 interface Student {
@@ -72,6 +74,8 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupCode, setGroupCode] = useState("");
+  const [groupModule, setGroupModule] = useState<"GRAFIK_1" | "GRAFIK_2" | "">("");
+  const [moduleBlockModal, setModuleBlockModal] = useState<{ isOpen: boolean; currentModule: string } | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState("Grup seansı seçiniz...");
   const [customSchedule, setCustomSchedule] = useState("");
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -315,6 +319,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setIsFormOpen(false);
     setEditingGroupId(null);
     setGroupCode("");
+    setGroupModule("");
     setSelectedInstructorId("");
     setSelectedSchedule("Grup seansı seçiniz...");
     setCustomSchedule("");
@@ -356,13 +361,49 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
     try {
       if (editingGroupId) {
+        // Modül değişiyorsa, mevcut modül sertifikasyon'da bitirilmiş mi kontrol et
+        const editingGroup = groups.find(g => g.id === editingGroupId);
+        const currentModule = editingGroup?.module;
+        if (currentModule && groupModule !== currentModule) {
+          const gradesSnap = await getDocs(query(
+            collection(db, "projectGrades"),
+            where("groupId", "==", editingGroupId),
+          ));
+          const isFinalized = gradesSnap.docs.some(d => {
+            const data = d.data() as any;
+            return data.module === currentModule && data.isFinalized === true;
+          });
+          if (!isFinalized) {
+            setModuleBlockModal({ isOpen: true, currentModule });
+            return;
+          }
+        }
+
         await updateDoc(doc(db, "groups", editingGroupId), {
           code: formattedCode,
           session: finalSession,
           branch: groupBranch,
           instructorId: selectedInstructorId,
-          instructor: instructorName
+          instructor: instructorName,
+          module: groupModule || null,
         });
+
+        // Grup kodu değiştiyse, gruptaki tüm öğrencilerin groupCode'unu güncelle
+        const oldCode = editingGroup?.code;
+        if (oldCode && oldCode !== formattedCode) {
+          const studentsSnap = await getDocs(query(
+            collection(db, "students"),
+            where("groupId", "==", editingGroupId),
+          ));
+          if (!studentsSnap.empty) {
+            const batch = writeBatch(db);
+            studentsSnap.docs.forEach(d => {
+              batch.update(d.ref, { groupCode: formattedCode });
+            });
+            await batch.commit();
+          }
+        }
+
         showNotification("Grup başarıyla güncellendi.");
       } else {
         const docRef = await addDoc(collection(db, "groups"), {
@@ -373,6 +414,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           session: finalSession,
           students: 0,
           status: "active",
+          module: groupModule || null,
           createdAt: serverTimestamp()
         });
         pendingSelectIdRef.current = docRef.id;
@@ -381,6 +423,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       setIsFormOpen(false);
       setEditingGroupId(null);
       setGroupCode("");
+      setGroupModule("");
       setSelectedInstructorId("");
       setSelectedSchedule("Grup seansı seçiniz...");
       setCustomSchedule("");
@@ -394,6 +437,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setEditingGroupId(group.id);
     setGroupCode(group.code.replace("Grup ", ""));
     setGroupBranch(group.branch);
+    setGroupModule(group.module ?? "");
     setSelectedInstructorId(group.instructorId || "");
     if (schedules.includes(group.session)) {
       setSelectedSchedule(group.session);
@@ -646,6 +690,7 @@ throw error;
     isFormOpen, setIsFormOpen, students, groups,
     selectedGroupId, setSelectedGroupId, openMenuId, setOpenMenuId,
     editingGroupId, setEditingGroupId, groupCode, setGroupCode, groupBranch, setGroupBranch,
+    groupModule, setGroupModule, moduleBlockModal, setModuleBlockModal,
     instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
     isScheduleOpen, setIsScheduleOpen, errors, setErrors,

@@ -16,6 +16,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     selectedGroupId, setSelectedGroupId, openMenuId, setOpenMenuId,
     editingGroupId, groupCode, setGroupCode,
     groupBranch, setGroupBranch,
+    groupModule, setGroupModule, moduleBlockModal, setModuleBlockModal,
     instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
     isScheduleOpen, setIsScheduleOpen, errors, setErrors,
@@ -107,6 +108,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             setGroupCode={setGroupCode}
             groupBranch={groupBranch}
             setGroupBranch={setGroupBranch}
+            groupModule={groupModule}
+            setGroupModule={setGroupModule}
             instructors={instructors}
             selectedInstructorId={selectedInstructorId}
             setSelectedInstructorId={setSelectedInstructorId}
@@ -123,6 +126,32 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             handleSave={handleSave}
             scheduleRef={scheduleRef}
           />
+
+          {/* Modül değişiklik engel modalı */}
+          {moduleBlockModal?.isOpen && (
+            <div className="fixed inset-0 z-600 flex items-center justify-center p-6">
+              <div className="absolute inset-0 bg-base-primary-900/40 backdrop-blur-md" onClick={() => setModuleBlockModal(null)} />
+              <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
+                <div className="w-12 h-12 rounded-2xl bg-status-warning-50 border border-status-warning-200 flex items-center justify-center mb-5">
+                  <Info size={22} className="text-status-warning-500" />
+                </div>
+                <h3 className="text-[18px] font-bold text-base-primary-900 mb-2">Modül Değiştirilemez</h3>
+                <p className="text-[13px] text-surface-500 mb-2">
+                  <strong>{moduleBlockModal.currentModule === "GRAFIK_1" ? "Grafik 1" : "Grafik 2"}</strong> modülü henüz sertifikasyon bölümünden bitirilmemiş.
+                </p>
+                <p className="text-[13px] text-surface-500 mb-6">
+                  Modülü değiştirebilmek için önce{" "}
+                  <strong>Not Girişi → Sertifikasyon</strong> sekmesine giderek ilgili grubu seçin ve <strong>&quot;{moduleBlockModal.currentModule === "GRAFIK_1" ? "Grafik 1" : "Grafik 2"} Bitir&quot;</strong> butonuna basın.
+                </p>
+                <button
+                  onClick={() => setModuleBlockModal(null)}
+                  className="w-full h-11 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer"
+                >
+                  Anladım
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* GÖRÜNÜM SEKMELERİ + KARTLAR */}

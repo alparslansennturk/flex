@@ -129,6 +129,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ─── projectGrades ────────────────────────────────────────────────────────
+
+    match /projectGrades/{gradeId} {
+      allow read: if isSignedIn() && (isAdmin() || isInstructor());
+      allow write: if isAdmin() || isInstructor();
+    }
+
     // ─── system_backups ───────────────────────────────────────────────────────
 
     match /system_backups/{backupId} {

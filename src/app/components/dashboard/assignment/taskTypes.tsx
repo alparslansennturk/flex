@@ -28,6 +28,7 @@ export interface Task {
   groupId?: string;     // Atanan grubun Firestore doc ID'si
   groupBranch?: string; // Atanan grubun şubesi
   level?: string;       // Atanan seviye (ör. "Seviye-2")
+  module?: "GRAFIK_1" | "GRAFIK_2"; // Sertifika modülü (şablonlarda zorunlu)
   isActive?: boolean;
   isPaused?: boolean;   // Parkurda kalır ama buton disabled, durum "Pasif"
   isHidden?: boolean;   // Dashboard'dan gizlenir, yalnızca yönetim sayfasında görünür

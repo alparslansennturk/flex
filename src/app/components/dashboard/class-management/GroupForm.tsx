@@ -8,6 +8,8 @@ interface GroupFormProps {
   setGroupCode: (val: string) => void;
   groupBranch: string;
   setGroupBranch: (val: string) => void;
+  groupModule: "GRAFIK_1" | "GRAFIK_2" | "";
+  setGroupModule: (val: "GRAFIK_1" | "GRAFIK_2" | "") => void;
   instructors: any[];
   selectedInstructorId: string;
   setSelectedInstructorId: (val: string) => void;
@@ -28,6 +30,7 @@ interface GroupFormProps {
 
 export const GroupForm: React.FC<GroupFormProps> = ({
   isFormOpen, groupCode, setGroupCode, groupBranch, setGroupBranch,
+  groupModule, setGroupModule,
   instructors, selectedInstructorId, setSelectedInstructorId,
   errors, setErrors, selectedSchedule, setSelectedSchedule,
   isScheduleOpen, setIsScheduleOpen, schedules, customSchedule, setCustomSchedule,
@@ -68,7 +71,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
             {/* Şube */}
             <div className="flex flex-col gap-2">
               <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Şube</label>
@@ -124,6 +127,23 @@ export const GroupForm: React.FC<GroupFormProps> = ({
                 placeholder="Örn: 101"
                 className={`w-full h-11 bg-neutral-50 border ${errors.code ? "border-red-300" : "border-neutral-200"} rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 transition-all`}
               />
+            </div>
+
+            {/* Modül */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Modül</label>
+              <div className="relative">
+                <select
+                  value={groupModule}
+                  onChange={e => setGroupModule(e.target.value as "GRAFIK_1" | "GRAFIK_2" | "")}
+                  className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer transition-all"
+                >
+                  <option value="">Belirtilmemiş</option>
+                  <option value="GRAFIK_1">Grafik 1</option>
+                  <option value="GRAFIK_2">Grafik 2</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+              </div>
             </div>
 
             {/* Seans */}
