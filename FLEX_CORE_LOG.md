@@ -96,3 +96,4 @@ match /projectGrades/{gradeId} {
 - Task'lar `classId` (grup kodu), notlar `studentId` ile bağlanır — kod değişse de puanlar kaybolmaz
 - Composite Firestore index sorunundan kaçınmak için tek `where` + JS-side filtreleme kullanılır
 - Öğrenci koleksiyonu hem `groupId` (stabil) hem `groupCode` (görüntü) taşır; kod değişince her ikisi de güncellenir
+1
