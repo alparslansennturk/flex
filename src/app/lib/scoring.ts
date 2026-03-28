@@ -65,6 +65,8 @@ export interface GradedTaskEntry {
   xp:        number;
   penalty:   number;
   seasonId?: string;  // hangi sezona ait (undefined = "season_1")
+  classId?:  string;  // görevin ait olduğu sınıf (arşivden silinse bile XP korunur)
+  endDate?:  string;  // görevin bitiş tarihi (arşivden silinse bile recency korunur)
 }
 
 /**

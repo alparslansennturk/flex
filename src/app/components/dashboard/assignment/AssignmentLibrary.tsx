@@ -147,10 +147,8 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
           onConfirm={async (selections: AssignSelection[]) => {
             const t = assignModalTask;
             for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
-              // Grafik 2 şablonu → Grafik 1 sınıfı ise puan adaletsizliğini önlemek için level Seviye-1'e sabitlenir
-              const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1")
-                ? "Seviye-1"
-                : level;
+              // Grafik 2 şablonu → Grafik 1 sınıfına verilirse XP yarıya düşer (seviye değişmez)
+              const xpMultiplier = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? 0.5 : null;
               await addDoc(collection(db, "tasks"), {
                 name:          t.name,
                 description:   t.description,
@@ -159,10 +157,12 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                 icon:           t.icon ?? null,
                 assignmentType: t.assignmentType ?? null,
                 module:        t.module ?? null,
+                groupModule:   groupModule ?? null,
                 classId,
                 groupId,
                 groupBranch,
-                level:         effectiveLevel,
+                level,
+                xpMultiplier,
                 endDate,
                 status:         "active",
                 isActive:      true,

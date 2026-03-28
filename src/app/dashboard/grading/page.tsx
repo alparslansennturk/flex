@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
@@ -31,7 +31,7 @@ interface GradeEntry { submitted: boolean; weeksLate: number; xp: number; }
 type GradesMap = Record<string, GradeEntry>;
 type ListTab = "pending" | "done";
 type CertTab = "GRAFIK_1" | "GRAFIK_2";
-interface Group { id: string; code: string; originalCode?: string; }
+interface Group { id: string; code: string; originalCode?: string; currentModule?: "GRAFIK_1" | "GRAFIK_2"; codeAtGrafik2?: string; }
 
 // ─── Yardımcılar ──────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -80,10 +80,12 @@ function ResetPointsModal({
   onCancel,
   onSuccess,
   filterGroupCodes,
+  groupLabel,
 }: {
   onCancel: () => void;
   onSuccess: () => void;
   filterGroupCodes?: string[];
+  groupLabel?: string;
 }) {
   const [step,     setStep]     = useState<1 | 2>(1);
   const [password, setPassword] = useState("");
@@ -99,6 +101,7 @@ function ResetPointsModal({
 
   const handleCancel = () => { setVisible(false); setTimeout(onCancel, 280); };
   const isMineScope  = filterGroupCodes && filterGroupCodes.length > 0;
+  const isGroupScope = isMineScope && !!groupLabel;
 
   const handleConfirm = async () => {
     if (!password.trim()) { setError("Şifrenizi girin."); return; }
@@ -120,17 +123,28 @@ function ResetPointsModal({
         snap = await getDocs(collection(db, "students"));
       }
 
-      // SOFT RESET:
-      // 1. Yeni sezon başlat → yeni görevler bu sezonda kaydedilir (veri karışmaz)
-      // 2. isScoreHidden=true → leaderboard soft reset öncesini 0 gösterir
-      await bumpSeason();
-
-      for (let i = 0; i < snap.docs.length; i += 500) {
-        const batch = writeBatch(db);
-        snap.docs.slice(i, i + 500).forEach(d =>
-          batch.update(d.ref, { isScoreHidden: true, rankChange: 0 })
-        );
-        await batch.commit();
+      if (isGroupScope) {
+        // GRUP BAZLI RESET: sadece ödev puanları (gradedTasks) silinir,
+        // proje notları (projectGrades) ve season dokunulmaz.
+        for (let i = 0; i < snap.docs.length; i += 500) {
+          const batch = writeBatch(db);
+          snap.docs.slice(i, i + 500).forEach(d =>
+            batch.update(d.ref, { gradedTasks: deleteField(), rankChange: 0 })
+          );
+          await batch.commit();
+        }
+      } else {
+        // SOFT RESET (tüm / benim sınıflarım):
+        // 1. Yeni sezon başlat → yeni görevler bu sezonda kaydedilir
+        // 2. isScoreHidden=true → leaderboard soft reset öncesini 0 gösterir
+        await bumpSeason();
+        for (let i = 0; i < snap.docs.length; i += 500) {
+          const batch = writeBatch(db);
+          snap.docs.slice(i, i + 500).forEach(d =>
+            batch.update(d.ref, { isScoreHidden: true, rankChange: 0 })
+          );
+          await batch.commit();
+        }
       }
 
       setDone(true);
@@ -168,12 +182,16 @@ function ResetPointsModal({
           </div>
           <div>
             <p className="text-[17px] font-bold text-base-primary-900">
-              {isMineScope ? "Sınıflarımın Puanlarını Sıfırla" : "Tüm Puanları Sıfırla"}
+              {isGroupScope
+                ? `${groupLabel} Grubunu Sıfırla`
+                : isMineScope ? "Sınıflarımın Puanlarını Sıfırla" : "Tüm Puanları Sıfırla"}
             </p>
             <p className="text-[13px] text-surface-400 mt-1">
-              {isMineScope
-                ? <>Kendi <strong className="text-base-primary-700">sınıflarındaki</strong> öğrencilerin puanları gizlenecek.</>
-                : <>Sistemdeki <strong className="text-base-primary-700">tüm öğrencilerin</strong> puanları gizlenecek.</>
+              {isGroupScope
+                ? <><strong className="text-base-primary-700">{groupLabel}</strong> grubundaki öğrencilerin puanları gizlenecek.</>
+                : isMineScope
+                  ? <>Kendi <strong className="text-base-primary-700">sınıflarındaki</strong> öğrencilerin puanları gizlenecek.</>
+                  : <>Sistemdeki <strong className="text-base-primary-700">tüm öğrencilerin</strong> puanları gizlenecek.</>
               }{" "}Veri silinmez, yalnızca gizlenir.
             </p>
           </div>
@@ -271,6 +289,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
   const [detailMap,    setDetailMap]    = useState<Record<string, Student[]>>({});
   const [archivingId,  setArchivingId]  = useState<string | null>(null);
   const [showReset,    setShowReset]    = useState(false);
+  const [resetScope,   setResetScope]   = useState<string>(""); // "" = tümü, grup kodu = sadece o grup
   const [myGroupCodes, setMyGroupCodes] = useState<string[]>([]);
   const [toast,        setToast]        = useState({ show: false, message: "" });
 
@@ -370,12 +389,24 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
                 <p className="text-[11px] text-surface-400 mt-1 font-medium">Bekleyen</p>
               </div>
             )}
-            <button
-              onClick={() => setShowReset(true)}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl border border-status-danger-500/30 bg-status-danger-50 text-status-danger-500 text-[12px] font-bold hover:bg-status-danger-500 hover:text-white transition-all cursor-pointer"
-            >
-              <RotateCcw size={13} /> Puanları Sıfırla
-            </button>
+            <div className="flex items-center rounded-xl border border-status-danger-500/30 overflow-hidden">
+              <select
+                value={resetScope}
+                onChange={e => setResetScope(e.target.value)}
+                className="h-9 pl-3 pr-7 bg-status-danger-50 text-status-danger-500 text-[12px] font-bold outline-none cursor-pointer appearance-none border-r border-status-danger-500/20"
+              >
+                <option value="">Tümü</option>
+                {myGroupCodes.map(code => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setShowReset(true)}
+                className="flex items-center gap-1.5 h-9 px-3 bg-status-danger-50 text-status-danger-500 text-[12px] font-bold hover:bg-status-danger-500 hover:text-white transition-all cursor-pointer"
+              >
+                <RotateCcw size={13} /> Puanları Sıfırla
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -569,9 +600,10 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
 
       {showReset && (
         <ResetPointsModal
-          filterGroupCodes={myGroupCodes}
+          filterGroupCodes={resetScope ? [resetScope] : myGroupCodes}
+          groupLabel={resetScope || undefined}
           onCancel={() => setShowReset(false)}
-          onSuccess={() => { setShowReset(false); showToast("Tüm puanlar sıfırlandı"); }}
+          onSuccess={() => { setShowReset(false); showToast(resetScope ? `${resetScope} grubu sıfırlandı` : "Tüm puanlar sıfırlandı"); }}
         />
       )}
 
@@ -606,6 +638,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
   const [archiving,        setArchiving]        = useState(false);
   const [archived,         setArchived]         = useState(false);
   const [saveError,        setSaveError]        = useState("");
+  const [groupModule,      setGroupModule]      = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -617,6 +650,12 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
 
         // Görevi açtığımızda zaten notlandırılmış mı?
         if (taskData.isGraded) setWasAlreadyGraded(true);
+
+        // Grubun modülünü çek (xpMultiplier fallback için)
+        if ((taskData as any).groupId) {
+          const groupSnap = await getDoc(doc(db, "groups", (taskData as any).groupId));
+          if (groupSnap.exists()) setGroupModule((groupSnap.data() as any).module ?? null);
+        }
 
         if (taskData.classId) {
           const q    = query(collection(db, "students"), where("groupCode", "==", taskData.classId), where("status", "==", "active"));
@@ -634,10 +673,16 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
     })();
   }, [taskId]);
 
+  // xpMultiplier: önce task'a kayıtlı değeri kullan, yoksa grup modülünden türet
+  const storedMultiplier = (task as any)?.xpMultiplier;
+  const xpMultiplier = storedMultiplier != null
+    ? storedMultiplier
+    : ((task as any)?.module === "GRAFIK_2" && groupModule === "GRAFIK_1" ? 0.5 : 1);
+
   const updateGrade = (id: string, patch: Partial<GradeEntry>) => {
     setGrades(prev => {
       const next = { ...prev[id], ...patch };
-      if (next.submitted) { next.xp = calculateXP(task?.level, next.weeksLate, settings); }
+      if (next.submitted) { next.xp = Math.round(calculateXP(task?.level, next.weeksLate, settings) * xpMultiplier); }
       else { next.xp = 0; next.weeksLate = 0; }
       return { ...prev, [id]: next };
     });
@@ -646,7 +691,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
   const markAll = (submitted: boolean) => {
     setGrades(prev => {
       const next = { ...prev };
-      students.forEach(s => { next[s.id] = { submitted, weeksLate: 0, xp: submitted ? calculateXP(task?.level, 0, settings) : 0 }; });
+      students.forEach(s => { next[s.id] = { submitted, weeksLate: 0, xp: submitted ? Math.round(calculateXP(task?.level, 0, settings) * xpMultiplier) : 0 }; });
       return next;
     });
   };
@@ -656,7 +701,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
     if (!task) return;
     setSaving(true); setSaveError("");
 
-    const baseXP = getLevelXP(task.level, settings);
+    const baseXP = Math.round(getLevelXP(task.level, settings) * xpMultiplier);
 
     try {
       // 1. Tüm aktif öğrencileri gradedTasks haritasıyla çek
@@ -689,7 +734,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
       Object.entries(grades).forEach(([sid, g]) => {
         if (g.submitted && g.xp > 0) {
           const penalty = Math.max(baseXP - g.xp, 0);
-          const entry: GradedTaskEntry = { xp: g.xp, penalty, seasonId: activeSeasonId };
+          const entry: GradedTaskEntry = { xp: g.xp, penalty, seasonId: activeSeasonId, classId: task.classId ?? undefined, endDate: task.endDate ?? undefined };
           batch.update(doc(db, "students", sid), {
             [`gradedTasks.${taskId}`]: entry,
             isScoreHidden: false,   // yeni görev kaydedilince artık gizli değil
@@ -710,7 +755,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
         const g = grades[s.id];
         const newTasks = { ...s.gradedTasks };
         if (g?.submitted && g.xp > 0) {
-          newTasks[taskId] = { xp: g.xp, penalty: Math.max(baseXP - g.xp, 0), seasonId: activeSeasonId };
+          newTasks[taskId] = { xp: g.xp, penalty: Math.max(baseXP - g.xp, 0), seasonId: activeSeasonId, classId: task.classId ?? undefined, endDate: task.endDate ?? undefined };
         } else {
           delete newTasks[taskId];
         }
@@ -988,6 +1033,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [students,        setStudents]        = useState<Student[]>([]);
   const [scores,          setScores]          = useState<Record<string, number | "">>({});
+  const studentUnsubRef = useRef<(() => void) | undefined>(undefined);
   const [studentXPs,      setStudentXPs]      = useState<Record<string, number>>({});
   const [maxXP,           setMaxXP]           = useState(0);
   const [groupsLoading,   setGroupsLoading]   = useState(true);
@@ -1012,6 +1058,8 @@ function CertModuleTab({ module }: { module: CertTab }) {
         code: (d.data() as any).code ?? d.id,
         // codeAt_GRAFIK_1 / codeAt_GRAFIK_2: finalize sırasında group doc'a yazılır
         originalCode: (d.data() as any)[`codeAt_${module}`] as string | undefined,
+        currentModule: (d.data() as any).module as "GRAFIK_1" | "GRAFIK_2" | undefined,
+        codeAtGrafik2: (d.data() as any).codeAt_GRAFIK_2 as string | undefined,
       }));
 
       // Eski veriler için fallback: projectGrades'deki groupCode alanından orijinal kodu çek
@@ -1027,21 +1075,36 @@ function CertModuleTab({ module }: { module: CertTab }) {
         }
       });
 
-      setGroups(rawGroups.map(g => ({
+      const mergedGroups = rawGroups.map(g => ({
         ...g,
         originalCode: g.originalCode ?? codeFromGrades[g.id],
-      })));
+      }));
+
+      // Modüle göre filtrele:
+      // GRAFIK_1 sekmesi → tüm gruplar görünür (Grafik 2 her grubun Grafik 1 devamıdır, o yüzden Grafik 2'ye geçenler de burada listelenir)
+      // GRAFIK_2 sekmesi → sadece şu an GRAFIK_2 olan VEYA daha önce GRAFIK_2 olmuş gruplar (salt Grafik-1'de kalanlar görünmez)
+      const filteredGroups = mergedGroups.filter(g => {
+        if (module === "GRAFIK_2") return g.currentModule === "GRAFIK_2" || !!g.codeAtGrafik2 || !!codeFromGrades[g.id];
+        return true; // GRAFIK_1: hepsi göster
+      });
+
+      setGroups(filteredGroups);
       setGroupsLoading(false);
     });
   }, [user?.uid]);
 
-  // Grup değişince öğrencileri ve proje notlarını çek (tek seferlik)
+  // Grup değişince proje notlarını çek + öğrenci listesini realtime dinle
   useEffect(() => {
+    // Önceki öğrenci aboneliğini iptal et
+    studentUnsubRef.current?.();
+    studentUnsubRef.current = undefined;
+
     if (!selectedGroupId) { setStudents([]); setScores({}); setFinalized(false); return; }
     const group = groups.find(g => g.id === selectedGroupId);
     if (!group) return;
 
     setStudentsLoading(true);
+
     getDocs(query(
       collection(db, "projectGrades"),
       where("groupId", "==", selectedGroupId),
@@ -1059,7 +1122,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
       });
 
       if (isAlreadyFinalized) {
-        // Finalize edilmiş → öğrenci listesini projectGrades'den oluştur (o andaki öğrenciler)
+        // Finalize edilmiş → öğrenci listesi dondurulmuş (projectGrades'den)
         const frozenList: Student[] = moduleGrades
           .filter(d => d.studentName)
           .map(d => ({
@@ -1075,23 +1138,37 @@ function CertModuleTab({ module }: { module: CertTab }) {
         setScores(initScores);
         setStudentsLoading(false);
       } else {
-        // Henüz finalize edilmemiş → canlı öğrenci listesi (groupId ile stabil sorgu)
-        getDocs(query(
-          collection(db, "students"),
-          where("groupId", "==", selectedGroupId),
-          where("status",  "==", "active"),
-        )).then(studSnap => {
-          const list = studSnap.docs
-            .map(d => ({ id: d.id, ...d.data() } as Student))
-            .sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
-          setStudents(list);
-          // Mevcut kayıtlı notları doldur
-          list.forEach(s => { if (!(s.id in initScores)) initScores[s.id] = ""; });
-          setScores(initScores);
-          setStudentsLoading(false);
-        });
+        // Finalize edilmemiş → öğrenci listesini realtime dinle
+        // Yeni transfer gelen öğrenciler anında görünür
+        studentUnsubRef.current = onSnapshot(
+          query(
+            collection(db, "students"),
+            where("groupId", "==", selectedGroupId),
+            where("status",  "==", "active"),
+          ),
+          studSnap => {
+            const list = studSnap.docs
+              .map(d => ({ id: d.id, ...d.data() } as Student))
+              .sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
+            setStudents(list);
+            // Kayıtlı proje notlarını koru; yeni gelen öğrencilere boş değer ver
+            setScores(prev => {
+              const next: Record<string, number | ""> = {};
+              list.forEach(s => {
+                next[s.id] = s.id in prev ? prev[s.id] : (initScores[s.id] ?? "");
+              });
+              return next;
+            });
+            setStudentsLoading(false);
+          }
+        );
       }
     });
+
+    return () => {
+      studentUnsubRef.current?.();
+      studentUnsubRef.current = undefined;
+    };
   }, [selectedGroupId, module, groups]);
 
   // Realtime task aboneliği → maxXP ve studentXPs otomatik güncellenir
@@ -1105,11 +1182,19 @@ function CertModuleTab({ module }: { module: CertTab }) {
     const unsub = onSnapshot(q, snap => {
       const moduleTasks = snap.docs
         .map(d => ({ id: d.id, ...d.data() } as Task))
-        .filter(t => (t as any).module === module && (t as any).isGraded === true);
+        .filter(t => {
+          // groupModule: task verilirken grubun modülü (en güvenilir)
+          // module: şablon modülü (fallback — eski kayıtlar için)
+          const gm = (t as any).groupModule as string | undefined;
+          const tm = (t as any).module      as string | undefined;
+          const moduleMatch = gm != null ? gm === module : tm === module;
+          return moduleMatch && (t as any).isGraded === true && !(t as any).isCancelled;
+        });
 
-      // maxXP: her görev için on-time XP toplamı
+      // maxXP: her görev için ulaşılabilir max XP (xpMultiplier dahil)
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      const mx = moduleTasks.reduce((sum, t) => sum + getLevelXP(t.level, settings), 0);
+      const mx = moduleTasks.reduce((sum, t) =>
+        sum + getLevelXP(t.level, settings) * ((t as any).xpMultiplier ?? 1), 0);
       setMaxXP(mx);
 
       // Her öğrencinin aldığı XP (task.grades içinden)
@@ -1133,15 +1218,24 @@ function CertModuleTab({ module }: { module: CertTab }) {
     setSaving(true);
     setSaved(false);
     try {
+      const group = groups.find(g => g.id === selectedGroupId)!;
       await Promise.all(students.map(s => {
-        const docId = `${s.id}_${selectedGroupId}_${module}`;
-        const group = groups.find(g => g.id === selectedGroupId)!;
+        const docId     = `${s.id}_${selectedGroupId}_${module}`;
+        const ps        = scores[s.id];
+        // finalNote ve odevPuani her zaman güncel hesaplanır —
+        // finalize sonrası not değişirse de doğru değer Firestore'a yazılır
+        const odevPuani = maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * 30 : 0;
+        const finalNote = ps !== "" && ps != null
+          ? Number(ps) * 0.7 + odevPuani
+          : null;
         return setDoc(doc(db, "projectGrades", docId), {
           studentId:    s.id,
           groupId:      selectedGroupId,
           groupCode:    group.code,
           module,
-          projectScore: scores[s.id] === "" ? null : Number(scores[s.id]),
+          projectScore: ps === "" ? null : Number(ps),
+          odevPuani:    parseFloat(odevPuani.toFixed(2)),
+          finalNote:    finalNote != null ? parseFloat(finalNote.toFixed(2)) : null,
           updatedAt:    serverTimestamp(),
         }, { merge: true });
       }));
@@ -1203,24 +1297,28 @@ function CertModuleTab({ module }: { module: CertTab }) {
     <div className="space-y-6">
       {/* Grup seçimi */}
       <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-6">
-        <label className="text-[12px] font-bold text-surface-500 uppercase tracking-wide block mb-2">Grup Seçimi</label>
-        <div className="relative w-72">
-          <select
-            value={selectedGroupId}
-            onChange={e => { setSelectedGroupId(e.target.value); setSaved(false); setFinalized(false); }}
-            disabled={groupsLoading}
-            className="w-full h-12 px-4 pr-10 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50"
-          >
-            <option value="">{groupsLoading ? "Yükleniyor…" : "Grup seçiniz"}</option>
-            {groups.map(g => (
-              <option key={g.id} value={g.id}>
-                {g.originalCode && g.originalCode !== g.code
-                  ? `${g.originalCode} (şimdi: ${g.code})`
-                  : g.code}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+        <div className="flex items-end justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <label className="text-[12px] font-bold text-surface-500 uppercase tracking-wide block mb-2">Grup Seçimi</label>
+            <div className="relative w-72">
+              <select
+                value={selectedGroupId}
+                onChange={e => { setSelectedGroupId(e.target.value); setSaved(false); setFinalized(false); }}
+                disabled={groupsLoading}
+                className="w-full h-12 px-4 pr-10 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50"
+              >
+                <option value="">{groupsLoading ? "Yükleniyor…" : "Grup seçiniz"}</option>
+                {groups.map(g => (
+                  <option key={g.id} value={g.id}>
+                    {g.originalCode && g.originalCode !== g.code
+                      ? `${g.originalCode} (şimdi: ${g.code})`
+                      : g.code}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+            </div>
+          </div>
         </div>
         {selectedGroupId && !studentsLoading && (
           <p className="text-[12px] text-surface-400 mt-3">
@@ -1247,19 +1345,19 @@ function CertModuleTab({ module }: { module: CertTab }) {
               {/* Tablo başlığı */}
               <div className="flex items-center gap-4 px-6 py-3.5 bg-surface-50 border-b border-surface-100">
                 <div className="flex-1 min-w-0">
-                  <span className="text-[12px] font-bold text-surface-600">Öğrenci Adı</span>
+                  <span className="text-[13px] font-bold text-surface-600">Öğrenci Adı</span>
                 </div>
                 <div className="w-36 shrink-0 text-center">
-                  <span className="text-[12px] font-bold text-surface-600">Proje Notu</span>
-                  <span className="block text-[10px] text-surface-400 font-medium">× 0.70</span>
+                  <span className="text-[13px] font-bold text-surface-600">Proje Notu</span>
+                  <span className="block text-[11px] text-surface-400 font-medium">× 0.70</span>
                 </div>
                 <div className="w-28 shrink-0 text-center">
-                  <span className="text-[12px] font-bold text-surface-600">Ödev Puanı</span>
-                  <span className="block text-[10px] text-surface-400 font-medium">/ 30</span>
+                  <span className="text-[13px] font-bold text-surface-600">Ödev Puanı</span>
+                  <span className="block text-[11px] text-surface-400 font-medium">/ 30</span>
                 </div>
                 <div className="w-28 shrink-0 text-center">
-                  <span className="text-[12px] font-bold text-surface-600">Toplam Not</span>
-                  <span className="block text-[10px] text-surface-400 font-medium">/ 100</span>
+                  <span className="text-[13px] font-bold text-surface-600">Toplam Not</span>
+                  <span className="block text-[11px] text-surface-400 font-medium">/ 100</span>
                 </div>
               </div>
 
@@ -1279,8 +1377,8 @@ function CertModuleTab({ module }: { module: CertTab }) {
                         />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[14px] font-bold text-base-primary-900 truncate">{s.name} {s.lastName}</p>
-                        <p className="text-[11px] text-surface-400">{s.groupCode}</p>
+                        <p className="text-[15px] font-bold text-base-primary-900 truncate">{s.name} {s.lastName}</p>
+                        <p className="text-[12px] text-surface-400">{s.groupCode}</p>
                       </div>
                     </div>
 
@@ -1303,16 +1401,16 @@ function CertModuleTab({ module }: { module: CertTab }) {
                     {/* Ödev Puanı */}
                     <div className="w-28 shrink-0 text-center">
                       {maxXP > 0
-                        ? <span className="text-[14px] font-bold text-base-primary-900">{odevPuani.toFixed(2)}</span>
-                        : <span className="text-[13px] text-surface-300">—</span>
+                        ? <span className="text-[15px] font-bold text-base-primary-900">{odevPuani.toFixed(2)}</span>
+                        : <span className="text-[14px] text-surface-300">—</span>
                       }
                     </div>
 
                     {/* Toplam Not */}
                     <div className="w-28 shrink-0 text-center">
                       {finalNot != null
-                        ? <span className={`text-[14px] font-bold ${finalNot >= 50 ? "text-status-success-600" : "text-status-danger-500"}`}>{finalNot.toFixed(2)}</span>
-                        : <span className="text-[13px] text-surface-300">—</span>
+                        ? <span className={`text-[15px] font-bold ${finalNot >= 50 ? "text-status-success-600" : "text-status-danger-500"}`}>{finalNot.toFixed(2)}</span>
+                        : <span className="text-[14px] text-surface-300">—</span>
                       }
                     </div>
                   </div>

@@ -716,7 +716,7 @@ export default function LeaguePage() {
   const [scoreMode,          setScoreMode]          = useState<ScoreMode>("total");
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
-  const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: any }>>({});
+  const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: any; classId?: string }>>({});
   const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({}); // groupCode → instructor name
   const [groupBranches,   setGroupBranches]   = useState<string[]>([]); // şube listesi groups'tan
   const [myGroupCodes,    setMyGroupCodes]    = useState<string[] | null>(null);
@@ -764,7 +764,7 @@ export default function LeaguePage() {
       const map: Record<string, { endDate?: string; createdAt?: any }> = {};
       snap.docs.forEach((d) => {
         const data = d.data() as any;
-        map[d.id] = { endDate: data.endDate ?? undefined, createdAt: data.createdAt ?? undefined };
+        map[d.id] = { endDate: data.endDate ?? undefined, createdAt: data.createdAt ?? undefined, classId: data.classId ?? undefined };
       });
       setTasksMap(map);
     }).catch(() => {});
@@ -809,15 +809,35 @@ export default function LeaguePage() {
         .map(([id]) => id)
     );
     return rawStudents.map((s) => {
-      const tasks = s.gradedTasks ?? {};
+      // Sadece öğrencinin şu anki grubuna (groupCode) ait görevleri say.
+      // Grafik-1'den Grafik-2'ye geçince eski XP silinmez ama skora dahil edilmez.
+      const allTasks = s.gradedTasks ?? {};
+      const tasks = Object.fromEntries(
+        Object.entries(allTasks).filter(([tid, entry]) => {
+          // Önce görevin içine gömülü classId'ye bak (arşivden silinse bile kalır)
+          const storedClassId = (entry as any).classId as string | undefined;
+          if (storedClassId) return storedClassId === s.groupCode;
+          // Eski kayıtlarda classId yoksa tasksMap'ten dene
+          const mapClassId = tasksMap[tid]?.classId;
+          if (!mapClassId) return true; // görev silinmiş ve classId bilinmiyor → XP koru
+          return mapClassId === s.groupCode;
+        })
+      );
       const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
-      const recentEntries   = s.isScoreHidden ? [] : Object.entries(tasks).filter(([tid]) => recentTaskIds.has(tid));
+      const recentEntries = s.isScoreHidden ? [] : Object.entries(tasks).filter(([tid, entry]) => {
+        if (recentTaskIds.has(tid)) return true;            // görev mevcut ve recent
+        if (tasksMap[tid] !== undefined) return false;      // görev mevcut ama recent değil
+        // Görev silinmiş → saklanan endDate'e bak
+        const storedEnd = (entry as any).endDate as string | undefined;
+        if (storedEnd) return new Date(storedEnd).getTime() >= thirtyDaysAgo;
+        return true; // endDate bilinmiyor, görev silindi → puanı koru
+      });
       const recentXP        = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
       const recentCompleted = recentEntries.length;
       const generalScore    = calcScore(totalXP, completedTasks, settings);
       const recentScore     = calcScore(recentXP, recentCompleted, settings);
       const finalScore      = calcFinalScore(generalScore, recentScore);
-      return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore, score: scoreMode === "monthly" ? recentScore : finalScore };
+      return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore, score: scoreMode === "monthly" ? recentScore : generalScore };
     });
   }, [rawStudents, settings, activeSeasonId, scoreMode, tasksMap]);
 

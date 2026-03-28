@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs, getDoc, writeBatch, deleteField } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon, TaskType } from "../assignment/taskTypes";
 import { PERMISSIONS } from "@/app/lib/constants";
@@ -669,13 +669,27 @@ export default function DesignParkour() {
   };
 
   const handleCancelTask = async (task: Task) => {
-    await updateDoc(doc(db, "tasks", task.id), { status: "archived", isActive: false });
+    // Kaydedilmiş puanları öğrencilerden geri al
+    const taskSnap = await getDoc(doc(db, "tasks", task.id));
+    if (taskSnap.exists()) {
+      const grades: Record<string, { submitted?: boolean; xp?: number }> = (taskSnap.data() as any).grades ?? {};
+      const toClean = Object.entries(grades)
+        .filter(([, g]) => g?.submitted && (g?.xp ?? 0) > 0)
+        .map(([sid]) => sid);
+      if (toClean.length > 0) {
+        const batch = writeBatch(db);
+        toClean.forEach(sid => batch.update(doc(db, "students", sid), { [`gradedTasks.${task.id}`]: deleteField() }));
+        await batch.commit();
+      }
+    }
+    await updateDoc(doc(db, "tasks", task.id), { status: "archived", isActive: false, isCancelled: true });
   };
 
   const handleReactivateConfirm = async (selections: AssignSelection[]) => {
     if (!reactivateTask || selections.length === 0) return;
-    const { classId, groupId, groupBranch, level, endDate } = selections[0];
-    await updateDoc(doc(db, "tasks", reactivateTask.id), { classId, groupId, groupBranch, level, endDate, isPaused: false, isActive: true });
+    const { classId, groupId, groupBranch, groupModule, level, endDate } = selections[0];
+    const xpMultiplier = (reactivateTask.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? 0.5 : null;
+    await updateDoc(doc(db, "tasks", reactivateTask.id), { classId, groupId, groupBranch, level, endDate, xpMultiplier, groupModule: groupModule ?? null, isPaused: false, isActive: true });
     setReactivateTask(null);
   };
 
@@ -690,17 +704,21 @@ export default function DesignParkour() {
     if (!ghostModalTask) return;
     const t = ghostModalTask;
     const uid = user?.uid ?? auth.currentUser?.uid ?? null;
-    for (const { classId, groupId, groupBranch, level, endDate } of selections) {
+    for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
+      const xpMultiplier = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? 0.5 : null;
       await addDoc(collection(db, "tasks"), {
         name:           t.name,
         description:    t.description,
         type:           t.type,
         points:         t.points,
         icon:           t.icon ?? null,
+        module:         t.module ?? null,
+        groupModule:    groupModule ?? null,
         classId,
         groupId,
         groupBranch,
         level,
+        xpMultiplier,
         endDate,
         status:         "active",
         isActive:       true,

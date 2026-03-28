@@ -251,11 +251,11 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                   {group.session}
                 </p>
               </div>
-              <div className="flex items-end justify-between">
-                <p className={`text-[14px] font-semibold leading-none transition-colors ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"}`}>
+              <div className="flex items-end justify-between gap-2">
+                <p className={`text-[14px] font-semibold leading-none min-w-0 truncate transition-colors ${isActive ? "text-white/60" : "text-text-primary group-hover:text-white/60"}`}>
                   Öğrenci Sayısı: {group.students}
                 </p>
-                <p className={`text-[11px] font-normal leading-none transition-colors ${isActive ? "text-white/60" : "text-neutral-400 group-hover:text-white/60"}`}>
+                <p className={`text-[11px] font-normal leading-none shrink-0 whitespace-nowrap transition-colors ${isActive ? "text-white/60" : "text-neutral-400 group-hover:text-white/60"}`}>
                   {group.branch} Şb
                 </p>
               </div>
