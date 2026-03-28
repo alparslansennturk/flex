@@ -12,6 +12,7 @@ export interface AssignSelection {
   classId:     string; // group code (öğrenci sorguları için backward compat)
   groupId:     string; // group Firestore doc ID (benzersiz kimlik)
   groupBranch: string; // gruba ait şube
+  groupModule?: "GRAFIK_1" | "GRAFIK_2"; // grubun modülü
   level:       string;
   endDate:     string;
 }
@@ -23,6 +24,7 @@ interface Group {
   instructor?: string;
   instructorId?: string;
   status?: string;
+  module?: "GRAFIK_1" | "GRAFIK_2";
 }
 
 export function AssignActivateModal({
@@ -61,12 +63,17 @@ export function AssignActivateModal({
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Group));
       setGroups(all.filter(g => g.status === "active"));
 
-      // Bu şablon için grubu daha önce almış olanları bul (templateId varsa şablon bazlı, yoksa herhangi aktif görev)
-      const busyConstraints = templateId
-        ? [where("ownedBy", "==", uid), where("templateId", "==", templateId), where("status", "==", "active")]
-        : [where("ownedBy", "==", uid), where("status", "==", "active")];
-      const taskSnap = await getDocs(query(collection(db, "tasks"), ...busyConstraints));
+      // Bu şablon için grubu daha önce almış olanları bul — tek where + JS filtre (composite index sorununu önler)
+      const taskSnap = templateId
+        ? await getDocs(query(collection(db, "tasks"), where("templateId", "==", templateId)))
+        : await getDocs(query(collection(db, "tasks"), where("ownedBy", "==", uid)));
       const busy = taskSnap.docs
+        .filter(d => {
+          const data = d.data();
+          if (data.status !== "active") return false;
+          if (templateId) return data.ownedBy === uid;
+          return true;
+        })
         .map(d => d.data().groupId as string)
         .filter(Boolean);
       setBusyGroupIds(busy);
@@ -92,7 +99,7 @@ export function AssignActivateModal({
     setLoading(true);
     const selections: AssignSelection[] = selectedGroupIds.map(id => {
       const g = groups.find(gr => gr.id === id)!;
-      return { classId: g.code, groupId: g.id, groupBranch: g.branch ?? "", level, endDate };
+      return { classId: g.code, groupId: g.id, groupBranch: g.branch ?? "", groupModule: g.module, level, endDate };
     });
     await onConfirm(selections);
     setVisible(false);

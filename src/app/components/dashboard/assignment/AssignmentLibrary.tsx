@@ -142,22 +142,27 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
       {assignModalTask && (
         <AssignActivateModal
           taskName={assignModalTask.name}
+          templateId={assignModalTask.id}
           templateLevel={assignModalTask.level}
           onConfirm={async (selections: AssignSelection[]) => {
             const t = assignModalTask;
-            for (const { classId, groupId, groupBranch, level, endDate } of selections) {
+            for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
+              // Grafik 2 şablonu → Grafik 1 sınıfı ise puan adaletsizliğini önlemek için level Seviye-1'e sabitlenir
+              const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1")
+                ? "Seviye-1"
+                : level;
               await addDoc(collection(db, "tasks"), {
                 name:          t.name,
                 description:   t.description,
                 type:          t.type,
-                points:        t.points,
+                points:        t.points ?? null,
                 icon:           t.icon ?? null,
                 assignmentType: t.assignmentType ?? null,
                 module:        t.module ?? null,
                 classId,
                 groupId,
                 groupBranch,
-                level,
+                level:         effectiveLevel,
                 endDate,
                 status:         "active",
                 isActive:      true,
