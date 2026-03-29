@@ -735,7 +735,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
       Object.entries(grades).forEach(([sid, g]) => {
         if (g.submitted && g.xp > 0) {
           const penalty = Math.max(baseXP - g.xp, 0);
-          const entry: GradedTaskEntry = { xp: g.xp, penalty, seasonId: activeSeasonId, classId: task.classId ?? undefined, endDate: task.endDate ?? undefined };
+          const entry: GradedTaskEntry = { xp: g.xp, penalty, seasonId: activeSeasonId, classId: task.classId ?? undefined, endDate: task.endDate ?? undefined, maxXp: baseXP };
           batch.update(doc(db, "students", sid), {
             [`gradedTasks.${taskId}`]: entry,
             isScoreHidden: false,   // yeni görev kaydedilince artık gizli değil
@@ -1034,8 +1034,10 @@ function CertModuleTab({ module }: { module: CertTab }) {
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [students,        setStudents]        = useState<Student[]>([]);
   const [scores,          setScores]          = useState<Record<string, number | "">>({});
-  const studentUnsubRef = useRef<(() => void) | undefined>(undefined);
+  const studentUnsubRef  = useRef<(() => void) | undefined>(undefined);
+  const studentsRef      = useRef<Student[]>([]);
   const [studentXPs,      setStudentXPs]      = useState<Record<string, number>>({});
+  const [savedOdevPuanis, setSavedOdevPuanis] = useState<Record<string, number>>({});
   const [maxXP,           setMaxXP]           = useState(0);
   const [groupsLoading,   setGroupsLoading]   = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -1101,7 +1103,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
     studentUnsubRef.current?.();
     studentUnsubRef.current = undefined;
 
-    if (!selectedGroupId) { setStudents([]); setScores({}); setFinalized(false); return; }
+    if (!selectedGroupId) { setStudents([]); setScores({}); setFinalized(false); setSavedOdevPuanis({}); return; }
     const group = groups.find(g => g.id === selectedGroupId);
     if (!group) return;
 
@@ -1119,9 +1121,14 @@ function CertModuleTab({ module }: { module: CertTab }) {
       setFinalized(isAlreadyFinalized);
 
       const initScores: Record<string, number | ""> = {};
+      const initOdevPuanis: Record<string, number> = {};
       moduleGrades.forEach(d => {
-        if (d.studentId != null) initScores[d.studentId] = d.projectScore ?? "";
+        if (d.studentId != null) {
+          initScores[d.studentId] = d.projectScore ?? "";
+          if (d.odevPuani != null) initOdevPuanis[d.studentId] = d.odevPuani;
+        }
       });
+      setSavedOdevPuanis(initOdevPuanis);
 
       if (isAlreadyFinalized) {
         // Finalize edilmiş → öğrenci listesi dondurulmuş (projectGrades'den)
@@ -1136,6 +1143,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
             groupCode: d.groupCode ?? group.originalCode ?? group.code,
           } as Student))
           .sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
+        studentsRef.current = frozenList;
         setStudents(frozenList);
         setScores(initScores);
         setStudentsLoading(false);
@@ -1152,6 +1160,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
             const list = studSnap.docs
               .map(d => ({ id: d.id, ...d.data() } as Student))
               .sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
+            studentsRef.current = list;
             setStudents(list);
             // Kayıtlı proje notlarını koru; yeni gelen öğrencilere boş değer ver
             setScores(prev => {
@@ -1197,7 +1206,6 @@ function CertModuleTab({ module }: { module: CertTab }) {
       // eslint-disable-next-line react-hooks/exhaustive-deps
       const mx = moduleTasks.reduce((sum, t) =>
         sum + getLevelXP(t.level, settings) * ((t as any).xpMultiplier ?? 1), 0);
-      setMaxXP(mx);
 
       // Her öğrencinin aldığı XP (task.grades içinden)
       const xpMap: Record<string, number> = {};
@@ -1208,6 +1216,25 @@ function CertModuleTab({ module }: { module: CertTab }) {
           xpMap[sid] = (xpMap[sid] ?? 0) + (g?.xp ?? 0);
         });
       });
+
+      // Arşivden silinmiş görevlerin XP'sini student.gradedTasks'tan recover et
+      const existingTaskIds = new Set(moduleTasks.map(t => t.id));
+      const classCode = group.originalCode ?? group.code;
+      const deletedTaskMaxXP: Record<string, number> = {}; // taskId → maxXp (task başına bir kez)
+      studentsRef.current.forEach(s => {
+        const gt = (s as any).gradedTasks as Record<string, any> | undefined;
+        if (!gt) return;
+        Object.entries(gt).forEach(([taskId, entry]) => {
+          if (existingTaskIds.has(taskId)) return; // task hâlâ mevcut, zaten sayıldı
+          if ((entry as any)?.classId !== classCode) return; // farklı sınıf
+          xpMap[s.id] = (xpMap[s.id] ?? 0) + ((entry as any)?.xp ?? 0);
+          if (!(taskId in deletedTaskMaxXP)) {
+            deletedTaskMaxXP[taskId] = (entry as any)?.maxXp ?? (entry as any)?.xp ?? 0;
+          }
+        });
+      });
+      const totalDeletedMaxXP = Object.values(deletedTaskMaxXP).reduce((a, b) => a + b, 0);
+      setMaxXP(mx + totalDeletedMaxXP);
       setStudentXPs(xpMap);
     });
 
@@ -1286,8 +1313,11 @@ function CertModuleTab({ module }: { module: CertTab }) {
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
   const moduleLabel   = module === "GRAFIK_1" ? "Grafik 1" : "Grafik 2";
 
-  const getOdevPuani = (studentId: string) =>
-    maxXP > 0 ? (studentXPs[studentId] ?? 0) / maxXP * 30 : 0;
+  const getOdevPuani = (studentId: string) => {
+    // Finalize edilmişse ve kayıtlı değer varsa onu kullan (task silinse de etkilenmez)
+    if (finalized && savedOdevPuanis[studentId] != null) return savedOdevPuanis[studentId];
+    return maxXP > 0 ? (studentXPs[studentId] ?? 0) / maxXP * 30 : 0;
+  };
 
   const getFinalNot = (studentId: string): number | null => {
     const ps = scores[studentId];

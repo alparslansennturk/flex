@@ -259,22 +259,35 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
           .filter(t => t.isGraded === true && !t.isCancelled);
 
         let taskCount = 0, studentXP = 0;
+        const countedTaskIds = new Set<string>();
         validTasks.forEach(t => {
           if (gradedIds.has(t.id)) {
             // gradedTasks mevcut → buradan XP al
             taskCount++;
             studentXP += (fsGradedTasks[t.id]?.xp ?? 0);
+            countedTaskIds.add(t.id);
           } else {
             // Fallback: eski transfer gradedTasks'ı sildiyse task.grades map'ine bak
             const g = (t.grades ?? {})[student.id];
             if (g?.submitted === true) {
               taskCount++;
               studentXP += (g.xp ?? 0);
+              countedTaskIds.add(t.id);
             }
           }
         });
 
-        const maxXP = validTasks.reduce((s, t) => s + getLevelXP(t.level, settings) * (t.xpMultiplier ?? 1), 0);
+        // Arşivden silinmiş görevler: task belgesi yok ama gradedTasks'ta XP korunuyor
+        let deletedMaxXP = 0;
+        Object.entries(fsGradedTasks).forEach(([taskId, entry]) => {
+          if (countedTaskIds.has(taskId)) return; // zaten sayıldı
+          if ((entry as any).classId !== classId) return; // farklı sınıf
+          taskCount++;
+          studentXP += (entry.xp ?? 0);
+          deletedMaxXP += ((entry as any).maxXp ?? entry.xp); // maxXp yoksa xp'yi alt sınır olarak kullan
+        });
+
+        const maxXP = validTasks.reduce((s, t) => s + getLevelXP(t.level, settings) * (t.xpMultiplier ?? 1), 0) + deletedMaxXP;
         const odevPuani = maxXP > 0 ? (studentXP / maxXP) * 30 : 0;
         return { taskCount, xp: studentXP, score: calcScore(studentXP, taskCount, settings), maxXP, odevPuani };
       };
@@ -491,7 +504,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                 <p className="text-[10px] font-bold text-surface-400 tracking-tight">Lig Puanı</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatBox label="Toplam" value={Math.round(student.score)} />
+                <StatBox label="Toplam" value={loading ? "…" : Math.round(g1Stats.score + g2Stats.score)} loading={loading} />
                 <StatBox label="Grafik-1"     value={loading ? "…" : Math.round(g1Stats.score)} colorClass="text-base-primary-700" loading={loading} />
                 <StatBox label="Grafik-2"     value={loading ? "…" : Math.round(g2Stats.score)} colorClass="text-accent-purple-700" loading={loading} />
               </div>

@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-03-29
+> Son güncelleme: 2026-03-29 (v2)
 
 ---
 
@@ -108,26 +108,56 @@
 
 ---
 
+## 9. Öğrenci Kartı — Lig Puanı Toplam Düzeltmesi
+
+**Sorun:** Sol alttaki "Lig Puanı / Toplam" kutusu `student.score` gösteriyordu. Sertifikasyon ve sınıf yönetiminden açınca `score: 0` geçildiği için 0 görünüyordu; ligden açınca sadece mevcut sınıfın skoru çıkıyordu.
+
+**Düzeltme:**
+- `src/app/components/dashboard/student-management/StudentDetailModal.tsx`
+  - Toplam kutusu: `student.score` → `g1Stats.score + g2Stats.score` (Firestore'dan yüklenen gerçek G1+G2 toplamı)
+  - Yükleme sırasında `"…"` gösterilir
+
+---
+
+## 10. Arşiv Silince Öğrenci İstatistiklerinin Sıfırlanması
+
+**Sorun:** Arşivdeki graded task silinince `task.grades` Firestore'dan kalkıyor. `calcModuleStats` ve CertModuleTab yalnızca mevcut task'lardan hesap yaptığı için öğrencinin ödev sayısı, XP ve lig puanı 0'a düşüyordu.
+
+**Kök neden:** `student.gradedTasks[taskId]` kaydı korunuyor ama hesaplamalar onu dikkate almıyordu. Ayrıca `maxXp` saklanmadığı için odevPuani oranı da hesaplanamıyordu.
+
+**Düzeltmeler:**
+- `src/app/lib/scoring.ts` — `GradedTaskEntry`'ye `maxXp?` eklendi
+- `src/app/dashboard/grading/page.tsx` (`handleSaveGrades`) — Not kaydında `maxXp: baseXP` entry'ye yazılıyor
+- `src/app/components/dashboard/student-management/StudentDetailModal.tsx` (`calcModuleStats`)
+  - Mevcut task döngüsüne ek olarak: `fsGradedTasks`'ta `classId` eşleşen, Firestore'da artık olmayan (silinmiş) task'ların XP ve `maxXp`'si de `taskCount` / `studentXP` / `maxXP`'e ekleniyor
+- `src/app/dashboard/grading/page.tsx` (CertModuleTab)
+  - `studentsRef` + `savedOdevPuanis` state eklendi
+  - Task `onSnapshot`: mevcut `task.grades` XP'sine ek olarak `studentsRef.current`'tan silinmiş task XP'leri ve `maxXp`'leri toplanıyor
+  - `getOdevPuani`: finalize edilmiş grupta `savedOdevPuanis`'ten stored değer kullanılıyor (task silinse etkilenmez)
+
+---
+
 ## Etkilenen Dosyalar
 
 | Dosya | Konu |
 |---|---|
-| `src/app/lib/scoring.ts` | GradedTaskEntry — classId, endDate |
-| `src/app/dashboard/grading/page.tsx` | Not girişi, CertModuleTab, ResetModal, realtime öğrenci |
+| `src/app/lib/scoring.ts` | GradedTaskEntry — classId, endDate, maxXp |
+| `src/app/dashboard/grading/page.tsx` | Not girişi, CertModuleTab, ResetModal, realtime öğrenci, silinen task recovery |
 | `src/app/dashboard/league/page.tsx` | Puan hesabı, TS tip düzeltmesi |
 | `src/app/components/dashboard/assignment/AssignmentLibrary.tsx` | xpMultiplier, groupModule |
 | `src/app/components/dashboard/scoring/DesignParkour.tsx` | xpMultiplier, groupModule, isCancelled, XP geri alma |
-| `src/app/components/dashboard/student-management/StudentDetailModal.tsx` | maxXP, isCancelled filtresi |
+| `src/app/components/dashboard/student-management/StudentDetailModal.tsx` | maxXP, isCancelled filtresi, lig puanı toplam, silinen task recovery |
 | `src/app/hooks/useManagement.ts` | Transfer — gradedTasks silme |
 
 ---
 
 ## Mimari Notlar
 
-- `gradedTasks[taskId]` → `{ xp, penalty, seasonId, classId, endDate }` — task silinse bile veri korunur
+- `gradedTasks[taskId]` → `{ xp, penalty, seasonId, classId, endDate, maxXp }` — task silinse bile veri korunur; `maxXp` sayesinde odevPuani oranı recover edilebilir
 - `isCancelled: true` — iptal edilen task'lar cert ve student modal'dan dışlanır
 - `groupModule` — task verilirken grubun modülü (GRAFIK_1/2) task doc'a yazılır, cert filtresinde öncelikli
 - `xpMultiplier` — G2 şablonu G1 grubuna gidince 0.5, aksi null; maxXP hesabına da uygulanır
 - Transfer: grup değişince `gradedTasks: deleteField()` çalışır
 - Sertifikasyon öğrenci listesi: finalize edilmemişse `onSnapshot`, edilmişse projectGrades'den frozen list
 - `projectGrades` ID formatı: `{studentId}_{groupId}_{module}`
+- Öğrenci kartı lig puanı toplam: sağ üstteki `student.score` = sadece mevcut sınıf; sol alt Toplam = `g1Stats.score + g2Stats.score`
