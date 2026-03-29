@@ -555,8 +555,9 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
   const [drawingStudentId, setDrawingStudentId] = useState<string | null>(null);
   const [previewDraw,      setPreviewDraw]      = useState<BookStudentDraw | null>(null);
 
-  const [archived,  setArchived]  = useState(false);
-  const [archiving, setArchiving] = useState(false);
+  const [archived,       setArchived]       = useState(false);
+  const [archiving,      setArchiving]      = useState(false);
+  const [confirmFinish,  setConfirmFinish]  = useState(false);
 
   const modalTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -881,14 +882,40 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           minHeight: 88,
         }}>
           {phase === "idle" && !allDone && (
-            <button onClick={beginPicking} style={{
-              padding: "16px 60px", borderRadius: 50,
-              background: "#2563eb", color: "white",
-              fontWeight: 900, fontSize: 16, border: "none", cursor: "pointer",
-              boxShadow: "0 8px 24px rgba(37,99,235,0.28)",
-            }}>
-              Başlat
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <button onClick={beginPicking} style={{
+                padding: "16px 60px", borderRadius: 50,
+                background: "#2563eb", color: "white",
+                fontWeight: 900, fontSize: 16, border: "none", cursor: "pointer",
+                boxShadow: "0 8px 24px rgba(37,99,235,0.28)",
+              }}>
+                Başlat
+              </button>
+              {!confirmFinish ? (
+                <button
+                  onClick={() => setConfirmFinish(true)}
+                  style={{ color: "#94a3b8", background: "none", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Ödevi Tamamla
+                </button>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 12, color: "#94a3b8" }}>Eksik öğrencilerle bitirilsin mi?</span>
+                  <button
+                    onClick={() => { setConfirmFinish(false); handleArchive(); }}
+                    style={{ padding: "6px 14px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 12, fontWeight: 700, border: "none", cursor: "pointer" }}
+                  >
+                    Evet, Tamamla
+                  </button>
+                  <button
+                    onClick={() => setConfirmFinish(false)}
+                    style={{ padding: "6px 14px", borderRadius: 10, background: "#f1f5f9", color: "#64748b", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer" }}
+                  >
+                    İptal
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {phase === "ready" && !showCarousel && nameVisible && (

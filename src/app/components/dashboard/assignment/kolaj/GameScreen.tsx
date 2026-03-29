@@ -286,8 +286,9 @@ export default function GameScreen({
   const [groupCode, setGroupCode] = useState<string>("");
 
   // Arşiv
-  const [archived,   setArchived]   = useState(false);
-  const [archiving,  setArchiving]  = useState(false);
+  const [archived,       setArchived]       = useState(false);
+  const [archiving,      setArchiving]      = useState(false);
+  const [confirmFinish,  setConfirmFinish]  = useState(false);
 
   const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRefs  = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -829,11 +830,40 @@ export default function GameScreen({
           style={{ borderTop: "1px solid #e8ecf2", minHeight: 88 }}>
 
           {phase === "idle" && !allDone && (
-            <button onClick={handleBeginPicking}
-              className="px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
-              style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 8px 28px rgba(58,123,213,0.28)" }}>
-              Başlat
-            </button>
+            <div className="flex flex-col items-center gap-3">
+              <button onClick={handleBeginPicking}
+                className="px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
+                style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 8px 28px rgba(58,123,213,0.28)" }}>
+                Başlat
+              </button>
+              {!confirmFinish ? (
+                <button
+                  onClick={() => setConfirmFinish(true)}
+                  className="text-[12px] font-semibold cursor-pointer transition-opacity hover:opacity-80"
+                  style={{ color: "#94a3b8", background: "none", border: "none" }}
+                >
+                  Ödevi Tamamla
+                </button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="text-[12px]" style={{ color: "#94a3b8" }}>Eksik öğrencilerle bitirilsin mi?</span>
+                  <button
+                    onClick={() => { setConfirmFinish(false); handleArchive(); }}
+                    className="px-4 py-1.5 rounded-xl text-[12px] font-bold cursor-pointer text-white"
+                    style={{ background: "#e53e3e", border: "none" }}
+                  >
+                    Evet, Tamamla
+                  </button>
+                  <button
+                    onClick={() => setConfirmFinish(false)}
+                    className="px-4 py-1.5 rounded-xl text-[12px] font-semibold cursor-pointer"
+                    style={{ background: "#f1f5f9", color: "#64748b", border: "none" }}
+                  >
+                    İptal
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {phase === "ready" && (
