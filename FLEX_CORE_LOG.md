@@ -1,112 +1,133 @@
-# FLEX_CORE_LOG — Proje Beyni
-> Son güncelleme: 2026-03-28
-> Bu dosya PC'ye geçince Claude'a verilir, kaldığı yerden devam eder.
+# FLEX CORE LOG
+> Son güncelleme: 2026-03-29
 
 ---
 
-## Sidebar Güncellemesi
+## 1. Arşiv Silince Puan Düşme Sorunu
 
-**Dosya:** `src/app/components/layout/Sidebar.tsx`
+**Sorun:** Görevler arşivden silinince öğrencilerin puanı sıfırlanıyordu (120 → 84 gibi).
 
-- "Not Girişi" menü öğesi **"Sertifikasyon"** olarak yeniden adlandırıldı.
-- İkonu `PencilLine` → `GraduationCap` olarak değiştirildi.
-- Menü `/dashboard/grading` yoluna yönlendirmeye devam ediyor, sadece görünen ad ve ikon değişti.
+**Kök neden:** `recentScore` hesabı `tasksMap`'e bağlıydı — silinen görev `tasksMap`'ten düşünce `recentScore = 0`, `finalScore = generalScore * 0.7` oluyordu.
 
----
-
-## Modül Alanı — Ödev Şablonları
-
-**Dosyalar:** `TaskForm.tsx`, `TaskManagementPanel.tsx`, `taskTypes.tsx`, `AssignmentLibrary.tsx`
-
-- `Task` arayüzüne `module?: "GRAFIK_1" | "GRAFIK_2"` eklendi.
-- Şablon formu 3 sütunlu yapıya geçirildi: **Kart Adı | Modül\* | Seviye**
-- Modül seçimi şablonlarda zorunlu alan olarak işaretlendi.
-- Şablon tablosuna Seviyeden önce **Modül** sütunu eklendi (Grafik 1 / Grafik 2 pill badge).
-- **Bug fix:** Şablondan ödev başlatılırken `module` alanı task dokümanına kopyalanmıyordu. `AssignmentLibrary.tsx` → `addDoc` çağrısına `module: t.module ?? null` eklendi.
-- ⚠️ Bu düzeltme öncesi başlatılan task'larda `module` alanı Firestore'da manuel set edilmeli.
+**Düzeltmeler:**
+- `src/app/lib/scoring.ts` — `GradedTaskEntry`'ye `classId?` ve `endDate?` eklendi
+- `src/app/dashboard/grading/page.tsx` — Not kaydında `classId` ve `endDate` entry'ye yazılıyor
+- `src/app/dashboard/league/page.tsx`
+  - `gradedTasks` filtresi `entry.classId` ile yapılıyor
+  - Silinen görevler için `storedEndDate` fallback
+  - Skor `generalScore` ile gösteriliyor (artık `finalScore` yok)
 
 ---
 
-## Sertifikasyon Sekmesi
+## 2. G2 Şablonu → G1 Sınıfı: XP Yarıya Düşürme
 
-**Dosya:** `src/app/dashboard/grading/page.tsx`
+**Kural:** Grafik-2 şablonu Grafik-1 sınıfına verilince `xpMultiplier = 0.5`. Tersi yok.
 
-- Grading sayfasına (`/dashboard/grading?section=certification`) **Sertifikasyon** bölümü eklendi.
-- İç sekmeler: **Grafik 1** / **Grafik 2**
-- Her sekme: grup dropdown, öğrenci tablosu (Öğrenci Adı | Proje Notu | Ödev Puanı | Toplam Not)
-- Kayıt: `projectGrades/{studentId}_{groupId}_{module}` dokümana `setDoc merge`
-
-### Ödev Puanı Hesabı
-- `odevPuani = (studentXP / maxXP) × 30`
-- `finalNot = projectScore × 0.7 + odevPuani`
-- Task verileri `onSnapshot` ile realtime güncelleniyor (`isGraded: true` + modül filtresi)
-- **Önemli:** `onSnapshot` task'ın `module` alanını filtreler — bu alan task dokümanında yoksa ödev puanı "—" görünür (yukarıdaki bug fix bunu çözüyor)
-
-### Grafik X Bitir Butonu
-- Tablo altında finalize butonu
-- Onay modalı sonrası `isFinalized: true`, `finalizedAt`, `studentName`, `gender`, `avatarId` kaydediliyor
-- Finalize sırasında grup dokümanına `codeAt_GRAFIK_1` / `codeAt_GRAFIK_2` alanı yazılıyor (orijinal kod korunur)
-
-### Öğrenci Listesi Dondurma
-- Finalize edilmiş modülde öğrenci listesi `projectGrades` snapshot'ından yüklenir (o andaki öğrenciler)
-- Finalize edilmemiş modülde `students` koleksiyonundan `groupId` ile canlı sorgu
+**Düzeltmeler:**
+- `src/app/components/dashboard/assignment/AssignmentLibrary.tsx` — `xpMultiplier` ve `groupModule` task doc'a yazılıyor
+- `src/app/components/dashboard/scoring/DesignParkour.tsx` — Ghost aktivasyon ve reactivation'a `xpMultiplier` + `groupModule` eklendi
+- `src/app/dashboard/grading/page.tsx` GradingForm — `xpMultiplier` önce task'tan, yoksa gruptan türetiliyor
 
 ---
 
-## Firestore Güvenlik Kuralları
+## 3. Ödev İptal Edilince XP Geri Alma
 
-**Dosya:** `firestore.rules`
+**Kural:** "Ödevi iptal et" → öğrencilerin kazandığı XP silinir, task `isCancelled: true` olur.
 
-```
-match /projectGrades/{gradeId} {
-  allow read: if isSignedIn() && (isAdmin() || isInstructor());
-  allow write: if isAdmin() || isInstructor();
-}
-```
-
----
-
-## Modül Değişikliği Engeli — Grup Yönetimi
-
-**Dosyalar:** `useManagement.ts`, `GroupForm.tsx`, `ManagementContent.tsx`
-
-- Grup formuna **Modül** dropdown eklendi (5. sütun): Belirtilmemiş / Grafik 1 / Grafik 2
-- `Group` arayüzüne `module?: "GRAFIK_1" | "GRAFIK_2"` eklendi
-- Modül değiştirilmek istendiğinde `projectGrades`'de mevcut modülün finalize edilip edilmediği kontrol edilir
-- Finalize edilmemişse modal: *"Önce Sertifikasyon → Grafik X Bitir butonuna basın"*
-- Finalize edildikten sonra not girişi açık kalmaya devam eder
+**Düzeltme:**
+- `src/app/components/dashboard/scoring/DesignParkour.tsx` `handleCancelTask`
+  - `task.grades`'den XP'li teslim edenler bulunur
+  - `gradedTasks.${taskId}` → `deleteField()` ile silinir
+  - `isCancelled: true` task'a yazılır
 
 ---
 
-## Grup Kodu Değişince Öğrenci Senkronizasyonu
+## 4. Sertifikasyon — Grup Bazlı Puan Sıfırlama
 
-**Dosya:** `useManagement.ts`
+**Kural:** Not Girişi başlığındaki "Puanları Sıfırla" butonunun solunda grup seçici.
+- **Tümü** → soft reset (isScoreHidden + bumpSeason)
+- **Belirli grup** → sadece `gradedTasks` silinir, `projectGrades` dokunulmaz, season değişmez
 
-- Grup kodu değiştiğinde `groupId` üzerinden gruptaki tüm öğrenciler `writeBatch` ile yeni koda güncellenir
-- Böylece Not Girişi'ndeki `where("groupCode", "==", task.classId)` sorgusu tüm öğrencileri bulur
-- Yeni eklenen öğrenciler zaten güncel `group.code` ile oluşturulur, sorun yaşanmaz
+**Düzeltmeler:**
+- `src/app/dashboard/grading/page.tsx`
+  - `GradingTabs`: `resetScope` state + select+button kombo UI
+  - `ResetPointsModal`: `groupLabel` prop, `isGroupScope` branch ayrıldı
 
 ---
 
-## Sertifikasyon — Grup Kodu Değişikliği Sonrası Stabil Çalışma
+## 5. Sertifikasyon — Ödev Puanı Hesap Düzeltmeleri
 
-**Dosya:** `src/app/dashboard/grading/page.tsx`
+### 5a. groupModule Filtresi
+**Sorun:** `module` alanı şablondan geliyordu — eksik `module` alanında CertModuleTab görevi bulamıyor, ödev puanı "—" çıkıyordu.
 
-- `Group` arayüzüne `originalCode?: string` eklendi
-- Gruplar yüklenirken grup dokümanındaki `codeAt_${module}` alanı `originalCode` olarak okunur
-- Fallback: `projectGrades`'deki `groupCode` alanından da orijinal kod çekilir
-- Öğrenci sorgusu `groupCode` yerine `groupId` (stabil Firestore ID) kullanır
-- Task XP sorgusu `originalCode ?? group.code` ile doğru `classId`'ye bakar
-- Dropdown: kodu değişmiş finalize gruplar `"Grup 121 (şimdi: Grup 300)"` formatında gösterilir
-- `handleSave` ve `handleFinalize`'da `groupCode` alanı `projectGrades`'e kaydedilir
+**Düzeltme:**
+- CertModuleTab `onSnapshot` filtresi: `groupModule` (task verilirken grubun modülü) öncelikli, fallback `module`
+- Task oluşturulurken `groupModule` yazılıyor (AssignmentLibrary + DesignParkour)
+
+### 5b. maxXP xpMultiplier Düzeltmesi
+**Sorun:** `maxXP = getLevelXP` — `xpMultiplier = 0.5` olan task'larda oran yanlıştı.
+
+**Düzeltme:**
+- `maxXP += getLevelXP × (xpMultiplier ?? 1)` — CertModuleTab ve StudentDetailModal'da
+
+### 5c. İptal Edilen Görev maxXP'yi Şişiriyordu
+**Sorun:** `isCancelled` task'lar `isGraded: true` kaldığı için maxXP'ye giriyordu → final not 100 yerine 90 çıkıyordu.
+
+**Düzeltme:**
+- CertModuleTab ve StudentDetailModal filtrelerine `!t.isCancelled` eklendi
+
+---
+
+## 6. Sertifikasyon — Öğrenci Listesi Realtime
+
+**Sorun:** `getDocs` (tek seferlik) — sayfa açıkken gruba transfer edilen öğrenciler görünmüyordu.
+
+**Düzeltme:**
+- `src/app/dashboard/grading/page.tsx`
+  - `useRef` + `studentUnsubRef` eklendi
+  - Finalize edilmemiş grup: `getDocs` → `onSnapshot` (realtime)
+  - Grup değişince abonelik temizleniyor
+  - Yeni öğrenci gelince mevcut girilen proje notları korunuyor
+
+---
+
+## 7. Öğrenci Transferi — Eski Puanların Temizlenmesi
+
+**Kural:** Öğrenci başka bir gruba transfer edilince ödev XP'leri sıfırlanır.
+
+**Düzeltme:**
+- `src/app/hooks/useManagement.ts`
+  - `deleteField` import'a eklendi
+  - `handleAddStudent` — grup değişince: `gradedTasks: deleteField()`, `rankChange: 0`, `isScoreHidden: false`
+
+---
+
+## 8. TypeScript Derleme Hatası
+
+- `src/app/dashboard/league/page.tsx` — `map` tipine `classId?: string` eklendi
+
+---
+
+## Etkilenen Dosyalar
+
+| Dosya | Konu |
+|---|---|
+| `src/app/lib/scoring.ts` | GradedTaskEntry — classId, endDate |
+| `src/app/dashboard/grading/page.tsx` | Not girişi, CertModuleTab, ResetModal, realtime öğrenci |
+| `src/app/dashboard/league/page.tsx` | Puan hesabı, TS tip düzeltmesi |
+| `src/app/components/dashboard/assignment/AssignmentLibrary.tsx` | xpMultiplier, groupModule |
+| `src/app/components/dashboard/scoring/DesignParkour.tsx` | xpMultiplier, groupModule, isCancelled, XP geri alma |
+| `src/app/components/dashboard/student-management/StudentDetailModal.tsx` | maxXP, isCancelled filtresi |
+| `src/app/hooks/useManagement.ts` | Transfer — gradedTasks silme |
 
 ---
 
 ## Mimari Notlar
 
-- `projectGrades` belge ID formatı: `{studentId}_{groupId}_{module}`
-- Grup geçişi (GRAFIK_1 → GRAFIK_2) aynı Firestore grup ID'si üzerinde yapılır — tarihsel veri bozulmaz
-- Task'lar `classId` (grup kodu), notlar `studentId` ile bağlanır — kod değişse de puanlar kaybolmaz
-- Composite Firestore index sorunundan kaçınmak için tek `where` + JS-side filtreleme kullanılır
-- Öğrenci koleksiyonu hem `groupId` (stabil) hem `groupCode` (görüntü) taşır; kod değişince her ikisi de güncellenir
-- Sertifikasyon ödev puanı hesabı task'ın `module` alanına bağımlıdır — bu alan `AssignmentLibrary.tsx` üzerinden artık otomatik taşınıyor
+- `gradedTasks[taskId]` → `{ xp, penalty, seasonId, classId, endDate }` — task silinse bile veri korunur
+- `isCancelled: true` — iptal edilen task'lar cert ve student modal'dan dışlanır
+- `groupModule` — task verilirken grubun modülü (GRAFIK_1/2) task doc'a yazılır, cert filtresinde öncelikli
+- `xpMultiplier` — G2 şablonu G1 grubuna gidince 0.5, aksi null; maxXP hesabına da uygulanır
+- Transfer: grup değişince `gradedTasks: deleteField()` çalışır
+- Sertifikasyon öğrenci listesi: finalize edilmemişse `onSnapshot`, edilmişse projectGrades'den frozen list
+- `projectGrades` ID formatı: `{studentId}_{groupId}_{module}`

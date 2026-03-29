@@ -761,7 +761,7 @@ export default function LeaguePage() {
   // ── Görevleri çek ─────────────────────────────────────────────────────────
   useEffect(() => {
     getDocs(collection(db, "tasks")).then((snap) => {
-      const map: Record<string, { endDate?: string; createdAt?: any }> = {};
+      const map: Record<string, { endDate?: string; createdAt?: any; classId?: string }> = {};
       snap.docs.forEach((d) => {
         const data = d.data() as any;
         map[d.id] = { endDate: data.endDate ?? undefined, createdAt: data.createdAt ?? undefined, classId: data.classId ?? undefined };
