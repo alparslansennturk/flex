@@ -6,7 +6,7 @@ import { getFlexMessage } from "@/app/lib/messages";
 import {
   collection, onSnapshot, addDoc, doc,
   updateDoc, deleteDoc, increment, serverTimestamp, writeBatch,
-  getDocs, query, where, deleteField,
+  getDocs, query, where,
 } from "firebase/firestore";
 
 // --- INTERFACES ---
@@ -569,8 +569,13 @@ if(oldStudent.groupId&&oldStudent.groupId!=="unassigned"){
 await updateDoc(doc(db,"groups",oldStudent.groupId),{students:increment(-1)});
 }
 await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
-// Grup değişince eski ödev puanları silinir — yeni grupta sıfırdan başlar
-studentData.gradedTasks = deleteField();
+// gradedTasks silinmez — geçmiş veriler korunur; lig zaten classId'ye göre filtreler
+const oldGroup = groups.find((g) => g.id === oldStudent.groupId);
+if (oldGroup?.module === "GRAFIK_1") {
+  studentData.grafik1Code = oldGroup.code;
+} else if (oldGroup?.module === "GRAFIK_2") {
+  studentData.grafik2Code = oldGroup.code;
+}
 studentData.rankChange = 0;
 studentData.isScoreHidden = false;
 }

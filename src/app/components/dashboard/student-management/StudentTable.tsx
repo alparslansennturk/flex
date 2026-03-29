@@ -14,6 +14,7 @@ interface StudentTableProps {
   handleRestoreStudent: (id: string) => void;
   handleGraduateStudent: (id: string) => void;
   setDeleteModal: (config: { isOpen: boolean; studentId: string; deleteType: 'active' | 'graduated' | 'graduate' }) => void;
+  onStudentClick?: (student: any) => void;
 }
 
 export const StudentTable: React.FC<StudentTableProps> = ({
@@ -28,7 +29,8 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   handleEditStudent,
   handleRestoreStudent,
   handleGraduateStudent,
-  setDeleteModal
+  setDeleteModal,
+  onStudentClick
 }) => {
   const isPassive = studentPanel === 'passive';
   const showBranchCol = viewMode === 'all-branches';
@@ -112,9 +114,18 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                   )}
                 </td>
                 <td className="px-6">
-                  <span className="text-[13px] font-semibold text-neutral-900 leading-none">
-                    {student.name} {student.lastName}
-                  </span>
+                  {onStudentClick ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onStudentClick(student); }}
+                      className="text-[13px] font-semibold text-neutral-900 leading-none hover:text-[#3a7bd5] transition-colors cursor-pointer outline-none text-left"
+                    >
+                      {student.name} {student.lastName}
+                    </button>
+                  ) : (
+                    <span className="text-[13px] font-semibold text-neutral-900 leading-none">
+                      {student.name} {student.lastName}
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.branch || "—"}</td>
                 <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.groupCode || "—"}</td>

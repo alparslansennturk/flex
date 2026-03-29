@@ -233,33 +233,112 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       const g1Raw = g1Doc.exists() ? (g1Doc.data() as any) : null;
       const g2Raw = g2Doc.exists() ? (g2Doc.data() as any) : null;
 
-      // codeAt_GRAFIK_1 / codeAt_GRAFIK_2: finalizasyon sırasında gruba yazılan orijinal kodlar
-      const codeG1 = (gData.codeAt_GRAFIK_1 as string | undefined) ?? (gData.code as string) ?? "";
-      const codeG2 = (gData.codeAt_GRAFIK_2 as string | undefined)
+      // codeAt_GRAFIK_1/2: finalizasyon sırasında gruba yazılan orijinal kodlar
+      // grafik1Code/grafik2Code: öğrenci transferinde student doc'a kaydedilen eski modül kodları
+      const codeG1 = (sData.grafik1Code as string | undefined)
+        ?? (gData.codeAt_GRAFIK_1 as string | undefined)
+        ?? (gData.module === "GRAFIK_1" ? (gData.code as string) : "")
+        ?? "";
+      const codeG2 = (sData.grafik2Code as string | undefined)
+        ?? (gData.codeAt_GRAFIK_2 as string | undefined)
         ?? (gData.module === "GRAFIK_2" ? (gData.code as string) : "")
         ?? "";
 
       // 3. Modül bazlı görev istatistikleri
-      const gradedIds = new Set(Object.keys(student.gradedTasks ?? {}));
+      // Firestore student doc'tan gelen gradedTasks (prop boş gelebilir)
+      const fsGradedTasks = (sData.gradedTasks ?? {}) as Record<string, { xp: number; penalty: number }>;
+      const gradedIds = new Set(Object.keys(fsGradedTasks));
 
-      // G1 ve G2 farklı classId kullandığı için module filtresi gerekmez.
-      // Filtre yüzünden module alanı olmayan veya eski görevler atlanıyordu.
+      // Tek bir classId için tüm graded task'ları çek, öğrencinin tamamladıklarını say
       const calcModuleStats = async (classId: string): Promise<ModuleStats> => {
         if (!classId) return EMPTY_STATS;
+        // Sadece classId filtresi — isGraded+classId composite index gerektirmez
         const snap = await getDocs(query(collection(db, "tasks"), where("classId", "==", classId)));
-        const tasks = snap.docs
+        const validTasks = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as any))
           .filter(t => t.isGraded === true && !t.isCancelled);
-        const matched   = tasks.filter(t => gradedIds.has(t.id));
-        const studentXP = matched.reduce((s, t) => s + (student.gradedTasks?.[t.id]?.xp ?? 0), 0);
-        const maxXP     = tasks.reduce((s, t) => s + getLevelXP(t.level, settings) * (t.xpMultiplier ?? 1), 0);
+
+        let taskCount = 0, studentXP = 0;
+        validTasks.forEach(t => {
+          if (gradedIds.has(t.id)) {
+            // gradedTasks mevcut → buradan XP al
+            taskCount++;
+            studentXP += (fsGradedTasks[t.id]?.xp ?? 0);
+          } else {
+            // Fallback: eski transfer gradedTasks'ı sildiyse task.grades map'ine bak
+            const g = (t.grades ?? {})[student.id];
+            if (g?.submitted === true) {
+              taskCount++;
+              studentXP += (g.xp ?? 0);
+            }
+          }
+        });
+
+        const maxXP = validTasks.reduce((s, t) => s + getLevelXP(t.level, settings) * (t.xpMultiplier ?? 1), 0);
         const odevPuani = maxXP > 0 ? (studentXP / maxXP) * 30 : 0;
-        return { taskCount: matched.length, xp: studentXP, score: calcScore(studentXP, matched.length, settings), maxXP, odevPuani };
+        return { taskCount, xp: studentXP, score: calcScore(studentXP, taskCount, settings), maxXP, odevPuani };
       };
 
+      // codeG1/codeG2 bilinmiyorsa doğru classId'yi bul:
+      // 1. gradedTasks classId'lerinden → 2. instructor'ın grup taramasından (task.grades fallback)
+      const instructorId = gData.instructorId as string | undefined;
+
+      const resolveCode = async (
+        knownCode: string,
+        module: "GRAFIK_1" | "GRAFIK_2"
+      ): Promise<string> => {
+        if (knownCode) return knownCode;
+
+        // Yol 1: gradedTasks'taki classId'lere ait grupları sorgula
+        const classIdsInGT = [...new Set(
+          Object.values(sData.gradedTasks ?? {})
+            .map((e: any) => e?.classId)
+            .filter((c): c is string => !!c)
+        )];
+        if (classIdsInGT.length > 0) {
+          for (let i = 0; i < classIdsInGT.length; i += 10) {
+            const gSnap = await getDocs(query(
+              collection(db, "groups"),
+              where("code", "in", classIdsInGT.slice(i, i + 10))
+            ));
+            for (const gd of gSnap.docs) {
+              const d = gd.data() as any;
+              if (d.module === module) return d.code as string;
+            }
+          }
+        }
+
+        // Yol 2: gradedTasks silinmişse → instructor'ın tüm modül gruplarını tara
+        // task.grades'den öğrencinin görev yaptığı grubu bul
+        if (!instructorId) return "";
+        const gSnap = await getDocs(query(
+          collection(db, "groups"),
+          where("instructorId", "==", instructorId),
+          where("module", "==", module)
+        ));
+        for (const gd of gSnap.docs) {
+          const code = (gd.data() as any).code as string;
+          if (!code) continue;
+          const tSnap = await getDocs(query(
+            collection(db, "tasks"),
+            where("classId", "==", code)
+          ));
+          for (const td of tSnap.docs) {
+            const g = ((td.data() as any).grades ?? {})[student.id];
+            if (g?.submitted === true) return code;
+          }
+        }
+        return "";
+      };
+
+      const [resolvedG1, resolvedG2] = await Promise.all([
+        resolveCode(codeG1, "GRAFIK_1"),
+        resolveCode(codeG2, "GRAFIK_2"),
+      ]);
+
       const [s1, s2] = await Promise.all([
-        calcModuleStats(codeG1),
-        codeG2 ? calcModuleStats(codeG2) : Promise.resolve(EMPTY_STATS),
+        calcModuleStats(resolvedG1),
+        resolvedG2 ? calcModuleStats(resolvedG2) : Promise.resolve(EMPTY_STATS),
       ]);
 
       if (cancelled) return;
@@ -269,7 +348,10 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       const makeGrade = (raw: any | null, stats: ModuleStats): GradeData | null => {
         if (!raw && stats.taskCount === 0) return null;
         const projectScore: number | null = raw?.projectScore ?? null;
-        const odevPuani = stats.odevPuani; // her zaman task'lardan hesaplanan değeri kullan
+        // Finalize edilmişse snapshot'taki odevPuani'yi kullan (yeni task eklense bile değişmez)
+        const odevPuani = (raw?.isFinalized && raw?.odevPuani != null)
+          ? (raw.odevPuani as number)
+          : stats.odevPuani;
         const finalNote = projectScore != null
           ? parseFloat((projectScore * 0.7 + odevPuani).toFixed(2))
           : null;
@@ -396,7 +478,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                 <p className="text-[10px] font-bold text-surface-400 tracking-tight">Ödevler</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatBox label="Toplam" value={totalTasks} />
+                <StatBox label="Toplam" value={loading ? totalTasks : g1Stats.taskCount + g2Stats.taskCount} />
                 <StatBox label="Grafik-1"     value={loading ? "…" : g1Stats.taskCount} colorClass="text-base-primary-700" loading={loading} />
                 <StatBox label="Grafik-2"     value={loading ? "…" : g2Stats.taskCount} colorClass="text-accent-purple-700" loading={loading} />
               </div>

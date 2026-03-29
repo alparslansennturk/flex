@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react";
 import { GlobalConfirmationModal, StudentDeleteModal } from "./management-components/Modals";
 import { StudentTable } from "./student-management/StudentTable";
@@ -7,6 +7,7 @@ import { GroupCards } from "./class-management/GroupCards";
 import { GroupForm } from "./class-management/GroupForm";
 import { StudentForm } from "./student-management/StudentForm";
 import { useManagement } from "@/app/hooks/useManagement";
+import StudentDetailModal, { ModalStudent } from "./student-management/StudentDetailModal";
 
 export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: (t: string) => void }) {
   const {
@@ -35,6 +36,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     toggleStudentSelection, handleSelectAll,
     studentGender, setStudentGender, tempStudentBranch, setTempStudentBranch
   } = useManagement(setHeaderTitle);
+
+  const [detailStudent, setDetailStudent] = useState<ModalStudent | null>(null);
 
   useEffect(() => {
     if (!isFormOpen || !editingGroupId) return;
@@ -311,6 +314,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 handleRestoreStudent={handleRestoreStudent}
                 handleGraduateStudent={handleGraduateStudent}
                 setDeleteModal={setDeleteModal}
+                onStudentClick={(s) => setDetailStudent({ id: s.id, name: s.name, lastName: s.lastName, rank: 0, score: 0, branch: s.branch, groupCode: s.groupCode, gender: s.gender, avatarId: s.avatarId })}
               />
               {filteredStudents.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-20 text-neutral-400">
@@ -367,6 +371,12 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           </div>
         )}
       </div>
+
+      <StudentDetailModal
+        student={detailStudent}
+        isOpen={!!detailStudent}
+        onClose={() => setDetailStudent(null)}
+      />
 
       {/* MODALLAR */}
       <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type as any} count={modalConfig.groupIds?.length} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />

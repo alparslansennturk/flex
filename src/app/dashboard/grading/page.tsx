@@ -21,6 +21,7 @@ import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
 import { calculateXP, getLevelXP, calculateLeaderboardScore, computeStudentStats, GradedTaskEntry } from "@/app/lib/scoring";
 import { Task, TYPE_CONFIG, TYPE_GRADIENT, getIcon } from "../../components/dashboard/assignment/taskTypes";
+import StudentDetailModal, { ModalStudent } from "../../components/dashboard/student-management/StudentDetailModal";
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 interface Student {
@@ -1043,6 +1044,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
   const [showFinalize,    setShowFinalize]     = useState(false);
   const [finalizing,      setFinalizing]      = useState(false);
   const [finalized,       setFinalized]       = useState(false);
+  const [detailStudent,   setDetailStudent]   = useState<ModalStudent | null>(null);
 
   // Grupları çek (tek seferlik)
   useEffect(() => {
@@ -1366,7 +1368,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
                 const odevPuani = getOdevPuani(s.id);
                 const finalNot  = getFinalNot(s.id);
                 return (
-                  <div key={s.id} className="flex items-center gap-4 px-6 py-3.5 border-b border-surface-100 last:border-0 hover:bg-surface-50/60 transition-colors">
+                  <div key={s.id} className="flex items-center gap-4 px-6 py-3.5 border-b border-surface-100 last:border-0 hover:bg-base-primary-50/40 transition-colors cursor-pointer" onClick={() => setDetailStudent({ id: s.id, name: s.name, lastName: s.lastName, rank: 0, score: 0, groupCode: s.groupCode, gender: s.gender, avatarId: s.avatarId })}>
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-9 h-9 rounded-2xl overflow-hidden shrink-0 border border-surface-100">
                         <img
@@ -1383,7 +1385,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
                     </div>
 
                     {/* Proje Notu input */}
-                    <div className="w-36 shrink-0 flex justify-center">
+                    <div className="w-36 shrink-0 flex justify-center" onClick={e => e.stopPropagation()}>
                       <input
                         type="number"
                         min={0}
@@ -1507,6 +1509,12 @@ function CertModuleTab({ module }: { module: CertTab }) {
           </div>
         </div>
       )}
+
+      <StudentDetailModal
+        student={detailStudent}
+        isOpen={!!detailStudent}
+        onClose={() => setDetailStudent(null)}
+      />
     </div>
   );
 }
