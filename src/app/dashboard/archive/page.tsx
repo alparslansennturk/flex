@@ -14,6 +14,7 @@ interface StudentDraw { studentId: string; draws: DrawResult[] }
 interface Student { id: string; name: string; lastName: string }
 interface ArchiveEntry {
   id: string;
+  allIds: string[];   // taskId için tüm döküman ID'leri
   groupId: string;
   groupName: string;
   taskId: string;
@@ -63,17 +64,36 @@ export default function ArchivePage() {
       orderBy("completedAt", "desc")
     );
     getDocs(q).then(snap => {
-      setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() } as ArchiveEntry)));
+      const raw = snap.docs.map(d => ({ id: d.id, allIds: [d.id], ...d.data() } as ArchiveEntry));
+      // Aynı taskId'ye ait birden fazla session dokümanını tek karta birleştir
+      const mergedMap = new Map<string, ArchiveEntry>();
+      for (const entry of raw) {
+        const existing = mergedMap.get(entry.taskId);
+        if (existing) {
+          existing.allIds.push(entry.id);
+          const seenStudents = new Set(existing.students.map(s => s.id));
+          for (const s of entry.students) {
+            if (!seenStudents.has(s.id)) { existing.students.push(s); seenStudents.add(s.id); }
+          }
+          const seenDraws = new Set(existing.draws.map(d => d.studentId));
+          for (const d of entry.draws) {
+            if (!seenDraws.has(d.studentId)) { existing.draws.push(d); seenDraws.add(d.studentId); }
+          }
+        } else {
+          mergedMap.set(entry.taskId, { ...entry, students: [...entry.students], draws: [...entry.draws] });
+        }
+      }
+      setEntries(Array.from(mergedMap.values()));
       setLoadingEntries(false);
     });
   }, [selectedGroupId]);
 
-  const handleDelete = async (entryId: string) => {
+  const handleDelete = async (entry: ArchiveEntry) => {
     if (!confirm("Bu arşiv kaydını silmek istediğinize emin misiniz?")) return;
-    setDeletingId(entryId);
+    setDeletingId(entry.taskId);
     try {
-      await deleteDoc(doc(db, "assignment_archive", entryId));
-      setEntries(prev => prev.filter(e => e.id !== entryId));
+      await Promise.all(entry.allIds.map(id => deleteDoc(doc(db, "assignment_archive", id))));
+      setEntries(prev => prev.filter(e => e.taskId !== entry.taskId));
     } finally { setDeletingId(null); }
   };
 
@@ -176,11 +196,11 @@ export default function ArchivePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={e => { e.stopPropagation(); handleDelete(entry.id); }}
-                          disabled={deletingId === entry.id}
+                          onClick={e => { e.stopPropagation(); handleDelete(entry); }}
+                          disabled={deletingId === entry.taskId}
                           className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-40"
                         >
-                          {deletingId === entry.id
+                          {deletingId === entry.taskId
                             ? <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
                             : <Trash2 size={14} />}
                         </button>

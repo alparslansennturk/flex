@@ -491,7 +491,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                 <p className="text-[10px] font-bold text-surface-400 tracking-tight">Ödevler</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatBox label="Toplam" value={loading ? totalTasks : g1Stats.taskCount + g2Stats.taskCount} />
+                <StatBox label="Toplam" value={loading ? "…" : g1Stats.taskCount + g2Stats.taskCount} loading={loading} />
                 <StatBox label="Grafik-1"     value={loading ? "…" : g1Stats.taskCount} colorClass="text-base-primary-700" loading={loading} />
                 <StatBox label="Grafik-2"     value={loading ? "…" : g2Stats.taskCount} colorClass="text-accent-purple-700" loading={loading} />
               </div>

@@ -1196,9 +1196,11 @@ function CertModuleTab({ module }: { module: CertTab }) {
         .filter(t => {
           // groupModule: task verilirken grubun modülü (en güvenilir)
           // module: şablon modülü (fallback — eski kayıtlar için)
+          // İkisi de null/undefined ise classId zaten doğru grubu gösteriyor → dahil et
           const gm = (t as any).groupModule as string | undefined;
-          const tm = (t as any).module      as string | undefined;
-          const moduleMatch = gm != null ? gm === module : tm === module;
+          // groupModule varsa ona güven; yoksa classId sorgusu zaten doğru grubu kısıtlıyor
+          // (tm = şablon modülü, grup modülü değil — eski görevlerde yanlış sonuç verir)
+          const moduleMatch = gm != null ? gm === module : true;
           return moduleMatch && (t as any).isGraded === true && !(t as any).isCancelled;
         });
 

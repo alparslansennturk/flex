@@ -304,8 +304,7 @@ export default function GameScreen({
   const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRefs  = useRef<ReturnType<typeof setTimeout>[]>([]);
   const drawsRef     = useRef<StudentDraw[]>([]);
-  const autoPickRef      = useRef(false);
-  const prevShowFinalRef = useRef(false);
+  const autoPickRef = useRef(false);
 
   const clearAll = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -592,10 +591,32 @@ export default function GameScreen({
     if (!task.groupId || archiving || archived) return;
     setArchiving(true);
     try {
-      const existing = await getDocs(
-        query(collection(db, "assignment_archive"), where("taskId", "==", task.id))
-      );
-      if (existing.empty) {
+      await addDoc(collection(db, "assignment_archive"), {
+        groupId:     task.groupId,
+        taskId:      task.id,
+        taskName:    task.name,
+        type:        "kolaj",
+        completedAt: serverTimestamp(),
+        draws:       drawsRef.current,
+        students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+      });
+      // Gruptaki tüm öğrenciler tamamlandıysa görevi kapat → Not Ver butonu açılsın
+      if (groupStudentCount > 0 && drawsRef.current.length >= groupStudentCount) {
+        await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      }
+      setArchived(true);
+      setTimeout(() => router.push("/dashboard"), 3000);
+    } finally {
+      setArchiving(false);
+    }
+  }, [task, archiving, archived, students, groupStudentCount, router]);
+
+  // Ödevi gerçekten kapat: status → "completed", not girişine yönlendir
+  const handleFinalizeTask = useCallback(async () => {
+    if (finalizing || finalized) return;
+    setFinalizing(true);
+    try {
+      if (!archived && task.groupId) {
         await addDoc(collection(db, "assignment_archive"), {
           groupId:     task.groupId,
           taskId:      task.id,
@@ -606,35 +627,6 @@ export default function GameScreen({
           students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
         });
       }
-      setArchived(true);
-      setTimeout(() => router.push("/dashboard"), 3000);
-    } finally {
-      setArchiving(false);
-    }
-  }, [task, archiving, archived, students, router]);
-
-  // Ödevi gerçekten kapat: status → "completed", not girişine yönlendir
-  const handleFinalizeTask = useCallback(async () => {
-    if (finalizing || finalized) return;
-    setFinalizing(true);
-    try {
-      // Henüz arşivlenmemişse önce arşivle
-      if (!archived && task.groupId) {
-        const existing = await getDocs(
-          query(collection(db, "assignment_archive"), where("taskId", "==", task.id))
-        );
-        if (existing.empty) {
-          await addDoc(collection(db, "assignment_archive"), {
-            groupId:     task.groupId,
-            taskId:      task.id,
-            taskName:    task.name,
-            type:        "kolaj",
-            completedAt: serverTimestamp(),
-            draws:       drawsRef.current,
-            students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
-          });
-        }
-      }
       await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
       setFinalized(true);
       setTimeout(() => router.push("/dashboard"), 2000);
@@ -642,15 +634,6 @@ export default function GameScreen({
       setFinalizing(false);
     }
   }, [task, archived, students, finalizing, finalized, router]);
-
-  // Otomatik tamamlama: SADECE son öğrencinin modal'ı kapandıktan sonra tetikle
-  useEffect(() => {
-    if (prevShowFinalRef.current && !showFinal && allGroupDone && !finalized && !finalizing) {
-      handleFinalizeTask();
-    }
-    prevShowFinalRef.current = showFinal;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFinal, allGroupDone, finalized, finalizing]);
 
   // ─── Loading ─────────────────────────────────────────────────────────────
 
@@ -767,8 +750,7 @@ export default function GameScreen({
                     fontWeight: 900, color: "#1e293b",
                     letterSpacing: "-0.03em", lineHeight: 1.1,
                   }}>
-                    {selectedStudent.name}
-                    <br />
+                    {selectedStudent.name}{" "}
                     <span style={{ color: "#689adf" }}>{selectedStudent.lastName}</span>
                   </h1>
                 </div>

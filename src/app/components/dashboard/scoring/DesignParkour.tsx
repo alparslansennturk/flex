@@ -708,9 +708,9 @@ export default function DesignParkour() {
       const xpMultiplier = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? 0.5 : null;
       await addDoc(collection(db, "tasks"), {
         name:           t.name,
-        description:    t.description,
-        type:           t.type,
-        points:         t.points,
+        description:    t.description ?? null,
+        type:           t.type ?? null,
+        points:         t.points ?? null,
         icon:           t.icon ?? null,
         module:         t.module ?? null,
         groupModule:    groupModule ?? null,

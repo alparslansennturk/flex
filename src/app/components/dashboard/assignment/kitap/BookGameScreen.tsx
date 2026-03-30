@@ -589,21 +589,19 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
   }, [task.groupId]);
 
   useEffect(() => {
-    if (!pool) return;
+    if (!task.id) return;
     getDoc(doc(db, "lottery_results", task.id)).then(snap => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.draws) setBookDraws(data.draws);
+        if (Array.isArray(data.draws)) setBookDraws(data.draws);
       }
     });
-  }, [pool, task.id]);
+  }, [task.id]);
 
   useEffect(() => () => {
     if (modalTimerRef.current)  clearTimeout(modalTimerRef.current);
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
   }, []);
-
-  const prevShowModalRef = useRef(false);
 
   const drawnStudentIds   = bookDraws.map(d => d.studentId);
   const remainingStudents = students.filter(s => !drawnStudentIds.includes(s.id));
@@ -683,10 +681,30 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     if (!task.groupId || archiving || archived) return;
     setArchiving(true);
     try {
-      const existing = await getDocs(
-        query(collection(db, "assignment_archive"), where("taskId", "==", task.id))
-      );
-      if (existing.empty) {
+      await addDoc(collection(db, "assignment_archive"), {
+        groupId: task.groupId, taskId: task.id,
+        taskName: task.name, type: "kitap",
+        completedAt: serverTimestamp(),
+        draws: studentDraws,
+        students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+      });
+      // Gruptaki tüm öğrenciler tamamlandıysa görevi kapat → Not Ver butonu açılsın
+      if (groupStudentCount > 0 && studentDraws.length >= groupStudentCount) {
+        await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      }
+      setArchived(true);
+      setTimeout(() => router.push("/dashboard"), 3000);
+    } finally {
+      setArchiving(false);
+    }
+  }, [task, archiving, archived, students, studentDraws, groupStudentCount, router]);
+
+  // Ödevi gerçekten kapat: status → "completed", not girişine yönlendir
+  const handleFinalizeTask = useCallback(async () => {
+    if (finalizing || finalized) return;
+    setFinalizing(true);
+    try {
+      if (!archived && task.groupId) {
         await addDoc(collection(db, "assignment_archive"), {
           groupId: task.groupId, taskId: task.id,
           taskName: task.name, type: "kitap",
@@ -695,32 +713,6 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
         });
       }
-      setArchived(true);
-      setTimeout(() => router.push("/dashboard"), 3000);
-    } finally {
-      setArchiving(false);
-    }
-  }, [task, archiving, archived, students, studentDraws, router]);
-
-  // Ödevi gerçekten kapat: status → "completed", not girişine yönlendir
-  const handleFinalizeTask = useCallback(async () => {
-    if (finalizing || finalized) return;
-    setFinalizing(true);
-    try {
-      if (!archived && task.groupId) {
-        const existing = await getDocs(
-          query(collection(db, "assignment_archive"), where("taskId", "==", task.id))
-        );
-        if (existing.empty) {
-          await addDoc(collection(db, "assignment_archive"), {
-            groupId: task.groupId, taskId: task.id,
-            taskName: task.name, type: "kitap",
-            completedAt: serverTimestamp(),
-            draws: studentDraws,
-            students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
-          });
-        }
-      }
       await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
       setFinalized(true);
       setTimeout(() => router.push("/dashboard"), 2000);
@@ -728,15 +720,6 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
       setFinalizing(false);
     }
   }, [task, archived, students, studentDraws, finalizing, finalized, router]);
-
-  // Otomatik tamamlama: SADECE son öğrencinin modal'ı kapandıktan sonra tetikle
-  useEffect(() => {
-    if (prevShowModalRef.current && !showModal && allGroupDone && !finalized && !finalizing) {
-      handleFinalizeTask();
-    }
-    prevShowModalRef.current = showModal;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showModal, allGroupDone, finalized, finalizing]);
 
   if (poolLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#f5f7fb" }}>

@@ -124,8 +124,9 @@ service cloud.firestore {
     // ─── assignment_archive ───────────────────────────────────────────────────
 
     match /assignment_archive/{entryId} {
-      allow read: if isSignedIn() && (isAdmin() || isInstructor());
+      allow read:   if isSignedIn() && (isAdmin() || isInstructor());
       allow create: if isAdmin() || isInstructor() || hasPermissionOverride('ASSIGNMENT_MANAGE');
+      allow update: if isAdmin() || isInstructor() || hasPermissionOverride('ASSIGNMENT_MANAGE');
       allow delete: if isAdmin();
     }
 

@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-03-29 (v2)
+> Son güncelleme: 2026-03-30 (v3)
 
 ---
 
@@ -60,9 +60,14 @@
 ### 5a. groupModule Filtresi
 **Sorun:** `module` alanı şablondan geliyordu — eksik `module` alanında CertModuleTab görevi bulamıyor, ödev puanı "—" çıkıyordu.
 
-**Düzeltme:**
-- CertModuleTab `onSnapshot` filtresi: `groupModule` (task verilirken grubun modülü) öncelikli, fallback `module`
+**Düzeltme (ilk):**
+- CertModuleTab `onSnapshot` filtresi: `groupModule` öncelikli, `tm != null ? tm === module : true` fallback
 - Task oluşturulurken `groupModule` yazılıyor (AssignmentLibrary + DesignParkour)
+
+**Düzeltme (son — eski gruplar için):**
+- `tm` (şablon modülü) fallback tamamen kaldırıldı. `groupModule` yoksa direkt `true` döner.
+- Sebep: eski görevlerde `tm = "GRAFIK_2"` (şablondan) ama görev GRAFIK_1 grubuna verilmiş — `tm === module` yanlış `false` üretiyordu.
+- `classId` sorgusu zaten doğru grubu kısıtladığı için ek modül filtresi gerekmez.
 
 ### 5b. maxXP xpMultiplier Düzeltmesi
 **Sorun:** `maxXP = getLevelXP` — `xpMultiplier = 0.5` olan task'larda oran yanlıştı.
@@ -137,6 +142,66 @@
 
 ---
 
+## 11. Arşiv — Çoklu Oturum Birleştirme
+
+**Sorun:** İkinci çekim Firestore'a kaydedilmiyordu. `handleArchive` mevcut arşiv dokümanını `updateDoc` ile güncelleyince `Missing or insufficient permissions` hatası alıyordu (rules'ta `allow update` yoktu).
+
+**Kök neden:** `assignment_archive` kuralında yalnızca `allow create` vardı, `allow update` yoktu. Ayrıca birden fazla session için tek dokümana merge yapılması yetki gerektiriyordu.
+
+**Düzeltme:**
+- `handleArchive` ve `handleFinalizeTask` her zaman `addDoc` kullanır (update/merge yok) → yalnızca `create` yetkisi yeterli
+- `src/app/dashboard/archive/page.tsx`
+  - `ArchiveEntry`'ye `allIds: string[]` eklendi
+  - Yükleme sırasında `taskId`'ye göre client-side merge: `draws` ve `students` deduplicate edilir
+  - `handleDelete`: aynı `taskId`'ye ait tüm dokümanlar `Promise.all` ile silinir
+- `firestore.rules` — `assignment_archive`'e `allow update` eklendi (yedek olarak)
+
+---
+
+## 12. DesignParkour — addDoc Undefined Points Hatası
+
+**Sorun:** Şablondan başlatılan Photoshop görevinde `addDoc() called with invalid data. Unsupported field value: undefined (found in field points)` hatası.
+
+**Kök neden:** Şablon dokümanında `points` alanı yoksa `undefined` Firestore'a geçiyordu.
+
+**Düzeltme:**
+- `src/app/components/dashboard/scoring/DesignParkour.tsx` `handleGhostActivate`:
+  - `points: t.points ?? null`, `description: t.description ?? null`, `type: t.type ?? null`
+
+---
+
+## 13. Kolaj/Kitap — Görev Tamamlama Tespiti
+
+**Sorun:** 1. öğrenci tamamlayınca "Not Ver" butonuna geçiliyordu; 2. öğrenci hâlâ beklemedeydi.
+
+**Kök neden:** `students.length` = o session'a katılan öğrenci sayısı kullanılıyordu. Her session'da bu sayı = o session'ın çekimleri sayısı → her zaman eşit çıkıyordu.
+
+**Düzeltme:**
+- `groupStudentCount` state + `useRef` eklendi — `getDocs(students where groupId == task.groupId)` ile gerçek grup üye sayısı çekiliyor
+- `handleArchive` içinde: `drawsRef.current.length >= groupStudentCount` → tüm öğrenciler tamamlandıysa `status: "completed"`
+
+---
+
+## 14. Öğrenci Kartı — Toplam Ödev Sayısı Yükleme Durumu
+
+**Sorun:** Modal açılınca "Toplam" kutusu 1 sn boyunca `student.completedTasks` (prop'tan gelen stale değer) gösteriyordu; diğer kutular "…" gösterirken Toplam hatalı sayı çıkıyordu.
+
+**Düzeltme:**
+- `src/app/components/dashboard/student-management/StudentDetailModal.tsx`
+  - Toplam kutusu: yükleme sırasında `totalTasks` yerine `"…"` gösterilir (`loading` prop geçildi)
+
+---
+
+## 15. Kolaj — İsim ve Soyisim Aynı Satırda
+
+**Sorun:** Çekim ekranında öğrenci ismi büyük puntoda gösterilirken soyisim `<br />` ile alt satıra geçiyordu.
+
+**Düzeltme:**
+- `src/app/components/dashboard/assignment/kolaj/GameScreen.tsx` (phase === "ready" bloğu)
+  - `<br />` kaldırıldı; soyisim aynı satırda `{" "}` ile bitiştirildi (mavi renk korundu)
+
+---
+
 ## Etkilenen Dosyalar
 
 | Dosya | Konu |
@@ -145,9 +210,13 @@
 | `src/app/dashboard/grading/page.tsx` | Not girişi, CertModuleTab, ResetModal, realtime öğrenci, silinen task recovery |
 | `src/app/dashboard/league/page.tsx` | Puan hesabı, TS tip düzeltmesi |
 | `src/app/components/dashboard/assignment/AssignmentLibrary.tsx` | xpMultiplier, groupModule |
-| `src/app/components/dashboard/scoring/DesignParkour.tsx` | xpMultiplier, groupModule, isCancelled, XP geri alma |
-| `src/app/components/dashboard/student-management/StudentDetailModal.tsx` | maxXP, isCancelled filtresi, lig puanı toplam, silinen task recovery |
+| `src/app/components/dashboard/scoring/DesignParkour.tsx` | xpMultiplier, groupModule, isCancelled, XP geri alma, undefined points fix |
+| `src/app/components/dashboard/student-management/StudentDetailModal.tsx` | maxXP, isCancelled filtresi, lig puanı toplam, silinen task recovery, Toplam yükleme |
 | `src/app/hooks/useManagement.ts` | Transfer — gradedTasks silme |
+| `src/app/dashboard/archive/page.tsx` | allIds merge, client-side taskId gruplama, toplu silme |
+| `src/app/components/dashboard/assignment/kolaj/GameScreen.tsx` | handleArchive addDoc, groupStudentCount, isim aynı satır |
+| `src/app/components/dashboard/assignment/kitap/BookGameScreen.tsx` | handleArchive addDoc, groupStudentCount |
+| `firestore.rules` | assignment_archive allow update eklendi |
 
 ---
 
@@ -155,7 +224,8 @@
 
 - `gradedTasks[taskId]` → `{ xp, penalty, seasonId, classId, endDate, maxXp }` — task silinse bile veri korunur; `maxXp` sayesinde odevPuani oranı recover edilebilir
 - `isCancelled: true` — iptal edilen task'lar cert ve student modal'dan dışlanır
-- `groupModule` — task verilirken grubun modülü (GRAFIK_1/2) task doc'a yazılır, cert filtresinde öncelikli
+- `groupModule` — task verilirken grubun modülü (GRAFIK_1/2) task doc'a yazılır, cert filtresinde tek kriter; `module` (şablon) alanına bakılmaz — eski görevlerde yanlış değer verir
+- Arşiv çoklu oturum: her `handleArchive` çağrısı yeni `addDoc` oluşturur; archive page `taskId`'ye göre client-side merge yapar
 - `xpMultiplier` — G2 şablonu G1 grubuna gidince 0.5, aksi null; maxXP hesabına da uygulanır
 - Transfer: grup değişince `gradedTasks: deleteField()` çalışır
 - Sertifikasyon öğrenci listesi: finalize edilmemişse `onSnapshot`, edilmişse projectGrades'den frozen list
