@@ -227,7 +227,7 @@ function BookCarousel({
 // ─── BookResultModal ──────────────────────────────────────────────────────────
 
 function BookResultModal({
-  student, book, task, onAdvance, onClose, isPastView,
+  student, book, task, onAdvance, onClose, isPastView, noMoreStudents,
 }: {
   student: Student;
   book: BookItem;
@@ -235,6 +235,7 @@ function BookResultModal({
   onAdvance: () => void;
   onClose: () => void;
   isPastView?: boolean;
+  noMoreStudents?: boolean;
 }) {
   const [visible,     setVisible]     = useState(false);
   const [sendingMail, setSendingMail] = useState(false);
@@ -514,13 +515,20 @@ function BookResultModal({
 
           <div style={{ display: "flex", gap: 8 }}>
             {!isPastView && (
-              <button onClick={onAdvance} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "0 26px", height: 42, borderRadius: 50,
-                background: "#2563eb", color: "white",
-                fontSize: 14, fontWeight: 900, cursor: "pointer", border: "none",
-                boxShadow: "0 6px 18px rgba(37,99,235,0.30)",
-              }}>
+              <button
+                onClick={noMoreStudents ? undefined : onAdvance}
+                disabled={noMoreStudents}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "0 26px", height: 42, borderRadius: 50,
+                  background: noMoreStudents ? "#94a3b8" : "#2563eb",
+                  color: "white",
+                  fontSize: 14, fontWeight: 900,
+                  cursor: noMoreStudents ? "not-allowed" : "pointer",
+                  border: "none",
+                  boxShadow: noMoreStudents ? "none" : "0 6px 18px rgba(37,99,235,0.30)",
+                  opacity: noMoreStudents ? 0.5 : 1,
+                }}>
                 YENİ SEÇİM <ChevronRight size={15} strokeWidth={2.5} />
               </button>
             )}
@@ -555,9 +563,12 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
   const [drawingStudentId, setDrawingStudentId] = useState<string | null>(null);
   const [previewDraw,      setPreviewDraw]      = useState<BookStudentDraw | null>(null);
 
-  const [archived,       setArchived]       = useState(false);
-  const [archiving,      setArchiving]      = useState(false);
-  const [confirmFinish,  setConfirmFinish]  = useState(false);
+  const [archived,          setArchived]          = useState(false);
+  const [archiving,         setArchiving]         = useState(false);
+  const [finalizing,        setFinalizing]        = useState(false);
+  const [finalized,         setFinalized]         = useState(false);
+  const [confirmFinish,     setConfirmFinish]     = useState(false);
+  const [groupStudentCount, setGroupStudentCount] = useState(0);
 
   const modalTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -568,6 +579,14 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
       setPoolLoading(false);
     });
   }, []);
+
+  // Gruptaki toplam öğrenci sayısını yükle (otomatik tamamlama kontrolü için)
+  useEffect(() => {
+    if (!task.groupId) return;
+    getDocs(query(collection(db, "students"), where("groupId", "==", task.groupId)))
+      .then(snap => setGroupStudentCount(snap.size));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.groupId]);
 
   useEffect(() => {
     if (!pool) return;
@@ -584,9 +603,13 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
   }, []);
 
+  const prevShowModalRef = useRef(false);
+
   const drawnStudentIds   = bookDraws.map(d => d.studentId);
   const remainingStudents = students.filter(s => !drawnStudentIds.includes(s.id));
-  const allDone = remainingStudents.length === 0 && students.length > 0;
+  const allDone      = remainingStudents.length === 0 && students.length > 0;
+  // Gruptaki TÜM öğrenciler çekilişe katıldıysa true
+  const allGroupDone = groupStudentCount > 0 && bookDraws.length >= groupStudentCount;
 
   const usedBookIds    = bookDraws.map(d => d.book.id);
   const availableBooks = (pool?.items ?? []).filter(b => !usedBookIds.includes(b.id));
@@ -655,6 +678,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     draws: [{ category: "Kitap", item: { name: d.book.title, emoji: "📚" } }],
   }));
 
+  // Sadece arşive yedekle — task status'a dokunmaz, 3 sn sonra /dashboard'a döner
   const handleArchive = useCallback(async () => {
     if (!task.groupId || archiving || archived) return;
     setArchiving(true);
@@ -671,13 +695,48 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
         });
       }
-      await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
       setArchived(true);
-      setTimeout(() => router.push("/dashboard"), 2200);
+      setTimeout(() => router.push("/dashboard"), 3000);
     } finally {
       setArchiving(false);
     }
   }, [task, archiving, archived, students, studentDraws, router]);
+
+  // Ödevi gerçekten kapat: status → "completed", not girişine yönlendir
+  const handleFinalizeTask = useCallback(async () => {
+    if (finalizing || finalized) return;
+    setFinalizing(true);
+    try {
+      if (!archived && task.groupId) {
+        const existing = await getDocs(
+          query(collection(db, "assignment_archive"), where("taskId", "==", task.id))
+        );
+        if (existing.empty) {
+          await addDoc(collection(db, "assignment_archive"), {
+            groupId: task.groupId, taskId: task.id,
+            taskName: task.name, type: "kitap",
+            completedAt: serverTimestamp(),
+            draws: studentDraws,
+            students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+          });
+        }
+      }
+      await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      setFinalized(true);
+      setTimeout(() => router.push("/dashboard"), 2000);
+    } finally {
+      setFinalizing(false);
+    }
+  }, [task, archived, students, studentDraws, finalizing, finalized, router]);
+
+  // Otomatik tamamlama: SADECE son öğrencinin modal'ı kapandıktan sonra tetikle
+  useEffect(() => {
+    if (prevShowModalRef.current && !showModal && allGroupDone && !finalized && !finalizing) {
+      handleFinalizeTask();
+    }
+    prevShowModalRef.current = showModal;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, allGroupDone, finalized, finalizing]);
 
   if (poolLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#f5f7fb" }}>
@@ -696,8 +755,11 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     </div>
   );
 
+  const overlayActive = finalizing || finalized || archiving || archived;
+
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#f5f7fb", overflow: "hidden" }}>
+    <>
+    <div style={{ display: "flex", height: "100vh", background: "#f5f7fb", overflow: "hidden", opacity: overlayActive ? 0 : 1 }}>
 
       {/* Sol: Öğrenci paneli */}
       <StudentPanel
@@ -851,24 +913,65 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           {allDone && phase === "idle" && (
             <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 48 }}>
               <p style={{ color: "#1e293b", fontSize: 20, fontWeight: 900, margin: 0 }}>
-                Tüm katılımcılar tamamlandı!
+                Bu oturumun tüm katılımcıları tamamlandı!
               </p>
               <p style={{ color: "#64748b", fontSize: 13 }}>
-                Kitap dağılımı başarıyla tamamlandı.
+                Sonuçları arşive kaydedin veya ödevi tamamen kapatın.
               </p>
+
+              {/* Arşive Kaydet */}
               <button
                 onClick={handleArchive}
                 disabled={archiving || archived}
                 style={{
-                  marginTop: 8, padding: "13px 36px", borderRadius: 50,
+                  marginTop: 8, padding: "13px 40px", borderRadius: 50,
                   background: "#2563eb", color: "white",
-                  fontWeight: 700, fontSize: 14, border: "none", cursor: "pointer",
+                  fontWeight: 700, fontSize: 15, border: "none",
+                  cursor: archiving || archived ? "not-allowed" : "pointer",
                   boxShadow: "0 6px 20px rgba(37,99,235,0.25)",
                   opacity: archiving ? 0.6 : 1,
                 }}
               >
-                {archiving ? "Kaydediliyor..." : "Arşive Kaydet"}
+                {archiving ? "Kaydediliyor..." : archived ? "Arşive Kaydedildi ✓" : "Arşive Kaydet"}
               </button>
+
+              {/* Ödevi Tamamla */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", margin: 0 }}>veya</p>
+                {!confirmFinish ? (
+                  <button
+                    onClick={() => setConfirmFinish(true)}
+                    style={{ color: "#e53e3e", background: "none", border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Ödevi Tamamla ve Ana Sayfaya Git →
+                  </button>
+                ) : (
+                  <div style={{
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                    padding: "14px 20px", borderRadius: 16,
+                    background: "#fff5f5", border: "1px solid #fed7d7",
+                  }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#c53030", margin: 0 }}>
+                      Ödev kapatılsın ve ana sayfaya dönülsün mü?
+                    </p>
+                    <p style={{ fontSize: 11, color: "#e53e3e", margin: 0 }}>Eksik öğrenciler olsa bile ödev artık aktif olmayacak.</p>
+                    <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                      <button
+                        onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
+                        style={{ padding: "8px 20px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" }}
+                      >
+                        Evet, Tamamla
+                      </button>
+                      <button
+                        onClick={() => setConfirmFinish(false)}
+                        style={{ padding: "8px 20px", borderRadius: 10, background: "#f1f5f9", color: "#64748b", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}
+                      >
+                        İptal
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -882,7 +985,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           minHeight: 88,
         }}>
           {phase === "idle" && !allDone && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <button onClick={beginPicking} style={{
                 padding: "16px 60px", borderRadius: 50,
                 background: "#2563eb", color: "white",
@@ -891,25 +994,34 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
               }}>
                 Başlat
               </button>
+
               {!confirmFinish ? (
                 <button
                   onClick={() => setConfirmFinish(true)}
-                  style={{ color: "#94a3b8", background: "none", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                  disabled={bookDraws.length === 0}
+                  style={{
+                    padding: "16px 24px", borderRadius: 50,
+                    color:      bookDraws.length === 0 ? "#cbd5e1" : "#e53e3e",
+                    background: bookDraws.length === 0 ? "#f8fafc" : "#fff5f5",
+                    border:     `2px solid ${bookDraws.length === 0 ? "#e2e8f0" : "#fed7d7"}`,
+                    fontSize: 15, fontWeight: 900,
+                    cursor: bookDraws.length === 0 ? "not-allowed" : "pointer",
+                  }}
                 >
                   Ödevi Tamamla
                 </button>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 12, color: "#94a3b8" }}>Eksik öğrencilerle bitirilsin mi?</span>
+                  <span style={{ fontSize: 12, color: "#94a3b8" }}>Eksik öğrencilerle ödev kapatılsın mı?</span>
                   <button
-                    onClick={() => { setConfirmFinish(false); handleArchive(); }}
-                    style={{ padding: "6px 14px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 12, fontWeight: 700, border: "none", cursor: "pointer" }}
+                    onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
+                    style={{ padding: "8px 16px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" }}
                   >
                     Evet, Tamamla
                   </button>
                   <button
                     onClick={() => setConfirmFinish(false)}
-                    style={{ padding: "6px 14px", borderRadius: 10, background: "#f1f5f9", color: "#64748b", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer" }}
+                    style={{ padding: "8px 16px", borderRadius: 10, background: "#f1f5f9", color: "#64748b", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}
                   >
                     İptal
                   </button>
@@ -932,39 +1044,6 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           )}
         </div>
 
-        {/* Arşiv overlay */}
-        {(archiving || archived) && (
-          <div style={{
-            position: "fixed", inset: 0, zIndex: 9999,
-            background: "rgba(15,23,42,0.75)", backdropFilter: "blur(10px)",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: 20,
-          }}>
-            {archiving && !archived ? (
-              <div style={{
-                width: 48, height: 48, borderRadius: "50%",
-                border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#60a5fa",
-                animation: "bkSpin 0.8s linear infinite",
-              }} />
-            ) : (
-              <div style={{
-                width: 64, height: 64, borderRadius: "50%",
-                background: "rgba(56,161,105,0.22)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 32,
-              }}>✓</div>
-            )}
-            <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
-              {archiving && !archived ? "Kaydediliyor..." : "Ödev Tamamlandı"}
-            </p>
-            {archived && (
-              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>
-                Ana sayfaya dönülüyor...
-              </p>
-            )}
-          </div>
-        )}
-
        <style>{`
           @keyframes bkPulse    { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.6)} }
           @keyframes bkSpin     { to{transform:rotate(360deg)} }
@@ -986,28 +1065,101 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         `}</style>
       </div>
 
-      {/* Sonuç modal */}
-      {showModal && selectedStudent && currentBook && (
-        <BookResultModal
-          student={selectedStudent}
-          book={currentBook}
-          task={task}
-          onAdvance={handleNewPick}
-          onClose={handleClose}
-        />
-      )}
-
-      {/* Geçmiş önizleme */}
-      {previewDraw && (
-        <BookResultModal
-          student={students.find(s => s.id === previewDraw.studentId)!}
-          book={previewDraw.book}
-          task={task}
-          onAdvance={() => {}}
-          onClose={() => setPreviewDraw(null)}
-          isPastView
-        />
-      )}
     </div>
+
+    {/* Sonuç modal */}
+    {showModal && selectedStudent && currentBook && (
+      <BookResultModal
+        student={selectedStudent}
+        book={currentBook}
+        task={task}
+        onAdvance={handleNewPick}
+        onClose={handleClose}
+        noMoreStudents={remainingStudents.length === 0}
+      />
+    )}
+
+    {/* Geçmiş önizleme */}
+    {previewDraw && (
+      <BookResultModal
+        student={students.find(s => s.id === previewDraw.studentId)!}
+        book={previewDraw.book}
+        task={task}
+        onAdvance={() => {}}
+        onClose={() => setPreviewDraw(null)}
+        isPastView
+      />
+    )}
+
+    {/* ARŞİV OVERLAY */}
+    {(archiving || archived) && !finalizing && !finalized && (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "#000",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 16,
+      }}>
+        {archiving && !archived ? (
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#60a5fa",
+            animation: "bkSpin 0.8s linear infinite",
+          }} />
+        ) : (
+          <div style={{
+            width: 64, height: 64, borderRadius: "50%",
+            background: "rgba(56,161,105,0.22)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 32,
+          }}>✓</div>
+        )}
+        <div style={{ textAlign: "center", marginTop: 32 }}>
+          <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
+            {archiving && !archived ? "Kaydediliyor..." : "İşlem Başarılı!"}
+          </p>
+          {archived && (
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 8 }}>
+              Ana sayfaya yönlendiriliyorsunuz...
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+
+    {/* FİNALİZE OVERLAY */}
+    {(finalizing || finalized) && (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "#000",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 16,
+      }}>
+        {finalizing && !finalized ? (
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#60a5fa",
+            animation: "bkSpin 0.8s linear infinite",
+          }} />
+        ) : (
+          <div style={{
+            width: 64, height: 64, borderRadius: "50%",
+            background: "rgba(56,161,105,0.22)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 32,
+          }}>✓</div>
+        )}
+        <div style={{ textAlign: "center", marginTop: 32 }}>
+          <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
+            {finalizing && !finalized ? "Tamamlanıyor..." : "Ödev Tamamlandı!"}
+          </p>
+          {finalized && (
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 8 }}>
+              Ana sayfaya yönlendiriliyorsunuz...
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

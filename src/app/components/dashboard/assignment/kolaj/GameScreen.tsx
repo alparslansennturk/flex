@@ -74,7 +74,7 @@ function DroppedCard({ draw, index }: { draw: DrawResult; index: number }) {
 // ─── FinalOverlay ─────────────────────────────────────────────────────────────
 
 function FinalOverlay({
-  student, draw, task, onAdvance, onClose, isPastView, autoMailSent,
+  student, draw, task, onAdvance, onClose, isPastView, autoMailSent, noMoreStudents,
 }: {
   student: Student;
   draw: StudentDraw;
@@ -83,6 +83,7 @@ function FinalOverlay({
   onClose: () => void;
   isPastView?: boolean;
   autoMailSent?: boolean;
+  noMoreStudents?: boolean;
 }) {
   const [visible,     setVisible]     = useState(false);
   const [sendingMail, setSendingMail] = useState(false);
@@ -232,9 +233,16 @@ function FinalOverlay({
 
         <div className="px-10 py-5 flex justify-center gap-6 shrink-0" style={{ borderTop: "1px solid #eee" }}>
           {!isPastView && (
-            <button onClick={onAdvance}
-              className="flex items-center gap-2 px-12 py-4 rounded-full text-[15px] font-black text-white cursor-pointer active:scale-95 transition-transform"
-              style={{ background: "#27ae60", boxShadow: "0 8px 20px rgba(39,174,96,0.35)" }}>
+            <button
+              onClick={noMoreStudents ? undefined : onAdvance}
+              disabled={noMoreStudents}
+              className="flex items-center gap-2 px-12 py-4 rounded-full text-[15px] font-black text-white transition-transform"
+              style={{
+                background:  noMoreStudents ? "#94a3b8" : "#27ae60",
+                boxShadow:   noMoreStudents ? "none" : "0 8px 20px rgba(39,174,96,0.35)",
+                cursor:      noMoreStudents ? "not-allowed" : "pointer",
+                opacity:     noMoreStudents ? 0.5 : 1,
+              }}>
               YENİ SEÇİM <ChevronRight size={18} strokeWidth={2.5} />
             </button>
           )}
@@ -285,15 +293,19 @@ export default function GameScreen({
   // Grup kodu
   const [groupCode, setGroupCode] = useState<string>("");
 
-  // Arşiv
-  const [archived,       setArchived]       = useState(false);
-  const [archiving,      setArchiving]      = useState(false);
-  const [confirmFinish,  setConfirmFinish]  = useState(false);
+  // Arşiv & Tamamlama
+  const [archived,          setArchived]          = useState(false);
+  const [archiving,         setArchiving]         = useState(false);
+  const [finalizing,        setFinalizing]        = useState(false);
+  const [finalized,         setFinalized]         = useState(false);
+  const [confirmFinish,     setConfirmFinish]     = useState(false);
+  const [groupStudentCount, setGroupStudentCount] = useState(0);
 
   const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRefs  = useRef<ReturnType<typeof setTimeout>[]>([]);
   const drawsRef     = useRef<StudentDraw[]>([]);
-  const autoPickRef  = useRef(false);
+  const autoPickRef      = useRef(false);
+  const prevShowFinalRef = useRef(false);
 
   const clearAll = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -312,6 +324,14 @@ export default function GameScreen({
     getDoc(doc(db, "groups", task.groupId)).then(snap => {
       if (snap.exists()) setGroupCode(snap.data().code ?? "");
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.groupId]);
+
+  // Gruptaki toplam öğrenci sayısını yükle (otomatik tamamlama kontrolü için)
+  useEffect(() => {
+    if (!task.groupId) return;
+    getDocs(query(collection(db, "students"), where("groupId", "==", task.groupId)))
+      .then(snap => setGroupStudentCount(snap.size));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.groupId]);
 
@@ -349,7 +369,9 @@ export default function GameScreen({
     [students, draws, categories.length]
   );
 
-  const allDone = students.length > 0 && categories.length > 0 && remainingStudents.length === 0;
+  const allDone      = students.length > 0 && categories.length > 0 && remainingStudents.length === 0;
+  // Gruptaki TÜM öğrenciler çekilişe katıldıysa true
+  const allGroupDone = groupStudentCount > 0 && draws.length >= groupStudentCount;
 
   const selectedStudent = selectedStudentId ? students.find(s => s.id === selectedStudentId) : null;
   const selectedDraw    = draws.find(d => d.studentId === selectedStudentId);
@@ -422,13 +444,18 @@ export default function GameScreen({
     timeoutRefs.current.push(t0);
   }, [remainingStudents, clearAll]);
 
-  // YENİ SEÇİM → idle'a geçince otomatik picking başlat
+  // YENİ SEÇİM → idle'a geçince otomatik picking başlat (modal açıkken başlatma)
   useEffect(() => {
-    if (phase === "idle" && autoPickRef.current && remainingStudents.length > 0) {
+    if (phase === "idle" && autoPickRef.current && remainingStudents.length > 0 && !showFinal) {
       autoPickRef.current = false;
       handleBeginPicking();
     }
-  }, [phase, remainingStudents, handleBeginPicking]);
+  }, [phase, remainingStudents, handleBeginPicking, showFinal]);
+
+  // Freeze frame: modal açılınca tüm animasyonları durdur
+  useEffect(() => {
+    if (showFinal) clearAll();
+  }, [showFinal, clearAll]);
 
   // ─── "Ödevi Başlat" → tüm kategorileri otomatik çek ─────────────────────
 
@@ -560,11 +587,11 @@ export default function GameScreen({
     setShowFinal(true);
   }, []);
 
+  // Sadece arşive yedekle — task status'a dokunmaz, 3 sn sonra /dashboard'a döner
   const handleArchive = useCallback(async () => {
     if (!task.groupId || archiving || archived) return;
     setArchiving(true);
     try {
-      // Duplicate koruması: bu task için zaten arşiv kaydı varsa yeni kayıt oluşturma
       const existing = await getDocs(
         query(collection(db, "assignment_archive"), where("taskId", "==", task.id))
       );
@@ -579,15 +606,51 @@ export default function GameScreen({
           students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
         });
       }
-
-      // Her durumda görevi tamamlandı yap ve ana ekrana dön
-      await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
       setArchived(true);
-      setTimeout(() => router.push("/dashboard"), 2200);
+      setTimeout(() => router.push("/dashboard"), 3000);
     } finally {
       setArchiving(false);
     }
   }, [task, archiving, archived, students, router]);
+
+  // Ödevi gerçekten kapat: status → "completed", not girişine yönlendir
+  const handleFinalizeTask = useCallback(async () => {
+    if (finalizing || finalized) return;
+    setFinalizing(true);
+    try {
+      // Henüz arşivlenmemişse önce arşivle
+      if (!archived && task.groupId) {
+        const existing = await getDocs(
+          query(collection(db, "assignment_archive"), where("taskId", "==", task.id))
+        );
+        if (existing.empty) {
+          await addDoc(collection(db, "assignment_archive"), {
+            groupId:     task.groupId,
+            taskId:      task.id,
+            taskName:    task.name,
+            type:        "kolaj",
+            completedAt: serverTimestamp(),
+            draws:       drawsRef.current,
+            students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+          });
+        }
+      }
+      await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      setFinalized(true);
+      setTimeout(() => router.push("/dashboard"), 2000);
+    } finally {
+      setFinalizing(false);
+    }
+  }, [task, archived, students, finalizing, finalized, router]);
+
+  // Otomatik tamamlama: SADECE son öğrencinin modal'ı kapandıktan sonra tetikle
+  useEffect(() => {
+    if (prevShowFinalRef.current && !showFinal && allGroupDone && !finalized && !finalizing) {
+      handleFinalizeTask();
+    }
+    prevShowFinalRef.current = showFinal;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFinal, allGroupDone, finalized, finalizing]);
 
   // ─── Loading ─────────────────────────────────────────────────────────────
 
@@ -611,8 +674,11 @@ export default function GameScreen({
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
+  const overlayActive = finalizing || finalized || archiving || archived;
+
   return (
-    <div className="min-h-screen flex" style={{ background: "#f5f7fb" }}>
+    <>
+    <div className="min-h-screen flex" style={{ background: "#f5f7fb", opacity: overlayActive ? 0 : 1 }}>
 
       {/* Sol panel — animasyon burada döner */}
       <SharedStudentPanel
@@ -766,63 +832,61 @@ export default function GameScreen({
 
           {/* TÜMÜ TAMAMLANDI */}
           {allDone && (
-            <div className="text-center flex flex-col items-center gap-4">
-              <div className="text-4xl">🎉</div>
-              <p className="text-[18px] font-bold text-slate-700">Tüm katılımcılar tamamlandı!</p>
-              <p className="text-[13px] text-slate-400">Çekiliş başarıyla sonuçlandı.</p>
+            <div className="text-center flex flex-col items-center gap-5" style={{ paddingTop: 48 }}>
+              <p className="text-[18px] font-bold text-slate-700">Bu oturumun tüm katılımcıları tamamlandı!</p>
+              <p className="text-[13px] text-slate-400">Sonuçları arşive kaydedin veya ödevi tamamen kapatın.</p>
+
+              {/* Arşive Kaydet */}
               <button
                 onClick={handleArchive}
                 disabled={archiving || archived}
-                className="mt-2 px-8 py-3 rounded-full text-[14px] font-bold text-white cursor-pointer active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
+                className="px-10 py-3.5 rounded-full text-[15px] font-bold text-white cursor-pointer active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 6px 20px rgba(58,123,213,0.25)" }}
               >
-                {archiving ? "Kaydediliyor..." : "Arşive Kaydet"}
+                {archiving ? "Kaydediliyor..." : archived ? "Arşive Kaydedildi ✓" : "Arşive Kaydet"}
               </button>
-            </div>
-          )}
 
-          {/* ARŞİV OVERLAY */}
-          {(archiving || archived) && (
-            <div
-              style={{
-                position: "fixed", inset: 0, zIndex: 9999,
-                background: "rgba(6,13,26,0.82)",
-                backdropFilter: "blur(12px)",
-                display: "flex", flexDirection: "column",
-                alignItems: "center", justifyContent: "center", gap: 20,
-                animation: "fadeIn 0.3s ease",
-              }}
-            >
-              {archiving && !archived ? (
-                <div style={{
-                  width: 48, height: 48, borderRadius: "50%",
-                  border: "3px solid rgba(255,255,255,0.15)",
-                  borderTopColor: "#689adf",
-                  animation: "spin 0.8s linear infinite",
-                }} />
-              ) : (
-                <div style={{
-                  width: 64, height: 64, borderRadius: "50%",
-                  background: "rgba(56,161,105,0.18)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 32,
-                  animation: "popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)",
-                }}>
-                  ✓
-                </div>
-              )}
-              <div style={{ textAlign: "center" }}>
-                <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
-                  {archiving && !archived ? "Kaydediliyor..." : "Ödev Tamamlandı"}
+              {/* Ödevi Tamamla */}
+              <div className="flex flex-col items-center gap-2 mt-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#94a3b8" }}>
+                  veya
                 </p>
-                {archived && (
-                  <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 8 }}>
-                    Ana sayfaya dönülüyor...
-                  </p>
+                {!confirmFinish ? (
+                  <button
+                    onClick={() => setConfirmFinish(true)}
+                    className="text-[14px] font-bold cursor-pointer transition-opacity hover:opacity-70"
+                    style={{ color: "#e53e3e", background: "none", border: "none" }}
+                  >
+                    Ödevi Tamamla ve Ana Sayfaya Git →
+                  </button>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 p-4 rounded-2xl" style={{ background: "#fff5f5", border: "1px solid #fed7d7" }}>
+                    <p className="text-[13px] font-semibold" style={{ color: "#c53030" }}>
+                      Ödev kapatılsın ve ana sayfaya dönülsün mü?
+                    </p>
+                    <p className="text-[11px]" style={{ color: "#e53e3e" }}>Eksik öğrenciler olsa bile ödev artık aktif olmayacak.</p>
+                    <div className="flex gap-3 mt-1">
+                      <button
+                        onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
+                        className="px-5 py-2 rounded-xl text-[13px] font-bold cursor-pointer text-white"
+                        style={{ background: "#e53e3e", border: "none" }}
+                      >
+                        Evet, Tamamla
+                      </button>
+                      <button
+                        onClick={() => setConfirmFinish(false)}
+                        className="px-5 py-2 rounded-xl text-[13px] font-semibold cursor-pointer"
+                        style={{ background: "#f1f5f9", color: "#64748b", border: "none" }}
+                      >
+                        İptal
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
           )}
+
         </div>
 
         {/* Alt buton */}
@@ -830,33 +894,40 @@ export default function GameScreen({
           style={{ borderTop: "1px solid #e8ecf2", minHeight: 88 }}>
 
           {phase === "idle" && !allDone && (
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-4">
               <button onClick={handleBeginPicking}
                 className="px-14 py-4 rounded-full text-[16px] font-black text-white cursor-pointer active:scale-95 transition-transform"
                 style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 8px 28px rgba(58,123,213,0.28)" }}>
                 Başlat
               </button>
+
               {!confirmFinish ? (
                 <button
                   onClick={() => setConfirmFinish(true)}
-                  className="text-[12px] font-semibold cursor-pointer transition-opacity hover:opacity-80"
-                  style={{ color: "#94a3b8", background: "none", border: "none" }}
+                  disabled={draws.length === 0}
+                  className="px-6 py-4 rounded-full text-[15px] font-black transition-all"
+                  style={{
+                    color:   draws.length === 0 ? "#cbd5e1" : "#e53e3e",
+                    background: draws.length === 0 ? "#f8fafc" : "#fff5f5",
+                    border: `2px solid ${draws.length === 0 ? "#e2e8f0" : "#fed7d7"}`,
+                    cursor:  draws.length === 0 ? "not-allowed" : "pointer",
+                  }}
                 >
                   Ödevi Tamamla
                 </button>
               ) : (
                 <div className="flex items-center gap-3">
-                  <span className="text-[12px]" style={{ color: "#94a3b8" }}>Eksik öğrencilerle bitirilsin mi?</span>
+                  <span className="text-[12px]" style={{ color: "#94a3b8" }}>Eksik öğrencilerle ödev kapatılsın mı?</span>
                   <button
-                    onClick={() => { setConfirmFinish(false); handleArchive(); }}
-                    className="px-4 py-1.5 rounded-xl text-[12px] font-bold cursor-pointer text-white"
+                    onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
+                    className="px-4 py-2 rounded-xl text-[13px] font-bold cursor-pointer text-white"
                     style={{ background: "#e53e3e", border: "none" }}
                   >
                     Evet, Tamamla
                   </button>
                   <button
                     onClick={() => setConfirmFinish(false)}
-                    className="px-4 py-1.5 rounded-xl text-[12px] font-semibold cursor-pointer"
+                    className="px-4 py-2 rounded-xl text-[13px] font-semibold cursor-pointer"
                     style={{ background: "#f1f5f9", color: "#64748b", border: "none" }}
                   >
                     İptal
@@ -915,18 +986,99 @@ export default function GameScreen({
         }
       `}</style>
 
-      {/* Final overlay */}
-      {showFinal && overlayStudent && overlayDraw && (
-        <FinalOverlay
-          student={overlayStudent}
-          draw={overlayDraw}
-          task={task}
-          onAdvance={handleAdvance}
-          onClose={handleClose}
-          isPastView={isPastView}
-          autoMailSent={autoMailSentFor.has(overlayStudent.id)}
-        />
-      )}
     </div>
+
+    {/* Final overlay */}
+    {showFinal && overlayStudent && overlayDraw && (
+      <FinalOverlay
+        student={overlayStudent}
+        draw={overlayDraw}
+        task={task}
+        onAdvance={handleAdvance}
+        onClose={handleClose}
+        isPastView={isPastView}
+        autoMailSent={autoMailSentFor.has(overlayStudent.id)}
+        noMoreStudents={remainingStudents.length === 0}
+      />
+    )}
+
+    {/* FİNALİZE OVERLAY */}
+    {(finalizing || finalized) && (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "#000",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 16,
+      }}>
+        {finalizing && !finalized ? (
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            border: "3px solid rgba(255,255,255,0.15)",
+            borderTopColor: "#689adf",
+            animation: "spin 0.8s linear infinite",
+          }} />
+        ) : (
+          <div style={{
+            width: 64, height: 64, borderRadius: "50%",
+            background: "rgba(56,161,105,0.18)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 32,
+            animation: "popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+          }}>
+            ✓
+          </div>
+        )}
+        <div style={{ textAlign: "center", marginTop: 32 }}>
+          <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
+            {finalizing && !finalized ? "Tamamlanıyor..." : "Ödev Tamamlandı!"}
+          </p>
+          {finalized && (
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 8 }}>
+              Ana sayfaya yönlendiriliyorsunuz...
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+
+    {/* ARŞİV OVERLAY */}
+    {(archiving || archived) && !finalizing && !finalized && (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "#000",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 16,
+      }}>
+        {archiving && !archived ? (
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            border: "3px solid rgba(255,255,255,0.15)",
+            borderTopColor: "#689adf",
+            animation: "spin 0.8s linear infinite",
+          }} />
+        ) : (
+          <div style={{
+            width: 64, height: 64, borderRadius: "50%",
+            background: "rgba(56,161,105,0.18)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 32,
+            animation: "popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+          }}>
+            ✓
+          </div>
+        )}
+        <div style={{ textAlign: "center", marginTop: 32 }}>
+          <p style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: 0 }}>
+            {archiving && !archived ? "Kaydediliyor..." : "İşlem Başarılı!"}
+          </p>
+          {archived && (
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 8 }}>
+              Ana sayfaya yönlendiriliyorsunuz...
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

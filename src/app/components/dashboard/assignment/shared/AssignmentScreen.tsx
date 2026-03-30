@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, ReactNode } from "react";
+import { useState, useEffect, useCallback, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Users, ChevronRight } from "lucide-react";
 import { db } from "@/app/lib/firebase";
@@ -28,11 +28,13 @@ function EntryScreen({
   accentColor,
   topBarIcon,
   onStart,
+  drawnStudentIds,
 }: {
   task: TaskData;
   accentColor: string;
   topBarIcon?: ReactNode;
   onStart: (students: Student[]) => void;
+  drawnStudentIds: string[];
 }) {
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
@@ -43,11 +45,18 @@ function EntryScreen({
     if (!task.groupId) { setLoading(false); return; }
     getDocs(query(collection(db, "students"), where("groupId", "==", task.groupId)))
       .then(snap => {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Student));
-        setStudents(list);
-        setSelected(new Set(list.map(s => s.id)));
+        const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Student));
+        // Tamamlanmamışları üste, tamamlananları alta sırala
+        const sorted = [
+          ...all.filter(s => !drawnStudentIds.includes(s.id)),
+          ...all.filter(s =>  drawnStudentIds.includes(s.id)),
+        ];
+        setStudents(sorted);
+        // Varsayılan seçim: sadece henüz çekilişe girmemiş öğrenciler
+        setSelected(new Set(sorted.filter(s => !drawnStudentIds.includes(s.id)).map(s => s.id)));
       })
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.groupId]);
 
   const toggle = (id: string) =>
@@ -57,9 +66,10 @@ function EntryScreen({
       return next;
     });
 
-  const allSelected = students.length > 0 && selected.size === students.length;
+  const selectableStudents = students.filter(s => !drawnStudentIds.includes(s.id));
+  const allSelected = selectableStudents.length > 0 && selectableStudents.every(s => selected.has(s.id));
   const toggleAll   = () =>
-    setSelected(allSelected ? new Set() : new Set(students.map(s => s.id)));
+    setSelected(allSelected ? new Set() : new Set(selectableStudents.map(s => s.id)));
 
   const handleStart = () => {
     const list = students.filter(s => selected.has(s.id));
@@ -72,7 +82,7 @@ function EntryScreen({
       style={{ background: "linear-gradient(150deg, #060D1A 0%, #0D1F38 55%, #060D1A 100%)" }}
     >
       {/* Üst bar */}
-      <div className="flex items-center justify-between px-8 py-6 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-8 py-6 border-b border-white/6">
         <button
           onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2 cursor-pointer"
@@ -146,7 +156,7 @@ function EntryScreen({
                   Öğrenciler
                 </span>
               </div>
-              {students.length > 0 && (
+              {selectableStudents.length > 0 && (
                 <button
                   onClick={toggleAll}
                   className="text-[12px] font-bold cursor-pointer transition-opacity hover:opacity-70"
@@ -173,8 +183,54 @@ function EntryScreen({
               </div>
             ) : (
               <div>
+                {/* Çizgi: tamamlananlar varsa ve tamamlanmamış + tamamlanmış karışıksa */}
                 {students.map((s, i) => {
-                  const isSel = selected.has(s.id);
+                  const isDrawn = drawnStudentIds.includes(s.id);
+                  const isSel   = selected.has(s.id);
+                  const isFirstDrawn = isDrawn && !drawnStudentIds.includes(students[i - 1]?.id ?? "");
+
+                  if (isDrawn) {
+                    return (
+                      <div key={s.id}>
+                        {isFirstDrawn && selectableStudents.length > 0 && (
+                          <div
+                            className="flex items-center gap-3 px-6 py-2"
+                            style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+                          >
+                            <div className="flex-1 h-px" style={{ background: "rgba(56,161,105,0.2)" }} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(56,161,105,0.5)" }}>
+                              Tamamlandı
+                            </span>
+                            <div className="flex-1 h-px" style={{ background: "rgba(56,161,105,0.2)" }} />
+                          </div>
+                        )}
+                        <div
+                          className="w-full flex items-center gap-4 px-6 py-3.5"
+                          style={{
+                            borderTop:  (i === 0 || isFirstDrawn) ? "none" : "1px solid rgba(255,255,255,0.04)",
+                            background: "transparent",
+                          }}
+                        >
+                          <div
+                            className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: "rgba(56,161,105,0.18)", border: "1.5px solid rgba(56,161,105,0.4)" }}
+                          >
+                            <Check size={10} style={{ color: "#4ade80" }} strokeWidth={3} />
+                          </div>
+                          <span className="text-[14px] font-semibold flex-1" style={{ color: "rgba(255,255,255,0.20)" }}>
+                            {s.name} {s.lastName}
+                          </span>
+                          <span
+                            className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                            style={{ background: "rgba(56,161,105,0.12)", color: "rgba(74,222,128,0.55)" }}
+                          >
+                            Tamamlandı
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <button
                       key={s.id}
@@ -245,11 +301,11 @@ export default function AssignmentScreen({
   topBarIcon,
 }: AssignmentScreenProps) {
   const router = useRouter();
-  const [phase,        setPhase]        = useState<"intro" | "entry" | "game">("intro");
-  const [task,         setTask]         = useState<TaskData | null>(null);
-  const [taskLoading,  setTaskLoading]  = useState(true);
-  const [participants, setParticipants] = useState<Student[]>([]);
-  const skipEntryRef = useRef(false);
+  const [phase,           setPhase]           = useState<"intro" | "entry" | "game">("intro");
+  const [task,            setTask]            = useState<TaskData | null>(null);
+  const [taskLoading,     setTaskLoading]     = useState(true);
+  const [participants,    setParticipants]    = useState<Student[]>([]);
+  const [drawnStudentIds, setDrawnStudentIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!taskId) { setTaskLoading(false); return; }
@@ -259,28 +315,28 @@ export default function AssignmentScreen({
         const taskData = { id: snap.id, ...snap.data() } as TaskData;
 
         if (taskData.status === "completed" || taskData.status === "archived") {
-          router.replace("/dashboard");
+          router.replace(`/dashboard/grading?taskId=${snap.id}`);
           return;
         }
 
         setTask(taskData);
 
-        // Daha önce çekiliş başlamış mı? Varsa entry ekranını atla
+        // Mevcut çekiliş sonuçlarını yükle — tamamlanan öğrenci ID'lerini belirle
         const resultSnap = await getDoc(doc(db, "lottery_results", taskId));
-        if (resultSnap.exists() && taskData.groupId) {
-          const studentsSnap = await getDocs(
-            query(collection(db, "students"), where("groupId", "==", taskData.groupId))
-          );
-          setParticipants(studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student)));
-          skipEntryRef.current = true;
+        if (resultSnap.exists()) {
+          const data = resultSnap.data();
+          if (Array.isArray(data.draws)) {
+            setDrawnStudentIds(data.draws.map((d: { studentId: string }) => d.studentId));
+          }
         }
       })
       .finally(() => setTaskLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
+  // Her zaman önce EntryScreen göster (arşivden dönünce de dahil)
   const handleIntroComplete = useCallback(() => {
-    setPhase(skipEntryRef.current ? "game" : "entry");
+    setPhase("entry");
   }, []);
 
   const handleStart = useCallback((students: Student[]) => {
@@ -324,6 +380,7 @@ export default function AssignmentScreen({
         accentColor={accentColor}
         topBarIcon={topBarIcon}
         onStart={handleStart}
+        drawnStudentIds={drawnStudentIds}
       />
     );
   }
