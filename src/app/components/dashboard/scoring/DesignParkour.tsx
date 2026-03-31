@@ -251,7 +251,13 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
     const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     if (diff < 0) return null;
     if (diff === 0) return "Bugün!";
-    return `Son ${diff} Gün`;
+    if (diff <= 3) return `Son ${diff} Gün`;
+    const days = ["Paz", "Pts", "Sal", "Çar", "Per", "Cum", "Cts"];
+    const dd = String(end.getDate()).padStart(2, "0");
+    const mm = String(end.getMonth() + 1).padStart(2, "0");
+    const yyyy = end.getFullYear();
+    const dayName = days[end.getDay()];
+    return `${dd}.${mm}.${yyyy} ${dayName}.`;
   };
 
   const duration    = getDuration();
@@ -528,6 +534,7 @@ function TaskEditModal({ task, onSave, onCancel }: {
     setLoading(false);
   };
 
+  const today = new Date().toISOString().split("T")[0];
   const canSubmit = !!selectedGroupId && !!level && !!endDate;
 
   return (
@@ -609,6 +616,7 @@ function TaskEditModal({ task, onSave, onCancel }: {
           <input
             type="date"
             value={endDate}
+            min={today}
             onChange={e => setEndDate(e.target.value)}
             className="w-full h-12 px-4 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all cursor-pointer"
           />

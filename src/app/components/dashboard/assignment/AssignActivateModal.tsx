@@ -92,6 +92,7 @@ export function AssignActivateModal({
     );
   };
 
+  const today = new Date().toISOString().split("T")[0];
   const canSubmit = selectedGroupIds.length > 0 && !!level && !!endDate;
 
   const handleConfirm = async () => {
@@ -228,6 +229,7 @@ export function AssignActivateModal({
           <input
             type="date"
             value={endDate}
+            min={today}
             onChange={e => setEndDate(e.target.value)}
             className="w-full h-12 px-4 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all cursor-pointer"
           />
