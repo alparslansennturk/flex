@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-03-30 (v3)
+> Son güncelleme: 2026-03-31 (v4)
 
 ---
 
@@ -202,6 +202,47 @@
 
 ---
 
+## 16. DesignParkour — Geçmiş Tarih Engeli
+
+**Kural:** Ödev bitiş tarihi geçmişe verilemez; takvimde geçmiş günler disabled görünür.
+
+**Düzeltme:**
+- `src/app/components/dashboard/scoring/DesignParkour.tsx` `TaskEditModal`
+  - `today` hesabı + `min={today}` input'a eklendi
+- `src/app/components/dashboard/assignment/AssignActivateModal.tsx`
+  - Aynı şekilde `min={today}` eklendi
+
+---
+
+## 17. Kitap Kapağı — PDF Şablon ve Mail Güncellemesi
+
+**Değişiklik:** Mail içeriği sade tutuldu; asıl bilgiler artık PDF ek olarak gönderiliyor.
+
+**Düzeltmeler:**
+- `src/app/components/dashboard/assignment/kitap/generateKitapPdf.tsx` oluşturuldu
+  - `@react-pdf/renderer` + Roboto (Türkçe karakter destekli)
+  - Biçim: büyük `bookId` → başlık → yazar → yayınevi → tür → arka kapak → çizgi → TEKNİK ÖZELLİKLER → Teslim Tarihi
+  - Kağıt gramajı: %65 → 60 gr / %35 → 70 gr (öğrenci başına `useMemo` ile sabit); kalınlık buna göre 0.08 / 0.09 mm
+  - Cilt tipi: her zaman "Amerikan Cilt"
+- `src/app/components/dashboard/assignment/kitap/BookGameScreen.tsx`
+  - `handleMail`: önce PDF üret, base64 olarak API'ye gönder
+- `src/app/api/send-kitap/route.ts`
+  - Sadeleştirildi: "Sayın X, ödeviniz ektedir." formatı; PDF attachment olarak eklendi
+
+---
+
+## 18. Kitap — "Ödevi Tamamla" Butonu Görünürlük Düzeltmesi
+
+**Sorun:** Tüm grup öğrencileri tamamlandığında hâlâ "Ödevi Tamamla" ve "Ödevi Tamamla ve Ana Sayfaya Git" butonları görünüyordu.
+
+**Düzeltme:**
+- `src/app/components/dashboard/assignment/kitap/BookGameScreen.tsx`
+  - Alt buton alanı: `!allGroupDone` koşulu eklendi
+  - `allDone` bloğundaki "Ödevi Tamamla ve Ana Sayfaya Git" linki: `!allGroupDone` ile sarıldı
+  - `allGroupDone` = true iken yalnızca "Arşive Kaydet" görünür
+
+---
+
 ## Etkilenen Dosyalar
 
 | Dosya | Konu |
@@ -215,7 +256,10 @@
 | `src/app/hooks/useManagement.ts` | Transfer — gradedTasks silme |
 | `src/app/dashboard/archive/page.tsx` | allIds merge, client-side taskId gruplama, toplu silme |
 | `src/app/components/dashboard/assignment/kolaj/GameScreen.tsx` | handleArchive addDoc, groupStudentCount, isim aynı satır |
-| `src/app/components/dashboard/assignment/kitap/BookGameScreen.tsx` | handleArchive addDoc, groupStudentCount |
+| `src/app/components/dashboard/assignment/kitap/BookGameScreen.tsx` | handleArchive addDoc, groupStudentCount, ödevi tamamla görünürlük, mail→PDF |
+| `src/app/components/dashboard/assignment/kitap/generateKitapPdf.tsx` | PDF şablon (yeni dosya) |
+| `src/app/api/send-kitap/route.ts` | Sade mail + PDF attachment |
+| `src/app/components/dashboard/assignment/AssignActivateModal.tsx` | min={today} tarih kısıtı |
 | `firestore.rules` | assignment_archive allow update eklendi |
 
 ---
@@ -231,3 +275,6 @@
 - Sertifikasyon öğrenci listesi: finalize edilmemişse `onSnapshot`, edilmişse projectGrades'den frozen list
 - `projectGrades` ID formatı: `{studentId}_{groupId}_{module}`
 - Öğrenci kartı lig puanı toplam: sağ üstteki `student.score` = sadece mevcut sınıf; sol alt Toplam = `g1Stats.score + g2Stats.score`
+- Kitap PDF: `bookId` alanı kapak numarası olarak büyük puntoda gösterilir; gramaj `useMemo` + `student.id` bağımlılığıyla öğrenci başına sabit
+- `allGroupDone` = `groupStudentCount > 0 && bookDraws.length >= groupStudentCount`; bu durumda erken tamamla UI'ı gizlenir
+- Tarih kısıtı: `min={today}` — tarayıcı native disabled render'ı kullanır, ek validasyon gerekmez

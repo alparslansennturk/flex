@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Mail, FileDown, Check, ChevronRight, BookOpen } from "lucide-react";
+import { generateKitapPdf } from "./generateKitapPdf";
 import {
   doc, getDoc, setDoc, addDoc, collection, serverTimestamp,
   getDocs, query, where, updateDoc,
@@ -259,6 +260,10 @@ function BookResultModal({
     return d.toLocaleDateString("tr-TR");
   })();
 
+  // Kağıt gramajı: her öğrenci için sabit (%65 → 60gr, %35 → 70gr)
+  const paperWeight = useMemo(() => Math.random() < 0.65 ? 60 : 70, [student.id]);
+  const paperThickness = paperWeight === 60 ? "0.08 mm" : "0.09 mm";
+
   const handlePrint = () => {
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
       <title>Kitap Kapağı — ${student.name} ${student.lastName}</title>
@@ -297,6 +302,9 @@ function BookResultModal({
             <div class="micro">Teknik Özellikler</div>
             ${book.dimensions ? `<div class="spec-row"><span class="spec-key">Kitap Ölçüsü</span><span class="spec-val">${book.dimensions}</span></div>` : ""}
             ${book.pageCount  ? `<div class="spec-row"><span class="spec-key">Sayfa Sayısı</span><span class="spec-val">${book.pageCount} sf</span></div>` : ""}
+            <div class="spec-row"><span class="spec-key">Cilt Tipi</span><span class="spec-val">Amerikan Cilt</span></div>
+            <div class="spec-row"><span class="spec-key">Kağıt Gramajı</span><span class="spec-val">${paperWeight} gr.</span></div>
+            <div class="spec-row"><span class="spec-key">Yaprak Kalınlığı</span><span class="spec-val">${paperThickness}</span></div>
             ${book.isbn       ? `<div class="spec-row"><span class="spec-key">ISBN No</span><span class="spec-val">${book.isbn}</span></div>` : ""}
           </div>
         </div>
@@ -321,6 +329,7 @@ function BookResultModal({
     if (!student.email) return;
     setSendingMail(true);
     try {
+      const pdfBase64 = await generateKitapPdf({ book, deadline, paperWeight, paperThickness });
       await fetch("/api/send-kitap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -328,8 +337,8 @@ function BookResultModal({
           to: student.email,
           studentName: student.name,
           studentLastName: student.lastName,
-          taskName: task.name,
-          book, deadline,
+          pdfBase64,
+          bookTitle: book.title,
         }),
       });
       setMailSent(true);
@@ -442,6 +451,18 @@ function BookResultModal({
                     <span style={{ fontWeight: 700, color: "#1e293b" }}>{book.pageCount} sf</span>
                   </div>
                 )}
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                  <span style={{ color: "#64748b" }}>Cilt Tipi</span>
+                  <span style={{ fontWeight: 700, color: "#1e293b" }}>Amerikan Cilt</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                  <span style={{ color: "#64748b" }}>Kağıt Gramajı</span>
+                  <span style={{ fontWeight: 700, color: "#1e293b" }}>{paperWeight} gr.</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                  <span style={{ color: "#64748b" }}>Yaprak Kalınlığı</span>
+                  <span style={{ fontWeight: 700, color: "#1e293b" }}>{paperThickness}</span>
+                </div>
                 {book.isbn && (
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                     <span style={{ color: "#64748b" }}>ISBN No</span>
@@ -575,7 +596,17 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
 
   useEffect(() => {
     getDoc(doc(db, "lottery_configs", "book")).then(snap => {
-      if (snap.exists()) setPool(snap.data() as BookPool);
+      if (snap.exists()) {
+        const data = snap.data() as BookPool;
+        // Duplicate id'li kitapları temizle
+        const seen = new Set<string>();
+        const unique = data.items.filter(b => {
+          if (!b.id || seen.has(b.id)) return false;
+          seen.add(b.id);
+          return true;
+        });
+        setPool({ ...data, items: unique });
+      }
       setPoolLoading(false);
     });
   }, []);
@@ -918,8 +949,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                 {archiving ? "Kaydediliyor..." : archived ? "Arşive Kaydedildi ✓" : "Arşive Kaydet"}
               </button>
 
-              {/* Ödevi Tamamla */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
+              {/* Ödevi Tamamla — sadece gruptaki tüm öğrenciler bitmemişse göster */}
+              {!allGroupDone && <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", margin: 0 }}>veya</p>
                 {!confirmFinish ? (
                   <button
@@ -954,7 +985,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                     </div>
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
           )}
         </div>
@@ -967,7 +998,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           display: "flex", justifyContent: "center", alignItems: "center",
           minHeight: 88,
         }}>
-          {phase === "idle" && !allDone && (
+          {phase === "idle" && !allDone && !allGroupDone && (
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <button onClick={beginPicking} style={{
                 padding: "16px 60px", borderRadius: 50,
