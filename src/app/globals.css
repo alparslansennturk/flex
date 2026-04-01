@@ -42,17 +42,20 @@
   --color-base-primary-700: #205297;
   --color-base-primary-800: #183e72;
   --color-base-primary-900: #10294c;
+  --color-base-primary-950: #09172A
 
-  --color-base-secondary-50:  #f0f7f7;
-  --color-base-secondary-100: #daeaea;
-  --color-base-secondary-200: #b9d6d7;
-  --color-base-secondary-300: #8bbabc;
-  --color-base-secondary-400: #579599;
-  --color-base-secondary-500: #3d7a7e;
-  --color-base-secondary-600: #336367;
-  --color-base-secondary-700: #2c5054;
-  --color-base-secondary-800: #274346;
-  --color-base-secondary-900: #23393c;
+  --color-base-secondary-50:  #E3F1F2;
+  --color-base-secondary-100: #CBE6E6;
+  --color-base-secondary-200: #A9D5D6;
+  --color-base-secondary-300: #86C4C5;
+  --color-base-secondary-400: #67B5B6;
+  --color-base-secondary-500: #4FA3A5;
+  --color-base-secondary-600: #42888A;
+  --color-base-secondary-700: #356D6E;
+  --color-base-secondary-800: #285253;
+  --color-base-secondary-900: #1A3737;
+  --color-base-secondary-950: #112222;
+  
 
   /* --- KOLAJ BAHÇESİ --- */
   --color-kolaj-deep:   #060D1A;
@@ -73,6 +76,7 @@
   --color-designstudio-primary-700: #D66500;
   --color-designstudio-primary-800: #AD5100;
   --color-designstudio-primary-900: #853E00;
+  --color-designstudio-primary-950: #4D2400;
 
   --color-designstudio-secondary-50:  #F1F2FD;
   --color-designstudio-secondary-100: #DDE0FA;
@@ -84,6 +88,7 @@
   --color-designstudio-secondary-700: #4D52A6;
   --color-designstudio-secondary-800: #3C3F82;
   --color-designstudio-secondary-900: #2A2D5C;
+  --color-designstudio-secondary-900: #181A35;
 
   /* --- ACCENT COLORS --- */
   --color-accent-purple-100: #E6D1F0;

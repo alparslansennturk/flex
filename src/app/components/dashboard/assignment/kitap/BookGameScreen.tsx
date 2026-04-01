@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Mail, FileDown, Check, ChevronRight, BookOpen } from "lucide-react";
+import { ArrowLeft, Mail, FileDown, Check, ChevronRight } from "lucide-react";
 import { generateKitapPdf } from "./generateKitapPdf";
 import {
   doc, getDoc, setDoc, addDoc, collection, serverTimestamp,
@@ -21,84 +21,109 @@ interface BookStudentDraw {
   book: BookItem;
 }
 
-// ─── Carousel sabitleri ───────────────────────────────────────────────────────
+// ─── cn helper ────────────────────────────────────────────────────────────────
 
-const CARD_W     = 110;
-const CARD_H     = 160;
-const CARD_GAP   = 10;
-const SLOT_W     = CARD_W + CARD_GAP;
-const VISIBLE    = 5;
-const VIEWPORT_W = VISIBLE * CARD_W + (VISIBLE - 1) * CARD_GAP; // 590
-const TRACK_REPS = 8;
-const SPIN_MS    = 4800;
-
-// ─── Easing ───────────────────────────────────────────────────────────────────
-
-function easeInOutExpo(t: number) {
-  if (t === 0 || t === 1) return t;
-  return t < 0.5
-    ? Math.pow(2, 20 * t - 10) / 2
-    : (2 - Math.pow(2, -20 * t + 10)) / 2;
+function cn(...inputs: (string | false | null | undefined)[]) {
+  return inputs.filter(Boolean).join(" ");
 }
 
-// ─── SpinnerCard ──────────────────────────────────────────────────────────────
+// ─── Carousel sabitleri ───────────────────────────────────────────────────────
 
-const SPINNER_COLORS = ["#2563eb", "#1d4ed8", "#3b82f6", "#1e40af", "#2563eb", "#1d4ed8"];
+const BOOK_WIDTH    = 160;
+const VISIBLE_BOOKS = 6;
 
-function SpinnerCard({ book, colorIdx, blurred = true }: { book: BookItem; colorIdx: number; blurred?: boolean }) {
-  const bg = SPINNER_COLORS[colorIdx % SPINNER_COLORS.length];
+// ─── BookCover paleti (test-carousel renkleri — döngüyle kullanılır) ──────────
+
+const COVER_PALETTES = [
+  { coverGradient: "from-emerald-800 via-emerald-900 to-black", textColor: "text-amber-300",  accentColor: "bg-amber-400"  },
+  { coverGradient: "from-red-900 via-red-950 to-black",         textColor: "text-white",      accentColor: "bg-red-500"    },
+  { coverGradient: "from-rose-200 via-rose-300 to-rose-400",    textColor: "text-rose-900",   accentColor: "bg-rose-600"   },
+  { coverGradient: "from-amber-700 via-amber-800 to-amber-950", textColor: "text-amber-100",  accentColor: "bg-amber-500"  },
+  { coverGradient: "from-orange-600 via-orange-800 to-amber-950", textColor: "text-orange-100", accentColor: "bg-orange-400" },
+  { coverGradient: "from-slate-700 via-slate-800 to-slate-950", textColor: "text-slate-100",  accentColor: "bg-slate-400"  },
+  { coverGradient: "from-sky-700 via-sky-900 to-slate-950",     textColor: "text-sky-100",    accentColor: "bg-sky-400"    },
+  { coverGradient: "from-violet-800 via-violet-900 to-black",   textColor: "text-violet-200", accentColor: "bg-violet-400" },
+  { coverGradient: "from-stone-600 via-stone-800 to-stone-950", textColor: "text-stone-100",  accentColor: "bg-stone-400"  },
+  { coverGradient: "from-zinc-800 via-zinc-900 to-black",       textColor: "text-zinc-200",   accentColor: "bg-zinc-500"   },
+];
+
+interface CoverBook extends BookItem {
+  coverGradient: string;
+  textColor: string;
+  accentColor: string;
+}
+
+function toCoverBooks(items: BookItem[]): CoverBook[] {
+  return items.map((b, i) => ({ ...b, ...COVER_PALETTES[i % COVER_PALETTES.length] }));
+}
+
+// ─── BookCover (test-carousel'den birebir, BookItem için adapt edildi) ────────
+
+function BookCover({
+  book, isCenter, shouldBlurText,
+}: {
+  book: CoverBook;
+  isCenter: boolean;
+  shouldBlurText: boolean;
+}) {
+  const textBlur = shouldBlurText ? "blur-[6px]" : "blur-0";
   return (
-    <div style={{
-      width: CARD_W, height: CARD_H,
-      flexShrink: 0,
-      borderRadius: 10,
-      background: bg,
-      border: "1px solid rgba(255,255,255,0.10)",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "12px 8px",
-      gap: 6,
-      position: "relative",
-      overflow: "hidden",
-    }}>
-      {/* Kitap sırtı şeridi */}
-      <div style={{
-        position: "absolute", left: 0, top: 0, bottom: 0,
-        width: 7, borderRadius: "10px 0 0 10px", background: "rgba(0,0,0,0.40)",
-      }} />
-      {/* Parlama */}
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "linear-gradient(145deg, rgba(255,255,255,0.09) 0%, transparent 50%)",
-      }} />
-      <BookOpen size={22} strokeWidth={1.4} style={{ color: "rgba(255,255,255,0.55)", position: "relative" }} />
-      <p style={{
-        fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.88)",
-        textAlign: "center", lineHeight: 1.3,
-        margin: 0, padding: "0 4px", position: "relative",
-        filter: blurred ? "blur(2.5px)" : "none",
-        transition: "filter 0.5s ease",
-      }}>
-        {book.title}
-      </p>
-      {book.author && (
-        <p style={{
-          fontSize: 7.5, fontWeight: 500, color: "rgba(255,255,255,0.55)",
-          textAlign: "center", lineHeight: 1.2, fontStyle: "italic",
-          margin: 0, padding: "0 4px", position: "relative",
-          filter: blurred ? "blur(2px)" : "none",
-          transition: "filter 0.5s ease",
-        }}>
-          {book.author}
-        </p>
+    <div
+      className={cn(
+        "relative flex aspect-[2/3] w-full flex-col overflow-hidden rounded-sm shadow-md transition-all duration-300",
+        `bg-gradient-to-br ${book.coverGradient}`,
+        isCenter && "ring-2 ring-amber-400/50 shadow-xl shadow-amber-500/20"
       )}
+    >
+      {/* Book spine shadow */}
+      <div className="absolute left-0 top-0 h-full w-2 bg-black/40" />
+
+      {/* Top decorative line */}
+      <div className={cn("mx-4 mt-4 h-0.5", book.accentColor)} />
+
+      {/* Genre tag */}
+      <div className="mt-2 px-4">
+        <span className={cn(
+          "text-[8px] font-medium uppercase tracking-widest opacity-70 transition-all duration-300",
+          book.textColor,
+          textBlur
+        )}>
+          {book.genre}
+        </span>
+      </div>
+
+      {/* Title area */}
+      <div className="flex flex-1 flex-col justify-center px-4">
+        <h3 className={cn(
+          "text-center text-xs font-bold leading-tight transition-all duration-300",
+          book.textColor,
+          textBlur
+        )}>
+          {book.title}
+        </h3>
+      </div>
+
+      {/* Bottom decorative line */}
+      <div className={cn("mx-4 mb-4 h-0.5", book.accentColor)} />
+
+      {/* Author */}
+      <div className="pb-3 text-center">
+        <span className={cn(
+          "text-[7px] font-medium opacity-80 transition-all duration-300",
+          book.textColor,
+          textBlur
+        )}>
+          {book.author}
+        </span>
+      </div>
+
+      {/* Page edges effect */}
+      <div className="absolute bottom-0 right-0 top-0 w-1 bg-gradient-to-r from-transparent via-white/10 to-white/20" />
     </div>
   );
 }
 
-// ─── BookCarousel — spin + pulse + zoom, tek bileşen ─────────────────────────
+// ─── BookCarousel — test-carousel görsel + offset animasyonu ─────────────────
 
 function BookCarousel({
   allBooks, winnerBook, onSpinComplete, spinDone, revealed,
@@ -109,118 +134,151 @@ function BookCarousel({
   spinDone: boolean;
   revealed: boolean;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const rafRef   = useRef<number | null>(null);
-  const track = useMemo(() => {
-    const arr: BookItem[] = [];
-    for (let i = 0; i < TRACK_REPS; i++) arr.push(...allBooks);
-    return arr;
-  }, [allBooks]);
+  const TOTAL_WIDTH = allBooks.length * BOOK_WIDTH;
 
-  const targetTrackIdx = useMemo(() => {
-    const base = allBooks.findIndex(b => b.id === winnerBook.id);
-    return Math.floor(TRACK_REPS / 2) * allBooks.length + (base >= 0 ? base : 0);
-  }, [allBooks, winnerBook]);
+  const [offset,          setOffset]          = useState(TOTAL_WIDTH * 2);
+  const [spinStatus,      setSpinStatus]      = useState<"spinning" | "slowing" | "stopped">("spinning");
+  const [centerBookIndex, setCenterBookIndex] = useState<number | null>(null);
+  const [showResult,      setShowResult]      = useState(false);
+  const animationRef  = useRef<number | null>(null);
+  const startTimeRef  = useRef<number>(0);
+  const viewportRef   = useRef<HTMLDivElement>(null);
+  const [viewportWidth, setViewportWidth] = useState(VISIBLE_BOOKS * BOOK_WIDTH + 100);
 
-  const targetX = useMemo(
-    () => -(targetTrackIdx * SLOT_W + CARD_W / 2 - VIEWPORT_W / 2),
-    [targetTrackIdx],
+  const coverBooks = useMemo(() => toCoverBooks(allBooks), [allBooks]);
+  const extendedBooks = useMemo(
+    () => [...coverBooks, ...coverBooks, ...coverBooks, ...coverBooks, ...coverBooks],
+    [coverBooks],
   );
 
-  // Spin animasyonu — yalnızca mount'ta çalışır
+  const winnerIdx = useMemo(() => {
+    const idx = allBooks.findIndex(b => b.id === winnerBook.id);
+    return idx >= 0 ? idx : 0;
+  }, [allBooks, winnerBook]);
+
+  // ResizeObserver — responsive merkezleme
   useEffect(() => {
-    const startTime = performance.now();
-    const animate = (now: number) => {
-      const t     = Math.min((now - startTime) / SPIN_MS, 1);
-      const eased = easeInOutExpo(t);
-      if (trackRef.current) {
-        trackRef.current.style.transform = `translateX(${targetX * eased}px)`;
-      }
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(animate);
+    const el = viewportRef.current;
+    if (!el) return;
+    setViewportWidth(el.clientWidth);
+    const ro = new ResizeObserver(() => setViewportWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Auto-start animasyonu — mount'ta çalışır, winnerIdx'e durur
+  useEffect(() => {
+    const startOffset   = TOTAL_WIDTH * 2;
+    const fullRotations = 3;
+    const targetOffset  = (Math.floor(startOffset / TOTAL_WIDTH) + fullRotations + 1) * TOTAL_WIDTH + winnerIdx * BOOK_WIDTH;
+    const totalDuration = 4800;
+    startTimeRef.current = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed  = currentTime - startTimeRef.current;
+      const progress = Math.min(elapsed / totalDuration, 1);
+      const easeOut  = 1 - Math.pow(1 - progress, 4);
+      let currentOffset = startOffset + easeOut * (targetOffset - startOffset);
+      while (currentOffset >= TOTAL_WIDTH * 4) currentOffset -= TOTAL_WIDTH;
+      setOffset(currentOffset);
+      if (progress >= 0.7) setSpinStatus("slowing");
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
       } else {
+        const finalSnapped = Math.round(targetOffset / BOOK_WIDTH) * BOOK_WIDTH;
+        let normalized = finalSnapped;
+        while (normalized >= TOTAL_WIDTH * 3) normalized -= TOTAL_WIDTH;
+        while (normalized < TOTAL_WIDTH * 2)  normalized += TOTAL_WIDTH;
+        setOffset(normalized);
+        setCenterBookIndex(winnerIdx);
+        setSpinStatus("stopped");
         onSpinComplete();
+        setTimeout(() => setShowResult(true), 150);
       }
     };
-    const delay = setTimeout(() => { rafRef.current = requestAnimationFrame(animate); }, 150);
+
+    const delay = setTimeout(() => { animationRef.current = requestAnimationFrame(animate); }, 150);
     return () => {
       clearTimeout(delay);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // spinDone olunca track'i dondur
-  useEffect(() => {
-    if (spinDone && trackRef.current) {
-      trackRef.current.style.transform = `translateX(${targetX}px)`;
-    }
-  }, [spinDone, targetX]);
+  const isSpinning = spinStatus === "spinning" || spinStatus === "slowing";
+  // px-12 = 48px padding, kitap merkezi = 48 + (BOOK_WIDTH-16)/2 = 120px
+  const translateX = viewportWidth / 2 - 120 - offset;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{
-        width: VIEWPORT_W, height: CARD_H + 16,
-        overflow: spinDone ? "visible" : "hidden", position: "relative",
-        display: "flex", alignItems: "center",
-      }}>
-        {/* Kenar maskeleri — sadece spin sırasında */}
-        {!spinDone && (
-          <>
-            <div style={{
-              position: "absolute", left: 0, top: 0, bottom: 0, width: 80, zIndex: 2, pointerEvents: "none",
-              background: "linear-gradient(to right, #f5f7fb, transparent)",
-            }} />
-            <div style={{
-              position: "absolute", right: 0, top: 0, bottom: 0, width: 80, zIndex: 2, pointerEvents: "none",
-              background: "linear-gradient(to left, #f5f7fb, transparent)",
-            }} />
-            <div style={{
-              position: "absolute", left: "50%", transform: "translateX(-50%)",
-              top: 8, bottom: 8, width: CARD_W + 6, borderRadius: 12,
-              border: "2px dashed #cbd5e1", zIndex: 1, pointerEvents: "none",
-            }} />
-          </>
-        )}
+    <div className="relative w-full rounded-2xl border border-white/10 bg-black/40 p-8 shadow-2xl backdrop-blur-sm">
+      {/* Center indicator — top */}
+      <div className="absolute left-1/2 top-0 z-40 -translate-x-1/2 -translate-y-1">
+        <div className="size-0 border-x-8 border-t-8 border-x-transparent border-t-amber-400" />
+      </div>
+      {/* Center indicator — bottom */}
+      <div className="absolute bottom-0 left-1/2 z-40 -translate-x-1/2 translate-y-1">
+        <div className="size-0 border-x-8 border-b-8 border-x-transparent border-b-amber-400" />
+      </div>
 
-        {/* Track — asla unmount olmaz */}
-       {/* Track — asla unmount olmaz */}
-        <div ref={trackRef} style={{ display: "flex", gap: CARD_GAP, willChange: "transform", flexShrink: 0 }}>
-          {track.map((book, i) => {
-            const offset   = i - targetTrackIdx;
-            const isCenter = offset === 0;
-            const isSide   = spinDone && !isCenter;
+      {/* Center highlight lines */}
+      <div
+        className="pointer-events-none absolute inset-y-0 left-1/2 z-30 -translate-x-1/2 border-x-2 border-amber-400/30"
+        style={{ width: BOOK_WIDTH - 16 }}
+      />
 
-            // Hızlı, tok ve AŞAĞI DOĞRU yaylanan animasyon (Pulse beklemesi yok)
-            const cardAnimation = spinDone && isCenter
-              ? "bkSmoothDrop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards"
-              : "none";
-
+      {/* Books viewport */}
+      <div
+        ref={viewportRef}
+        className="relative mx-auto overflow-hidden rounded-lg bg-gradient-to-b from-slate-800/50 to-slate-900/50"
+        style={{ width: "100%", maxWidth: `${VISIBLE_BOOKS * BOOK_WIDTH + 100}px`, height: "320px" }}
+      >
+        {/* Books strip */}
+        <div
+          className="absolute flex items-center"
+          style={{ transform: `translateX(${translateX}px)`, height: "100%", paddingLeft: 48, paddingRight: 48, gap: 16 }}
+        >
+          {extendedBooks.map((book, index) => {
+            const bookIndex  = index % allBooks.length;
+            const isCenter   = spinStatus === "stopped" && showResult && bookIndex === centerBookIndex;
+            const shouldBlur = !(spinStatus === "stopped" && showResult && isCenter);
             return (
               <div
-                key={`${book.id}-${i}`}
+                key={`${book.id}-${index}`}
+                className={cn("flex-shrink-0 transition-transform", isCenter && "z-50 scale-125")}
                 style={{
-                  flexShrink: 0,
-                  visibility: spinDone && Math.abs(offset) > 2 ? "hidden" : "visible",
-                  opacity: isSide ? 0 : 1,
-                  transform: isSide ? "scale(0.8)" : "scale(1)",
-                  transition: isSide ? "all 0.5s ease" : "none",
-                  animation: cardAnimation,
-                  transformOrigin: "top center", // AŞAĞI DOĞRU büyüme için kilit ayar
-                  zIndex: isCenter ? 10 : 1,
+                  width: `${BOOK_WIDTH - 16}px`,
+                  transitionDuration: isCenter ? "500ms" : "0ms",
+                  transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
                 }}
               >
-                <SpinnerCard
-                  book={book}
-                  colorIdx={i}
-                  blurred={!(spinDone && isCenter)} // Durduğu an netleşsin
-                />
+                <BookCover book={book} isCenter={isCenter} shouldBlurText={shouldBlur} />
               </div>
             );
           })}
         </div>
+
+        {/* Edge shadows */}
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-28 bg-gradient-to-r from-slate-900/95 to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-28 bg-gradient-to-l from-slate-900/95 to-transparent" />
       </div>
 
+      {/* Status dots */}
+      <div className="mt-6 flex justify-center gap-2">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className={cn(
+              "size-2 rounded-full transition-all duration-150",
+              isSpinning
+                ? "animate-pulse bg-amber-400"
+                : spinStatus === "stopped"
+                  ? "bg-emerald-400"
+                  : "bg-white/20"
+            )}
+            style={{ animationDelay: isSpinning ? `${i * 80}ms` : "0ms" }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -330,7 +388,7 @@ function BookResultModal({
     setSendingMail(true);
     try {
       const pdfBase64 = await generateKitapPdf({ book, deadline, paperWeight, paperThickness });
-      await fetch("/api/send-kitap", {
+      const res = await fetch("/api/send-kitap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -341,7 +399,14 @@ function BookResultModal({
           bookTitle: book.title,
         }),
       });
-      setMailSent(true);
+      if (res.ok) {
+        setMailSent(true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.error("[handleMail] API hatası:", res.status, err);
+      }
+    } catch (err) {
+      console.error("[handleMail] Hata:", err);
     } finally {
       setSendingMail(false);
     }
@@ -629,6 +694,15 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     });
   }, [task.id]);
 
+  // Uygulama kapanıp açıldığında: tüm çekişler tamam ama status hâlâ "completed" değilse düzelt
+  useEffect(() => {
+    if (!poolLoading && groupStudentCount > 0 && bookDraws.length >= groupStudentCount) {
+      updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true }).catch(() => {});
+    }
+  // Sadece her ikisi de yüklendiğinde çalışsın
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poolLoading, groupStudentCount, bookDraws.length]);
+
   useEffect(() => () => {
     if (modalTimerRef.current)  clearTimeout(modalTimerRef.current);
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
@@ -684,11 +758,15 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     setDoc(doc(db, "lottery_results", task.id), {
       draws: updated, groupId: task.groupId ?? "", lastUpdated: serverTimestamp(),
     });
+    // Gruptaki tüm öğrenciler tamamlandıysa görevi otomatik kapat
+    if (groupStudentCount > 0 && updated.length >= groupStudentCount) {
+      updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+    }
     // 3 pulse (~1.1s) sonra kitabı büyüt
     revealTimerRef.current = setTimeout(() => setWinnerRevealed(true), 1150);
     // 3sn sonra modal
     modalTimerRef.current = setTimeout(() => setShowModal(true), 3000);
-  }, [selectedStudent, currentBook, bookDraws, task]);
+  }, [selectedStudent, currentBook, bookDraws, task, groupStudentCount]);
 
   // Kapat → sadece sıfırla, kullanıcı "Başlat"a basar
   const handleClose = useCallback(() => {
@@ -773,7 +851,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
 
   return (
     <>
-    <div style={{ display: "flex", height: "100vh", background: "#f5f7fb", overflow: "hidden", opacity: overlayActive ? 0 : 1 }}>
+    <div style={{ display: "flex", height: "100vh", background: "#0d1526", overflow: "hidden", opacity: overlayActive ? 0 : 1 }}>
 
       {/* Sol: Öğrenci paneli */}
       <StudentPanel
@@ -796,19 +874,19 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         {/* Üst bar */}
         <div style={{
           padding: "18px 32px",
-          borderBottom: "1px solid #e8ecf2",
-          background: "white",
+          borderBottom: "1px solid rgba(255,255,255,0.07)",
+          background: "transparent",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <button
             onClick={() => router.push("/dashboard")}
             style={{
               display: "flex", alignItems: "center", gap: 7,
-              color: "#94a3b8", background: "none", border: "none",
+              color: "rgba(255,255,255,0.35)", background: "none", border: "none",
               cursor: "pointer", fontSize: 15, fontWeight: 600,
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#475569")}
-            onMouseLeave={e => (e.currentTarget.style.color = "#94a3b8")}
+            onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}
           >
             <ArrowLeft size={17} />
             Ana Sayfa
@@ -817,10 +895,10 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 18 }}>📚</span>
             <div>
-              <p style={{ color: "#1e293b", fontWeight: 800, fontSize: 15, margin: 0 }}>
+              <p style={{ color: "rgba(255,255,255,0.9)", fontWeight: 800, fontSize: 15, margin: 0 }}>
                 Kitap Seçimi
               </p>
-              <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 2 }}>
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 2 }}>
                 {bookDraws.length} / {students.length} tamamlandı
               </p>
             </div>
@@ -843,14 +921,14 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
             <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
               <p style={{
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
-                textTransform: "uppercase", color: "#94a3b8", margin: 0,
+                textTransform: "uppercase", color: "rgba(255,255,255,0.45)", margin: 0,
               }}>
                 Çekiliş Hazır
               </p>
-              <p style={{ fontSize: 15, color: "#64748b", margin: 0 }}>
+              <p style={{ fontSize: 18, color: "rgba(255,255,255,0.75)", margin: 0 }}>
                 Sıradaki katılımcıyı belirlemek için başlat&apos;a bas.
               </p>
-              <p style={{ fontSize: 14, fontWeight: 700, color: "#64748b", margin: 0 }}>
+              <p style={{ fontSize: 17, fontWeight: 700, color: "rgba(255,255,255,0.65)", margin: 0 }}>
                 {remainingStudents.length} öğrenci katılacak
               </p>
             </div>
@@ -861,7 +939,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
             <div style={{ textAlign: "center" }}>
               <p style={{
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
-                textTransform: "uppercase", color: "#94a3b8", marginBottom: 18,
+                textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 18,
               }}>
                 Katılımcı Seçiliyor
               </p>
@@ -883,7 +961,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
               <div style={{ textAlign: "center", marginTop: 32, marginBottom: 32 }}> {/* 60 yerine 32 yaptık */}
                 <p style={{
                   fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
-                  textTransform: "uppercase", color: "#94a3b8",
+                  textTransform: "uppercase", color: "rgba(255,255,255,0.4)",
                   margin: "0 0 14px",
                 }}>
                   Kitap Alacak Katılımcı
@@ -893,16 +971,16 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                   fontWeight:    900,
                   letterSpacing: "-0.025em",
                   opacity:       nameVisible ? 1 : 0,
-                  animation:     nameVisible ? "nameBounce 0.75s ease forwards" : "none",
+                  animation:     nameVisible ? "nameBounce 1.2s cubic-bezier(0.25,0.46,0.45,0.94) forwards" : "none",
                   margin:        0,
                 }}>
-                  <span style={{ color: "#1e293b" }}>{selectedStudent?.name} </span>
-                  <span style={{ color: "#2563eb" }}>{selectedStudent?.lastName}</span>
+                  <span style={{ color: "#ffffff" }}>{selectedStudent?.name} </span>
+                  <span style={{ color: "#f59e0b" }}>{selectedStudent?.lastName}</span>
                 </p>
                 {spinDone && (
                   <p style={{
                     fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
-                    textTransform: "uppercase", color: "#94a3b8",
+                    textTransform: "uppercase", color: "rgba(255,255,255,0.4)",
                     margin: "14px 0 0", animation: "bkFadeIn 0.4s ease",
                   }}>
                     Kitap Belirlendi
@@ -910,7 +988,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                 )}
               </div>
 
-              {/* Carousel — spin + pulse + zoom, hiç unmount olmaz */}
+              {/* Carousel */}
               {showCarousel && currentBook && (
                 <BookCarousel
                   allBooks={pool?.items ?? []}
@@ -920,16 +998,41 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                   revealed={winnerRevealed}
                 />
               )}
+
+              {/* Seçilen Kitap — test-carousel Selected book info birebir */}
+              <div className={cn(
+                "mt-8 text-center transition-all duration-700",
+                showCarousel && spinDone && winnerRevealed
+                  ? "translate-y-0 opacity-100"
+                  : "pointer-events-none translate-y-8 opacity-0"
+              )}>
+                {currentBook && (
+                  <div className="space-y-3">
+                    <span className="text-sm uppercase tracking-widest text-amber-400">
+                      Seçilen Kitap
+                    </span>
+                    <h2 className="text-4xl font-semibold text-white md:text-5xl">
+                      {currentBook.title}
+                    </h2>
+                    <p className="text-xl text-white/60">
+                      {currentBook.author}
+                    </p>
+                    <span className="mt-3 inline-block rounded-full bg-white/10 px-5 py-1.5 text-base text-white/80">
+                      {currentBook.genre}
+                    </span>
+                  </div>
+                )}
+              </div>
             </>
           )}
 
           {/* DONE — sadece idle fazında göster, carousel/spin sırasında gizle */}
           {allDone && phase === "idle" && (
             <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 48 }}>
-              <p style={{ color: "#1e293b", fontSize: 20, fontWeight: 900, margin: 0 }}>
+              <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 20, fontWeight: 900, margin: 0 }}>
                 Bu oturumun tüm katılımcıları tamamlandı!
               </p>
-              <p style={{ color: "#64748b", fontSize: 13 }}>
+              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>
                 Sonuçları arşive kaydedin veya ödevi tamamen kapatın.
               </p>
 
@@ -993,8 +1096,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         {/* Alt buton */}
         <div style={{
           padding: "20px 40px",
-          borderTop: "1px solid #e8ecf2",
-          background: "white",
+          borderTop: "1px solid rgba(255,255,255,0.07)",
+          background: "transparent",
           display: "flex", justifyContent: "center", alignItems: "center",
           minHeight: 88,
         }}>
@@ -1015,9 +1118,9 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                   disabled={bookDraws.length === 0}
                   style={{
                     padding: "16px 24px", borderRadius: 50,
-                    color:      bookDraws.length === 0 ? "#cbd5e1" : "#e53e3e",
-                    background: bookDraws.length === 0 ? "#f8fafc" : "#fff5f5",
-                    border:     `2px solid ${bookDraws.length === 0 ? "#e2e8f0" : "#fed7d7"}`,
+                    color:      bookDraws.length === 0 ? "rgba(255,255,255,0.2)" : "#f87171",
+                    background: bookDraws.length === 0 ? "rgba(255,255,255,0.05)" : "rgba(239,68,68,0.12)",
+                    border:     `2px solid ${bookDraws.length === 0 ? "rgba(255,255,255,0.08)" : "rgba(239,68,68,0.25)"}`,
                     fontSize: 15, fontWeight: 900,
                     cursor: bookDraws.length === 0 ? "not-allowed" : "pointer",
                   }}
@@ -1026,7 +1129,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                 </button>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 12, color: "#94a3b8" }}>Eksik öğrencilerle ödev kapatılsın mı?</span>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Eksik öğrencilerle ödev kapatılsın mı?</span>
                   <button
                     onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
                     style={{ padding: "8px 16px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" }}
@@ -1064,9 +1167,14 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           @keyframes bkFadeIn   { from{opacity:0} to{opacity:1} }
           @keyframes nameBounce {
             0%   { transform:scale(0.05); opacity:0; }
-            45%  { transform:scale(1.22); opacity:1; }
-            65%  { transform:scale(0.90); }
-            82%  { transform:scale(1.07); }
+            14%  { transform:scale(1.32); opacity:1; }
+            26%  { transform:scale(0.78); }
+            38%  { transform:scale(1.18); }
+            50%  { transform:scale(0.88); }
+            62%  { transform:scale(1.08); }
+            72%  { transform:scale(0.94); }
+            82%  { transform:scale(1.03); }
+            91%  { transform:scale(0.98); }
             100% { transform:scale(1.00); }
           }
           @keyframes bkSmoothDrop {
