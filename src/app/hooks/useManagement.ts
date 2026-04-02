@@ -584,6 +584,9 @@ setStudents((prev)=>prev.map((s)=>(s.id===editingStudentId?{...s,...studentData}
 }else{
 await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
 await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
+if(email?.trim()){
+  fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),name:name.trim()})}).catch((e)=>console.error("[welcome mail]",e));
+}
 }
 }catch(error){
 console.error("HATA:",error);
