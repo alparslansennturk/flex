@@ -121,7 +121,7 @@ function ActivationContent() {
                 }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
                 placeholder="••••••••••••"
-                className="w-full h-12 pl-4 pr-12 border radius-8 text-sm outline-none transition-all duration-200"
+                className="w-full h-12 pl-4 pr-12 border radius-8 text-[14px] outline-none transition-all duration-200"
                 style={{ 
                   borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                   backgroundColor: error ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
@@ -169,7 +169,7 @@ function ActivationContent() {
               }}
               onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
               placeholder="••••••••••••"
-              className="w-full h-12 px-4 border radius-8 text-sm outline-none transition-all duration-200"
+              className="w-full h-12 px-4 border radius-8 text-[14px] outline-none transition-all duration-200"
               style={{ 
                 borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                 backgroundColor: error ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',

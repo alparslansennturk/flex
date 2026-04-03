@@ -146,7 +146,7 @@ export default function LoginPage() {
                 if (eType === "text" && e.target.value.length > 0) setEType("email");
               }}
               placeholder="E-Posta Giriniz"
-              className="w-full h-12 px-4 border radius-8 text-sm outline-none transition-all duration-200"
+              className="w-full h-12 px-4 border radius-8 text-[14px] outline-none transition-all duration-200"
               style={{
                 borderColor: errors.general ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                 backgroundColor: errors.general ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
@@ -175,7 +175,7 @@ export default function LoginPage() {
                   }
                 }}
                 placeholder="••••••••••••"
-                className="w-full h-12 pl-4 pr-12 border radius-8 text-sm outline-none transition-all duration-200"
+                className="w-full h-12 pl-4 pr-12 border radius-8 text-[14px] outline-none transition-all duration-200"
                 style={{
                   borderColor: errors.general && !errors.isEmailError ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                   backgroundColor: errors.general && !errors.isEmailError ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',

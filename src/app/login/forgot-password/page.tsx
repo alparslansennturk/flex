@@ -89,7 +89,7 @@ export default function ForgotPasswordPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="E-Posta Giriniz"
-                className="w-full h-12 px-4 border radius-8 text-sm outline-none transition-all duration-200"
+                className="w-full h-12 px-4 border radius-8 text-[14px] outline-none transition-all duration-200"
                 style={{ 
                   borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                   backgroundColor: error ? 'var(--color-status-danger-50)' : 'var(--color-surface-50)',
