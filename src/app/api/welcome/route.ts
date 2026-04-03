@@ -1,18 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendWelcomeEmail } from "@/app/services/emailService";
+import { adminDb } from "@/app/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, name, tempPass } = await req.json();
+    const { email, name } = await req.json();
 
-    if (!email || !name || !tempPass) {
+    if (!email || !name) {
       return NextResponse.json(
-        { error: "email, name ve tempPass zorunludur." },
+        { error: "email ve name zorunludur." },
         { status: 400 }
       );
     }
 
-    const result = await sendWelcomeEmail(email, name, tempPass);
+    const result = await sendWelcomeEmail(email, name);
+
+    // mailLogs'a kayıt at
+    await adminDb.collection("mailLogs").add({
+      to: email,
+      name,
+      subject: "Hesabın Oluşturuldu — Tasarım Atölyesi",
+      type: "welcome",
+      status: result.success ? "success" : "failed",
+      messageId: result.messageId ?? null,
+      error: result.error ?? null,
+      createdAt: FieldValue.serverTimestamp(),
+    });
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 500 });

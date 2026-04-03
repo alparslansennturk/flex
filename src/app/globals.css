@@ -320,3 +320,129 @@ html body #main-user-form-area::-webkit-scrollbar-thumb {
 html body #main-user-form-area::-webkit-scrollbar-thumb:hover {
   background-color: #1d3e6e !important;
 }
+
+/* ============================================================
+   LOGS PANEL
+   ============================================================ */
+
+.logs-panel {
+  background: #ffffff;
+  border: 1px solid #e8ecf1;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.logs-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7a8d;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #e8ecf1;
+}
+
+.logs-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f5f8;
+  vertical-align: middle;
+  color: #414b59;
+}
+
+.logs-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.logs-table tbody tr:hover td {
+  background: #f9fafb;
+}
+
+.logs-row-selected td {
+  background: #eef4fd !important;
+}
+
+.logs-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.logs-badge-success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.logs-badge-failed {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.logs-badge-type {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.logs-badge-points {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.logs-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: #9aa5b4;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.logs-delete-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.logs-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.logs-delete-many-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  background: #fff1f2;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.logs-delete-many-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+.logs-delete-many-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

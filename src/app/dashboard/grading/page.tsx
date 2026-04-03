@@ -6,7 +6,7 @@ import { db, auth } from "@/app/lib/firebase";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import {
   doc, getDoc, collection, query, where, getDocs,
-  writeBatch, deleteField, updateDoc, serverTimestamp, setDoc, onSnapshot,
+  writeBatch, deleteField, updateDoc, serverTimestamp, setDoc, onSnapshot, addDoc,
 } from "firebase/firestore";
 import {
   ArrowLeft, CheckCircle2, Users, Zap, CalendarDays, AlertTriangle,
@@ -368,7 +368,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
   );
 
   return (
-    <div className="w-full max-w-250 mx-auto px-8 py-8 space-y-6">
+    <div className="w-full max-w-[1920px] mx-auto px-8 py-8 space-y-6">
 
       {/* Başlık */}
       <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-7">
@@ -628,6 +628,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
   const router       = useRouter();
   const backUrl      = fromTab === "done" ? "/dashboard/grading?tab=done" : "/dashboard/grading";
   const { settings, activeSeasonId } = useScoring();
+  const { user }     = useUser();
 
   const [task,             setTask]             = useState<Task | null>(null);
   const [students,         setStudents]         = useState<Student[]>([]);
@@ -750,6 +751,29 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
 
       batch.update(doc(db, "tasks", taskId), { isGraded: true, grades, gradedAt: serverTimestamp() });
       await batch.commit();
+
+      // scoreLogs'a kayıt at — XP alan her öğrenci için bir kayıt
+      try {
+        const teacherName = user ? `${user.name} ${user.surname}`.trim() : "Bilinmiyor";
+        const logWrites = Object.entries(grades)
+          .filter(([, g]) => g.submitted && g.xp > 0)
+          .map(([sid, g]) => {
+            const student = students.find(s => s.id === sid);
+            return addDoc(collection(db, "scoreLogs"), {
+              studentId: sid,
+              studentName: student ? `${student.name} ${student.lastName}`.trim() : sid,
+              teacherName,
+              teacherUid: user?.uid ?? "",
+              taskId,
+              taskName: task.name,
+              points: g.xp,
+              createdAt: serverTimestamp(),
+            });
+          });
+        await Promise.all(logWrites);
+      } catch (logErr) {
+        console.error("[grading] scoreLogs kayıt hatası:", logErr);
+      }
 
       // 4. Yeni sıralamayı bellekte hesapla (Firestore'dan okumaya gerek yok)
       const adjStudents = allStudents.map(s => {
@@ -1556,7 +1580,7 @@ function CertificationPanel() {
   const [certTab, setCertTab] = useState<CertTab>("GRAFIK_1");
 
   return (
-    <div className="w-full max-w-250 mx-auto px-8 py-8 space-y-6">
+    <div className="w-full max-w-[1920px] mx-auto px-8 py-8 space-y-6">
       {/* Başlık */}
       <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-8 py-7">
         <div className="flex items-start justify-between">
@@ -1614,7 +1638,7 @@ function GradingRouter() {
   return (
     <>
       {/* Üst bölüm sekmeleri */}
-      <div className="w-full max-w-250 mx-auto px-8 pt-8">
+      <div className="w-full max-w-[1920px] mx-auto px-8 pt-8">
         <div className="flex items-center gap-1 bg-surface-50 w-fit p-1 rounded-[14px] border border-surface-100 shadow-sm">
           {([
             { id: null,            label: "Not Girişi",    icon: <ClipboardList size={13} /> },

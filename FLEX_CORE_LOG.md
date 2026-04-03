@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-01 (v6)
+> Son güncelleme: 2026-04-03 (v7)
 
 ---
 
@@ -410,6 +410,44 @@
 
 ---
 
+## Logs Sistemi + Sertifikasyon Layout Fix (2026-04-03)
+
+### Logs Sistemi
+
+**Yeni Firestore koleksiyonları:**
+- `mailLogs` — `{ to, subject, type, status, messageId, error, createdAt }` — her mail gönderiminde server-side yazılır
+- `scoreLogs` — `{ studentId, studentName, teacherName, teacherUid, taskId, taskName, points, createdAt }` — her not kaydında XP > 0 olan her öğrenci için yazılır
+
+**Backend:**
+- `GET /api/admin/logs?type=mail|score` — son 200 log, `createdAt` desc sıralı
+- `DELETE /api/admin/logs/delete-one` — body: `{ id, type }`
+- `DELETE /api/admin/logs/delete-many` — body: `{ ids[], type }` — 500'lük Firestore batch
+
+**Write noktaları:**
+- `api/welcome/route.ts` → her welcome mail sonrası (başarılı/başarısız) mailLogs write
+- `services/emailService.ts` → `sendOTPEmail()` içinde saveMailLog helper çağrısı
+- `dashboard/grading/page.tsx` → `handleSaveGrades()` içinde `batch.commit()` sonrası, ayrı try/catch'te scoreLogs write (grading hatasından bağımsız)
+
+**Frontend (`/dashboard/logs`):**
+- Mail Logs sekmesi: tablo, status badge (success/failed), tür badge, tekli sil
+- Puan Logları sekmesi: tablo, checkbox seçimi, tekli sil, "Seçilenleri Sil" toplu silme
+- Admin-only: sayfa açılışında `users/{uid}.roles` kontrolü
+
+**Navigasyon:**
+- Sidebar'dan bağımsız link kaldırıldı
+- Yönetim Paneli SubNavigation'a "Logs" sekmesi eklendi — `href: "/dashboard/logs"` ile `<Link>` olarak render edilir (diğer sekmeler `<button>`)
+- Admin paneldeki eski "Logs ve Yedekleme" sekmesi → "Yedekleme" olarak yeniden adlandırıldı
+
+### Sertifikasyon Layout Fix
+
+**Sorun:** `max-w-250` (~1000px) kısıtı nedeniyle büyük ekranlarda içerik ortada küçük kalıyordu.
+
+**Düzeltme:** `grading/page.tsx` içindeki 3 yerde `max-w-250` → `max-w-[1920px]` — admin panelin geri kalanıyla tutarlı.
+
+**Etkilenen noktalar:** `GradingTabs` wrapper (~371. satır), `CertificationPanel` wrapper (~1583. satır), `GradingRouter` sekme başlığı (~1641. satır)
+
+---
+
 ## Etkilenen Dosyalar
 
 | Dosya | Konu |
@@ -430,6 +468,16 @@
 | `src/app/components/dashboard/assignment/AssignActivateModal.tsx` | min={today} tarih kısıtı |
 | `src/app/api/cron/deadline-reminder/route.ts` | Deadline hatırlatma cron (yeni dosya — aktif değil) |
 | `firestore.rules` | assignment_archive allow update eklendi |
+| `src/app/api/admin/logs/route.ts` | GET mailLogs / scoreLogs (yeni dosya) |
+| `src/app/api/admin/logs/delete-one/route.ts` | Tekli log silme (yeni dosya) |
+| `src/app/api/admin/logs/delete-many/route.ts` | Çoklu log silme — Firestore batch (yeni dosya) |
+| `src/app/api/welcome/route.ts` | mailLogs write eklendi (adminDb) |
+| `src/app/services/emailService.ts` | saveMailLog helper, OTP loglanıyor (adminDb import) |
+| `src/app/dashboard/grading/page.tsx` | scoreLogs write (batch sonrası), addDoc import, useUser eklendi |
+| `src/app/dashboard/logs/page.tsx` | Logs sayfası — Mail Logs + Puan Logları sekmeleri, checkbox, toplu sil (yeni dosya) |
+| `src/app/components/layout/SubNavigation.tsx` | "Yedekleme" rename, "Logs" sekmesi Link olarak eklendi |
+| `src/app/components/layout/Sidebar.tsx` | Logs linki kaldırıldı (yönetim paneli altına taşındı) |
+| `src/app/globals.css` | .logs-table, .logs-badge-*, .logs-delete-btn stilleri eklendi |
 
 ---
 
@@ -451,3 +499,6 @@
 - **rem ≠ px uyarısı:** `globals.css` root font-size `13.25px * scale-factor` — Tailwind rem spacing'i standart 16px değil ~13.25px bazlı üretir; piksel hassasiyeti gereken layout'ta inline `style={{ ...px }}` kullan
 - Brevo: `xsmtpsib-` = SMTP credentials (nodemailer için), `xkeysib-` = REST API key (`/v3/smtp/email` için); `email.ts` REST API kullandığı için `BREVO_API_KEY=xkeysib-...` olmalı
 - Cron deadline reminder: `tasks.endDate` YYYY-MM-DD string; cron her çalışmada güncel değeri okur — eğitmen tarihi değiştirse de sistem otomatik adapte olur; `reminderSentDates[]` duplicate önler; aktif etmek için `vercel.json` + `CRON_SECRET` env var gerekli
+- Logs sistemi: `mailLogs` ve `scoreLogs` Firestore koleksiyonları — server-side `adminDb` ile yazılır, client-side silinemez; emailService sadece API route'lardan import edilir (firebase-admin güvenli)
+- scoreLogs write noktası: `grading/page.tsx` `handleSaveGrades()` içinde `batch.commit()` sonrası — hata olsa bile grading işlemi etkilenmez (try/catch ayrı)
+- Sertifikasyon layout: `max-w-250` (~1000px) → `max-w-[1920px]` — 3 yerde değişti (GradingTabs, CertificationPanel, GradingRouter sekme başlığı)

@@ -2,6 +2,30 @@ import React from "react";
 import { render } from "@react-email/components";
 import { sendMail, type SendResult } from "@/app/lib/email";
 import { OTPTemplate } from "@/app/components/emails/OTPTemplate";
+import { adminDb } from "@/app/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
+
+async function saveMailLog(params: {
+  to: string | string[];
+  subject: string;
+  type: string;
+  result: SendResult;
+}) {
+  try {
+    const toStr = Array.isArray(params.to) ? params.to.join(", ") : params.to;
+    await adminDb.collection("mailLogs").add({
+      to: toStr,
+      subject: params.subject,
+      type: params.type,
+      status: params.result.success ? "success" : "failed",
+      messageId: params.result.messageId ?? null,
+      error: params.result.error ?? null,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    console.error("[emailService] mailLog kayıt hatası:", e);
+  }
+}
 
 // ─── OTP / Giriş Kodu ────────────────────────────────────────────────────────
 
@@ -12,33 +36,21 @@ export async function sendOTPEmail(
 ): Promise<SendResult> {
   const html = await render(React.createElement(OTPTemplate, { otp, name }));
 
-  return sendMail({
+  const result = await sendMail({
     to,
     subject: "Giriş Kodunuz — Tasarım Atölyesi",
     html,
   });
+  await saveMailLog({ to, subject: "Giriş Kodunuz — Tasarım Atölyesi", type: "otp", result });
+  return result;
 }
 
 // ─── Hoş Geldiniz Maili ──────────────────────────────────────────────────────
 
 export async function sendWelcomeEmail(
   to: string,
-  name: string,
-  tempPassword?: string
+  name: string
 ): Promise<SendResult> {
-  const passwordBlock = tempPassword
-    ? `
-      <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px">
-        Sisteme ilk girişte aşağıdaki geçici parolayı kullan:
-      </p>
-      <div style="background:#0f0f0f;border-radius:10px;padding:18px 24px;text-align:center;margin:0 0 12px">
-        <span style="font-family:monospace;font-size:22px;font-weight:700;color:#fff;letter-spacing:6px">${tempPassword}</span>
-      </div>
-      <p style="font-size:12px;color:#aaa;margin:0 0 28px">İlk girişten sonra parolanı değiştirmen istenecek.</p>`
-    : `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 28px">
-        Hesabın hazır — sisteme giriş yapmak için aşağıdaki butonu kullan.
-      </p>`;
-
   const html = `
     <!DOCTYPE html>
     <html lang="tr">
@@ -61,25 +73,22 @@ export async function sendWelcomeEmail(
             <tr>
               <td style="padding:36px 40px 32px">
                 <p style="font-size:20px;font-weight:700;color:#111;margin:0 0 8px">Hoş geldin, ${name}! 👋</p>
+                <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px">
+                  Tasarım Atölyesi sürecine kaydın başarıyla oluşturuldu.
+                </p>
+                <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px">
+                  Eğitim süresince yapacağın ödevler bu sistem üzerinden tanımlanacak ve değerlendirmelerin burada puanlanacaktır.
+                </p>
                 <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 24px">
-                  Tasarım Atölyesi sistemine kaydın tamamlandı. Artık ödevlerini takip edebilir,<br>
-                  puanlarını görebilir ve sıralamada yerini alabilirsin.
+                  Puanlarını ve sıralamadaki yerini görüntüleyebileceğin sayfa yakında seninle paylaşılacaktır.
                 </p>
 
-                ${passwordBlock}
-
-                <a href="https://flex-one-iota.vercel.app/login"
-                   style="display:block;background:#FF5C00;color:#fff;text-align:center;
-                          text-decoration:none;font-size:15px;font-weight:600;
-                          padding:14px 0;border-radius:8px;margin:0 0 32px">
-                  Sisteme Giriş Yap →
-                </a>
-
-                <table width="100%" cellpadding="0" cellspacing="0">
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px">
                   <tr>
                     <td style="background:#fafafa;border-left:3px solid #FF5C00;border-radius:4px;padding:14px 16px">
                       <p style="margin:0;font-size:13px;color:#666;line-height:1.6">
-                        Herhangi bir sorun yaşarsan eğitmeninle iletişime geçebilirsin.
+                        Bu mail yalnızca bilgilendirme amaçlıdır.<br>
+                        Herhangi bir sorunda eğitmeninle iletişime geçebilirsin.
                       </p>
                     </td>
                   </tr>
