@@ -76,7 +76,6 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 
 type ScoreMode   = "monthly" | "total";
 type ViewMode    = "students" | "groups";
-type FilterScope = "branch" | "all";
 
 // ─── TrendIcon ────────────────────────────────────────────────────────────────
 
@@ -488,19 +487,19 @@ function LeaderTable({ students, groupsMap }: {
 
 // ─── Filter Dropdown ──────────────────────────────────────────────────────────
 
-function FilterDropdown({ scope, branchLabel, onChange }: {
-  scope: FilterScope;
-  branchLabel: string;
-  onChange: (v: FilterScope) => void;
+function FilterDropdown({ selectedBranch, branches, onChange }: {
+  selectedBranch: string;
+  branches: string[];
+  onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
 
-  const options: { value: FilterScope; label: string }[] = [
-    { value: "branch", label: `Şubem${branchLabel ? ` — ${branchLabel}` : ""}` },
-    { value: "all",    label: "Tüm Şubeler" },
+  const options = [
+    { value: "", label: "Tüm Şubeler" },
+    ...branches.map(b => ({ value: b, label: b })),
   ];
 
-  const selected = options.find(o => o.value === scope)!;
+  const selected = options.find(o => o.value === selectedBranch) ?? options[0];
 
   return (
     <div className="relative">
@@ -516,7 +515,7 @@ function FilterDropdown({ scope, branchLabel, onChange }: {
               key={opt.value}
               onClick={() => { onChange(opt.value); setOpen(false); }}
               className={`w-full text-left px-4 py-2.5 text-[13px] transition-colors cursor-pointer outline-none ${
-                scope === opt.value
+                selectedBranch === opt.value
                   ? "font-semibold text-base-primary-900 bg-base-primary-50"
                   : "font-medium text-neutral-600 hover:bg-surface-50"
               }`}
@@ -536,8 +535,7 @@ function LeagueContent() {
   const searchParams = useSearchParams();
   const branchParam  = searchParams.get("branch") ?? "";
 
-  // "Şubem" seçili olabilmesi için branch param gerekli; yoksa "Tüm Şubeler" varsayılan
-  const [filterScope,     setFilterScope]     = useState<FilterScope>(branchParam ? "branch" : "all");
+  const [selectedBranch,  setSelectedBranch]  = useState<string>(branchParam);
   const [scoreMode,       setScoreMode]       = useState<ScoreMode>("total");
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
@@ -631,13 +629,20 @@ function LeagueContent() {
     return (b.points ?? 0) - (a.points ?? 0);
   };
 
-  // Şube filtresi: "branch" seçiliyse ve param varsa filtrele, yoksa tümünü göster
+  // Şube listesi (veriden dinamik)
+  const branches = useMemo(() => {
+    const set = new Set<string>();
+    rawStudents.forEach(s => { if (s.branch) set.add(s.branch); });
+    return Array.from(set).sort();
+  }, [rawStudents]);
+
+  // Şube filtresi
   const filtered = useMemo(() => {
-    if (filterScope === "branch" && branchParam) {
-      return withScores.filter(s => s.branch === branchParam);
+    if (selectedBranch) {
+      return withScores.filter(s => s.branch === selectedBranch);
     }
     return withScores;
-  }, [withScores, filterScope, branchParam]);
+  }, [withScores, selectedBranch]);
 
   // ── Sıralı öğrenciler ─────────────────────────────────────────────────────
   const rankedStudents = useMemo<RankedStudent[]>(() => {
@@ -709,14 +714,7 @@ function LeagueContent() {
           <span className="text-[22px] font-semibold text-[#FF8D28]">tasarım</span>
           <span className="text-[22px] font-bold text-text-primary">atölyesi</span>
         </div>
-        {/* Şube filtresi: sadece branch param varsa dropdown göster */}
-        {branchParam ? (
-          <FilterDropdown scope={filterScope} branchLabel={branchParam} onChange={setFilterScope} />
-        ) : (
-          <span className="text-[12px] font-semibold text-neutral-400 px-3 py-1.5 rounded-full border border-neutral-200 bg-white">
-            Tüm Şubeler
-          </span>
-        )}
+        <FilterDropdown selectedBranch={selectedBranch} branches={branches} onChange={setSelectedBranch} />
       </div>
 
       <div className="w-[94%] mx-auto py-8 max-w-7xl xl:max-w-400 2xl:max-w-480">
@@ -730,7 +728,7 @@ function LeagueContent() {
             <div>
               <h1 className="text-[20px] font-bold text-white leading-tight">Sınıflar Ligi</h1>
               <p className="text-[11px] text-white/60 font-medium">
-                {filterScope === "branch" && branchParam ? branchParam : "Tüm Şubeler"}
+                {selectedBranch || "Tüm Şubeler"}
               </p>
             </div>
           </div>

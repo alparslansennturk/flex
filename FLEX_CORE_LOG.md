@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-03 (v7)
+> Son güncelleme: 2026-04-03 (v8)
 
 ---
 
@@ -502,3 +502,24 @@
 - Logs sistemi: `mailLogs` ve `scoreLogs` Firestore koleksiyonları — server-side `adminDb` ile yazılır, client-side silinemez; emailService sadece API route'lardan import edilir (firebase-admin güvenli)
 - scoreLogs write noktası: `grading/page.tsx` `handleSaveGrades()` içinde `batch.commit()` sonrası — hata olsa bile grading işlemi etkilenmez (try/catch ayrı)
 - Sertifikasyon layout: `max-w-250` (~1000px) → `max-w-[1920px]` — 3 yerde değişti (GradingTabs, CertificationPanel, GradingRouter sekme başlığı)
+
+---
+
+## 2026-04-03 (v8)
+
+### 27. Öğrenci Lig Sayfası — Şube Filtresi Düzeltmesi
+
+**Sorun:** `src/app/league/page.tsx`'te şube filtresi `?branch=` URL parametresine bağlıydı. Parametre yoksa dropdown gösterilmiyor, yerine statik "Tüm Şubeler" badge'i çıkıyordu — tıklanamaz, değiştirilemez.
+
+**Kök neden:** `FilterDropdown` yalnızca `branchParam` doluyken render ediliyordu (`{branchParam ? <FilterDropdown> : <span>Tüm Şubeler</span>}`). Öğrenciler URL'e `?branch=` eklemeden sayfayı açınca filtreyi hiç kullanamıyordu.
+
+**Düzeltmeler:**
+- `FilterScope` tipi ve `filterScope` state kaldırıldı → `selectedBranch: string` state'i eklendi (başlangıç: `branchParam` varsa o değer, yoksa `""`)
+- `branches` dizisi `rawStudents` verisinden `useMemo` ile dinamik hesaplanıyor (veritabanındaki gerçek şubeler, sıralı)
+- `FilterDropdown` her zaman gösteriliyor — URL parametresinden bağımsız
+- Dropdown seçenekleri: "Tüm Şubeler" (`value: ""`) + veriden gelen her şube
+- `filtered` hesabı: `selectedBranch` doluysa `s.branch === selectedBranch` filtresi, boşsa tümü
+- Header subtitle: `selectedBranch || "Tüm Şubeler"`
+- `?branch=Kadıköy` gibi URL parametresi hâlâ çalışıyor (geriye dönük uyumluluk korundu)
+
+**Etkilenen dosya:** `src/app/league/page.tsx`
