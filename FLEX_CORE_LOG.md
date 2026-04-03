@@ -523,3 +523,23 @@
 - `?branch=Kadıköy` gibi URL parametresi hâlâ çalışıyor (geriye dönük uyumluluk korundu)
 
 **Etkilenen dosya:** `src/app/league/page.tsx`
+
+---
+
+### 28. Aylık Birinci Kutlama Maili
+
+**Endpoint:** `POST /api/monthly-winner` — manuel çağrı, cron yok, auth yok (internal use).
+
+**Mantık:**
+- Bir önceki ayın başı/sonu UTC+3 offset ile hesaplanır
+- `scoreLogs` → `where("createdAt", ">=", ayBaşı) && < ayBitişi` sorgusu
+- `studentId` bazlı `points` toplanır; max puana sahip öğrenci winner
+- `students/{winnerId}.email` alanından adres alınır
+- `sendMail` ile Brevo REST API üzerinden kutlama maili gönderilir
+- e-posta yoksa 200 + mesaj döner (hata vermez)
+
+**Oluşturulan dosya:**
+- `src/app/api/monthly-winner/route.ts`
+  - Görsel: `/assets/illustrations/monthly-winner/winner-01.webp` (placeholder)
+  - Duplicate önlemi yok — endpoint her çağrıda gönderir
+
