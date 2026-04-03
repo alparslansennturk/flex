@@ -80,8 +80,20 @@ export async function sendWelcomeEmail(
                   Eğitim süresince yapacağın ödevler bu sistem üzerinden tanımlanacak ve değerlendirmelerin burada puanlanacaktır.
                 </p>
                 <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 24px">
-                  Puanlarını ve sıralamadaki yerini görüntüleyebileceğin sayfa yakında seninle paylaşılacaktır.
+                  Puanlarını ve sıralamadaki yerini aşağıdaki sayfadan takip edebilirsin. Giriş yapman gerekmiyor.
                 </p>
+
+                <!-- League Butonu -->
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px">
+                  <tr>
+                    <td align="center">
+                      <a href="https://flex-one-iota.vercel.app/league"
+                         style="display:inline-block;background:linear-gradient(135deg,#FF5C00 0%,#7C3AED 100%);color:#fff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:8px;letter-spacing:0.2px">
+                        Lig Sıralamama Git →
+                      </a>
+                    </td>
+                  </tr>
+                </table>
 
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px">
                   <tr>

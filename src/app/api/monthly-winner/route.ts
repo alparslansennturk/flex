@@ -82,6 +82,7 @@ export async function POST() {
     const studentSnap = await adminDb.collection("students").doc(winnerId).get();
     const studentData = studentSnap.data();
     const email = studentData?.email as string | undefined;
+    const firstName = (studentData?.name as string | undefined) ?? winnerName.split(" ")[0];
 
     if (!email) {
       return NextResponse.json(
@@ -99,16 +100,16 @@ export async function POST() {
           style="width:100%;max-width:480px;border-radius:12px;margin-bottom:32px;display:block"
         />
         <h2 style="margin:0 0 16px;font-size:22px;color:#1a1a1a">
-          Tebrikler, ${winnerName}! 🏆
+          Tebrikler, ${firstName}! 🏆
         </h2>
         <p style="font-size:15px;line-height:1.7;margin:0 0 12px">
-          <strong>${label}</strong> ayında en yüksek puanı sen kazandın!
+          <strong>${label}</strong> ayının birincisi sensin!
         </p>
-        <p style="font-size:15px;line-height:1.7;margin:0 0 32px">
-          Bu ay topladığın puan: <strong>${winnerPts}</strong>
+        <p style="font-size:15px;line-height:1.7;margin:0 0 12px">
+          Bu ay <strong>${winnerPts} puan</strong> kazandın ve sınıfının en iyisi oldun.
         </p>
-        <p style="font-size:14px;line-height:1.7;margin:0 0 8px;color:#555">
-          Harika çalışmaların için teşekkürler. Böyle devam et!
+        <p style="font-size:14px;line-height:1.7;margin:0 0 32px;color:#555">
+          Emeğin ve çalışman için çok teşekkürler. Böyle devam et, gurur duyuyoruz!
         </p>
         <p style="font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;margin:32px 0 0">
           Tasarım Atölyesi
