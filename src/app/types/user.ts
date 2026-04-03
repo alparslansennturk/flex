@@ -8,6 +8,7 @@ export interface UserDocument {
   roles: string[]; // Çoklu rol için diziye çevrildi
   title: string;   // Manuel giriş için zorunlu yapıldı
   gender: 'male' | 'female'; // Yeni zorunlu alan
+  avatarId?: number;
   birthDate: string; // Yeni zorunlu alan
   isInstructor: boolean; // Eğitmen listesi kontrolü
   permissions: string[];

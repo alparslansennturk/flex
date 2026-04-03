@@ -57,7 +57,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
   };
   const currentPage = pathname ? Object.entries(pageConfigs).find(([key]) => pathname.startsWith(key))?.[1] : null;
   const otherBranches = branches.filter((b) => b !== selectedBranch);
-  const myAvatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}&scale=110`;
+  const myAvatarUrl = `/avatars/${user?.gender ?? 'male'}/${user?.avatarId ?? 1}.svg`;
 
 
   return (
@@ -112,16 +112,17 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
           </div>
 
           <div className="h-8 w-px bg-surface-200 mx-4"></div>
-          <div className="w-10 h-10 rounded-full border-2 border-designstudio-primary-500 p-0.5 shrink-0 overflow-hidden bg-surface-50 shadow-sm cursor-pointer">
-            <img src={myAvatarUrl} alt="Profil" className="w-full h-full object-cover" />
+          <div className="w-10 h-10 rounded-full border-2 border-designstudio-primary-500 shrink-0 overflow-hidden bg-surface-50 shadow-sm cursor-pointer">
+            <img src={myAvatarUrl} alt="Profil" className="w-full h-full object-contain" />
           </div>
 
-          <div className="relative ml-6" ref={dropdownRef}>
+          {/* ŞUBE SEÇİMİ — CRM hazır olunca SHOW_BRANCH_SELECTOR = true yap */}
+          {false && <div className="relative ml-6" ref={dropdownRef}>
             <button
               onClick={() => setIsBranchOpen(!isBranchOpen)}
-              className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl transition-all min-w-[120px] w-fit border border-transparent cursor-pointer ${isBranchOpen ? 'bg-surface-50 border-surface-200 shadow-sm' : 'bg-transparent hover:bg-surface-50'}`}
+              className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl transition-all w-[140px] border border-transparent cursor-pointer ${isBranchOpen ? 'bg-surface-50 border-surface-200 shadow-sm' : 'bg-transparent hover:bg-surface-50'}`}
             >
-              <span className="text-[13px] font-bold text-text-tertiary pl-1">{selectedBranch}</span>
+              <span className="text-[13px] font-bold text-text-tertiary pl-1 truncate">{selectedBranch}</span>
               <ChevronDown size={14} className={`text-text-tertiary transition-transform duration-300 ${isBranchOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -138,12 +139,13 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
                 ))}
               </div>
             )}
-          </div>
+          </div>}
 
-          <div className="flex items-center gap-1.5 cursor-pointer group ml-6 pl-6 border-l border-surface-200">
+          {/* FLEX LOGO — CRM hazır olunca SHOW_FLEX_LOGO = true yap */}
+          {false && <div className="flex items-center gap-1.5 cursor-pointer group ml-6 pl-6 border-l border-surface-200">
             <span className="text-[22px] font-bold text-base-primary-500 tracking-tighter">flex</span>
             <ChevronRight size={18} className="text-base-primary-500 group-hover:translate-x-0.5 transition-transform" />
-          </div>
+          </div>}
         </div>
       </div>
     </header>

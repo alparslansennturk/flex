@@ -1,19 +1,21 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
-import { Trash2, RefreshCw, CheckSquare, Square, Minus } from "lucide-react";
+import { Trash2, CheckSquare, Square, Minus, ChevronDown, ChevronRight } from "lucide-react";
 
 // ─── Tipler ──────────────────────────────────────────────────────────────────
 
 interface MailLog {
   id: string;
   to: string;
+  name?: string | null;
+  groupCode?: string | null;
   subject: string;
   type: string;
   status: "success" | "failed";
@@ -55,17 +57,31 @@ const TYPE_LABELS: Record<string, string> = {
 
 // ─── Mail Logs Sekmesi ───────────────────────────────────────────────────────
 
+function fmtDateKey(iso: string | null): string {
+  if (!iso) return "Tarih yok";
+  return new Date(iso).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 function MailLogsTab() {
   const [logs, setLogs] = useState<MailLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [deletingMany, setDeletingMany] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
+    setSelected(new Set());
     try {
       const res = await fetch("/api/admin/logs?type=mail");
       const data = await res.json();
-      setLogs(data.logs ?? []);
+      const fetched: MailLog[] = data.logs ?? [];
+      setLogs(fetched);
+      // İlk grubu otomatik aç
+      if (fetched.length > 0) {
+        const firstKey = fmtDateKey(fetched[0].createdAt);
+        setOpenGroups(new Set([firstKey]));
+      }
     } catch {
       setLogs([]);
     } finally {
@@ -75,17 +91,57 @@ function MailLogsTab() {
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
-  const handleDelete = async (id: string) => {
-    setDeleting(id);
+  // Tarihe göre grupla
+  const groups = useMemo(() => {
+    const map = new Map<string, MailLog[]>();
+    for (const log of logs) {
+      const key = fmtDateKey(log.createdAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(log);
+    }
+    return map;
+  }, [logs]);
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleGroup_select = (groupLogs: MailLog[]) => {
+    const ids = groupLogs.map(l => l.id);
+    const allSelected = ids.every(id => selected.has(id));
+    setSelected(prev => {
+      const next = new Set(prev);
+      allSelected ? ids.forEach(id => next.delete(id)) : ids.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  const handleDeleteMany = async () => {
+    if (selected.size === 0) return;
+    setDeletingMany(true);
     try {
-      await fetch("/api/admin/logs/delete-one", {
+      const ids = Array.from(selected);
+      await fetch("/api/admin/logs/delete-many", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, type: "mail" }),
+        body: JSON.stringify({ ids, type: "mail" }),
       });
-      setLogs(prev => prev.filter(l => l.id !== id));
+      setLogs(prev => prev.filter(l => !selected.has(l.id)));
+      setSelected(new Set());
     } finally {
-      setDeleting(null);
+      setDeletingMany(false);
     }
   };
 
@@ -106,54 +162,115 @@ function MailLogsTab() {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="logs-table">
-        <thead>
-          <tr>
-            <th>Tarih</th>
-            <th>Alıcı</th>
-            <th>Konu</th>
-            <th>Tür</th>
-            <th>Durum</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {logs.map(log => (
-            <tr key={log.id}>
-              <td className="text-text-tertiary whitespace-nowrap">{fmtDate(log.createdAt)}</td>
-              <td className="font-medium text-base-primary-900">{log.to}</td>
-              <td className="text-text-secondary max-w-[240px] truncate">{log.subject}</td>
-              <td>
-                <span className="logs-badge logs-badge-type">
-                  {TYPE_LABELS[log.type] ?? log.type}
-                </span>
-              </td>
-              <td>
-                {log.status === "success" ? (
-                  <span className="logs-badge logs-badge-success">Başarılı</span>
+    <div className="space-y-2">
+      {/* Toplu silme toolbar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 mb-4 px-1">
+          <span className="text-sm text-text-secondary">{selected.size} kayıt seçildi</span>
+          <button onClick={handleDeleteMany} disabled={deletingMany} className="logs-delete-many-btn">
+            {deletingMany ? (
+              <div className="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Trash2 size={14} />
+            )}
+            Seçilenleri Sil
+          </button>
+        </div>
+      )}
+
+      {/* Tarih grupları */}
+      {Array.from(groups.entries()).map(([dateKey, groupLogs]) => {
+        const isOpen = openGroups.has(dateKey);
+        const groupIds = groupLogs.map(l => l.id);
+        const allGroupSelected = groupIds.every(id => selected.has(id));
+        const someGroupSelected = groupIds.some(id => selected.has(id)) && !allGroupSelected;
+
+        return (
+          <div key={dateKey} className="border border-surface-200 rounded-xl overflow-hidden">
+            {/* Grup başlığı */}
+            <button
+              onClick={() => toggleGroup(dateKey)}
+              className="w-full flex items-center gap-3 px-4 py-3 bg-surface-50 hover:bg-surface-100 transition-colors text-left"
+            >
+              <span className="text-text-tertiary">
+                {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </span>
+              <span className="text-sm font-semibold text-text-primary flex-1">{dateKey}</span>
+              <span className="text-xs text-text-tertiary">{groupLogs.length} kayıt</span>
+              {/* Grup tümünü seç */}
+              <span
+                onClick={e => { e.stopPropagation(); toggleGroup_select(groupLogs); }}
+                className="flex items-center justify-center text-text-tertiary hover:text-base-primary-600 transition-colors ml-2"
+              >
+                {allGroupSelected ? (
+                  <CheckSquare size={16} className="text-base-primary-500" />
+                ) : someGroupSelected ? (
+                  <Minus size={16} />
                 ) : (
-                  <span className="logs-badge logs-badge-failed" title={log.error ?? ""}>Başarısız</span>
+                  <Square size={16} />
                 )}
-              </td>
-              <td>
-                <button
-                  onClick={() => handleDelete(log.id)}
-                  disabled={deleting === log.id}
-                  className="logs-delete-btn"
-                  title="Sil"
-                >
-                  {deleting === log.id ? (
-                    <div className="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Trash2 size={14} />
-                  )}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </span>
+            </button>
+
+            {/* Grup içeriği */}
+            {isOpen && (
+              <div className="overflow-x-auto">
+                <table className="logs-table">
+                  <thead>
+                    <tr>
+                      <th className="w-8"></th>
+                      <th>Saat</th>
+                      <th>Ad Soyad</th>
+                      <th>Grup</th>
+                      <th>E-posta</th>
+                      <th>Tür</th>
+                      <th>Durum</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupLogs.map(log => (
+                      <tr key={log.id} className={selected.has(log.id) ? "logs-row-selected" : ""}>
+                        <td>
+                          <button
+                            onClick={() => toggleOne(log.id)}
+                            className="flex items-center justify-center text-text-tertiary hover:text-base-primary-600 transition-colors"
+                          >
+                            {selected.has(log.id) ? (
+                              <CheckSquare size={16} className="text-base-primary-500" />
+                            ) : (
+                              <Square size={16} />
+                            )}
+                          </button>
+                        </td>
+                        <td className="text-text-tertiary whitespace-nowrap">
+                          {log.createdAt ? new Date(log.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                        </td>
+                        <td className="font-medium text-base-primary-900">
+                          {log.name?.trim() || "—"}
+                        </td>
+                        <td className="text-text-secondary">{log.groupCode || "—"}</td>
+                        <td className="text-text-secondary">{log.to}</td>
+                        <td>
+                          <span className="logs-badge logs-badge-type">
+                            {TYPE_LABELS[log.type] ?? log.type}
+                          </span>
+                        </td>
+                        <td>
+                          {log.status === "success" ? (
+                            <span className="logs-badge logs-badge-success">Başarılı</span>
+                          ) : (
+                            <span className="logs-badge logs-badge-failed" title={log.error ?? ""}>Başarısız</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

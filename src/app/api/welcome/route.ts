@@ -5,7 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, name } = await req.json();
+    const { email, name, groupCode } = await req.json();
 
     if (!email || !name) {
       return NextResponse.json(
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
       name,
       subject: "Hesabın Oluşturuldu — Tasarım Atölyesi",
       type: "welcome",
+      groupCode: groupCode ?? null,
       status: result.success ? "success" : "failed",
       messageId: result.messageId ?? null,
       error: result.error ?? null,

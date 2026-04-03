@@ -62,9 +62,9 @@ export async function sendWelcomeEmail(
 
             <!-- Header -->
             <tr>
-              <td style="background:linear-gradient(135deg,#FF5C00 0%,#7C3AED 100%);padding:32px 40px">
-                <p style="margin:0;font-size:24px;font-weight:800;color:#fff;letter-spacing:-0.5px">
-                  tasarım<span style="opacity:0.75">atölyesi</span>
+              <td style="background:linear-gradient(90deg,#FF8D28 0%,#D66500 100%);padding:32px 40px">
+                <p style="margin:0;font-size:24px;font-weight:600;color:#fff;letter-spacing:-0.5px">
+                  tasarımatölyesi
                 </p>
               </td>
             </tr>
@@ -86,9 +86,9 @@ export async function sendWelcomeEmail(
                 <!-- League Butonu -->
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px">
                   <tr>
-                    <td align="center">
+                    <td align="left">
                       <a href="https://flex-one-iota.vercel.app/league"
-                         style="display:inline-block;background:linear-gradient(135deg,#FF5C00 0%,#7C3AED 100%);color:#fff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:8px;letter-spacing:0.2px">
+                         style="display:inline-block;background:#6F74D8;color:#fff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:8px;letter-spacing:0.2px">
                         Lig Sıralamama Git →
                       </a>
                     </td>

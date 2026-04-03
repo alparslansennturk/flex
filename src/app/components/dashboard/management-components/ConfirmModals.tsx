@@ -19,9 +19,9 @@ export const ConfirmModals: React.FC<ConfirmModalsProps> = ({
   const content = {
     archive: {
       icon: <Archive className="text-amber-500" size={24} />,
-      title: "Grubu Arşivle",
-      desc: "Bu grup pasif hale getirilecek ve arşiv sekmesine taşınacak. Emin misiniz?",
-      btn: "Arşivle",
+      title: "Grubu Bitir",
+      desc: "Grup arşive taşınacak ve içindeki tüm öğrenciler mezun listesine alınacak. Arşivden geri alabilirsiniz.",
+      btn: "Grubu Bitir",
       color: "bg-amber-500 hover:bg-amber-600"
     },
     delete: {
@@ -34,7 +34,7 @@ export const ConfirmModals: React.FC<ConfirmModalsProps> = ({
     restore: {
       icon: <RotateCcw className="text-base-primary-600" size={24} />,
       title: "Grubu Geri Yükle",
-      desc: "Bu grup tekrar aktif hale getirilecek. Emin misiniz?",
+      desc: "Grup tekrar aktif hale getirilecek ve mezun listesindeki öğrencileri gruba geri dönecek. Emin misiniz?",
       btn: "Geri Yükle",
       color: "bg-base-primary-600 hover:bg-base-primary-700"
     }

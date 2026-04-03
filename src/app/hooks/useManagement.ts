@@ -6,7 +6,7 @@ import { getFlexMessage } from "@/app/lib/messages";
 import {
   collection, onSnapshot, addDoc, doc,
   updateDoc, deleteDoc, increment, serverTimestamp, writeBatch,
-  getDocs, query, where,
+  getDocs, query, where, deleteField,
 } from "firebase/firestore";
 
 // --- INTERFACES ---
@@ -36,6 +36,7 @@ interface Student {
   points: number;
   status?: 'active' | 'passive';
   lastGroupCode?: string;
+  lastGroupId?: string;
   hiddenFromInstructors?: string[];
   updatedAt?: any;
 }
@@ -470,17 +471,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       try {
         const batch = writeBatch(db);
         for (const gid of modalConfig.groupIds) {
-          const targetGroup = groups.find(g => g.id === gid);
-          const affectedStudents = students.filter(s => s.groupId === gid);
-          affectedStudents.forEach(student => {
-            batch.update(doc(db, "students", student.id), {
-              status: 'passive',
-              lastGroupCode: targetGroup?.code || "",
-              groupCode: `Mezun (${targetGroup?.code || "Bilinmiyor"})`,
-              groupId: "unassigned",
-              updatedAt: new Date()
-            });
-          });
+          // Öğrencilere dokunma — arşive alınırken zaten mezun listesine geçtiler
           batch.delete(doc(db, "groups", gid));
         }
         await batch.commit();
@@ -515,19 +506,34 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         showNotification("Grup silindi.");
       } else if (modalConfig.type === 'archive') {
         affectedStudents.forEach(student => {
-          batch.update(doc(db, "students", student.id), { status: 'passive', updatedAt: new Date() });
+          batch.update(doc(db, "students", student.id), {
+            status: 'passive',
+            lastGroupId: modalConfig.groupId,
+            lastGroupCode: targetGroup?.code || "",
+            groupCode: `Mezun (${targetGroup?.code || "Bilinmiyor"})`,
+            groupId: "unassigned",
+            updatedAt: new Date(),
+          });
         });
         batch.update(groupRef, { status: 'archived' });
         await batch.commit();
         if (selectedGroupId === modalConfig.groupId) setSelectedGroupId(null);
-        showNotification("Grup arşivlendi.");
+        showNotification("Grup bitirildi, öğrenciler mezun listesine alındı.");
       } else if (modalConfig.type === 'restore') {
+        // lastGroupId ile mezun listesindeki öğrencileri bul
+        const studentsToRestore = students.filter(s => s.lastGroupId === modalConfig.groupId);
         batch.update(groupRef, { status: 'active' });
-        affectedStudents.forEach(student => {
-          batch.update(doc(db, "students", student.id), { status: 'active', updatedAt: new Date() });
+        studentsToRestore.forEach(student => {
+          batch.update(doc(db, "students", student.id), {
+            status: 'active',
+            groupId: modalConfig.groupId,
+            groupCode: targetGroup?.code || student.lastGroupCode || "",
+            lastGroupId: deleteField(),
+            updatedAt: new Date(),
+          });
         });
         await batch.commit();
-        showNotification("Grup geri yüklendi.");
+        showNotification("Grup ve öğrencileri geri yüklendi.");
       }
     } catch (error) { showNotification("Hata oluştu."); }
     setIsProcessing(false);
@@ -585,7 +591,7 @@ setStudents((prev)=>prev.map((s)=>(s.id===editingStudentId?{...s,...studentData}
 await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
 await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
 if(email?.trim()){
-  fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),name:name.trim()})}).catch((e)=>console.error("[welcome mail]",e));
+  fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),name:name.trim(),groupCode:studentData.groupCode??""})}).catch((e)=>console.error("[welcome mail]",e));
 }
 }
 }catch(error){

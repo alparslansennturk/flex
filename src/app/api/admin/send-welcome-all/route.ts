@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendWelcomeEmail } from "@/app/services/emailService";
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const studentsSnap = await adminDb
       .collection("students")
-      .where("welcomeEmailSent", "!=", true)
+      .where("status", "==", "active")
       .get();
 
     let sent = 0;
@@ -27,6 +28,11 @@ export async function POST(req: NextRequest) {
     for (const doc of studentsSnap.docs) {
       const student = doc.data();
 
+      if (student.welcomeEmailSent === true) {
+        skipped++;
+        continue;
+      }
+
       if (!student.email?.trim()) {
         skipped++;
         continue;
@@ -34,6 +40,18 @@ export async function POST(req: NextRequest) {
 
       const name = `${student.name ?? ""} ${student.lastName ?? ""}`.trim();
       const result = await sendWelcomeEmail(student.email.trim(), name);
+
+      await adminDb.collection("mailLogs").add({
+        to: student.email.trim(),
+        name,
+        subject: "Hesabın Oluşturuldu — Tasarım Atölyesi",
+        type: "welcome",
+        groupCode: student.groupCode ?? null,
+        status: result.success ? "success" : "failed",
+        messageId: result.messageId ?? null,
+        error: result.error ?? null,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
       if (result.success) {
         await doc.ref.update({ welcomeEmailSent: true });

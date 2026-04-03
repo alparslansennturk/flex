@@ -142,11 +142,11 @@ export const GroupCards: React.FC<GroupCardsProps> = ({
                           />
                         </button>
 
-                        {/* 2. ARŞİVE GÖNDER (Kibar Gri / Neutral) */}
+                        {/* 2. GRUBU BİTİR (Kibar Gri / Neutral) */}
                         <button
                           onClick={() => requestModal(group.id, 'archive')}
                           className="p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-neutral-50 group/table-archive"
-                          title="Arşive Gönder"
+                          title="Grubu Bitir"
                         >
                           <Archive
                             size={18}

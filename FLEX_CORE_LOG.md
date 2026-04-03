@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-03 (v8)
+> Son güncelleme: 2026-04-03 (v9)
 
 ---
 
@@ -542,4 +542,89 @@
 - `src/app/api/monthly-winner/route.ts`
   - Görsel: `/assets/illustrations/monthly-winner/winner-01.webp` (placeholder)
   - Duplicate önlemi yok — endpoint her çağrıda gönderir
+
+---
+
+## 2026-04-03 (v9)
+
+### 29. Grup Arşivleme Mantığı Yeniden Yazıldı — "Grubu Bitir"
+
+**Değişen davranış:**
+- **Arşivle:** Öğrenciler `status: passive`, `groupId: "unassigned"`, `groupCode: "Mezun (XYZ)"`, `lastGroupId: <grupId>` olarak güncelleniyor. Grup `status: archived` oluyor.
+- **Geri Yükle:** `lastGroupId` ile mezun öğrenciler bulunup gruba geri alınıyor. `groupId` ve `groupCode` restore ediliyor, `lastGroupId` `deleteField()` ile temizleniyor.
+- **Toplu Silme (arşivden):** Artık öğrencilere dokunulmuyor — archive adımında zaten mezun listesine geçtiler. Sadece grup doc'u siliniyor.
+
+**Yeni alan:** `Student` interface'e `lastGroupId?: string` eklendi (hangi gruptan mezun olduğu takibi).
+
+**UI değişiklikleri:**
+- `GroupCards.tsx` — buton title: "Arşive Gönder" → "Grubu Bitir"
+- `ConfirmModals.tsx` — archive modalı: başlık "Grubu Arşivle" → "Grubu Bitir", açıklama mezun listesini belirtiyor; restore modalı: açıklama öğrencilerin gruba geri döneceğini belirtiyor
+
+**Etkilenen dosyalar:**
+- `src/app/hooks/useManagement.ts`
+- `src/app/components/dashboard/class-management/GroupCards.tsx`
+- `src/app/components/dashboard/management-components/ConfirmModals.tsx`
+
+---
+
+### 30. Mail Log — `name` ve `groupCode` Alanları Eklendi
+
+**Değişiklikler:**
+- `POST /api/welcome` artık body'den `groupCode` alıyor ve `mailLogs` doc'una yazıyor.
+- `POST /api/admin/send-welcome-all`: filtre `welcomeEmailSent != true` → `status == active` + code-level `if (welcomeEmailSent === true) skip` şeklinde değişti; her gönderim için `mailLogs` kaydı yazılıyor (`name`, `groupCode`, `type`, `status`, `messageId`, `error`, `createdAt`).
+- Yeni öğrenci ekleme akışında (`useManagement.ts`) hoş geldin mail isteğine `groupCode` parametresi eklendi.
+
+**Etkilenen dosyalar:**
+- `src/app/api/admin/send-welcome-all/route.ts`
+- `src/app/api/welcome/route.ts`
+- `src/app/hooks/useManagement.ts`
+
+---
+
+### 31. Mail Logs Sayfası — Tarihli Gruplama + Toplu Silme
+
+**Yeni davranışlar:**
+- Loglar **tarihe göre gruplandı** (accordion, ilk grup otomatik açık). Her grup başlığında kayıt sayısı gösteriliyor.
+- **Toplu seçim:** Her satırda checkbox, grup başlığında grup-tümü checkbox'ı (tam/kısmı/boş durumları). Seçili kayıt varsa üstte toolbar çıkıyor.
+- **`delete-one` → `delete-many`:** API çağrısı tek endpoint'e taşındı, seçili ID'ler dizi olarak gönderiliyor.
+- Tablo kolonları güncellendi: Konu kaldırıldı; **Ad Soyad**, **Grup** ve **Saat** (gün değil, sadece sa:dk) eklendi.
+- `MailLog` tipine `name?: string | null` ve `groupCode?: string | null` eklendi.
+
+**CSS (`globals.css` → `logs-table th`):**
+- `font-size`: 12px → 14px
+- `color`: `#6b7a8d` → `#3d4a5c`
+- `text-transform: none`, `letter-spacing: 0` (uppercase + tracking kaldırıldı)
+
+**Etkilenen dosyalar:**
+- `src/app/dashboard/logs/page.tsx`
+- `src/app/globals.css`
+
+---
+
+### 32. Header — Yerel Avatar Sistemi + UI Düzenlemeleri
+
+**Avatar URL değişikliği:** DiceBear API (`https://api.dicebear.com/...`) → `/avatars/{gender}/{avatarId}.svg` (yerel statik dosyalar). `UserDocument` tipine `avatarId?: number` eklendi.
+
+**Görsel düzeltmeler:**
+- Avatar container: `p-0.5` kaldırıldı, `object-cover` → `object-contain`
+
+**Geçici olarak gizlenenler (CRM hazır olunca açılacak):**
+- Şube seçici dropdown: `{false && <div>...}` ile gizlendi → `SHOW_BRANCH_SELECTOR = true` yorumuyla işaretlendi
+- "flex →" logo linki: `{false && <div>...}` ile gizlendi → `SHOW_FLEX_LOGO = true` yorumuyla işaretlendi
+
+**Etkilenen dosyalar:**
+- `src/app/components/layout/Header.tsx`
+- `src/app/types/user.ts`
+
+---
+
+### 33. Hoş Geldin Mail Şablonu Güncelleme
+
+**Görsel değişiklikler (`emailService.ts`):**
+- Header gradient: mor+turuncu (`#FF5C00 → #7C3AED`) → saf turuncu (`#FF8D28 → #D66500`)
+- Font weight 800 → 600; marka adı "tasarım`<opacity>`atölyesi`</opacity>`" → "tasarımatölyesi" (tek düz metin)
+- Lig butonu: `align="center"` → `align="left"`, gradient arka plan → `#6F74D8` (indigo tonu)
+
+**Etkilenen dosya:**
+- `src/app/services/emailService.ts`
 

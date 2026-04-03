@@ -341,11 +341,11 @@ html body #main-user-form-area::-webkit-scrollbar-thumb:hover {
 .logs-table th {
   text-align: left;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  color: #6b7a8d;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: #3d4a5c;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
   border-bottom: 1px solid #e8ecf1;
 }
 
