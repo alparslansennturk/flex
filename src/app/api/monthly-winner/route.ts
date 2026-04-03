@@ -94,7 +94,7 @@ export async function POST() {
     const html = `
       <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:40px 32px;color:#111">
         <img
-          src="https://flex-edu.vercel.app/assets/illustrations/monthly-winner/winner-01.jpg"
+          src="https://flex-one-iota.vercel.app/assets/illustrations/monthly-winner/winner-01.jpg"
           alt="Aylık Birinci"
           style="width:100%;max-width:480px;border-radius:12px;margin-bottom:32px;display:block"
         />
