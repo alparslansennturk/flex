@@ -1,6 +1,137 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
+import { calcScore, computeStudentStats, DEFAULT_SCORING, type ScoringSettings } from "@/app/lib/scoring";
+
+// Görsel 1200×1200, email 560px → ölçek 0.467
+// Glass card: left 302px, top 143px, w 241px, h 278px
+const IMAGE_URL =
+  "https://flex-one-iota.vercel.app/assets/illustrations/monthly-winner/winner-01.jpg";
+
+function buildWinnerHtml(firstName: string, score: number, monthLabel: string): string {
+  const DARK  = "#09172A";
+  const WHITE = "#ffffff";
+  const EB    = "font-weight:800";
+  const BOLD  = "font-weight:700";
+  const MED   = "font-weight:500";
+  const BASE  = `font-family:'Baloo 2',Arial,sans-serif;color:${DARK};line-height:1.4`;
+
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    @font-face {
+      font-family: 'Baloo 2';
+      font-style: normal;
+      font-weight: 500;
+      src: url('https://fonts.gstatic.com/s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdjEyppo_leP6HcMqzQ.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Baloo 2';
+      font-style: normal;
+      font-weight: 600;
+      src: url('https://fonts.gstatic.com/s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdjEyppo_leP6HcMqzQ.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Baloo 2';
+      font-style: normal;
+      font-weight: 700;
+      src: url('https://fonts.gstatic.com/s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdj9yppo_leP6HcMqzQ.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Baloo 2';
+      font-style: normal;
+      font-weight: 800;
+      src: url('https://fonts.gstatic.com/s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdiayppo_leP6HcMqzQ.woff2') format('woff2');
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#F5F5F7;font-family:'Baloo 2',Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 16px">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0"
+       style="background:#ffffff;border-radius:16px;overflow:hidden;
+              box-shadow:0 2px 16px rgba(0,0,0,0.07)">
+
+  <!-- HERO: Görsel arka planda, metin glass card üzerinde -->
+  <tr>
+    <td valign="top" style="padding:0;border-radius:16px 16px 0 0;overflow:hidden">
+      <table width="560" height="560" cellpadding="0" cellspacing="0"
+             background="${IMAGE_URL}"
+             style="background-image:url('${IMAGE_URL}');background-size:cover;
+                    background-position:center center;width:560px;height:560px;
+                    border-radius:16px 16px 0 0">
+
+        <!-- Üst boşluk -->
+        <tr><td colspan="3" height="143"></td></tr>
+
+        <!-- Metin satırı -->
+        <tr valign="middle">
+          <td width="302" height="278"></td>
+          <td width="241" valign="middle" style="padding:0 18px 0 12px;vertical-align:middle">
+
+            <p style="margin:0 0 4px 0;${BASE};${BOLD};font-size:18px">
+              Tebrikler ${firstName},
+            </p>
+            <p style="margin:0 0 2px 0;${BASE};${MED};font-size:13px">
+              ${monthLabel} ayında
+              <span style="${EB}"> ${score} puan</span>
+              ile ay,<br>birincisi oldun.
+            </p>
+            <p style="margin:0 0 2px 0;${BASE};${EB};font-size:13px">
+              Harika bir performans...
+            </p>
+            <p style="margin:0 0 10px 0;${BASE};${MED};font-size:13px">
+              Bu başarı seni beklenenden daha<br>
+              ileri götürecek.<br>
+              Aynen devam :)
+            </p>
+            <p style="margin:0;font-size:12px;${BOLD}">
+              <span style="color:${DARK}">tasarım</span><span style="color:${WHITE}">atölyesi</span>
+            </p>
+
+          </td>
+          <td width="17"></td>
+        </tr>
+
+        <!-- Alt boşluk -->
+        <tr><td colspan="3" height="139"></td></tr>
+
+      </table>
+    </td>
+  </tr>
+
+  <!-- CTA -->
+  <tr>
+    <td style="padding:28px 40px 24px;text-align:center">
+      <a href="https://flex-one-iota.vercel.app/dashboard/league"
+         style="display:inline-block;background:#FF5C00;color:#fff;
+                text-decoration:none;font-family:'Baloo 2',Arial,sans-serif;
+                font-size:15px;font-weight:700;padding:14px 40px;border-radius:10px">
+        Sıralamayı Gör →
+      </a>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background:#fafafa;border-top:1px solid #f0f0f0;
+               padding:16px 40px;text-align:center">
+      <p style="margin:0;font-size:12px;color:#bbbbbb;line-height:1.6;
+                font-family:'Baloo 2',Arial,sans-serif">
+        Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -8,103 +139,79 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Ayın 1'inde çalışır — "geçen ay" YYYY-MM anahtarı ile duplicate koruması
+  // Ayın 1'inde çalışır — geçen ay etiketi
   const now = new Date(new Date().getTime() + 3 * 60 * 60 * 1000); // UTC+3
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const monthKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+  const monthKey   = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
   const monthLabel = prevMonth.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
 
   try {
-    // Duplicate kontrolü
+    // Duplicate koruması
     const winnerDocRef = adminDb.collection("monthly_winners").doc(monthKey);
-    const winnerDoc = await winnerDocRef.get();
-    if (winnerDoc.exists) {
+    if ((await winnerDocRef.get()).exists) {
       return NextResponse.json({ success: true, skipped: true, reason: "already_sent", month: monthKey });
     }
 
-    // Aktif öğrencileri skora göre sırala
-    const studentsSnap = await adminDb
+    // Scoring ayarları + aktif sezon
+    const settingsSnap = await adminDb.collection("settings").doc("scoring").get();
+    const settingsData = settingsSnap.data() ?? {};
+    const settings: ScoringSettings = (settingsData.leaderboard && settingsData.difficultyXP)
+      ? settingsData as ScoringSettings
+      : DEFAULT_SCORING;
+    const activeSeasonId: string = settingsData.activeSeasonId ?? "season_1";
+
+    // Tüm aktif öğrencileri çek → algoritma skoru + istatistik hesapla
+    const snap = await adminDb
       .collection("students")
       .where("status", "==", "active")
-      .orderBy("score", "desc")
-      .limit(1)
       .get();
 
-    if (studentsSnap.empty) {
+    if (snap.empty) {
       return NextResponse.json({ success: true, skipped: true, reason: "no_students" });
     }
 
-    const winner = studentsSnap.docs[0].data();
+    const candidates = snap.docs.map(doc => {
+      const data = doc.data();
+      const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(
+        data.gradedTasks,
+        data.isScoreHidden,
+        activeSeasonId,
+      );
+      return {
+        doc,
+        computedScore:  calcScore(totalXP, completedTasks, settings),
+        latePenaltyTotal,
+        completedTasks,
+      };
+    });
+
+    // Tiebreaker zinciri:
+    // 1. En yüksek algoritma skoru
+    // 2. En az geç teslim (latePenaltyTotal düşük)
+    // 3. En fazla tamamlanan görev
+    // 4. Kura (random)
+    candidates.sort((a, b) => {
+      const sd = b.computedScore  - a.computedScore;  if (sd !== 0) return sd;
+      const pd = a.latePenaltyTotal - b.latePenaltyTotal; if (pd !== 0) return pd;
+      const td = b.completedTasks - a.completedTasks;  if (td !== 0) return td;
+      return Math.random() - 0.5; // kura
+    });
+
+    const selected   = candidates[0];
+    const winner     = selected.doc.data();
+    const winnerId   = selected.doc.id;
+    const firstName  = winner.name ?? "Öğrenci";
+    const winnerName = `${winner.name} ${winner.lastName}`;
+    const score      = Math.round(selected.computedScore);
+
     if (!winner.email) {
       return NextResponse.json({ success: true, skipped: true, reason: "no_email" });
     }
 
-    const winnerName = `${winner.name} ${winner.lastName}`;
-    const score = winner.score ?? 0;
-
-    const html = `
-      <!DOCTYPE html>
-      <html lang="tr">
-      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-      <body style="margin:0;padding:0;background:#f4f4f5;font-family:Inter,Arial,sans-serif">
-        <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 16px">
-          <tr><td align="center">
-            <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.07)">
-
-              <!-- Header -->
-              <tr>
-                <td style="background:linear-gradient(135deg,#FF5C00 0%,#7C3AED 100%);padding:32px 40px;text-align:center">
-                  <p style="margin:0 0 8px;font-size:36px">🏆</p>
-                  <p style="margin:0;font-size:22px;font-weight:800;color:#fff">Ayın Birincisi</p>
-                  <p style="margin:4px 0 0;font-size:14px;color:rgba(255,255,255,0.8)">${monthLabel}</p>
-                </td>
-              </tr>
-
-              <!-- Body -->
-              <tr>
-                <td style="padding:36px 40px 32px;text-align:center">
-                  <p style="font-size:22px;font-weight:700;color:#111;margin:0 0 12px">
-                    Tebrikler, ${winnerName}! 🎉
-                  </p>
-                  <p style="font-size:15px;color:#555;line-height:1.7;margin:0 0 28px">
-                    ${monthLabel} ayında <strong>${score} puan</strong> ile sınıfının birincisi oldun.<br>
-                    Harika bir performans — bu başarı seni beklenenden daha ileri götürecek.
-                  </p>
-
-                  <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:12px;padding:20px 24px;margin:0 0 28px;display:inline-block;width:100%;box-sizing:border-box">
-                    <p style="margin:0;font-size:13px;color:#7C3AED;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Aylık Puan</p>
-                    <p style="margin:4px 0 0;font-size:32px;font-weight:800;color:#111">${score}</p>
-                  </div>
-
-                  <a href="https://flex-one-iota.vercel.app/login"
-                     style="display:block;background:#FF5C00;color:#fff;text-align:center;
-                            text-decoration:none;font-size:15px;font-weight:600;
-                            padding:14px 0;border-radius:8px">
-                    Sıralamayı Gör →
-                  </a>
-                </td>
-              </tr>
-
-              <!-- Footer -->
-              <tr>
-                <td style="background:#fafafa;border-top:1px solid #f0f0f0;padding:20px 40px">
-                  <p style="margin:0;font-size:12px;color:#bbb;line-height:1.6;text-align:center">
-                    Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.
-                  </p>
-                </td>
-              </tr>
-
-            </table>
-          </td></tr>
-        </table>
-      </body>
-      </html>
-    `;
-
     const result = await sendMail({
       to: winner.email,
-      subject: `Tebrikler! ${monthLabel} Ayının Birincisisin 🏆`,
-      html,
+      subject: `🏆 Tebrikler! ${monthLabel} Ayının Birincisisin`,
+      html: buildWinnerHtml(firstName, score, monthLabel),
     });
 
     if (!result.success) {
@@ -113,7 +220,7 @@ export async function GET(req: NextRequest) {
 
     // Duplicate koruması için kaydet
     await winnerDocRef.set({
-      studentId: studentsSnap.docs[0].id,
+      studentId: winnerId,
       name: winnerName,
       email: winner.email,
       score,

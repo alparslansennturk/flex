@@ -32,7 +32,7 @@ interface GradeEntry { submitted: boolean; weeksLate: number; xp: number; }
 type GradesMap = Record<string, GradeEntry>;
 type ListTab = "pending" | "done";
 type CertTab = "GRAFIK_1" | "GRAFIK_2";
-interface Group { id: string; code: string; originalCode?: string; currentModule?: "GRAFIK_1" | "GRAFIK_2"; codeAtGrafik2?: string; }
+interface Group { id: string; code: string; status?: "active" | "archived"; originalCode?: string; currentModule?: "GRAFIK_1" | "GRAFIK_2"; codeAtGrafik2?: string; }
 
 // ─── Yardımcılar ──────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -1079,11 +1079,12 @@ function CertModuleTab({ module }: { module: CertTab }) {
     getDocs(query(
       collection(db, "groups"),
       where("instructorId", "==", uid),
-      where("status", "==", "active"),
+      where("status", "in", ["active", "archived"]),
     )).then(async snap => {
       const rawGroups = snap.docs.map(d => ({
         id: d.id,
         code: (d.data() as any).code ?? d.id,
+        status: (d.data() as any).status as "active" | "archived" | undefined,
         // codeAt_GRAFIK_1 / codeAt_GRAFIK_2: finalize sırasında group doc'a yazılır
         originalCode: (d.data() as any)[`codeAt_${module}`] as string | undefined,
         currentModule: (d.data() as any).module as "GRAFIK_1" | "GRAFIK_2" | undefined,
@@ -1173,13 +1174,22 @@ function CertModuleTab({ module }: { module: CertTab }) {
         setStudentsLoading(false);
       } else {
         // Finalize edilmemiş → öğrenci listesini realtime dinle
-        // Yeni transfer gelen öğrenciler anında görünür
+        // Grup arşivlendiyse öğrenciler lastGroupId ile aranır (groupId = "unassigned")
+        const isArchived = group.status === "archived";
+        const studentsQuery = isArchived
+          ? query(
+              collection(db, "students"),
+              where("lastGroupId", "==", selectedGroupId),
+              where("status",      "==", "passive"),
+            )
+          : query(
+              collection(db, "students"),
+              where("groupId", "==", selectedGroupId),
+              where("status",  "==", "active"),
+            );
+
         studentUnsubRef.current = onSnapshot(
-          query(
-            collection(db, "students"),
-            where("groupId", "==", selectedGroupId),
-            where("status",  "==", "active"),
-          ),
+          studentsQuery,
           studSnap => {
             const list = studSnap.docs
               .map(d => ({ id: d.id, ...d.data() } as Student))
@@ -1395,7 +1405,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
         ) : students.length === 0 ? (
           <div className="bg-white rounded-16 border border-surface-100 shadow-sm flex flex-col items-center justify-center py-16 gap-3">
             <Users size={24} className="text-surface-200" />
-            <p className="text-[14px] font-bold text-surface-400">Bu grupta aktif öğrenci bulunamadı.</p>
+            <p className="text-[14px] font-bold text-surface-400">Bu grupta öğrenci bulunamadı.</p>
           </div>
         ) : (
           <>

@@ -58,7 +58,7 @@ export default function DashboardPage() {
         <Header />
 
         <main className="flex-1 w-full overflow-y-scroll overflow-x-clip [scrollbar-gutter:stable]">
-          <div className="w-[94%] mx-auto py-8 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[1920px]">
+          <div className="w-[94%] mx-auto pt-6 pb-8 max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[1920px]">
 
             {activeTab === 'dashboard' ? (
               <div className="space-y-12">

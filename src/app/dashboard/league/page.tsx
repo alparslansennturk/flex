@@ -844,7 +844,8 @@ export default function LeaguePage() {
   const sortFn = (a: typeof withScores[0], b: typeof withScores[0]) => {
     const sd = b.score - a.score; if (sd !== 0) return sd;
     const pd = (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0); if (pd !== 0) return pd;
-    return (b.points ?? 0) - (a.points ?? 0);
+    const xd = (b.points ?? 0) - (a.points ?? 0); if (xd !== 0) return xd;
+    return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
   };
 
   // ── Tablo sıralaması (tüm filtreleri takip eder) ──────────────────────────
