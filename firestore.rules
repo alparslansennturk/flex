@@ -107,6 +107,14 @@ service cloud.firestore {
       allow write: if isAdmin() || hasPermissionOverride('ASSIGNMENT_MANAGE');
     }
 
+    // ─── scoreLogs ────────────────────────────────────────────────────────────
+
+    match /scoreLogs/{logId} {
+      allow read: if isAdmin() || isInstructor();
+      allow create: if isAdmin() || isInstructor();
+      allow update, delete: if isAdmin();
+    }
+
     // ─── lottery_configs ──────────────────────────────────────────────────────
 
     match /lottery_configs/{configId} {

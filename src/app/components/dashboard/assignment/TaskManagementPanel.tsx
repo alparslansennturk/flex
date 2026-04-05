@@ -248,7 +248,8 @@ function TaskRow({
     return `${parseInt(day)} ${months[parseInt(m) - 1]} ${y}`;
   };
 
-  const isCompleted = task.status === "completed";
+  const isInGrading   = task.status === "completed";
+  const isCompleted   = isInGrading && !!(task as any).isGraded;
 
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-50 transition-colors border-b border-surface-100 last:border-0 group">
@@ -284,6 +285,11 @@ function TaskRow({
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-status-success-50 text-status-success-600 text-[11px] font-bold">
             <span className="w-1.5 h-1.5 rounded-full bg-status-success-500" />
             Tamamlandı
+          </span>
+        ) : isInGrading ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-designstudio-primary-50 text-designstudio-primary-600 text-[11px] font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-designstudio-primary-500" />
+            Not Alanında
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-100 text-surface-500 text-[11px] font-bold">
@@ -333,7 +339,7 @@ function TaskRow({
         </button>
         {menuOpen && (
           <div className="absolute right-0 top-9 z-50 bg-white border border-surface-100 rounded-2xl shadow-xl overflow-hidden min-w-43.75">
-            {tab === "active" && isCompleted && (
+            {tab === "active" && isInGrading && (
               <button
                 onClick={() => { onGrade(task); setMenuOpen(false); }}
                 className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-status-success-600 hover:bg-status-success-50 transition-colors cursor-pointer"
@@ -344,7 +350,7 @@ function TaskRow({
             {tab === "active" && (
               <button
                 onClick={() => { onArchive(task); setMenuOpen(false); }}
-                className={`w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer ${isCompleted ? "border-t border-surface-100" : ""}`}
+                className={`w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer ${isInGrading ? "border-t border-surface-100" : ""}`}
               >
                 Arşive Taşı
               </button>

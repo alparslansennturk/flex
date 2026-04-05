@@ -5,7 +5,7 @@ import { X, GraduationCap, Zap, BookOpen, Star } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
 import { useScoring } from "@/app/context/ScoringContext";
-import { calcScore, getLevelXP } from "@/app/lib/scoring";
+import { calcScore, getLevelXP, computeStudentStats } from "@/app/lib/scoring";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -179,17 +179,20 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { settings } = useScoring();
+  const { settings, activeSeasonId } = useScoring();
 
-  const [visible, setVisible] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [email,   setEmail]   = useState("");
-  const [g1Code,  setG1Code]  = useState("");
-  const [g2Code,  setG2Code]  = useState("");
-  const [g1Grade, setG1Grade] = useState<GradeData | null>(null);
-  const [g2Grade, setG2Grade] = useState<GradeData | null>(null);
-  const [g1Stats, setG1Stats] = useState<ModuleStats>(EMPTY_STATS);
-  const [g2Stats, setG2Stats] = useState<ModuleStats>(EMPTY_STATS);
+  const [visible,        setVisible]        = useState(false);
+  const [loading,        setLoading]        = useState(false);
+  const [email,          setEmail]          = useState("");
+  const [g1Code,         setG1Code]         = useState("");
+  const [g2Code,         setG2Code]         = useState("");
+  const [g1Grade,        setG1Grade]        = useState<GradeData | null>(null);
+  const [g2Grade,        setG2Grade]        = useState<GradeData | null>(null);
+  const [g1Stats,        setG1Stats]        = useState<ModuleStats>(EMPTY_STATS);
+  const [g2Stats,        setG2Stats]        = useState<ModuleStats>(EMPTY_STATS);
+  const [computedScore,  setComputedScore]  = useState<number | null>(null);
+  const [computedXP,     setComputedXP]     = useState<number | null>(null);
+  const [computedTasks,  setComputedTasks]  = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -201,6 +204,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       setG1Code(""); setG2Code("");
       setG1Grade(null); setG2Grade(null);
       setG1Stats(EMPTY_STATS); setG2Stats(EMPTY_STATS);
+      setComputedScore(null); setComputedXP(null); setComputedTasks(null);
       setLoading(false);
     }
   }, [isOpen]);
@@ -219,6 +223,20 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       const sDoc  = await getDoc(doc(db, "students", student.id));
       const sData = sDoc.exists() ? (sDoc.data() as any) : {};
       const studentEmail = sData.email ?? "";
+
+      // Lig puanını Firestore'dan gelen gerçek gradedTasks ile hesapla
+      // (prop'taki score=0 veya eski değere bağımlı olmadan)
+      const { totalXP: cXP, completedTasks: cTasks } = computeStudentStats(
+        sData.gradedTasks,
+        sData.isScoreHidden,
+        activeSeasonId,
+      );
+      if (!cancelled) {
+        setComputedScore(calcScore(cXP, cTasks, settings));
+        setComputedXP(cXP);
+        setComputedTasks(cTasks);
+      }
+
       const groupId = sData.groupId as string | undefined;
       if (!groupId) { if (!cancelled) { setEmail(studentEmail); setLoading(false); } return; }
 
@@ -390,8 +408,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
   const safeGender = student.gender === "female" ? "female" : "male";
   const safeAvatar = student.avatarId && student.avatarId > 0 ? student.avatarId : 1;
   const medal      = MEDALS[student.rank];
-  const totalXP    = student.points ?? 0;
-  const totalTasks = student.completedTasks ?? 0;
+  const totalXP    = computedXP    ?? student.points    ?? 0;
+  const totalTasks = computedTasks ?? student.completedTasks ?? 0;
+  const displayScore = computedScore ?? student.score;
 
   // Yüzde: kazanılan XP / o modülde kazanılabilir maksimum XP
   // Arzu Alan 300/300 XP aldıysa → %100 gösterilmeli
@@ -453,7 +472,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
 
             {/* Lig Puanı */}
             <div className="shrink-0 text-right hidden sm:block">
-              <p className="text-[32px] font-black text-white tabular-nums leading-none">{Math.round(student.score)}</p>
+              <p className="text-[32px] font-black text-white tabular-nums leading-none">{Math.round(displayScore)}</p>
               <p className="text-[10px] text-base-primary-300 font-semibold">Lig Puanı</p>
             </div>
           </div>

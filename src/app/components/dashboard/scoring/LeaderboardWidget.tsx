@@ -55,17 +55,17 @@ function LeaderRow({ rank, name, sub, score, gender, avatarId, rankChange }: {
   const avatarUrl  = `/avatars/${safeGender}/${safeAvatar}.svg`;
 
   return (
-    <div className="flex items-center gap-3 px-2 py-2 -mx-2 rounded-xl hover:bg-surface-50 transition-colors cursor-pointer group">
+    <div className="flex items-center gap-3 px-2 py-0.5 -mx-2 rounded-xl hover:bg-surface-50 transition-colors cursor-pointer group">
       {/* Madalya + Sıra */}
       <div className="flex items-center shrink-0 w-11 gap-0.5">
-        <span className="text-[16px] leading-none">{MEDALS[rank - 1]}</span>
-        <span className={`text-[12px] font-bold ml-0.5 ${rank === 1 ? "text-[#FF8D28]" : "text-[#AEB4C0]"}`}>
-          {rank}.
+        <span className="text-[15px] leading-none w-5 inline-block">
+          {MEDALS[rank - 1] ?? <span className="text-[12px] font-bold text-[#AEB4C0]">#</span>}
         </span>
+        <span className={`text-[12px] font-bold ${rank === 1 ? "text-[#FF8D28]" : "text-[#AEB4C0]"}`}>{rank}.</span>
       </div>
 
       {/* Avatar */}
-      <div className="w-9 h-9 rounded-full border border-surface-200 p-0.5 overflow-hidden bg-surface-50 shrink-0">
+      <div className="w-8 h-8 rounded-full border border-surface-200 p-0.5 overflow-hidden bg-surface-50 shrink-0">
         <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
       </div>
 
@@ -159,7 +159,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         return (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0);
       });
 
-      setStudents(all.slice(0, 3));
+      setStudents(all.slice(0, 4));
       setLoading(false);
     });
   }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings, activeSeasonId]);
@@ -202,7 +202,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
             </p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-4">
             {students.map((s, i) => (
               <LeaderRow
                 key={s.id}

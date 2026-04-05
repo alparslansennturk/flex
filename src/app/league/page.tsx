@@ -15,7 +15,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useScoring } from "@/app/context/ScoringContext";
-import { computeStudentStats, calcScore, safe } from "@/app/lib/scoring";
+import { computeStudentStats, calcScore, safe, ScoringSettings } from "@/app/lib/scoring";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -543,8 +543,14 @@ function LeagueContent() {
   const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({});
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState<string | null>(null);
+  const [apiSettings,     setApiSettings]     = useState<ScoringSettings | null>(null);
+  const [apiSeasonId,     setApiSeasonId]     = useState<string | null>(null);
 
-  const { settings, activeSeasonId } = useScoring();
+  // ScoringContext: login olunca gerçek ayarlar gelir, logout'ta DEFAULT_SCORING (bonusMultiplier=1) kalır.
+  // API'den gelen ayarlar (admin SDK, auth gerektirmez) her zaman doğru — onları öncelik olarak kullan.
+  const { settings: ctxSettings, activeSeasonId: ctxSeasonId } = useScoring();
+  const settings       = apiSettings  ?? ctxSettings;
+  const activeSeasonId = apiSeasonId  ?? ctxSeasonId;
 
   // ── Veri çek (API route — Admin SDK, auth gerektirmez) ────────────────────
   useEffect(() => {
@@ -555,8 +561,11 @@ function LeagueContent() {
         if (!res.ok) throw new Error();
         return res.json();
       })
-      .then((data: { students: StudentData[]; tasks: TaskMeta[]; groups: GroupMeta[] }) => {
+      .then((data: { students: StudentData[]; tasks: TaskMeta[]; groups: GroupMeta[]; scoringSettings?: ScoringSettings; activeSeasonId?: string }) => {
         setRawStudents(data.students);
+
+        if (data.scoringSettings) setApiSettings(data.scoringSettings);
+        if (data.activeSeasonId)  setApiSeasonId(data.activeSeasonId);
 
         const tMap: Record<string, { endDate?: string; createdAt?: string; classId?: string }> = {};
         data.tasks.forEach(t => {

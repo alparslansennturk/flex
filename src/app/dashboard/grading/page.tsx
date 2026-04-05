@@ -12,7 +12,7 @@ import {
   ArrowLeft, CheckCircle2, Users, Zap, CalendarDays, AlertTriangle,
   ClipboardList, Award, Sparkles, ChevronRight, BookOpen, Archive,
   ChevronDown, ChevronUp, Trash2, Clock, RotateCcw, Eye, EyeOff,
-  GraduationCap,
+  GraduationCap, MoreVertical,
 } from "lucide-react";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
@@ -289,6 +289,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
   const [expandedId,   setExpandedId]   = useState<string | null>(null);
   const [detailMap,    setDetailMap]    = useState<Record<string, Student[]>>({});
   const [archivingId,  setArchivingId]  = useState<string | null>(null);
+  const [menuOpenId,   setMenuOpenId]   = useState<string | null>(null);
   const [showReset,    setShowReset]    = useState(false);
   const [resetScope,   setResetScope]   = useState<string>(""); // "" = tümü, grup kodu = sadece o grup
   const [myGroupCodes, setMyGroupCodes] = useState<string[]>([]);
@@ -533,17 +534,30 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
                         >
                           Detay {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                         </button>
-                        {/* Arşivle */}
-                        <button
-                          onClick={e => { e.stopPropagation(); handleArchive(task); }}
-                          disabled={archivingId === task.id}
-                          title="Arşive taşı"
-                          className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-300 hover:bg-status-danger-50 hover:text-status-danger-500 transition-all cursor-pointer disabled:opacity-50"
-                        >
-                          {archivingId === task.id
-                            ? <div className="w-3.5 h-3.5 border-2 border-surface-200 border-t-surface-500 rounded-full animate-spin" />
-                            : <Trash2 size={14} />}
-                        </button>
+                        {/* 3-nokta menüsü */}
+                        <div className="relative" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => setMenuOpenId(menuOpenId === task.id ? null : task.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-all cursor-pointer"
+                            title="Seçenekler"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                          {menuOpenId === task.id && (
+                            <div className="absolute right-0 top-9 z-50 bg-white border border-surface-100 rounded-2xl shadow-xl overflow-hidden min-w-36">
+                              <button
+                                onClick={() => { handleArchive(task); setMenuOpenId(null); }}
+                                disabled={archivingId === task.id}
+                                className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                {archivingId === task.id
+                                  ? <div className="w-3.5 h-3.5 border-2 border-surface-200 border-t-surface-500 rounded-full animate-spin" />
+                                  : <Archive size={13} />}
+                                Arşive Gönder
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -635,7 +649,9 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
   const [grades,           setGrades]           = useState<GradesMap>({});
   const [loading,          setLoading]          = useState(true);
   const [saving,           setSaving]           = useState(false);
+  const [completing,       setCompleting]       = useState(false);
   const [justSaved,        setJustSaved]        = useState(false);
+  const [justCompleted,    setJustCompleted]    = useState(false);
   const [wasAlreadyGraded, setWasAlreadyGraded] = useState(false);
   const [archiving,        setArchiving]        = useState(false);
   const [archived,         setArchived]         = useState(false);
@@ -699,9 +715,10 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
   };
 
   // ── Not kaydet — gradedTasks haritası yaklaşımı (unique görev, exploit-proof) ──
-  const handleSaveGrades = async () => {
+  const handleSaveGrades = async (complete = false) => {
     if (!task) return;
-    setSaving(true); setSaveError("");
+    if (complete) setCompleting(true); else setSaving(true);
+    setSaveError("");
 
     const baseXP = Math.round(getLevelXP(task.level, settings) * xpMultiplier);
 
@@ -749,7 +766,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
         touchedStudents.add(sid);
       });
 
-      batch.update(doc(db, "tasks", taskId), { isGraded: true, grades, gradedAt: serverTimestamp() });
+      batch.update(doc(db, "tasks", taskId), { grades, gradedAt: serverTimestamp(), ...(complete ? { isGraded: true } : {}) });
       await batch.commit();
 
       // scoreLogs'a kayıt at — XP alan her öğrenci için bir kayıt
@@ -810,15 +827,15 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
         await rankBatch.commit();
       }
 
-      setJustSaved(true);
-      setTask(p => p ? { ...p, isGraded: true } : p);
-
-      // İlk kez kaydediyorsa → tamamlananlar listesine git
-      if (!wasAlreadyGraded) {
+      if (complete) {
+        setTask(p => p ? { ...p, isGraded: true } : p);
+        setJustCompleted(true);
         setTimeout(() => router.push("/dashboard/grading?tab=done"), 900);
+      } else {
+        setJustSaved(true);
       }
     } catch { setSaveError("Kayıt sırasında hata oluştu."); }
-    finally { setSaving(false); }
+    finally { setSaving(false); setCompleting(false); }
   };
 
   const handleArchive = async () => {
@@ -995,16 +1012,16 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
                 <CheckCircle2 size={14} className="text-status-success-500" />
                 <span className="text-[13px] font-bold text-status-success-500">Ödev arşive taşındı. Yönlendiriliyor…</span>
               </div>
-            ) : justSaved && !wasAlreadyGraded ? (
-              <div className="flex items-center gap-2">
+            ) : justCompleted ? (
+              <div className="flex items-center gap-2 animate-in fade-in">
                 <CheckCircle2 size={14} className="text-status-success-500" />
-                <span className="text-[13px] font-bold text-status-success-500">Notlar kaydedildi.</span>
+                <span className="text-[13px] font-bold text-status-success-500">Tamamlandı!</span>
                 <span className="text-[13px] text-surface-400 ml-1">Tamamlananlar listesine yönlendiriliyor…</span>
               </div>
             ) : justSaved ? (
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-status-success-500" />
-                <span className="text-[13px] font-bold text-status-success-500">Notlar güncellendi.</span>
+                <span className="text-[13px] font-bold text-status-success-500">Notlar kaydedildi.</span>
               </div>
             ) : (
               <p className="text-[13px] text-surface-400">
@@ -1015,11 +1032,11 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {/* Notları Kaydet — arşivlenmedikçe her zaman görünür */}
-            {!archived && (
+            {/* Notları Kaydet — arşivlenmedikçe ve henüz tamamlanmadıkça görünür */}
+            {!archived && !justCompleted && (
               <button
-                onClick={handleSaveGrades}
-                disabled={saving}
+                onClick={() => handleSaveGrades(false)}
+                disabled={saving || completing}
                 className="flex items-center gap-2 h-11 px-6 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-sm"
               >
                 {saving
@@ -1029,16 +1046,16 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
               </button>
             )}
 
-            {/* Tamamla ve Arşive Gönder — sadece tamamlananlar'dan açıldığında (wasAlreadyGraded) */}
-            {wasAlreadyGraded && (
+            {/* Tamamla — sadece ilk kez notlandırılıyorsa (done tabından açılmadıysa) */}
+            {!archived && !justCompleted && !wasAlreadyGraded && (
               <button
-                onClick={handleArchive}
-                disabled={archiving || archived}
-                className="flex items-center gap-2 h-11 px-6 rounded-xl bg-designstudio-primary-500 text-white text-[13px] font-bold hover:bg-designstudio-primary-600 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-lg shadow-designstudio-primary-500/25"
+                onClick={() => handleSaveGrades(true)}
+                disabled={saving || completing}
+                className="flex items-center gap-2 h-11 px-6 rounded-xl bg-status-success-500 text-white text-[13px] font-bold hover:bg-status-success-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-sm"
               >
-                {archiving
+                {completing
                   ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />İşleniyor…</>
-                  : <><Archive size={14} />Tamamla ve Arşive Gönder</>
+                  : <><CheckCircle2 size={14} />Tamamla</>
                 }
               </button>
             )}
