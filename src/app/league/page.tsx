@@ -360,7 +360,10 @@ function GroupTable({ groups, groupsMap }: { groups: RankedGroup[]; groupsMap: R
               <tr key={group.code} className={`border-b border-surface-50 last:border-0 hover:bg-surface-50 transition-colors ${isTop3 ? "bg-surface-50/50" : ""}`}>
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
-                    {isTop3 && <span className="text-[14px] leading-none">{MEDALS[group.rank - 1]}</span>}
+                    {isTop3
+                      ? <span className="text-[14px] leading-none">{MEDALS[group.rank - 1]}</span>
+                      : <span className="text-[12px] font-bold text-text-tertiary">#</span>
+                    }
                     <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>{group.rank}.</span>
                   </div>
                 </td>
@@ -430,7 +433,8 @@ function LeaderTable({ students, groupsMap }: {
         </thead>
         <tbody>
           {students.map((student) => {
-            const isTop3 = student.rank <= 3;
+            const medal  = MEDALS[student.rank - 1];
+            const isTop3 = !!medal;
             return (
               <tr
                 key={student.id}
@@ -438,7 +442,10 @@ function LeaderTable({ students, groupsMap }: {
               >
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
-                    {isTop3 && <span className="text-[14px] leading-none">{MEDALS[student.rank - 1]}</span>}
+                    {isTop3
+                      ? <span className="text-[14px] leading-none">{medal}</span>
+                      : <span className="text-[12px] font-bold text-text-tertiary">#</span>
+                    }
                     <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>{student.rank}.</span>
                   </div>
                 </td>
@@ -458,7 +465,7 @@ function LeaderTable({ students, groupsMap }: {
                   <span className="text-[13px] font-medium text-text-tertiary">{groupsMap[student.groupCode] || "—"}</span>
                 </td>
                 <td className="px-6 py-3 text-right">
-                  <span className={`text-[15px] font-bold tabular-nums ${isTop3 && student.rank === 1 ? "text-[#FF8D28]" : "text-text-primary"}`}>
+                  <span className={`text-[15px] font-bold tabular-nums ${student.rank === 1 ? "text-[#FF8D28]" : "text-text-primary"}`}>
                     {Math.round(student.score)}
                   </span>
                 </td>
@@ -538,6 +545,7 @@ function LeagueContent() {
   const [selectedBranch,  setSelectedBranch]  = useState<string>(branchParam);
   const [scoreMode,       setScoreMode]       = useState<ScoreMode>("total");
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
+  const [sortAlpha,       setSortAlpha]       = useState(false);
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
   const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: string; classId?: string }>>({});
   const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({});
@@ -635,7 +643,9 @@ function LeagueContent() {
   const sortFn = (a: typeof withScores[0], b: typeof withScores[0]) => {
     const sd = b.score - a.score; if (sd !== 0) return sd;
     const pd = (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0); if (pd !== 0) return pd;
-    return (b.points ?? 0) - (a.points ?? 0);
+    const xd = (b.points ?? 0) - (a.points ?? 0); if (xd !== 0) return xd;
+    // Her şey eşitse alfabetik
+    return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
   };
 
   // Şube listesi (veriden dinamik)
@@ -655,9 +665,24 @@ function LeagueContent() {
 
   // ── Sıralı öğrenciler ─────────────────────────────────────────────────────
   const rankedStudents = useMemo<RankedStudent[]>(() => {
-    return [...filtered].sort(sortFn).map((s, i) => ({ ...s, rank: i + 1 }));
+    const sorted = [...filtered].sort(sortFn);
+    // Competition ranking: eşit skor+ceza+XP → aynı sıra (1,1,1,4)
+    const byScore = sorted.map((s, i) => {
+      let rank = i + 1;
+      for (let j = i - 1; j >= 0; j--) {
+        const prev = sorted[j];
+        if (
+          prev.score === s.score &&
+          (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) &&
+          (prev.points ?? 0) === (s.points ?? 0)
+        ) { rank = j + 1; } else { break; }
+      }
+      return { ...s, rank } as RankedStudent;
+    });
+    if (sortAlpha) return [...byScore].sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
+    return byScore;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered]);
+  }, [filtered, sortAlpha]);
 
   // ── Sıralı gruplar ────────────────────────────────────────────────────────
   const rankedGroups = useMemo<RankedGroup[]>(() => {
@@ -823,20 +848,39 @@ function LeagueContent() {
               </div>
 
               {viewMode === "students" && (
-                <div className="ml-auto flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-full p-1">
-                  {(["total", "monthly"] as ScoreMode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      onClick={() => setScoreMode(mode)}
-                      className={`text-[11px] font-semibold px-3 h-6 rounded-full transition-all cursor-pointer outline-none whitespace-nowrap ${
-                        scoreMode === mode
-                          ? "bg-white text-text-primary shadow-sm"
-                          : "text-text-tertiary hover:text-text-primary"
-                      }`}
-                    >
-                      {mode === "total" ? "Toplam" : "Aylık"}
-                    </button>
-                  ))}
+                <div className="ml-auto flex items-center gap-2">
+                  {/* Puan modu */}
+                  <div className="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-full p-1">
+                    {(["total", "monthly"] as ScoreMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setScoreMode(mode)}
+                        className={`text-[11px] font-semibold px-3 h-6 rounded-full transition-all cursor-pointer outline-none whitespace-nowrap ${
+                          scoreMode === mode
+                            ? "bg-white text-text-primary shadow-sm"
+                            : "text-text-tertiary hover:text-text-primary"
+                        }`}
+                      >
+                        {mode === "total" ? "Toplam" : "Aylık"}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Sıralama modu */}
+                  <div className="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-full p-1">
+                    {([false, true] as const).map((alpha) => (
+                      <button
+                        key={String(alpha)}
+                        onClick={() => setSortAlpha(alpha)}
+                        className={`text-[11px] font-semibold px-3 h-6 rounded-full transition-all cursor-pointer outline-none whitespace-nowrap ${
+                          sortAlpha === alpha
+                            ? "bg-white text-text-primary shadow-sm"
+                            : "text-text-tertiary hover:text-text-primary"
+                        }`}
+                      >
+                        {alpha ? "A–Z" : "Puan"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

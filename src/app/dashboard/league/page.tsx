@@ -418,7 +418,8 @@ function GroupTable({ groups, groupsMap }: { groups: RankedGroup[]; groupsMap: R
         </thead>
         <tbody>
           {groups.map((group) => {
-            const isTop3 = group.rank <= 3;
+            const medal  = MEDALS[group.rank - 1];
+            const isTop3 = !!medal;
             return (
               <tr
                 key={group.code}
@@ -426,7 +427,10 @@ function GroupTable({ groups, groupsMap }: { groups: RankedGroup[]; groupsMap: R
               >
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
-                    {isTop3 && <span className="text-[14px] leading-none">{MEDALS[group.rank - 1]}</span>}
+                    {isTop3
+                      ? <span className="text-[14px] leading-none">{medal}</span>
+                      : <span className="text-[12px] font-bold text-text-tertiary">#</span>
+                    }
                     <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>
                       {group.rank}.
                     </span>
@@ -517,7 +521,8 @@ function LeaderTable({
         </thead>
         <tbody>
           {students.map((student) => {
-            const isTop3 = student.rank <= 3;
+            const medal  = MEDALS[student.rank - 1];
+            const isTop3 = !!medal;
             return (
               <tr
                 key={student.id}
@@ -528,7 +533,10 @@ function LeaderTable({
               >
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
-                    {isTop3 && <span className="text-[14px] leading-none">{MEDALS[student.rank - 1]}</span>}
+                    {isTop3
+                      ? <span className="text-[14px] leading-none">{medal}</span>
+                      : <span className="text-[12px] font-bold text-text-tertiary">#</span>
+                    }
                     <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>
                       {student.rank}.
                     </span>
@@ -848,6 +856,20 @@ export default function LeaguePage() {
     return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
   };
 
+  // Competition ranking: eşit skor+ceza+XP → aynı sıra (1,1,1,4)
+  function competitionRank<T extends { score: number; latePenaltyTotal?: number; points?: number }>(sorted: T[]): (T & { rank: number })[] {
+    return sorted.map((s, i) => {
+      let rank = i + 1;
+      for (let j = i - 1; j >= 0; j--) {
+        const prev = sorted[j];
+        if (prev.score === s.score && (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) && (prev.points ?? 0) === (s.points ?? 0)) {
+          rank = j + 1;
+        } else { break; }
+      }
+      return { ...s, rank };
+    });
+  }
+
   // ── Tablo sıralaması (tüm filtreleri takip eder) ──────────────────────────
   const rankedStudents = useMemo<RankedStudent[]>(() => {
     let filtered: typeof withScores;
@@ -866,7 +888,7 @@ export default function LeaguePage() {
         ? withScores.filter(s => s.branch === branchSubFilter)
         : withScores;
     }
-    return [...filtered].sort(sortFn).map((s, i) => ({ ...s, rank: i + 1 }));
+    return competitionRank([...filtered].sort(sortFn));
   }, [withScores, viewMode, filterMode, trainerGroupFilter, branchSubFilter, myGroupCodes]);
 
   // ── Podyum öğrencileri (mod düzeyinde, spesifik grup takip etmez) ─────────
@@ -881,7 +903,7 @@ export default function LeaguePage() {
         ? withScores.filter(s => s.branch === branchSubFilter)
         : withScores;
     }
-    return [...filtered].sort(sortFn).map((s, i) => ({ ...s, rank: i + 1 }));
+    return competitionRank([...filtered].sort(sortFn));
   }, [withScores, filterMode, branchSubFilter, myGroupCodes]);
 
   // ── Grup sıralaması (filterMode + branchSubFilter + myGroupCodes takip eder) ──

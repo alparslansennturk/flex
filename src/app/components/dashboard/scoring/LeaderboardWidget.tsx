@@ -19,11 +19,11 @@ interface StudentRank {
   gradedTasks?: Record<string, { xp: number; penalty: number }>;
   isScoreHidden?: boolean;
   avatarId?: number;
-  rankChange?: number;      // +N = yükseldi, -N = düştü, 0 = aynı
-  // computed at runtime — not read directly from Firestore
+  rankChange?: number;
   points?: number;
   completedTasks?: number;
   latePenaltyTotal?: number;
+  rank?: number;
 }
 
 const MEDALS    = ["🥇", "🥈", "🥉"];
@@ -154,12 +154,24 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
       });
 
       all.sort((a, b) => {
-        const diff = (b.points ?? 0) - (a.points ?? 0);
-        if (diff !== 0) return diff;
-        return (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0);
+        const sd = (b.points ?? 0) - (a.points ?? 0); if (sd !== 0) return sd;
+        const pd = (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0); if (pd !== 0) return pd;
+        return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
       });
 
-      setStudents(all.slice(0, 4));
+      // Competition ranking: eşit skor+ceza → aynı rank (1,1,1,4)
+      const ranked = all.map((s, i) => {
+        let rank = i + 1;
+        for (let j = i - 1; j >= 0; j--) {
+          const prev = all[j];
+          if ((prev.points ?? 0) === (s.points ?? 0) && (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0)) {
+            rank = j + 1;
+          } else { break; }
+        }
+        return { ...s, rank };
+      });
+
+      setStudents(ranked.slice(0, 4));
       setLoading(false);
     });
   }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings, activeSeasonId]);
@@ -203,10 +215,10 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
           </div>
         ) : (
           <div className="space-y-4">
-            {students.map((s, i) => (
+            {students.map((s) => (
               <LeaderRow
                 key={s.id}
-                rank={i + 1}
+                rank={s.rank ?? 1}
                 name={`${s.name} ${s.lastName}`}
                 sub={viewMode === "Tümü" ? s.branch : s.groupCode}
                 score={s.points ?? 0}
