@@ -265,7 +265,13 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
   const isNoDate    = !task.endDate;
   const isCompleted   = task.status === "completed";
   const needsGrading  = isCompleted && !task.isGraded;
+  const isFullyDone   = isCompleted && !!task.isGraded;
   const isDisabled    = !isCompleted && (isBorrowed || isExpired || isNoDate);
+
+  // Notlandırma tamamlandıysa kart şablon (ghost) pozisyonuna döner
+  if (isFullyDone) {
+    return <GhostParkourCard task={task} canManage={canManage} onActivate={onActivateBorrowed} />;
+  }
   const style       = PARKOUR_STYLE[task.type] ?? PARKOUR_STYLE.odev;
   const iconNode    = getIcon(task.icon, task.type, 22);
 
@@ -394,12 +400,21 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
             {needsGrading && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             )}
-            <button
-              onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
-              className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
-            >
-              Not Girişi Yap <ChevronRight size={16} />
-            </button>
+            {task.isGraded ? (
+              <button
+                disabled
+                className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed"
+              >
+                Tamamlandı
+              </button>
+            ) : (
+              <button
+                onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
+                className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
+              >
+                Not Girişi Yap <ChevronRight size={16} />
+              </button>
+            )}
           </div>
         ) : (
           <button
@@ -667,6 +682,7 @@ export default function DesignParkour() {
   const activeTasks = allTasks.filter(t =>
     t.isActive === true && !t.isHidden &&
     t.status !== "archived" &&
+    !t.isGraded &&
     myUid != null &&
     (t.ownedBy === myUid || (!t.ownedBy && t.createdBy === myUid))
   );
@@ -754,12 +770,21 @@ export default function DesignParkour() {
     return Number(aPassive) - Number(bPassive);
   });
 
-  // Ghost slot: henüz başlatılmamış şablonlar
+  // Ghost slot: henüz başlatılmamış şablonlar (rastgele seçilir)
   const myActiveTemplateIds = new Set(
     activeTasks.filter(t => t.templateId).map(t => t.templateId!)
   );
-  const ghostCount       = Math.max(0, 3 - activeTasks.length);
-  const ghostTasks       = templates.filter(t => !myActiveTemplateIds.has(t.id) && !t.isHidden).slice(0, ghostCount);
+  const ghostCount = Math.max(0, 3 - activeTasks.length);
+  const availableGhosts = templates.filter(t => !myActiveTemplateIds.has(t.id) && !t.isHidden);
+  // Şablon listesi değiştiğinde bir kez karıştır (her render'da değişmemesi için id'ye göre sabit sıralama)
+  const ghostTasks = [...availableGhosts]
+    .sort((a, b) => {
+      // Basit deterministik karıştırma: id'lerin toplamından türetilen sabit sıra
+      const ha = Array.from(a.id).reduce((s, c) => s + c.charCodeAt(0), 0);
+      const hb = Array.from(b.id).reduce((s, c) => s + c.charCodeAt(0), 0);
+      return (ha % 7) - (hb % 7);
+    })
+    .slice(0, ghostCount);
   const placeholderCount = Math.max(0, ghostCount - ghostTasks.length);
 
   return (

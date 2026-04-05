@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-03 (v9)
+> Son güncelleme: 2026-04-06 (v10)
 
 ---
 
@@ -627,4 +627,47 @@
 
 **Etkilenen dosya:**
 - `src/app/services/emailService.ts`
+
+---
+
+### 34. Görev Tamamlama Sonrası DesignParkour Kart Durumu
+
+**Davranış değişikliği:** Not girişinden "Tamamla" butonuna basıldıktan sonra (`isGraded=true`) ödev kartı artık pasif şablon (GhostParkourCard) pozisyonuna döner.
+
+- `TaskParkourCard` içinde `isFullyDone = isCompleted && !!task.isGraded` kontrolü eklendi
+- `isFullyDone` ise erken return ile `<GhostParkourCard onActivate={onActivateBorrowed} />` render edilir
+- `activeTasks` filtresine `!t.isGraded` eklendi — tamamlanmış görevler slot sayısını etkilemez
+- Ghost slot hesabı: `Math.max(0, 3 - activeTasks.length)` — tamamlananlar çıkınca boş slotlar şablonlarla doldurulur
+- Ghost şablon seçimi deterministik hash sıralamasıyla rastgele görünür (id charCode % 7)
+
+**Etkilenen dosya:**
+- `src/app/components/dashboard/scoring/DesignParkour.tsx`
+
+---
+
+### 35. Puan Formülüne Görev Artış Bonusu
+
+**Yeni formül:**
+```
+averageXP = totalXP / max(completedTasks, minTaskDivisor)
+bonus     = 1 + (log_base(tasks) × bonusMultiplier)
+finalScore = averageXP × bonus + completedTasks × 3
+```
+
+**Amaç:** Görev sayısı arttıkça puan her zaman en az 3 puan artmalı.
+
+**Düzeltmeler:**
+- `src/app/lib/scoring.ts` — `calcScore()` sonuna `+ completedTasks * 3` eklendi
+- `src/app/components/dashboard/scoring/ScoringSettingsPanel.tsx` — Formül gösteriminde `+ tasks × 3` satırı eklendi; bonus önizleme tablosu `[1,3,5,10,20]` → `1–10` arası her görev (5×2 grid)
+
+---
+
+### 36. Lig Tabloları — Sıra Numarası Hizalama
+
+**Sorun:** Madalya emojisi ile `#` karakteri farklı genişlikte olduğundan sıra numaraları aynı x konumunda değildi.
+
+**Düzeltme:** Her iki tabloda (gruplar + öğrenciler) madalya/`#` slotuna `w-5 shrink-0 flex justify-center` verilerek sabit genişlik sağlandı.
+
+**Etkilenen dosya:**
+- `src/app/dashboard/league/page.tsx`
 

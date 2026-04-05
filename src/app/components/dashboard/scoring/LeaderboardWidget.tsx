@@ -159,13 +159,15 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
       });
 
-      // Competition ranking: eşit skor+ceza → aynı rank (1,1,1,4)
+      // Competition ranking: eşitlik sadece ilk 3 için, 4. ve sonrası sıralı numara
       const ranked = all.map((s, i) => {
         let rank = i + 1;
         for (let j = i - 1; j >= 0; j--) {
+          const prevRank = j + 1;
+          if (prevRank > 3) break;
           const prev = all[j];
           if ((prev.points ?? 0) === (s.points ?? 0) && (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0)) {
-            rank = j + 1;
+            rank = prevRank;
           } else { break; }
         }
         return { ...s, rank };

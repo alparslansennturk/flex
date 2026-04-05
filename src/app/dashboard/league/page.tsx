@@ -427,10 +427,12 @@ function GroupTable({ groups, groupsMap }: { groups: RankedGroup[]; groupsMap: R
               >
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
-                    {isTop3
-                      ? <span className="text-[14px] leading-none">{medal}</span>
-                      : <span className="text-[12px] font-bold text-text-tertiary">#</span>
-                    }
+                    <span className="w-5 shrink-0 flex justify-center">
+                      {isTop3
+                        ? <span className="text-[14px] leading-none">{medal}</span>
+                        : <span className="text-[12px] font-bold text-text-tertiary">#</span>
+                      }
+                    </span>
                     <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>
                       {group.rank}.
                     </span>
@@ -533,10 +535,12 @@ function LeaderTable({
               >
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
-                    {isTop3
-                      ? <span className="text-[14px] leading-none">{medal}</span>
-                      : <span className="text-[12px] font-bold text-text-tertiary">#</span>
-                    }
+                    <span className="w-5 shrink-0 flex justify-center">
+                      {isTop3
+                        ? <span className="text-[14px] leading-none">{medal}</span>
+                        : <span className="text-[12px] font-bold text-text-tertiary">#</span>
+                      }
+                    </span>
                     <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>
                       {student.rank}.
                     </span>
@@ -856,14 +860,16 @@ export default function LeaguePage() {
     return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
   };
 
-  // Competition ranking: eşit skor+ceza+XP → aynı sıra (1,1,1,4)
+  // Competition ranking: eşitlik sadece ilk 3 (podyum) için, 4. ve sonrası sıralı numara
   function competitionRank<T extends { score: number; latePenaltyTotal?: number; points?: number }>(sorted: T[]): (T & { rank: number })[] {
     return sorted.map((s, i) => {
       let rank = i + 1;
       for (let j = i - 1; j >= 0; j--) {
+        const prevRank = j + 1;
+        if (prevRank > 3) break; // ilk 3 dışında eşitlik uygulanmaz
         const prev = sorted[j];
         if (prev.score === s.score && (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) && (prev.points ?? 0) === (s.points ?? 0)) {
-          rank = j + 1;
+          rank = prevRank;
         } else { break; }
       }
       return { ...s, rank };

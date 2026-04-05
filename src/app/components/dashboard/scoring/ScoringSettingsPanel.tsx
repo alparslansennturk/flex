@@ -168,16 +168,16 @@ export default function ScoringSettingsPanel() {
                 <strong className="text-base-primary-900">{local.leaderboard.bonusMultiplier}</strong>)
                 <br />
                 score = XP ÷ max(tasks,{" "}
-                <strong className="text-base-primary-900">{local.leaderboard.minTaskDivisor}</strong>) × bonus
+                <strong className="text-base-primary-900">{local.leaderboard.minTaskDivisor}</strong>) × bonus + tasks × 3
               </p>
-              {/* Mini canlı tablo */}
+              {/* Mini canlı tablo — 1'den 10'a kadar her görev */}
               <div className="pt-1 border-t border-base-primary-100">
-                <p className="text-[10px] font-bold text-base-primary-400 uppercase tracking-wider mb-1.5">Görev → Bonus Önizleme</p>
-                <div className="flex gap-3">
-                  {[1, 3, 5, 10, 20].map(n => (
-                    <div key={n} className="text-center">
-                      <p className="text-[10px] text-base-primary-400 font-medium">{n} görev</p>
-                      <p className="text-[13px] font-bold text-base-primary-800">
+                <p className="text-[10px] font-bold text-base-primary-400 uppercase tracking-wider mb-1.5">Görev Katsayısı Önizleme (1–10)</p>
+                <div className="grid grid-cols-5 gap-x-2 gap-y-2">
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                    <div key={n} className="flex items-center justify-between bg-white rounded-lg px-2 py-1 border border-base-primary-100">
+                      <p className="text-[10px] text-base-primary-400 font-semibold">{n} görev</p>
+                      <p className="text-[11px] font-bold text-base-primary-800">
                         ×{calcTaskBonus(n, local.leaderboard.logBase, local.leaderboard.bonusMultiplier).toFixed(2)}
                       </p>
                     </div>

@@ -97,7 +97,8 @@ export function calcTaskBonus(
 }
 
 /**
- * Temel skor = (totalXP / max(tasks, minTaskDivisor)) × taskBonus
+ * Temel skor = (totalXP / max(tasks, minTaskDivisor)) × taskBonus + (completedTasks × 3)
+ * Son terim: görev sayısı arttıkça puan her zaman az da olsa artar.
  * settings opsiyonel — verilmezse DEFAULT_SCORING kullanılır
  */
 export function calcScore(
@@ -107,7 +108,7 @@ export function calcScore(
 ): number {
   const lb = settings?.leaderboard ?? DEFAULT_SCORING.leaderboard;
   const avg = totalXP / Math.max(completedTasks, lb.minTaskDivisor);
-  return safe(avg * calcTaskBonus(completedTasks, lb.logBase, lb.bonusMultiplier));
+  return safe(avg * calcTaskBonus(completedTasks, lb.logBase, lb.bonusMultiplier) + completedTasks * 3);
 }
 
 /** Final skor: %70 genel + %30 son 30 gün */

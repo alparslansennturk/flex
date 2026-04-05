@@ -360,10 +360,12 @@ function GroupTable({ groups, groupsMap }: { groups: RankedGroup[]; groupsMap: R
               <tr key={group.code} className={`border-b border-surface-50 last:border-0 hover:bg-surface-50 transition-colors ${isTop3 ? "bg-surface-50/50" : ""}`}>
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
-                    {isTop3
-                      ? <span className="text-[14px] leading-none">{MEDALS[group.rank - 1]}</span>
-                      : <span className="text-[12px] font-bold text-text-tertiary">#</span>
-                    }
+                    <span className="w-5 shrink-0 flex justify-center">
+                      {isTop3
+                        ? <span className="text-[14px] leading-none">{MEDALS[group.rank - 1]}</span>
+                        : <span className="text-[12px] font-bold text-text-tertiary">#</span>
+                      }
+                    </span>
                     <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>{group.rank}.</span>
                   </div>
                 </td>
@@ -442,10 +444,12 @@ function LeaderTable({ students, groupsMap }: {
               >
                 <td className="px-8 py-3">
                   <div className="flex items-center gap-1.5">
-                    {isTop3
-                      ? <span className="text-[14px] leading-none">{medal}</span>
-                      : <span className="text-[12px] font-bold text-text-tertiary">#</span>
-                    }
+                    <span className="w-5 shrink-0 flex justify-center">
+                      {isTop3
+                        ? <span className="text-[14px] leading-none">{medal}</span>
+                        : <span className="text-[12px] font-bold text-text-tertiary">#</span>
+                      }
+                    </span>
                     <span className={`text-[14px] font-bold tabular-nums ${isTop3 ? "text-text-secondary" : "text-text-tertiary"}`}>{student.rank}.</span>
                   </div>
                 </td>
@@ -666,16 +670,18 @@ function LeagueContent() {
   // ── Sıralı öğrenciler ─────────────────────────────────────────────────────
   const rankedStudents = useMemo<RankedStudent[]>(() => {
     const sorted = [...filtered].sort(sortFn);
-    // Competition ranking: eşit skor+ceza+XP → aynı sıra (1,1,1,4)
+    // Competition ranking: eşitlik sadece ilk 3 (podyum) için, 4. ve sonrası sıralı numara
     const byScore = sorted.map((s, i) => {
       let rank = i + 1;
       for (let j = i - 1; j >= 0; j--) {
         const prev = sorted[j];
+        const prevRank = j + 1;
+        if (prevRank > 3) break; // ilk 3 dışında eşitlik uygulanmaz
         if (
           prev.score === s.score &&
           (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) &&
           (prev.points ?? 0) === (s.points ?? 0)
-        ) { rank = j + 1; } else { break; }
+        ) { rank = prevRank; } else { break; }
       }
       return { ...s, rank } as RankedStudent;
     });
