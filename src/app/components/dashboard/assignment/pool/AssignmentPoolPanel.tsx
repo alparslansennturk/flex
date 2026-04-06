@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+
 import { POOL_LIST, type PoolKey, type PoolMeta } from "./poolTypes";
 import CollagePoolPanel from "./CollagePoolPanel";
 import BookPoolPanel from "./BookPoolPanel";
@@ -15,16 +16,17 @@ function PoolNavItem({
   active: boolean;
   onClick: () => void;
 }) {
+  const Icon = pool.icon;
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all cursor-pointer ${
+      className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl text-left transition-all cursor-pointer ${
         active
           ? "bg-base-primary-900 text-white shadow-sm"
           : "hover:bg-surface-100 text-surface-700"
       }`}
     >
-      <span className="text-xl shrink-0">{pool.icon}</span>
+      <Icon size={18} className={`shrink-0 mt-0.5 ${active ? "text-white/80" : "text-surface-500"}`} />
       <div className="flex-1 min-w-0">
         <p className={`text-[13px] font-bold leading-none mb-0.5 ${active ? "text-white" : "text-text-primary"}`}>
           {pool.label}
@@ -34,7 +36,7 @@ function PoolNavItem({
         </p>
       </div>
       {active && (
-        <svg className="w-4 h-4 shrink-0 text-white/60" viewBox="0 0 20 20" fill="currentColor">
+        <svg className="w-4 h-4 shrink-0 mt-0.5 text-white/60" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
         </svg>
       )}
@@ -76,7 +78,7 @@ export default function AssignmentPoolPanel() {
       {/* Sağ — seçilen ödevin havuzu */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-5">
-          <span className="text-2xl">{current.icon}</span>
+          {React.createElement(current.icon, { size: 22, className: "text-surface-500 shrink-0" })}
           <div>
             <h2 className="text-[18px] font-bold text-text-primary leading-none">{current.label}</h2>
             <p className="text-[12px] text-surface-400 mt-0.5">{current.description}</p>

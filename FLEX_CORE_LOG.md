@@ -403,10 +403,10 @@
   - Güvenlik: `Authorization: Bearer ${CRON_SECRET}` header kontrolü (Vercel otomatik ekler)
   - Türkiye saati: `UTC+3` offset ile `trDateString()` hesabı
 
-**Eksik (yapılacak):**
-- `vercel.json` oluşturulacak: `{ "crons": [{ "path": "/api/cron/deadline-reminder", "schedule": "0 6 * * *" }] }` → 09:00 Istanbul = 06:00 UTC
-- Vercel Dashboard → Environment Variables → `CRON_SECRET=<rastgele-string>` eklenecek
-- `vercel.json` Vercel'e push edilince cron otomatik aktif olur
+**Durum: Tamamlandı**
+- `vercel.json` mevcut: `deadline-reminder` (her gün 06:00 UTC) + `monthly-winner` (her ayın 1'i 06:00 UTC)
+- `CRON_SECRET` Vercel Dashboard'a eklendi
+- Cron aktif
 
 ---
 

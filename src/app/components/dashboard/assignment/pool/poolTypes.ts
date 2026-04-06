@@ -1,3 +1,6 @@
+import type { LucideIcon } from "lucide-react";
+import { Layers, BookOpen, Smartphone } from "lucide-react";
+
 // ─── Firestore lottery_configs doküman tipleri ─────────────────────────────
 
 export interface CollageItem {
@@ -76,7 +79,7 @@ export interface PoolMeta {
   key: PoolKey;
   label: string;
   description: string;
-  icon: string;
+  icon: LucideIcon;
   firestoreId: string;
 }
 
@@ -85,21 +88,21 @@ export const POOL_LIST: PoolMeta[] = [
     key: "collage",
     label: "Kolaj Bahçesi",
     description: "Gök, Yer, Obje kategorilerinden oluşan görsel havuz",
-    icon: "🌿",
+    icon: Layers,
     firestoreId: "collage",
   },
   {
     key: "book",
     label: "Kitap Seçimi",
     description: "Öğrencilere çekilişle dağıtılan kitap havuzu",
-    icon: "📚",
+    icon: BookOpen,
     firestoreId: "book",
   },
   {
     key: "socialMedia",
     label: "Sosyal Medya",
     description: "Marka, sektör ve format havuzu",
-    icon: "📱",
+    icon: Smartphone,
     firestoreId: "socialMedia",
   },
 ];

@@ -29,8 +29,34 @@ function cn(...inputs: (string | false | null | undefined)[]) {
 
 // ─── Carousel sabitleri ───────────────────────────────────────────────────────
 
-const BOOK_WIDTH    = 160;
 const VISIBLE_BOOKS = 6;
+
+// ─── Ekran boyutuna göre carousel sabitleri ───────────────────────────────────
+function useCarouselSize() {
+  const [isLarge, setIsLarge] = useState(
+    typeof window !== "undefined" ? window.innerWidth >= 1920 : false
+  );
+  useEffect(() => {
+    const update = () => setIsLarge(window.innerWidth >= 1920);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return {
+    BOOK_WIDTH:       isLarge ? 160 : 120,
+    carouselHeight:   isLarge ? 320 : 230,
+    carouselPadding:  isLarge ? "p-8" : "p-5",
+    gamepadPaddingTop:  isLarge ? 64  : 32,
+    gamepadPaddingBot:  isLarge ? 32  : 24,
+    nameMarginTop:    isLarge ? 32  : 12,
+    nameMarginBottom: isLarge ? 32  : 16,
+    nameFontSize:     isLarge ? 44  : 34,
+    bottomBarHeight:  isLarge ? 88  : 64,
+    resultTitleCls:   isLarge ? "text-4xl md:text-5xl" : "text-2xl md:text-3xl",
+    resultAuthorCls:  isLarge ? "text-xl" : "text-base",
+    resultSpaceCls:   isLarge ? "space-y-3" : "space-y-2",
+    resultMtCls:      isLarge ? "mt-8" : "mt-4",
+  };
+}
 
 // ─── BookCover paleti (test-carousel renkleri — döngüyle kullanılır) ──────────
 
@@ -126,15 +152,18 @@ function BookCover({
 // ─── BookCarousel — test-carousel görsel + offset animasyonu ─────────────────
 
 function BookCarousel({
-  allBooks, winnerBook, onSpinComplete, spinDone, revealed,
+  allBooks, winnerBook, onSpinComplete, spinDone, revealed, bookWidth, carouselHeight, carouselPadding,
 }: {
   allBooks: BookItem[];
   winnerBook: BookItem;
   onSpinComplete: () => void;
   spinDone: boolean;
   revealed: boolean;
+  bookWidth: number;
+  carouselHeight: number;
+  carouselPadding: string;
 }) {
-  const TOTAL_WIDTH = allBooks.length * BOOK_WIDTH;
+  const TOTAL_WIDTH = allBooks.length * bookWidth;
 
   const [offset,          setOffset]          = useState(TOTAL_WIDTH * 2);
   const [spinStatus,      setSpinStatus]      = useState<"spinning" | "slowing" | "stopped">("spinning");
@@ -143,7 +172,7 @@ function BookCarousel({
   const animationRef  = useRef<number | null>(null);
   const startTimeRef  = useRef<number>(0);
   const viewportRef   = useRef<HTMLDivElement>(null);
-  const [viewportWidth, setViewportWidth] = useState(VISIBLE_BOOKS * BOOK_WIDTH + 100);
+  const [viewportWidth, setViewportWidth] = useState(VISIBLE_BOOKS * bookWidth + 100);
 
   const coverBooks = useMemo(() => toCoverBooks(allBooks), [allBooks]);
   const extendedBooks = useMemo(
@@ -170,7 +199,7 @@ function BookCarousel({
   useEffect(() => {
     const startOffset   = TOTAL_WIDTH * 2;
     const fullRotations = 3;
-    const targetOffset  = (Math.floor(startOffset / TOTAL_WIDTH) + fullRotations + 1) * TOTAL_WIDTH + winnerIdx * BOOK_WIDTH;
+    const targetOffset  = (Math.floor(startOffset / TOTAL_WIDTH) + fullRotations + 1) * TOTAL_WIDTH + winnerIdx * bookWidth;
     const totalDuration = 4800;
     startTimeRef.current = performance.now();
 
@@ -185,7 +214,7 @@ function BookCarousel({
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
-        const finalSnapped = Math.round(targetOffset / BOOK_WIDTH) * BOOK_WIDTH;
+        const finalSnapped = Math.round(targetOffset / bookWidth) * bookWidth;
         let normalized = finalSnapped;
         while (normalized >= TOTAL_WIDTH * 3) normalized -= TOTAL_WIDTH;
         while (normalized < TOTAL_WIDTH * 2)  normalized += TOTAL_WIDTH;
@@ -206,11 +235,11 @@ function BookCarousel({
   }, []);
 
   const isSpinning = spinStatus === "spinning" || spinStatus === "slowing";
-  // px-12 = 48px padding, kitap merkezi = 48 + (BOOK_WIDTH-16)/2 = 120px
-  const translateX = viewportWidth / 2 - 120 - offset;
+  // paddingLeft=48, kitap merkezi = 48 + (bookWidth-16)/2
+  const translateX = viewportWidth / 2 - (48 + (bookWidth - 16) / 2) - offset;
 
   return (
-    <div className="relative w-full rounded-2xl border border-white/10 bg-black/40 p-8 shadow-2xl backdrop-blur-sm">
+    <div className={`relative w-full rounded-2xl border border-white/10 bg-black/40 ${carouselPadding} shadow-2xl backdrop-blur-sm`}>
       {/* Center indicator — top */}
       <div className="absolute left-1/2 top-0 z-40 -translate-x-1/2 -translate-y-1">
         <div className="size-0 border-x-8 border-t-8 border-x-transparent border-t-amber-400" />
@@ -223,14 +252,14 @@ function BookCarousel({
       {/* Center highlight lines */}
       <div
         className="pointer-events-none absolute inset-y-0 left-1/2 z-30 -translate-x-1/2 border-x-2 border-amber-400/30"
-        style={{ width: BOOK_WIDTH - 16 }}
+        style={{ width: bookWidth - 16 }}
       />
 
       {/* Books viewport */}
       <div
         ref={viewportRef}
         className="relative mx-auto overflow-hidden rounded-lg bg-gradient-to-b from-slate-800/50 to-slate-900/50"
-        style={{ width: "100%", maxWidth: `${VISIBLE_BOOKS * BOOK_WIDTH + 100}px`, height: "320px" }}
+        style={{ width: "100%", maxWidth: `${VISIBLE_BOOKS * bookWidth + 100}px`, height: `${carouselHeight}px` }}
       >
         {/* Books strip */}
         <div
@@ -246,7 +275,7 @@ function BookCarousel({
                 key={`${book.id}-${index}`}
                 className={cn("flex-shrink-0 transition-transform", isCenter && "z-50 scale-125")}
                 style={{
-                  width: `${BOOK_WIDTH - 16}px`,
+                  width: `${bookWidth - 16}px`,
                   transitionDuration: isCenter ? "500ms" : "0ms",
                   transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
                 }}
@@ -636,6 +665,7 @@ function BookResultModal({
 
 export default function BookGameScreen({ task, students }: { task: TaskData; students: Student[] }) {
   const router = useRouter();
+  const sz = useCarouselSize();
 
   const [pool,        setPool]        = useState<BookPool | null>(null);
   const [poolLoading, setPoolLoading] = useState(true);
@@ -911,9 +941,9 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         <div style={{
           flex: 1, display: "flex", flexDirection: "column",
           alignItems: "center",
-          paddingTop: 64, paddingBottom: 32,
+          paddingTop: sz.gamepadPaddingTop, paddingBottom: sz.gamepadPaddingBot,
           paddingLeft: 48, paddingRight: 48,
-          gap: 16, overflowY: "auto",
+          gap: 12, overflowY: "auto",
         }}>
 
           {/* IDLE */}
@@ -958,7 +988,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           {phase === "ready" && selectedStudentId && (
             <>
              {/* Öğrenci ismi */}
-              <div style={{ textAlign: "center", marginTop: 32, marginBottom: 32 }}> {/* 60 yerine 32 yaptık */}
+              <div style={{ textAlign: "center", marginTop: sz.nameMarginTop, marginBottom: sz.nameMarginBottom }}>
                 <p style={{
                   fontSize: 11, fontWeight: 700, letterSpacing: "0.45em",
                   textTransform: "uppercase", color: "rgba(255,255,255,0.4)",
@@ -967,7 +997,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                   Kitap Alacak Katılımcı
                 </p>
                 <p style={{
-                  fontSize:      44,
+                  fontSize:      sz.nameFontSize,
                   fontWeight:    900,
                   letterSpacing: "-0.025em",
                   opacity:       nameVisible ? 1 : 0,
@@ -996,28 +1026,31 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                   onSpinComplete={handleSpinComplete}
                   spinDone={spinDone}
                   revealed={winnerRevealed}
+                  bookWidth={sz.BOOK_WIDTH}
+                  carouselHeight={sz.carouselHeight}
+                  carouselPadding={sz.carouselPadding}
                 />
               )}
 
               {/* Seçilen Kitap — test-carousel Selected book info birebir */}
               <div className={cn(
-                "mt-8 text-center transition-all duration-700",
+                sz.resultMtCls + " text-center transition-all duration-700",
                 showCarousel && spinDone && winnerRevealed
                   ? "translate-y-0 opacity-100"
                   : "pointer-events-none translate-y-8 opacity-0"
               )}>
                 {currentBook && (
-                  <div className="space-y-3">
-                    <span className="text-sm uppercase tracking-widest text-amber-400">
+                  <div className={sz.resultSpaceCls}>
+                    <span className="text-xs uppercase tracking-widest text-amber-400">
                       Seçilen Kitap
                     </span>
-                    <h2 className="text-4xl font-semibold text-white md:text-5xl">
+                    <h2 className={cn(sz.resultTitleCls, "font-semibold text-white")}>
                       {currentBook.title}
                     </h2>
-                    <p className="text-xl text-white/60">
+                    <p className={cn(sz.resultAuthorCls, "text-white/60")}>
                       {currentBook.author}
                     </p>
-                    <span className="mt-3 inline-block rounded-full bg-white/10 px-5 py-1.5 text-base text-white/80">
+                    <span className="mt-2 inline-block rounded-full bg-white/10 px-4 py-1 text-sm text-white/80">
                       {currentBook.genre}
                     </span>
                   </div>
@@ -1095,11 +1128,11 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
 
         {/* Alt buton */}
         <div style={{
-          padding: "20px 40px",
+          padding: "14px 40px",
           borderTop: "1px solid rgba(255,255,255,0.07)",
           background: "transparent",
           display: "flex", justifyContent: "center", alignItems: "center",
-          minHeight: 88,
+          minHeight: sz.bottomBarHeight,
         }}>
           {phase === "idle" && !allDone && !allGroupDone && (
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
