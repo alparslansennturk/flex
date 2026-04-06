@@ -20,7 +20,7 @@ import AssignmentPoolPanel from "./pool/AssignmentPoolPanel";
 type AdminTab = "templates" | "active" | "archive" | "scoring" | "pools";
 
 const GROUPS = ["Grup 101", "Grup 102", "Grup 103"];
-const LEVELS = ["Seviye-1", "Seviye-2", "Seviye-3", "Seviye-4"];
+const LEVELS = ["Seviye 1", "Seviye 2", "Seviye 3"];
 
 // ─── Görev hızlı düzenleme modalı (grup / seviye / tarih) ────────────────────
 function TaskQuickEditModal({
@@ -84,7 +84,7 @@ function TaskQuickEditModal({
         {/* Seviye */}
         <div>
           <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Seviye</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {LEVELS.map(l => (
               <button
                 key={l}

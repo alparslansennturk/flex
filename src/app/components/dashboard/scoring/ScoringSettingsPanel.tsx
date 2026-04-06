@@ -18,7 +18,7 @@ export default function ScoringSettingsPanel() {
   const [saved,   setSaved]   = useState(false);
 
   // Önizleme
-  const [previewLevel,     setPreviewLevel]     = useState("Seviye-2");
+  const [previewLevel,     setPreviewLevel]     = useState("Seviye 2");
   const [previewWeeksLate, setPreviewWeeksLate] = useState(0);
 
   useEffect(() => { setLocal(settings); }, [settings]);
@@ -292,10 +292,9 @@ export default function ScoringSettingsPanel() {
         >
           <div className="space-y-3">
             {([
-              { key: "level1", label: "Seviye 1", dot: "bg-status-success-500",          maxXP: 200  },
-              { key: "level2", label: "Seviye 2", dot: "bg-designstudio-primary-500",    maxXP: 400  },
-              { key: "level3", label: "Seviye 3", dot: "bg-designstudio-secondary-500",  maxXP: 800  },
-              { key: "level4", label: "Seviye 4", dot: "bg-status-danger-500",           maxXP: 2000 },
+              { key: "level1", label: "Seviye 1", dot: "bg-status-success-500",         maxXP: 500  },
+              { key: "level2", label: "Seviye 2", dot: "bg-designstudio-primary-500",   maxXP: 500  },
+              { key: "level3", label: "Seviye 3", dot: "bg-designstudio-secondary-500", maxXP: 500  },
             ] as const).map(({ key, label, dot, maxXP }) => (
               <div key={key} className="flex items-center gap-3">
                 <div className={`w-2.5 h-2.5 rounded-full ${dot} shrink-0`} />
@@ -338,8 +337,8 @@ export default function ScoringSettingsPanel() {
           {/* Seviye seçici */}
           <div className="flex-1 space-y-1.5">
             <label className="text-[12px] font-bold text-surface-500">Zorluk Seviyesi</label>
-            <div className="grid grid-cols-2 gap-2">
-              {["Seviye-1","Seviye-2","Seviye-3","Seviye-4"].map(l => (
+            <div className="grid grid-cols-3 gap-2">
+              {["Seviye 1","Seviye 2","Seviye 3"].map(l => (
                 <button
                   key={l}
                   onClick={() => setPreviewLevel(l)}

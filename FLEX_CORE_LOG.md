@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-06 (v10)
+> Son güncelleme: 2026-04-06 (v11)
 
 ---
 
@@ -670,4 +670,135 @@ finalScore = averageXP × bonus + completedTasks × 3
 
 **Etkilenen dosya:**
 - `src/app/dashboard/league/page.tsx`
+
+---
+
+### 37. Seviye Sistemi Yenilendi (4 Seviye → 3 Seviye)
+
+**Değişiklik:** Ödev seviyeleri `Seviye-1/2/3/4` → `Seviye 1/2/3` (tire kaldırıldı, Seviye 4 silindi).
+
+**XP değerleri:** Seviye 1 = 100 XP, Seviye 2 = 200 XP, Seviye 3 = 300 XP.
+
+**Geriye dönük uyumluluk:** `LEVEL_KEY_MAP` hem `"Seviye 1"` hem `"Seviye-1"` formatını `level1`'e eşler.
+
+**Etkilenen dosyalar:**
+- `src/app/lib/scoring.ts` — `LEVEL_KEY_MAP` çift format, `DEFAULT_SCORING.difficultyXP` güncellendi
+- `src/app/components/dashboard/assignment/TaskForm.tsx` — `LEVELS` dizisi 3 elemanlı, Seviye 4 kaldırıldı
+- `src/app/components/dashboard/scoring/DesignParkour.tsx` — `LEVELS` ve `grid-cols-4 → grid-cols-3`
+- `src/app/components/dashboard/scoring/ScoringSettingsPanel.tsx` — Seviye 4 XP inputu kaldırıldı, `grid-cols-3`
+
+---
+
+### 38. G2→G1 Sınıfı Görevi: Seviye Otomatik Düşürme
+
+**Kural:** Grafik-2 şablonu Grafik-1 sınıfına verildiğinde `xpMultiplier` artık kullanılmıyor. Bunun yerine görevin `effectiveLevel = "Seviye 1"` olarak override edilir.
+
+**Grafik-2 sınıfına Grafik-2 şablonu:** Seviyesi neyse o XP verilir, override yok.
+
+**Not:** `xpMultiplier` alanı tamamen deprecated; eski kayıtlar geriye dönük uyumlu çalışır.
+
+**Etkilenen dosyalar:**
+- `src/app/components/dashboard/scoring/DesignParkour.tsx` — Ghost activate/reactivate'te `effectiveLevel` override
+- `src/app/components/dashboard/assignment/AssignmentLibrary.tsx` — G2→G1 için `effectiveLevel = "Seviye 1"`
+
+---
+
+### 39. Ödev Formu — "Ödev Tipi" Alanı Kaldırıldı (UI'dan)
+
+**Değişiklik:** TaskForm'daki Kolaj/Kitap/Sosyal Medya seçici UI'dan kaldırıldı. `assignmentType` state ve Firestore yazma korundu.
+
+**Neden:** `assignmentType` Kolaj Bahçesi ve Kitap oyun ekranlarının routing'ini belirliyor, şablona özgü ve manuel seçilmemeli.
+
+**Etkilenen dosya:**
+- `src/app/components/dashboard/assignment/TaskForm.tsx`
+
+---
+
+### 40. G1→G2 Geçiş Bonusu — Lig Tablosu
+
+**Kural:** Grafik-1'den Grafik-2'ye geçişte öğrencinin G1'de kazandığı toplam XP'nin %30'u `g2StartXP` olarak student doc'a kaydedilir.
+
+**Önemli detaylar:**
+- Sadece lig tablosu skoruna etki eder, sertifika puanına etki etmez
+- **Net puan** olarak eklenir: `generalScore = calcScore(baseXP, completedTasks) + g2Bonus` (görev sayısına bölünmez)
+- `points` (görüntülenen XP) = `baseXP + g2Bonus`
+
+**Transfer hesabı (`useManagement.ts`):**
+```js
+const g1XP = Object.values(allGradedTasks)
+  .filter(e => e?.classId === oldGroup.code)
+  .reduce((sum, e) => sum + (e.xp ?? 0), 0);
+studentData.g2StartXP = Math.floor(g1XP * 0.3);
+```
+
+**Etkilenen dosyalar:**
+- `src/app/hooks/useManagement.ts` — transfer anında `g2StartXP` hesaplanıp kaydedilir
+- `src/app/dashboard/league/page.tsx` — `generalScore = calcScore(baseXP, ...) + g2Bonus`
+- `src/app/league/page.tsx` — aynı fix
+
+---
+
+### 41. Lig Tablosu — Sıralama ve Beraberlik Kuralları
+
+**Sıralama zinciri:**
+1. En yüksek skor
+2. En az gecikme cezası
+3. En fazla tamamlanan görev
+4. Alfabetik (Türkçe)
+
+**Beraberlik (competitionRank):** Sadece ilk 3 sıra için geçerli. 4. ve sonrası her zaman sıralı (9. ile aynı puanda olan bir öğrenci 10. olur, 9. olmaz).
+
+**Etkilenen dosyalar:**
+- `src/app/dashboard/league/page.tsx`
+- `src/app/league/page.tsx`
+
+---
+
+### 42. Not Girişi — XP Reaktif Hesaplama
+
+**Sorun:** Grading formu açılırken eski XP değerlerini gösteriyordu (Firestore settings geç yüklenince stale closure sorunu).
+
+**Düzeltme:** Ayrı bir `useEffect([settings, task])` eklendi; settings veya task her değiştiğinde `submitted` öğrencilerin XP'si `calculateXP(task.level, weeksLate, settings)` ile yeniden hesaplanır.
+
+**Etkilenen dosya:**
+- `src/app/dashboard/grading/page.tsx`
+
+---
+
+### 43. recalculateAll — Kayıt Alanı Kaybı Düzeltildi
+
+**Sorun:** `recalculateAll` çalışınca `gradedTasks` entry'lerinde `classId`, `endDate`, `maxXp` alanları siliniyordu.
+
+**Düzeltme:** `{ ...existing, xp, penalty, maxXp: baseXP }` ile spread yapılarak mevcut alanlar korunur.
+
+**Etkilenen dosya:**
+- `src/app/context/ScoringContext.tsx`
+
+---
+
+### 44. İstatistik Paneli — Beraberlikte Dönen Avatar
+
+**Değişiklik:** "En Yüksek XP", "En Çok Görev", "En Az Ceza" kartlarında eşit puanlı birden fazla öğrenci varsa her 2.5 saniyede bir sırayla döner (tek avatar, tek isim gösterilir).
+
+**"En Hızlı Yükseliş" düzeltmesi:** `rankChange` artık dinamik hesaplanır: genel skor sıralaması ile son 30 günlük skor sıralaması karşılaştırılır; pozitif fark = yükseliş.
+
+**Etkilenen dosya:**
+- `src/app/dashboard/league/page.tsx` — `AnalyticsCell` bileşeni + `analytics` useMemo
+
+---
+
+### 45. Ay Birincisi — Yeni Hesaplama Mantığı
+
+**Önceki sorun:** Tüm zamanlardaki algoritma skoru baz alınıyordu; beraberlikte kura çekiliyordu; tek kazanan seçiliyordu.
+
+**Yeni kurallar:**
+- Sadece o aya ait XP hesaplanır (`gradedTasks[taskId].endDate` filtresi)
+- G1→G2 ay içi geçişinde her iki gruptaki o ayki puanlar dahil edilir (`classId` filtresi yok)
+- `g2StartXP` (geçiş bonusu) **dahil değil**
+- **Beraberlik zinciri (aylık bazda):** en fazla XP → en az ceza → en fazla görev sayısı
+- Hepsi eşitse tüm öğrenciler kazanır, **hepsine ayrı ayrı** kutlama maili gönderilir
+
+**Etkilenen dosyalar:**
+- `src/app/api/cron/monthly-winner/route.ts` — tamamen yeniden yazıldı
+- `src/app/api/monthly-winner/route.ts` — tamamen yeniden yazıldı
 

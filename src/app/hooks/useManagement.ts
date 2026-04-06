@@ -582,6 +582,14 @@ if (oldGroup?.module === "GRAFIK_1") {
 } else if (oldGroup?.module === "GRAFIK_2") {
   studentData.grafik2Code = oldGroup.code;
 }
+// G1 → G2 geçişi: G1 XP'nin %30'u lig başlangıç bonusu olarak verilir (sadece lig tablosu, sertifika etkilenmez)
+if (oldGroup?.module === "GRAFIK_1" && targetGroup?.module === "GRAFIK_2") {
+  const allGradedTasks = (oldStudent as any).gradedTasks ?? {};
+  const g1XP: number = Object.values(allGradedTasks)
+    .filter((e: any) => e?.classId === oldGroup.code)
+    .reduce((sum: number, e: any) => sum + (e.xp ?? 0), 0);
+  studentData.g2StartXP = Math.floor(g1XP * 0.3);
+}
 studentData.rankChange = 0;
 studentData.isScoreHidden = false;
 }

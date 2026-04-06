@@ -619,7 +619,10 @@ function LeagueContent() {
           return mapClassId === s.groupCode;
         })
       );
-      const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
+      const { totalXP: baseXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
+      // G1→G2 geçiş bonusu: transfer anında hesaplanan, sadece lig tablosuna etkili
+      const g2Bonus = s.isScoreHidden ? 0 : ((s as any).g2StartXP ?? 0);
+      const totalXP = baseXP + g2Bonus;
       const recentEntries = s.isScoreHidden ? [] : Object.entries(tasks).filter(([tid, entry]) => {
         if (recentTaskIds.has(tid)) return true;
         if (tasksMap[tid] !== undefined) return false;
@@ -629,7 +632,8 @@ function LeagueContent() {
       });
       const recentXP        = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
       const recentCompleted = recentEntries.length;
-      const generalScore    = calcScore(totalXP, completedTasks, settings);
+      // g2Bonus net puan olarak doğrudan eklenir — görev sayısına bölünmez
+      const generalScore    = calcScore(baseXP, completedTasks, settings) + g2Bonus;
       const recentScore     = calcScore(recentXP, recentCompleted, settings);
       return {
         ...s,
@@ -647,8 +651,7 @@ function LeagueContent() {
   const sortFn = (a: typeof withScores[0], b: typeof withScores[0]) => {
     const sd = b.score - a.score; if (sd !== 0) return sd;
     const pd = (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0); if (pd !== 0) return pd;
-    const xd = (b.points ?? 0) - (a.points ?? 0); if (xd !== 0) return xd;
-    // Her şey eşitse alfabetik
+    const td = (b.completedTasks ?? 0) - (a.completedTasks ?? 0); if (td !== 0) return td;
     return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
   };
 
@@ -670,17 +673,18 @@ function LeagueContent() {
   // ── Sıralı öğrenciler ─────────────────────────────────────────────────────
   const rankedStudents = useMemo<RankedStudent[]>(() => {
     const sorted = [...filtered].sort(sortFn);
-    // Competition ranking: eşitlik sadece ilk 3 (podyum) için, 4. ve sonrası sıralı numara
+    // Sadece ilk 3 (podyum) için eşitlik uygulanır — aynı puan/ceza/görev → aynı sıra, sonraki atlar.
+    // 4. ve sonrası için sortFn alfabetik sırayla ayırt eder → her biri farklı sıra alır.
     const byScore = sorted.map((s, i) => {
       let rank = i + 1;
       for (let j = i - 1; j >= 0; j--) {
         const prev = sorted[j];
         const prevRank = j + 1;
-        if (prevRank > 3) break; // ilk 3 dışında eşitlik uygulanmaz
+        if (prevRank > 3) break; // 4. ve sonrası için eşitlik uygulanmaz
         if (
           prev.score === s.score &&
           (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) &&
-          (prev.points ?? 0) === (s.points ?? 0)
+          (prev.completedTasks ?? 0) === (s.completedTasks ?? 0)
         ) { rank = prevRank; } else { break; }
       }
       return { ...s, rank } as RankedStudent;

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
-import { calcScore, computeStudentStats, DEFAULT_SCORING, type ScoringSettings } from "@/app/lib/scoring";
 
-// Görsel 1200×1200, email 560px → ölçek 0.467
-// Glass card: left 302px, top 143px, w 241px, h 278px
 const IMAGE_URL =
   "https://flex-one-iota.vercel.app/assets/illustrations/monthly-winner/winner-01.jpg";
 
@@ -31,12 +28,6 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
     @font-face {
       font-family: 'Baloo 2';
       font-style: normal;
-      font-weight: 600;
-      src: url('https://fonts.gstatic.com/s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdjEyppo_leP6HcMqzQ.woff2') format('woff2');
-    }
-    @font-face {
-      font-family: 'Baloo 2';
-      font-style: normal;
       font-weight: 700;
       src: url('https://fonts.gstatic.com/s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdj9yppo_leP6HcMqzQ.woff2') format('woff2');
     }
@@ -55,7 +46,6 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
        style="background:#ffffff;border-radius:16px;overflow:hidden;
               box-shadow:0 2px 16px rgba(0,0,0,0.07)">
 
-  <!-- HERO: Görsel arka planda, metin glass card üzerinde -->
   <tr>
     <td valign="top" style="padding:0;border-radius:16px 16px 0 0;overflow:hidden">
       <table width="560" height="560" cellpadding="0" cellspacing="0"
@@ -63,15 +53,10 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
              style="background-image:url('${IMAGE_URL}');background-size:cover;
                     background-position:center center;width:560px;height:560px;
                     border-radius:16px 16px 0 0">
-
-        <!-- Üst boşluk -->
         <tr><td colspan="3" height="143"></td></tr>
-
-        <!-- Metin satırı -->
         <tr valign="middle">
           <td width="302" height="278"></td>
           <td width="241" valign="middle" style="padding:0 18px 0 12px;vertical-align:middle">
-
             <p style="margin:0 0 4px 0;${BASE};${BOLD};font-size:18px">
               Tebrikler ${firstName},
             </p>
@@ -91,19 +76,14 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
             <p style="margin:0;font-size:12px;${BOLD}">
               <span style="color:${DARK}">tasarım</span><span style="color:${WHITE}">atölyesi</span>
             </p>
-
           </td>
           <td width="17"></td>
         </tr>
-
-        <!-- Alt boşluk -->
         <tr><td colspan="3" height="139"></td></tr>
-
       </table>
     </td>
   </tr>
 
-  <!-- CTA -->
   <tr>
     <td style="padding:28px 40px 24px;text-align:center">
       <a href="https://flex-one-iota.vercel.app/dashboard/league"
@@ -115,7 +95,6 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
     </td>
   </tr>
 
-  <!-- Footer -->
   <tr>
     <td style="background:#fafafa;border-top:1px solid #f0f0f0;
                padding:16px 40px;text-align:center">
@@ -133,17 +112,54 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
 </html>`;
 }
 
+/**
+ * Öğrencinin bir önceki aydaki istatistiklerini hesaplar.
+ * - Tüm gradedTasks içinden endDate'i geçen aya düşen görevler alınır.
+ * - G1→G2 geçişi hesaba katılır: classId fark etmeksizin o aya ait tüm görevler dahil edilir.
+ * - g2StartXP aylık hesaba dahil DEĞİLDİR.
+ */
+function calcMonthlyStats(
+  gradedTasks: Record<string, { xp?: number; penalty?: number; endDate?: string }> | undefined,
+  monthStart: Date,
+  monthEnd: Date,
+): { monthlyXP: number; monthlyPenalty: number; monthlyTasks: number } {
+  if (!gradedTasks) return { monthlyXP: 0, monthlyPenalty: 0, monthlyTasks: 0 };
+
+  let monthlyXP = 0;
+  let monthlyPenalty = 0;
+  let monthlyTasks = 0;
+
+  for (const entry of Object.values(gradedTasks)) {
+    if (!entry.endDate) continue;
+    const d = new Date(entry.endDate);
+    if (d < monthStart || d >= monthEnd) continue;
+    // xp > 0 → teslim edilmiş görev
+    if ((entry.xp ?? 0) > 0) {
+      monthlyXP      += entry.xp     ?? 0;
+      monthlyPenalty += entry.penalty ?? 0;
+      monthlyTasks   += 1;
+    }
+  }
+
+  return { monthlyXP, monthlyPenalty, monthlyTasks };
+}
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Ayın 1'inde çalışır — geçen ay etiketi
+  // Ayın 1'inde çalışır — bir önceki ay
   const now = new Date(new Date().getTime() + 3 * 60 * 60 * 1000); // UTC+3
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const monthKey   = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
-  const monthLabel = prevMonth.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+  const year  = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const month = now.getMonth() === 0 ? 11 : now.getMonth() - 1; // 0-indexed
+  const monthKey   = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const monthLabel = new Date(year, month, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+
+  // Bir önceki ayın başı ve sonu (yerel zaman, UTC+3 baz alınarak)
+  const monthStart = new Date(year, month, 1);
+  const monthEnd   = new Date(year, month + 1, 1);
 
   try {
     // Duplicate koruması
@@ -152,15 +168,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: true, reason: "already_sent", month: monthKey });
     }
 
-    // Scoring ayarları + aktif sezon
-    const settingsSnap = await adminDb.collection("settings").doc("scoring").get();
-    const settingsData = settingsSnap.data() ?? {};
-    const settings: ScoringSettings = (settingsData.leaderboard && settingsData.difficultyXP)
-      ? settingsData as ScoringSettings
-      : DEFAULT_SCORING;
-    const activeSeasonId: string = settingsData.activeSeasonId ?? "season_1";
-
-    // Tüm aktif öğrencileri çek → algoritma skoru + istatistik hesapla
+    // Tüm aktif öğrencileri çek
     const snap = await adminDb
       .collection("students")
       .where("status", "==", "active")
@@ -170,65 +178,100 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: true, reason: "no_students" });
     }
 
-    const candidates = snap.docs.map(doc => {
-      const data = doc.data();
-      const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(
-        data.gradedTasks,
-        data.isScoreHidden,
-        activeSeasonId,
-      );
-      return {
-        doc,
-        computedScore:  calcScore(totalXP, completedTasks, settings),
-        latePenaltyTotal,
-        completedTasks,
-      };
-    });
+    // Aylık istatistik hesapla
+    type Candidate = {
+      id: string;
+      name: string;
+      lastName: string;
+      email: string;
+      monthlyXP: number;
+      monthlyPenalty: number;
+      monthlyTasks: number;
+    };
 
-    // Tiebreaker zinciri:
-    // 1. En yüksek algoritma skoru
-    // 2. En az geç teslim (latePenaltyTotal düşük)
-    // 3. En fazla tamamlanan görev
-    // 4. Kura (random)
+    const candidates: Candidate[] = snap.docs
+      .map(doc => {
+        const d = doc.data();
+        // Puanı gizlenen öğrenciler ay birincisi olamaz
+        if (d.isScoreHidden) return null;
+        const { monthlyXP, monthlyPenalty, monthlyTasks } = calcMonthlyStats(
+          d.gradedTasks,
+          monthStart,
+          monthEnd,
+        );
+        // O ay hiç puan almamışsa adaya alma
+        if (monthlyXP === 0) return null;
+        return {
+          id:            doc.id,
+          name:          (d.name      as string) ?? "",
+          lastName:      (d.lastName  as string) ?? "",
+          email:         (d.email     as string) ?? "",
+          monthlyXP,
+          monthlyPenalty,
+          monthlyTasks,
+        };
+      })
+      .filter((c): c is Candidate => c !== null);
+
+    if (candidates.length === 0) {
+      console.log(`[monthly-winner] ${monthKey} — o ay puan alan öğrenci yok.`);
+      return NextResponse.json({ success: true, skipped: true, reason: "no_scores_this_month" });
+    }
+
+    // Sıralama:
+    // 1. En yüksek aylık XP
+    // 2. En az aylık ceza (düşük iyi)
+    // 3. En fazla aylık görev sayısı
     candidates.sort((a, b) => {
-      const sd = b.computedScore  - a.computedScore;  if (sd !== 0) return sd;
-      const pd = a.latePenaltyTotal - b.latePenaltyTotal; if (pd !== 0) return pd;
-      const td = b.completedTasks - a.completedTasks;  if (td !== 0) return td;
-      return Math.random() - 0.5; // kura
+      const xd = b.monthlyXP      - a.monthlyXP;      if (xd !== 0) return xd;
+      const pd = a.monthlyPenalty - b.monthlyPenalty;  if (pd !== 0) return pd;
+      const td = b.monthlyTasks   - a.monthlyTasks;    if (td !== 0) return td;
+      return 0;
     });
 
-    const selected   = candidates[0];
-    const winner     = selected.doc.data();
-    const winnerId   = selected.doc.id;
-    const firstName  = winner.name ?? "Öğrenci";
-    const winnerName = `${winner.name} ${winner.lastName}`;
-    const score      = Math.round(selected.computedScore);
+    const best = candidates[0];
 
-    if (!winner.email) {
-      return NextResponse.json({ success: true, skipped: true, reason: "no_email" });
+    // Beraberlik: tüm aynı istatistiklere sahip öğrenciler kazanır
+    const winners = candidates.filter(
+      c =>
+        c.monthlyXP      === best.monthlyXP &&
+        c.monthlyPenalty === best.monthlyPenalty &&
+        c.monthlyTasks   === best.monthlyTasks,
+    );
+
+    // Her kazanana ayrı mail gönder
+    const mailResults: { name: string; email: string; success: boolean }[] = [];
+
+    for (const winner of winners) {
+      if (!winner.email) continue;
+      const result = await sendMail({
+        to: winner.email,
+        subject: `🏆 Tebrikler! ${monthLabel} Ayının Birincisisin`,
+        html: buildWinnerHtml(winner.name, winner.monthlyXP, monthLabel),
+      });
+      mailResults.push({ name: `${winner.name} ${winner.lastName}`, email: winner.email, success: result.success });
+      console.log(`[monthly-winner] ${monthKey} — ${winner.name} ${winner.lastName} (${winner.monthlyXP} puan) → ${winner.email} [${result.success ? "OK" : "FAIL"}]`);
     }
 
-    const result = await sendMail({
-      to: winner.email,
-      subject: `🏆 Tebrikler! ${monthLabel} Ayının Birincisisin`,
-      html: buildWinnerHtml(firstName, score, monthLabel),
-    });
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
-    }
-
-    // Duplicate koruması için kaydet
+    // Duplicate koruması + kayıt
     await winnerDocRef.set({
-      studentId: winnerId,
-      name: winnerName,
-      email: winner.email,
-      score,
+      winners: winners.map(w => ({
+        studentId: w.id,
+        name:      `${w.name} ${w.lastName}`,
+        email:     w.email,
+        monthlyXP: w.monthlyXP,
+        monthlyPenalty: w.monthlyPenalty,
+        monthlyTasks: w.monthlyTasks,
+      })),
       sentAt: new Date().toISOString(),
+      month:  monthKey,
     });
 
-    console.log(`[monthly-winner] ${monthKey} — ${winnerName} (${score} puan) → ${winner.email}`);
-    return NextResponse.json({ success: true, winner: winnerName, score, month: monthKey });
+    return NextResponse.json({
+      success: true,
+      month:   monthKey,
+      winners: mailResults,
+    });
 
   } catch (err) {
     console.error("[monthly-winner] Hata:", err);

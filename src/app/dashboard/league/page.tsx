@@ -124,65 +124,101 @@ const ANALYTICS_CELLS = [
 
 type AnalyticsCellKey = typeof ANALYTICS_CELLS[number]["key"];
 
+function AnalyticsCell({
+  students, label, icon: Icon, bg, iconBg, iconColor, nameColor, subColor, cellKey,
+}: {
+  students: RankedStudent[];
+  label: string;
+  icon: React.ElementType;
+  bg: string; iconBg: string; iconColor: string; nameColor: string; subColor: string;
+  cellKey: AnalyticsCellKey;
+}) {
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    if (students.length <= 1) { setIdx(0); return; }
+    const timer = setInterval(() => {
+      setIdx(prev => (prev + 1) % students.length);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [students]);
+
+  const s = students[idx] ?? null;
+
+  const getSub = () => {
+    if (!s) return "—";
+    if (cellKey === "topXP")         return `${s.points ?? 0} XP`;
+    if (cellKey === "fastestRising") return `+${s.rankChange ?? 0} sıra`;
+    if (cellKey === "mostTasks")     return `${s.completedTasks ?? 0} görev`;
+    if (cellKey === "leastPenalty")  return `${s.latePenaltyTotal ?? 0} ceza`;
+    return "—";
+  };
+
+  return (
+    <>
+      <Icon size={80} strokeWidth={0.8} className="absolute -right-4 -bottom-4 pointer-events-none" style={{ color: iconColor, opacity: 0.07 }} />
+
+      <div className="flex items-center gap-2.5 relative z-10">
+        <div className="w-9 h-9 rounded-12 flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+          <Icon size={17} style={{ color: iconColor }} />
+        </div>
+        <p className="text-[11px] font-bold uppercase tracking-wide leading-none" style={{ color: subColor }}>{label}</p>
+      </div>
+
+      {s ? (
+        <>
+          <div className="flex items-center gap-2 relative z-10">
+            <Avatar gender={s.gender} avatarId={s.avatarId} size={32} />
+            <p className="text-[14px] font-bold leading-tight truncate" style={{ color: nameColor }}>
+              {s.name} {s.lastName}
+            </p>
+          </div>
+          <p className="text-[22px] font-black tabular-nums leading-none relative z-10" style={{ color: iconColor }}>
+            {getSub()}
+          </p>
+        </>
+      ) : (
+        <p className="text-[13px] relative z-10" style={{ color: subColor }}>Veri yok</p>
+      )}
+    </>
+  );
+}
+
 function AnalyticsGrid({
   analytics,
 }: {
   analytics: {
-    topXP: RankedStudent;
-    fastestRising: RankedStudent | null;
-    mostTasks: RankedStudent;
-    leastPenalty: RankedStudent;
+    topXP: RankedStudent[];
+    fastestRising: RankedStudent[];
+    mostTasks: RankedStudent[];
+    leastPenalty: RankedStudent[];
   };
 }) {
-  const getSub = (key: AnalyticsCellKey, s: RankedStudent | null) => {
-    if (!s) return "—";
-    if (key === "topXP")         return `${s.points ?? 0} XP`;
-    if (key === "fastestRising") return `+${s.rankChange ?? 0} sıra`;
-    if (key === "mostTasks")     return `${s.completedTasks ?? 0} görev`;
-    if (key === "leastPenalty")  return `${s.latePenaltyTotal ?? 0} ceza`;
-    return "—";
-  };
-
   return (
     <div
       className="rounded-20 overflow-hidden grid grid-cols-2"
       style={{ boxShadow: "0 4px 36px rgba(0,0,0,0.05)" }}
     >
-      {ANALYTICS_CELLS.map(({ key, label, icon: Icon, bg, iconBg, iconColor, nameColor, subColor }, i) => {
-        const student = analytics[key];
-        const sub = getSub(key, student);
+      {ANALYTICS_CELLS.map(({ key, label, icon, bg, iconBg, iconColor, nameColor, subColor }, i) => {
         const borderR = i % 2 === 0 ? "border-r-2 border-white/70" : "";
-        const borderB = i < 2     ? "border-b-2 border-white/70" : "";
+        const borderB = i < 2       ? "border-b-2 border-white/70" : "";
         return (
           <div
             key={key}
             className={`${borderR} ${borderB} p-5 flex flex-col gap-3 relative overflow-hidden`}
             style={{ background: bg }}
           >
-            <Icon size={80} strokeWidth={0.8} className="absolute -right-4 -bottom-4 pointer-events-none" style={{ color: iconColor, opacity: 0.07 }} />
-
-            <div className="flex items-center gap-2.5 relative z-10">
-              <div className="w-9 h-9 rounded-12 flex items-center justify-center shrink-0" style={{ background: iconBg }}>
-                <Icon size={17} style={{ color: iconColor }} />
-              </div>
-              <p className="text-[11px] font-bold uppercase tracking-wide leading-none" style={{ color: subColor }}>{label}</p>
-            </div>
-
-            {student ? (
-              <>
-                <div className="flex items-center gap-2 relative z-10">
-                  <Avatar gender={student.gender} avatarId={student.avatarId} size={32} />
-                  <p className="text-[14px] font-bold leading-tight truncate" style={{ color: nameColor }}>
-                    {student.name} {student.lastName}
-                  </p>
-                </div>
-                <p className="text-[22px] font-black tabular-nums leading-none relative z-10" style={{ color: iconColor }}>
-                  {sub}
-                </p>
-              </>
-            ) : (
-              <p className="text-[13px] relative z-10" style={{ color: subColor }}>Veri yok</p>
-            )}
+            <AnalyticsCell
+              students={analytics[key]}
+              label={label}
+              icon={icon}
+              bg={bg}
+              iconBg={iconBg}
+              iconColor={iconColor}
+              nameColor={nameColor}
+              subColor={subColor}
+              cellKey={key}
+            />
           </div>
         );
       })}
@@ -835,7 +871,10 @@ export default function LeaguePage() {
           return mapClassId === s.groupCode;
         })
       );
-      const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
+      const { totalXP: baseXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
+      // G1→G2 geçiş bonusu: transfer anında hesaplanan, sadece lig tablosuna etkili
+      const g2Bonus = s.isScoreHidden ? 0 : ((s as any).g2StartXP ?? 0);
+      const totalXP = baseXP + g2Bonus; // görüntüleme için (points)
       const recentEntries = s.isScoreHidden ? [] : Object.entries(tasks).filter(([tid, entry]) => {
         if (recentTaskIds.has(tid)) return true;            // görev mevcut ve recent
         if (tasksMap[tid] !== undefined) return false;      // görev mevcut ama recent değil
@@ -846,7 +885,8 @@ export default function LeaguePage() {
       });
       const recentXP        = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
       const recentCompleted = recentEntries.length;
-      const generalScore    = calcScore(totalXP, completedTasks, settings);
+      // g2Bonus net puan olarak doğrudan eklenir — görev sayısına bölünmez
+      const generalScore    = calcScore(baseXP, completedTasks, settings) + g2Bonus;
       const recentScore     = calcScore(recentXP, recentCompleted, settings);
       const finalScore      = calcFinalScore(generalScore, recentScore);
       return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore, score: scoreMode === "monthly" ? recentScore : generalScore };
@@ -856,19 +896,20 @@ export default function LeaguePage() {
   const sortFn = (a: typeof withScores[0], b: typeof withScores[0]) => {
     const sd = b.score - a.score; if (sd !== 0) return sd;
     const pd = (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0); if (pd !== 0) return pd;
-    const xd = (b.points ?? 0) - (a.points ?? 0); if (xd !== 0) return xd;
+    const td = (b.completedTasks ?? 0) - (a.completedTasks ?? 0); if (td !== 0) return td;
     return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
   };
 
-  // Competition ranking: eşitlik sadece ilk 3 (podyum) için, 4. ve sonrası sıralı numara
-  function competitionRank<T extends { score: number; latePenaltyTotal?: number; points?: number }>(sorted: T[]): (T & { rank: number })[] {
+  // Sadece ilk 3 (podyum) için eşitlik uygulanır — aynı puan/ceza/görev → aynı sıra, sonraki atlar.
+  // 4. ve sonrası için sortFn alfabetik sırayla ayırt eder → her biri farklı sıra alır.
+  function competitionRank<T extends { score: number; latePenaltyTotal?: number; completedTasks?: number }>(sorted: T[]): (T & { rank: number })[] {
     return sorted.map((s, i) => {
       let rank = i + 1;
       for (let j = i - 1; j >= 0; j--) {
         const prevRank = j + 1;
-        if (prevRank > 3) break; // ilk 3 dışında eşitlik uygulanmaz
+        if (prevRank > 3) break; // 4. ve sonrası için eşitlik uygulanmaz
         const prev = sorted[j];
-        if (prev.score === s.score && (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) && (prev.points ?? 0) === (s.points ?? 0)) {
+        if (prev.score === s.score && (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) && (prev.completedTasks ?? 0) === (s.completedTasks ?? 0)) {
           rank = prevRank;
         } else { break; }
       }
@@ -955,11 +996,28 @@ export default function LeaguePage() {
   // ── Analytics (podyum verisi takip eder) ──────────────────────────────────
   const analytics = useMemo(() => {
     if (podiumStudents.length === 0) return null;
-    const topXP         = podiumStudents.reduce((a, b) => (a.points ?? 0) >= (b.points ?? 0) ? a : b);
-    const rising        = podiumStudents.filter(s => (s.rankChange ?? 0) > 0).sort((a, b) => (b.rankChange ?? 0) - (a.rankChange ?? 0));
-    const fastestRising = rising[0] ?? null;
-    const mostTasks     = podiumStudents.reduce((a, b) => (a.completedTasks ?? 0) >= (b.completedTasks ?? 0) ? a : b);
-    const leastPenalty  = [...podiumStudents].sort((a, b) => (a.latePenaltyTotal ?? 0) - (b.latePenaltyTotal ?? 0))[0];
+
+    // rankChange: genel sıra ile son 30 günlük sıra farkı (pozitif = yükseliş)
+    const byGeneral = [...podiumStudents].sort((a, b) => b.generalScore - a.generalScore);
+    const byRecent  = [...podiumStudents].sort((a, b) => b.recentScore  - a.recentScore);
+    const generalRankMap = new Map(byGeneral.map((s, i) => [s.id, i + 1]));
+    const recentRankMap  = new Map(byRecent.map((s, i) => [s.id, i + 1]));
+    const withChange = podiumStudents.map(s => ({
+      ...s,
+      rankChange: (generalRankMap.get(s.id) ?? 0) - (recentRankMap.get(s.id) ?? 0),
+    }));
+
+    const maxXP      = Math.max(...withChange.map(s => s.points ?? 0));
+    const maxTasks   = Math.max(...withChange.map(s => s.completedTasks ?? 0));
+    const minPenalty = Math.min(...withChange.map(s => s.latePenaltyTotal ?? 0));
+
+    const topXP        = withChange.filter(s => (s.points ?? 0) === maxXP);
+    const mostTasks    = withChange.filter(s => (s.completedTasks ?? 0) === maxTasks);
+    const leastPenalty = withChange.filter(s => (s.latePenaltyTotal ?? 0) === minPenalty);
+
+    const rising        = withChange.filter(s => (s.rankChange ?? 0) > 0).sort((a, b) => (b.rankChange ?? 0) - (a.rankChange ?? 0));
+    const fastestRising = rising.length > 0 ? [rising[0]] : [];
+
     return { topXP, fastestRising, mostTasks, leastPenalty };
   }, [podiumStudents]);
 

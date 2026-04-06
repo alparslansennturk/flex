@@ -11,7 +11,7 @@ import { PERMISSIONS } from "@/app/lib/constants";
 import { AssignActivateModal, AssignSelection } from "../assignment/AssignActivateModal";
 
 const GROUPS = ["Grup 101", "Grup 102", "Grup 103"];
-const LEVELS = ["Seviye-1", "Seviye-2", "Seviye-3", "Seviye-4"];
+const LEVELS = ["Seviye 1", "Seviye 2", "Seviye 3"];
 
 // ─── Design Intro ─────────────────────────────────────────────────────────────
 
@@ -612,7 +612,7 @@ function TaskEditModal({ task, onSave, onCancel }: {
         {/* Seviye */}
         <div>
           <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide mb-2">Seviye</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {LEVELS.map(l => (
               <button key={l} onClick={() => setLevel(l)}
                 className={`py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
@@ -712,8 +712,9 @@ export default function DesignParkour() {
   const handleReactivateConfirm = async (selections: AssignSelection[]) => {
     if (!reactivateTask || selections.length === 0) return;
     const { classId, groupId, groupBranch, groupModule, level, endDate } = selections[0];
-    const xpMultiplier = (reactivateTask.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? 0.5 : null;
-    await updateDoc(doc(db, "tasks", reactivateTask.id), { classId, groupId, groupBranch, level, endDate, xpMultiplier, groupModule: groupModule ?? null, isPaused: false, isActive: true });
+    // Grafik 2 şablonu → Grafik 1 sınıfına verilirse seviye otomatik Seviye 1'e düşer
+    const effectiveLevel = (reactivateTask.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
+    await updateDoc(doc(db, "tasks", reactivateTask.id), { classId, groupId, groupBranch, level: effectiveLevel, endDate, groupModule: groupModule ?? null, isPaused: false, isActive: true });
     setReactivateTask(null);
   };
 
@@ -729,7 +730,8 @@ export default function DesignParkour() {
     const t = ghostModalTask;
     const uid = user?.uid ?? auth.currentUser?.uid ?? null;
     for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
-      const xpMultiplier = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? 0.5 : null;
+      // Grafik 2 şablonu → Grafik 1 sınıfına verilirse seviye otomatik Seviye 1'e düşer
+      const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
       await addDoc(collection(db, "tasks"), {
         name:           t.name,
         description:    t.description ?? null,
@@ -741,8 +743,7 @@ export default function DesignParkour() {
         classId,
         groupId,
         groupBranch,
-        level,
-        xpMultiplier,
+        level:          effectiveLevel,
         endDate,
         status:         "active",
         isActive:       true,

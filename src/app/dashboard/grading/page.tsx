@@ -691,6 +691,21 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
     })();
   }, [taskId]);
 
+  // settings veya task değişince (Firestore'dan async yüklenince) submitted öğrencilerin XP'sini yeniden hesapla
+  useEffect(() => {
+    if (!task) return;
+    setGrades(prev => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next: GradesMap = {};
+      Object.entries(prev).forEach(([sid, g]) => {
+        next[sid] = g.submitted
+          ? { ...g, xp: Math.round(calculateXP(task.level, g.weeksLate ?? 0, settings)) }
+          : g;
+      });
+      return next;
+    });
+  }, [settings, task]);
+
   // xpMultiplier: önce task'a kayıtlı değeri kullan, yoksa grup modülünden türet
   const storedMultiplier = (task as any)?.xpMultiplier;
   const xpMultiplier = storedMultiplier != null

@@ -11,11 +11,16 @@ export const DEFAULT_SCORING: ScoringSettings = {
   leaderboard:        { minTaskDivisor: 3, logBase: 2, bonusMultiplier: 1 },
   certificateWeights: { project: 0.70, assignment: 0.30 },
   latePenalty:        { week1: 0.80, week2: 0.60, week3plus: 0.50 },
-  difficultyXP:       { level1: 50, level2: 100, level3: 200, level4: 400 },
+  difficultyXP:       { level1: 100, level2: 200, level3: 300, level4: 400 },
 };
 
 // Seviye → difficultyXP anahtarı eşlemesi
+// Yeni format (boşluklu) ve eski format (tireli) her ikisi de desteklenir
 const LEVEL_KEY_MAP: Record<string, keyof ScoringSettings["difficultyXP"]> = {
+  "Seviye 1": "level1",
+  "Seviye 2": "level2",
+  "Seviye 3": "level3",
+  // Eski format — geriye dönük uyumluluk (mevcut kartlar için)
   "Seviye-1": "level1",
   "Seviye-2": "level2",
   "Seviye-3": "level3",

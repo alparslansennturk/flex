@@ -6,7 +6,7 @@ import { collection, query, where, onSnapshot, getDocs } from "firebase/firestor
 import { useUser } from "@/app/context/UserContext";
 import { Check, Users } from "lucide-react";
 
-const LEVELS = ["Seviye-1", "Seviye-2", "Seviye-3", "Seviye-4"];
+const LEVELS = ["Seviye 1", "Seviye 2", "Seviye 3"];
 
 export interface AssignSelection {
   classId:     string; // group code (öğrenci sorguları için backward compat)
@@ -201,7 +201,7 @@ export function AssignActivateModal({
               </span>
             )}
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {LEVELS.map(l => (
               <button
                 key={l}

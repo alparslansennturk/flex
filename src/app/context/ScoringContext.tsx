@@ -100,7 +100,7 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Görevlerden yeni XP değerlerini hesapla
-    const newEntries: Record<string, Record<string, { xp: number; penalty: number; seasonId?: string }>> = {};
+    const newEntries: Record<string, Record<string, any>> = {};
 
     tasksSnap.docs.forEach(d => {
       const task = d.data() as any;
@@ -111,14 +111,16 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
         task.grades as Record<string, { submitted: boolean; weeksLate: number }>
       ).forEach(([sid, grade]) => {
         if (!grade.submitted) return;
-        const xp     = calculateXP(task.level, grade.weeksLate ?? 0, newSettings);
+        const xp      = calculateXP(task.level, grade.weeksLate ?? 0, newSettings);
         const penalty = Math.max(baseXP - xp, 0);
-        const existing = studentGradedTasks[sid]?.[d.id];
+        const existing = studentGradedTasks[sid]?.[d.id] ?? {};
         if (!newEntries[sid]) newEntries[sid] = {};
+        // Mevcut tüm alanları koru (classId, endDate, maxXp, seasonId) — sadece xp ve penalty güncelle
         newEntries[sid][d.id] = {
+          ...existing,
           xp,
           penalty,
-          ...(existing?.seasonId ? { seasonId: existing.seasonId } : {}),
+          maxXp: baseXP,
         };
       });
     });
