@@ -29,7 +29,7 @@ const CAT_META: Record<Category, {
   "Obje 2": { icon: Gem,    color: "#db2777", iconColor: "#f472b6", bg: "bg-pink-50",    border: "border-pink-200",   activeBg: "bg-pink-600",    activeText: "text-white" },
 };
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
@@ -49,7 +49,7 @@ function ItemForm({
 }) {
   const [name,    setName]    = useState(initial?.name    ?? "");
   const [emoji,   setEmoji]   = useState(initial?.emoji   ?? "");
-  const [color,   setColor]   = useState(initial?.color   ?? "#e5e7eb");
+  const [color,   setColor]   = useState(initial?.color   || "#e5e7eb");
   const [loading, setLoading] = useState(false);
   const meta = CAT_META[category];
 
@@ -249,6 +249,8 @@ function TabContent({ visible, children }: { visible: boolean; children: React.R
       style={{
         opacity:    mounted ? 1 : 0,
         transform:  mounted ? "translateY(0)" : "translateY(6px)",
+        position:   "relative",
+        zIndex:     20,
       }}
     >
       {children}
@@ -327,14 +329,6 @@ export default function CollagePoolPanel() {
 
   return (
     <div className="flex flex-col gap-5">
-
-      {/* Dışa tıklayınca formu kapat */}
-      {(adding || editingItem) && (
-        <div
-          className="fixed inset-0 z-10"
-          onClick={() => { setAdding(false); setEditingItem(null); }}
-        />
-      )}
 
       {/* ── Sekme başlıkları ── */}
       <div className="relative z-20 flex items-center gap-2 bg-surface-100/70 p-1 rounded-2xl w-fit">

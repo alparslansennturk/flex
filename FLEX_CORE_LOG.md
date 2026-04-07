@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-06 (v11)
+> Son güncelleme: 2026-04-07 (v12)
 
 ---
 
@@ -802,3 +802,66 @@ studentData.g2StartXP = Math.floor(g1XP * 0.3);
 - `src/app/api/cron/monthly-winner/route.ts` — tamamen yeniden yazıldı
 - `src/app/api/monthly-winner/route.ts` — tamamen yeniden yazıldı
 
+
+---
+
+### 46. Sıralama — Dense Ranking (1,1,2)
+
+**Sorun:** Öğrenciler 1,1,3 sıralamasını mantıksız buluyordu.
+
+**Değişiklik:** "Standard competition ranking" (1,1,3) yerine "dense ranking" (1,1,2) uygulandı. Eşit puanlılar aynı sırayı paylaşır, sonraki sıra atlanmaz.
+
+**Etkilenen dosyalar:**
+- `src/app/components/dashboard/scoring/LeaderboardWidget.tsx`
+- `src/app/dashboard/league/page.tsx` — `denseRank` fonksiyonu (eski `competitionRank`)
+- `src/app/league/page.tsx`
+
+---
+
+### 47. Ödev Havuzları — Sayfalama 10'a Düşürüldü
+
+**Değişiklik:** Kolaj ve Kitap havuzu panellerinde `PAGE_SIZE` 15'ten 10'a düşürüldü.
+
+**Etkilenen dosyalar:**
+- `src/app/components/dashboard/assignment/pool/CollagePoolPanel.tsx`
+- `src/app/components/dashboard/assignment/pool/BookPoolPanel.tsx`
+
+---
+
+### 48. Kolaj Havuzu — Form Kapanma ve Renk Hataları
+
+**Sorun 1:** Form açıkken herhangi bir input'a basınca form kapanıyordu.
+**Kök neden:** `fixed inset-0 z-10` overlay div'i input click'i yakalıyordu.
+**Düzeltme:** Overlay div tamamen kaldırıldı.
+
+**Sorun 2:** Renk picker açıkken form kapanıyordu.
+**Kök neden:** Color picker dismiss click'i overlay'e düşüyordu.
+**Düzeltme:** Overlay kaldırıldığında bu sorun da çözüldü.
+
+**Sorun 3:** Eski öğelerin rengi düzenleme formunda siyah görünüyordu.
+**Kök neden:** `initial?.color ?? "#e5e7eb"` — `??` operatörü boş string `""` değerini yakalamıyor.
+**Düzeltme:** `initial?.color || "#e5e7eb"` olarak değiştirildi.
+
+**Sorun 4:** CSS stacking context — `transform: translateY(0)` yeni stacking context oluşturuyor, overlay'in üzerine render ediliyordu.
+**Düzeltme:** `TabContent` animated div'e `position: "relative", zIndex: 20` eklendi.
+
+**Etkilenen dosya:**
+- `src/app/components/dashboard/assignment/pool/CollagePoolPanel.tsx`
+
+---
+
+### 49. Sosyal Medya Ödev Havuzu — Tam Yeniden Tasarım
+
+**Önceki durum:** Düz liste, hiyerarşik sektör desteği yoktu, veri düzensizdi.
+
+**Yeni yapı — 4 sekme:**
+- **Sektörler:** Hiyerarşik accordion — ana sektör → alt sektörler. Alt sektör chip'e tıklayınca düzenleme input'una taşınır. Başlığa veya kalem ikonuna tıklayınca ana sektör adı düzenlenir. Geri kalan alana tıklayınca accordion açılır/kapanır.
+- **Markalar:** Sektör filtresi (dropdown). Her marka tıklanınca transition ile BrandForm açılır. Ortak havuzdan amaç seçimi + özel amaç ekleme.
+- **Amaç & Kural:** Ortak Amaç Havuzu yönetimi (ekle/sil) + Ortak Temel Kural textarea.
+- **Reklam Ölçüleri:** Tablo görünümü (Boyut | Tür | Platform), inline düzenleme.
+
+**Veri normalizasyonu:** Eski Firestore verisinde `id` alanı yoktu, `purposes` object formatındaydı. Load anında normalize edilir: eksik `id` atanır, `purposes` object → array dönüşümü yapılır, `subSectors: []` default eklenir.
+
+**Etkilenen dosyalar:**
+- `src/app/components/dashboard/assignment/pool/SocialMediaPoolPanel.tsx` — tamamen yeniden yazıldı
+- `src/app/components/dashboard/assignment/pool/poolTypes.ts` — `SMSector`, `SMBrand`, `SMFormat`, `SocialMediaPool` arayüzleri güncellendi

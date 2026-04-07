@@ -26,6 +26,7 @@ export interface BookItem {
 }
 
 export interface SMBrand {
+  id: string;
   brandName: string;
   brandRule: string;
   mainSector: string;
@@ -34,10 +35,13 @@ export interface SMBrand {
 }
 
 export interface SMSector {
+  id: string;
   name: string;
+  subSectors: string[];
 }
 
 export interface SMFormat {
+  id: string;
   dim: string;
   type: string;
   platform: string;
@@ -68,6 +72,7 @@ export interface SocialMediaPool {
   brands: SMBrand[];
   sectors: SMSector[];
   formats: SMFormat[];
+  globalPurposes: string[];
   sharedRule: string;
   templateType: "grid";
   createdAt?: unknown;

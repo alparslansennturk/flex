@@ -159,19 +159,15 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
       });
 
-      // Competition ranking: eşitlik sadece ilk 3 için, 4. ve sonrası sıralı numara
-      const ranked = all.map((s, i) => {
-        let rank = i + 1;
-        for (let j = i - 1; j >= 0; j--) {
-          const prevRank = j + 1;
-          if (prevRank > 3) break;
-          const prev = all[j];
-          if ((prev.points ?? 0) === (s.points ?? 0) && (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0)) {
-            rank = prevRank;
-          } else { break; }
-        }
-        return { ...s, rank };
-      });
+      // Dense ranking: eşit puanlılar aynı sırayı paylaşır, sonraki sıra atlanmaz (1,1,2,3...)
+      const ranked: (typeof all[0] & { rank: number })[] = [];
+      for (let i = 0; i < all.length; i++) {
+        if (i === 0) { ranked.push({ ...all[i], rank: 1 }); continue; }
+        const prev = all[i - 1];
+        const prevRank = ranked[i - 1].rank;
+        const sameScore = (prev.points ?? 0) === (all[i].points ?? 0) && (prev.latePenaltyTotal ?? 0) === (all[i].latePenaltyTotal ?? 0);
+        ranked.push({ ...all[i], rank: sameScore ? prevRank : prevRank + 1 });
+      }
 
       setStudents(ranked.slice(0, 4));
       setLoading(false);

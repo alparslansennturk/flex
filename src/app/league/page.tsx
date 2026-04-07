@@ -673,22 +673,15 @@ function LeagueContent() {
   // ── Sıralı öğrenciler ─────────────────────────────────────────────────────
   const rankedStudents = useMemo<RankedStudent[]>(() => {
     const sorted = [...filtered].sort(sortFn);
-    // Sadece ilk 3 (podyum) için eşitlik uygulanır — aynı puan/ceza/görev → aynı sıra, sonraki atlar.
-    // 4. ve sonrası için sortFn alfabetik sırayla ayırt eder → her biri farklı sıra alır.
-    const byScore = sorted.map((s, i) => {
-      let rank = i + 1;
-      for (let j = i - 1; j >= 0; j--) {
-        const prev = sorted[j];
-        const prevRank = j + 1;
-        if (prevRank > 3) break; // 4. ve sonrası için eşitlik uygulanmaz
-        if (
-          prev.score === s.score &&
-          (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) &&
-          (prev.completedTasks ?? 0) === (s.completedTasks ?? 0)
-        ) { rank = prevRank; } else { break; }
-      }
-      return { ...s, rank } as RankedStudent;
-    });
+    // Dense ranking: eşit puanlılar aynı sırayı paylaşır, sonraki sıra atlanmaz (1,1,2,3...)
+    const byScore: RankedStudent[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i === 0) { byScore.push({ ...sorted[i], rank: 1 } as RankedStudent); continue; }
+      const prev = sorted[i - 1];
+      const prevRank = byScore[i - 1].rank;
+      const same = prev.score === sorted[i].score && (prev.latePenaltyTotal ?? 0) === (sorted[i].latePenaltyTotal ?? 0) && (prev.completedTasks ?? 0) === (sorted[i].completedTasks ?? 0);
+      byScore.push({ ...sorted[i], rank: same ? prevRank : prevRank + 1 } as RankedStudent);
+    }
     if (sortAlpha) return [...byScore].sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
     return byScore;
   // eslint-disable-next-line react-hooks/exhaustive-deps

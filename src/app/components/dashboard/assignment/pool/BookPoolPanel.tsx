@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type { BookPool, BookItem } from "./poolTypes";
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10);

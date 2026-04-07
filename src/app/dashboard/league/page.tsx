@@ -900,21 +900,17 @@ export default function LeaguePage() {
     return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
   };
 
-  // Sadece ilk 3 (podyum) için eşitlik uygulanır — aynı puan/ceza/görev → aynı sıra, sonraki atlar.
-  // 4. ve sonrası için sortFn alfabetik sırayla ayırt eder → her biri farklı sıra alır.
-  function competitionRank<T extends { score: number; latePenaltyTotal?: number; completedTasks?: number }>(sorted: T[]): (T & { rank: number })[] {
-    return sorted.map((s, i) => {
-      let rank = i + 1;
-      for (let j = i - 1; j >= 0; j--) {
-        const prevRank = j + 1;
-        if (prevRank > 3) break; // 4. ve sonrası için eşitlik uygulanmaz
-        const prev = sorted[j];
-        if (prev.score === s.score && (prev.latePenaltyTotal ?? 0) === (s.latePenaltyTotal ?? 0) && (prev.completedTasks ?? 0) === (s.completedTasks ?? 0)) {
-          rank = prevRank;
-        } else { break; }
-      }
-      return { ...s, rank };
-    });
+  // Dense ranking: eşit puanlılar aynı sırayı paylaşır, sonraki sıra atlanmaz (1,1,2,3...)
+  function denseRank<T extends { score: number; latePenaltyTotal?: number; completedTasks?: number }>(sorted: T[]): (T & { rank: number })[] {
+    const result: (T & { rank: number })[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i === 0) { result.push({ ...sorted[i], rank: 1 }); continue; }
+      const prev = sorted[i - 1];
+      const prevRank = result[i - 1].rank;
+      const same = prev.score === sorted[i].score && (prev.latePenaltyTotal ?? 0) === (sorted[i].latePenaltyTotal ?? 0) && (prev.completedTasks ?? 0) === (sorted[i].completedTasks ?? 0);
+      result.push({ ...sorted[i], rank: same ? prevRank : prevRank + 1 });
+    }
+    return result;
   }
 
   // ── Tablo sıralaması (tüm filtreleri takip eder) ──────────────────────────
@@ -935,7 +931,7 @@ export default function LeaguePage() {
         ? withScores.filter(s => s.branch === branchSubFilter)
         : withScores;
     }
-    return competitionRank([...filtered].sort(sortFn));
+    return denseRank([...filtered].sort(sortFn));
   }, [withScores, viewMode, filterMode, trainerGroupFilter, branchSubFilter, myGroupCodes]);
 
   // ── Podyum öğrencileri (mod düzeyinde, spesifik grup takip etmez) ─────────
@@ -950,7 +946,7 @@ export default function LeaguePage() {
         ? withScores.filter(s => s.branch === branchSubFilter)
         : withScores;
     }
-    return competitionRank([...filtered].sort(sortFn));
+    return denseRank([...filtered].sort(sortFn));
   }, [withScores, filterMode, branchSubFilter, myGroupCodes]);
 
   // ── Grup sıralaması (filterMode + branchSubFilter + myGroupCodes takip eder) ──
