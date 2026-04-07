@@ -155,8 +155,11 @@ function SectorAccordion({
         )}
       </div>
 
-      {/* Body */}
-      {open && (
+      {/* Body — smooth transition */}
+      <div
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{ maxHeight: open ? "600px" : "0px", opacity: open ? 1 : 0 }}
+      >
         <div className="px-4 py-3 space-y-3">
           {/* Sub-sector chips */}
           {sector.subSectors.length === 0 ? (
@@ -197,7 +200,7 @@ function SectorAccordion({
             </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -320,6 +323,8 @@ function BrandForm({
   const [brandRule,  setBrandRule]  = useState(initial?.brandRule  ?? "");
   const [purposes,   setPurposes]   = useState<string[]>(initial?.purposes ?? []);
   const [customInput, setCustomInput] = useState("");
+  const [selectedPoolItem, setSelectedPoolItem] = useState("");
+  const [poolOpen, setPoolOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const subOptions = sectors.find(s => s.name === mainSector)?.subSectors ?? [];
@@ -402,28 +407,42 @@ function BrandForm({
           </div>
         )}
 
-        {/* Ortak havuzdan seç */}
+        {/* Ortak havuzdan seç — accordion listbox */}
         {globalPurposes.length > 0 && (
-          <div className="bg-white border border-surface-100 rounded-xl p-3 space-y-2">
-            <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wide">Ortak Havuzdan Seç</p>
-            <div className="flex flex-wrap gap-1.5">
-              {globalPurposes.map((p, i) => {
-                const added = purposes.includes(p);
-                return (
-                  <button
-                    key={i}
-                    onClick={() => added ? setPurposes(ps => ps.filter(x => x !== p)) : addFromPool(p)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold border cursor-pointer transition-colors ${
-                      added
-                        ? "bg-base-primary-600 border-base-primary-600 text-white"
-                        : "bg-base-primary-50 border-base-primary-100 text-base-primary-700 hover:border-base-primary-400"
-                    }`}
-                  >
-                    {added ? <Check size={10} /> : <Plus size={10} />}
-                    {p}
-                  </button>
-                );
-              })}
+          <div className="border border-surface-100 rounded-xl overflow-hidden">
+            <button
+              onClick={() => { setPoolOpen(o => !o); setSelectedPoolItem(""); }}
+              className="flex items-center gap-2 w-full px-3 py-2.5 bg-surface-50 hover:bg-surface-100 transition-colors cursor-pointer"
+            >
+              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide flex-1 text-left">Ortak Havuzdan Seç</span>
+              <ChevronDown size={13} className={`text-surface-400 transition-transform duration-300 ${poolOpen ? "rotate-180" : ""}`} />
+            </button>
+            <div
+              className="overflow-hidden transition-all duration-300 ease-in-out"
+              style={{ maxHeight: poolOpen ? "240px" : "0px", opacity: poolOpen ? 1 : 0 }}
+            >
+              <div className="flex items-start gap-2 p-3 bg-white">
+                <select
+                  size={Math.min(globalPurposes.filter(p => !purposes.includes(p)).length || 1, 5)}
+                  value={selectedPoolItem}
+                  onChange={e => setSelectedPoolItem(e.target.value)}
+                  className="flex-1 border border-surface-200 rounded-xl text-[12px] text-text-primary bg-surface-50 outline-none focus:border-base-primary-400 transition-colors cursor-pointer"
+                  style={{ padding: "2px 0" }}
+                >
+                  {globalPurposes
+                    .filter(p => !purposes.includes(p))
+                    .map((p, i) => (
+                      <option key={i} value={p}>{p}</option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => { if (selectedPoolItem) { addFromPool(selectedPoolItem); setSelectedPoolItem(""); setPoolOpen(false); } }}
+                  disabled={!selectedPoolItem}
+                  className="h-9 px-3 rounded-xl bg-base-primary-600 text-white text-[12px] font-bold hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors shrink-0 flex items-center gap-1"
+                >
+                  <Plus size={12} /> Ekle
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -751,6 +770,8 @@ function RuleTab({
   const [saved, setSaved]         = useState(false);
   const [purposeInput, setPurposeInput] = useState("");
   const [savingP, setSavingP]     = useState(false);
+  const [addOpen, setAddOpen]     = useState(false);
+  const [listOpen, setListOpen]   = useState(false);
 
   const saveRule = async () => {
     setSaving(true);
@@ -767,6 +788,7 @@ function RuleTab({
     await onUpdatePurposes([...pool.globalPurposes, v]);
     setSavingP(false);
     setPurposeInput("");
+    setAddOpen(false);
   };
 
   const deletePurpose = async (p: string) => {
@@ -776,38 +798,74 @@ function RuleTab({
   return (
     <div className="space-y-5">
       {/* ── Ortak Amaç Havuzu ── */}
-      <div className="bg-white rounded-2xl border border-surface-100 shadow-sm p-6 space-y-4">
-        <div>
-          <p className="text-[14px] font-bold text-text-primary mb-1">Ortak Amaç Havuzu</p>
-          <p className="text-[12px] text-surface-500">Marka eklerken bu listeden seçim yapılabilir.</p>
-        </div>
+      <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
+        {/* Header — accordion toggle */}
+        <button
+          onClick={() => setListOpen(o => !o)}
+          className="flex items-center gap-3 w-full px-6 py-4 hover:bg-surface-50 transition-colors cursor-pointer"
+        >
+          <div className="flex-1 text-left">
+            <p className="text-[14px] font-bold text-text-primary">Ortak Amaç Havuzu</p>
+            <p className="text-[12px] text-surface-500">Marka eklerken bu listeden seçim yapılabilir.</p>
+          </div>
+          <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-base-primary-50 text-base-primary-600 tabular-nums shrink-0">
+            {pool.globalPurposes.length}
+          </span>
+          <ChevronDown size={15} className={`text-surface-400 shrink-0 transition-transform duration-300 ${listOpen ? "rotate-180" : ""}`} />
+        </button>
 
-        {pool.globalPurposes.length > 0 && (
-          <div className="space-y-1.5">
-            {pool.globalPurposes.map((p, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2 bg-surface-50 border border-surface-100 rounded-xl text-[13px] text-text-primary">
-                <span className="w-1.5 h-1.5 rounded-full bg-base-primary-300 shrink-0" />
-                <span className="flex-1">{p}</span>
-                <button onClick={() => deletePurpose(p)} className="shrink-0 text-surface-300 hover:text-status-danger-500 cursor-pointer transition-colors p-0.5">
-                  <X size={12} />
+        {/* Collapsible body */}
+        <div
+          className="overflow-hidden transition-all duration-300 ease-in-out"
+          style={{ maxHeight: listOpen ? "800px" : "0px", opacity: listOpen ? 1 : 0 }}
+        >
+          <div className="px-6 pb-5 space-y-3 border-t border-surface-100">
+            {pool.globalPurposes.length > 0 ? (
+              <div className="space-y-1.5 pt-4">
+                {pool.globalPurposes.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-2 bg-surface-50 border border-surface-100 rounded-xl text-[13px] text-text-primary">
+                    <span className="w-1.5 h-1.5 rounded-full bg-base-primary-300 shrink-0" />
+                    <span className="flex-1">{p}</span>
+                    <button onClick={() => deletePurpose(p)} className="shrink-0 text-surface-300 hover:text-status-danger-500 cursor-pointer transition-colors p-0.5">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[12px] text-surface-300 italic pt-4">Henüz amaç eklenmemiş.</p>
+            )}
+
+            {/* Yeni Amaç Ekle accordion */}
+            <button
+              onClick={() => setAddOpen(o => !o)}
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-dashed border-base-primary-200 text-[12px] font-bold text-base-primary-600 hover:bg-base-primary-50 cursor-pointer transition-colors"
+            >
+              <Plus size={13} />
+              Yeni Amaç Ekle
+              <ChevronDown size={13} className={`ml-auto transition-transform duration-300 ${addOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            <div
+              className="overflow-hidden transition-all duration-300 ease-in-out"
+              style={{ maxHeight: addOpen ? "120px" : "0px", opacity: addOpen ? 1 : 0 }}
+            >
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  value={purposeInput}
+                  onChange={e => setPurposeInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPurpose(); } }}
+                  placeholder="Yeni ortak amaç ekle..."
+                  className={`flex-1 ${inputCls}`}
+                  autoFocus={addOpen}
+                />
+                <button onClick={addPurpose} disabled={!purposeInput.trim() || savingP}
+                  className="h-9 px-4 rounded-xl bg-base-primary-600 text-white text-[12px] font-bold hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors flex items-center gap-1.5 shrink-0">
+                  <Plus size={12} /> Ekle
                 </button>
               </div>
-            ))}
+            </div>
           </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <input
-            value={purposeInput}
-            onChange={e => setPurposeInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPurpose(); } }}
-            placeholder="Yeni ortak amaç ekle..."
-            className={`flex-1 ${inputCls}`}
-          />
-          <button onClick={addPurpose} disabled={!purposeInput.trim() || savingP}
-            className="h-9 px-4 rounded-xl bg-base-primary-600 text-white text-[12px] font-bold hover:bg-base-primary-700 disabled:opacity-40 cursor-pointer transition-colors flex items-center gap-1.5 shrink-0">
-            <Plus size={12} /> Ekle
-          </button>
         </div>
       </div>
 
@@ -932,10 +990,10 @@ export default function SocialMediaPoolPanel() {
       <div className="flex items-center gap-1 bg-surface-100/70 p-1 rounded-2xl w-fit">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all cursor-pointer border ${
               tab === t.id
-                ? "bg-white text-base-primary-900 shadow-sm border border-surface-100"
-                : "text-surface-500 hover:text-text-primary"
+                ? "bg-white text-base-primary-900 shadow-sm border-surface-100"
+                : "border-transparent text-surface-500 hover:text-text-primary"
             }`}
           >
             <span className={tab === t.id ? "text-base-primary-500" : "text-surface-400"}>{t.icon}</span>

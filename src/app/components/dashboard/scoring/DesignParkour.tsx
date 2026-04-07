@@ -761,14 +761,20 @@ export default function DesignParkour() {
     setGhostModalTask(null);
   };
 
-  // Sıralama: tamamlananlar sona, tarihli+aktif önce
+  // Sıralama: aktif → pasif → tamamlanan; grup içinde createdAt DESC (kararlı sıra)
   const sortedActiveTasks = [...activeTasks].sort((a, b) => {
-    const aCompleted = a.status === "completed";
-    const bCompleted = b.status === "completed";
-    if (aCompleted !== bCompleted) return Number(aCompleted) - Number(bCompleted);
-    const aPassive = !!a.isPaused || !a.endDate;
-    const bPassive = !!b.isPaused || !b.endDate;
-    return Number(aPassive) - Number(bPassive);
+    const groupOf = (t: Task): number => {
+      if (t.status === "completed") return 2;
+      if (t.isPaused || !t.endDate) return 1;
+      return 0;
+    };
+    const ga = groupOf(a);
+    const gb = groupOf(b);
+    if (ga !== gb) return ga - gb;
+    // Grup içi: en yeni solda — createdAt'a göre azalan
+    const aT = (a as any).createdAt?.toMillis?.() ?? 0;
+    const bT = (b as any).createdAt?.toMillis?.() ?? 0;
+    return bT - aT;
   });
 
   // Ghost slot: henüz başlatılmamış şablonlar (rastgele seçilir)

@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-07 (v12)
+> Son güncelleme: 2026-04-07 (v13)
 
 ---
 
@@ -865,3 +865,94 @@ studentData.g2StartXP = Math.floor(g1XP * 0.3);
 **Etkilenen dosyalar:**
 - `src/app/components/dashboard/assignment/pool/SocialMediaPoolPanel.tsx` — tamamen yeniden yazıldı
 - `src/app/components/dashboard/assignment/pool/poolTypes.ts` — `SMSector`, `SMBrand`, `SMFormat`, `SocialMediaPool` arayüzleri güncellendi
+
+---
+
+## 2026-04-07 (v13)
+
+### 50. Sosyal Medya Havuzu — Tab Titreme (CLS) Düzeltmesi
+
+**Sorun:** Sektörler/Markalar/Formatlar/Amaç&Kural sekmeleri arasında geçiş yapınca tüm sekme çubuğu sağa-sola kayıyordu.
+
+**Kök neden:** Aktif sekmeye `border border-surface-100` ekleniyor, pasif sekmelerde border yoktu → sekme boyutu 2px değişiyordu → layout kayması.
+
+**Düzeltme:**
+- `src/app/components/dashboard/assignment/pool/SocialMediaPoolPanel.tsx`
+  - Tüm sekme butonlarına `border` sınıfı sabit eklendi; aktif: `border-surface-100`, pasif: `border-transparent`
+
+---
+
+### 51. Sosyal Medya Havuzu — Amaç & Kural Accordion
+
+**Değişiklikler:**
+
+**a) Ortak Amaç Havuzu listesi accordion'a alındı:**
+- Başlık satırı tıklanabilir → `listOpen` state ile toggle
+- Amaç sayısı badge olarak başlıkta gösterilir
+- Kapalı başlar; içinde "Yeni Amaç Ekle" accordion'u iç içe çalışmaya devam eder
+
+**b) BrandForm — "Ortak Havuzdan Seç" gizli başlar:**
+- Başlık satırı tıklanabilir → `poolOpen` state ile toggle
+- Liste menüsü (`<select size={N}>`) açılır; seçim yapılıp "Ekle"ye basılınca kapanır
+
+**Etkilenen dosya:**
+- `src/app/components/dashboard/assignment/pool/SocialMediaPoolPanel.tsx`
+  - `RuleTab` — `listOpen` state + collapsible div
+  - `BrandForm` — `poolOpen` state + collapsible div; "Ekle" sonrası `setPoolOpen(false)`
+
+---
+
+### 52. Ödev Arşivi — Tabbed Accordion Yeniden Tasarım
+
+**Önceki durum:** Sol panel (grup listesi) + sağ panel (seçili grubun arşivi) iki sütunlu layout.
+
+**Yeni yapı:** Tek sütun, tam genişlik. Her grup kendi accordion'ı. Lazy-load — gruba ilk tıklandığında Firestore'dan veri çekilir, sonraki açmalarda tekrar sorgu atmaz.
+
+**Davranış:**
+- Grup başlığına tıklanınca içerik açılır/kapanır (ChevronDown döner)
+- Yüklendikten sonra başlıkta "X ödev" sayısı görünür
+- İçinde her ödev ayrı accordion satırı → tıklayınca çekiliş tablosu açılır
+- Ödev tipi ikonu: kolaj mavi, kitap yeşil, sosyal medya mor
+- Silme butonu her ödev satırında korundu
+- Gruplar `code` alanına göre alfabetik sıralanır
+
+**Etkilenen dosya:**
+- `src/app/dashboard/archive/page.tsx` — tamamen yeniden yazıldı
+  - `GroupAccordion` bileşeni: `loadState: "idle" | "loading" | "done"` ile lazy-load
+  - `AssignmentAccordion` bileşeni: ödev detay tablosu
+  - Sol sidebar ve iki sütunlu layout kaldırıldı
+
+---
+
+### 53. Sertifikasyon — Tamamlananlar Grubu Accordion
+
+**Sorun:** "Tamamlananlar" sekmesi tüm ödevleri tek düz tabloda gösteriyordu; hangi gruba ait olduğu belli değildi.
+
+**Değişiklik:** Tamamlanan ödevler `task.classId` alanına göre gruplandı. Her grup accordion olarak gösterilir.
+
+**Davranış:**
+- Grup başlığına tıklanınca içerik açılır/kapanır
+- Başlıkta "X ödev" sayacı ve yeşil badge
+- İçinde Ödev/Teslim/Toplam XP kolon başlıkları + mevcut satır fonksiyonları (Detay genişlet, 3-nokta menü → Arşive Gönder) aynen korundu
+
+**Etkilenen dosya:**
+- `src/app/dashboard/grading/page.tsx` (`GradingTabs` bileşeni)
+  - `openGroups: Set<string>` state + `toggleGroup()` helper
+  - `doneGrouped = done.reduce(...)` — `classId` bazlı gruplama
+  - `{tab === "done"}` JSX bloğu yeniden yazıldı
+
+---
+
+### 54. DesignParkour — Görev Kartı Sıralama Stabilitesi
+
+**Sorun:** "Ödevi Bitir" tıklandığında kart bir anda ortaya zıplıyordu. Aktivasyon sonrası beklenmedik pozisyon değişimi yaşanıyordu.
+
+**Kök neden:** `sortedActiveTasks` sort fonksiyonu yalnızca durum gruplarına (active/passive/completed) bakıyordu; grup içinde ikincil sıralama anahtarı yoktu. Bir görev "completed" grubuna geçince Firestore doküman sırasına göre rastgele bir yere atıyordu.
+
+**Düzeltme:**
+- `src/app/components/dashboard/scoring/DesignParkour.tsx` — `sortedActiveTasks` sort
+  - Önce: `Number(aCompleted) - Number(bCompleted)`, sonra `Number(aPassive) - Number(bPassive)` (grup içi ikincil sıralama yok)
+  - Sonra: `groupOf()` fonksiyonu (active=0 / passive=1 / completed=2) → `createdAt DESC` ikincil sort
+  - Sonuç: Tek aktif görev "Bitir" → yerinde kalır. Başka aktif görev varsa en fazla 1 sıra sağa kayar.
+
+**Kural:** `createdAt` task oluşturulduğunda `serverTimestamp()` ile set edilir, statü değişimlerinde değişmez — dolayısıyla stable sort key olarak kullanılabilir.

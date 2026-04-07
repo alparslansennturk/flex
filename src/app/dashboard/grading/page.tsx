@@ -290,6 +290,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
   const [detailMap,    setDetailMap]    = useState<Record<string, Student[]>>({});
   const [archivingId,  setArchivingId]  = useState<string | null>(null);
   const [menuOpenId,   setMenuOpenId]   = useState<string | null>(null);
+  const [openGroups,   setOpenGroups]   = useState<Set<string>>(new Set());
   const [showReset,    setShowReset]    = useState(false);
   const [resetScope,   setResetScope]   = useState<string>(""); // "" = tümü, grup kodu = sadece o grup
   const [myGroupCodes, setMyGroupCodes] = useState<string[]>([]);
@@ -361,6 +362,19 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
     (acc[k] = acc[k] || []).push(t);
     return acc;
   }, {});
+
+  const doneGrouped = done.reduce<Record<string, Task[]>>((acc, t) => {
+    const k = t.classId || "Grup Yok";
+    (acc[k] = acc[k] || []).push(t);
+    return acc;
+  }, {});
+
+  const toggleGroup = (classId: string) =>
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(classId) ? next.delete(classId) : next.add(classId);
+      return next;
+    });
 
   if (loading) return (
     <div className="flex items-center justify-center py-40">
@@ -492,119 +506,149 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
               <p className="text-[16px] font-bold text-surface-400">Henüz notlandırılan ödev yok</p>
             </div>
           ) : (
-            <div className="bg-white rounded-16 border border-surface-100 shadow-lg overflow-hidden">
-              {/* Başlık satırı */}
-              <div className="flex items-center gap-4 px-6 py-3.5 bg-surface-50 border-b border-surface-100">
-                <div className="flex-1 min-w-0"><span className="text-[12px] font-bold text-surface-600">Ödev</span></div>
-                <div className="w-24 shrink-0 text-center"><span className="text-[12px] font-bold text-surface-600">Teslim</span></div>
-                <div className="w-24 shrink-0 text-center"><span className="text-[12px] font-bold text-surface-600">Toplam XP</span></div>
-                <div className="w-36 shrink-0" />
-              </div>
-
-              {done.map(task => {
-                const grades         = (task as any).grades as GradesMap | undefined;
-                const submittedCount = grades ? Object.values(grades).filter(g => g.submitted).length : 0;
-                const totalStudents  = grades ? Object.keys(grades).length : 0;
-                const totalXP        = grades ? Object.values(grades).reduce((s, g) => s + g.xp, 0) : 0;
-                const isExpanded     = expandedId === task.id;
-                const students       = detailMap[task.id] ?? [];
-
+            <div className="space-y-3">
+              {Object.entries(doneGrouped).map(([classId, classTasks]) => {
+                const isGroupOpen = openGroups.has(classId);
                 return (
-                  <div key={task.id} className="border-b border-surface-100 last:border-0">
-                    {/* Ana satır — tıklayınca not girişi formuna git */}
-                    <div
-                      onClick={() => router.push(`/dashboard/grading?taskId=${task.id}&from=done`)}
-                      className="flex items-center gap-4 px-6 py-4 hover:bg-surface-50/40 transition-colors cursor-pointer group"
-                    >
-                      <TaskMeta task={task} />
-                      <div className="w-24 shrink-0 text-center">
-                        <span className="text-[13px] font-bold text-base-primary-900">{submittedCount}</span>
-                        <span className="text-[12px] text-surface-300">/{totalStudents}</span>
-                      </div>
-                      <div className="w-24 shrink-0 text-center">
-                        <span className="inline-flex items-center gap-1 text-[13px] font-bold text-designstudio-primary-600">
-                          <Zap size={11} className="text-designstudio-primary-500" />{totalXP}
-                        </span>
-                      </div>
-                      <div className="w-36 shrink-0 flex items-center gap-2 justify-end">
-                        {/* Detay genişlet */}
-                        <button
-                          onClick={e => { e.stopPropagation(); toggleDetail(task); }}
-                          className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-base-primary-50 text-base-primary-600 text-[12px] font-bold hover:bg-base-primary-100 transition-all cursor-pointer"
-                        >
-                          Detay {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                        </button>
-                        {/* 3-nokta menüsü */}
-                        <div className="relative" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => setMenuOpenId(menuOpenId === task.id ? null : task.id)}
-                            className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-all cursor-pointer"
-                            title="Seçenekler"
-                          >
-                            <MoreVertical size={14} />
-                          </button>
-                          {menuOpenId === task.id && (
-                            <div className="absolute right-0 top-9 z-50 bg-white border border-surface-100 rounded-2xl shadow-xl overflow-hidden min-w-36">
-                              <button
-                                onClick={() => { handleArchive(task); setMenuOpenId(null); }}
-                                disabled={archivingId === task.id}
-                                className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50"
-                              >
-                                {archivingId === task.id
-                                  ? <div className="w-3.5 h-3.5 border-2 border-surface-200 border-t-surface-500 rounded-full animate-spin" />
-                                  : <Archive size={13} />}
-                                Arşive Gönder
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                  <div key={classId} className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
 
-                    {/* Detay genişletme */}
-                    {isExpanded && (
-                      <div className="px-6 pb-4 bg-surface-50/50 border-t border-surface-100">
-                        {students.length === 0 && !detailMap[task.id] ? (
-                          <div className="py-4 flex items-center justify-center">
-                            <div className="w-5 h-5 border-2 border-surface-200 border-t-base-primary-400 rounded-full animate-spin" />
-                          </div>
-                        ) : (
-                          <div className="pt-4 space-y-2">
-                            {(students.length > 0 ? students : Object.keys(grades ?? {}).map(id => ({ id } as Student))).map(student => {
-                              const grade      = grades?.[student.id] ?? { submitted: false, weeksLate: 0, xp: 0 };
-                              const avatarSrc  = student.gender ? `/avatars/${student.gender}/${student.avatarId ?? 1}.svg` : null;
-                              const displayName = student.name ? `${student.name} ${student.lastName}` : student.id;
-                              return (
-                                <div key={student.id} className="flex items-center gap-3 bg-white rounded-12 px-4 py-2.5 border border-surface-100">
-                                  {avatarSrc && (
-                                    <img src={avatarSrc} alt={displayName} className="w-7 h-7 rounded-xl object-cover border border-surface-100 shrink-0"
-                                      onError={e => { (e.target as HTMLImageElement).src = `/avatars/male/1.svg`; }} />
-                                  )}
-                                  <span className="text-[13px] font-bold text-base-primary-900 flex-1 truncate">{displayName}</span>
-                                  {grade.submitted ? (
-                                    <>
-                                      <span className="flex items-center gap-1 text-[11px] font-bold text-status-success-600 bg-status-success-100 px-2 py-1 rounded-lg">
-                                        <CheckCircle2 size={11} />Teslim
-                                      </span>
-                                      {grade.weeksLate > 0 && (
-                                        <span className="flex items-center gap-1 text-[11px] font-bold text-[#FFB020] bg-[#FFF9EB] px-2 py-1 rounded-lg">
-                                          <Clock size={11} />{grade.weeksLate} hf. geç
-                                        </span>
-                                      )}
-                                      <span className="flex items-center gap-1 text-[12px] font-bold text-designstudio-primary-600 bg-designstudio-primary-50 px-2.5 py-1 rounded-lg">
-                                        <Zap size={11} className="text-designstudio-primary-500" />{grade.xp} XP
-                                      </span>
-                                    </>
+                    {/* Grup accordion başlığı */}
+                    <button
+                      onClick={() => toggleGroup(classId)}
+                      className="w-full flex items-center gap-4 px-6 py-4 hover:bg-surface-50 transition-colors cursor-pointer"
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full bg-status-success-400 shrink-0" />
+                      <span className="text-[16px] font-bold text-base-primary-900 flex-1 text-left">{classId}</span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-status-success-100 text-status-success-700 text-[11px] font-bold tabular-nums">
+                        {classTasks.length} ödev
+                      </span>
+                      <ChevronDown
+                        size={16}
+                        className={`text-surface-400 transition-transform duration-300 ${isGroupOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+
+                    {/* Collapsible içerik */}
+                    <div
+                      className="overflow-hidden transition-all duration-300 ease-in-out"
+                      style={{ maxHeight: isGroupOpen ? "4000px" : "0px", opacity: isGroupOpen ? 1 : 0 }}
+                    >
+                      <div className="border-t border-surface-100">
+                        {/* Kolon başlıkları */}
+                        <div className="flex items-center gap-4 px-6 py-3 bg-surface-50 border-b border-surface-100">
+                          <div className="flex-1 min-w-0"><span className="text-[12px] font-bold text-surface-600">Ödev</span></div>
+                          <div className="w-24 shrink-0 text-center"><span className="text-[12px] font-bold text-surface-600">Teslim</span></div>
+                          <div className="w-24 shrink-0 text-center"><span className="text-[12px] font-bold text-surface-600">Toplam XP</span></div>
+                          <div className="w-36 shrink-0" />
+                        </div>
+
+                        {classTasks.map(task => {
+                          const grades         = (task as any).grades as GradesMap | undefined;
+                          const submittedCount = grades ? Object.values(grades).filter(g => g.submitted).length : 0;
+                          const totalStudents  = grades ? Object.keys(grades).length : 0;
+                          const totalXP        = grades ? Object.values(grades).reduce((s, g) => s + g.xp, 0) : 0;
+                          const isExpanded     = expandedId === task.id;
+                          const students       = detailMap[task.id] ?? [];
+
+                          return (
+                            <div key={task.id} className="border-b border-surface-100 last:border-0">
+                              {/* Ana satır */}
+                              <div
+                                onClick={() => router.push(`/dashboard/grading?taskId=${task.id}&from=done`)}
+                                className="flex items-center gap-4 px-6 py-4 hover:bg-surface-50/40 transition-colors cursor-pointer group"
+                              >
+                                <TaskMeta task={task} />
+                                <div className="w-24 shrink-0 text-center">
+                                  <span className="text-[13px] font-bold text-base-primary-900">{submittedCount}</span>
+                                  <span className="text-[12px] text-surface-300">/{totalStudents}</span>
+                                </div>
+                                <div className="w-24 shrink-0 text-center">
+                                  <span className="inline-flex items-center gap-1 text-[13px] font-bold text-designstudio-primary-600">
+                                    <Zap size={11} className="text-designstudio-primary-500" />{totalXP}
+                                  </span>
+                                </div>
+                                <div className="w-36 shrink-0 flex items-center gap-2 justify-end">
+                                  <button
+                                    onClick={e => { e.stopPropagation(); toggleDetail(task); }}
+                                    className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-base-primary-50 text-base-primary-600 text-[12px] font-bold hover:bg-base-primary-100 transition-all cursor-pointer"
+                                  >
+                                    Detay {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                  </button>
+                                  <div className="relative" onClick={e => e.stopPropagation()}>
+                                    <button
+                                      onClick={() => setMenuOpenId(menuOpenId === task.id ? null : task.id)}
+                                      className="w-8 h-8 flex items-center justify-center rounded-xl text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-all cursor-pointer"
+                                      title="Seçenekler"
+                                    >
+                                      <MoreVertical size={14} />
+                                    </button>
+                                    {menuOpenId === task.id && (
+                                      <div className="absolute right-0 top-9 z-50 bg-white border border-surface-100 rounded-2xl shadow-xl overflow-hidden min-w-36">
+                                        <button
+                                          onClick={() => { handleArchive(task); setMenuOpenId(null); }}
+                                          disabled={archivingId === task.id}
+                                          className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50"
+                                        >
+                                          {archivingId === task.id
+                                            ? <div className="w-3.5 h-3.5 border-2 border-surface-200 border-t-surface-500 rounded-full animate-spin" />
+                                            : <Archive size={13} />}
+                                          Arşive Gönder
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Detay satırları */}
+                              {isExpanded && (
+                                <div className="px-6 pb-4 bg-surface-50/50 border-t border-surface-100">
+                                  {students.length === 0 && !detailMap[task.id] ? (
+                                    <div className="py-4 flex items-center justify-center">
+                                      <div className="w-5 h-5 border-2 border-surface-200 border-t-base-primary-400 rounded-full animate-spin" />
+                                    </div>
                                   ) : (
-                                    <span className="text-[11px] font-bold text-status-danger-500 bg-status-danger-50 px-2 py-1 rounded-lg">Teslim Etmedi</span>
+                                    <div className="pt-4 space-y-2">
+                                      {(students.length > 0 ? students : Object.keys(grades ?? {}).map(id => ({ id } as Student))).map(student => {
+                                        const grade       = grades?.[student.id] ?? { submitted: false, weeksLate: 0, xp: 0 };
+                                        const avatarSrc   = student.gender ? `/avatars/${student.gender}/${student.avatarId ?? 1}.svg` : null;
+                                        const displayName = student.name ? `${student.name} ${student.lastName}` : student.id;
+                                        return (
+                                          <div key={student.id} className="flex items-center gap-3 bg-white rounded-12 px-4 py-2.5 border border-surface-100">
+                                            {avatarSrc && (
+                                              <img src={avatarSrc} alt={displayName} className="w-7 h-7 rounded-xl object-cover border border-surface-100 shrink-0"
+                                                onError={e => { (e.target as HTMLImageElement).src = `/avatars/male/1.svg`; }} />
+                                            )}
+                                            <span className="text-[13px] font-bold text-base-primary-900 flex-1 truncate">{displayName}</span>
+                                            {grade.submitted ? (
+                                              <>
+                                                <span className="flex items-center gap-1 text-[11px] font-bold text-status-success-600 bg-status-success-100 px-2 py-1 rounded-lg">
+                                                  <CheckCircle2 size={11} />Teslim
+                                                </span>
+                                                {grade.weeksLate > 0 && (
+                                                  <span className="flex items-center gap-1 text-[11px] font-bold text-[#FFB020] bg-[#FFF9EB] px-2 py-1 rounded-lg">
+                                                    <Clock size={11} />{grade.weeksLate} hf. geç
+                                                  </span>
+                                                )}
+                                                <span className="flex items-center gap-1 text-[12px] font-bold text-designstudio-primary-600 bg-designstudio-primary-50 px-2.5 py-1 rounded-lg">
+                                                  <Zap size={11} className="text-designstudio-primary-500" />{grade.xp} XP
+                                                </span>
+                                              </>
+                                            ) : (
+                                              <span className="text-[11px] font-bold text-status-danger-500 bg-status-danger-50 px-2 py-1 rounded-lg">Teslim Etmedi</span>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
                                   )}
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
