@@ -811,8 +811,9 @@ export default function DesignParkour() {
             onComplete={setCompleteConfirmTask}
             onCancel={setCancelConfirmTask}
             onDetail={t => {
-              const route = t.assignmentType === "kitap" ? "kitap"
-                          : t.assignmentType === "kolaj" ? "kolaj"
+              const route = t.assignmentType === "kitap"       ? "kitap"
+                          : t.assignmentType === "kolaj"       ? "kolaj"
+                          : t.assignmentType === "sosyal_medya" ? "sosyalmedya"
                           : null;
               if (route) router.push(`/dashboard/${route}?taskId=${t.id}`);
             }}
