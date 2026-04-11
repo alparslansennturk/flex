@@ -7,7 +7,7 @@
 
 import { adminStorage } from "./firebase-admin";
 import {
-  UploadResult,
+  StorageUploadResult,
   UploadError,
   UploadErrorCode,
   ALLOWED_MIME_TYPES,
@@ -81,7 +81,7 @@ export async function uploadSubmission(
   fileName: string,
   studentId: string,
   taskId: string
-): Promise<UploadResult> {
+): Promise<StorageUploadResult> {
   // 1. Validation
   const validationError = validateFile(mimeType, buffer.length);
   if (validationError) {
@@ -188,4 +188,4 @@ export async function deleteStorageFile(filePath: string): Promise<void> {
 // ─── Re-export ────────────────────────────────────────────────────────────────
 
 export { mimeToExtension, validateFile as isValidFile };
-export type { UploadResult, UploadError };
+export type { StorageUploadResult, UploadError };

@@ -1,8 +1,18 @@
 // ─── Upload Sonucu ───────────────────────────────────────────────────────────
 
+/** Google Drive upload sonucu */
 export interface UploadResult {
   url: string;       // Google Drive public view link (webViewLink)
   fileId: string;    // Google Drive dosya ID'si
+  fileName: string;  // Orijinal dosya adı
+  fileSize: number;  // Byte cinsinden
+  mimeType: string;
+}
+
+/** Firebase Storage upload sonucu (storage.ts) */
+export interface StorageUploadResult {
+  url: string;       // Signed URL
+  filePath: string;  // Storage'daki tam yol
   fileName: string;  // Orijinal dosya adı
   fileSize: number;  // Byte cinsinden
   mimeType: string;
@@ -15,6 +25,7 @@ export type UploadErrorCode =
   | 'INVALID_TYPE'      // İzin verilmeyen MIME türü
   | 'AUTH_FAILED'       // Google OAuth/Token hatası
   | 'UPLOAD_FAILED'     // Google Drive yazma hatası
+  | 'URL_FAILED'        // Dosya yüklendi ancak URL alınamadı
   | 'UNKNOWN';          // Beklenmeyen hata
 
 export interface UploadError {
