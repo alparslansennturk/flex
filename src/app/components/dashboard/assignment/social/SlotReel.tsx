@@ -27,6 +27,14 @@ export function SlotReel({
   const timeoutRef  = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    if (!isSpinning) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current)  clearTimeout(timeoutRef.current);
+      setCurrentIndex(finalIndex);
+      setIsStopped(true);
+      return;
+    }
+
     if (isSpinning) {
       setIsStopped(false);
       intervalRef.current = setInterval(() => {

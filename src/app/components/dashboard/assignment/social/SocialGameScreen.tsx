@@ -18,7 +18,7 @@ const ACCENT = "#a855f7";
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 
-type Phase = "idle" | "picking" | "ready" | "spinning" | "result";
+type Phase = "idle" | "picking" | "ready" | "spinning" | "result" | "frozen";
 
 interface FullSMDraw {
   studentId:     string;
@@ -58,6 +58,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
   const [spinKey,           setSpinKey]           = useState(0);
   const [showResult,        setShowResult]        = useState(false);
   const [showInlineResult,  setShowInlineResult]  = useState(false);
+  const [blinkSlots,        setBlinkSlots]        = useState(false);
   const [pendingDraw,       setPendingDraw]       = useState<FullSMDraw | null>(null);
   const [mailStatus,        setMailStatus]        = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [autoMailSentFor,   setAutoMailSentFor]   = useState<Set<string>>(new Set());
@@ -244,9 +245,9 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
         contentType:   format ? `${format.dim} (${format.type})` : "",
       };
 
-      // Önce inline sonuçları göster
+      // Slotları dondur, blink başlat
       setPendingDraw(draw);
-      setShowInlineResult(true);
+      setBlinkSlots(true);
 
       // Firestore'a kaydet
       const newDraws = [...drawsRef.current, draw];
@@ -274,11 +275,12 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
         updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
       }
 
-      // 4sn bekle → modal + mail
+      // 1.35sn blink → modal
       const tModal = setTimeout(() => {
+        setBlinkSlots(false);
         setPhase("result");
         setShowResult(true);
-      }, 4000);
+      }, 1350);
       timeoutRefs.current.push(tModal);
 
       // Mail otomatik gönder (inline gösterimle birlikte)
@@ -326,6 +328,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
     autoPickRef.current = true;
     setShowResult(false);
     setShowInlineResult(false);
+    setBlinkSlots(false);
     setSelectedStudentId(null);
     setPickHighlightId(null);
     setNameVisible(false);
@@ -336,10 +339,11 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
   const handleClose = useCallback(() => {
     setShowResult(false);
     setShowInlineResult(false);
-    setPhase("idle");
-    setSelectedStudentId(null);
+    setBlinkSlots(false);
     setPickHighlightId(null);
     setNameVisible(false);
+    setPhase("frozen");
+    // selectedStudentId, pendingDraw ve finalIndexes korunuyor (frozen görünüm için)
   }, []);
 
   // Sadece arşive yedekle — task status'a dokunmaz, 3 sn sonra /dashboard'a döner
@@ -428,6 +432,10 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
           40%{transform:scale(1);opacity:1}
         }
         @keyframes smFadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes slotBlink {
+          0%,49.9%{opacity:1}
+          50%,100%{opacity:0.08}
+        }
       `}</style>
 
       <div className="min-h-screen flex" style={{ background: "#0d1526" }}>
@@ -565,40 +573,51 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                   <div key={spinKey} style={{
                     display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 32,
                     padding: "16px 0 8px",
+                    animation: blinkSlots ? "slotBlink 0.42s linear 3" : "none",
                   }}>
-                    <SlotReel items={anaSektorler} isSpinning={true} finalIndex={finalIndexes[0]} delay={1800} label="Ana Sektör" accentColor={ACCENT} />
-                    <SlotReel items={altSektorler} isSpinning={true} finalIndex={finalIndexes[1]} delay={3200} label="Alt Sektör" accentColor={ACCENT} />
-                    <SlotReel items={markalar}     isSpinning={true} finalIndex={finalIndexes[2]} delay={4600} label="Marka" accentColor={ACCENT} />
+                    <SlotReel items={anaSektorler} isSpinning={!blinkSlots} finalIndex={finalIndexes[0]} delay={1800} label="Ana Sektör" accentColor={ACCENT} />
+                    <SlotReel items={altSektorler} isSpinning={!blinkSlots} finalIndex={finalIndexes[1]} delay={3200} label="Alt Sektör" accentColor={ACCENT} />
+                    <SlotReel items={markalar}     isSpinning={!blinkSlots} finalIndex={finalIndexes[2]} delay={4600} label="Marka" accentColor={ACCENT} />
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Inline sonuçlar — reeller durduktan sonra */}
-                {showInlineResult && pendingDraw && (
+            {/* FROZEN — çekiliş bitti, modal kapandı */}
+            {phase === "frozen" && !allDone && selectedStudent && pendingDraw && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.45em", color: "rgba(168,85,247,0.50)", marginBottom: 12 }}>
+                    Çekiliş Tamamlandı
+                  </p>
+                  <h2 style={{ fontSize: "clamp(24px, 2.8vw, 38px)", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2, color: "white", margin: "0 0 6px", animation: "smFadeIn 0.4s ease" }}>
+                    <span style={{ color: "#ffffff" }}>{selectedStudent.name} </span>
+                    <span style={{ color: "#c084fc" }}>{selectedStudent.lastName}</span>
+                  </h2>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.30)", margin: 0 }}>
+                    {remainingStudents.length} öğrenci kaldı
+                  </p>
+                </div>
+
+                <div style={{
+                  background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 28, padding: "40px 40px 32px", position: "relative",
+                  width: "100%", maxWidth: 820,
+                }}>
                   <div style={{
-                    width: "100%", maxWidth: 820,
-                    background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.25)",
-                    borderRadius: 16, padding: "20px 28px",
-                    display: "flex", flexWrap: "wrap", gap: "12px 32px",
-                    animation: "smFadeIn 0.5s ease",
+                    position: "absolute", top: -18, left: "50%", transform: "translateX(-50%)",
+                    background: ACCENT, borderRadius: 100, padding: "6px 24px",
                   }}>
-                    {[
-                      { label: "Marka",       val: pendingDraw.marka },
-                      { label: "Sektör",      val: pendingDraw.sektorDisplay },
-                      { label: "Amaç",        val: pendingDraw.purpose },
-                      { label: "Platform",    val: pendingDraw.platform },
-                      { label: "İçerik",      val: pendingDraw.contentType },
-                    ].map(r => (
-                      <div key={r.label} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 140 }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(168,85,247,0.6)" }}>
-                          {r.label}
-                        </span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>
-                          {r.val || "—"}
-                        </span>
-                      </div>
-                    ))}
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "white", textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                      Reklam Bulucu
+                    </span>
                   </div>
-                )}
+                  <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 32, padding: "16px 0 8px" }}>
+                    <SlotReel items={anaSektorler} isSpinning={false} finalIndex={finalIndexes[0]} delay={0} label="Ana Sektör" accentColor={ACCENT} />
+                    <SlotReel items={altSektorler} isSpinning={false} finalIndex={finalIndexes[1]} delay={0} label="Alt Sektör" accentColor={ACCENT} />
+                    <SlotReel items={markalar}     isSpinning={false} finalIndex={finalIndexes[2]} delay={0} label="Marka" accentColor={ACCENT} />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -760,6 +779,39 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                   ))}
                 </div>
                 Çekiliş yapılıyor...
+              </div>
+            )}
+
+            {/* frozen → Yeni Çekim + Arşive Kaydet */}
+            {phase === "frozen" && !allDone && (
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <button
+                  onClick={handleArchive}
+                  disabled={archiving || archived}
+                  style={{
+                    padding: "16px 36px", borderRadius: 100,
+                    background: "linear-gradient(135deg, #205297, #3a7bd5)",
+                    boxShadow: "0 6px 20px rgba(58,123,213,0.25)",
+                    color: "white", fontSize: 15, fontWeight: 800, border: "none",
+                    cursor: archiving || archived ? "not-allowed" : "pointer",
+                    opacity: archiving || archived ? 0.7 : 1,
+                    transition: "opacity 0.2s",
+                  }}
+                >
+                  {archiving ? "Kaydediliyor..." : archived ? "Arşive Kaydedildi ✓" : "Arşive Kaydet"}
+                </button>
+                <button
+                  onClick={handleAdvance}
+                  style={{
+                    padding: "16px 40px", borderRadius: 100,
+                    background: "linear-gradient(135deg, #7c3aed, #a855f7)",
+                    boxShadow: "0 8px 28px rgba(168,85,247,0.30)",
+                    color: "white", fontSize: 15, fontWeight: 800, border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 8,
+                  }}
+                >
+                  Yeni Çekim <ChevronRight size={16} strokeWidth={2.5} />
+                </button>
               </div>
             )}
 
