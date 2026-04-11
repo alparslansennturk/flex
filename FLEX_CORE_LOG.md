@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-09
+> Son güncelleme: 2026-04-11
 
 ---
 
@@ -502,6 +502,145 @@
 - Logs sistemi: `mailLogs` ve `scoreLogs` Firestore koleksiyonları — server-side `adminDb` ile yazılır, client-side silinemez; emailService sadece API route'lardan import edilir (firebase-admin güvenli)
 - scoreLogs write noktası: `grading/page.tsx` `handleSaveGrades()` içinde `batch.commit()` sonrası — hata olsa bile grading işlemi etkilenmez (try/catch ayrı)
 - Sertifikasyon layout: `max-w-250` (~1000px) → `max-w-[1920px]` — 3 yerde değişti (GradingTabs, CertificationPanel, GradingRouter sekme başlığı)
+
+---
+
+## Puanlama Algoritması Güncellemesi + G1→G2 Carry-Over (2026-04-11)
+
+### 27. Yeni calcScore Formülü
+
+**Değişiklik:** `calcScore` formülü tamamen yenilendi.
+
+**Yeni formül:**
+```
+adjustedXP     = totalXP + completedTasks * 3
+averageXP      = adjustedXP / max(completedTasks, minTaskDivisor)
+bonus          = 1 + log2(max(completedTasks, 1)) * bonusMultiplier
+completionRate = assigned > 0 ? 0.55 + 0.45 * (completedTasks / assigned) : 1.0
+progressBonus  = completedTasks * 2.5
+score          = (averageXP * bonus) * completionRate + progressBonus
+```
+
+**Parametreler:**
+- `bonusMultiplier`: `DEFAULT_SCORING`'de 1.0 → **0.85**; Firestore `settings/scoring` override'ı da 0.85'e güncellendi
+- `minTaskDivisor`: 3 (sabit)
+- `totalAssignedTasks`: gruba atanmış toplam görev sayısı — `tasksMap`'ten `classId === student.groupCode` filtresiyle hesaplanır; geçilmezse `completionRate = 1.0`
+
+**Düzeltmeler:**
+- `src/app/lib/scoring.ts` — `calcScore` 4. parametre `totalAssignedTasks?` eklendi
+- `src/app/dashboard/league/page.tsx` — `totalAssignedTasks` hesaplanıp `calcScore`'a geçiliyor
+- `src/app/league/page.tsx` (öğrenci portalı) — aynı şekilde güncellendi
+- `src/app/components/dashboard/scoring/LeaderboardWidget.tsx` — `tasksMap` yüklendi, `totalAssignedTasks` hesaplanıp geçildi
+
+---
+
+### 28. G1→G2 Carry-Over Sistemi
+
+**Kural:** Grafik-1 grubu arşivlenince her öğrencinin G1 skoru `%10`'u `g2StartXP` olarak Firestore'a yazılır. Grafik-2'de lig puanı = G2 skoru + `g2StartXP`.
+
+**Tetikleme noktaları:**
+1. **Arşivleme** (`useManagement.ts` `handleArchive` — `modalConfig.type === 'archive'`): grup arşivlenirken her öğrenci için hesap yapılır, `g2StartXP` + `isCarryOverApplied: true` yazılır
+2. **Transfer** (`handleAddStudent`): öğrenci eski gruptan yeni gruba taşınırken `isCarryOverApplied` yoksa ve modüller G1→G2 ise aynı hesap yapılır (arşivde zaten uygulanmışsa atlanır)
+
+**Veri yapısı:**
+- `students/{id}.g2StartXP` — taşınan puan (tam sayı)
+- `students/{id}.isCarryOverApplied` — boolean, tekrarlı uygulamayı önler
+
+**Düzeltmeler:**
+- `src/app/hooks/useManagement.ts` — arşiv ve transfer akışlarına carry-over hesabı eklendi
+- `gradedTasks` `classId` filtresi: `classId === groupCode` — "Grup 296" formatında eşleşiyor
+
+---
+
+### 29. Carry-Over Düzeltme Sayfası (Geçici)
+
+**Amaç:** Grup 296 (G1) arşivlenip 541 (G2)'e geçildiğinde herkes 0 puan gördü — carry-over sistemi henüz yoktu.
+
+**Sayfa:** `/dashboard/fix-carryover`
+- Tüm aktif öğrenciler sorgulanır
+- Her öğrencinin G1 gradedTasks'ı `classId === "Grup 296"` ile filtrelenir
+- `g2StartXP = floor(calcScore(xp, tasks) * 0.10)` hesaplanıp yazılır
+- `forceMode` (varsayılan: true) — `isCarryOverApplied` olanlara da uygular
+- Eski/yeni carry-over ve fark tablosu gösterir
+
+**Kök neden:** `classId` değeri "296" değil **"Grup 296"** formatında saklanıyor — sabit buna göre düzeltildi.
+
+---
+
+### 30. LeaderboardWidget Ana Sayfa Düzeltmesi
+
+**Sorun:** Ana sayfadaki widget lig tablosuyla farklı puanlar gösteriyordu.
+
+**Kök nedenler:**
+1. Varsayılan `viewMode` `'Sınıflarım'` idi — sadece eğitmenin grupları listeleniyordu
+2. `gradedTasks` tüm grupların görevlerini topluyordu, sadece mevcut grubunki değil
+3. `g2StartXP` bonus eklenmiyordu
+4. `totalAssignedTasks` geçilmiyordu → `completionRate = 1.0` → şişmiş puan
+
+**Düzeltmeler:**
+- `src/app/dashboard/page.tsx` — varsayılan `viewMode`: `'Sınıflarım'` → **`'Tümü'`**
+- `src/app/components/dashboard/scoring/LeaderboardWidget.tsx`:
+  - `tasksMap` state + Firestore yükleme useEffect eklendi
+  - `gradedTasks` → `classId === data.groupCode` ile filtrelendi
+  - `g2StartXP` bonus olarak eklendi
+  - `totalAssignedTasks` hesaplanıp `calcScore`'a 4. parametre olarak geçildi
+  - `tasksMap` dependency array'e eklendi
+
+---
+
+### 31. Lig Tablosu — Bonus XP Gösterimi
+
+**Değişiklik:** XP sütununda G2 öğrencileri için carry-over bonus ayrı satırda gösterilir.
+
+**Görünüm:**
+```
+1.050 XP
+(+60 bonus)   ← 12px, italic, text-text-tertiary
+```
+
+**Düzeltme:**
+- `src/app/dashboard/league/page.tsx` — XP cell'i `flex-col` div'e alındı; `g2Bonus > 0` ise `(+{g2Bonus} bonus)` alt satır eklendi
+
+---
+
+### 32. Lig Tablosu — Sıralama Mantığı Düzeltmesi
+
+**Sorun:** Aynı puanlı öğrenciler (özellikle 0 puanlılar) herkes aynı sıra numarasını alıyordu (ör. hepsi 18.).
+
+**Yeni kural:**
+- **1–3. sıra:** Aynı puan = aynı sıra numarası (1,1,2,3 veya 1,2,2,3 olabilir)
+- **4. sıra ve sonrası:** Benzersiz sıra — tiebreaker: ① ceza puanı ↑ ② tamamlanan görev ↓ ③ alfabetik
+
+**Düzeltme:**
+- `src/app/dashboard/league/page.tsx` `denseRank` fonksiyonu:
+  - `prevRank <= 3 && sameScore` → aynı sıra
+  - Aksi hâlde her öğrenci benzersiz sıra alır
+  - `sortFn` zaten ceza → görev → alfabetik sıralıyor; `denseRank` sadece numara ataması yapıyor
+
+---
+
+## Etkilenen Dosyalar (2026-04-11 Güncellemesi)
+
+| Dosya | Konu |
+|---|---|
+| `src/app/lib/scoring.ts` | Yeni `calcScore` formülü, `totalAssignedTasks` parametresi, `bonusMultiplier` 0.85 |
+| `src/app/hooks/useManagement.ts` | Arşiv + transfer carry-over hesabı, `g2StartXP`, `isCarryOverApplied` |
+| `src/app/dashboard/fix-carryover/page.tsx` | Geçici düzeltme sayfası (tek seferlik) |
+| `src/app/dashboard/league/page.tsx` | `totalAssignedTasks`, `g2Bonus`, bonus gösterimi, `denseRank` düzeltmesi |
+| `src/app/league/page.tsx` | `totalAssignedTasks`, `g2Bonus` (öğrenci portalı) |
+| `src/app/dashboard/page.tsx` | Varsayılan `viewMode` → `'Tümü'` |
+| `src/app/components/dashboard/scoring/LeaderboardWidget.tsx` | `tasksMap`, `gradedTasks` filtresi, `g2Bonus`, `totalAssignedTasks` |
+
+---
+
+## Mimari Notlar (Ek — 2026-04-11)
+
+- `calcScore` 4. parametre `totalAssignedTasks`: geçilmezse `completionRate = 1.0` (geriye dönük uyumlu); lig ve widget'ta her zaman geçilmeli
+- `g2StartXP`: Firestore'da saklı carry-over — lig puanına doğrudan eklenir, görev sayısına bölünmez
+- `isCarryOverApplied: true` — tekrarlı uygulamayı önler; arşivleme öncelikli, transfer fallback
+- `classId` formatı: "Grup 296" (kod değil tam string) — `gradedTasks` filtresi ve fix sayfası buna göre
+- `denseRank`: ilk 3 sıra score eşitliğinde tie'a izin verir; 4.+ sıra her öğrenci benzersiz sıra alır
+- Carry-over oranı: `%10` — G1 final skoru üzerinden `Math.floor`
 
 ---
 
@@ -1107,6 +1246,77 @@ Saf Drive upload endpoint'i — Firestore submission kaydı **oluşturmaz**.
 | ✅ Başarılı | Doğru refresh token + tırnaklı format | `POST /api/upload` → `fileId + webViewLink + downloadUrl` |
 
 **Not:** `.env.local`'da özel karakter içeren değerleri her zaman çift tırnakla sar. Google refresh token `1//` ile başlar; `4/` ile başlayan authorization code'dur, 5 dakika içinde geçersiz olur.
+
+---
+
+## [2026-04-11] Puan Algoritması + Sınıf Bitiş Carry-Over
+
+### 55. Puan Formülü Yenilendi
+
+**Yeni `calcScore` formülü (`src/app/lib/scoring.ts`):**
+```
+adjustedXP      = totalXP + completedTasks × 3
+averageXP       = adjustedXP / max(completedTasks, 3)
+bonus           = 1 + log2(completedTasks) × bonusMultiplier   [default: 0.85]
+completionRate  = 0.55 + 0.45 × (completedTasks / totalAssignedTasks)  [varsayılan: 1.0]
+progressBonus   = completedTasks × 2.5
+score           = (averageXP × bonus) × completionRate + progressBonus
+```
+
+**Değişiklikler:**
+- `DEFAULT_SCORING.leaderboard.bonusMultiplier`: 1 → **0.85** (Firestore'da da 0.85 olarak kayıt edilmeli)
+- `progressBonus`: `tasks × 5` → `tasks × 2.5` — kontrollü artış, sistem şişmez
+- `calcScore`'a opsiyonel 4. parametre: `totalAssignedTasks` — verilmezse `completionRate = 1.0`
+- `finalScore = generalScore` — artık `calcFinalScore(general, recent)` ağırlıklı ortalama yok
+- `calcFinalScore` korundu ama league sayfalarında kullanılmıyor
+
+**Örnek (totalXP=1600, tasks=11, totalAssigned=11):**
+```
+adjustedXP = 1633 | averageXP = 148.45 | bonus = 3.940 | rate = 1.0 | progress = 27.5
+finalScore ≈ 612
+```
+
+**Lig sayfaları (`dashboard/league/page.tsx`, `league/page.tsx`):**
+- `totalAssignedTasks = Object.values(tasksMap).filter(t => t.classId === s.groupCode).length`
+- `calcScore(baseXP, completedTasks, settings, totalAssignedTasks)` olarak çağrılıyor
+- `calcFinalScore` import'tan kaldırıldı
+
+---
+
+### 56. Sınıf Bitiş Carry-Over + "Herkes 0" Bug Fix
+
+**Bug:** "Grubu Bitir" → öğrenciler `groupId: "unassigned"` oluyor → G2'ye eklenince `oldGroup` undefined → `g2StartXP` hesaplanmıyor → herkes 0 puan.
+
+**Kök neden:** `handleAddStudent`'ta `oldGroup = groups.find(g => g.id === oldStudent.groupId)` — `groupId === "unassigned"` olunca `oldGroup = undefined`.
+
+**Düzeltme (`src/app/hooks/useManagement.ts`):**
+
+**Archive sırasında carry-over hesabı:**
+- Her öğrencinin bu sınıftaki `gradedTasks` (`classId === groupCode`) üzerinden `calcScore` çalıştırılır
+- `carryOverScore = Math.floor(calcScore(xp, tasks) * 0.30)`
+- Öğrenci doc'una `g2StartXP: carryOverScore`, `isCarryOverApplied: true` yazılır
+- Artık XP değil, **skor** taşınıyor (%30 oranı korundu)
+
+**`handleAddStudent` G1→G2 transfer:**
+- `isCarryOverApplied === true` ise hesaplama atlanır (double-application engeli)
+- False ise (manuel transfer, archive olmadan) eski formül çalışır
+
+**Yeni kurallar:**
+- Carry-over sadece "Grubu Bitir" akışında çalışır — manuel transfer + `isCarryOverApplied=false` durumunda da fallback hesaplanır
+- `isCarryOverApplied = true` flag — aynı öğrenci için 1 kez uygulanır
+
+**Etkilenen dosyalar:**
+| Dosya | Değişiklik |
+|-------|-----------|
+| `src/app/lib/scoring.ts` | Yeni `calcScore` formülü, `bonusMultiplier` 0.8 |
+| `src/app/hooks/useManagement.ts` | Archive carry-over, `isCarryOverApplied` flag |
+| `src/app/dashboard/league/page.tsx` | `totalAssignedTasks`, `calcFinalScore` kaldırıldı |
+| `src/app/league/page.tsx` | `totalAssignedTasks` eklendi |
+
+**Mimari notlar:**
+- `g2StartXP` artık XP değil **skor** bazlıdır — lig sayfalarında doğrudan `generalScore`'a eklenir
+- `calcScore(xp, 0) = 0` — gradedTasks yoksa carryOver = 0, güvenli
+- `totalAssignedTasks` yoksa `completionRate = 1.0` — mevcut `LeaderboardWidget`, `WorkshopAnalysis`, `StudentDetailModal` etkilenmez
 
 ---
 

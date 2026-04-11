@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Trophy, ArrowBigUpDash, ArrowBigDownDash, Minus, ChevronRight } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
 import { calcScore, computeStudentStats } from "@/app/lib/scoring";
@@ -106,6 +106,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
   const [students,     setStudents]     = useState<StudentRank[]>([]);
   const [myGroupCodes, setMyGroupCodes] = useState<string[] | null>(null);
   const [loading,      setLoading]      = useState(true);
+  const [tasksMap,     setTasksMap]     = useState<Record<string, { classId?: string }>>({});
 
   // Eğitmene ait aktif grup kodları (Sınıflarım modu)
   useEffect(() => {
@@ -120,6 +121,15 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
       setMyGroupCodes(snap.docs.map(d => (d.data() as any).code).filter(Boolean));
     });
   }, [user?.uid]);
+
+  // Görev haritası — completionRate hesabı için (lig sayfasıyla tutarlı)
+  useEffect(() => {
+    getDocs(collection(db, "tasks")).then(snap => {
+      const map: Record<string, { classId?: string }> = {};
+      snap.docs.forEach(d => { map[d.id] = { classId: (d.data() as any).classId ?? undefined }; });
+      setTasksMap(map);
+    }).catch(() => {});
+  }, []);
 
   // Öğrencileri çek
   useEffect(() => {
@@ -147,9 +157,20 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
 
     return onSnapshot(q, snap => {
       const all = snap.docs.map(d => {
-        const data = { id: d.id, ...d.data() } as StudentRank;
-        const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(data.gradedTasks, data.isScoreHidden, activeSeasonId);
-        const score = calcScore(totalXP, completedTasks, settings);
+        const data    = { id: d.id, ...d.data() } as StudentRank & { g2StartXP?: number };
+        const allGT   = (data as any).gradedTasks ?? {};
+        // Sadece öğrencinin mevcut grubuna ait görevleri hesaba kat
+        const filteredGT = Object.fromEntries(
+          Object.entries(allGT).filter(([, e]: any) => {
+            const cid = e?.classId;
+            if (!cid) return true;
+            return cid === data.groupCode;
+          })
+        ) as typeof allGT;
+        const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(filteredGT, data.isScoreHidden, activeSeasonId);
+        const g2Bonus = data.isScoreHidden ? 0 : (data.g2StartXP ?? 0);
+        const totalAssignedTasks = Object.values(tasksMap).filter(t => t.classId === data.groupCode).length;
+        const score   = calcScore(totalXP, completedTasks, settings, totalAssignedTasks || undefined) + g2Bonus;
         return { ...data, points: score, completedTasks, latePenaltyTotal };
       });
 
@@ -172,7 +193,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
       setStudents(ranked.slice(0, 4));
       setLoading(false);
     });
-  }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings, activeSeasonId]);
+  }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings, activeSeasonId, tasksMap]);
 
   return (
     <div className="col-span-12 xl:col-span-4 bg-white rounded-24 p-6 border border-surface-200 flex flex-col justify-between shadow-sm">

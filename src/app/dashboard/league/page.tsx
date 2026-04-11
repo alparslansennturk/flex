@@ -18,7 +18,7 @@ import { collection, query, where, onSnapshot, getDocs } from "firebase/firestor
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
 
-import { computeStudentStats, calcScore, calcFinalScore, safe } from "@/app/lib/scoring";
+import { computeStudentStats, calcScore, safe } from "@/app/lib/scoring";
 import Sidebar from "../../components/layout/Sidebar";
 import Header from "../../components/layout/Header";
 import Footer from "../../components/layout/Footer";
@@ -49,6 +49,7 @@ interface RankedStudent extends StudentData {
   generalScore: number;
   recentScore: number;
   finalScore: number;
+  g2Bonus: number;
 }
 
 interface RankedGroup {
@@ -612,9 +613,16 @@ function LeaderTable({
                 </td>
 
                 <td className="px-6 py-3 text-right hidden md:table-cell">
-                  <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
-                    {(student.points ?? 0).toLocaleString("tr-TR")} XP
-                  </span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
+                      {(student.points ?? 0).toLocaleString("tr-TR")} XP
+                    </span>
+                    {student.g2Bonus > 0 && (
+                      <span className="text-[12px] font-medium italic text-text-tertiary/70 tabular-nums">
+                        (+{student.g2Bonus} bonus)
+                      </span>
+                    )}
+                  </div>
                 </td>
 
                 <td className="px-6 py-3 text-right hidden xl:table-cell">
@@ -872,7 +880,7 @@ export default function LeaguePage() {
         })
       );
       const { totalXP: baseXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
-      // G1→G2 geçiş bonusu: transfer anında hesaplanan, sadece lig tablosuna etkili
+      // G1→G2 / carry-over bonusu: sınıf bitirildiğinde hesaplanan, sadece lig tablosuna etkili
       const g2Bonus = s.isScoreHidden ? 0 : ((s as any).g2StartXP ?? 0);
       const totalXP = baseXP + g2Bonus; // görüntüleme için (points)
       const recentEntries = s.isScoreHidden ? [] : Object.entries(tasks).filter(([tid, entry]) => {
@@ -883,13 +891,14 @@ export default function LeaguePage() {
         if (storedEnd) return new Date(storedEnd).getTime() >= thirtyDaysAgo;
         return true; // endDate bilinmiyor, görev silindi → puanı koru
       });
-      const recentXP        = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
-      const recentCompleted = recentEntries.length;
+      const recentXP           = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
+      const recentCompleted    = recentEntries.length;
+      // totalAssignedTasks: gruba atanmış tüm görevler (tasksMap'te classId eşleşenler)
+      const totalAssignedTasks = Object.values(tasksMap).filter(t => t.classId === s.groupCode).length;
       // g2Bonus net puan olarak doğrudan eklenir — görev sayısına bölünmez
-      const generalScore    = calcScore(baseXP, completedTasks, settings) + g2Bonus;
-      const recentScore     = calcScore(recentXP, recentCompleted, settings);
-      const finalScore      = calcFinalScore(generalScore, recentScore);
-      return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore, score: scoreMode === "monthly" ? recentScore : generalScore };
+      const generalScore = calcScore(baseXP, completedTasks, settings, totalAssignedTasks || undefined) + g2Bonus;
+      const recentScore  = calcScore(recentXP, recentCompleted, settings);
+      return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore: generalScore, g2Bonus, score: scoreMode === "monthly" ? recentScore : generalScore };
     });
   }, [rawStudents, settings, activeSeasonId, scoreMode, tasksMap]);
 
@@ -900,15 +909,17 @@ export default function LeaguePage() {
     return `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr");
   };
 
-  // Dense ranking: eşit puanlılar aynı sırayı paylaşır, sonraki sıra atlanmaz (1,1,2,3...)
+  // Ranking: ilk 3 sırada aynı puan = aynı sıra (1,2,2,3). 4. sıradan itibaren
+  // ceza → görev sayısı → alfabetik ile benzersiz sıra verilir.
   function denseRank<T extends { score: number; latePenaltyTotal?: number; completedTasks?: number }>(sorted: T[]): (T & { rank: number })[] {
     const result: (T & { rank: number })[] = [];
     for (let i = 0; i < sorted.length; i++) {
       if (i === 0) { result.push({ ...sorted[i], rank: 1 }); continue; }
-      const prev = sorted[i - 1];
+      const prev     = sorted[i - 1];
       const prevRank = result[i - 1].rank;
-      const same = prev.score === sorted[i].score && (prev.latePenaltyTotal ?? 0) === (sorted[i].latePenaltyTotal ?? 0) && (prev.completedTasks ?? 0) === (sorted[i].completedTasks ?? 0);
-      result.push({ ...sorted[i], rank: same ? prevRank : prevRank + 1 });
+      // Sadece ilk 3 sırada aynı puan varsa aynı sıra numarası ver
+      const canTie = prevRank <= 3 && prev.score === sorted[i].score;
+      result.push({ ...sorted[i], rank: canTie ? prevRank : prevRank + 1 });
     }
     return result;
   }

@@ -3,6 +3,7 @@ import { db, auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { MASTER_ID } from "@/app/lib/constants";
 import { getFlexMessage } from "@/app/lib/messages";
+import { calcScore, computeStudentStats } from "@/app/lib/scoring";
 import {
   collection, onSnapshot, addDoc, doc,
   updateDoc, deleteDoc, increment, serverTimestamp, writeBatch,
@@ -505,13 +506,26 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         if (selectedGroupId === modalConfig.groupId) setSelectedGroupId(null);
         showNotification("Grup silindi.");
       } else if (modalConfig.type === 'archive') {
+        const groupCode = targetGroup?.code || "";
         affectedStudents.forEach(student => {
+          // Carry-over: öğrencinin bu sınıftaki puanının %30'u sonraki dönem başlangıç puanı olur
+          const allGradedTasks = (student as any).gradedTasks ?? {};
+          const classGradedTasks = Object.fromEntries(
+            Object.entries(allGradedTasks).filter(([, e]: any) =>
+              groupCode ? e?.classId === groupCode : true
+            )
+          ) as Record<string, any>;
+          const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
+          const carryOverScore = Math.floor(calcScore(xp, tasks) * 0.10);
+
           batch.update(doc(db, "students", student.id), {
             status: 'passive',
             lastGroupId: modalConfig.groupId,
-            lastGroupCode: targetGroup?.code || "",
-            groupCode: `Mezun (${targetGroup?.code || "Bilinmiyor"})`,
+            lastGroupCode: groupCode,
+            groupCode: `Mezun (${groupCode || "Bilinmiyor"})`,
             groupId: "unassigned",
+            g2StartXP: carryOverScore,
+            isCarryOverApplied: true,
             updatedAt: new Date(),
           });
         });
@@ -582,13 +596,17 @@ if (oldGroup?.module === "GRAFIK_1") {
 } else if (oldGroup?.module === "GRAFIK_2") {
   studentData.grafik2Code = oldGroup.code;
 }
-// G1 → G2 geçişi: G1 XP'nin %30'u lig başlangıç bonusu olarak verilir (sadece lig tablosu, sertifika etkilenmez)
-if (oldGroup?.module === "GRAFIK_1" && targetGroup?.module === "GRAFIK_2") {
+// G1 → G2 geçişi: carry-over henüz uygulanmamışsa hesapla
+// (archive üzerinden geçilmişse isCarryOverApplied=true — double-application engellenir)
+const isCarryOverApplied = (oldStudent as any).isCarryOverApplied === true;
+if (!isCarryOverApplied && oldGroup?.module === "GRAFIK_1" && targetGroup?.module === "GRAFIK_2") {
   const allGradedTasks = (oldStudent as any).gradedTasks ?? {};
-  const g1XP: number = Object.values(allGradedTasks)
-    .filter((e: any) => e?.classId === oldGroup.code)
-    .reduce((sum: number, e: any) => sum + (e.xp ?? 0), 0);
-  studentData.g2StartXP = Math.floor(g1XP * 0.3);
+  const classGradedTasks = Object.fromEntries(
+    Object.entries(allGradedTasks).filter(([, e]: any) => e?.classId === oldGroup.code)
+  ) as Record<string, any>;
+  const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
+  studentData.g2StartXP = Math.floor(calcScore(xp, tasks) * 0.10);
+  studentData.isCarryOverApplied = true;
 }
 studentData.rankChange = 0;
 studentData.isScoreHidden = false;

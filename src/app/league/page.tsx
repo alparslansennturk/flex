@@ -620,7 +620,7 @@ function LeagueContent() {
         })
       );
       const { totalXP: baseXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
-      // G1→G2 geçiş bonusu: transfer anında hesaplanan, sadece lig tablosuna etkili
+      // G1→G2 / carry-over bonusu: sınıf bitirildiğinde hesaplanan, sadece lig tablosuna etkili
       const g2Bonus = s.isScoreHidden ? 0 : ((s as any).g2StartXP ?? 0);
       const totalXP = baseXP + g2Bonus;
       const recentEntries = s.isScoreHidden ? [] : Object.entries(tasks).filter(([tid, entry]) => {
@@ -630,11 +630,13 @@ function LeagueContent() {
         if (storedEnd) return new Date(storedEnd).getTime() >= thirtyDaysAgo;
         return true;
       });
-      const recentXP        = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
-      const recentCompleted = recentEntries.length;
+      const recentXP           = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
+      const recentCompleted    = recentEntries.length;
+      // totalAssignedTasks: gruba atanmış tüm görevler (tasksMap'te classId eşleşenler)
+      const totalAssignedTasks = Object.values(tasksMap).filter(t => t.classId === s.groupCode).length;
       // g2Bonus net puan olarak doğrudan eklenir — görev sayısına bölünmez
-      const generalScore    = calcScore(baseXP, completedTasks, settings) + g2Bonus;
-      const recentScore     = calcScore(recentXP, recentCompleted, settings);
+      const generalScore = calcScore(baseXP, completedTasks, settings, totalAssignedTasks || undefined) + g2Bonus;
+      const recentScore  = calcScore(recentXP, recentCompleted, settings);
       return {
         ...s,
         points: totalXP,

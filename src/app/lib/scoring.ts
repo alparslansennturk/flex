@@ -8,7 +8,7 @@ export interface ScoringSettings {
 }
 
 export const DEFAULT_SCORING: ScoringSettings = {
-  leaderboard:        { minTaskDivisor: 3, logBase: 2, bonusMultiplier: 1 },
+  leaderboard:        { minTaskDivisor: 3, logBase: 2, bonusMultiplier: 0.85 },
   certificateWeights: { project: 0.70, assignment: 0.30 },
   latePenalty:        { week1: 0.80, week2: 0.60, week3plus: 0.50 },
   difficultyXP:       { level1: 100, level2: 200, level3: 300, level4: 400 },
@@ -102,18 +102,38 @@ export function calcTaskBonus(
 }
 
 /**
- * Temel skor = (totalXP / max(tasks, minTaskDivisor)) × taskBonus + (completedTasks × 3)
- * Son terim: görev sayısı arttıkça puan her zaman az da olsa artar.
+ * Ana puan formülü — tüm sistemde tek kaynak.
+ *
+ * adjustedXP      = totalXP + tasks × 3
+ * averageXP       = adjustedXP / max(tasks, minTaskDivisor)
+ * bonus           = 1 + log2(tasks) × bonusMultiplier
+ * completionRate  = 0.55 + 0.45 × (tasks / totalAssignedTasks)  [varsayılan: 1.0]
+ * progressBonus   = tasks × 5
+ * score           = (averageXP × bonus) × completionRate + progressBonus
+ *
+ * Garantiler:
+ * - Her ek görev puanı en az ~5 puan artırır (progressBonus)
+ * - completedTasks > totalAssignedTasks olamaz (Math.max ile kırpılır)
  * settings opsiyonel — verilmezse DEFAULT_SCORING kullanılır
+ * totalAssignedTasks opsiyonel — verilmezse completedTasks kullanılır (rate = 1.0)
  */
 export function calcScore(
   totalXP: number,
   completedTasks: number,
   settings?: ScoringSettings,
+  totalAssignedTasks?: number,
 ): number {
-  const lb = settings?.leaderboard ?? DEFAULT_SCORING.leaderboard;
-  const avg = totalXP / Math.max(completedTasks, lb.minTaskDivisor);
-  return safe(avg * calcTaskBonus(completedTasks, lb.logBase, lb.bonusMultiplier) + completedTasks * 3);
+  const lb    = settings?.leaderboard ?? DEFAULT_SCORING.leaderboard;
+  const tasks = Math.max(completedTasks, 0);
+
+  const adjustedXP     = totalXP + tasks * 3;
+  const averageXP      = adjustedXP / Math.max(tasks, lb.minTaskDivisor);
+  const bonus          = 1 + Math.log2(Math.max(tasks, 1)) * lb.bonusMultiplier;
+  const assigned       = Math.max(totalAssignedTasks ?? tasks, tasks);
+  const completionRate = assigned > 0 ? 0.55 + 0.45 * (tasks / assigned) : 1.0;
+  const progressBonus  = tasks * 2.5;
+
+  return safe((averageXP * bonus) * completionRate + progressBonus);
 }
 
 /** Final skor: %70 genel + %30 son 30 gün */

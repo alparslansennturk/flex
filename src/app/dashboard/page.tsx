@@ -19,7 +19,7 @@ export default function DashboardPage() {
   const { hasPermission, user, loading } = useUser(); // loading'i buraya ekledik
   const router = useRouter(); // router'ı burada tanımladık
   const [activeTab, setActiveTab] = useState<'dashboard' | 'management'>('dashboard');
-  const [viewMode, setViewMode] = useState<'Sınıflarım' | 'Şubem' | 'Tümü'>('Sınıflarım');
+  const [viewMode, setViewMode] = useState<'Sınıflarım' | 'Şubem' | 'Tümü'>('Tümü');
   const handleScroll = (dir: 'left' | 'right') => {
     if (scrollRef.current) {
       const amt = scrollRef.current.offsetWidth / 4.3;
