@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─── Yardımcı Fonksiyonlar ───────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email == 'flexos.platform@gmail.com';
+    }
+
+    // Dosya boyutu kontrolü (byte)
+    function isUnderSizeLimit() {
+      return request.resource.size <= 20 * 1024 * 1024; // 20 MB
+    }
+
+    // İzin verilen Content-Type'lar
+    function isAllowedType() {
+      return request.resource.contentType.matches('application/pdf') ||
+             request.resource.contentType.matches('image/.*') ||
+             request.resource.contentType.matches('application/msword') ||
+             request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.*') ||
+             request.resource.contentType.matches('application/vnd.ms-.*') ||
+             request.resource.contentType.matches('application/zip') ||
+             request.resource.contentType.matches('application/x-zip-compressed');
+    }
+
+    // ─── Submissions ─────────────────────────────────────────────────────────
+    //
+    // Path: submissions/{studentId}/{taskId}/{fileName}
+    //
+    // - Upload: API route (Admin SDK) yapar → bu kural tetiklenmez
+    // - Read  : Oturum açmış herkes (öğretmen doğrulama paneli için)
+    // - Delete: Sadece superAdmin veya API route
+    //
+    // NOT: Admin SDK ile yapılan işlemler bu kurallara takılmaz.
+    // Kurallar yalnızca client-side Firebase SDK erişimini kontrol eder.
+
+    match /submissions/{studentId}/{taskId}/{fileName} {
+      // Öğretmen ve adminler download URL'yi client-side okuyabilir
+      allow read: if isSignedIn();
+
+      // Client-side upload tamamen kapalı — API route halleder
+      allow write: if isSuperAdmin();
+
+      // Client-side delete tamamen kapalı — API route halleder
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─── Diğer dosyalar (gelecek için) ───────────────────────────────────────
+    // Şu an tanımlı path dışında her şeyi reddet
+    match /{allPaths=**} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

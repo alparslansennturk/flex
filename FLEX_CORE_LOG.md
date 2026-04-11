@@ -1,5 +1,5 @@
 # FLEX CORE LOG
-> Son güncelleme: 2026-04-07 (v13)
+> Son güncelleme: 2026-04-09
 
 ---
 
@@ -956,3 +956,188 @@ studentData.g2StartXP = Math.floor(g1XP * 0.3);
   - Sonuç: Tek aktif görev "Bitir" → yerinde kalır. Başka aktif görev varsa en fazla 1 sıra sağa kayar.
 
 **Kural:** `createdAt` task oluşturulduğunda `serverTimestamp()` ile set edilir, statü değişimlerinde değişmez — dolayısıyla stable sort key olarak kullanılabilir.
+
+---
+
+## [2026-04-09] İterasyon 1 — Google Drive Upload Altyapısı
+
+### Bağlam
+Service account (robot mail) ile Google Drive'a dosya yüklemeye çalışıyoruz.
+Hedef: Öğrencilerin ödev dosyalarını kendi 200GB kişisel Drive klasörüne kaydetmek.
+
+---
+
+### Yapılanlar
+
+#### 1. `src/app/lib/googledrive.ts` — YENİDEN YAZILDI
+- **Service account JWT auth kaldırıldı** → OAuth2 Refresh Token'a geçildi
+- `getAccessToken()` artık şu 3 env var'ı kullanıyor:
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `GOOGLE_REFRESH_TOKEN`
+- `uploadToDrive(buffer, fileName, mimeType)` → multipart upload, `parents: [folderId]`, `supportsAllDrives=true`
+- `validateDriveFile()` + `isDriveError()` korundu
+
+#### 2. `src/app/types/submission.ts` — GÜNCELLENDİ
+- `filePath` (Firebase Storage) kaldırıldı
+- `driveFileId`, `driveViewLink` eklendi
+- `fileUrl` → Drive download linki olarak kullanılıyor
+
+#### 3. `src/app/lib/submissions.ts` — GÜNCELLENDİ
+- `docToSubmission()` içinde `filePath` → `driveFileId` + `driveViewLink`
+
+#### 4. `src/app/api/submit/route.ts` — GÜNCELLENDİ
+- `uploadSubmission()` (Firebase Storage) → `uploadToDrive()` (Drive)
+- Response'a `driveFileId`, `driveViewLink` eklendi
+
+---
+
+### Sorun Geçmişi
+
+| Deneme | Hata | Neden |
+|--------|------|-------|
+| Service account + parents | `403 storageQuotaExceeded` | Service account'un Drive kotası yok, Google bunu API düzeyinde engelliyor |
+| Service account + supportsAllDrives | Aynı hata | Shared Drive olmadan bu parametre işe yaramıyor |
+| parents debug log | Doğrulama: kod doğruydu | `parents: ['1o2IX0...']` gidiyordu, sorun mimari |
+
+**Google'ın resmi yanıtı:**
+> "Service Accounts do not have storage quota. Leverage shared drives or use OAuth delegation instead."
+
+---
+
+### Mevcut Durum (DEVAM EDİYOR)
+
+OAuth2 Refresh Token yaklaşımı seçildi:
+- Shared Drive (Google Workspace) gerektirmiyor
+- Firebase Blaze (ücretli) gerektirmiyor
+- Kota kişisel hesaptan (200GB) düşer
+
+**Eksik:** `.env.local`'a şu 3 değer henüz eklenmedi:
+```
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+GOOGLE_REFRESH_TOKEN="..."
+```
+
+**Token alma adımları (bir kerelik):**
+1. Google Cloud Console → `flexos-10ac4` → Credentials → OAuth client ID (Web app)
+   - Redirect URI: `https://developers.google.com/oauthplayground`
+2. OAuth Playground aç
+   - Settings → Use your own OAuth credentials → Client ID + Secret gir
+   - Scope: `https://www.googleapis.com/auth/drive`
+   - 200GB'lık Google hesabıyla authorize et
+   - "Exchange authorization code for tokens" → Refresh token kopyala
+3. `.env.local`'a ekle, `npm run dev`, test et
+
+---
+
+### Dosya Durumu
+
+| Dosya | Durum |
+|-------|-------|
+| `src/app/lib/googledrive.ts` | ✅ OAuth2 refresh token ile hazır |
+| `src/app/lib/submissions.ts` | ✅ Drive field'ları ile hazır |
+| `src/app/types/submission.ts` | ✅ Drive field'ları ile hazır |
+| `src/app/api/submit/route.ts` | ✅ Drive'a bağlı, hazır |
+| `.env.local` | ⏳ GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN eksik |
+
+---
+
+## [2026-04-10] İterasyon 2 — Google OAuth Tamamlandı + Upload Route
+
+### OAuth Kurulumu (Tamamlandı)
+
+- Google Cloud Console → `flexos-10ac4` → Credentials → OAuth 2.0 Client ID oluşturuldu
+- 200 GB'lık ana Drive hesabına erişim yetkisi alındı
+- OAuth Playground üzerinden **sınırsız süreli** `refresh_token` üretildi
+- `.env.local`'a 3 env var eklendi:
+  ```
+  GOOGLE_CLIENT_ID=...
+  GOOGLE_CLIENT_SECRET=...
+  GOOGLE_REFRESH_TOKEN=...
+  ```
+
+### Drive Klasörü
+
+- Drive içinde `flex_Depo` klasörü oluşturuldu
+- Klasör ID'si `.env.local`'a eklendi:
+  ```
+  GOOGLE_DRIVE_FOLDER_ID=...
+  ```
+- Tüm yüklenen dosyalar bu klasöre düşer; "link ile görüntüle" izni otomatik açılır
+
+### Storage Limiti Güncellendi
+
+- `src/app/types/storage.ts` — `MAX_FILE_SIZE_BYTES` → 50 MB (önceki değerden revize edildi)
+
+### Yeni Dosya: `src/app/api/upload/route.ts`
+
+Saf Drive upload endpoint'i — Firestore submission kaydı **oluşturmaz**.
+
+**Ne zaman hangisi kullanılır:**
+| Endpoint | Ne yapar |
+|----------|----------|
+| `POST /api/upload` | Dosyayı Drive'a yükler, `fileId + linkler` döner. Firestore'a yazmaz. |
+| `POST /api/submit` | Drive'a yükler + `submissions` koleksiyonuna Firestore kaydı oluşturur. Tam ödev teslim akışı. |
+
+**FormData:**
+- `file` (zorunlu) — yüklenecek dosya
+- `fileName` (opsiyonel) — Drive'daki adı override et
+
+**Başarılı yanıt:** `{ fileId, webViewLink, downloadUrl, fileName, fileSize, mimeType }`
+
+**HTTP hataları:** 400 (eksik alan) | 413 (50 MB aşıldı) | 422 (izin verilmeyen tür) | 500 (OAuth/Drive hatası)
+
+### Dosya Durumu
+
+| Dosya | Durum |
+|-------|-------|
+| `src/app/lib/googledrive.ts` | ✅ OAuth2 refresh token — hazır |
+| `src/app/types/storage.ts` | ✅ 50 MB limit |
+| `src/app/api/upload/route.ts` | ✅ Saf Drive upload (Firestore yok) |
+| `src/app/api/submit/route.ts` | ✅ Drive + Firestore submission akışı |
+| `.env.local` | ✅ Tüm env var'lar tanımlı |
+
+### Sorun Geçmişi (OAuth Hata Ayıklama)
+
+| Hata | Sebep | Çözüm |
+|------|-------|-------|
+| `invalid_grant: Bad Request` | Token ortasında `#` vardı, `.env.local` yorum satırı sandı | Değeri çift tırnakla sardık |
+| `invalid_grant: Bad Request` (tekrar) | Authorization code (`4/0Aci98E9...`) kopyalanmıştı, refresh token değil | Playground'da "Exchange" sonrası `1//...` ile başlayan refresh token alındı |
+| ✅ Başarılı | Doğru refresh token + tırnaklı format | `POST /api/upload` → `fileId + webViewLink + downloadUrl` |
+
+**Not:** `.env.local`'da özel karakter içeren değerleri her zaman çift tırnakla sar. Google refresh token `1//` ile başlar; `4/` ile başlayan authorization code'dur, 5 dakika içinde geçersiz olur.
+
+---
+
+## Öğrenci Portalı — Eksik UI (Başlanmadı)
+
+Backend tamamen hazır, frontend sıfır. Aşağıdakiler yazılmadan öğrenci dosya yükleyemez.
+
+### Durum
+
+| Katman | Durum |
+|--------|-------|
+| `api/upload/route.ts` | ✅ Hazır |
+| `api/submit/route.ts` | ✅ Hazır |
+| `lib/googledrive.ts` | ✅ Hazır |
+| `lib/submissions.ts` | ✅ Hazır |
+| `types/submission.ts` | ✅ Hazır |
+| `types/storage.ts` | ✅ Hazır |
+| Öğrenci portal sayfası | ❌ Yok |
+| Ödev listesi UI | ❌ Yok |
+| Upload / teslim formu | ❌ Yok |
+| Teslim geçmişi UI | ❌ Yok |
+
+### Yazılacaklar
+
+1. **`/ogrenci` (veya `/portal`) route** — öğrencinin giriş yaptıktan sonra düştüğü sayfa
+2. **Ödev listesi** — `groupId` üzerinden aktif task'lar çekilir, öğrenciye gösterilir
+3. **Upload / teslim formu** — dosya seçme, drag-drop, 50MB uyarısı, progress bar, başarı/hata sonucu
+4. **Teslim geçmişi** — `submissions` koleksiyonundan öğrencinin geçmiş teslimlerini listeler
+
+### Açık Sorular (Başlamadan Netleştirilmeli)
+
+- Öğrenci kimliği nasıl doğrulanacak? Firebase Auth mı, yoksa manuel `studentId` mi?
+- `/login` sayfası öğrenciler için de geçerli mi, yoksa ayrı giriş ekranı mı?
+- Öğrenci hangi ödevleri görecek — sadece `status: active` olan `groupId` eşleşenler mi?

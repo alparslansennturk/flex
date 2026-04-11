@@ -145,6 +145,35 @@ service cloud.firestore {
       allow write: if isAdmin() || isInstructor();
     }
 
+    // ─── submissions ──────────────────────────────────────────────────────────
+    //
+    // Öğrenci → kendi submission'ını okuyabilir (student portal için)
+    // Öğretmen/Admin → tüm submission'ları okuyabilir, status güncelleyebilir
+    // Create → sadece server-side API route (Admin SDK) — client kuralı yok
+    //
+    // NOT: createSubmission işlemi Admin SDK ile yapıldığı için bu kurala takılmaz.
+    // Buradaki kurallar client-side (student portal) erişim içindir.
+
+    match /submissions/{submissionId} {
+      // Öğrenci kendi kaydını okuyabilir
+      allow read: if isSignedIn() && (
+        isInstructor() ||
+        resource.data.studentId == currentUid()
+      );
+
+      // Sadece instructor/admin status ve not güncelleyebilir
+      allow update: if isInstructor() &&
+        // Sadece izin verilen alanları güncelleyebilir
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'grade', 'feedback', 'gradedBy', 'reviewedAt', 'gradedAt', 'updatedAt']);
+
+      // Silme sadece admin
+      allow delete: if isAdmin();
+
+      // Create: client-side create yok — API route (Admin SDK) halleder
+      allow create: if false;
+    }
+
     // ─── system_backups ───────────────────────────────────────────────────────
 
     match /system_backups/{backupId} {
