@@ -57,6 +57,7 @@ interface RankedStudent extends StudentData {
   generalScore: number;
   recentScore: number;
   finalScore: number;
+  totalAssignedDisplay: number;
 }
 
 interface RankedGroup {
@@ -478,7 +479,16 @@ function LeaderTable({ students, groupsMap }: {
                   <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">{(student.points ?? 0).toLocaleString("tr-TR")} XP</span>
                 </td>
                 <td className="px-6 py-3 text-right hidden xl:table-cell">
-                  <span className="text-[13px] font-semibold text-text-secondary tabular-nums">{student.completedTasks ?? 0}</span>
+                  <span className="text-[13px] font-semibold tabular-nums">
+                    {(student.totalAssignedDisplay ?? 0) > 0 ? (
+                      <>
+                        <span className="text-text-secondary">{student.completedTasks ?? 0}</span>
+                        <span className="text-text-secondary">/{student.totalAssignedDisplay}</span>
+                      </>
+                    ) : (
+                      <span className="text-text-secondary">{student.completedTasks ?? 0}</span>
+                    )}
+                  </span>
                 </td>
                 <td className="px-6 py-3 text-right hidden xl:table-cell">
                   <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">{student.latePenaltyTotal ?? 0}</span>
@@ -640,6 +650,10 @@ function LeagueContent() {
         (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
         (t.status === "completed" || (t.endDate ? t.endDate <= todayStr : true))
       ).length;
+      const totalAssignedDisplay = Object.values(tasksMap).filter(t =>
+        t.classId === s.groupCode &&
+        (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status)
+      ).length;
       // g2Bonus = carryOverScore: sadece final skora eklenir, averageXP/bonus hesabına girmez
       const { finalScore: generalScore, debug: dbg } = calcStudentFinalScore(baseXP, completedTasks, settings, totalAssignedTasks || undefined, g2Bonus, 0);
       const { finalScore: recentScore }               = calcStudentFinalScore(recentXP, recentCompleted, settings);
@@ -649,6 +663,7 @@ function LeagueContent() {
         points: totalXP,
         completedTasks,
         latePenaltyTotal,
+        totalAssignedDisplay,
         generalScore,
         recentScore,
         finalScore: generalScore,
