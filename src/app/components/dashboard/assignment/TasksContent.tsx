@@ -74,7 +74,7 @@ export default function TasksContent() {
 
   const handleActivate = async (task: Task) => {
     try {
-      await updateDoc(doc(db, "tasks", task.id), { isActive: true, isPaused: false, isHidden: false });
+      await updateDoc(doc(db, "tasks", task.id), { isActive: true, isPaused: false, isHidden: false, status: "published" });
       showToast(`"${task.name}" aktife alındı.`);
     } catch { showToast("İşlem sırasında hata oluştu."); }
   };

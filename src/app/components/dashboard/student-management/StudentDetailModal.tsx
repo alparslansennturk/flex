@@ -5,7 +5,7 @@ import { X, GraduationCap, Zap, BookOpen, Star } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
 import { useScoring } from "@/app/context/ScoringContext";
-import { calcScore, getLevelXP, computeStudentStats } from "@/app/lib/scoring";
+import { calcScore, calcStudentFinalScore, getLevelXP, computeStudentStats } from "@/app/lib/scoring";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -224,28 +224,64 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       const sData = sDoc.exists() ? (sDoc.data() as any) : {};
       const studentEmail = sData.email ?? "";
 
+      // carryOverScore ve groupCode — lig hesabıyla aynı parametreler
+      const g2StartXP = (sData.g2StartXP ?? 0) as number;
+      const groupCode = (sData.groupCode  ?? "") as string;
+
       // Lig puanını Firestore'dan gelen gerçek gradedTasks ile hesapla
       // (prop'taki score=0 veya eski değere bağımlı olmadan)
+      // KRİTİK: lig sayfasıyla aynı filtre — sadece mevcut gruba ait görevler
+      const allGradedTasks = (sData.gradedTasks ?? {}) as Record<string, any>;
+      const filteredForScore = groupCode
+        ? Object.fromEntries(
+            Object.entries(allGradedTasks).filter(([, e]: any) => {
+              const cid = e?.classId;
+              if (!cid) return true;       // classId yoksa dahil et (eski kayıtlar)
+              return cid === groupCode;
+            })
+          )
+        : allGradedTasks;
       const { totalXP: cXP, completedTasks: cTasks } = computeStudentStats(
-        sData.gradedTasks,
+        filteredForScore,
         sData.isScoreHidden,
         activeSeasonId,
       );
-      if (!cancelled) {
-        setComputedScore(calcScore(cXP, cTasks, settings));
-        setComputedXP(cXP);
-        setComputedTasks(cTasks);
-      }
 
       const groupId = sData.groupId as string | undefined;
-      if (!groupId) { if (!cancelled) { setEmail(studentEmail); setLoading(false); } return; }
+      if (!groupId) {
+        // Grup yoksa totalAssignedTasks bilinmiyor → undefined geç (completionRate=1.0)
+        if (!cancelled) {
+          const { finalScore: fs, debug: dbg } = calcStudentFinalScore(cXP, cTasks, settings, undefined, g2StartXP, 0);
+          if (process.env.NODE_ENV === "development") console.log(`[StudentModal] ${student.name} ${student.lastName}`, dbg);
+          setComputedScore(fs);
+          setComputedXP(cXP);
+          setComputedTasks(cTasks);
+          setEmail(studentEmail);
+          setLoading(false);
+        }
+        return;
+      }
 
-      // 2. Grup belgesi, proje notları ve görev istatistikleri → hepsini paralel çek
-      const [gDoc, g1Doc, g2Doc] = await Promise.all([
+      // 2. Grup belgesi, proje notları ve görev sayısı → hepsini paralel çek
+      const [gDoc, g1Doc, g2Doc, tasksSnap] = await Promise.all([
         getDoc(doc(db, "groups", groupId)),
         getDoc(doc(db, "projectGrades", `${student.id}_${groupId}_GRAFIK_1`)),
         getDoc(doc(db, "projectGrades", `${student.id}_${groupId}_GRAFIK_2`)),
+        getDocs(query(collection(db, "tasks"), where("classId", "==", groupCode))),
       ]);
+      // Lig hesabıyla aynı totalAssignedTasks: published veya completed görevler (draft hariç)
+      const todayStr = new Date().toISOString().split("T")[0];
+      const totalAssignedTasks = tasksSnap.docs.filter(d => {
+        const data = d.data() as any;
+        const st = data.status as string | undefined;
+        const ed = data.endDate as string | undefined;
+        return (st === "active" || st === "published" || st === "completed" || !st) &&
+               (st === "completed" || (ed ? ed <= todayStr : true));
+      }).length;
+      const { finalScore: computedFinalScore, debug: scoreDebug } = calcStudentFinalScore(
+        cXP, cTasks, settings, totalAssignedTasks || undefined, g2StartXP, 0,
+      );
+      if (process.env.NODE_ENV === "development") console.log(`[StudentModal] ${student.name} ${student.lastName}`, scoreDebug);
 
       const gData = gDoc.exists()  ? (gDoc.data()  as any) : {};
       const g1Raw = g1Doc.exists() ? (g1Doc.data() as any) : null;
@@ -397,6 +433,10 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       setG2Grade(makeGrade(g2Raw, s2));
       setG1Stats(s1);
       setG2Stats(s2);
+      // Lig puanı: calcStudentFinalScore ile hesaplandı (league/LeaderboardWidget ile aynı kaynak)
+      setComputedScore(computedFinalScore);
+      setComputedXP(cXP);
+      setComputedTasks(cTasks);
       setLoading(false);
     })();
 
@@ -523,9 +563,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                 <p className="text-[10px] font-bold text-surface-400 tracking-tight">Lig Puanı</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatBox label="Toplam" value={loading ? "…" : Math.round(g1Stats.score + g2Stats.score)} loading={loading} />
-                <StatBox label="Grafik-1"     value={loading ? "…" : Math.round(g1Stats.score)} colorClass="text-base-primary-700" loading={loading} />
-                <StatBox label="Grafik-2"     value={loading ? "…" : Math.round(g2Stats.score)} colorClass="text-accent-purple-700" loading={loading} />
+                <StatBox label="Toplam"   value={loading ? "…" : Math.round(computedScore ?? (g1Stats.score + g2Stats.score))} loading={loading} />
+                <StatBox label="Grafik-1" value={loading ? "…" : Math.round(g1Stats.score)} colorClass="text-base-primary-700" loading={loading} />
+                <StatBox label="Grafik-2" value={loading ? "…" : Math.round(computedScore ?? g2Stats.score)} colorClass="text-accent-purple-700" loading={loading} />
               </div>
             </div>
           </div>

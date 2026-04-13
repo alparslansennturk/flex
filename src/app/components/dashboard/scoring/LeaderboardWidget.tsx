@@ -6,7 +6,7 @@ import { db } from "@/app/lib/firebase";
 import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
-import { calcScore, computeStudentStats } from "@/app/lib/scoring";
+import { calcStudentFinalScore, computeStudentStats } from "@/app/lib/scoring";
 import Link from "next/link";
 
 interface StudentRank {
@@ -106,7 +106,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
   const [students,     setStudents]     = useState<StudentRank[]>([]);
   const [myGroupCodes, setMyGroupCodes] = useState<string[] | null>(null);
   const [loading,      setLoading]      = useState(true);
-  const [tasksMap,     setTasksMap]     = useState<Record<string, { classId?: string }>>({});
+  const [tasksMap,     setTasksMap]     = useState<Record<string, { classId?: string; status?: string; endDate?: string }>>({});
 
   // Eğitmene ait aktif grup kodları (Sınıflarım modu)
   useEffect(() => {
@@ -125,8 +125,11 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
   // Görev haritası — completionRate hesabı için (lig sayfasıyla tutarlı)
   useEffect(() => {
     getDocs(collection(db, "tasks")).then(snap => {
-      const map: Record<string, { classId?: string }> = {};
-      snap.docs.forEach(d => { map[d.id] = { classId: (d.data() as any).classId ?? undefined }; });
+      const map: Record<string, { classId?: string; status?: string; endDate?: string }> = {};
+      snap.docs.forEach(d => {
+        const data = d.data() as any;
+        map[d.id] = { classId: data.classId ?? undefined, status: data.status ?? undefined, endDate: data.endDate ?? undefined };
+      });
       setTasksMap(map);
     }).catch(() => {});
   }, []);
@@ -169,8 +172,13 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         ) as typeof allGT;
         const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(filteredGT, data.isScoreHidden, activeSeasonId);
         const g2Bonus = data.isScoreHidden ? 0 : (data.g2StartXP ?? 0);
-        const totalAssignedTasks = Object.values(tasksMap).filter(t => t.classId === data.groupCode).length;
-        const score   = calcScore(totalXP, completedTasks, settings, totalAssignedTasks || undefined) + g2Bonus;
+        const todayStr = new Date().toISOString().split("T")[0];
+        const totalAssignedTasks = Object.values(tasksMap).filter(t =>
+          t.classId === data.groupCode &&
+          (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
+          (t.status === "completed" || (t.endDate ? t.endDate <= todayStr : true))
+        ).length;
+        const { finalScore: score } = calcStudentFinalScore(totalXP, completedTasks, settings, totalAssignedTasks || undefined, g2Bonus, 0);
         return { ...data, points: score, completedTasks, latePenaltyTotal };
       });
 

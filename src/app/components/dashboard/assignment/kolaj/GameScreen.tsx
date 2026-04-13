@@ -600,12 +600,12 @@ export default function GameScreen({
         draws:       drawsRef.current,
         students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
       });
-      // Gruptaki tüm öğrenciler tamamlandıysa görevi kapat → Not Ver butonu açılsın
+      // Tüm çekişler tamam → görevi published yap (öğrenciler çalışmaya başlıyor)
       if (groupStudentCount > 0 && drawsRef.current.length >= groupStudentCount) {
-        await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+        await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
       }
       setArchived(true);
-      setTimeout(() => router.push("/dashboard"), 3000);
+      setTimeout(() => router.push("/dashboard"), 1500);
     } finally {
       setArchiving(false);
     }
@@ -627,9 +627,9 @@ export default function GameScreen({
           students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
         });
       }
-      await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      await updateDoc(doc(db, "tasks", task.id), { status: "completed", archived: true, gradingClosed: true, completedAt: serverTimestamp() });
       setFinalized(true);
-      setTimeout(() => router.push("/dashboard"), 2000);
+      setTimeout(() => router.push("/dashboard"), 1500);
     } finally {
       setFinalizing(false);
     }
@@ -825,7 +825,7 @@ export default function GameScreen({
                 className="px-10 py-3.5 rounded-full text-[15px] font-bold text-white cursor-pointer active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ background: "linear-gradient(135deg, #205297 0%, #3a7bd5 100%)", boxShadow: "0 6px 20px rgba(58,123,213,0.25)" }}
               >
-                {archiving ? "Kaydediliyor..." : archived ? "Arşive Kaydedildi ✓" : "Arşive Kaydet"}
+                {archiving ? "Başlatılıyor..." : archived ? "Ödev Başlatıldı ✓" : "Tamamla ve ödevi başlat"}
               </button>
 
               {/* Ödevi Tamamla */}

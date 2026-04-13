@@ -15,7 +15,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useScoring } from "@/app/context/ScoringContext";
-import { computeStudentStats, calcScore, safe, ScoringSettings } from "@/app/lib/scoring";
+import { computeStudentStats, calcStudentFinalScore, safe, ScoringSettings } from "@/app/lib/scoring";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,9 +38,10 @@ interface StudentData {
 
 interface TaskMeta {
   id: string;
-  endDate: string | null;
+  endDate:   string | null;
   createdAt: string | null;
-  classId: string | null;
+  classId:   string | null;
+  status:    string | null;
 }
 
 interface GroupMeta {
@@ -551,7 +552,7 @@ function LeagueContent() {
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
   const [sortAlpha,       setSortAlpha]       = useState(false);
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
-  const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: string; classId?: string }>>({});
+  const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: string; classId?: string; status?: string }>>({});
   const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({});
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState<string | null>(null);
@@ -579,9 +580,9 @@ function LeagueContent() {
         if (data.scoringSettings) setApiSettings(data.scoringSettings);
         if (data.activeSeasonId)  setApiSeasonId(data.activeSeasonId);
 
-        const tMap: Record<string, { endDate?: string; createdAt?: string; classId?: string }> = {};
+        const tMap: Record<string, { endDate?: string; createdAt?: string; classId?: string; status?: string }> = {};
         data.tasks.forEach(t => {
-          tMap[t.id] = { endDate: t.endDate ?? undefined, createdAt: t.createdAt ?? undefined, classId: t.classId ?? undefined };
+          tMap[t.id] = { endDate: t.endDate ?? undefined, createdAt: t.createdAt ?? undefined, classId: t.classId ?? undefined, status: t.status ?? undefined };
         });
         setTasksMap(tMap);
 
@@ -632,11 +633,17 @@ function LeagueContent() {
       });
       const recentXP           = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
       const recentCompleted    = recentEntries.length;
-      // totalAssignedTasks: gruba atanmış tüm görevler (tasksMap'te classId eşleşenler)
-      const totalAssignedTasks = Object.values(tasksMap).filter(t => t.classId === s.groupCode).length;
-      // g2Bonus net puan olarak doğrudan eklenir — görev sayısına bölünmez
-      const generalScore = calcScore(baseXP, completedTasks, settings, totalAssignedTasks || undefined) + g2Bonus;
-      const recentScore  = calcScore(recentXP, recentCompleted, settings);
+      // totalAssignedTasks: deadline geçmiş görevler (yeni görev puan düşürmez)
+      const todayStr = new Date().toISOString().split("T")[0];
+      const totalAssignedTasks = Object.values(tasksMap).filter(t =>
+        t.classId === s.groupCode &&
+        (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
+        (t.status === "completed" || (t.endDate ? t.endDate <= todayStr : true))
+      ).length;
+      // g2Bonus = carryOverScore: sadece final skora eklenir, averageXP/bonus hesabına girmez
+      const { finalScore: generalScore, debug: dbg } = calcStudentFinalScore(baseXP, completedTasks, settings, totalAssignedTasks || undefined, g2Bonus, 0);
+      const { finalScore: recentScore }               = calcStudentFinalScore(recentXP, recentCompleted, settings);
+      if (process.env.NODE_ENV === "development") console.log(`[League/Public] ${s.name} ${s.lastName}`, dbg);
       return {
         ...s,
         points: totalXP,

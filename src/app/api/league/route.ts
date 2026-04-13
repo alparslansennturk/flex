@@ -29,9 +29,10 @@ export async function GET() {
       const data = d.data();
       return {
         id: d.id,
-        endDate: data.endDate ?? null,
+        endDate:  data.endDate  ?? null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-        classId: data.classId ?? null,
+        classId:  data.classId  ?? null,
+        status:   data.status   ?? null,
       };
     });
 

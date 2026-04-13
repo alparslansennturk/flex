@@ -33,8 +33,8 @@ export async function GET(req: NextRequest) {
     for (const taskDoc of tasksSnap.docs) {
       const task = taskDoc.data();
 
-      // Arşivlenmiş veya duraklatılmış task'ları atla
-      if (task.status === "archived" || task.isPaused) {
+      // Tamamlanmış, arşivlenmiş veya duraklatılmış task'ları atla
+      if (task.status === "completed" || task.status === "archived" || task.isPaused) {
         skipped++;
         continue;
       }

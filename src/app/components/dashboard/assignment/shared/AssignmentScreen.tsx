@@ -314,7 +314,7 @@ export default function AssignmentScreen({
         if (!snap.exists()) return;
         const taskData = { id: snap.id, ...snap.data() } as TaskData;
 
-        if (taskData.status === "completed" || taskData.status === "archived") {
+        if (taskData.status === "completed" || taskData.status === "archived" || taskData.status === "published") {
           router.replace(`/dashboard/grading?taskId=${snap.id}`);
           return;
         }

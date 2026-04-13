@@ -10,10 +10,10 @@ function StatBox({ label, value, icon }: { label: string; value: string | number
   return (
     <div className="bg-white/5 border border-white/5 p-5 rounded-20 flex flex-col items-center justify-center text-center h-full">
       <div className="w-10 h-10 bg-white/10 rounded-[8px] flex items-center justify-center text-white/70 mb-3">{icon}</div>
-      <span className="text-[14px] text-white/50 mb-1 font-medium tracking-tight">
+      <span className="text-[14px] text-white/50 mb-2 font-medium tracking-tight">
         {label}
       </span>
-      <span className="text-[28px] font-extrabold text-white leading-none tracking-tighter">
+      <span className="text-[28px] font-bold text-white leading-none tracking-tighter">
         {value}
       </span>
     </div>

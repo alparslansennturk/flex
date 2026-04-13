@@ -141,6 +141,64 @@ export function calcFinalScore(generalScore: number, recentScore: number): numbe
   return safe(generalScore * 0.7 + recentScore * 0.3);
 }
 
+/**
+ * TEK KAYNAK — Öğrenci final skorunu hesaplar.
+ * Tüm UI ekranları bu fonksiyonu kullanır, başka yerde hesaplama yapılmaz.
+ *
+ * newXP            = bu dönemde kazanılan XP (carryOver XP olarak eklenmez)
+ * carryOverScore   = önceki dönem finalScore × 0.10 (sadece final'a eklenir)
+ * penaltyRate      = [0–1] aralığında ceza oranı (varsayılan 0)
+ *
+ * newScore  = (averageXP × bonus) × completionRate + progressBonus
+ * finalScore = (newScore + carryOverScore) × (1 - penaltyRate)
+ */
+export interface FinalScoreDebug {
+  newXP:          number;
+  carryOverScore: number;
+  adjustedXP:     number;
+  averageXP:      number;
+  bonus:          number;
+  completionRate: number;
+  progressBonus:  number;
+  newScore:       number;
+  finalScore:     number;
+}
+
+export function calcStudentFinalScore(
+  newXP:               number,
+  completedTasks:      number,
+  settings?:           ScoringSettings,
+  totalAssignedTasks?: number,
+  carryOverScore:      number = 0,
+  penaltyRate:         number = 0,
+): { newScore: number; finalScore: number; debug: FinalScoreDebug } {
+  const lb    = settings?.leaderboard ?? DEFAULT_SCORING.leaderboard;
+  const tasks = Math.max(completedTasks, 0);
+
+  const adjustedXP     = newXP + tasks * 3;
+  const averageXP      = adjustedXP / Math.max(tasks, lb.minTaskDivisor);
+  const bonus          = 1 + Math.log2(Math.max(tasks, 1)) * lb.bonusMultiplier;
+  const assigned       = Math.max(totalAssignedTasks ?? tasks, tasks);
+  const completionRate = assigned > 0 ? 0.55 + 0.45 * (tasks / assigned) : 1.0;
+  const progressBonus  = tasks * 2.5;
+  const newScore       = safe((averageXP * bonus) * completionRate + progressBonus);
+
+  const carry      = Math.max(carryOverScore, 0);
+  const rate       = Math.min(Math.max(penaltyRate, 0), 1);
+  let   finalScore = safe((newScore + carry) * (1 - rate));
+
+  const debug: FinalScoreDebug = {
+    newXP, carryOverScore: carry, adjustedXP, averageXP,
+    bonus, completionRate, progressBonus, newScore, finalScore,
+  };
+
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
+    console.log("[calcStudentFinalScore]", debug);
+  }
+
+  return { newScore, finalScore, debug };
+}
+
 export function computeStudentStats(
   gradedTasks:    Record<string, GradedTaskEntry> | undefined,
   isScoreHidden?: boolean,

@@ -724,10 +724,10 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     });
   }, [task.id]);
 
-  // Uygulama kapanıp açıldığında: tüm çekişler tamam ama status hâlâ "completed" değilse düzelt
+  // Uygulama kapanıp açıldığında: tüm çekişler tamam ama status hâlâ "published" değilse düzelt
   useEffect(() => {
     if (!poolLoading && groupStudentCount > 0 && bookDraws.length >= groupStudentCount) {
-      updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true }).catch(() => {});
+      updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true }).catch(() => {});
     }
   // Sadece her ikisi de yüklendiğinde çalışsın
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -788,14 +788,14 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     setDoc(doc(db, "lottery_results", task.id), {
       draws: updated, groupId: task.groupId ?? "", lastUpdated: serverTimestamp(),
     });
-    // Gruptaki tüm öğrenciler tamamlandıysa görevi otomatik kapat
+    // Gruptaki tüm öğrenciler tamamlandıysa görevi başlat (published)
     if (groupStudentCount > 0 && updated.length >= groupStudentCount) {
-      updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
     }
     // 3 pulse (~1.1s) sonra kitabı büyüt
     revealTimerRef.current = setTimeout(() => setWinnerRevealed(true), 1150);
-    // 3sn sonra modal
-    modalTimerRef.current = setTimeout(() => setShowModal(true), 3000);
+    // 1.5sn sonra modal
+    modalTimerRef.current = setTimeout(() => setShowModal(true), 1500);
   }, [selectedStudent, currentBook, bookDraws, task, groupStudentCount]);
 
   // Kapat → sadece sıfırla, kullanıcı "Başlat"a basar
@@ -827,12 +827,12 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         draws: studentDraws,
         students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
       });
-      // Gruptaki tüm öğrenciler tamamlandıysa görevi kapat → Not Ver butonu açılsın
+      // Tüm çekişler tamam → görevi published yap (öğrenciler çalışmaya başlıyor)
       if (groupStudentCount > 0 && studentDraws.length >= groupStudentCount) {
-        await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+        await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
       }
       setArchived(true);
-      setTimeout(() => router.push("/dashboard"), 3000);
+      setTimeout(() => router.push("/dashboard"), 1500);
     } finally {
       setArchiving(false);
     }
@@ -852,9 +852,9 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
           students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
         });
       }
-      await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      await updateDoc(doc(db, "tasks", task.id), { status: "completed", archived: true, gradingClosed: true, completedAt: serverTimestamp() });
       setFinalized(true);
-      setTimeout(() => router.push("/dashboard"), 2000);
+      setTimeout(() => router.push("/dashboard"), 1500);
     } finally {
       setFinalizing(false);
     }
@@ -1082,7 +1082,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
                   opacity: archiving ? 0.6 : 1,
                 }}
               >
-                {archiving ? "Kaydediliyor..." : archived ? "Arşive Kaydedildi ✓" : "Arşive Kaydet"}
+                {archiving ? "Başlatılıyor..." : archived ? "Ödev Başlatıldı ✓" : "Tamamla ve ödevi başlat"}
               </button>
 
               {/* Ödevi Tamamla — sadece gruptaki tüm öğrenciler bitmemişse göster */}

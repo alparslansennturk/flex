@@ -492,6 +492,10 @@
 - Sertifikasyon öğrenci listesi: finalize edilmemişse `onSnapshot`, edilmişse projectGrades'den frozen list
 - `projectGrades` ID formatı: `{studentId}_{groupId}_{module}`
 - Öğrenci kartı lig puanı toplam: sağ üstteki `student.score` = sadece mevcut sınıf; sol alt Toplam = `g1Stats.score + g2Stats.score`
+- **TEK KAYNAK PUAN:** `calcStudentFinalScore` (`src/app/lib/scoring.ts`) — tüm lig/widget/modal buradan hesaplar. `calcScore` sadece modül bazlı (cert/odevPuani) alt hesaplarda kullanılır.
+- **Puan formülü:** `newScore = (averageXP × bonus) × completionRate + progressBonus` → `finalScore = (newScore + carryOverScore) × (1 - penaltyRate)`; `carryOverScore` = `g2StartXP` (student doc), sadece final'a eklenir, XP hesabına girmez.
+- **Debug:** `NODE_ENV=development` ortamında her hesapta console'a `{newXP, carryOverScore, adjustedXP, averageXP, bonus, completionRate, newScore, finalScore}` basılır.
+- Öğrenci kartı başlık "Lig Puanı" = `computedScore` (calcStudentFinalScore ile — lig tablosuyla aynı); sol alt "Toplam" = `g1Stats.score + g2Stats.score` (modül bazlı bilgi kutuları, doğal olarak farklı — toplam != finalScore)
 - Kitap PDF: `bookId` alanı kapak numarası olarak büyük puntoda gösterilir; gramaj `useMemo` + `student.id` bağımlılığıyla öğrenci başına sabit
 - `allGroupDone` = `groupStudentCount > 0 && bookDraws.length >= groupStudentCount`; bu durumda erken tamamla UI'ı gizlenir ve task `status: "completed"` otomatik yazılır
 - Tarih kısıtı: `min={today}` — tarayıcı native disabled render'ı kullanır, ek validasyon gerekmez
@@ -1351,3 +1355,117 @@ Backend tamamen hazır, frontend sıfır. Aşağıdakiler yazılmadan öğrenci 
 - Öğrenci kimliği nasıl doğrulanacak? Firebase Auth mı, yoksa manuel `studentId` mi?
 - `/login` sayfası öğrenciler için de geçerli mi, yoksa ayrı giriş ekranı mı?
 - Öğrenci hangi ödevleri görecek — sadece `status: active` olan `groupId` eşleşenler mi?
+
+---
+
+## Oturum — 13 Nisan 2026
+
+### Task Lifecycle Düzeltmesi
+
+**Sorun:** Çekiliş (kitap/kolaj) bitince görev `status: "completed"` yazılıyordu. Öğrenciler henüz çalışmaya başlamamıştı.
+
+**Yeni task state makinesi:**
+
+| Durum | Ne zaman | Açıklama |
+|-------|----------|----------|
+| `draft` / `library` | Oluşturulunca | Henüz verilmemiş |
+| `active` | AssignmentLibrary'den atanınca | Otomatik başlar |
+| `published` | Çekiliş biter / "Aktife Al" tıklanınca | Öğrenciler çalışıyor |
+| `completed` | Öğretmen "Tamamla" der | Notlar girilebilir, mail gitmez |
+
+**Değişen dosyalar:**
+- `BookGameScreen.tsx` — çekiliş sonu → `published`, "Tamamla" → `{ status: "completed", archived: true, gradingClosed: true, completedAt }`
+- `GameScreen.tsx` (kolaj) — aynı değişiklikler
+- `TasksContent.tsx` — `handleActivate` artık `status: "published"` de yazıyor
+- `AssignmentScreen.tsx` — grading redirect koşuluna `published` eklendi
+- `cron/deadline-reminder/route.ts` — `completed` görevlere hatırlatma maili gönderilmiyor
+
+**Buton metni:** "Arşive Kaydet" → **"Tamamla ve ödevi başlat"**
+
+---
+
+### Puan Sistemi SSOT (Single Source of Truth)
+
+**`calcStudentFinalScore`** tek fonksiyon, tüm ekranlar kullanıyor:
+
+```
+adjustedXP  = newXP + tasks × 3
+averageXP   = adjustedXP / max(tasks, 3)
+bonus       = 1 + log2(tasks) × 0.85
+completionRate = 0.55 + 0.45 × (tasks / totalAssigned)
+progressBonus  = tasks × 2.5
+newScore    = (averageXP × bonus) × completionRate + progressBonus
+finalScore  = (newScore + carryOverScore) × (1 − penaltyRate)
+```
+
+- `carryOverScore` = `g2StartXP` — sadece finalScore'a girer, XP hesabına girmez
+- `totalAssignedTasks`: deadline geçmiş + completed görevler (yeni görev puan düşürmez)
+- `completed` görevler deadline'a bakılmaksızın her zaman sayılır
+
+**Güncellenen ekranlar:** `dashboard/league`, `league` (öğrenci), `LeaderboardWidget`, `StudentDetailModal`
+
+---
+
+### totalAssignedTasks Filtresi (Kesin Kural)
+
+```typescript
+// Puanlama için:
+tasks.filter(t =>
+  t.classId === groupCode &&
+  (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
+  (t.status === "completed" || (t.endDate ? t.endDate <= todayStr : true))
+)
+
+// Görüntüleme için (tabloda X/Y formatı):
+tasks.filter(t =>
+  t.classId === groupCode &&
+  (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status)
+)
+```
+
+- `endDate` formatı: `"YYYY-MM-DD"` string — lexicographic karşılaştırma doğru çalışır
+- `endDate` yoksa (eski görevler) → her zaman sayılır
+
+---
+
+### Lig Tablosu — Görev Sütunu
+
+Tablo artık `completedTasks / totalAssignedDisplay` formatında gösteriyor.
+
+Örnek: 8 görev tamamlandı, 9 atandı → **8/9**
+
+- Görüntüleme: tüm atanmış görevler (deadline bağımsız)
+- Puanlama: sadece deadline geçmiş + completed görevler
+- `RankedStudent` tipine `totalAssignedDisplay` eklendi
+
+---
+
+### StudentDetailModal — Skor Tutarsızlığı Düzeltmesi
+
+**Sorun:** Modal "Lig Puanı" bölümü `calcScore()` kullanıyordu, `g2StartXP` ve `totalAssigned` dahil değildi.
+
+**Düzeltme:** "Grafik-2" ve "Toplam" satırları artık `computedScore` gösteriyor (lig tablosuyla aynı hesaplama).
+
+---
+
+### Öğrenci Portalı — Mimari Kararlar (13 Nisan 2026)
+
+**Netleşen kararlar:**
+
+| Konu | Karar |
+|------|-------|
+| Öğrenci auth | Ayrı sistem — admin kullanıcılardan bağımsız |
+| Hesap oluşturma | Öğrenci sisteme eklenince otomatik |
+| Ödev yükleme | Upload → zaman damgası → görev otomatik "tamamlandı" |
+| Not girişi | Ödev yönetimi içine entegre |
+| Sertifikasyon | Ana ekranda kalır, bağımsız |
+
+**Sonraki adımlar (sırayla):**
+1. Öğrenci login sistemi (Firebase Auth, ayrı kullanıcı tipi)
+2. Öğrenci ödev yükleme UI
+3. Upload → otomatik görev tamamlama
+4. Not girişi entegrasyonu
+5. Tam sistem entegrasyonu
+
+**Backend hazır:** `api/submit`, `api/upload`, `lib/googledrive.ts`, `lib/submissions.ts`, type definitions, Firestore/Storage rules — env vars PC'de mevcut.
+

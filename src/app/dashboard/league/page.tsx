@@ -18,7 +18,7 @@ import { collection, query, where, onSnapshot, getDocs } from "firebase/firestor
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
 
-import { computeStudentStats, calcScore, safe } from "@/app/lib/scoring";
+import { computeStudentStats, calcStudentFinalScore, safe } from "@/app/lib/scoring";
 import Sidebar from "../../components/layout/Sidebar";
 import Header from "../../components/layout/Header";
 import Footer from "../../components/layout/Footer";
@@ -50,6 +50,8 @@ interface RankedStudent extends StudentData {
   recentScore: number;
   finalScore: number;
   g2Bonus: number;
+  totalAssignedTasks: number;
+  totalAssignedDisplay: number;
 }
 
 interface RankedGroup {
@@ -626,8 +628,15 @@ function LeaderTable({
                 </td>
 
                 <td className="px-6 py-3 text-right hidden xl:table-cell">
-                  <span className="text-[13px] font-semibold text-text-secondary tabular-nums">
-                    {student.completedTasks ?? 0}
+                  <span className="text-[13px] font-semibold tabular-nums">
+                    {student.totalAssignedDisplay > 0 ? (
+                      <>
+                        <span className="text-text-secondary">{student.completedTasks ?? 0}</span>
+                        <span className="text-text-secondary">/{student.totalAssignedDisplay}</span>
+                      </>
+                    ) : (
+                      <span className="text-text-secondary">{student.completedTasks ?? 0}</span>
+                    )}
                   </span>
                 </td>
 
@@ -772,7 +781,7 @@ export default function LeaguePage() {
   const [scoreMode,          setScoreMode]          = useState<ScoreMode>("total");
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
-  const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: any; classId?: string }>>({});
+  const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: any; classId?: string; status?: string }>>({});
   const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({}); // groupCode → instructor name
   const [groupBranches,   setGroupBranches]   = useState<string[]>([]); // şube listesi groups'tan
   const [myGroupCodes,    setMyGroupCodes]    = useState<string[] | null>(null);
@@ -814,16 +823,16 @@ export default function LeaguePage() {
     }).catch(() => {});
   }, []);
 
-  // ── Görevleri çek ─────────────────────────────────────────────────────────
+  // ── Görevleri çek (gerçek zamanlı) ───────────────────────────────────────
   useEffect(() => {
-    getDocs(collection(db, "tasks")).then((snap) => {
-      const map: Record<string, { endDate?: string; createdAt?: any; classId?: string }> = {};
+    return onSnapshot(collection(db, "tasks"), (snap) => {
+      const map: Record<string, { endDate?: string; createdAt?: any; classId?: string; status?: string }> = {};
       snap.docs.forEach((d) => {
         const data = d.data() as any;
-        map[d.id] = { endDate: data.endDate ?? undefined, createdAt: data.createdAt ?? undefined, classId: data.classId ?? undefined };
+        map[d.id] = { endDate: data.endDate ?? undefined, createdAt: data.createdAt ?? undefined, classId: data.classId ?? undefined, status: data.status ?? undefined };
       });
       setTasksMap(map);
-    }).catch(() => {});
+    });
   }, []);
 
 
@@ -893,12 +902,22 @@ export default function LeaguePage() {
       });
       const recentXP           = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
       const recentCompleted    = recentEntries.length;
-      // totalAssignedTasks: gruba atanmış tüm görevler (tasksMap'te classId eşleşenler)
-      const totalAssignedTasks = Object.values(tasksMap).filter(t => t.classId === s.groupCode).length;
-      // g2Bonus net puan olarak doğrudan eklenir — görev sayısına bölünmez
-      const generalScore = calcScore(baseXP, completedTasks, settings, totalAssignedTasks || undefined) + g2Bonus;
-      const recentScore  = calcScore(recentXP, recentCompleted, settings);
-      return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore: generalScore, g2Bonus, score: scoreMode === "monthly" ? recentScore : generalScore };
+      const todayStr = new Date().toISOString().split("T")[0];
+      const assignedTasks = Object.values(tasksMap).filter(t =>
+        t.classId === s.groupCode &&
+        (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status)
+      );
+      // Puanlama: completed her zaman sayılır; diğerleri sadece deadline geçmişse
+      const totalAssignedTasks = assignedTasks.filter(t =>
+        t.status === "completed" || (t.endDate ? t.endDate <= todayStr : true)
+      ).length;
+      // Görüntüleme: tüm atanmış görevler (deadline bağımsız)
+      const totalAssignedDisplay = assignedTasks.length;
+      // g2Bonus = carryOverScore: sadece final skora eklenir, averageXP/bonus hesabına girmez
+      const { finalScore: generalScore, debug: dbg } = calcStudentFinalScore(baseXP, completedTasks, settings, totalAssignedTasks || undefined, g2Bonus, 0);
+      const { finalScore: recentScore }               = calcStudentFinalScore(recentXP, recentCompleted, settings);
+      if (process.env.NODE_ENV === "development") console.log(`[League] ${s.name} ${s.lastName}`, dbg);
+      return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore: generalScore, g2Bonus, totalAssignedTasks, totalAssignedDisplay, score: scoreMode === "monthly" ? recentScore : generalScore };
     });
   }, [rawStudents, settings, activeSeasonId, scoreMode, tasksMap]);
 
