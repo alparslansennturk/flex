@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, GraduationCap, Zap, BookOpen, Star } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { useScoring } from "@/app/context/ScoringContext";
 import { calcScore, calcStudentFinalScore, getLevelXP, computeStudentStats } from "@/app/lib/scoring";
 
@@ -15,6 +15,7 @@ export interface ModalStudent {
   lastName: string;
   rank: number;
   score: number;
+  generalScore?: number; // lig sayfasından gelen toplam skor (herzaman toplam mod)
   points?: number;
   completedTasks?: number;
   latePenaltyTotal?: number;
@@ -218,9 +219,8 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
     setG1Stats(EMPTY_STATS); setG2Stats(EMPTY_STATS);
     setLoading(true);
 
-    (async () => {
-      // 1. Öğrenci belgesi → email + groupId
-      const sDoc  = await getDoc(doc(db, "students", student.id));
+    const unsubscribeStudent = onSnapshot(doc(db, "students", student.id), async (sDoc) => {
+      if (cancelled) return;
       const sData = sDoc.exists() ? (sDoc.data() as any) : {};
       const studentEmail = sData.email ?? "";
 
@@ -438,9 +438,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       setComputedXP(cXP);
       setComputedTasks(cTasks);
       setLoading(false);
-    })();
+    });
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; unsubscribeStudent(); };
   }, [isOpen, student?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen || !student) return null;
@@ -450,7 +450,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
   const medal      = MEDALS[student.rank];
   const totalXP    = computedXP    ?? student.points    ?? 0;
   const totalTasks = computedTasks ?? student.completedTasks ?? 0;
-  const displayScore = computedScore ?? student.score;
+  // generalScore: lig sayfasından gelen per-aylık toplam (herzaman doğru kaynak)
+  // computedScore: management/grading sayfalarından score:0 geldiğinde fallback
+  const displayScore = student.generalScore ?? computedScore ?? student.score;
 
   // Yüzde: kazanılan XP / o modülde kazanılabilir maksimum XP
   // Arzu Alan 300/300 XP aldıysa → %100 gösterilmeli
@@ -563,9 +565,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                 <p className="text-[10px] font-bold text-surface-400 tracking-tight">Lig Puanı</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatBox label="Toplam"   value={loading ? "…" : Math.round(g1Stats.score) + Math.round(computedScore ?? g2Stats.score)} loading={loading} />
+                <StatBox label="Toplam"   value={loading ? "…" : Math.round(g1Stats.score) + Math.round(student.generalScore ?? computedScore ?? g2Stats.score)} loading={loading} />
                 <StatBox label="Grafik-1" value={loading ? "…" : Math.round(g1Stats.score)} colorClass="text-base-primary-700" loading={loading} />
-                <StatBox label="Grafik-2" value={loading ? "…" : Math.round(computedScore ?? g2Stats.score)} colorClass="text-accent-purple-700" loading={loading} />
+                <StatBox label="Grafik-2" value={loading ? "…" : Math.round(student.generalScore ?? computedScore ?? g2Stats.score)} colorClass="text-accent-purple-700" loading={loading} />
               </div>
             </div>
           </div>
