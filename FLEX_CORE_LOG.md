@@ -1469,3 +1469,114 @@ Tablo artık `completedTasks / totalAssignedDisplay` formatında gösteriyor.
 
 **Backend hazır:** `api/submit`, `api/upload`, `lib/googledrive.ts`, `lib/submissions.ts`, type definitions, Firestore/Storage rules — env vars PC'de mevcut.
 
+---
+
+## Oturum — 14 Nisan 2026
+
+### Aylık Lig Puan Sistemi — Komple Yeniden Yazım
+
+---
+
+#### 1. `completedAt` Alanı Eklendi
+
+**Sorun:** Aylık hesaplama için görevin hangi ayda teslim edildiği bilinmiyordu; yalnızca deadline (`endDate`) vardı.
+
+**Düzeltmeler:**
+- `src/app/lib/scoring.ts` — `GradedTaskEntry` arayüzüne `completedAt?: string` eklendi
+- `src/app/dashboard/grading/page.tsx` — Not kaydedilirken entry'ye `completedAt: new Date().toISOString().split("T")[0]` yazılıyor (2 yer: Firestore batch + in-memory hesaplama)
+
+---
+
+#### 2. Hybrid Aylık Filtreleme Kuralı
+
+**Kural:**
+- `completedAt <= endDate` → deadline ayına yaz (zamanında / erken teslim)
+- `completedAt > endDate` → teslim ayına yaz (geç teslim)
+- `completedAt` yoksa → `endDate` ayı (eski veri fallback)
+
+**Örnek:** Mayıs deadline, Nisan'da not girildi → Mayıs'a yazılır. Nisan deadline, Mayıs'ta girildi → Mayıs'a yazılır.
+
+**Etkilenen dosyalar:** `league/page.tsx`, `dashboard/league/page.tsx`, `api/monthly-winner/route.ts`, `api/cron/monthly-winner/route.ts`
+
+---
+
+#### 3. Birikimli Toplam Skor
+
+**Eski sistem:** `calcStudentFinalScore(tümXP, tümGörev, ..., carryOver)` → tek büyük hesaplama → carryOver formüle giriyordu.
+
+**Yeni sistem:**
+```
+totalScore = g2Bonus (bir kez, düz toplama)
+           + monthlyScore(Ocak)
+           + monthlyScore(Şubat)
+           + ... (her ay ayrı calcStudentFinalScore)
+```
+
+**Sonuç:** Ferhat örneği — aylık 270 + carryOver 60 = toplam 330 (önceden 352 çıkıyordu, 22 fark formülün tüm XP'yi yeniden işlemesinden geliyordu).
+
+**Etkilenen dosyalar:** `league/page.tsx`, `dashboard/league/page.tsx`
+
+---
+
+#### 4. G1/G2 Ayrımı Kaldırıldı (Aylık İçin)
+
+**Değişiklik:** `isScoreHidden` ve `seasonId` filtreleri aylık hesaplamadan kaldırıldı. Reset öncesi ve sonrası aynı ay içindeki tüm görevler tek aylık skorda birleşir.
+
+**Dikkat:** `classId` filtresi korundu — başka sınıfların görevleri karışmıyor, sadece aynı sınıf içinde season/reset ayrımı yapılmıyor.
+
+---
+
+#### 5. `assignedInMonth` Hatası Düzeltildi
+
+**Sorun:** `assignedInMonth` classId filtresi olmadan tüm sistemdeki görevleri sayıyordu → herkes 20-30 assigned görev görüyordu → `completionRate` çöküyordu → Sevil 470 → 339'a düştü.
+
+**Düzeltme:** `assignedInMonth(mStart, mEnd, s.groupCode)` — artık sadece öğrencinin sınıfına ait görevler sayılıyor.
+
+---
+
+#### 6. Default Mod ve Buton Sırası
+
+- Default `scoreMode`: `"total"` → **`"monthly"`**
+- Buton sırası: `[Toplam, Aylık]` → **`[Aylık, Toplam]`**
+- Aylık modda `(+xxx bonus)` etiketi gizlendi (`showBonus` prop ile)
+
+**Etkilenen dosyalar:** `league/page.tsx`, `dashboard/league/page.tsx`
+
+---
+
+#### 7. Aylık Kazanan Belirleme — Skor Bazlı
+
+**Eski:** Sıralama `monthlyXP` → ceza → görev sayısı
+**Yeni:** Sıralama `monthlyScore` (aylık tablo puanı) → ceza → görev sayısı
+
+**Beraberlik kuralı:** `monthlyScore` + `monthlyPenalty` + `monthlyTasks` üçü de eşleşirse → hepsi birinci, hepsine mail gider.
+
+**Etkilenen dosyalar:** `api/monthly-winner/route.ts`, `api/cron/monthly-winner/route.ts`
+
+---
+
+#### 8. Aylık Birinci Önizleme Maili (Yeni Cron)
+
+**Amaç:** Ayın son gününde admin'e (`alparslan.sennturk@gmail.com`) önizleme maili gönderilir. Onay/müdahale yoksa 1. günde sistem otomatik öğrenciye gönderir.
+
+**Yeni dosya:** `src/app/api/cron/monthly-winner-preview/route.ts`
+- İlk 5 öğrenci sıralaması (puan, XP, görev, ceza)
+- Birinci adayı vurgulu, beraberlik uyarısı var
+
+**`vercel.json`:** `0 6 28-31 * *` scheduleı eklendi — her ay 28–31. günlerde tetiklenir, içeride "yarın 1. gün mü?" kontrolü ile sadece gerçek son günde çalışır.
+
+---
+
+#### Değişen Dosyalar (Özet)
+
+| Dosya | Değişiklik |
+|---|---|
+| `src/app/lib/scoring.ts` | `GradedTaskEntry`'ye `completedAt` eklendi |
+| `src/app/dashboard/grading/page.tsx` | Not kaydında `completedAt` yazılıyor |
+| `src/app/league/page.tsx` | Hybrid kural, birikimli toplam, default aylık mod |
+| `src/app/dashboard/league/page.tsx` | Aynı + `showBonus` prop, `computeStudentStats` kaldırıldı |
+| `src/app/api/monthly-winner/route.ts` | Hybrid kural, `calcStudentFinalScore` ile sıralama |
+| `src/app/api/cron/monthly-winner/route.ts` | Aynı |
+| `src/app/api/cron/monthly-winner-preview/route.ts` | Yeni — admin önizleme maili |
+| `vercel.json` | `monthly-winner-preview` cron eklendi |
+

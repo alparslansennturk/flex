@@ -5,6 +5,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/monthly-winner-preview",
+      "schedule": "0 6 28-31 * *"
+    },
+    {
       "path": "/api/cron/monthly-winner",
       "schedule": "0 6 1 * *"
     }

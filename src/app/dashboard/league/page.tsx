@@ -18,7 +18,7 @@ import { collection, query, where, onSnapshot, getDocs } from "firebase/firestor
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
 
-import { computeStudentStats, calcStudentFinalScore, safe } from "@/app/lib/scoring";
+import { calcStudentFinalScore, safe } from "@/app/lib/scoring";
 import Sidebar from "../../components/layout/Sidebar";
 import Header from "../../components/layout/Header";
 import Footer from "../../components/layout/Footer";
@@ -33,7 +33,7 @@ interface StudentData {
   gender?: string;
   groupCode: string;
   branch: string;
-  gradedTasks?: Record<string, { xp: number; penalty: number }>;
+  gradedTasks?: Record<string, { xp: number; penalty: number; classId?: string; endDate?: string; completedAt?: string }>;
   isScoreHidden?: boolean;
   avatarId?: number | string;
   rankChange?: number;
@@ -538,10 +538,12 @@ function LeaderTable({
   students,
   onStudentClick,
   groupsMap,
+  showBonus = true,
 }: {
   students: RankedStudent[];
   onStudentClick: (s: RankedStudent) => void;
   groupsMap: Record<string, string>;
+  showBonus?: boolean;
 }) {
   return (
     <div className="bg-white rounded-20 border border-surface-200 overflow-hidden" style={{ boxShadow: "0 4px 40px rgba(0,0,0,0.04)" }}>
@@ -619,7 +621,7 @@ function LeaderTable({
                     <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
                       {(student.points ?? 0).toLocaleString("tr-TR")} XP
                     </span>
-                    {student.g2Bonus > 0 && (
+                    {showBonus && student.g2Bonus > 0 && (
                       <span className="text-[12px] font-medium italic text-text-tertiary/70 tabular-nums">
                         (+{student.g2Bonus} bonus)
                       </span>
@@ -778,7 +780,7 @@ export default function LeaguePage() {
   const [filterMode,         setFilterMode]         = useState<"trainer" | "branch">("trainer");
   const [trainerGroupFilter, setTrainerGroupFilter] = useState(ALL_GROUP);
   const [branchSubFilter,    setBranchSubFilter]    = useState(ALL_BRANCH);
-  const [scoreMode,          setScoreMode]          = useState<ScoreMode>("total");
+  const [scoreMode,          setScoreMode]          = useState<ScoreMode>("monthly");
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
   const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: any; classId?: string; status?: string }>>({});
@@ -860,66 +862,119 @@ export default function LeaguePage() {
     return [ALL_BRANCH, ...Array.from(branches).sort()];
   }, [rawStudents, groupBranches]);
 
-  // ── Puan hesaplama (filtresiz) ─────────────────────────────────────────────
+  // ── Puan hesaplama ────────────────────────────────────────────────────────
   const withScores = useMemo(() => {
-    const thirtyDaysAgo = Date.now() - 30 * 86400000;
-    const recentTaskIds = new Set<string>(
-      Object.entries(tasksMap)
-        .filter(([, task]) => {
-          const d = task.endDate
-            ? new Date(task.endDate).getTime()
-            : task.createdAt?.toDate?.()?.getTime?.() ?? 0;
-          return d >= thirtyDaysAgo;
-        })
-        .map(([id]) => id)
-    );
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const monthStart = `${currentMonthKey}-01`;
+    const lastDay    = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const monthEnd   = `${currentMonthKey}-${String(lastDay).padStart(2, "0")}`;
+
+    // Hybrid kural: hangi aya yazılacağını belirler
+    //   completedAt <= endDate → deadline ayı (zamanında / erken)
+    //   completedAt >  endDate → teslim ayı (geç)
+    //   completedAt yoksa     → endDate ayı (eski veri)
+    const effectiveMonthKey = (
+      ca: string | undefined,
+      end: string | undefined,
+    ): string | null => {
+      let d: string | null;
+      if (!ca)       d = end ?? null;
+      else if (!end) d = ca;
+      else           d = ca <= end ? end : ca;
+      return d ? d.substring(0, 7) : null;
+    };
+
+    // Belirli bir ay + sınıf için tasksMap'ten atanan görev sayısı
+    const assignedInMonth = (mStart: string, mEnd: string, classId: string) =>
+      Object.values(tasksMap).filter(t =>
+        t.classId === classId &&
+        (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
+        t.endDate && t.endDate >= mStart && t.endDate <= mEnd
+      ).length || undefined;
+
     return rawStudents.map((s) => {
-      // Sadece öğrencinin şu anki grubuna (groupCode) ait görevleri say.
-      // Grafik-1'den Grafik-2'ye geçince eski XP silinmez ama skora dahil edilmez.
-      const allTasks = s.gradedTasks ?? {};
-      const tasks = Object.fromEntries(
-        Object.entries(allTasks).filter(([tid, entry]) => {
-          // Önce görevin içine gömülü classId'ye bak (arşivden silinse bile kalır)
-          const storedClassId = (entry as any).classId as string | undefined;
-          if (storedClassId) return storedClassId === s.groupCode;
-          // Eski kayıtlarda classId yoksa tasksMap'ten dene
-          const mapClassId = tasksMap[tid]?.classId;
-          if (!mapClassId) return true; // görev silinmiş ve classId bilinmiyor → XP koru
-          return mapClassId === s.groupCode;
-        })
-      );
-      const { totalXP: baseXP, completedTasks, latePenaltyTotal } = computeStudentStats(tasks, s.isScoreHidden, activeSeasonId);
-      // G1→G2 / carry-over bonusu: sınıf bitirildiğinde hesaplanan, sadece lig tablosuna etkili
-      const g2Bonus = s.isScoreHidden ? 0 : ((s as any).g2StartXP ?? 0);
-      const totalXP = baseXP + g2Bonus; // görüntüleme için (points)
-      const recentEntries = s.isScoreHidden ? [] : Object.entries(tasks).filter(([tid, entry]) => {
-        if (recentTaskIds.has(tid)) return true;            // görev mevcut ve recent
-        if (tasksMap[tid] !== undefined) return false;      // görev mevcut ama recent değil
-        // Görev silinmiş → saklanan endDate'e bak
-        const storedEnd = (entry as any).endDate as string | undefined;
-        if (storedEnd) return new Date(storedEnd).getTime() >= thirtyDaysAgo;
-        return true; // endDate bilinmiyor, görev silindi → puanı koru
+      // Öğrencinin kendi sınıfına (groupCode) ait görevleri filtrele.
+      // isScoreHidden / seasonId filtresi KALDIRILDI: reset öncesi ve sonrası
+      // aynı ay içindeki görevler tek skorda birleştirilir.
+      const classEntries = Object.entries(s.gradedTasks ?? {}).filter(([tid, entry]) => {
+        const storedClassId = entry.classId;
+        if (storedClassId) return storedClassId === s.groupCode;
+        const mapClassId = tasksMap[tid]?.classId;
+        if (!mapClassId) return true;
+        return mapClassId === s.groupCode;
       });
-      const recentXP           = recentEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
-      const recentCompleted    = recentEntries.length;
-      const todayStr = new Date().toISOString().split("T")[0];
-      const assignedTasks = Object.values(tasksMap).filter(t =>
+
+      // Tüm sınıf görevlerini efektif aylarına göre grupla
+      const byMonth: Record<string, Array<[string, typeof classEntries[0][1]]>> = {};
+      for (const [tid, entry] of classEntries) {
+        const m = effectiveMonthKey(
+          entry.completedAt,
+          entry.endDate ?? tasksMap[tid]?.endDate,
+        );
+        if (!m) continue;
+        if (!byMonth[m]) byMonth[m] = [];
+        byMonth[m].push([tid, entry]);
+      }
+
+      // ── AYLIK (bu ay) ───────────────────────────────────────────────────────
+      const monthlyEntries   = byMonth[currentMonthKey] ?? [];
+      const monthlyXP        = monthlyEntries.reduce((sum, [, e]) => sum + (e.xp      ?? 0), 0);
+      const monthlyPenalty   = monthlyEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
+      const monthlyCompleted = monthlyEntries.length;
+      const monthlyAssigned  = assignedInMonth(monthStart, monthEnd, s.groupCode);
+
+      const { finalScore: recentScore } = calcStudentFinalScore(
+        monthlyXP, monthlyCompleted, settings, monthlyAssigned, 0, 0,
+      );
+
+      // ── BİRİKİMLİ TOPLAM ────────────────────────────────────────────────────
+      // totalScore = g2Bonus (bir kez) + Σ monthlyScore(her ay)
+      // Her ayın skoru calcStudentFinalScore ile hesaplanır — toplam modda
+      // tek bir büyük hesaplama yapılmaz.
+      const g2Bonus = (s as any).g2StartXP ?? 0;
+      let cumulativeScore = g2Bonus;
+      for (const [month, entries] of Object.entries(byMonth)) {
+        const mXP       = entries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
+        const mComplete = entries.length;
+        const [y, mo]   = month.split("-");
+        const mStart    = `${y}-${mo}-01`;
+        const mLastDay  = new Date(parseInt(y), parseInt(mo), 0).getDate();
+        const mEnd      = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+        const mAssigned = assignedInMonth(mStart, mEnd, s.groupCode);
+        const { finalScore: mScore } = calcStudentFinalScore(mXP, mComplete, settings, mAssigned, 0, 0);
+        cumulativeScore += mScore;
+      }
+      const generalScore = safe(cumulativeScore);
+
+      // Görüntüleme için tüm-zaman toplamları (mevcut sınıf bazlı)
+      const totalXP        = classEntries.reduce((sum, [, e]) => sum + (e.xp      ?? 0), 0) + g2Bonus;
+      const totalCompleted = classEntries.length;
+      const totalPenalty   = classEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
+      const totalAssignedDisplay = Object.values(tasksMap).filter(t =>
         t.classId === s.groupCode &&
         (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status)
-      );
-      // Puanlama: completed her zaman sayılır; diğerleri sadece deadline geçmişse
-      const totalAssignedTasks = assignedTasks.filter(t =>
-        t.status === "completed" || (t.endDate ? t.endDate <= todayStr : true)
       ).length;
-      // Görüntüleme: tüm atanmış görevler (deadline bağımsız)
-      const totalAssignedDisplay = assignedTasks.length;
-      // g2Bonus = carryOverScore: sadece final skora eklenir, averageXP/bonus hesabına girmez
-      const { finalScore: generalScore, debug: dbg } = calcStudentFinalScore(baseXP, completedTasks, settings, totalAssignedTasks || undefined, g2Bonus, 0);
-      const { finalScore: recentScore }               = calcStudentFinalScore(recentXP, recentCompleted, settings);
-      if (process.env.NODE_ENV === "development") console.log(`[League] ${s.name} ${s.lastName}`, dbg);
-      return { ...s, points: totalXP, completedTasks, latePenaltyTotal, generalScore, recentScore, finalScore: generalScore, g2Bonus, totalAssignedTasks, totalAssignedDisplay, score: scoreMode === "monthly" ? recentScore : generalScore };
+
+      if (process.env.NODE_ENV === "development")
+        console.log(`[League] ${s.name} ${s.lastName} monthly=${recentScore} cumulative=${generalScore}`);
+
+      const isMonthly = scoreMode === "monthly";
+      return {
+        ...s,
+        points:               isMonthly ? monthlyXP        : totalXP,
+        completedTasks:       isMonthly ? monthlyCompleted  : totalCompleted,
+        latePenaltyTotal:     isMonthly ? monthlyPenalty    : totalPenalty,
+        totalAssignedTasks:   isMonthly ? (monthlyAssigned ?? monthlyCompleted) : totalCompleted,
+        totalAssignedDisplay: isMonthly ? (monthlyAssigned ?? monthlyCompleted) : totalAssignedDisplay,
+        generalScore,
+        recentScore,
+        finalScore: generalScore,
+        g2Bonus,
+        score: isMonthly ? recentScore : generalScore,
+      };
     });
-  }, [rawStudents, settings, activeSeasonId, scoreMode, tasksMap]);
+  }, [rawStudents, settings, scoreMode, tasksMap]);
 
   const sortFn = (a: typeof withScores[0], b: typeof withScores[0]) => {
     const sd = b.score - a.score; if (sd !== 0) return sd;
@@ -1308,7 +1363,7 @@ export default function LeaguePage() {
 
                     {/* Sağ: Toplam / Aylık — sadece öğrenci modunda */}
                     {viewMode === "students" && <div className="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-full p-1">
-                      {(["total", "monthly"] as ScoreMode[]).map((mode) => (
+                      {(["monthly", "total"] as ScoreMode[]).map((mode) => (
                         <button
                           key={mode}
                           onClick={() => setScoreMode(mode)}
@@ -1318,7 +1373,7 @@ export default function LeaguePage() {
                               : "text-text-tertiary hover:text-text-primary"
                           }`}
                         >
-                          {mode === "total" ? "Toplam" : "Aylık"}
+                          {mode === "monthly" ? "Aylık" : "Toplam"}
                         </button>
                       ))}
                     </div>}
@@ -1335,7 +1390,7 @@ export default function LeaguePage() {
                         <p className="text-[12px] text-text-disabled text-center max-w-60">Bu filtreye ait öğrenci kaydı bulunmamaktadır.</p>
                       </div>
                     ) : (
-                      <LeaderTable students={rankedStudents} onStudentClick={handleStudentClick} groupsMap={groupsMap} />
+                      <LeaderTable students={rankedStudents} onStudentClick={handleStudentClick} groupsMap={groupsMap} showBonus={scoreMode !== "monthly"} />
                     )
                   ) : (
                     rankedGroups.length === 0 ? (

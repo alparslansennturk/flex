@@ -67,12 +67,13 @@ export function calculateLeaderboardScore(
  * XP event bazlı artırılmaz — her taskId için tek kayıt tutulur.
  */
 export interface GradedTaskEntry {
-  xp:        number;
-  penalty:   number;
-  seasonId?: string;  // hangi sezona ait (undefined = "season_1")
-  classId?:  string;  // görevin ait olduğu sınıf (arşivden silinse bile XP korunur)
-  endDate?:  string;  // görevin bitiş tarihi (arşivden silinse bile recency korunur)
-  maxXp?:    number;  // görevin max kazanılabilir XP'si (arşivden silinse bile odevPuani hesaplanabilsin)
+  xp:          number;
+  penalty:     number;
+  seasonId?:   string;  // hangi sezona ait (undefined = "season_1")
+  classId?:    string;  // görevin ait olduğu sınıf (arşivden silinse bile XP korunur)
+  endDate?:    string;  // görevin bitiş tarihi / deadline
+  completedAt?: string; // öğrencinin teslim ettiği / puanın verildiği tarih (YYYY-MM-DD) — aylık hesaplamada kullanılır
+  maxXp?:      number;  // görevin max kazanılabilir XP'si (arşivden silinse bile odevPuani hesaplanabilsin)
 }
 
 /**

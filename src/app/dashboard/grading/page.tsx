@@ -812,7 +812,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
       Object.entries(grades).forEach(([sid, g]) => {
         if (g.submitted && g.xp > 0) {
           const penalty = Math.max(baseXP - g.xp, 0);
-          const entry: GradedTaskEntry = { xp: g.xp, penalty, seasonId: activeSeasonId, classId: task.classId ?? undefined, endDate: task.endDate ?? undefined, maxXp: baseXP };
+          const entry: GradedTaskEntry = { xp: g.xp, penalty, seasonId: activeSeasonId, classId: task.classId ?? undefined, endDate: task.endDate ?? undefined, maxXp: baseXP, completedAt: new Date().toISOString().split("T")[0] };
           batch.update(doc(db, "students", sid), {
             [`gradedTasks.${taskId}`]: entry,
             isScoreHidden: false,   // yeni görev kaydedilince artık gizli değil
@@ -856,7 +856,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
         const g = grades[s.id];
         const newTasks = { ...s.gradedTasks };
         if (g?.submitted && g.xp > 0) {
-          newTasks[taskId] = { xp: g.xp, penalty: Math.max(baseXP - g.xp, 0), seasonId: activeSeasonId, classId: task.classId ?? undefined, endDate: task.endDate ?? undefined };
+          newTasks[taskId] = { xp: g.xp, penalty: Math.max(baseXP - g.xp, 0), seasonId: activeSeasonId, classId: task.classId ?? undefined, endDate: task.endDate ?? undefined, completedAt: new Date().toISOString().split("T")[0] };
         } else {
           delete newTasks[taskId];
         }

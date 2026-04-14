@@ -1,57 +1,65 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
+import { calcStudentFinalScore, DEFAULT_SCORING, ScoringSettings } from "@/app/lib/scoring";
 
 // Bir önceki ayın başı ve sonu (UTC+3 tabanlı yerel zaman)
-function getPrevMonthRange(): { start: Date; end: Date; label: string } {
+function getPrevMonthRange(): { start: string; end: string; label: string; year: number; month: number } {
   const now   = new Date(Date.now() + 3 * 60 * 60 * 1000); // UTC+3
   const year  = now.getUTCMonth() === 0 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
   const month = now.getUTCMonth() === 0 ? 11 : now.getUTCMonth() - 1; // 0-indexed
 
   const label = new Date(Date.UTC(year, month, 1)).toLocaleDateString("tr-TR", {
-    month: "long",
-    year:  "numeric",
-    timeZone: "UTC",
+    month: "long", year: "numeric", timeZone: "UTC",
   });
 
-  return {
-    start: new Date(year, month, 1),
-    end:   new Date(year, month + 1, 1),
-    label,
-  };
+  const mo    = String(month + 1).padStart(2, "0");
+  const start = `${year}-${mo}-01`;
+  const lastD = new Date(year, month + 1, 0).getDate();
+  const end   = `${year}-${mo}-${String(lastD).padStart(2, "0")}`;
+
+  return { start, end, label, year, month };
 }
 
-/**
- * Öğrencinin belirli bir aydaki istatistiklerini hesaplar.
- * Tüm gradedTasks'tan endDate'e göre filtreler — classId fark etmez (G1→G2 dahil).
- * g2StartXP dahil değildir.
- */
-function calcMonthlyStats(
-  gradedTasks: Record<string, { xp?: number; penalty?: number; endDate?: string }> | undefined,
-  monthStart: Date,
-  monthEnd: Date,
-): { monthlyXP: number; monthlyPenalty: number; monthlyTasks: number } {
-  if (!gradedTasks) return { monthlyXP: 0, monthlyPenalty: 0, monthlyTasks: 0 };
-
-  let monthlyXP = 0, monthlyPenalty = 0, monthlyTasks = 0;
-
-  for (const entry of Object.values(gradedTasks)) {
-    if (!entry.endDate) continue;
-    const d = new Date(entry.endDate);
-    if (d < monthStart || d >= monthEnd) continue;
-    if ((entry.xp ?? 0) > 0) {
-      monthlyXP      += entry.xp      ?? 0;
-      monthlyPenalty += entry.penalty ?? 0;
-      monthlyTasks   += 1;
-    }
-  }
-
-  return { monthlyXP, monthlyPenalty, monthlyTasks };
+// Hybrid kural: hangi aya yazılacağını belirler
+//   completedAt <= endDate → deadline ayı (zamanında / erken)
+//   completedAt >  endDate → teslim ayı (geç)
+//   completedAt yoksa     → endDate ayı (eski veri)
+function effectiveDate(
+  completedAt: string | undefined,
+  endDate: string | undefined,
+): string | null {
+  if (!completedAt) return endDate ?? null;
+  if (!endDate)     return completedAt;
+  return completedAt <= endDate ? endDate : completedAt;
 }
 
 export async function POST() {
   try {
     const { start, end, label } = getPrevMonthRange();
+
+    // Scoring ayarlarını çek
+    const settingsSnap = await adminDb.collection("settings").doc("scoring").get();
+    const settings: ScoringSettings = settingsSnap.exists
+      ? (settingsSnap.data() as ScoringSettings)
+      : DEFAULT_SCORING;
+
+    // O aya deadline'ı düşen görevleri çek (totalAssignedTasks hesabı için)
+    const tasksSnap = await adminDb
+      .collection("tasks")
+      .where("endDate", ">=", start)
+      .where("endDate", "<=", end)
+      .get();
+
+    // classId → assigned görev sayısı
+    const assignedByClass: Record<string, number> = {};
+    tasksSnap.docs.forEach(d => {
+      const classId = d.data().classId as string | undefined;
+      const status  = d.data().status  as string | undefined;
+      if (!classId) return;
+      if (status === "archived") return;
+      assignedByClass[classId] = (assignedByClass[classId] ?? 0) + 1;
+    });
 
     // Tüm aktif öğrencileri çek
     const snap = await adminDb
@@ -68,6 +76,7 @@ export async function POST() {
       name: string;
       lastName: string;
       email: string;
+      monthlyScore: number;
       monthlyXP: number;
       monthlyPenalty: number;
       monthlyTasks: number;
@@ -76,15 +85,40 @@ export async function POST() {
     const candidates: Candidate[] = snap.docs
       .map(doc => {
         const d = doc.data();
-        if (d.isScoreHidden) return null;
-        const stats = calcMonthlyStats(d.gradedTasks, start, end);
-        if (stats.monthlyXP === 0) return null;
+        const gradedTasks = (d.gradedTasks ?? {}) as Record<string, {
+          xp?: number; penalty?: number; endDate?: string; completedAt?: string; classId?: string;
+        }>;
+        const groupCode = (d.groupCode as string) ?? "";
+
+        // O aya ait girişleri filtrele (hybrid kural)
+        let monthlyXP = 0, monthlyPenalty = 0, monthlyTasks = 0;
+        for (const entry of Object.values(gradedTasks)) {
+          const eff = effectiveDate(entry.completedAt, entry.endDate);
+          if (!eff) continue;
+          if (eff < start || eff > end) continue;
+          if ((entry.xp ?? 0) > 0) {
+            monthlyXP      += entry.xp      ?? 0;
+            monthlyPenalty += entry.penalty ?? 0;
+            monthlyTasks   += 1;
+          }
+        }
+
+        if (monthlyXP === 0) return null;
+
+        const totalAssigned = assignedByClass[groupCode] || undefined;
+        const { finalScore: monthlyScore } = calcStudentFinalScore(
+          monthlyXP, monthlyTasks, settings, totalAssigned, 0, 0,
+        );
+
         return {
           id:       doc.id,
           name:     (d.name     as string) ?? "",
           lastName: (d.lastName as string) ?? "",
           email:    (d.email    as string) ?? "",
-          ...stats,
+          monthlyScore,
+          monthlyXP,
+          monthlyPenalty,
+          monthlyTasks,
         };
       })
       .filter((c): c is Candidate => c !== null);
@@ -93,9 +127,9 @@ export async function POST() {
       return NextResponse.json({ message: `${label} ayına ait puan kaydı bulunamadı.` }, { status: 200 });
     }
 
-    // Sıralama: en yüksek XP → en az ceza → en fazla görev
+    // Sıralama: en yüksek aylık skor → en az ceza → en fazla görev
     candidates.sort((a, b) => {
-      const xd = b.monthlyXP      - a.monthlyXP;      if (xd !== 0) return xd;
+      const sd = b.monthlyScore   - a.monthlyScore;   if (sd !== 0) return sd;
       const pd = a.monthlyPenalty - b.monthlyPenalty;  if (pd !== 0) return pd;
       const td = b.monthlyTasks   - a.monthlyTasks;    if (td !== 0) return td;
       return 0;
@@ -103,10 +137,10 @@ export async function POST() {
 
     const best = candidates[0];
 
-    // Beraberlik: aynı istatistiklere sahip tüm öğrenciler kazanır
+    // Beraberlik: aylık skor + ceza + görev sayısı aynıysa hepsi birinci
     const winners = candidates.filter(
       c =>
-        c.monthlyXP      === best.monthlyXP &&
+        c.monthlyScore   === best.monthlyScore &&
         c.monthlyPenalty === best.monthlyPenalty &&
         c.monthlyTasks   === best.monthlyTasks,
     );
@@ -146,7 +180,7 @@ export async function POST() {
           <td width="241" valign="middle" style="padding:0 18px 0 12px">
             <p style="margin:0 0 4px 0;${BASE};${BOLD};font-size:18px">Tebrikler ${winner.name},</p>
             <p style="margin:0 0 2px 0;${BASE};${MED};font-size:13px">
-              ${label} ayında <span style="${EB}">${winner.monthlyXP} puan</span> ile ay,<br>birincisi oldun.
+              ${label} ayında <span style="${EB}">${Math.round(winner.monthlyScore)} puan</span> ile ay,<br>birincisi oldun.
             </p>
             <p style="margin:0 0 2px 0;${BASE};${EB};font-size:13px">Harika bir performans...</p>
             <p style="margin:0 0 10px 0;${BASE};${MED};font-size:13px">
