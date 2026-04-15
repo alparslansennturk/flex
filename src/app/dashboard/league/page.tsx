@@ -977,7 +977,7 @@ export default function LeaguePage() {
       const totalCompleted = classEntries.length;
       const totalPenalty   = classEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
       const totalAssignedDisplay = Object.values(tasksMap).filter(t =>
-        matchCodes.includes(t.classId) &&
+        !!t.classId && matchCodes.includes(t.classId) &&
         (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status)
       ).length;
 
@@ -986,12 +986,12 @@ export default function LeaguePage() {
 
       // Deadline'ı henüz gelmemiş görevler (sadece görsel, puana dahil değil)
       const monthlyPending = Object.values(tasksMap).filter(t =>
-        matchCodes.includes(t.classId) &&
+        !!t.classId && matchCodes.includes(t.classId) &&
         (t.status === "active" || t.status === "published" || !t.status) &&
         t.endDate && t.endDate > todayStr && t.endDate <= monthEnd
       ).length;
       const totalPending = Object.values(tasksMap).filter(t =>
-        matchCodes.includes(t.classId) &&
+        !!t.classId && matchCodes.includes(t.classId) &&
         (t.status === "active" || t.status === "published" || !t.status) &&
         t.endDate && t.endDate > todayStr
       ).length;

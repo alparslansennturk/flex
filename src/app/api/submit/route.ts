@@ -60,21 +60,24 @@ export async function POST(req: NextRequest) {
       studentId,
       taskId,
       groupId,
-      fileUrl:       driveResult.downloadUrl,
-      driveFileId:   driveResult.fileId,
-      driveViewLink: driveResult.webViewLink,
-      fileName:      driveResult.fileName,
-      fileSize:      driveResult.fileSize,
-      mimeType:      driveResult.mimeType,
+      file: {
+        fileUrl:       driveResult.downloadUrl,
+        driveFileId:   driveResult.fileId,
+        driveViewLink: driveResult.webViewLink,
+        fileName:      driveResult.fileName,
+        fileSize:      driveResult.fileSize,
+        mimeType:      driveResult.mimeType,
+      },
+      isLate: false,
     });
 
     return NextResponse.json({
       submissionId:  submission.id,
-      driveFileId:   submission.driveFileId,
-      driveViewLink: submission.driveViewLink,
-      downloadUrl:   submission.fileUrl,
-      fileName:      submission.fileName,
-      fileSize:      submission.fileSize,
+      driveFileId:   submission.file.driveFileId,
+      driveViewLink: submission.file.driveViewLink,
+      downloadUrl:   submission.file.fileUrl,
+      fileName:      submission.file.fileName,
+      fileSize:      submission.file.fileSize,
       status:        submission.status,
     });
 

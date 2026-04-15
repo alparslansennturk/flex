@@ -708,7 +708,7 @@ function LeagueContent() {
       const totalCompleted = classEntries.length;
       const totalPenalty   = classEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
       const totalAssignedDisplay = Object.values(tasksMap).filter(t =>
-        matchCodes.includes(t.classId) &&
+        !!t.classId && matchCodes.includes(t.classId) &&
         (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status)
       ).length;
 
