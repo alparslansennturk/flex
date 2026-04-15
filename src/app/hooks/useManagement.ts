@@ -418,7 +418,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
                   )
                 ) as Record<string, any>;
                 const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
-                updates.g2StartXP          = Math.floor(calcScore(xp, tasks) * 0.10);
+                updates.g2StartXP          = Math.round(calcScore(xp, tasks) * 0.10);
                 updates.isCarryOverApplied = true;
                 updates.grafik1Code        = oldCode || editingGroup?.code || "";
               }
@@ -539,7 +539,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
             )
           ) as Record<string, any>;
           const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
-          const carryOverScore = Math.floor(calcScore(xp, tasks) * 0.10);
+          const carryOverScore = Math.round(calcScore(xp, tasks) * 0.10);
 
           batch.update(doc(db, "students", student.id), {
             status: 'passive',
@@ -628,7 +628,7 @@ if (!isCarryOverApplied && oldGroup?.module === "GRAFIK_1" && targetGroup?.modul
     Object.entries(allGradedTasks).filter(([, e]: any) => e?.classId === oldGroup.code)
   ) as Record<string, any>;
   const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
-  studentData.g2StartXP = Math.floor(calcScore(xp, tasks) * 0.10);
+  studentData.g2StartXP = Math.round(calcScore(xp, tasks) * 0.10);
   studentData.isCarryOverApplied = true;
 }
 studentData.rankChange = 0;

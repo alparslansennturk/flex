@@ -133,7 +133,7 @@ function GradCard({ label, code, grade, odevPuaniCalc, loading, color }: {
       {/* Final nota — sayaç animasyonuyla */}
       <div className="mb-2">
         <p className={`text-[28px] font-black tabular-nums leading-none ${s.big}`}>
-          {loading || animatedNote == null ? "—" : animatedNote.toFixed(1)}
+          {loading || animatedNote == null ? "—" : Math.round(animatedNote)}
         </p>
         <p className={`text-[10px] font-semibold mt-0.5 ${s.sub}`}>Final Notu</p>
       </div>
@@ -156,7 +156,7 @@ function GradCard({ label, code, grade, odevPuaniCalc, loading, color }: {
         </div>
         <div className={`rounded-12 px-3 py-2 ${s.cell}`}>
           <p className={`text-[14px] font-bold tabular-nums transition-opacity duration-300 ${s.big} ${loading ? "opacity-20" : "opacity-100"}`}>
-            {loading ? "—" : effOdev.toFixed(1)}
+            {loading ? "—" : effOdev}
           </p>
           <p className={`text-[10px] font-medium ${s.sub}`}>Ödev / 30</p>
         </div>
@@ -342,7 +342,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
         });
 
         const maxXP = validTasks.reduce((s, t) => s + getLevelXP(t.level, settings) * (t.xpMultiplier ?? 1), 0) + deletedMaxXP;
-        const odevPuani = maxXP > 0 ? (studentXP / maxXP) * 30 : 0;
+        const odevPuani = Math.round(maxXP > 0 ? (studentXP / maxXP) * 30 : 0);
         return { taskCount, xp: studentXP, score: calcScore(studentXP, taskCount, settings), maxXP, odevPuani };
       };
 
@@ -420,7 +420,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
           ? (raw.odevPuani as number)
           : stats.odevPuani;
         const finalNote = projectScore != null
-          ? parseFloat((projectScore * 0.7 + odevPuani).toFixed(2))
+          ? Math.round(projectScore * 0.7 + odevPuani)
           : null;
         return { groupId, projectScore, odevPuani, finalNote, isFinalized: !!raw?.isFinalized };
       };
