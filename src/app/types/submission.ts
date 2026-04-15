@@ -1,34 +1,76 @@
+// ─── Submission Status ────────────────────────────────────────────────────────
+// Akış: submitted → reviewing → revision → submitted → ... → completed
+
 export type SubmissionStatus =
-  | 'pending'
-  | 'reviewing'
-  | 'graded'
-  | 'rejected';
+  | 'submitted'   // Öğrenci teslim etti, inceleme bekliyor
+  | 'reviewing'   // Eğitmen inceliyor
+  | 'revision'    // Revizyon istendi, öğrenci tekrar yükleyecek
+  | 'completed';  // Tamamlandı
+
+// ─── File ─────────────────────────────────────────────────────────────────────
+
+export interface SubmissionFile {
+  driveFileId:   string;  // Google Drive dosya ID
+  driveViewLink: string;  // Drive viewer linki
+  fileUrl:       string;  // Drive download linki
+  fileName:      string;
+  fileSize:      number;  // Byte
+  mimeType:      string;
+}
+
+// ─── Comment ──────────────────────────────────────────────────────────────────
+
+export type CommentAuthorType = 'student' | 'teacher';
+
+export interface Comment {
+  id:           string;
+  submissionId: string;
+  authorId:     string;
+  authorType:   CommentAuthorType;
+  authorName:   string;
+  body:         string;
+  createdAt:    Date;
+}
+
+export type CommentCreate = Omit<Comment, 'id' | 'createdAt'>;
+
+// ─── Submission ───────────────────────────────────────────────────────────────
 
 export interface Submission {
-  id: string;
+  id:        string;
   studentId: string;
-  taskId: string;
-  groupId: string;
+  taskId:    string;
+  groupId:   string;
 
-  // Dosya bilgileri (Google Drive)
-  fileUrl: string;       // Drive download linki
-  driveFileId: string;   // Drive dosya ID
-  driveViewLink: string; // Drive viewer linki
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
+  /** Kaçıncı teslim (1 = ilk, 2 = 1. revizyon sonrası, …) */
+  iteration: number;
+
+  file: SubmissionFile;
+
+  /** Öğrencinin teslimle birlikte yazdığı not */
+  note?: string;
 
   status: SubmissionStatus;
 
-  grade?: number;
+  /** Eğitmenin geri bildirimi (revision veya completed'da) */
   feedback?: string;
   gradedBy?: string;
+  grade?: number;
 
-  submittedAt: Date;
-  reviewedAt?: Date;
-  gradedAt?: Date;
-  updatedAt: Date;
+  isLate:    boolean;
+  daysLate?: number;
+
+  submittedAt:  Date;
+  reviewedAt?:  Date;
+  completedAt?: Date;
+  updatedAt:    Date;
 }
 
-export type SubmissionCreate = Omit<Submission, 'id' | 'submittedAt' | 'updatedAt' | 'status'>;
-export type SubmissionUpdate = Partial<Pick<Submission, 'status' | 'grade' | 'feedback' | 'gradedBy' | 'reviewedAt' | 'gradedAt'>>;
+export type SubmissionCreate = Omit<
+  Submission,
+  'id' | 'iteration' | 'status' | 'submittedAt' | 'updatedAt' | 'reviewedAt' | 'completedAt'
+>;
+
+export type SubmissionUpdate = Partial<
+  Pick<Submission, 'status' | 'feedback' | 'gradedBy' | 'grade' | 'reviewedAt' | 'completedAt'>
+>;
