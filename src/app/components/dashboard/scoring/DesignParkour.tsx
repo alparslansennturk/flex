@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs, getDoc, writeBatch, deleteField } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs, getDoc, writeBatch, deleteField, deleteDoc } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon, TaskType } from "../assignment/taskTypes";
 import { PERMISSIONS } from "@/app/lib/constants";
@@ -689,12 +689,19 @@ export default function DesignParkour() {
 
   // ---- Handlers ----
   const handleComplete = async (task: Task) => {
-    await updateDoc(doc(db, "tasks", task.id), { status: "completed" });
+    const todayStr = new Date().toISOString().split("T")[0];
+    const updates: Record<string, unknown> = { status: "completed" };
+    // endDate ileri tarihli ise bugüne çek; aksi takdirde mevcut tarih korunur
+    if (!task.endDate || task.endDate > todayStr) {
+      updates.endDate = todayStr;
+    }
+    await updateDoc(doc(db, "tasks", task.id), updates);
   };
 
   const handleCancelTask = async (task: Task) => {
     // Kaydedilmiş puanları öğrencilerden geri al
-    const taskSnap = await getDoc(doc(db, "tasks", task.id));
+    const taskRef = doc(db, "tasks", task.id);
+    const taskSnap = await getDoc(taskRef);
     if (taskSnap.exists()) {
       const grades: Record<string, { submitted?: boolean; xp?: number }> = (taskSnap.data() as any).grades ?? {};
       const toClean = Object.entries(grades)
@@ -706,7 +713,8 @@ export default function DesignParkour() {
         await batch.commit();
       }
     }
-    await updateDoc(doc(db, "tasks", task.id), { status: "archived", isActive: false, isCancelled: true });
+    // Görevi tamamen sil
+    await deleteDoc(taskRef);
   };
 
   const handleReactivateConfirm = async (selections: AssignSelection[]) => {

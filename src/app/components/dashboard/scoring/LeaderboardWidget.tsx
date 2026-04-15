@@ -176,7 +176,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         const totalAssignedTasks = Object.values(tasksMap).filter(t =>
           t.classId === data.groupCode &&
           (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
-          (t.status === "completed" || (t.endDate ? t.endDate <= todayStr : true))
+          (t.endDate ? t.endDate <= todayStr : false)
         ).length;
         const { finalScore: score } = calcStudentFinalScore(totalXP, completedTasks, settings, totalAssignedTasks || undefined, g2Bonus, 0);
         return { ...data, points: score, completedTasks, latePenaltyTotal };

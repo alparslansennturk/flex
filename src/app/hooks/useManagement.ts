@@ -390,9 +390,13 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           module: groupModule || null,
         });
 
-        // Grup kodu değiştiyse, gruptaki tüm öğrencilerin groupCode'unu güncelle
-        const oldCode = editingGroup?.code;
-        if (oldCode && oldCode !== formattedCode) {
+        // Grup kodu değiştiyse VEYA modül GRAFIK_1→GRAFIK_2 geçişi varsa öğrencileri güncelle
+        const oldCode   = editingGroup?.code;
+        const oldModule = editingGroup?.module;
+        const isModuleUpgrade = oldModule === "GRAFIK_1" && groupModule === "GRAFIK_2";
+        const isCodeChange    = oldCode && oldCode !== formattedCode;
+
+        if (isCodeChange || isModuleUpgrade) {
           const studentsSnap = await getDocs(query(
             collection(db, "students"),
             where("groupId", "==", editingGroupId),
@@ -400,7 +404,26 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           if (!studentsSnap.empty) {
             const batch = writeBatch(db);
             studentsSnap.docs.forEach(d => {
-              batch.update(d.ref, { groupCode: formattedCode });
+              const sData = d.data() as any;
+              const updates: Record<string, unknown> = {};
+
+              if (isCodeChange) updates.groupCode = formattedCode;
+
+              // G1→G2 geçişi: carry-over henüz uygulanmamışsa hesapla
+              if (isModuleUpgrade && !sData.isCarryOverApplied) {
+                const allGradedTasks = sData.gradedTasks ?? {};
+                const classGradedTasks = Object.fromEntries(
+                  Object.entries(allGradedTasks).filter(([, e]: any) =>
+                    e?.classId === (oldCode || editingGroup?.code)
+                  )
+                ) as Record<string, any>;
+                const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
+                updates.g2StartXP          = Math.floor(calcScore(xp, tasks) * 0.10);
+                updates.isCarryOverApplied = true;
+                updates.grafik1Code        = oldCode || editingGroup?.code || "";
+              }
+
+              if (Object.keys(updates).length > 0) batch.update(d.ref, updates);
             });
             await batch.commit();
           }

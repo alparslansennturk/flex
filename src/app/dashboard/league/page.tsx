@@ -52,6 +52,7 @@ interface RankedStudent extends StudentData {
   g2Bonus: number;
   totalAssignedTasks: number;
   totalAssignedDisplay: number;
+  pendingTasksDisplay: number;
 }
 
 interface RankedGroup {
@@ -629,17 +630,24 @@ function LeaderTable({
                   </div>
                 </td>
 
-                <td className="px-6 py-3 text-right hidden xl:table-cell">
-                  <span className="text-[13px] font-semibold tabular-nums">
-                    {student.totalAssignedDisplay > 0 ? (
-                      <>
+                <td className="px-6 py-3 hidden xl:table-cell">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[13px] font-semibold tabular-nums">
+                      {student.totalAssignedDisplay > 0 ? (
+                        <>
+                          <span className="text-text-secondary">{student.completedTasks ?? 0}</span>
+                          <span className="text-text-secondary">/{student.totalAssignedDisplay}</span>
+                        </>
+                      ) : (
                         <span className="text-text-secondary">{student.completedTasks ?? 0}</span>
-                        <span className="text-text-secondary">/{student.totalAssignedDisplay}</span>
-                      </>
-                    ) : (
-                      <span className="text-text-secondary">{student.completedTasks ?? 0}</span>
+                      )}
+                    </span>
+                    {student.pendingTasksDisplay > 0 && (
+                      <span className="text-[11px] font-normal text-text-tertiary tabular-nums">
+                        (+{student.pendingTasksDisplay})
+                      </span>
                     )}
-                  </span>
+                  </div>
                 </td>
 
                 <td className="px-6 py-3 text-right hidden xl:table-cell">
@@ -865,6 +873,7 @@ export default function LeaguePage() {
   // ── Puan hesaplama ────────────────────────────────────────────────────────
   const withScores = useMemo(() => {
     const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const monthStart = `${currentMonthKey}-01`;
     const lastDay    = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -922,7 +931,7 @@ export default function LeaguePage() {
       const monthlyXP        = monthlyEntries.reduce((sum, [, e]) => sum + (e.xp      ?? 0), 0);
       const monthlyPenalty   = monthlyEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
       const monthlyCompleted = monthlyEntries.length;
-      const monthlyAssigned  = assignedInMonth(monthStart, monthEnd, s.groupCode);
+      const monthlyAssigned  = assignedInMonth(monthStart, todayStr, s.groupCode);
 
       const { finalScore: recentScore } = calcStudentFinalScore(
         monthlyXP, monthlyCompleted, settings, monthlyAssigned, 0, 0,
@@ -940,7 +949,9 @@ export default function LeaguePage() {
         const [y, mo]   = month.split("-");
         const mStart    = `${y}-${mo}-01`;
         const mLastDay  = new Date(parseInt(y), parseInt(mo), 0).getDate();
-        const mEnd      = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+        const mEndFull  = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+        // Güncel ay için deadline'ı gelmemiş görevleri sayma
+        const mEnd      = month === currentMonthKey ? todayStr : mEndFull;
         const mAssigned = assignedInMonth(mStart, mEnd, s.groupCode);
         const { finalScore: mScore } = calcStudentFinalScore(mXP, mComplete, settings, mAssigned, 0, 0);
         cumulativeScore += mScore;
@@ -959,6 +970,21 @@ export default function LeaguePage() {
       if (process.env.NODE_ENV === "development")
         console.log(`[League] ${s.name} ${s.lastName} monthly=${recentScore} cumulative=${generalScore}`);
 
+      // Deadline'ı henüz gelmemiş görevler (sadece görsel, puana dahil değil)
+      const monthlyPending = Object.values(tasksMap).filter(t =>
+        t.classId === s.groupCode &&
+        (t.status === "active" || t.status === "published" || !t.status) &&
+        t.endDate && t.endDate > todayStr && t.endDate <= monthEnd
+      ).length;
+      const totalPending = Object.values(tasksMap).filter(t =>
+        t.classId === s.groupCode &&
+        (t.status === "active" || t.status === "published" || !t.status) &&
+        t.endDate && t.endDate > todayStr
+      ).length;
+
+      // Aylık denominator: deadline geçmiş + pending (görsel için tam sayı)
+      const monthlyAssignedDisplay = (monthlyAssigned ?? monthlyCompleted) + monthlyPending;
+
       const isMonthly = scoreMode === "monthly";
       return {
         ...s,
@@ -966,7 +992,8 @@ export default function LeaguePage() {
         completedTasks:       isMonthly ? monthlyCompleted  : totalCompleted,
         latePenaltyTotal:     isMonthly ? monthlyPenalty    : totalPenalty,
         totalAssignedTasks:   isMonthly ? (monthlyAssigned ?? monthlyCompleted) : totalCompleted,
-        totalAssignedDisplay: isMonthly ? (monthlyAssigned ?? monthlyCompleted) : totalAssignedDisplay,
+        totalAssignedDisplay: isMonthly ? monthlyAssignedDisplay : totalAssignedDisplay,
+        pendingTasksDisplay:  isMonthly ? monthlyPending : totalPending,
         generalScore,
         recentScore,
         finalScore: generalScore,
