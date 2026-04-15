@@ -902,16 +902,30 @@ export default function LeaguePage() {
         t.endDate && t.endDate >= mStart && t.endDate <= mEnd
       ).length || undefined;
 
+    // Birden fazla grup kodunu destekleyen versiyon (G1→G2 geçişlerinde)
+    const assignedInMonthMulti = (mStart: string, mEnd: string, codes: string[]): number | undefined => {
+      const count = codes.reduce((sum, cid) => sum + (assignedInMonth(mStart, mEnd, cid) ?? 0), 0);
+      return count || undefined;
+    };
+
     return rawStudents.map((s) => {
       // Öğrencinin kendi sınıfına (groupCode) ait görevleri filtrele.
       // isScoreHidden / seasonId filtresi KALDIRILDI: reset öncesi ve sonrası
       // aynı ay içindeki görevler tek skorda birleştirilir.
+      // matchCodes: öğrencinin görev geçmişinden türetilen tüm classId'ler.
+      // grafik1Code alanına güvenmek yerine gradedTasks'taki gerçek classId'leri kullanıyoruz.
+      // Bu sayede grafik1Code retroaktif set edilmemiş eski geçişler de kapsamaya alınır.
+      const taskClassIds = new Set<string>([s.groupCode]);
+      Object.values(s.gradedTasks ?? {}).forEach((entry: any) => {
+        if (entry.classId) taskClassIds.add(entry.classId);
+      });
+      const matchCodes = Array.from(taskClassIds);
       const classEntries = Object.entries(s.gradedTasks ?? {}).filter(([tid, entry]) => {
         const storedClassId = entry.classId;
-        if (storedClassId) return storedClassId === s.groupCode;
+        if (storedClassId) return matchCodes.includes(storedClassId);
         const mapClassId = tasksMap[tid]?.classId;
         if (!mapClassId) return true;
-        return mapClassId === s.groupCode;
+        return matchCodes.includes(mapClassId);
       });
 
       // Tüm sınıf görevlerini efektif aylarına göre grupla
@@ -931,7 +945,7 @@ export default function LeaguePage() {
       const monthlyXP        = monthlyEntries.reduce((sum, [, e]) => sum + (e.xp      ?? 0), 0);
       const monthlyPenalty   = monthlyEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
       const monthlyCompleted = monthlyEntries.length;
-      const monthlyAssigned  = assignedInMonth(monthStart, todayStr, s.groupCode);
+      const monthlyAssigned  = assignedInMonthMulti(monthStart, todayStr, matchCodes);
 
       const { finalScore: recentScore } = calcStudentFinalScore(
         monthlyXP, monthlyCompleted, settings, monthlyAssigned, 0, 0,
@@ -952,7 +966,7 @@ export default function LeaguePage() {
         const mEndFull  = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
         // Güncel ay için deadline'ı gelmemiş görevleri sayma
         const mEnd      = month === currentMonthKey ? todayStr : mEndFull;
-        const mAssigned = assignedInMonth(mStart, mEnd, s.groupCode);
+        const mAssigned = assignedInMonthMulti(mStart, mEnd, matchCodes);
         const { finalScore: mScore } = calcStudentFinalScore(mXP, mComplete, settings, mAssigned, 0, 0);
         cumulativeScore += mScore;
       }
@@ -963,7 +977,7 @@ export default function LeaguePage() {
       const totalCompleted = classEntries.length;
       const totalPenalty   = classEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
       const totalAssignedDisplay = Object.values(tasksMap).filter(t =>
-        t.classId === s.groupCode &&
+        matchCodes.includes(t.classId) &&
         (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status)
       ).length;
 
@@ -972,12 +986,12 @@ export default function LeaguePage() {
 
       // Deadline'ı henüz gelmemiş görevler (sadece görsel, puana dahil değil)
       const monthlyPending = Object.values(tasksMap).filter(t =>
-        t.classId === s.groupCode &&
+        matchCodes.includes(t.classId) &&
         (t.status === "active" || t.status === "published" || !t.status) &&
         t.endDate && t.endDate > todayStr && t.endDate <= monthEnd
       ).length;
       const totalPending = Object.values(tasksMap).filter(t =>
-        t.classId === s.groupCode &&
+        matchCodes.includes(t.classId) &&
         (t.status === "active" || t.status === "published" || !t.status) &&
         t.endDate && t.endDate > todayStr
       ).length;
