@@ -194,6 +194,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
   const [computedScore,  setComputedScore]  = useState<number | null>(null);
   const [computedXP,     setComputedXP]     = useState<number | null>(null);
   const [computedTasks,  setComputedTasks]  = useState<number | null>(null);
+  const [carryOver,      setCarryOver]      = useState(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -205,7 +206,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       setG1Code(""); setG2Code("");
       setG1Grade(null); setG2Grade(null);
       setG1Stats(EMPTY_STATS); setG2Stats(EMPTY_STATS);
-      setComputedScore(null); setComputedXP(null); setComputedTasks(null);
+      setComputedScore(null); setComputedXP(null); setComputedTasks(null); setCarryOver(0);
       setLoading(false);
     }
   }, [isOpen]);
@@ -226,6 +227,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
 
       // carryOverScore ve groupCode — lig hesabıyla aynı parametreler
       const g2StartXP = (sData.g2StartXP ?? 0) as number;
+      setCarryOver(g2StartXP);
       const groupCode = (sData.groupCode  ?? "") as string;
 
       // Lig puanını Firestore'dan gelen gerçek gradedTasks ile hesapla
@@ -333,17 +335,22 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
 
         // Arşivden silinmiş görevler: task belgesi yok ama gradedTasks'ta XP korunuyor
         let deletedMaxXP = 0;
+        let deletedTaskCount = 0;
         Object.entries(fsGradedTasks).forEach(([taskId, entry]) => {
           if (countedTaskIds.has(taskId)) return; // zaten sayıldı
           if ((entry as any).classId !== classId) return; // farklı sınıf
           taskCount++;
           studentXP += (entry.xp ?? 0);
           deletedMaxXP += ((entry as any).maxXp ?? entry.xp); // maxXp yoksa xp'yi alt sınır olarak kullan
+          deletedTaskCount++;
         });
+
+        // totalAssigned: mevcut görevler + silinmiş görevler — completionRate için doğru payda
+        const totalAssigned = validTasks.length + deletedTaskCount;
 
         const maxXP = validTasks.reduce((s, t) => s + getLevelXP(t.level, settings) * (t.xpMultiplier ?? 1), 0) + deletedMaxXP;
         const odevPuani = Math.round(maxXP > 0 ? (studentXP / maxXP) * 30 : 0);
-        return { taskCount, xp: studentXP, score: calcScore(studentXP, taskCount, settings), maxXP, odevPuani };
+        return { taskCount, xp: studentXP, score: calcScore(studentXP, taskCount, settings, totalAssigned || undefined), maxXP, odevPuani };
       };
 
       // codeG1/codeG2 bilinmiyorsa doğru classId'yi bul:
@@ -565,9 +572,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                 <p className="text-[10px] font-bold text-surface-400 tracking-tight">Lig Puanı</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatBox label="Toplam"   value={loading ? "…" : Math.round(g1Stats.score) + Math.round(student.generalScore ?? computedScore ?? g2Stats.score)} loading={loading} />
+                <StatBox label="Toplam"   value={loading ? "…" : Math.round(g1Stats.score + (student.generalScore ?? computedScore ?? g2Stats.score + carryOver))} loading={loading} />
                 <StatBox label="Grafik-1" value={loading ? "…" : Math.round(g1Stats.score)} colorClass="text-base-primary-700" loading={loading} />
-                <StatBox label="Grafik-2" value={loading ? "…" : Math.round(student.generalScore ?? computedScore ?? g2Stats.score)} colorClass="text-accent-purple-700" loading={loading} />
+                <StatBox label="Grafik-2" value={loading ? "…" : Math.round(student.generalScore ?? computedScore ?? g2Stats.score + carryOver)} colorClass="text-accent-purple-700" loading={loading} />
               </div>
             </div>
           </div>

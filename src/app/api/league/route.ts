@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { DEFAULT_SCORING } from "@/app/lib/scoring";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const [studentsSnap, tasksSnap, groupsSnap, scoringSnap] = await Promise.all([

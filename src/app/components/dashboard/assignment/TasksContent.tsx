@@ -12,6 +12,7 @@ import TaskForm from "./TaskForm";
 export default function TasksContent() {
   const { user }                        = useUser();
   const [tasks, setTasks]               = useState<Task[]>([]);
+  const [templatesMap, setTemplatesMap] = useState<Record<string, Task>>({});
   const [usersMap, setUsersMap]         = useState<Record<string, { name: string; branch: string }>>({});
   const [loading, setLoading]           = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("tumu");
@@ -28,6 +29,15 @@ export default function TasksContent() {
       setLoading(false);
     });
     return () => unsub();
+  }, []);
+
+  // templates koleksiyonunu dinle — şablon ikon değişimlerini aktif tasklara yansıt
+  useEffect(() => {
+    return onSnapshot(collection(db, "templates"), snap => {
+      const map: Record<string, Task> = {};
+      snap.docs.forEach(d => { map[d.id] = { id: d.id, ...d.data() } as Task; });
+      setTemplatesMap(map);
+    });
   }, []);
 
   useEffect(() => {
@@ -88,6 +98,10 @@ export default function TasksContent() {
     branch: t.branch
       || (t.ownedBy   ? usersMap[t.ownedBy]?.branch  : undefined)
       || (t.createdBy ? usersMap[t.createdBy]?.branch : undefined),
+    // Şablon ikonu değişmişse aktif karta da yansıt
+    icon: (t.templateId && templatesMap[t.templateId]?.icon != null)
+      ? templatesMap[t.templateId].icon
+      : t.icon,
   }));
 
   const filtered = enriched

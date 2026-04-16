@@ -920,7 +920,19 @@ export default function LeaguePage() {
         if (entry.classId) taskClassIds.add(entry.classId);
       });
       const matchCodes = Array.from(taskClassIds);
+
+      // classEntries: sadece mevcut grup (toplam/kümülatif için)
+      // G1 geçmişi zaten g2StartXP carry-over'da yansıtılır — çift sayımı önler.
       const classEntries = Object.entries(s.gradedTasks ?? {}).filter(([tid, entry]) => {
+        const storedClassId = entry.classId;
+        if (storedClassId) return storedClassId === s.groupCode;
+        const mapClassId = tasksMap[tid]?.classId;
+        if (!mapClassId) return true;
+        return mapClassId === s.groupCode;
+      });
+
+      // allClassEntries: tüm gruplar — aylık gösterimde aynı ay G1→G2 geçişi için
+      const allClassEntries = Object.entries(s.gradedTasks ?? {}).filter(([tid, entry]) => {
         const storedClassId = entry.classId;
         if (storedClassId) return matchCodes.includes(storedClassId);
         const mapClassId = tasksMap[tid]?.classId;
@@ -928,7 +940,7 @@ export default function LeaguePage() {
         return matchCodes.includes(mapClassId);
       });
 
-      // Tüm sınıf görevlerini efektif aylarına göre grupla
+      // Kümülatif toplam için: sadece mevcut grup görevlerini aya göre grupla
       const byMonth: Record<string, Array<[string, typeof classEntries[0][1]]>> = {};
       for (const [tid, entry] of classEntries) {
         const m = effectiveMonthKey(
@@ -940,8 +952,20 @@ export default function LeaguePage() {
         byMonth[m].push([tid, entry]);
       }
 
-      // ── AYLIK (bu ay) ───────────────────────────────────────────────────────
-      const monthlyEntries   = byMonth[currentMonthKey] ?? [];
+      // Aylık gösterim için: tüm grupları aya göre grupla (aynı ay geçişi dahil)
+      const byMonthAll: Record<string, Array<[string, typeof allClassEntries[0][1]]>> = {};
+      for (const [tid, entry] of allClassEntries) {
+        const m = effectiveMonthKey(
+          entry.completedAt,
+          entry.endDate ?? tasksMap[tid]?.endDate,
+        );
+        if (!m) continue;
+        if (!byMonthAll[m]) byMonthAll[m] = [];
+        byMonthAll[m].push([tid, entry]);
+      }
+
+      // ── AYLIK (bu ay) — tüm gruplar dahil (G1→G2 aynı ay geçişinde ikisi toplanır) ─
+      const monthlyEntries   = byMonthAll[currentMonthKey] ?? [];
       const monthlyXP        = monthlyEntries.reduce((sum, [, e]) => sum + (e.xp      ?? 0), 0);
       const monthlyPenalty   = monthlyEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
       const monthlyCompleted = monthlyEntries.length;
@@ -955,7 +979,40 @@ export default function LeaguePage() {
       // totalScore = g2Bonus (bir kez) + Σ monthlyScore(her ay)
       // Her ayın skoru calcStudentFinalScore ile hesaplanır — toplam modda
       // tek bir büyük hesaplama yapılmaz.
-      const g2Bonus = (s as any).g2StartXP ?? 0;
+      //
+      // g2Bonus: Firestore'daki g2StartXP yerine G1 gradedTasks'tan dinamik hesapla.
+      // Böylece algoritma değişse bile carry-over her zaman güncel G1 skoru üzerinden tutarlı olur.
+      const g1Codes = matchCodes.filter(c => c !== s.groupCode);
+      let g2Bonus = 0;
+      if (g1Codes.length > 0) {
+        const g1Entries = Object.entries(s.gradedTasks ?? {}).filter(([tid, entry]) => {
+          const storedClassId = entry.classId;
+          if (storedClassId) return g1Codes.includes(storedClassId);
+          const mapClassId = tasksMap[tid]?.classId;
+          return mapClassId ? g1Codes.includes(mapClassId) : false;
+        });
+        const g1ByMonth: Record<string, Array<[string, typeof g1Entries[0][1]]>> = {};
+        for (const [tid, entry] of g1Entries) {
+          const m = effectiveMonthKey(entry.completedAt, entry.endDate ?? tasksMap[tid]?.endDate);
+          if (!m) continue;
+          if (!g1ByMonth[m]) g1ByMonth[m] = [];
+          g1ByMonth[m].push([tid, entry]);
+        }
+        let g1TotalScore = 0;
+        for (const [month, entries] of Object.entries(g1ByMonth)) {
+          const mXP       = entries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
+          const mComplete = entries.length;
+          const [y, mo]   = month.split("-");
+          const mStart    = `${y}-${mo}-01`;
+          const mLastDay  = new Date(parseInt(y), parseInt(mo), 0).getDate();
+          const mEndFull  = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+          // G1 ayları geçmişte — her zaman mEndFull kullan
+          const mAssigned = assignedInMonthMulti(mStart, mEndFull, g1Codes);
+          const { finalScore: mScore } = calcStudentFinalScore(mXP, mComplete, settings, mAssigned, 0, 0);
+          g1TotalScore += mScore;
+        }
+        g2Bonus = Math.round(g1TotalScore * 0.10);
+      }
       let cumulativeScore = g2Bonus;
       for (const [month, entries] of Object.entries(byMonth)) {
         const mXP       = entries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
@@ -964,9 +1021,8 @@ export default function LeaguePage() {
         const mStart    = `${y}-${mo}-01`;
         const mLastDay  = new Date(parseInt(y), parseInt(mo), 0).getDate();
         const mEndFull  = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
-        // Güncel ay için deadline'ı gelmemiş görevleri sayma
         const mEnd      = month === currentMonthKey ? todayStr : mEndFull;
-        const mAssigned = assignedInMonthMulti(mStart, mEnd, matchCodes);
+        const mAssigned = assignedInMonth(mStart, mEnd, s.groupCode);
         const { finalScore: mScore } = calcStudentFinalScore(mXP, mComplete, settings, mAssigned, 0, 0);
         cumulativeScore += mScore;
       }
@@ -977,7 +1033,7 @@ export default function LeaguePage() {
       const totalCompleted = classEntries.length;
       const totalPenalty   = classEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
       const totalAssignedDisplay = Object.values(tasksMap).filter(t =>
-        !!t.classId && matchCodes.includes(t.classId) &&
+        !!t.classId && t.classId === s.groupCode &&
         (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status)
       ).length;
 
@@ -986,12 +1042,12 @@ export default function LeaguePage() {
 
       // Deadline'ı henüz gelmemiş görevler (sadece görsel, puana dahil değil)
       const monthlyPending = Object.values(tasksMap).filter(t =>
-        !!t.classId && matchCodes.includes(t.classId) &&
+        !!t.classId && t.classId === s.groupCode &&
         (t.status === "active" || t.status === "published" || !t.status) &&
         t.endDate && t.endDate > todayStr && t.endDate <= monthEnd
       ).length;
       const totalPending = Object.values(tasksMap).filter(t =>
-        !!t.classId && matchCodes.includes(t.classId) &&
+        !!t.classId && t.classId === s.groupCode &&
         (t.status === "active" || t.status === "published" || !t.status) &&
         t.endDate && t.endDate > todayStr
       ).length;

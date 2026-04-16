@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
@@ -679,13 +679,23 @@ export default function DesignParkour() {
 
   // Render'da filtrele — uid için hem context hem auth kullan
   const myUid = user?.uid ?? auth.currentUser?.uid;
-  const activeTasks = allTasks.filter(t =>
-    t.isActive === true && !t.isHidden &&
-    t.status !== "archived" &&
-    !t.isGraded &&
-    myUid != null &&
-    (t.ownedBy === myUid || (!t.ownedBy && t.createdBy === myUid))
+  const templatesMap = useMemo(
+    () => Object.fromEntries(templates.map(t => [t.id, t])),
+    [templates],
   );
+  const activeTasks = allTasks
+    .filter(t =>
+      t.isActive === true && !t.isHidden &&
+      t.status !== "archived" &&
+      !t.isGraded &&
+      myUid != null &&
+      (t.ownedBy === myUid || (!t.ownedBy && t.createdBy === myUid))
+    )
+    .map(t =>
+      t.templateId && templatesMap[t.templateId]?.icon != null
+        ? { ...t, icon: templatesMap[t.templateId].icon }
+        : t
+    );
 
   // ---- Handlers ----
   const handleComplete = async (task: Task) => {
