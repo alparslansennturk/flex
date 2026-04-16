@@ -572,9 +572,24 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                 <p className="text-[10px] font-bold text-surface-400 tracking-tight">Lig Puanı</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatBox label="Toplam"   value={loading ? "…" : Math.round(g1Stats.score + (student.generalScore ?? computedScore ?? g2Stats.score + carryOver))} loading={loading} />
+                <StatBox label="Toplam"
+                  value={loading ? "…" : (
+                    g2Code
+                      ? Math.round(g1Stats.score + (student.generalScore ?? computedScore ?? g2Stats.score + carryOver))
+                      : Math.round(student.generalScore ?? g1Stats.score)
+                  )}
+                  loading={loading}
+                />
                 <StatBox label="Grafik-1" value={loading ? "…" : Math.round(g1Stats.score)} colorClass="text-base-primary-700" loading={loading} />
-                <StatBox label="Grafik-2" value={loading ? "…" : Math.round(student.generalScore ?? computedScore ?? g2Stats.score + carryOver)} colorClass="text-accent-purple-700" loading={loading} />
+                <StatBox label="Grafik-2"
+                  value={loading ? "…" : (
+                    g2Code
+                      ? Math.round(student.generalScore ?? computedScore ?? g2Stats.score + carryOver)
+                      : "—"
+                  )}
+                  colorClass="text-accent-purple-700"
+                  loading={loading}
+                />
               </div>
             </div>
           </div>
