@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
+import { saveMailLog } from "@/app/services/emailService";
 import { calcStudentFinalScore, DEFAULT_SCORING, ScoringSettings } from "@/app/lib/scoring";
 
 const IMAGE_URL =
@@ -259,11 +260,13 @@ export async function GET(req: NextRequest) {
 
     for (const winner of winners) {
       if (!winner.email) continue;
+      const subject = `🏆 Tebrikler! ${monthLabel} Ayının Birincisisin`;
       const result = await sendMail({
         to: winner.email,
-        subject: `🏆 Tebrikler! ${monthLabel} Ayının Birincisisin`,
+        subject,
         html: buildWinnerHtml(winner.name, Math.round(winner.monthlyScore), monthLabel),
       });
+      await saveMailLog({ to: winner.email, subject, type: "monthly-winner", result });
       mailResults.push({ name: `${winner.name} ${winner.lastName}`, email: winner.email, success: result.success });
       console.log(`[monthly-winner] ${monthKey} — ${winner.name} ${winner.lastName} (${Math.round(winner.monthlyScore)} puan) → ${winner.email} [${result.success ? "OK" : "FAIL"}]`);
     }

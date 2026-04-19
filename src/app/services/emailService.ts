@@ -5,7 +5,7 @@ import { OTPTemplate } from "@/app/components/emails/OTPTemplate";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
-async function saveMailLog(params: {
+export async function saveMailLog(params: {
   to: string | string[];
   subject: string;
   type: string;

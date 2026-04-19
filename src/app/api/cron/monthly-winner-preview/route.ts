@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
+import { saveMailLog } from "@/app/services/emailService";
 import { calcStudentFinalScore, DEFAULT_SCORING, ScoringSettings } from "@/app/lib/scoring";
 
 const ADMIN_EMAIL = "alparslan.sennturk@gmail.com";
@@ -230,11 +231,9 @@ export async function GET(req: NextRequest) {
 </body>
 </html>`;
 
-    const result = await sendMail({
-      to: ADMIN_EMAIL,
-      subject: `👀 Önizleme: ${monthLabel} Aylık Lig Birincisi — Yarın Mail Gidecek`,
-      html,
-    });
+    const subject = `👀 Önizleme: ${monthLabel} Aylık Lig Birincisi — Yarın Mail Gidecek`;
+    const result = await sendMail({ to: ADMIN_EMAIL, subject, html });
+    await saveMailLog({ to: ADMIN_EMAIL, subject, type: "monthly-winner-preview", result });
 
     console.log(`[monthly-winner-preview] ${monthLabel} → ${ADMIN_EMAIL} [${result.success ? "OK" : "FAIL"}]`);
 

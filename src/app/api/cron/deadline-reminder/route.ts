@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
+import { saveMailLog } from "@/app/services/emailService";
 
 // Türkiye saati (UTC+3) ile offset gün sonrasının tarihini YYYY-MM-DD olarak döndürür
 function trDateString(offsetDays: number): string {
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
 
       const daysLeft = task.endDate === tomorrow ? "yarın" : "2 gün sonra";
       const taskName = task.name ?? "Ödev";
+      const instructorName = task.createdByName ?? "Eğitmeniniz";
       const endDateFormatted = new Date(task.endDate + "T00:00:00").toLocaleDateString("tr-TR", {
         day: "numeric", month: "long", year: "numeric",
       });
@@ -72,13 +74,19 @@ export async function GET(req: NextRequest) {
               teslim için <strong>${daysLeft}</strong> kaldı.
             </p>
             <p style="font-size:14px;line-height:1.7;margin:0 0 32px">Ödevinizi zamanında teslim etmeyi unutmayın.</p>
-            <p style="font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;margin:0">Tasarım Atölyesi</p>
+            <p style="font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;margin:0">${instructorName}</p>
           </div>`;
 
-        await sendMail({
+        const mailResult = await sendMail({
           to: student.email,
           subject: `Hatırlatma: "${taskName}" teslim tarihi yaklaşıyor (${endDateFormatted})`,
           html,
+        });
+        await saveMailLog({
+          to: student.email,
+          subject: `Hatırlatma: "${taskName}" teslim tarihi yaklaşıyor (${endDateFormatted})`,
+          type: "deadline-reminder",
+          result: mailResult,
         });
 
         sent++;
