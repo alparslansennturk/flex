@@ -213,11 +213,73 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
     if (!selectedStudent || phase !== "ready" || !poolReady) return;
     clearAll();
 
+    const pool = poolRef.current;
+    if (!pool) return;
+
+    // ─── Hiyerarşik seçim: Ana Sektör → Alt Sektör → Marka → Hedef ───────────
+
+    // Adım 1: Sektörleri karıştır, her birini dene — boş olanları atla
+    const shuffledSectors = [...pool.sectors].sort(() => Math.random() - 0.5);
+    let chosenMainSector: (typeof pool.sectors)[0] | undefined;
+    let chosenSubSector: string | undefined;
+    let chosenBrand: SMBrand | undefined;
+
+    for (const sector of shuffledSectors) {
+      // Adım 2: Bu sektörde gerçekten markası olan alt sektörleri bul
+      const validSubSectors = sector.subSectors.filter(sub =>
+        pool.brands.some(b => b.mainSector === sector.name && b.subSector === sub)
+      );
+      if (!validSubSectors.length) continue;
+
+      // Adım 2: O sektörün alt sektörlerinden rastgele seç
+      const sub = pickRandom(validSubSectors);
+      if (!sub) continue;
+
+      // Adım 3: SADECE o alt sektöre ait markalar arasından seç
+      const eligibleBrands = pool.brands.filter(
+        b => b.mainSector === sector.name && b.subSector === sub
+      );
+      if (!eligibleBrands.length) continue;
+
+      chosenMainSector = sector;
+      chosenSubSector  = sub;
+      chosenBrand      = pickRandom(eligibleBrands);
+      break;
+    }
+
+    if (!chosenMainSector || !chosenSubSector || !chosenBrand) {
+      console.warn("[ReklamBulucu] Geçerli hiyerarşik kombinasyon bulunamadı!");
+      return;
+    }
+
+    // Adım 4: SADECE o markaya ait hedeflerden seç
+    const chosenPurpose = pickRandom(
+      chosenBrand.purposes.length ? chosenBrand.purposes : pool.globalPurposes
+    ) ?? "";
+
+    // ─── Doğrulama ────────────────────────────────────────────────────────────
+    const isValid =
+      chosenBrand.mainSector === chosenMainSector.name &&
+      chosenBrand.subSector  === chosenSubSector;
+
+    console.log("[ReklamBulucu] ─── Seçim Sonuçları ───────────────────────────");
+    console.log("[ReklamBulucu] Ana Sektör:", chosenMainSector.name);
+    console.log("[ReklamBulucu] Alt Sektör:", chosenSubSector);
+    console.log("[ReklamBulucu] Marka:     ", chosenBrand.brandName);
+    console.log("[ReklamBulucu] Hedef:     ", chosenPurpose);
+    console.log("[ReklamBulucu] Doğrulama:", isValid ? "✅ Tutarlı" : "❌ UYUMSUZ");
+
+    // ─── Slot reel indeksleri (sadece görsel — gerçek seçim yukarıda yapıldı) ─
+    const mainIdx  = anaSektorler.indexOf(chosenMainSector.name);
+    const subIdx   = altSektorler.indexOf(chosenSubSector);
+    const brandIdx = markalar.indexOf(chosenBrand.brandName);
+
     const newIndexes = [
-      Math.floor(Math.random() * anaSektorler.length),
-      Math.floor(Math.random() * altSektorler.length),
-      Math.floor(Math.random() * markalar.length),
+      mainIdx  >= 0 ? mainIdx  : 0,
+      subIdx   >= 0 ? subIdx   : 0,
+      brandIdx >= 0 ? brandIdx : 0,
     ];
+
     setFinalIndexes(newIndexes);
     setSpinKey(prev => prev + 1);
     setPhase("spinning");
@@ -226,21 +288,16 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
 
     // Son reel: delay=4600ms + ~2340ms slowdown ≈ 6940ms → 7400ms'de güvenli
     const t = setTimeout(() => {
-      const pool = poolRef.current;
-      const brandName = markalar[newIndexes[2]] ?? "—";
-      const brand: SMBrand | undefined = pool?.brands.find(b => b.brandName === brandName);
-      const purposes = brand?.purposes?.length ? brand.purposes : (pool?.globalPurposes ?? []);
-      const purpose  = pickRandom(purposes) ?? "";
-      const format: SMFormat | undefined = pool?.formats?.length ? pickRandom(pool.formats) : undefined;
+      const format: SMFormat | undefined = pool.formats?.length ? pickRandom(pool.formats) : undefined;
 
       const draw: FullSMDraw = {
         studentId:     student.id,
-        anaSector:     anaSektorler[newIndexes[0]] ?? "—",
-        altSector:     altSektorler[newIndexes[1]] ?? "—",
-        marka:         brandName,
-        sektorDisplay: brand ? `${brand.mainSector} / ${brand.subSector}` : `${anaSektorler[newIndexes[0]]} / ${altSektorler[newIndexes[1]]}`,
-        brandRule:     brand?.brandRule ?? "",
-        purpose,
+        anaSector:     chosenMainSector!.name,
+        altSector:     chosenSubSector!,
+        marka:         chosenBrand!.brandName,
+        sektorDisplay: `${chosenBrand!.mainSector} / ${chosenBrand!.subSector}`,
+        brandRule:     chosenBrand!.brandRule ?? "",
+        purpose:       chosenPurpose,
         platform:      format?.platform ?? "",
         contentType:   format ? `${format.dim} (${format.type})` : "",
       };
@@ -295,7 +352,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
           purpose:       draw.purpose,
           platform:      draw.platform,
           contentType:   draw.contentType,
-          sharedRule:    pool?.sharedRule ?? "",
+          sharedRule:    pool.sharedRule ?? "",
           date:          todayTR(),
         };
         generateSocialPdf(pdfData)
@@ -319,7 +376,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
       }
     }, 7400);
     timeoutRefs.current.push(t);
-  }, [selectedStudent, phase, poolReady, anaSektorler, altSektorler, markalar, task, groupStudentCount]);
+  }, [selectedStudent, phase, poolReady, anaSektorler, altSektorler, markalar, task, groupStudentCount, clearAll]);
 
   // ─── Devam / Kapat ───────────────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
-import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive, ClipboardList, ChevronDown, FileCheck, Star, SlidersHorizontal, Eye } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
 
@@ -28,6 +28,9 @@ export default function Sidebar() {
   const isAdmin = user?.roles?.includes('admin') || false;
   const router = useRouter();
   const compact = useCompact();
+  const [assignmentTestOpen, setAssignmentTestOpen] = useState(
+    pathname.startsWith('/dashboard/assignment-test')
+  );
 
   const handleLogout = async () => {
     try {
@@ -64,6 +67,47 @@ export default function Sidebar() {
         <SidebarLink href="/dashboard/grading" icon={<GraduationCap size={18} />} label="Sertifikasyon" compact={compact} />
         <SidebarLink href="/dashboard/league" icon={<Trophy size={18} />} label="Sınıflar Ligi" compact={compact} />
         <SidebarLink href="/dashboard/profile" icon={<UserCircle size={18} />} label="Profil Ayarları" compact={compact} />
+
+        {/* ── ÖDEV TEST (Accordion) ── */}
+        {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
+          <div>
+            <button
+              onClick={() => setAssignmentTestOpen(o => !o)}
+              className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
+                ${compact ? "py-3.25" : "py-4"}
+                ${pathname.startsWith('/dashboard/assignment-test')
+                  ? 'bg-white/10 text-white shadow-sm'
+                  : 'text-white hover:bg-white/5'
+                } cursor-pointer outline-none`}
+            >
+              <span className={`transition-colors duration-200 ${
+                pathname.startsWith('/dashboard/assignment-test') ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'
+              }`}>
+                <ClipboardList size={18} />
+              </span>
+              <span className="text-[15px] font-medium leading-tight flex-1 text-left">Ödev Test</span>
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 opacity-60 ${assignmentTestOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateRows: assignmentTestOpen ? "1fr" : "0fr",
+                transition: "grid-template-rows 0.22s ease",
+              }}
+            >
+              <div style={{ overflow: "hidden" }}>
+                <SidebarLink href="/dashboard/assignment-test/review"   icon={<Eye size={18} />}              label="İncelenecekler" compact={compact} />
+                <SidebarLink href="/dashboard/assignment-test"          icon={<FileCheck size={18} />}         label="Ödevler"        compact={compact} exact />
+                <SidebarLink href="/dashboard/assignment-test/grading"  icon={<Star size={18} />}              label="Not Girişi"     compact={compact} />
+                <SidebarLink href="/dashboard/assignment-test/settings" icon={<SlidersHorizontal size={18} />} label="Ödev Ayarları"  compact={compact} />
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* ALT BÖLÜM */}

@@ -174,6 +174,59 @@ service cloud.firestore {
       allow create: if false;
     }
 
+    // ─── submission_comments ──────────────────────────────────────────────────
+    //
+    // Teacher/Admin → tüm comment'leri okur, oluşturur, siler
+    // Student       → sadece kendi submission'ına ait comment'leri okur ve oluşturur
+    // Create → server-side (Admin SDK) veya isRead/order kontrolü ile client
+
+    match /submission_comments/{commentId} {
+      allow read: if isSignedIn() && (
+        isInstructor() ||
+        resource.data.authorId == currentUid()
+      );
+      allow create: if isSignedIn() && (
+        isInstructor() ||
+        // Öğrenci kendi adına yorum yapabilir
+        (request.resource.data.authorId == currentUid() &&
+         request.resource.data.authorType == "student")
+      );
+      allow update: if isInstructor() ||
+        // Öğrenci sadece kendi yorumunu isRead=true yapabilir
+        (resource.data.authorId == currentUid() &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(["isRead"]));
+      allow delete: if isInstructor();
+    }
+
+    // ─── submission_timeline ──────────────────────────────────────────────────
+    //
+    // Sadece server-side yazılır (Admin SDK).
+    // Öğrenci → kendi kayıtlarını okuyabilir.
+    // Teacher → tüm kayıtları okuyabilir.
+
+    match /submission_timeline/{entryId} {
+      allow read: if isSignedIn() && (
+        isInstructor() ||
+        resource.data.studentId == currentUid()
+      );
+      // Create/update/delete → yalnızca Admin SDK (server-side); client'tan kapalı
+      allow create, update, delete: if false;
+    }
+
+    // ─── submission_files ─────────────────────────────────────────────────────
+    //
+    // Teacher → tüm dosyaları okur
+    // Student → kendi submission'ına ait dosyaları okur
+    // Write   → yalnızca server-side (Admin SDK)
+
+    match /submission_files/{fileId} {
+      allow read: if isSignedIn() && (
+        isInstructor() ||
+        resource.data.studentId == currentUid()
+      );
+      allow create, update, delete: if false;
+    }
+
     // ─── system_backups ───────────────────────────────────────────────────────
 
     match /system_backups/{backupId} {
