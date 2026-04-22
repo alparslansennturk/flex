@@ -120,8 +120,9 @@ export default function GroupCard({
                         setConfirmOpen(true);
                       }
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] font-normal cursor-pointer
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] cursor-pointer
                       text-surface-600 hover:bg-surface-50 hover:text-surface-800 transition-colors"
+                  style={{ fontWeight: 400, fontVariationSettings: "'wght' 400" }}
                   >
                     {isArchived
                       ? <><ArchiveRestore size={14} className="text-base-primary-500" /> Aktife Al</>
