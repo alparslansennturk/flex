@@ -120,7 +120,7 @@ export default function GroupCard({
                         setConfirmOpen(true);
                       }
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium cursor-pointer
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] font-normal cursor-pointer
                       text-surface-600 hover:bg-surface-50 hover:text-surface-800 transition-colors"
                   >
                     {isArchived
