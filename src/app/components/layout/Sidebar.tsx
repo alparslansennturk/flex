@@ -29,7 +29,7 @@ export default function Sidebar() {
   const router = useRouter();
   const compact = useCompact();
   const [assignmentTestOpen, setAssignmentTestOpen] = useState(
-    pathname.startsWith('/dashboard/assignment-test')
+    pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive'
   );
 
   const handleLogout = async () => {
@@ -60,10 +60,6 @@ export default function Sidebar() {
           <SidebarLink href="/dashboard/tasks" icon={<BookOpen size={18} />} label="Ödev Yönetimi" compact={compact} />
         )}
 
-        {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
-          <SidebarLink href="/dashboard/archive" icon={<Archive size={18} />} label="Ödev Arşivi" compact={compact} />
-        )}
-
         <SidebarLink href="/dashboard/grading" icon={<GraduationCap size={18} />} label="Sertifikasyon" compact={compact} />
         <SidebarLink href="/dashboard/league" icon={<Trophy size={18} />} label="Sınıflar Ligi" compact={compact} />
         <SidebarLink href="/dashboard/profile" icon={<UserCircle size={18} />} label="Profil Ayarları" compact={compact} />
@@ -75,13 +71,13 @@ export default function Sidebar() {
               onClick={() => setAssignmentTestOpen(o => !o)}
               className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
                 ${compact ? "py-3.25" : "py-4"}
-                ${pathname.startsWith('/dashboard/assignment-test')
+                ${(pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive')
                   ? 'bg-white/10 text-white shadow-sm'
                   : 'text-white hover:bg-white/5'
                 } cursor-pointer outline-none`}
             >
               <span className={`transition-colors duration-200 ${
-                pathname.startsWith('/dashboard/assignment-test') ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'
+                (pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive') ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'
               }`}>
                 <ClipboardList size={18} />
               </span>
@@ -100,10 +96,11 @@ export default function Sidebar() {
               }}
             >
               <div style={{ overflow: "hidden" }}>
-                <SidebarLink href="/dashboard/assignment-test/review"   icon={<Eye size={18} />}              label="İncelenecekler" compact={compact} />
-                <SidebarLink href="/dashboard/assignment-test"          icon={<FileCheck size={18} />}         label="Ödevler"        compact={compact} exact />
-                <SidebarLink href="/dashboard/assignment-test/grading"  icon={<Star size={18} />}              label="Not Girişi"     compact={compact} />
-                <SidebarLink href="/dashboard/assignment-test/settings" icon={<SlidersHorizontal size={18} />} label="Ödev Ayarları"  compact={compact} />
+                <SidebarLink href="/dashboard/assignment-test/review"   icon={<Eye size={15} />}              label="İncelenecekler" compact={compact} sub />
+                <SidebarLink href="/dashboard/assignment-test"          icon={<FileCheck size={15} />}         label="Ödevler"        compact={compact} exact sub />
+                <SidebarLink href="/dashboard/assignment-test/grading"  icon={<Star size={15} />}              label="Not Girişi"     compact={compact} sub />
+                <SidebarLink href="/dashboard/assignment-test/settings" icon={<SlidersHorizontal size={15} />} label="Ödev Ayarları"  compact={compact} sub />
+                <SidebarLink href="/dashboard/archive"                  icon={<Archive size={15} />}           label="Ödev Arşivi"   compact={compact} sub />
               </div>
             </div>
           </div>
@@ -135,8 +132,8 @@ export default function Sidebar() {
   );
 }
 
-function SidebarLink({ href, icon, label, exact = false, compact = false }: {
-  href: string; icon: any; label: string; exact?: boolean; compact?: boolean;
+function SidebarLink({ href, icon, label, exact = false, compact = false, sub = false }: {
+  href: string; icon: any; label: string; exact?: boolean; compact?: boolean; sub?: boolean;
 }) {
   const pathname = usePathname();
   const active = exact ? pathname === href : (pathname === href || pathname.startsWith(href + '/'));
@@ -144,13 +141,13 @@ function SidebarLink({ href, icon, label, exact = false, compact = false }: {
     <Link
       href={href}
       className={`flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
-        ${compact ? "py-3.25" : "py-4"}
+        ${sub ? "py-3" : compact ? "py-3.25" : "py-4"}
         ${active ? 'bg-white/10 text-white shadow-sm' : 'text-white hover:bg-white/5'}`}
     >
       <span className={`transition-colors duration-200 ${active ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>
         {icon}
       </span>
-      <span className="text-[15px] font-medium leading-tight">
+      <span className={`leading-tight ${sub ? "text-[14px] font-normal" : "text-[15px] font-medium"}`}>
         {label}
       </span>
     </Link>

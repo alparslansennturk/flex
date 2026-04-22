@@ -161,7 +161,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         <div className="mt-6">
           <div className="mb-8">
             <div className="flex items-center bg-surface-50 w-fit p-1 rounded-xl border border-neutral-100 shadow-sm">
-              {(["Aktif Sınıflar", isAdmin && "Tüm Sınıflar", "Arşiv"] as (string | false)[]).filter(Boolean).map((t) => (
+              {(["Aktif Sınıflar", "Tüm Sınıflar", "Arşiv"] as string[]).map((t) => (
                 <button
                   key={t as string}
                   onClick={() => setCurrentView(t as string)}
