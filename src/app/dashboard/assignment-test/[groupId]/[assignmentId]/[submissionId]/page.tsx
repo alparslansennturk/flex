@@ -155,7 +155,7 @@ export default function SubmissionDetailPage() {
       // Author names için user'ı da ekle
       const authorNames: Record<string, string> = {
         [subData.studentId]: studentName,
-        ...(user ? { [user.uid]: user.displayName ?? "Eğitmen" } : {}),
+        ...(user ? { [user.uid]: `${user.name} ${user.surname}`.trim() || "Eğitmen" } : {}),
       };
 
       setData({ submission, studentName, taskName, taskEndDate, files: effectiveFiles, authorNames });
