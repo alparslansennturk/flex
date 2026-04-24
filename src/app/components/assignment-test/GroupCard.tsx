@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Users, BookOpen, Annoyed, ArrowRight, MoreVertical, ArchiveRestore, Archive } from "lucide-react";
+import { Users, BookOpen, Smile, ArrowRight, MoreVertical, ArchiveRestore, Archive } from "lucide-react";
 
 interface GroupCardProps {
   id: string;
@@ -142,7 +142,7 @@ export default function GroupCard({
         <div className="grid grid-cols-3 gap-3">
           <Stat icon={<Users size={14} />} value={studentCount} label="Öğrenci" />
           <Stat icon={<BookOpen size={14} />} value={activeTaskCount} label="Ödev" />
-          <Stat icon={<Annoyed size={14} />} value={submissionCount} label="Teslim" />
+          <Stat icon={<Smile size={14} />} value={submissionCount} label="Teslim" />
         </div>
 
         {/* Eğitmen */}

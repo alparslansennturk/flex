@@ -85,7 +85,6 @@ export default function SubmissionDetailPage() {
         getDocs(query(
           collection(db, "submission_files"),
           where("submissionId", "==", submissionId),
-          orderBy("versionNo", "asc"),
         )),
       ]);
 
@@ -133,7 +132,7 @@ export default function SubmissionDetailPage() {
         versionNo: d.data().versionNo ?? 1,
         isLatest: d.data().isLatest ?? false,
         uploadedAt: d.data().uploadedAt?.toDate?.() ?? new Date(),
-      }));
+      })).sort((a, b) => a.versionNo - b.versionNo);
 
       // Eğer submission_files yoksa submission.file'dan fallback
       const effectiveFiles = files.length > 0 ? files : [{
@@ -152,7 +151,6 @@ export default function SubmissionDetailPage() {
       const latestFile = effectiveFiles.find(f => f.isLatest) ?? effectiveFiles[0];
       setActiveFileVersionId(latestFile?.id);
 
-      // Author names için user'ı da ekle
       const authorNames: Record<string, string> = {
         [subData.studentId]: studentName,
         ...(user ? { [user.uid]: `${user.name} ${user.surname}`.trim() || "Eğitmen" } : {}),

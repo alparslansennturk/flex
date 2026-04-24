@@ -9,13 +9,12 @@ import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCi
 import { auth } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
 
-// 880px altı → hafif compact (1440x900 ekranlar ~820-840px viewport)
 function useCompact() {
   const [compact, setCompact] = useState(() =>
-    typeof window !== "undefined" ? window.innerHeight < 820 : false
+    typeof window !== "undefined" ? window.innerHeight < 900 : false
   );
   useEffect(() => {
-    const check = () => setCompact(window.innerHeight < 820);
+    const check = () => setCompact(window.innerHeight < 900);
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
@@ -43,8 +42,8 @@ export default function Sidebar() {
 
   return (
     <div className="flex flex-col h-full bg-[#10294C] text-white transition-all duration-500">
-      {/* Logo — compact'ta üst boşluk azalır */}
-      <div className={`select-none transition-all duration-300 ${compact ? "p-[32px_40px_0_40px]" : "p-[40px_40px_0_40px]"}`}>
+      {/* Logo */}
+      <div className={`select-none transition-all duration-300 ${compact ? "p-[20px_40px_0_40px]" : "p-[40px_40px_0_40px]"}`}>
         <Link href="/dashboard" className="flex items-center gap-1">
           <span className="text-[24px] font-semibold text-[#FF8D28]">tasarım</span>
           <span className="text-[24px] font-bold text-white">atölyesi</span>
@@ -52,7 +51,7 @@ export default function Sidebar() {
       </div>
 
       {/* ANA OPERASYONEL MENÜ — compact'ta üst margin ve item arası biraz azalır */}
-      <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-12 space-y-2" : "mt-16 space-y-3"}`}>
+      <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-6 space-y-1" : "mt-16 space-y-3"}`}>
         <SidebarLink href="/dashboard" icon={<LayoutDashboard size={18} />} label="Ana Sayfa" exact compact={compact} />
         <SidebarLink href={NAV_CONFIG.GROUPS.path} icon={<Users size={18} />} label="Sınıf Yönetimi" compact={compact} />
 
@@ -141,7 +140,7 @@ function SidebarLink({ href, icon, label, exact = false, compact = false, sub = 
     <Link
       href={href}
       className={`flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
-        ${sub ? "py-3" : compact ? "py-3.25" : "py-4"}
+        ${sub ? (compact ? "py-2" : "py-3") : compact ? "py-3.25" : "py-4"}
         ${active ? 'bg-white/10 text-white shadow-sm' : 'text-white hover:bg-white/5'}`}
     >
       <span className={`transition-colors duration-200 ${active ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>

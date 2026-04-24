@@ -51,3 +51,13 @@
 | 46 | 2026-04-22 | GroupCard branch uppercase kaldırıldı | `GroupCard.tsx` |
 | 47 | 2026-04-22 | GroupCard arşiv menüsü (··· dropdown) + onArchive handler | `GroupCard.tsx`, `assignment-test/page.tsx` |
 | 48 | 2026-04-22 | Arşive Al onay modalı — turuncu butonlar, 640×480 oranı | `GroupCard.tsx` |
+| 49 | 2026-04-23 | GroupCard Annoyed → Smile ikonu | `GroupCard.tsx` |
+| 50 | 2026-04-23 | Grup detay sayfası yeniden tasarım — pembe banner, filtre pill, görev listesi | `[groupId]/page.tsx` |
+| 51 | 2026-04-23 | Görev satırı → accordion kart: kapalı/açık, istatistikler, Ödev Detay butonu | `[groupId]/page.tsx` |
+| 52 | 2026-04-23 | Ödev detay sayfası: 3 sütun — öğrenci listesi, önizleme, dosyalar+yorumlar+aksiyon | `[groupId]/[assignmentId]/page.tsx` |
+| 53 | 2026-04-24 | Ödev detay sayfası yeniden tasarım — 2 panel, avatar, durum grupları, toplu aksiyon, yorum sekmeleri | `[groupId]/[assignmentId]/page.tsx` |
+| 54 | 2026-04-24 | Preview sayfası — sidebar yok, iframe önizleme, öğrenci-eğitmen özel yorum thread'i | `[submissionId]/preview/page.tsx` |
+| 55 | 2026-04-24 | Firestore güvenlik kuralları: tasks/comments ve submissions/comments alt koleksiyonları | `firestore.rules` |
+| 56 | 2026-04-24 | Firestore composite index: submission_files, submission_comments, submission_timeline | `firestore.indexes.json` |
+| 57 | 2026-04-24 | Sidebar compact mod iyileştirme: eşik 900px, logo/nav padding azaltma, alt menü py-2 | `Sidebar.tsx` |
+| 58 | 2026-04-25 | Ödev detay sol panel: grup başlığı noktalı renk → düz text-primary, öğrenci ismi text-secondary, gruplar arası 16px boşluk | `[groupId]/[assignmentId]/page.tsx` |

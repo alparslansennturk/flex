@@ -81,6 +81,14 @@ service cloud.firestore {
       allow write: if isAdmin() || isInstructor();
     }
 
+    // ─── tasks/{taskId}/comments (sınıf yorumları) ────────────────────────────
+
+    match /tasks/{taskId}/comments/{commentId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorId == currentUid();
+      allow delete: if isInstructor();
+    }
+
     // ─── templates ────────────────────────────────────────────────────────────
 
     match /templates/{templateId} {
@@ -172,6 +180,20 @@ service cloud.firestore {
 
       // Create: client-side create yok — API route (Admin SDK) halleder
       allow create: if false;
+    }
+
+    // ─── submissions/{submissionId}/comments (özel yorumlar) ─────────────────
+
+    match /submissions/{submissionId}/comments/{commentId} {
+      allow read:   if isSignedIn() && (
+        isInstructor() ||
+        resource.data.authorId == currentUid()
+      );
+      allow create: if isSignedIn() && (
+        isInstructor() ||
+        request.resource.data.authorId == currentUid()
+      );
+      allow delete: if isInstructor();
     }
 
     // ─── submission_comments ──────────────────────────────────────────────────

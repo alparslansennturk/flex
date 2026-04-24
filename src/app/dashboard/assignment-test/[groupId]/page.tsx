@@ -8,19 +8,21 @@ import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
 import SubmissionTable from "@/app/components/assignment-test/SubmissionTable";
-import SubmissionStatusBadge from "@/app/components/assignment-test/SubmissionStatusBadge";
-import { ArrowLeft, Loader2, Users, BookOpen, Search, Plus } from "lucide-react";
+import {
+  ArrowLeft, Loader2, BookOpen, ClipboardList, MoreVertical,
+  Search, Users, ChevronDown, Smile, Meh, RefreshCw, ArrowRight,
+} from "lucide-react";
 import type { Submission } from "@/app/types/submission";
 import type { Task } from "@/app/components/dashboard/assignment/taskTypes";
 
-type Tab = "students" | "submissions" | "tasks";
+type MainTab = "students" | "assignments" | "submissions";
+type Filter  = "all" | "active" | "completed";
 
 interface Student {
   id: string;
   name: string;
   lastName: string;
   points: number;
-  status: string;
 }
 
 interface GroupInfo {
@@ -35,18 +37,43 @@ interface SubmissionRow extends Submission {
   studentName: string;
 }
 
+function parseDate(val: any): Date | null {
+  if (!val) return null;
+  if (val?.toDate) return val.toDate();           // Firestore Timestamp
+  if (typeof val === "string" || typeof val === "number") return new Date(val);
+  return null;
+}
+
+function formatEndDate(dateVal: any) {
+  const d = parseDate(dateVal);
+  if (!d || isNaN(d.getTime())) return "";
+  const datePart = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  const weekday  = d.toLocaleDateString("tr-TR", { weekday: "short" });
+  return `${datePart} ${weekday}.`;
+}
+
+function formatCreatedAt(createdAt: any): string {
+  if (!createdAt) return "";
+  const d: Date = createdAt?.toDate?.() ?? new Date(createdAt);
+  const day     = String(d.getDate()).padStart(2, "0");
+  const month   = String(d.getMonth() + 1).padStart(2, "0");
+  const year    = d.getFullYear();
+  const weekday = d.toLocaleDateString("tr-TR", { weekday: "short" });
+  return `${day}.${month}.${year} ${weekday}.`;
+}
+
 export default function GroupDetailPage() {
   const { user, loading: authLoading } = useUser();
-  const router = useRouter();
-  const params = useParams<{ groupId: string }>();
+  const router  = useRouter();
+  const params  = useParams<{ groupId: string }>();
   const groupId = params.groupId;
 
-  const [tab, setTab] = useState<Tab>("submissions");
-  const [group, setGroup] = useState<GroupInfo | null>(null);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tab,           setTab]           = useState<MainTab>("assignments");
+  const [group,         setGroup]         = useState<GroupInfo | null>(null);
+  const [students,      setStudents]      = useState<Student[]>([]);
+  const [submissions,   setSubmissions]   = useState<SubmissionRow[]>([]);
+  const [tasks,         setTasks]         = useState<Task[]>([]);
+  const [loading,       setLoading]       = useState(true);
   const [studentSearch, setStudentSearch] = useState("");
 
   useEffect(() => {
@@ -74,11 +101,7 @@ export default function GroupDetailPage() {
       }
 
       const studentList: Student[] = studentSnap.docs.map(d => ({
-        id: d.id,
-        name: d.data().name ?? "",
-        lastName: d.data().lastName ?? "",
-        points: d.data().points ?? 0,
-        status: d.data().status ?? "active",
+        id: d.id, name: d.data().name ?? "", lastName: d.data().lastName ?? "", points: d.data().points ?? 0,
       }));
       setStudents(studentList);
 
@@ -88,30 +111,20 @@ export default function GroupDetailPage() {
       const subRows: SubmissionRow[] = subSnap.docs.map(d => {
         const data = d.data();
         return {
-          id: d.id,
-          studentId: data.studentId,
-          taskId: data.taskId,
-          groupId: data.groupId,
+          id: d.id, studentId: data.studentId, taskId: data.taskId, groupId: data.groupId,
           iteration: data.iteration ?? 1,
           file: {
-            driveFileId: data.file?.driveFileId ?? "",
-            driveViewLink: data.file?.driveViewLink ?? "",
-            fileUrl: data.file?.fileUrl ?? "",
-            fileName: data.file?.fileName ?? "",
-            fileSize: data.file?.fileSize ?? 0,
-            mimeType: data.file?.mimeType ?? "",
+            driveFileId: data.file?.driveFileId ?? "", driveViewLink: data.file?.driveViewLink ?? "",
+            fileUrl: data.file?.fileUrl ?? "", fileName: data.file?.fileName ?? "",
+            fileSize: data.file?.fileSize ?? 0, mimeType: data.file?.mimeType ?? "",
           },
-          note: data.note,
-          status: data.status,
-          feedback: data.feedback,
-          gradedBy: data.gradedBy,
-          grade: data.grade,
-          isLate: data.isLate ?? false,
+          note: data.note, status: data.status, feedback: data.feedback,
+          gradedBy: data.gradedBy, grade: data.grade, isLate: data.isLate ?? false,
           daysLate: data.daysLate,
           submittedAt: data.submittedAt?.toDate?.() ?? new Date(),
-          reviewedAt: data.reviewedAt?.toDate?.(),
+          reviewedAt:  data.reviewedAt?.toDate?.(),
           completedAt: data.completedAt?.toDate?.(),
-          updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+          updatedAt:   data.updatedAt?.toDate?.() ?? new Date(),
           studentName: studentMap[data.studentId] ?? "—",
         };
       });
@@ -128,19 +141,17 @@ export default function GroupDetailPage() {
     `${s.name} ${s.lastName}`.toLowerCase().includes(studentSearch.toLowerCase())
   );
 
-  const activeTasks = tasks.filter(t => t.isActive);
-
   if (authLoading || !user) return null;
 
-  const TABS: { key: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-    { key: "students",    label: "Öğrenciler", icon: <Users size={15} />,    count: students.length },
-    { key: "submissions", label: "Teslimler",  icon: null,                   count: submissions.length },
-    { key: "tasks",       label: "Ödevler",    icon: <BookOpen size={15} />, count: tasks.length },
+  const TABS: { key: MainTab; label: string; icon: React.ReactNode }[] = [
+    { key: "students",    label: "Öğrenciler",   icon: <Users size={16} /> },
+    { key: "assignments", label: "Ödevler",       icon: <BookOpen size={16} /> },
+    { key: "submissions", label: "Teslim Panosu", icon: <ClipboardList size={16} /> },
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F9FAFB] font-inter antialiased text-text-primary">
-      <aside className="hidden lg:block h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-[#10294C]">
+    <div className="flex h-screen overflow-hidden bg-white font-inter antialiased text-text-primary">
+      <aside className="hidden lg:block h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-base-primary-900">
         <Sidebar />
       </aside>
 
@@ -148,50 +159,53 @@ export default function GroupDetailPage() {
         <Header />
 
         <main className="flex-1 overflow-y-auto overflow-x-clip [scrollbar-gutter:stable]">
-          <div className="w-[94%] mx-auto pt-6 pb-10 max-w-[1280px] xl:max-w-[1600px]">
+          <div className="w-[94%] mx-auto pt-7 pb-12 max-w-[960px] xl:max-w-[1200px] 2xl:max-w-[1480px]">
 
-            {/* Geri + Başlık */}
-            <div className="flex items-center gap-3 mb-6">
-              <button
-                onClick={() => router.push("/dashboard/assignment-test")}
-                className="w-9 h-9 rounded-xl border border-surface-200 flex items-center justify-center hover:bg-surface-100 transition-colors cursor-pointer"
-              >
-                <ArrowLeft size={16} className="text-surface-500" />
-              </button>
-              <div>
-                <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">
-                  {group?.branch} · {group?.session}
-                </p>
-                <h1 className="text-[20px] font-bold text-base-primary-900">{group?.code ?? groupId}</h1>
-              </div>
-              <div className="ml-auto flex items-center gap-2 text-[13px] text-surface-500">
-                <Users size={14} />
-                {group?.students ?? 0} öğrenci
-              </div>
-            </div>
+            {/* Başlık satırı */}
+            <div className="flex items-end justify-between mb-7">
 
-            {/* Tabs */}
-            <div className="flex items-center gap-0 border-b border-surface-200 mb-6">
-              {TABS.map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key)}
-                  className={`flex items-center gap-2 px-5 py-3 text-[13px] font-bold border-b-2 -mb-px transition-colors cursor-pointer
-                    ${tab === t.key
-                      ? "border-base-primary-600 text-base-primary-600"
-                      : "border-transparent text-surface-500 hover:text-surface-700"
-                    }`}
-                >
-                  {t.icon}
-                  {t.label}
-                  {t.count !== undefined && (
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black
-                      ${tab === t.key ? "bg-base-primary-100 text-base-primary-600" : "bg-surface-100 text-surface-500"}`}>
-                      {t.count}
-                    </span>
-                  )}
-                </button>
-              ))}
+              <div className="flex items-end">
+                {/* Geri + grup bilgisi */}
+                <div className="flex items-center gap-4 mr-24">
+                  <button
+                    onClick={() => router.push("/dashboard/assignment-test")}
+                    className="w-10 h-10 rounded-[13px] bg-surface-200 hover:bg-surface-300 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                  >
+                    <ArrowLeft size={18} className="text-surface-700" />
+                  </button>
+                  <div>
+                    <p className="text-[12px] font-medium text-surface-400">
+                      {group?.branch} Şb. &nbsp;•&nbsp; {group?.session}
+                    </p>
+                    <h1 className="text-[22px] font-bold text-base-primary-900 leading-tight">
+                      {group?.code ?? groupId}
+                    </h1>
+                  </div>
+                </div>
+
+                {/* Tab grubu */}
+                <div className="flex items-center border-b border-surface-200">
+                  {TABS.map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTab(t.key)}
+                      className={`flex items-center gap-2 px-5 py-2.5 text-[14px] font-semibold border-b-2 -mb-px transition-colors cursor-pointer
+                        ${tab === t.key
+                          ? "border-base-primary-600 text-base-primary-600 [&>svg]:text-base-primary-600"
+                          : "border-transparent text-text-secondary hover:text-text-primary [&>svg]:text-text-secondary"
+                        }`}
+                    >
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sağ: öğrenci sayısı */}
+              <p className="pb-2.5 text-[14px] text-text-secondary">
+                Toplam: {group?.students ?? 0} Öğrenci
+              </p>
             </div>
 
             {loading ? (
@@ -200,6 +214,16 @@ export default function GroupDetailPage() {
               </div>
             ) : (
               <>
+                {/* TAB: Ödevler */}
+                {tab === "assignments" && (
+                  <AssignmentsTab
+                    tasks={tasks}
+                    submissions={submissions}
+                    totalStudents={group?.students ?? 0}
+                    groupId={groupId}
+                  />
+                )}
+
                 {/* TAB: Öğrenciler */}
                 {tab === "students" && (
                   <div className="space-y-3">
@@ -247,74 +271,12 @@ export default function GroupDetailPage() {
                   </div>
                 )}
 
-                {/* TAB: Teslimler */}
+                {/* TAB: Teslim Panosu */}
                 {tab === "submissions" && (
                   <SubmissionTable
                     rows={submissions}
                     basePath={`/dashboard/assignment-test/${groupId}/submissions`}
                   />
-                )}
-
-                {/* TAB: Ödevler */}
-                {tab === "tasks" && (
-                  <div className="space-y-3">
-                    {tasks.length === 0 ? (
-                      <div className="flex flex-col items-center gap-2 py-12 border border-dashed border-surface-200 rounded-2xl">
-                        <BookOpen size={20} className="text-surface-300" />
-                        <p className="text-[13px] font-bold text-surface-400">Bu gruba ait ödev yok</p>
-                        <button
-                          onClick={() => router.push("/dashboard/tasks")}
-                          className="flex items-center gap-1.5 px-4 py-2 mt-2 bg-base-primary-600 text-white rounded-xl text-[13px] font-bold hover:bg-base-primary-700 transition-colors cursor-pointer"
-                        >
-                          <Plus size={14} /> Ödev Ekle
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {tasks.map(task => {
-                          const taskSubCount = submissions.filter(s => s.taskId === task.id).length;
-                          const isActive = !!task.isActive;
-                          return (
-                            <div
-                              key={task.id}
-                              onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${task.id}`)}
-                              className="bg-white border border-surface-200 rounded-2xl p-5 cursor-pointer
-                                hover:shadow-md hover:border-base-primary-300 hover:-translate-y-0.5 transition-all duration-200"
-                            >
-                              <div className="flex items-start justify-between gap-3 mb-3">
-                                <h3 className="text-[14px] font-bold text-text-primary leading-snug flex-1">{task.name}</h3>
-                                <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border
-                                  ${isActive
-                                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                    : "bg-surface-100 text-surface-500 border-surface-200"
-                                  }`}>
-                                  {isActive ? "Aktif" : "Pasif"}
-                                </span>
-                              </div>
-                              {task.endDate && (
-                                <p className="text-[11px] text-surface-400 mb-2">
-                                  Son: {new Date(task.endDate).toLocaleDateString("tr-TR")}
-                                </p>
-                              )}
-                              <div className="flex items-center justify-between">
-                                <p className="text-[12px] text-surface-500">
-                                  <span className="font-bold text-base-primary-700">{taskSubCount}</span>/{group?.students ?? 0} teslim
-                                </p>
-                                {group?.students ? (
-                                  <div className="w-24 h-1.5 bg-surface-100 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-base-primary-400 rounded-full transition-all"
-                                      style={{ width: `${Math.min(100, (taskSubCount / group.students) * 100)}%` }}
-                                    />
-                                  </div>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
                 )}
               </>
             )}
@@ -323,4 +285,260 @@ export default function GroupDetailPage() {
       </div>
     </div>
   );
+}
+
+/* ── Ödevler Tab ─────────────────────────────────────────────── */
+
+function AssignmentsTab({
+  tasks, submissions, totalStudents, groupId,
+}: {
+  tasks: Task[];
+  submissions: SubmissionRow[];
+  totalStudents: number;
+  groupId: string;
+}) {
+  const [filter, setFilter] = useState<Filter>("all");
+
+  const today          = new Date(); today.setHours(0, 0, 0, 0);
+  const activeTasks    = tasks.filter(t => { const d = parseDate(t.endDate); return d ? d >= today : false; });
+  const completedTasks = tasks.filter(t => { const d = parseDate(t.endDate); return !d || d < today; });
+
+  const FILTERS: { key: Filter; label: string }[] = [
+    { key: "all",       label: "Tümü" },
+    { key: "active",    label: "Aktif Ödevler" },
+    { key: "completed", label: "Tamamlananlar" },
+  ];
+
+  const showActive    = filter === "all" || filter === "active";
+  const showCompleted = filter === "all" || filter === "completed";
+
+  return (
+    <div>
+      {/* Pembe banner */}
+      <div className="w-full rounded-2xl mb-6" style={{ height: 220, backgroundColor: "#F91079" }} />
+
+      {/* Filtre pilleri */}
+      <div className="flex items-center gap-2 mb-7">
+        {FILTERS.map(f => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={`px-4 py-1.5 rounded-full text-[13px] border transition-colors cursor-pointer
+              ${filter === f.key
+                ? "bg-white border-surface-300 text-text-primary font-semibold shadow-sm"
+                : "bg-transparent border-surface-200 text-surface-500 font-medium hover:border-surface-300 hover:text-surface-700"
+              }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Aktif Ödevler */}
+      {showActive && activeTasks.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-[18px] font-bold text-text-primary mb-3">Aktif Ödevler</h2>
+          <div className="space-y-3">
+            {activeTasks.map(task => (
+              <TaskAccordion
+                key={task.id}
+                task={task}
+                submissions={submissions.filter(s => s.taskId === task.id)}
+                totalStudents={totalStudents}
+                groupId={groupId}
+                isActiveSection={true}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Tamamlananlar */}
+      {showCompleted && completedTasks.length > 0 && (
+        <section>
+          <h2 className="text-[18px] font-bold text-text-primary mb-3">Tamamlananlar</h2>
+          <div className="space-y-3">
+            {completedTasks.map(task => (
+              <TaskAccordion
+                key={task.id}
+                task={task}
+                submissions={submissions.filter(s => s.taskId === task.id)}
+                totalStudents={totalStudents}
+                groupId={groupId}
+                isActiveSection={false}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tasks.length === 0 && (
+        <div className="flex flex-col items-center gap-2 py-16 text-surface-400">
+          <BookOpen size={22} />
+          <p className="text-[13px] font-medium">Bu gruba ait ödev yok</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Accordion Kart ──────────────────────────────────────────── */
+
+function TaskAccordion({
+  task, submissions, totalStudents, groupId, isActiveSection,
+}: {
+  task: Task;
+  submissions: SubmissionRow[];
+  totalStudents: number;
+  groupId: string;
+  isActiveSection: boolean;
+}) {
+  const router        = useRouter();
+  const [open, setOpen] = useState(false);
+
+  const teslimEdenler = submissions.filter(s => s.status !== "revision").length;
+  const revize        = submissions.filter(s => s.status === "revision").length;
+  const bekleyenler   = Math.max(0, totalStudents - submissions.length);
+
+  // TODO: task.description ile değiştirilecek — ödev ekleme formu hazır olunca
+  const descHeading = "Merhabalar,";
+  const descBody    = "En son derste yaptığımız şekilde bir sosyal medya reklamı çalışması istiyorum. Ona göre size verilen ödeve göre bir araştırma yapacaksınız öncelikle. En başta kağıda çizeceğiniz ya da bilgisayar üzerinde de yapabileceğiniz bir scetch yapın. Kağıt üzerinde kurgulayın. Sonrasında ilgili görselleri araştırıp bularak çalışmayı yapacaksınız. Logolar vektörel olacak. İnternette ilgili firmanın logosunu vektörel olarak bulabilirsiniz. Ödevi zamanı içerisinde tamamlamış olmanız önemli. Beni müşteri gibi düşünün. Süreniz 3 hafta.";
+
+  return (
+    <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
+
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-surface-50/60 transition-colors"
+        onClick={() => setOpen(v => !v)}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isActiveSection ? "bg-designstudio-primary-500" : "bg-designstudio-secondary-500"}`}>
+            <ClipboardList size={18} className="text-text-inverse" />
+          </div>
+          <span className="text-[16px] font-semibold text-text-primary">{task.name}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {task.endDate && (
+            <span className="text-[13px] text-surface-500">
+              Teslim Tarihi: {formatEndDate(task.endDate)}
+            </span>
+          )}
+          <ChevronDown
+            size={16}
+            className={`text-surface-500 transition-transform duration-250 ${open ? "rotate-180" : ""}`}
+          />
+          <button
+            onClick={e => e.stopPropagation()}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-surface-400 hover:bg-surface-100 hover:text-surface-600 transition-colors cursor-pointer"
+          >
+            <MoreVertical size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* Accordion gövdesi — CSS grid trick ile smooth transition */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: open ? "1fr" : "0fr",
+          transition: `grid-template-rows 0.28s ${open ? "cubic-bezier(0.4,0,1,1)" : "cubic-bezier(0,0,0.6,1)"}`,
+        }}
+      >
+        <div style={{ overflow: "hidden" }}>
+          <div className="h-px bg-surface-100" />
+
+          <div className="p-6">
+
+            {/* Satır 1: Eklenme tarihi */}
+            {task.createdAt && (
+              <p className="text-[13px] text-surface-500 mb-4">
+                Eklenme Tarihi:&nbsp;
+                <span className="font-semibold text-text-secondary">{formatCreatedAt(task.createdAt)}</span>
+              </p>
+            )}
+
+            {/* Satır 2: Açıklama (sol) + Stats (sağ) */}
+            <div className="flex items-start gap-10 mb-5">
+
+              {/* Sol: açıklama metni — %60 */}
+              <div className="w-[60%] shrink-0 min-w-0">
+                {descHeading ? (
+                  <p className="text-[18px] font-medium text-text-primary mb-2">{descHeading}</p>
+                ) : null}
+                {descBody ? (
+                  <p className="text-[14px] lg:text-[15px] xl:text-[16px] font-normal text-text-primary leading-relaxed whitespace-pre-line">
+                    {descBody}
+                  </p>
+                ) : null}
+              </div>
+
+              {/* Sağ: 3 stat blok yatayda hizalı — %40 */}
+              <div className="flex-1 flex items-center justify-center gap-10">
+                <StatBlock
+                  icon={<Smile size={32} strokeWidth={1.5} className="text-emerald-500" />}
+                  label="Teslim Edenler"
+                  count={teslimEdenler}
+                />
+                <StatBlock
+                  icon={<Meh size={32} strokeWidth={1.5} className="text-surface-500" />}
+                  label="Bekleyenler"
+                  count={bekleyenler}
+                />
+                <StatBlock
+                  icon={<RefreshCw size={32} strokeWidth={1.5} className="text-designstudio-primary-500" />}
+                  label="Revize İstenenler"
+                  count={revize}
+                />
+              </div>
+            </div>
+
+            {/* Satır 3: Eğitmen adı */}
+            {task.createdByName && (
+              <p className="text-[14px] font-bold text-text-primary">{task.createdByName}</p>
+            )}
+
+            {/* Satır 4: Dosya kartı (sol) + Ödev Detay butonu (sağ) */}
+            <div className="flex items-center justify-between mt-8">
+              {/* Dosya kartı */}
+              <div className="flex items-center bg-white border border-surface-200 rounded-xl cursor-pointer hover:border-surface-300 transition-colors" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12 }}>
+                <div>
+                  <p className="text-[13px] font-bold text-text-primary leading-tight">Market.zip</p>
+                  <p className="text-[11px] text-surface-500 mt-0.5">Ödev Dosyası</p>
+                </div>
+                <div className="w-px self-stretch bg-surface-200 mx-4" />
+                <GoogleDriveIcon />
+              </div>
+
+              {/* Ödev Detay butonu */}
+              <button
+                onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${task.id}`)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-semibold text-white cursor-pointer transition-colors"
+                style={{ backgroundColor: "#5E63C2" }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#4D52A6")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#5E63C2")}
+              >
+                Ödev Detay
+                <ArrowRight size={15} strokeWidth={2.5} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatBlock({ icon, label, count }: { icon: React.ReactNode; label: string; count: number }) {
+  return (
+    <div className="flex flex-col items-center">
+      {icon}
+      <p className="mt-1 text-[14px] xl:text-[16px] font-medium text-text-primary text-center leading-tight">{label}</p>
+      <p className="mt-2 text-[32px] font-bold text-text-secondary leading-none">{count}</p>
+    </div>
+  );
+}
+
+function GoogleDriveIcon() {
+  return <img src="/icons/google-drive.svg" width={32} height={32} alt="Google Drive" />;
 }
