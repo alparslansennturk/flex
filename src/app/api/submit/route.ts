@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
     const taskId    = formData.get("taskId");
     const groupId   = formData.get("groupId");
     const file      = formData.get("file");
+    const noteRaw   = formData.get("note");
+    const note      = noteRaw && typeof noteRaw === "string" ? noteRaw.trim() : undefined;
 
     if (!studentId || typeof studentId !== "string")
       return NextResponse.json({ error: "studentId zorunludur." }, { status: 400 });
@@ -69,6 +71,7 @@ export async function POST(req: NextRequest) {
         mimeType:      driveResult.mimeType,
       },
       isLate: false,
+      ...(note ? { note } : {}),
     });
 
     return NextResponse.json({

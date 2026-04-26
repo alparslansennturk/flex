@@ -36,10 +36,12 @@ export async function GET() {
       return NextResponse.json({
         message: "Zaten mevcut submission var",
         submissionId: existing.id,
+        studentId: student.id,
         groupId: group.id,
         assignmentId: task.id,
         studentName: `${student.data().name} ${student.data().lastName}`,
         previewUrl: `/dashboard/assignment-test/${group.id}/${task.id}`,
+        studentPortalUrl: `/student/${student.id}`,
       });
     }
 
@@ -67,11 +69,13 @@ export async function GET() {
     return NextResponse.json({
       message: "Test submission oluşturuldu ✓",
       submissionId: submissionRef.id,
+      studentId: student.id,
       groupId: group.id,
       assignmentId: task.id,
       studentName: `${student.data().name} ${student.data().lastName}`,
       previewUrl: `/dashboard/assignment-test/${group.id}/${task.id}`,
       detailUrl:  `/dashboard/assignment-test/${group.id}/${task.id}/${submissionRef.id}/preview`,
+      studentPortalUrl: `/student/${student.id}`,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

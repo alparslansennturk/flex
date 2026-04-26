@@ -61,3 +61,9 @@
 | 56 | 2026-04-24 | Firestore composite index: submission_files, submission_comments, submission_timeline | `firestore.indexes.json` |
 | 57 | 2026-04-24 | Sidebar compact mod iyileştirme: eşik 900px, logo/nav padding azaltma, alt menü py-2 | `Sidebar.tsx` |
 | 58 | 2026-04-25 | Ödev detay sol panel: grup başlığı noktalı renk → düz text-primary, öğrenci ismi text-secondary, gruplar arası 16px boşluk | `[groupId]/[assignmentId]/page.tsx` |
+| 59 | 2026-04-26 | Öğrenci portal MVP: ödev listesi + detay/upload/yorum sayfaları | `student/[studentId]/page.tsx`, `student/[studentId]/[taskId]/page.tsx` |
+| 60 | 2026-04-26 | Submit API: note alanı desteği eklendi (formData → Firestore) | `api/submit/route.ts` |
+| 61 | 2026-04-26 | Öğrenci dashboard: Classroom tarzı layout — sidebar, template banner, accordion (eğitmen ile bire bir), duyurular feed | `student/[studentId]/page.tsx`, `StudentSidebar.tsx` |
+| 62 | 2026-04-26 | Ödev yükle sayfası: sidebar eklendi, upload alanı büyütüldü, yorum paneli sağda korundu | `student/[studentId]/[taskId]/page.tsx` |
+| 63 | 2026-04-26 | Sidebar: Sınıf Ligi widget (grup bazlı sıralama) + /league nav linki | `StudentSidebar.tsx`, `StudentLeagueWidget.tsx` |
+| 64 | 2026-04-26 | dev-seed yanıtına studentId + studentPortalUrl eklendi | `api/dev-seed/route.ts` |
