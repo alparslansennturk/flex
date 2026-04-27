@@ -61,6 +61,11 @@ function LoginForm() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // Middleware cookie'sini router.push'tan ÖNCE set et.
+      // UserContext'teki async getIdToken().then() race condition'ı önler.
+      const idToken = await user.getIdToken();
+      document.cookie = `flex-token=${idToken}; path=/; max-age=3600; SameSite=Lax`;
+
       const userDocRef = doc(db, "users", user.uid);
       const userDoc    = await getDoc(userDocRef);
 
