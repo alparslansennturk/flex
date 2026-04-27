@@ -8,6 +8,8 @@ interface FileVersion {
   fileName: string;
   fileUrl: string;
   driveViewLink?: string;
+  driveFileId?: string;
+  mimeType?: string;
   fileSize: number;
   uploadedAt: Date;
   isLatest: boolean;
@@ -54,7 +56,19 @@ export default function FilePreview({ versions, currentVersionId, onVersionChang
     </div>
   );
 
-  const fileType = getFileType(activeVersion.fileName);
+  const fileType   = activeVersion.mimeType?.startsWith("image/") ? "image"
+    : (activeVersion.mimeType === "application/pdf" || getFileType(activeVersion.fileName) === "pdf") ? "pdf"
+    : "other";
+
+  // Drive embed URL: /preview çalışır, /view çalışmaz iframe'de
+  const previewUrl = activeVersion.driveFileId
+    ? `https://drive.google.com/file/d/${activeVersion.driveFileId}/preview`
+    : activeVersion.driveViewLink?.replace(/\/view(\?.*)?$/, "/preview");
+
+  // Resim için Drive thumbnail (dosya herkese açıksa çalışır)
+  const imgSrc = activeVersion.driveFileId
+    ? `https://drive.google.com/thumbnail?id=${activeVersion.driveFileId}&sz=w800`
+    : activeVersion.fileUrl;
 
   return (
     <div className="space-y-3">
@@ -80,9 +94,9 @@ export default function FilePreview({ versions, currentVersionId, onVersionChang
 
       {/* Preview alanı */}
       <div className="border border-surface-200 rounded-2xl overflow-hidden bg-surface-50">
-        {fileType === "pdf" && activeVersion.driveViewLink && (
+        {fileType === "pdf" && previewUrl && (
           <iframe
-            src={`${activeVersion.driveViewLink}&rm=minimal`}
+            src={previewUrl}
             className="w-full h-[480px]"
             title={activeVersion.fileName}
           />
@@ -91,9 +105,10 @@ export default function FilePreview({ versions, currentVersionId, onVersionChang
           <div className="flex items-center justify-center p-4 min-h-[240px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={activeVersion.fileUrl}
+              src={imgSrc}
               alt={activeVersion.fileName}
               className="max-w-full max-h-[400px] rounded-xl object-contain shadow"
+              onError={e => { (e.target as HTMLImageElement).src = activeVersion.fileUrl; }}
             />
           </div>
         )}

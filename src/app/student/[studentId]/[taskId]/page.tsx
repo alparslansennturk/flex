@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import {
   doc, getDoc, getDocs, collection, query, where,
   onSnapshot, orderBy, addDoc, serverTimestamp,
 } from "firebase/firestore";
 import {
   ArrowLeft, Loader2, Upload, FileText, CheckCircle2,
-  RotateCcw, Send, Clock, X, AlertCircle,
+  RotateCcw, Send, Clock, X, AlertCircle, Download, ExternalLink,
 } from "lucide-react";
 import StudentSidebar from "@/app/components/student/StudentSidebar";
 import type { SubmissionStatus } from "@/app/types/submission";
@@ -39,6 +39,8 @@ interface SubmissionRow {
   mimeType: string;
   fileSize: number;
   driveViewLink?: string;
+  driveFileId?: string;
+  fileUrl?: string;
   submittedAt: Date;
   isLate: boolean;
   daysLate?: number;
@@ -195,10 +197,12 @@ export default function StudentTaskDetailPage() {
             id:           d.id,
             status:       data.status,
             iteration:    data.iteration ?? 1,
-            fileName:     data.file?.fileName ?? "",
-            mimeType:     data.file?.mimeType ?? "",
-            fileSize:     data.file?.fileSize ?? 0,
+            fileName:      data.file?.fileName ?? "",
+            mimeType:      data.file?.mimeType ?? "",
+            fileSize:      data.file?.fileSize ?? 0,
             driveViewLink: data.file?.driveViewLink,
+            driveFileId:   data.file?.driveFileId,
+            fileUrl:       data.file?.fileUrl,
             submittedAt:  data.submittedAt?.toDate?.() ?? new Date(),
             isLate:       data.isLate ?? false,
             daysLate:     data.daysLate,
@@ -264,6 +268,7 @@ export default function StudentTaskDetailPage() {
     try {
       await addDoc(collection(db, "submissions", latestSub.id, "comments"), {
         authorType: "student",
+        authorId:   auth.currentUser?.uid ?? "",
         authorName: `${student.name} ${student.lastName}`.trim(),
         text:       commentText.trim(),
         createdAt:  serverTimestamp(),
@@ -582,16 +587,26 @@ function HistoryRow({ sub }: { sub: SubmissionRow }) {
         <p className="body-sm font-semibold text-text-primary truncate">{sub.fileName || "dosya"}</p>
         <p className="text-[11px] text-surface-400 mt-0.5">
           v{sub.iteration} · {fmtDate(sub.submittedAt)}
-          {sub.isLate && <span className="text-status-danger-500 font-medium"> · {sub.daysLate} gün geç</span>}
+          {sub.isLate && sub.daysLate != null && (
+            <span className="text-status-danger-500 font-medium"> · {sub.daysLate} gün geç</span>
+          )}
         </p>
       </div>
-      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-        sub.status === "revision"  ? "bg-blue-50 text-status-info" :
-        sub.status === "completed" ? "bg-status-success-100 text-status-success-700" :
-        "bg-surface-100 text-surface-500"
-      }`}>
-        {st.label}
-      </span>
+      <div className="flex items-center gap-2 shrink-0">
+        {sub.driveViewLink && (
+          <a href={sub.driveViewLink} target="_blank" rel="noopener noreferrer"
+            className="p-1.5 rounded-lg hover:bg-surface-100 transition-colors text-surface-400 hover:text-text-secondary">
+            <ExternalLink size={13} />
+          </a>
+        )}
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+          sub.status === "revision"  ? "bg-blue-50 text-status-info" :
+          sub.status === "completed" ? "bg-status-success-100 text-status-success-700" :
+          "bg-surface-100 text-surface-500"
+        }`}>
+          {st.label}
+        </span>
+      </div>
     </div>
   );
 }

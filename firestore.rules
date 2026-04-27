@@ -44,6 +44,18 @@ service cloud.firestore {
       return isSignedIn() && getUserData().get('permissionOverrides', {}).get(perm, false) == true;
     }
 
+    // Öğrenci auth UID ile studentId (doc ID) eşleşmeyebilir — her ikisini kontrol et
+    function isStudentOwner(studentDocId) {
+      return studentDocId == currentUid() ||
+             get(/databases/$(database)/documents/students/$(studentDocId)).data.authUid == currentUid();
+    }
+
+    // Bir submission'ın sahibi mi?
+    function isSubmissionOwner(submissionId) {
+      let sub = get(/databases/$(database)/documents/submissions/$(submissionId)).data;
+      return isStudentOwner(sub.studentId);
+    }
+
     // ─── students ─────────────────────────────────────────────────────────────
 
     match /students/{studentId} {
@@ -190,10 +202,7 @@ service cloud.firestore {
     // ─── submissions/{submissionId}/comments (özel yorumlar) ─────────────────
 
     match /submissions/{submissionId}/comments/{commentId} {
-      allow read:   if isSignedIn() && (
-        isInstructor() ||
-        resource.data.authorId == currentUid()
-      );
+      allow read:   if isSignedIn() && (isInstructor() || isSubmissionOwner(submissionId));
       allow create: if isSignedIn() && (
         isInstructor() ||
         request.resource.data.authorId == currentUid()
@@ -224,7 +233,7 @@ service cloud.firestore {
     match /submission_timeline/{entryId} {
       allow read: if isSignedIn() && (
         isInstructor() ||
-        resource.data.studentId == currentUid()
+        isStudentOwner(resource.data.studentId)
       );
       allow create, update, delete: if false;
     }
@@ -234,7 +243,7 @@ service cloud.firestore {
     match /submission_files/{fileId} {
       allow read: if isSignedIn() && (
         isInstructor() ||
-        resource.data.studentId == currentUid()
+        isStudentOwner(resource.data.studentId)
       );
       allow create, update, delete: if false;
     }

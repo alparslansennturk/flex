@@ -12,7 +12,7 @@ import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
 import {
   ArrowLeft, Loader2, Check, ChevronDown, FileText,
-  ExternalLink, Send, Lock, Users,
+  ExternalLink, Send, Lock, Users, Download,
 } from "lucide-react";
 import type { Submission, SubmissionStatus } from "@/app/types/submission";
 
@@ -570,26 +570,47 @@ export default function AssignmentDetailPage() {
                       </div>
                     ) : (
                       <div className="p-6 space-y-3">
-                        <p className="text-[11px] font-bold text-surface-400 uppercase tracking-widest mb-3">
-                          Teslim Edilen Dosyalar
-                        </p>
-                        {viewingAllSubs.map(sub => (
-                          <FileCard
-                            key={sub.id}
-                            sub={sub}
-                            groupId={groupId}
-                            assignmentId={assignmentId}
-                            onNavigate={path => router.push(path)}
-                          />
+                        {viewingAllSubs.map((sub, i) => (
+                          <div key={sub.id} className="bg-white border border-surface-200 rounded-2xl p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
+                              <FileText size={18} className="text-surface-400" strokeWidth={1.5} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-semibold text-text-primary truncate">
+                                {sub.file.fileName || "dosya"}
+                              </p>
+                              <p className="text-[11px] text-surface-400 mt-0.5">
+                                {mimeToLabel(sub.file.mimeType)} · {sub.file.fileSize ? `${(sub.file.fileSize / 1024).toFixed(0)} KB` : ""} · v{sub.iteration} · {fmtDateTime(sub.submittedAt)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {sub.file.driveViewLink && (
+                                <a
+                                  href={sub.file.driveViewLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-200 text-surface-600 text-[12px] font-semibold hover:bg-surface-50 transition-colors"
+                                >
+                                  <ExternalLink size={12} /> Drive
+                                </a>
+                              )}
+                              {sub.file.fileUrl && (
+                                <a
+                                  href={sub.file.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-base-primary-600 text-white text-[12px] font-semibold hover:bg-base-primary-700 transition-colors"
+                                >
+                                  <Download size={12} /> İndir
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         ))}
                         {viewingSub.note && (
-                          <div className="mt-2 p-4 bg-white border border-surface-200 rounded-2xl">
-                            <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider mb-1.5">
-                              Öğrenci Notu
-                            </p>
-                            <p className="text-[13px] text-text-primary leading-relaxed">
-                              {viewingSub.note}
-                            </p>
+                          <div className="p-4 bg-white border border-surface-200 rounded-2xl">
+                            <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider mb-1.5">Öğrenci Notu</p>
+                            <p className="text-[13px] text-text-primary leading-relaxed">{viewingSub.note}</p>
                           </div>
                         )}
                       </div>
@@ -602,8 +623,8 @@ export default function AssignmentDetailPage() {
                     {/* Tab başlıkları */}
                     <div className="flex border-b border-surface-100 px-6 shrink-0">
                       {([
-                        { key: "general", label: "Sınıf Yorumu", icon: <Users size={12} /> },
-                        { key: "private", label: "Özel Yorum",   icon: <Lock  size={12} /> },
+                        { key: "general", label: "Genel",                                                   icon: <Users size={12} /> },
+                        { key: "private", label: viewingStudent ? `${viewingStudent.name} ${viewingStudent.lastName}`.trim() : "Özel", icon: <Lock  size={12} /> },
                       ] as const).map(({ key, label, icon }) => (
                         <button
                           key={key}
@@ -627,7 +648,7 @@ export default function AssignmentDetailPage() {
                         </p>
                       ) : visibleComments.length === 0 ? (
                         <p className="text-[12px] text-surface-400 text-center py-4">
-                          {activeTab === "general" ? "Henüz sınıf yorumu yok." : "Henüz özel yorum yok."}
+                          {activeTab === "general" ? "Henüz genel yorum yok." : "Henüz yorum yok."}
                         </p>
                       ) : (
                         visibleComments.map(c => (

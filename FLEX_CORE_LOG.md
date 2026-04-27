@@ -75,4 +75,11 @@
 | 70 | 2026-04-27 | StudentSidebar yeniden tasarım: avatar/isim kaldırıldı, admin-style Çıkış Yap butonu, aktif nav highlight | `StudentSidebar.tsx` |
 | 71 | 2026-04-27 | getStudentTaskSubmission: orderBy kaldırıldı → composite index gerekmez (FAILED_PRECONDITION fix) | `lib/submissions.ts` |
 | 72 | 2026-04-27 | Firestore indexes deploy edildi (submissions: studentId+taskId+submittedAt) | `firestore.indexes.json` |
-| 73 | 2026-04-27 | [BEKLEYEN] Google Drive refresh token expired (Testing mod → 7 günde expire) — gece OAuth yenileme yapılacak | `scripts/refresh-google-token.mjs` |
+| 73 | 2026-04-27 | [ÇÖZÜLDÜ] Google Drive refresh token — OAuth app publish edildi (Testing→Production), yeni token alındı | `scripts/refresh-google-token.mjs`, `.env.local` |
+| 74 | 2026-04-28 | Login sessiz kalma: cookie race condition — getIdToken+getDoc paralel, router.push öncesi cookie set | `login/page.tsx` |
+| 75 | 2026-04-28 | Banner image git'e eklendi (public/assets/templates/desgin-studio-templale-01.jpg — untracked'dı) | `public/assets/templates/` |
+| 76 | 2026-04-28 | Firestore rules: isStudentOwner + isSubmissionOwner helper'ları — submissions/comments, submission_files, submission_timeline öğrenci okuma izni | `firestore.rules` |
+| 77 | 2026-04-28 | Öğrenci yorum gönderme: addDoc'a authorId (auth.currentUser.uid) eklendi — permission denied fix | `student/[studentId]/[taskId]/page.tsx` |
+| 78 | 2026-04-28 | Öğrenci görev sayfası: undefined daysLate fix, HistoryRow'a ExternalLink ikonu, auth import | `student/[studentId]/[taskId]/page.tsx` |
+| 79 | 2026-04-28 | FilePreview: iframe src /preview URL fix, mimeType ile dosya tipi tespiti, driveFileId thumbnail desteği | `components/assignment-test/FilePreview.tsx` |
+| 80 | 2026-04-28 | Eğitmen ödev detay: inline dosya kartı (Drive + İndir butonları), tab "Genel" + öğrenci adı | `dashboard/assignment-test/[groupId]/[assignmentId]/page.tsx` |
