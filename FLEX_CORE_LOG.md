@@ -67,3 +67,12 @@
 | 62 | 2026-04-26 | Ödev yükle sayfası: sidebar eklendi, upload alanı büyütüldü, yorum paneli sağda korundu | `student/[studentId]/[taskId]/page.tsx` |
 | 63 | 2026-04-26 | Sidebar: Sınıf Ligi widget (grup bazlı sıralama) + /league nav linki | `StudentSidebar.tsx`, `StudentLeagueWidget.tsx` |
 | 64 | 2026-04-26 | dev-seed yanıtına studentId + studentPortalUrl eklendi | `api/dev-seed/route.ts` |
+| 65 | 2026-04-27 | Firestore rules: users self-read short-circuit (Missing or insufficient permissions fix) | `firestore.rules` |
+| 66 | 2026-04-27 | Login redirect: Auth UID → students doc ID (studentDocId alanı via welcome API) | `login/page.tsx`, `api/welcome/route.ts` |
+| 67 | 2026-04-27 | students koleksiyonu: `allow read: if isSignedIn()` (StudentLeagueWidget grup sorgusu) | `firestore.rules` |
+| 68 | 2026-04-27 | /league route koruması: middleware + matcher güncellendi (artık login zorunlu) | `middleware.ts` |
+| 69 | 2026-04-27 | /league sayfası: StudentSidebar + sidebarReady flash önleme | `league/page.tsx` |
+| 70 | 2026-04-27 | StudentSidebar yeniden tasarım: avatar/isim kaldırıldı, admin-style Çıkış Yap butonu, aktif nav highlight | `StudentSidebar.tsx` |
+| 71 | 2026-04-27 | getStudentTaskSubmission: orderBy kaldırıldı → composite index gerekmez (FAILED_PRECONDITION fix) | `lib/submissions.ts` |
+| 72 | 2026-04-27 | Firestore indexes deploy edildi (submissions: studentId+taskId+submittedAt) | `firestore.indexes.json` |
+| 73 | 2026-04-27 | [BEKLEYEN] Google Drive refresh token expired (Testing mod → 7 günde expire) — gece OAuth yenileme yapılacak | `scripts/refresh-google-token.mjs` |

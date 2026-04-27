@@ -16,6 +16,14 @@ import {
 } from "lucide-react";
 import { useScoring } from "@/app/context/ScoringContext";
 import { calcStudentFinalScore, safe, ScoringSettings } from "@/app/lib/scoring";
+import { auth, db } from "@/app/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import StudentSidebar from "@/app/components/student/StudentSidebar";
+
+interface SidebarData {
+  studentId: string;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -568,6 +576,36 @@ function LeagueContent() {
   const [error,           setError]           = useState<string | null>(null);
   const [apiSettings,     setApiSettings]     = useState<ScoringSettings | null>(null);
   const [apiSeasonId,     setApiSeasonId]     = useState<string | null>(null);
+  const [sidebarData,  setSidebarData]  = useState<SidebarData | null>(null);
+  const [sidebarReady, setSidebarReady] = useState(false);
+
+  // Giriş yapan öğrencinin verilerini çek (sidebar için)
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) { setSidebarReady(true); return; }
+      try {
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        if (!userSnap.exists()) { setSidebarReady(true); return; }
+        const data = userSnap.data();
+
+        const role = data.role || data.roles?.[0];
+        if (role !== "student") { setSidebarReady(true); return; }
+
+        let studentDocId = data.studentDocId as string | undefined;
+        if (!studentDocId) {
+          const snap = await getDocs(
+            query(collection(db, "students"), where("authUid", "==", user.uid))
+          );
+          if (!snap.empty) studentDocId = snap.docs[0].id;
+        }
+        if (!studentDocId) { setSidebarReady(true); return; }
+
+        setSidebarData({ studentId: studentDocId });
+      } catch { /* ignore */ }
+      setSidebarReady(true);
+    });
+    return () => unsub();
+  }, []);
 
   // ScoringContext: login olunca gerçek ayarlar gelir, logout'ta DEFAULT_SCORING (bonusMultiplier=1) kalır.
   // API'den gelen ayarlar (admin SDK, auth gerektirmez) her zaman doğru — onları öncelik olarak kullan.
@@ -881,19 +919,42 @@ function LeagueContent() {
 
 
   // ── Render ────────────────────────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-surface-50 font-inter antialiased text-text-primary">
-
-      {/* ── TOP BAR ──────────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-surface-200 px-6 py-4 flex items-center justify-between sticky top-0 z-30" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
-        <div className="flex items-center gap-1 select-none">
-          <span className="text-[22px] font-semibold text-[#FF8D28]">tasarım</span>
-          <span className="text-[22px] font-bold text-text-primary">atölyesi</span>
-        </div>
-        <FilterDropdown selectedBranch={selectedBranch} branches={branches} onChange={setSelectedBranch} />
+  if (!sidebarReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-surface-50">
+        <div className="w-6 h-6 border-2 border-surface-100 border-t-[#FF8D28] rounded-full animate-spin" />
       </div>
+    );
+  }
 
-      <div className="w-[94%] mx-auto py-8 max-w-7xl xl:max-w-400 2xl:max-w-480">
+  return (
+    <div className="flex h-screen overflow-hidden font-inter antialiased text-text-primary">
+
+      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
+      {sidebarData && (
+        <aside className="hidden lg:flex h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-base-primary-900">
+          <StudentSidebar studentId={sidebarData.studentId} />
+        </aside>
+      )}
+
+      {/* ── İçerik alanı ────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-surface-50">
+
+        {/* ── TOP BAR ────────────────────────────────────────────────────── */}
+        <div className="bg-white border-b border-surface-200 px-6 py-4 flex items-center justify-between shrink-0 z-30" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+          {!sidebarData && (
+            <div className="flex items-center gap-1 select-none">
+              <span className="text-[22px] font-semibold text-[#FF8D28]">tasarım</span>
+              <span className="text-[22px] font-bold text-text-primary">atölyesi</span>
+            </div>
+          )}
+          {sidebarData && <div />}
+          <FilterDropdown selectedBranch={selectedBranch} branches={branches} onChange={setSelectedBranch} />
+        </div>
+
+        {/* ── Scrollable content ─────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
+        <div className="w-[94%] mx-auto py-8 max-w-7xl xl:max-w-400 2xl:max-w-480">
 
         {/* ── HEADER BAR ───────────────────────────────────────────────── */}
         <div className="bg-base-primary-500 rounded-20 px-6 py-5 mb-3 flex items-center gap-5">
@@ -1054,8 +1115,9 @@ function LeagueContent() {
 
           </div>
         )}
-      </div>
-
+        </div>
+        </div>
+        </div>
 
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }

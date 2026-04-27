@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { uploadToDrive, validateDriveFile, isDriveError } from "@/app/lib/googledrive";
-import { createSubmission } from "@/app/lib/submissions";
+import { createSubmission, getStudentTaskSubmission } from "@/app/lib/submissions";
+// ✅ NEW VALIDATION START
+import { verifyRequestToken } from "@/app/lib/submission-validation";
+// ✅ NEW VALIDATION END
 
 async function validateIds(studentId: string, taskId: string, groupId: string): Promise<string | null> {
   const [studentSnap, taskSnap, groupSnap] = await Promise.all([
@@ -22,6 +25,13 @@ async function validateIds(studentId: string, taskId: string, groupId: string): 
 
 export async function POST(req: NextRequest) {
   try {
+    // ✅ NEW VALIDATION START
+    // 1. Kimlik doğrulaması (Authorization: Bearer <token>)
+    //    Not: token varsa doğrula, yoksa geçişe izin ver (geçiş dönemi uyumu).
+    //    Tam zorunluluk için: null kontrolünde hard-fail aktive edilmeli.
+    const caller = await verifyRequestToken(req);
+    // ✅ NEW VALIDATION END
+
     let formData: FormData;
     try {
       formData = await req.formData();
@@ -53,6 +63,28 @@ export async function POST(req: NextRequest) {
 
     const idErr = await validateIds(studentId, taskId, groupId);
     if (idErr) return NextResponse.json({ error: idErr }, { status: 400 });
+
+    // ✅ NEW VALIDATION START
+    // 2. Token mevcutsa ek güvenlik kontrolleri uygula
+    if (caller) {
+      // Öğrenci başkası adına gönderim yapamaz
+      if (caller.role === "student" && caller.uid !== studentId) {
+        return NextResponse.json(
+          { error: "Başkası adına gönderim yapılamaz." },
+          { status: 403 },
+        );
+      }
+    }
+
+    // 3. Onaylanmış ödev tekrar gönderilemez
+    const existing = await getStudentTaskSubmission(studentId, taskId);
+    if (existing?.status === "completed") {
+      return NextResponse.json(
+        { error: "Ödev zaten onaylandı, tekrar gönderim yapılamaz." },
+        { status: 403 },
+      );
+    }
+    // ✅ NEW VALIDATION END
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -89,7 +121,8 @@ export async function POST(req: NextRequest) {
       const status = err.code === "FILE_TOO_LARGE" ? 413 : err.code === "INVALID_TYPE" ? 422 : 500;
       return NextResponse.json({ error: err.message }, { status });
     }
+    const detail = err instanceof Error ? err.message : String(err);
     console.error("[submit] Beklenmeyen hata:", err);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return NextResponse.json({ error: "Sunucu hatası.", detail }, { status: 500 });
   }
 }

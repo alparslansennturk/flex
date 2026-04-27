@@ -105,7 +105,6 @@ export async function getStudentTaskSubmission(
   const snap = await adminDb.collection(COL)
     .where("studentId", "==", studentId)
     .where("taskId",    "==", taskId)
-    .orderBy("submittedAt", "desc")
     .limit(1)
     .get();
   if (snap.empty) return null;

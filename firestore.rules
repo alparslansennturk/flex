@@ -7,7 +7,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Schema validation: zorunlu user field'larını kontrol eder
     function isValidUser(data) {
       return data.keys().hasAll(['email', 'name', 'surname', 'roles']) &&
              data.email is string &&
@@ -20,13 +19,11 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
-    // Gizli sistem sahibi — Firestore'a bakmadan tam yetki
     function isSuperAdmin() {
       return isSignedIn() &&
         request.auth.token.email == 'flexos.platform@gmail.com';
     }
 
-    // Firestore dokümanındaki rollere bak (diğer kullanıcılar için)
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(currentUid())).data;
     }
@@ -50,7 +47,7 @@ service cloud.firestore {
     // ─── students ─────────────────────────────────────────────────────────────
 
     match /students/{studentId} {
-      allow read: if isSignedIn() && (isAdmin() || isInstructor());
+      allow read: if isSignedIn();
       allow create: if isAdmin() || isInstructor();
       allow update: if isAdmin() || isInstructor();
       allow delete: if isAdmin() || hasPermissionOverride('CLASS_MANAGE');
@@ -68,10 +65,32 @@ service cloud.firestore {
     // ─── users ────────────────────────────────────────────────────────────────
 
     match /users/{userId} {
-      allow read: if isSignedIn() && (isAdmin() || isInstructor() || currentUid() == userId);
-      allow update: if isSignedIn() && (isAdmin() || currentUid() == userId);
+      allow read: if isSignedIn() && (currentUid() == userId || isAdmin() || isInstructor());
+      allow update: if isSignedIn() && (currentUid() == userId || isAdmin());
       allow create: if isAdmin() && isValidUser(request.resource.data);
       allow delete: if isAdmin();
+    }
+
+    // ─── memberships ─────────────────────────────────────────────────────────
+    //
+    // Okuma: sadece kendi kaydı (öğrenci kendi grup üyeliğini görebilir)
+    // Yazma: Admin SDK üzerinden backend halleder
+
+    match /memberships/{membershipId} {
+      allow read: if isSignedIn() && (
+        isInstructor() ||
+        resource.data.userId == currentUid()
+      );
+      allow create, update, delete: if false;
+    }
+
+    // ─── codes ───────────────────────────────────────────────────────────────
+    //
+    // Aktivasyon kodları — yalnızca Admin SDK (server-side) erişir.
+    // Client-side erişim her işlemde kapalıdır.
+
+    match /codes/{codeId} {
+      allow read, write: if false;
     }
 
     // ─── tasks ────────────────────────────────────────────────────────────────
@@ -154,31 +173,17 @@ service cloud.firestore {
     }
 
     // ─── submissions ──────────────────────────────────────────────────────────
-    //
-    // Öğrenci → kendi submission'ını okuyabilir (student portal için)
-    // Öğretmen/Admin → tüm submission'ları okuyabilir, status güncelleyebilir
-    // Create → sadece server-side API route (Admin SDK) — client kuralı yok
-    //
-    // NOT: createSubmission işlemi Admin SDK ile yapıldığı için bu kurala takılmaz.
-    // Buradaki kurallar client-side (student portal) erişim içindir.
 
     match /submissions/{submissionId} {
-      // Öğrenci kendi kaydını okuyabilir
       allow read: if isSignedIn() && (
         isInstructor() ||
-        resource.data.studentId == currentUid()
+        resource.data.studentId == currentUid() ||
+        get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.authUid == currentUid()
       );
-
-      // Sadece instructor/admin status ve not güncelleyebilir
       allow update: if isInstructor() &&
-        // Sadece izin verilen alanları güncelleyebilir
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['status', 'grade', 'feedback', 'gradedBy', 'reviewedAt', 'gradedAt', 'updatedAt']);
-
-      // Silme sadece admin
       allow delete: if isAdmin();
-
-      // Create: client-side create yok — API route (Admin SDK) halleder
       allow create: if false;
     }
 
@@ -197,10 +202,6 @@ service cloud.firestore {
     }
 
     // ─── submission_comments ──────────────────────────────────────────────────
-    //
-    // Teacher/Admin → tüm comment'leri okur, oluşturur, siler
-    // Student       → sadece kendi submission'ına ait comment'leri okur ve oluşturur
-    // Create → server-side (Admin SDK) veya isRead/order kontrolü ile client
 
     match /submission_comments/{commentId} {
       allow read: if isSignedIn() && (
@@ -209,37 +210,26 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() && (
         isInstructor() ||
-        // Öğrenci kendi adına yorum yapabilir
         (request.resource.data.authorId == currentUid() &&
          request.resource.data.authorType == "student")
       );
       allow update: if isInstructor() ||
-        // Öğrenci sadece kendi yorumunu isRead=true yapabilir
         (resource.data.authorId == currentUid() &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["isRead"]));
       allow delete: if isInstructor();
     }
 
     // ─── submission_timeline ──────────────────────────────────────────────────
-    //
-    // Sadece server-side yazılır (Admin SDK).
-    // Öğrenci → kendi kayıtlarını okuyabilir.
-    // Teacher → tüm kayıtları okuyabilir.
 
     match /submission_timeline/{entryId} {
       allow read: if isSignedIn() && (
         isInstructor() ||
         resource.data.studentId == currentUid()
       );
-      // Create/update/delete → yalnızca Admin SDK (server-side); client'tan kapalı
       allow create, update, delete: if false;
     }
 
     // ─── submission_files ─────────────────────────────────────────────────────
-    //
-    // Teacher → tüm dosyaları okur
-    // Student → kendi submission'ına ait dosyaları okur
-    // Write   → yalnızca server-side (Admin SDK)
 
     match /submission_files/{fileId} {
       allow read: if isSignedIn() && (

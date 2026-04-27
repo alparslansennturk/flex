@@ -1,6 +1,15 @@
 {
   "indexes": [
     {
+      "collectionGroup": "submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "studentId",   "order": "ASCENDING" },
+        { "fieldPath": "taskId",      "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "submission_files",
       "queryScope": "COLLECTION",
       "fields": [
