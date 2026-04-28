@@ -83,3 +83,6 @@
 | 78 | 2026-04-28 | Öğrenci görev sayfası: undefined daysLate fix, HistoryRow'a ExternalLink ikonu, auth import | `student/[studentId]/[taskId]/page.tsx` |
 | 79 | 2026-04-28 | FilePreview: iframe src /preview URL fix, mimeType ile dosya tipi tespiti, driveFileId thumbnail desteği | `components/assignment-test/FilePreview.tsx` |
 | 80 | 2026-04-28 | Eğitmen ödev detay: inline dosya kartı (Drive + İndir butonları), tab "Genel" + öğrenci adı | `dashboard/assignment-test/[groupId]/[assignmentId]/page.tsx` |
+| 81 | 2026-04-28 | Tamamlananlar sıralaması: submittedAt bazlı (endDate fallback) | `student/[studentId]/page.tsx` |
+| 82 | 2026-04-28 | Öğrenci dashboard header: groupCode gösterimi + studentFullName fix | `student/[studentId]/page.tsx` |
+| 83 | 2026-04-28 | [YAPILACAK] Google Drive klasör yapısı: Gruplar/{groupCode}/{öğrenciAdı} — googledrive.ts'e getOrCreateFolder + submit API güncelleme (~10 dk) | `lib/googledrive.ts`, `api/submit/route.ts` |

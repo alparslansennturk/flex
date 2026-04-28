@@ -44,6 +44,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        // Middleware için role cookie — token refresh'te de güncellenir
+        firebaseUser.getIdToken().then(token => {
+          document.cookie = `flex-token=${token}; path=/; max-age=3600; SameSite=Lax`;
+        });
+
         // Aynı kullanıcının token refresh'i → yeni listener açma, mevcut çalışmaya devam etsin
         if (activeUid === firebaseUser.uid) return;
 
@@ -60,6 +65,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         });
       } else {
         activeUid = null;
+        document.cookie = "flex-token=; path=/; max-age=0";
         if (unsubscribeDoc) {
           unsubscribeDoc();
           unsubscribeDoc = null;

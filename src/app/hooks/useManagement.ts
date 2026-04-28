@@ -637,10 +637,10 @@ studentData.isScoreHidden = false;
 await updateDoc(doc(db,"students",editingStudentId),studentData);
 setStudents((prev)=>prev.map((s)=>(s.id===editingStudentId?{...s,...studentData}:s)));
 }else{
-await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
+const newStudentRef = await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
 await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
 if(email?.trim()){
-  fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),name:`${name.trim()} ${lastName.trim()}`,groupCode:studentData.groupCode??""})}).catch((e)=>console.error("[welcome mail]",e));
+  fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),name:`${name.trim()} ${lastName.trim()}`,groupCode:studentData.groupCode??"",groupId,studentDocId:newStudentRef.id})}).catch((e)=>console.error("[welcome mail]",e));
 }
 }
 }catch(error){

@@ -71,7 +71,7 @@ export default function GroupCard({
     <>
       <div
         onClick={onClick}
-        className="group relative bg-white border border-surface-200 rounded-2xl p-6 cursor-pointer
+        className="group relative bg-white border border-surface-300 rounded-2xl p-6 cursor-pointer
           hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-200"
       >
         {/* Üst: başlık + butonlar */}

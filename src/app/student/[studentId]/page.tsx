@@ -22,6 +22,7 @@ interface Student {
   gender?: string;
   avatarId?: number;
   groupId: string;
+  groupCode?: string;
 }
 
 interface TaskRow {
@@ -43,6 +44,7 @@ interface SubInfo {
   feedback?: string;
   isLate: boolean;
   daysLate?: number;
+  submittedAt?: Date;
 }
 
 type Filter = "all" | "active" | "completed";
@@ -116,11 +118,12 @@ export default function StudentDashboard() {
       if (!stuSnap.exists()) return;
       const sd = stuSnap.data();
       const student: Student = {
-        name:     sd.name     ?? "",
-        lastName: sd.lastName ?? "",
-        gender:   sd.gender,
-        avatarId: sd.avatarId,
-        groupId:  sd.groupId  ?? "",
+        name:      sd.name      ?? "",
+        lastName:  sd.lastName  ?? "",
+        gender:    sd.gender,
+        avatarId:  sd.avatarId,
+        groupId:   sd.groupId   ?? "",
+        groupCode: sd.groupCode ?? "",
       };
       setStudent(student);
 
@@ -148,13 +151,14 @@ export default function StudentDashboard() {
         const curr = map[data.taskId];
         if (!curr || data.iteration > curr.iteration) {
           map[data.taskId] = {
-            id:        d.id,
-            status:    data.status,
-            iteration: data.iteration ?? 1,
-            grade:     data.grade,
-            feedback:  data.feedback,
-            isLate:    data.isLate ?? false,
-            daysLate:  data.daysLate,
+            id:          d.id,
+            status:      data.status,
+            iteration:   data.iteration ?? 1,
+            grade:       data.grade,
+            feedback:    data.feedback,
+            isLate:      data.isLate ?? false,
+            daysLate:    data.daysLate,
+            submittedAt: data.submittedAt?.toDate?.() ?? undefined,
           };
         }
       });
@@ -179,7 +183,11 @@ export default function StudentDashboard() {
 
   const pastTasks    = tasks
     .filter(t => { const d = parseDate(t.endDate); return d ? d < today : false; })
-    .sort((a, b) => (parseDate(b.endDate)?.getTime() ?? 0) - (parseDate(a.endDate)?.getTime() ?? 0));
+    .sort((a, b) => {
+      const sa = subMap[a.id]?.submittedAt?.getTime() ?? parseDate(a.endDate)?.getTime() ?? 0;
+      const sb = subMap[b.id]?.submittedAt?.getTime() ?? parseDate(b.endDate)?.getTime() ?? 0;
+      return sb - sa;
+    });
 
   const showActive   = filter === "all" || filter === "active";
   const showPast     = filter === "all" || filter === "completed";
@@ -217,8 +225,10 @@ export default function StudentDashboard() {
                 {/* Üst başlık */}
                 <div className="flex items-end gap-4 mb-7">
                   <div>
-                    <p className="text-[12px] font-medium text-surface-400">Öğrenci Paneli</p>
-                    <h1 className="text-[22px] font-bold text-base-primary-900 leading-tight">{student.name}</h1>
+                    <p className="text-[12px] font-medium text-surface-400">
+                      {student.groupCode ? `${student.groupCode} · Öğrenci Paneli` : "Öğrenci Paneli"}
+                    </p>
+                    <h1 className="text-[22px] font-bold text-base-primary-900 leading-tight">{studentFullName}</h1>
                   </div>
                 </div>
 
