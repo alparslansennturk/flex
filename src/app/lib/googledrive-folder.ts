@@ -73,6 +73,7 @@ export async function createFolderStructure(
   groupName: string,              // "Grup Test-01"
   userName:  string,              // "Ahmet Yılmaz"
   userRole:  "student" | "instructor",
+  taskName?: string,              // "Kolaj Bahçesi" — opsiyonel 5. seviye
 ): Promise<FolderStructureResult> {
   const rawRoot = (process.env.GOOGLE_DRIVE_FOLDER_ID ?? "")
     .replace(/^["']|["']$/g, "")
@@ -85,15 +86,25 @@ export async function createFolderStructure(
   // 1. /Gruplar
   const groupsFolderId = await ensureFolderExists("Gruplar", rawRoot, token);
 
-  // 2. /Gruplar/{groupName}  →  örn: "Grup Test-01"
+  // 2. /Gruplar/{groupName}
   const groupFolderId = await ensureFolderExists(groupName, groupsFolderId, token);
 
   // 3. /Gruplar/{groupName}/Öğrenciler|Eğitmen
   const roleFolder   = userRole === "student" ? "Öğrenciler" : "Eğitmen";
   const roleFolderId = await ensureFolderExists(roleFolder, groupFolderId, token);
 
-  // 4. /Gruplar/{groupName}/Öğrenciler/{userName}  →  örn: "Ahmet Yılmaz"
+  // 4. /Gruplar/{groupName}/Öğrenciler/{userName}
   const userFolderId = await ensureFolderExists(userName, roleFolderId, token);
+
+  // 5. (opsiyonel) /Gruplar/{groupName}/Öğrenciler/{userName}/{taskName}
+  if (taskName?.trim()) {
+    const safeTask     = taskName.trim();
+    const taskFolderId = await ensureFolderExists(safeTask, userFolderId, token);
+    return {
+      folderId:   taskFolderId,
+      folderPath: `/Gruplar/${groupName}/${roleFolder}/${userName}/${safeTask}`,
+    };
+  }
 
   return {
     folderId:   userFolderId,

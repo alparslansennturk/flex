@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMail } from "@/app/lib/email";
+import { createFolderStructure } from "@/app/lib/googledrive-folder";
+import { uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
 
 interface DrawResult {
   category: string;
@@ -13,13 +15,14 @@ interface KolajMailRequest {
   taskName: string;
   draws: DrawResult[];
   deadline: string;
-  pdfBase64: string; // client tarafında üretilmiş PDF
+  pdfBase64: string;
+  groupName?: string; // Drive'a kaydetmek için grup kodu
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: KolajMailRequest = await req.json();
-    const { to, studentName, taskName, draws, deadline, pdfBase64 } = body;
+    const { to, studentName, studentLastName, taskName, draws, deadline, pdfBase64, groupName } = body;
 
     if (!to || !draws?.length) {
       return NextResponse.json({ error: "Eksik parametre." }, { status: 400 });
@@ -67,6 +70,22 @@ export async function POST(req: NextRequest) {
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    // Mail gönderildi — Drive'a da kaydet (non-fatal, hata olsa da mail gönderildi sayılır)
+    if (pdfBase64 && groupName?.trim() && studentName && studentLastName && taskName) {
+      try {
+        const studentFullName = `${studentName} ${studentLastName}`.trim();
+        const { folderId } = await createFolderStructure(
+          groupName.trim(), studentFullName, "student", taskName,
+        );
+        const pdfBuffer = Buffer.from(pdfBase64, "base64");
+        const fileName  = `kolaj-${studentFullName}.pdf`;
+        const { fileId } = await uploadBufferToFolder(pdfBuffer, fileName, "application/pdf", folderId);
+        await setPublicReadPermission(fileId);
+      } catch (driveErr) {
+        console.warn("[send-kolaj] Drive upload atlandı:", driveErr);
+      }
     }
 
     return NextResponse.json({ success: true });

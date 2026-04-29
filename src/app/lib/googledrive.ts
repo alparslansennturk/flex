@@ -229,6 +229,59 @@ export async function uploadToDrive(
   };
 }
 
+// ─── Upload to Specific Folder ───────────────────────────────────────────────
+
+/**
+ * Buffer'ı belirtilen Drive klasörüne yükler (küçük dosyalar için — multipart).
+ * Validation yapmaz, klasör ID'si çağıran tarafından sağlanır.
+ */
+export async function uploadBufferToFolder(
+  buffer:   Buffer,
+  fileName: string,
+  mimeType: string,
+  folderId: string,
+): Promise<{ fileId: string; webViewLink: string }> {
+  const token    = await getAccessToken();
+  const boundary = "flex_drive_boundary_9xKp";
+
+  const metaJson = JSON.stringify({ name: fileName, parents: [folderId] });
+  const metaPart = Buffer.from(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metaJson}\r\n`,
+    "utf-8",
+  );
+  const filePart = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`, "utf-8"),
+    buffer,
+    Buffer.from(`\r\n--${boundary}--`, "utf-8"),
+  ]);
+  const body = Buffer.concat([metaPart, filePart]);
+
+  const uploadRes = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files" +
+    "?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true",
+    {
+      method: "POST",
+      headers: {
+        Authorization:    `Bearer ${token}`,
+        "Content-Type":   `multipart/related; boundary=${boundary}`,
+        "Content-Length": String(body.length),
+      },
+      body,
+    },
+  );
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    throw driveError("UPLOAD_FAILED", `Drive upload başarısız (${uploadRes.status}): ${errText}`);
+  }
+
+  const uploaded = await uploadRes.json() as { id: string; webViewLink?: string };
+  return {
+    fileId:      uploaded.id,
+    webViewLink: uploaded.webViewLink ?? `https://drive.google.com/file/d/${uploaded.id}/view`,
+  };
+}
+
 // ─── Resumable Upload ─────────────────────────────────────────────────────────
 
 /**

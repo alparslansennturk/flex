@@ -139,14 +139,16 @@ export async function POST(req: NextRequest) {
 
     const sd        = studentSnap.data()!;
     const gd        = groupSnap.data()!;
+    const td        = taskSnap.data()!;
     const groupName = (gd.code as string | undefined)?.trim() || groupId;
     const userName  = userRole === "student"
       ? `${sd.name ?? ""} ${sd.lastName ?? ""}`.trim() || studentId
       : (gd.instructor as string | undefined)?.trim() || "Eğitmen";
+    const taskLabel = (td.name as string | undefined)?.trim() || undefined;
 
     let folderResult: { folderId: string; folderPath: string };
     try {
-      folderResult = await createFolderStructure(groupName, userName, userRole);
+      folderResult = await createFolderStructure(groupName, userName, userRole, taskLabel);
     } catch (folderErr) {
       const detail = folderErr instanceof Error ? folderErr.message : String(folderErr);
       console.error("[init-resumable-upload] Klasör oluşturulamadı:", folderErr);

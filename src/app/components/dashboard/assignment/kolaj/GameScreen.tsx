@@ -74,11 +74,12 @@ function DroppedCard({ draw, index }: { draw: DrawResult; index: number }) {
 // ─── FinalOverlay ─────────────────────────────────────────────────────────────
 
 function FinalOverlay({
-  student, draw, task, onAdvance, onClose, isPastView, autoMailSent, noMoreStudents,
+  student, draw, task, groupName, onAdvance, onClose, isPastView, autoMailSent, noMoreStudents,
 }: {
   student: Student;
   draw: StudentDraw;
   task: TaskData;
+  groupName: string;
   onAdvance: () => void;
   onClose: () => void;
   isPastView?: boolean;
@@ -150,6 +151,7 @@ function FinalOverlay({
           draws:           draw.draws,
           deadline,
           pdfBase64,
+          groupName,
         }),
       });
       if (!res.ok) throw new Error("Mail gönderilemedi.");
@@ -547,6 +549,7 @@ export default function GameScreen({
               draws:           completedDraw.draws,
               deadline,
               pdfBase64,
+              groupName:       groupCode,
             }),
           })
         ).then(() => setAutoMailSentFor(prev => new Set([...prev, sid])))
@@ -976,6 +979,7 @@ export default function GameScreen({
         student={overlayStudent}
         draw={overlayDraw}
         task={task}
+        groupName={groupCode}
         onAdvance={handleAdvance}
         onClose={handleClose}
         isPastView={isPastView}
