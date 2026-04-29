@@ -5,12 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
   doc, getDoc, getDocs, collection, query, where,
-  onSnapshot, orderBy, addDoc, serverTimestamp,
+  onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import {
   ArrowLeft, Loader2, RotateCcw, CheckCircle2,
-  Send, Download, FileText, ChevronLeft, ChevronRight,
+  Send, Download, FileText, ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Trash2,
 } from "lucide-react";
 import type { Submission, SubmissionStatus } from "@/app/types/submission";
 
@@ -108,9 +108,9 @@ export default function SubmissionPreviewPage() {
 
   /* Real-time: öğrenci–eğitmen thread */
   useEffect(() => {
-    if (!submissionId) return;
+    if (!submission?.taskId || !submission?.studentId) return;
     const q = query(
-      collection(db, "submissions", submissionId, "comments"),
+      collection(db, "tasks", submission.taskId, "threads", submission.studentId, "comments"),
       orderBy("createdAt", "asc"),
     );
     return onSnapshot(q, snap => {
@@ -122,8 +122,8 @@ export default function SubmissionPreviewPage() {
         text:       d.data().text ?? d.data().body ?? "",
         createdAt:  d.data().createdAt?.toDate?.() ?? new Date(),
       })));
-    });
-  }, [submissionId]);
+    }, err => { if (err.code !== "permission-denied") console.error("[preview-comments]", err); });
+  }, [submission?.taskId, submission?.studentId]);
 
   /* Yeni yorum gelince en alta kaydır */
   useEffect(() => {
@@ -238,18 +238,34 @@ export default function SubmissionPreviewPage() {
     }
   }
 
+  async function editComment(id: string, newText: string) {
+    if (!submission) return;
+    await updateDoc(
+      doc(db, "tasks", submission.taskId, "threads", submission.studentId, "comments", id),
+      { text: newText, editedAt: serverTimestamp() },
+    );
+  }
+
+  async function deleteComment(id: string) {
+    if (!submission) return;
+    await deleteDoc(doc(db, "tasks", submission.taskId, "threads", submission.studentId, "comments", id));
+  }
+
   async function sendComment() {
-    if (!user || !commentText.trim() || sendingComment) return;
+    if (!user || !commentText.trim() || sendingComment || !submission) return;
     setSendingComment(true);
     const authorName = `${user.name ?? ""} ${user.surname ?? ""}`.trim() || "Eğitmen";
     try {
-      await addDoc(collection(db, "submissions", submissionId, "comments"), {
-        authorId:   user.uid,
-        authorType: "teacher",
-        authorName,
-        text:       commentText.trim(),
-        createdAt:  serverTimestamp(),
-      });
+      await addDoc(
+        collection(db, "tasks", submission.taskId, "threads", submission.studentId, "comments"),
+        {
+          authorId:   user.uid,
+          authorType: "teacher",
+          authorName,
+          text:       commentText.trim(),
+          createdAt:  serverTimestamp(),
+        },
+      );
       setCommentText("");
     } finally {
       setSendingComment(false);
@@ -432,7 +448,7 @@ export default function SubmissionPreviewPage() {
                   </p>
                 </div>
               ) : (
-                comments.map(c => <ThreadMessage key={c.id} comment={c} myId={user.uid} />)
+                comments.map(c => <ThreadMessage key={c.id} comment={c} myId={user.uid} onEdit={editComment} onDelete={deleteComment} />)
               )}
               <div ref={commentsEndRef} />
             </div>
@@ -478,42 +494,105 @@ export default function SubmissionPreviewPage() {
 
 /* ── ThreadMessage ── */
 
-function ThreadMessage({ comment, myId }: { comment: CommentItem; myId: string }) {
+function ThreadMessage({
+  comment, myId, onEdit, onDelete,
+}: {
+  comment: CommentItem;
+  myId: string;
+  onEdit?: (id: string, newText: string) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing,  setEditing]  = useState(false);
+  const [editText, setEditText] = useState(comment.text);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
   const isMe      = comment.authorId === myId;
   const isTeacher = comment.authorType === "teacher";
+  const canAct    = isMe;
+  const parts     = comment.authorName.trim().split(" ");
+  const initials  = ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
 
-  /* İlk harf baş harfleri */
-  const parts    = comment.authorName.trim().split(" ");
-  const initials = ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
+  async function saveEdit() {
+    const t = editText.trim();
+    if (!t || t === comment.text) { setEditing(false); return; }
+    await onEdit?.(comment.id, t);
+    setEditing(false);
+  }
 
   return (
-    <div className={`flex gap-2.5 items-start ${isMe ? "flex-row-reverse" : ""}`}>
-      {/* Avatar */}
+    <div className={`flex gap-2.5 items-start group ${isMe ? "flex-row-reverse" : ""}`}>
       <div className={`w-7 h-7 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 select-none
-        ${isTeacher
-          ? "bg-base-primary-600 text-white"
-          : "bg-surface-200 text-surface-600"
-        }`}
+        ${isTeacher ? "bg-base-primary-600 text-white" : "bg-surface-200 text-surface-600"}`}
       >
         {initials}
       </div>
-
-      {/* Balon */}
-      <div className={`max-w-[78%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
-        <span className={`text-[11px] font-semibold text-surface-400 ${isMe ? "text-right" : "text-left"}`}>
-          {isMe ? "Sen" : comment.authorName}
-        </span>
-        <div className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-snug
-          ${isMe
-            ? "bg-base-primary-600 text-white rounded-tr-sm"
-            : "bg-surface-100 text-text-primary rounded-tl-sm"
-          }`}
-        >
-          {comment.text}
+      <div className={`max-w-[78%] flex flex-col gap-0.5 ${isMe ? "items-end" : "items-start"}`}>
+        <div className={`flex items-center gap-1 ${isMe ? "flex-row-reverse" : ""}`}>
+          <span className="text-[11px] font-semibold text-surface-400">
+            {isMe ? "Sen" : comment.authorName}
+          </span>
+          {canAct && !editing && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
+                className="p-1 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-500 hover:text-surface-800 transition-colors cursor-pointer"
+              >
+                <MoreHorizontal size={13} />
+              </button>
+              {menuOpen && (
+                <div
+                  className={`absolute z-20 top-5 ${isMe ? "right-0" : "left-0"} bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden min-w-[100px]`}
+                >
+                  <button
+                    onClick={() => { setEditText(comment.text); setEditing(true); setMenuOpen(false); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
+                  >
+                    <Pencil size={11} /> Düzenle
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); onDelete?.(comment.id); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-status-danger-600 hover:bg-status-danger-50 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={11} /> Sil
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <span className="text-[10px] text-surface-400">
-          {fmtTime(comment.createdAt)}
-        </span>
+        {editing ? (
+          <div className="flex flex-col gap-1.5 w-full">
+            <textarea
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEdit(); } }}
+              rows={2}
+              autoFocus
+              className="w-full resize-none rounded-xl border border-base-primary-300 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-500 bg-white"
+            />
+            <div className="flex gap-1">
+              <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-surface-100 text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer">İptal</button>
+              <button onClick={saveEdit} className="px-2.5 py-1 text-[11px] rounded-lg bg-base-primary-600 text-white hover:bg-base-primary-700 transition-colors cursor-pointer">Kaydet</button>
+            </div>
+          </div>
+        ) : (
+          <div className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-snug
+            ${isMe ? "bg-base-primary-600 text-white rounded-tr-sm" : "bg-surface-100 text-text-primary rounded-tl-sm"}`}
+          >
+            {comment.text}
+          </div>
+        )}
+        <span className="text-[10px] text-surface-400">{fmtTime(comment.createdAt)}</span>
       </div>
     </div>
   );

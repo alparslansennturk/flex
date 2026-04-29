@@ -120,6 +120,25 @@ service cloud.firestore {
       allow delete: if isInstructor();
     }
 
+    // ─── tasks/{taskId}/threads/{studentId}/comments (öğrenci-eğitmen özel) ───
+    // Submission bağımsız stabil private thread
+
+    match /tasks/{taskId}/threads/{studentId}/comments/{commentId} {
+      allow read:   if isSignedIn() && (isInstructor() || isStudentOwner(studentId));
+      allow create: if isSignedIn() && (
+        isInstructor() ||
+        (isStudentOwner(studentId) && request.resource.data.authorId == currentUid())
+      );
+      allow update: if isSignedIn() && (
+        isInstructor() ||
+        (isStudentOwner(studentId) && resource.data.authorId == currentUid())
+      );
+      allow delete: if isSignedIn() && (
+        isInstructor() ||
+        (isStudentOwner(studentId) && resource.data.authorId == currentUid())
+      );
+    }
+
     // ─── templates ────────────────────────────────────────────────────────────
 
     match /templates/{templateId} {

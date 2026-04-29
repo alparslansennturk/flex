@@ -337,7 +337,7 @@ function AssignmentsTab({
       {/* Aktif Ödevler */}
       {showActive && activeTasks.length > 0 && (
         <section className="mb-8">
-          <h2 className="text-[18px] font-bold text-text-primary mb-3">Aktif Ödevler</h2>
+          <h2 className="text-[15px] sm:text-[18px] font-bold text-text-primary mb-3">Aktif Ödevler</h2>
           <div className="space-y-3">
             {activeTasks.map(task => (
               <TaskAccordion
@@ -356,7 +356,7 @@ function AssignmentsTab({
       {/* Tamamlananlar */}
       {showCompleted && completedTasks.length > 0 && (
         <section>
-          <h2 className="text-[18px] font-bold text-text-primary mb-3">Tamamlananlar</h2>
+          <h2 className="text-[15px] sm:text-[18px] font-bold text-text-primary mb-3">Tamamlananlar</h2>
           <div className="space-y-3">
             {completedTasks.map(task => (
               <TaskAccordion
@@ -409,30 +409,31 @@ function TaskAccordion({
 
       {/* Header */}
       <div
-        className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-surface-50/60 transition-colors"
+        className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 cursor-pointer select-none hover:bg-surface-50/60 transition-colors"
         onClick={() => setOpen(v => !v)}
       >
-        <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isActiveSection ? "bg-designstudio-primary-500" : "bg-designstudio-secondary-500"}`}>
-            <ClipboardList size={18} className="text-text-inverse" />
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 ${isActiveSection ? "bg-designstudio-primary-500" : "bg-designstudio-secondary-500"}`}>
+            <ClipboardList size={14} className="text-text-inverse sm:hidden" />
+            <ClipboardList size={18} className="text-text-inverse hidden sm:block" />
           </div>
-          <span className="text-[16px] font-semibold text-text-primary">{task.name}</span>
+          <span className="text-[13px] sm:text-[15px] lg:text-[16px] font-semibold text-text-primary truncate">{task.name}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {task.endDate && (
-            <span className="text-[13px] text-surface-500">
-              Teslim Tarihi: {formatEndDate(task.endDate)}
+            <span className="hidden sm:block text-[12px] sm:text-[13px] text-surface-500">
+              Teslim: {formatEndDate(task.endDate)}
             </span>
           )}
           <ChevronDown
-            size={16}
+            size={15}
             className={`text-surface-500 transition-transform duration-250 ${open ? "rotate-180" : ""}`}
           />
           <button
             onClick={e => e.stopPropagation()}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-surface-400 hover:bg-surface-100 hover:text-surface-600 transition-colors cursor-pointer"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-surface-400 hover:bg-surface-100 hover:text-surface-600 transition-colors cursor-pointer"
           >
-            <MoreVertical size={15} />
+            <MoreVertical size={14} />
           </button>
         </div>
       </div>
@@ -448,45 +449,48 @@ function TaskAccordion({
         <div style={{ overflow: "hidden" }}>
           <div className="h-px bg-surface-100" />
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
 
             {/* Satır 1: Eklenme tarihi */}
             {task.createdAt && (
-              <p className="text-[13px] text-surface-500 mb-4">
+              <p className="text-[11px] sm:text-[13px] text-surface-500 mb-3 sm:mb-4">
                 Eklenme Tarihi:&nbsp;
                 <span className="font-semibold text-text-secondary">{formatCreatedAt(task.createdAt)}</span>
               </p>
             )}
 
             {/* Satır 2: Açıklama (sol) + Stats (sağ) */}
-            <div className="flex items-start gap-10 mb-5">
+            <div className="flex flex-col md:flex-row items-start gap-5 md:gap-10 mb-4 sm:mb-5">
 
-              {/* Sol: açıklama metni — %60 */}
-              <div className="w-[60%] shrink-0 min-w-0">
+              {/* Sol: açıklama metni */}
+              <div className="w-full md:w-[60%] shrink-0 min-w-0">
                 {descHeading ? (
-                  <p className="text-[18px] font-medium text-text-primary mb-2">{descHeading}</p>
+                  <p className="text-[14px] sm:text-[16px] md:text-[18px] font-medium text-text-primary mb-1.5 sm:mb-2">{descHeading}</p>
                 ) : null}
                 {descBody ? (
-                  <p className="text-[14px] lg:text-[15px] xl:text-[16px] font-normal text-text-primary leading-relaxed whitespace-pre-line">
+                  <p className="text-[12px] sm:text-[13px] lg:text-[14px] xl:text-[15px] font-normal text-text-primary leading-relaxed whitespace-pre-line">
                     {descBody}
                   </p>
                 ) : null}
               </div>
 
-              {/* Sağ: 3 stat blok yatayda hizalı — %40 */}
-              <div className="flex-1 flex items-center justify-center gap-10">
+              {/* Sağ: 3 stat blok */}
+              <div className="w-full md:flex-1 flex items-center justify-start md:justify-center gap-5 sm:gap-7 md:gap-10">
                 <StatBlock
-                  icon={<Smile size={32} strokeWidth={1.5} className="text-emerald-500" />}
+                  icon={<Smile size={24} strokeWidth={1.5} className="text-emerald-500 sm:hidden" />}
+                  iconLg={<Smile size={32} strokeWidth={1.5} className="text-emerald-500 hidden sm:block" />}
                   label="Teslim Edenler"
                   count={teslimEdenler}
                 />
                 <StatBlock
-                  icon={<Meh size={32} strokeWidth={1.5} className="text-surface-500" />}
+                  icon={<Meh size={24} strokeWidth={1.5} className="text-surface-500 sm:hidden" />}
+                  iconLg={<Meh size={32} strokeWidth={1.5} className="text-surface-500 hidden sm:block" />}
                   label="Bekleyenler"
                   count={bekleyenler}
                 />
                 <StatBlock
-                  icon={<RefreshCw size={32} strokeWidth={1.5} className="text-designstudio-primary-500" />}
+                  icon={<RefreshCw size={24} strokeWidth={1.5} className="text-designstudio-primary-500 sm:hidden" />}
+                  iconLg={<RefreshCw size={32} strokeWidth={1.5} className="text-designstudio-primary-500 hidden sm:block" />}
                   label="Revize İstenenler"
                   count={revize}
                 />
@@ -495,31 +499,32 @@ function TaskAccordion({
 
             {/* Satır 3: Eğitmen adı */}
             {task.createdByName && (
-              <p className="text-[14px] font-bold text-text-primary">{task.createdByName}</p>
+              <p className="text-[12px] sm:text-[14px] font-bold text-text-primary">{task.createdByName}</p>
             )}
 
             {/* Satır 4: Dosya kartı (sol) + Ödev Detay butonu (sağ) */}
-            <div className="flex items-center justify-between mt-8">
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-5 sm:mt-8">
               {/* Dosya kartı */}
-              <div className="flex items-center bg-white border border-surface-200 rounded-xl cursor-pointer hover:border-surface-300 transition-colors" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12 }}>
+              <div className="flex items-center bg-white border border-surface-200 rounded-xl cursor-pointer hover:border-surface-300 transition-colors px-3 sm:px-4 py-2.5 sm:py-3">
                 <div>
-                  <p className="text-[13px] font-bold text-text-primary leading-tight">Market.zip</p>
-                  <p className="text-[11px] text-surface-500 mt-0.5">Ödev Dosyası</p>
+                  <p className="text-[12px] sm:text-[13px] font-bold text-text-primary leading-tight">Market.zip</p>
+                  <p className="text-[10px] sm:text-[11px] text-surface-500 mt-0.5">Ödev Dosyası</p>
                 </div>
-                <div className="w-px self-stretch bg-surface-200 mx-4" />
+                <div className="w-px self-stretch bg-surface-200 mx-3 sm:mx-4" />
                 <GoogleDriveIcon />
               </div>
 
               {/* Ödev Detay butonu */}
               <button
                 onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${task.id}`)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-semibold text-white cursor-pointer transition-colors"
+                className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[12px] sm:text-[14px] font-semibold text-white cursor-pointer transition-colors"
                 style={{ backgroundColor: "#5E63C2" }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#4D52A6")}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#5E63C2")}
               >
                 Ödev Detay
-                <ArrowRight size={15} strokeWidth={2.5} />
+                <ArrowRight size={13} strokeWidth={2.5} className="sm:hidden" />
+                <ArrowRight size={15} strokeWidth={2.5} className="hidden sm:block" />
               </button>
             </div>
           </div>
@@ -529,12 +534,13 @@ function TaskAccordion({
   );
 }
 
-function StatBlock({ icon, label, count }: { icon: React.ReactNode; label: string; count: number }) {
+function StatBlock({ icon, iconLg, label, count }: { icon: React.ReactNode; iconLg?: React.ReactNode; label: string; count: number }) {
   return (
     <div className="flex flex-col items-center">
       {icon}
-      <p className="mt-1 text-[14px] xl:text-[16px] font-medium text-text-primary text-center leading-tight">{label}</p>
-      <p className="mt-2 text-[32px] font-bold text-text-secondary leading-none">{count}</p>
+      {iconLg}
+      <p className="mt-1 text-[11px] sm:text-[13px] xl:text-[14px] font-medium text-text-primary text-center leading-tight">{label}</p>
+      <p className="mt-1 sm:mt-2 text-[22px] sm:text-[28px] lg:text-[32px] font-bold text-text-secondary leading-none">{count}</p>
     </div>
   );
 }

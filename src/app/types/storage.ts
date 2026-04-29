@@ -50,10 +50,21 @@ export const ALLOWED_MIME_TYPES = [
   'image/png',
   'image/gif',
   'image/webp',
+  // Video
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
   // Arşiv
   'application/zip',
   'application/x-zip-compressed',
-  'application/octet-stream', // Bazı özel tasarım dosyaları için gerekebilir
+  'application/x-rar-compressed',
+  // Tasarım dosyaları
+  'image/vnd.adobe.photoshop',   // .psd
+  'application/photoshop',        // .psd (alternatif)
+  'application/x-photoshop',      // .psd (alternatif)
+  'application/illustrator',      // .ai
+  'application/postscript',       // .ai / .eps
+  'application/octet-stream',     // Bazı özel tasarım dosyaları için gerekebilir
 ] as const;
 
 export type AllowedMimeType = typeof ALLOWED_MIME_TYPES[number];
@@ -62,9 +73,9 @@ export type AllowedMimeType = typeof ALLOWED_MIME_TYPES[number];
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 export const MAX_FILE_SIZE_LABEL = '50 MB';
 
-/** Maksimum dosya boyutu: 100 MB (resumable upload endpoint'i) */
-export const MAX_RESUMABLE_FILE_SIZE_BYTES = 100 * 1024 * 1024;
-export const MAX_RESUMABLE_FILE_SIZE_LABEL = '100 MB';
+/** Maksimum dosya boyutu: 250 MB (resumable upload endpoint'i) */
+export const MAX_RESUMABLE_FILE_SIZE_BYTES = 250 * 1024 * 1024;
+export const MAX_RESUMABLE_FILE_SIZE_LABEL = '250 MB';
 
 /** MIME türünden uzantı tahmin et */
 export function mimeToExtension(mime: string): string {

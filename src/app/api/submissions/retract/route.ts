@@ -36,16 +36,40 @@ export async function POST(req: NextRequest) {
 
     // 4. Yetki kontrolü
     if (caller.role === "student") {
-      // Öğrenci: sadece kendi submission'ı
-      const userDoc = await adminDb.collection("users").doc(caller.uid).get();
-      const callerStudentDocId = userDoc.data()?.studentDocId as string | undefined;
-      if (callerStudentDocId !== subData.studentId) {
+      // Sahiplik: students/{studentId}.authUid üzerinden doğrula (init-upload ile tutarlı)
+      const studentSnap = await adminDb.collection("students").doc(subData.studentId as string).get();
+      if (!studentSnap.exists || studentSnap.data()?.authUid !== caller.uid) {
         return NextResponse.json({ error: "Başkasının teslimini geri çekemezsiniz." }, { status: 403 });
       }
-      // Öğrenci: sadece "submitted" veya "revision" statüsünde
+
+      // Statü kontrolü
       if (!STUDENT_RETRACTABLE.includes(subData.status)) {
         return NextResponse.json(
           { error: `"${subData.status}" statüsündeki teslim geri çekilemez.` },
+          { status: 403 },
+        );
+      }
+
+      // dueDate kontrolü: teslim tarihi geçtiyse dosya mühürlenmiştir
+      const taskSnap = await adminDb.collection("tasks").doc(subData.taskId as string).get();
+      if (taskSnap.exists) {
+        const endDate = taskSnap.data()?.endDate as string | undefined;
+        if (endDate) {
+          const end   = new Date(endDate); end.setHours(0, 0, 0, 0);
+          const today = new Date();        today.setHours(0, 0, 0, 0);
+          if (today > end) {
+            return NextResponse.json(
+              { error: "Teslim tarihi geçti. Dosya mühürlenmiştir." },
+              { status: 403 },
+            );
+          }
+        }
+      }
+
+      // Eğitmen not veya geri bildirim vermişse silinemez (yorumlar engel değil)
+      if (subData.grade !== undefined || subData.feedback) {
+        return NextResponse.json(
+          { error: "Eğitmen değerlendirme yapmış. Bu teslim artık silinemez." },
           { status: 403 },
         );
       }

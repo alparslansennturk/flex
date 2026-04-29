@@ -90,3 +90,11 @@
 | 85 | 2026-04-29 | Öğrenci upload UI: chunk upload flow, progress bar, upload counter (x/5), 100 MB limit | `student/[studentId]/[taskId]/page.tsx` |
 | 86 | 2026-04-29 | Upload CORS fix: browser→Drive direkt yerine Vercel proxy (upload-chunk endpoint) | `api/submissions/upload-chunk/route.ts`, `student/[studentId]/[taskId]/page.tsx` |
 | 87 | 2026-04-29 | Teslim geri çekme: öğrenci (submitted/revision) + eğitmen (tüm) — Drive + Firestore silme | `api/submissions/retract/route.ts`, `student/[studentId]/[taskId]/page.tsx`, `dashboard/.../[assignmentId]/page.tsx` |
+| 88 | 2026-04-29 | Desteklenen dosya türleri: ZIP, RAR, PSD, AI, EPS eklendi — ACCEPTED + ALLOWED_MIME_TYPES | `types/storage.ts`, `student/[studentId]/[taskId]/page.tsx` |
+| 89 | 2026-04-29 | Öğrenci silme fix: authUid sahiplik + dueDate mühür + eğitmen aktivitesi kilidi | `api/submissions/retract/route.ts`, `student/[studentId]/[taskId]/page.tsx` |
+| 90 | 2026-04-29 | Real-time submissions: eğitmen sayfası onSnapshot — yeni teslim gelince otomatik güncellenir | `dashboard/.../[assignmentId]/page.tsx` |
+| 91 | 2026-04-29 | permission-denied onError handler: silinen submission comments listener sessiz kapanır | `dashboard/.../[assignmentId]/page.tsx`, `student/[studentId]/[taskId]/page.tsx` |
+| 92 | 2026-04-29 | Real-time submissions öğrenci: eğitmen silince/güncelleyince anında yansır (onSnapshot) | `student/[studentId]/[taskId]/page.tsx` |
+| 93 | 2026-04-29 | Submission öncesi yorum: tasks/{taskId}/threads/{studentId}/comments — stable private thread | `firestore.rules`, `student/[taskId]/page.tsx`, `dashboard/.../[assignmentId]/page.tsx` |
+| 94 | 2026-04-29 | Preview sayfası yorum path fix: submissions/{id}/comments → tasks/{taskId}/threads/{studentId}/comments | `[submissionId]/preview/page.tsx` |
+| 95 | 2026-04-29 | Mesaj düzenle/sil: hover menüsü (···) + inline edit + Firestore update/delete | `firestore.rules`, tüm comment bileşenleri |

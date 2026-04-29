@@ -105,7 +105,7 @@ export function validateStudentOwnsSubmission(
 import { MAX_RESUMABLE_FILE_SIZE_BYTES, MAX_RESUMABLE_FILE_SIZE_LABEL } from "@/app/types/storage";
 
 /**
- * Dosya boyutunun 100 MB sınırını aşmadığını kontrol eder.
+ * Dosya boyutunun 250 MB sınırını aşmadığını kontrol eder.
  * true → geçerli, false → aşıyor
  */
 export function validateFileSizeLimit(fileSize: number): boolean {

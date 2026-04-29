@@ -379,14 +379,20 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
                 <span className="text-[13px] font-bold text-[#009F3E]">Not Girişi</span>
               </div>
             </>
+          ) : isExpired ? (
+            <>
+              <span className="text-[11px] text-[#8E95A3]">Bekliyor</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <ClipboardList size={12} className="text-[#009F3E]" />
+                <span className="text-[13px] font-bold text-[#009F3E]">Not Girişi</span>
+              </div>
+            </>
           ) : (
             <>
               <span className="text-[11px] text-[#8E95A3]">Teslim süresi</span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <Clock size={12} className={isExpired && !isCompleted ? "text-red-400" : "text-[#10294C]"} />
-                <span className={`text-[13px] font-bold ${isExpired && !isCompleted ? "text-red-400" : "text-[#10294C]"}`}>
-                  {isExpired && !isCompleted ? "Süre Doldu" : (duration ?? "Süresiz")}
-                </span>
+                <Clock size={12} className="text-[#10294C]" />
+                <span className="text-[13px] font-bold text-[#10294C]">{duration ?? "Süresiz"}</span>
               </div>
             </>
           )}
@@ -416,6 +422,13 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
               </button>
             )}
           </div>
+        ) : isExpired ? (
+          <button
+            onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
+            className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
+          >
+            Not Ver <ChevronRight size={16} />
+          </button>
         ) : (
           <button
             onClick={() => onDetail(task)}

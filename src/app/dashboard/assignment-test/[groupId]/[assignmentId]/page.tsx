@@ -5,14 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
 import {
   collection, getDocs, doc, getDoc, query, where,
-  onSnapshot, orderBy, addDoc, serverTimestamp,
+  onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
 import {
   ArrowLeft, Loader2, Check, ChevronDown, FileText,
-  ExternalLink, Send, Lock, Users, Download, Trash2,
+  ExternalLink, Send, Lock, Users, Download, Trash2, MoreHorizontal, Pencil,
 } from "lucide-react";
 import type { Submission, SubmissionStatus } from "@/app/types/submission";
 
@@ -146,6 +146,44 @@ export default function AssignmentDetailPage() {
   useEffect(() => { if (!authLoading && !user) router.push("/login"); }, [user, authLoading, router]);
   useEffect(() => { if (user) loadData(); }, [user, groupId, assignmentId]);
 
+  /* Real-time submissions — öğrenci teslim ettiğinde eğitmen sayfası otomatik güncellenir */
+  useEffect(() => {
+    if (!user || allStudents.length === 0) return;
+    const studentMap: Record<string, string> = {};
+    allStudents.forEach(s => { studentMap[s.id] = `${s.name} ${s.lastName}`.trim(); });
+
+    const q = query(collection(db, "submissions"), where("taskId", "==", assignmentId));
+    const unsub = onSnapshot(q, snap => {
+      const rows: SubmissionRow[] = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id, studentId: data.studentId, taskId: data.taskId, groupId: data.groupId,
+          iteration: data.iteration ?? 1,
+          file: {
+            driveFileId:   data.file?.driveFileId   ?? "",
+            driveViewLink: data.file?.driveViewLink ?? "",
+            fileUrl:       data.file?.fileUrl       ?? "",
+            fileName:      data.file?.fileName      ?? "",
+            fileSize:      data.file?.fileSize      ?? 0,
+            mimeType:      data.file?.mimeType      ?? "",
+          },
+          note: data.note, status: data.status, feedback: data.feedback,
+          gradedBy: data.gradedBy, grade: data.grade,
+          isLate: data.isLate ?? false, daysLate: data.daysLate,
+          submittedAt:  data.submittedAt?.toDate?.()  ?? new Date(),
+          reviewedAt:   data.reviewedAt?.toDate?.(),
+          completedAt:  data.completedAt?.toDate?.(),
+          updatedAt:    data.updatedAt?.toDate?.()    ?? new Date(),
+          studentName:  studentMap[data.studentId]    ?? "—",
+        };
+      });
+      setSubmissions(rows);
+    }, err => {
+      if (err.code !== "permission-denied") console.error("[submissions-rt]", err);
+    });
+    return unsub;
+  }, [user, assignmentId, allStudents]);
+
   /* Dropdown dışı tıklamada kapat */
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -178,16 +216,12 @@ export default function AssignmentDetailPage() {
         text:       d.data().text       ?? "",
         createdAt:  d.data().createdAt?.toDate?.() ?? new Date(),
       })));
-    }));
+    }, err => { if (err.code !== "permission-denied") console.error("[general-comments]", err); }));
 
-    /* Özel yorumlar — submissions/{submissionId}/comments */
-    const viewingSub = viewingId
-      ? submissions.filter(s => s.studentId === viewingId).sort((a, b) => b.iteration - a.iteration)[0]
-      : null;
-
-    if (viewingSub?.id) {
+    /* Özel yorumlar — tasks/{taskId}/threads/{studentId}/comments */
+    if (viewingId) {
       const qPrivate = query(
-        collection(db, "submissions", viewingSub.id, "comments"),
+        collection(db, "tasks", assignmentId, "threads", viewingId, "comments"),
         orderBy("createdAt", "asc"),
       );
       unsubs.push(onSnapshot(qPrivate, snap => {
@@ -200,11 +234,11 @@ export default function AssignmentDetailPage() {
           text:       d.data().text ?? d.data().body ?? "",
           createdAt:  d.data().createdAt?.toDate?.() ?? new Date(),
         })));
-      }));
+      }, err => { if (err.code !== "permission-denied") console.error("[private-comments]", err); }));
     }
 
     return () => unsubs.forEach(u => u());
-  }, [viewingId, assignmentId, submissions]);
+  }, [viewingId, assignmentId]);
 
   /* Yorum listesi değişince en alta kaydır */
   useEffect(() => {
@@ -335,6 +369,21 @@ export default function AssignmentDetailPage() {
     }
   }
 
+  /* ── Yorum düzenle / sil ── */
+
+  async function editComment(id: string, newText: string) {
+    if (!viewingId) return;
+    await updateDoc(
+      doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id),
+      { text: newText, editedAt: serverTimestamp() },
+    );
+  }
+
+  async function deleteComment(id: string) {
+    if (!viewingId) return;
+    await deleteDoc(doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id));
+  }
+
   /* ── Yorum gönder ── */
 
   async function sendComment() {
@@ -353,10 +402,9 @@ export default function AssignmentDetailPage() {
           createdAt:  serverTimestamp(),
         });
       } else {
-        /* Özel → submissions/{submissionId}/comments */
-        const sub = viewingSub;
-        if (!sub) return;
-        await addDoc(collection(db, "submissions", sub.id, "comments"), {
+        /* Özel → tasks/{assignmentId}/threads/{studentId}/comments */
+        if (!viewingId) return;
+        await addDoc(collection(db, "tasks", assignmentId, "threads", viewingId, "comments"), {
           commentType: "private",
           authorId:   user.uid,
           authorType: "teacher",
@@ -667,17 +715,13 @@ export default function AssignmentDetailPage() {
 
                     {/* Yorum listesi */}
                     <div className="flex-1 overflow-y-auto px-6 py-3 space-y-4">
-                      {activeTab === "private" && !viewingSub ? (
-                        <p className="text-[12px] text-surface-400 text-center py-4">
-                          Özel yorum için öğrencinin teslim etmesi gerekiyor.
-                        </p>
-                      ) : visibleComments.length === 0 ? (
+                      {visibleComments.length === 0 ? (
                         <p className="text-[12px] text-surface-400 text-center py-4">
                           {activeTab === "general" ? "Henüz genel yorum yok." : "Henüz yorum yok."}
                         </p>
                       ) : (
                         visibleComments.map(c => (
-                          <CommentRow key={c.id} comment={c} myId={user.uid} />
+                          <CommentRow key={c.id} comment={c} myId={user.uid} onEdit={editComment} onDelete={deleteComment} />
                         ))
                       )}
                       <div ref={commentsEndRef} />
@@ -694,12 +738,9 @@ export default function AssignmentDetailPage() {
                             sendComment();
                           }
                         }}
-                        disabled={activeTab === "private" && !viewingSub}
                         placeholder={
                           activeTab === "general"
                             ? "Tüm sınıfa yorum ekle..."
-                            : !viewingSub
-                            ? "Teslim gerekiyor..."
                             : "Öğrenciye özel yorum yaz..."
                         }
                         rows={2}
@@ -707,7 +748,7 @@ export default function AssignmentDetailPage() {
                       />
                       <button
                         onClick={sendComment}
-                        disabled={!commentText.trim() || sendingComment || (activeTab === "private" && !viewingSub)}
+                        disabled={!commentText.trim() || sendingComment || (activeTab === "private" && !viewingId)}
                         className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
                       >
                         {sendingComment
@@ -732,26 +773,97 @@ export default function AssignmentDetailPage() {
 
 /* ── CommentRow ── */
 
-function CommentRow({ comment, myId }: { comment: CommentItem; myId: string }) {
-  const isMe   = comment.authorId === myId;
-  const parts  = comment.authorName.trim().split(" ");
+function CommentRow({
+  comment, myId, onEdit, onDelete,
+}: {
+  comment: CommentItem;
+  myId: string;
+  onEdit?: (id: string, newText: string) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing,  setEditing]  = useState(false);
+  const [editText, setEditText] = useState(comment.text);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  const isMe     = comment.authorId === myId;
+  const parts    = comment.authorName.trim().split(" ");
   const initials = ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
 
+  async function saveEdit() {
+    const t = editText.trim();
+    if (!t || t === comment.text) { setEditing(false); return; }
+    await onEdit?.(comment.id, t);
+    setEditing(false);
+  }
+
   return (
-    <div className="flex gap-2.5 items-start">
+    <div className="flex gap-2.5 items-start group">
       <div className="w-7 h-7 rounded-full bg-base-primary-100 text-base-primary-700 text-[11px] font-semibold flex items-center justify-center shrink-0 mt-0.5 select-none">
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 mb-0.5">
+        <div className="flex items-center gap-2 mb-0.5">
           <span className="text-[12px] font-semibold text-text-primary">
             {isMe ? "Sen" : comment.authorName}
           </span>
-          <span className="text-[10px] text-surface-400">
-            {fmtTime(comment.createdAt)}
-          </span>
+          <span className="text-[10px] text-surface-400">{fmtTime(comment.createdAt)}</span>
+          {isMe && !editing && (
+            <div className="relative ml-auto" ref={menuRef}>
+              <button
+                onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
+                className="p-1 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-500 hover:text-surface-800 transition-colors cursor-pointer"
+              >
+                <MoreHorizontal size={14} />
+              </button>
+              {menuOpen && (
+                <div
+                  className="absolute z-20 right-0 top-5 bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden min-w-[100px]"
+                >
+                  <button
+                    onClick={() => { setEditText(comment.text); setEditing(true); setMenuOpen(false); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
+                  >
+                    <Pencil size={11} /> Düzenle
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); onDelete?.(comment.id); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-status-danger-600 hover:bg-status-danger-50 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={11} /> Sil
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <p className="text-[13px] text-text-secondary leading-snug">{comment.text}</p>
+        {editing ? (
+          <div className="flex flex-col gap-1.5">
+            <textarea
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEdit(); } }}
+              rows={2}
+              autoFocus
+              className="w-full resize-none rounded-xl border border-base-primary-300 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-500 bg-white"
+            />
+            <div className="flex gap-1">
+              <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-surface-100 text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer">İptal</button>
+              <button onClick={saveEdit} className="px-2.5 py-1 text-[11px] rounded-lg bg-base-primary-600 text-white hover:bg-base-primary-700 transition-colors cursor-pointer">Kaydet</button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[13px] text-text-secondary leading-snug">{comment.text}</p>
+        )}
       </div>
     </div>
   );

@@ -4,12 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
 import {
-  doc, getDoc, getDocs, collection, query, where,
-  onSnapshot, orderBy, addDoc, serverTimestamp,
+  doc, getDoc, collection, query, where,
+  onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
 import {
   ArrowLeft, Loader2, Upload, FileText, CheckCircle2,
   RotateCcw, Send, Clock, X, AlertCircle, Download, ExternalLink, Trash2,
+  MoreHorizontal, Pencil,
 } from "lucide-react";
 import StudentSidebar from "@/app/components/student/StudentSidebar";
 import type { SubmissionStatus } from "@/app/types/submission";
@@ -50,6 +51,7 @@ interface SubmissionRow {
 
 interface CommentItem {
   id: string;
+  authorId: string;
   authorType: "teacher" | "student";
   authorName: string;
   text: string;
@@ -59,16 +61,24 @@ interface CommentItem {
 /* ── Helpers ── */
 
 const ACCEPTED = [
+  // Görseller
   "image/jpeg", "image/png", "image/gif", "image/webp",
+  // Belgeler
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  // Video
   "video/mp4", "video/quicktime", "video/webm",
+  // Arşiv
+  "application/zip", "application/x-zip-compressed", ".zip", ".rar",
+  // Tasarım dosyaları
+  "image/vnd.adobe.photoshop", "application/photoshop", "application/x-photoshop", ".psd",
+  "application/illustrator", "application/postscript", ".ai", ".eps",
 ].join(",");
 
-const MAX_MB      = 100;
+const MAX_MB      = 250;
 const CHUNK_SIZE  = 256 * 1024; // 256 KB
 
 const STATUS_UI: Record<SubmissionStatus, { label: string; cls: string }> = {
@@ -147,53 +157,15 @@ export default function StudentTaskDetailPage() {
 
   useEffect(() => { loadData(); }, [studentId, taskId]);
 
-  /* Real-time yorumlar */
+  /* Real-time submissions — eğitmen sildiğinde/güncellediğinde anlık yansır */
   useEffect(() => {
-    const latestSub = submissions[0] ?? null;
-    if (!latestSub) return;
     const q = query(
-      collection(db, "submissions", latestSub.id, "comments"),
-      orderBy("createdAt", "asc"),
+      collection(db, "submissions"),
+      where("studentId", "==", studentId),
+      where("taskId",    "==", taskId),
     );
-    return onSnapshot(q, snap => {
-      setComments(snap.docs.map(d => ({
-        id:         d.id,
-        authorType: d.data().authorType ?? "teacher",
-        authorName: d.data().authorName ?? "—",
-        text:       d.data().text ?? d.data().body ?? "",
-        createdAt:  d.data().createdAt?.toDate?.() ?? new Date(),
-      })));
-    });
-  }, [submissions]);
-
-  useEffect(() => {
-    commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [comments]);
-
-  async function loadData() {
-    setLoading(true);
-    try {
-      const [stuSnap, taskSnap, subSnap] = await Promise.all([
-        getDoc(doc(db, "students", studentId)),
-        getDoc(doc(db, "tasks", taskId)),
-        getDocs(query(
-          collection(db, "submissions"),
-          where("studentId", "==", studentId),
-          where("taskId",    "==", taskId),
-        )),
-      ]);
-
-      if (stuSnap.exists()) {
-        const sd = stuSnap.data();
-        setStudent({ name: sd.name ?? "", lastName: sd.lastName ?? "", gender: sd.gender, avatarId: sd.avatarId, groupId: sd.groupId ?? "" });
-      }
-
-      if (taskSnap.exists()) {
-        const td = taskSnap.data();
-        setTask({ name: td.name ?? "", points: td.points ?? 0, endDate: td.endDate, description: td.description });
-      }
-
-      const rows: SubmissionRow[] = subSnap.docs
+    const unsub = onSnapshot(q, snap => {
+      const rows: SubmissionRow[] = snap.docs
         .map(d => {
           const data = d.data();
           return {
@@ -214,8 +186,50 @@ export default function StudentTaskDetailPage() {
           };
         })
         .sort((a, b) => b.iteration - a.iteration);
-
       setSubmissions(rows);
+    }, err => { if (err.code !== "permission-denied") console.error("[submissions-rt]", err); });
+    return unsub;
+  }, [studentId, taskId]);
+
+  /* Real-time yorumlar — submission olmadan da çalışır */
+  useEffect(() => {
+    const q = query(
+      collection(db, "tasks", taskId, "threads", studentId, "comments"),
+      orderBy("createdAt", "asc"),
+    );
+    return onSnapshot(q, snap => {
+      setComments(snap.docs.map(d => ({
+        id:         d.id,
+        authorId:   d.data().authorId   ?? "",
+        authorType: d.data().authorType ?? "teacher",
+        authorName: d.data().authorName ?? "—",
+        text:       d.data().text ?? d.data().body ?? "",
+        createdAt:  d.data().createdAt?.toDate?.() ?? new Date(),
+      })));
+    }, err => { if (err.code !== "permission-denied") console.error("[comments]", err); });
+  }, [studentId, taskId]);
+
+  useEffect(() => {
+    commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [comments]);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [stuSnap, taskSnap] = await Promise.all([
+        getDoc(doc(db, "students", studentId)),
+        getDoc(doc(db, "tasks", taskId)),
+      ]);
+
+      if (stuSnap.exists()) {
+        const sd = stuSnap.data();
+        setStudent({ name: sd.name ?? "", lastName: sd.lastName ?? "", gender: sd.gender, avatarId: sd.avatarId, groupId: sd.groupId ?? "" });
+      }
+
+      if (taskSnap.exists()) {
+        const td = taskSnap.data();
+        setTask({ name: td.name ?? "", points: td.points ?? 0, endDate: td.endDate, description: td.description });
+      }
     } finally {
       setLoading(false);
     }
@@ -350,12 +364,22 @@ export default function StudentTaskDetailPage() {
 
   /* ── Comment ── */
 
+  async function editComment(id: string, newText: string) {
+    await updateDoc(
+      doc(db, "tasks", taskId, "threads", studentId, "comments", id),
+      { text: newText, editedAt: serverTimestamp() },
+    );
+  }
+
+  async function deleteComment(id: string) {
+    await deleteDoc(doc(db, "tasks", taskId, "threads", studentId, "comments", id));
+  }
+
   async function sendComment() {
-    const latestSub = submissions[0] ?? null;
-    if (!commentText.trim() || sendingComment || !latestSub || !student) return;
+    if (!commentText.trim() || sendingComment || !student) return;
     setSendingComment(true);
     try {
-      await addDoc(collection(db, "submissions", latestSub.id, "comments"), {
+      await addDoc(collection(db, "tasks", taskId, "threads", studentId, "comments"), {
         authorType: "student",
         authorId:   auth.currentUser?.uid ?? "",
         authorName: `${student.name} ${student.lastName}`.trim(),
@@ -370,11 +394,13 @@ export default function StudentTaskDetailPage() {
 
   /* ── Derived ── */
 
-  const latestSub   = submissions[0] ?? null;
-  const canUpload   = !latestSub || latestSub.status === "revision";
-  const dl          = deadlineMeta(task?.endDate);
-  const uploadLimit = latestSub?.status === "revision" ? 8 : 5;
-  const uploadUsed  = submissions.length;
+  const latestSub        = submissions[0] ?? null;
+  const canUpload        = !latestSub || latestSub.status === "revision";
+  const dl               = deadlineMeta(task?.endDate);
+  const isDueDatePassed  = dl?.danger === true;
+  const hasTeacherGrade = !!latestSub?.feedback || (latestSub as any)?.grade !== undefined;
+  const uploadLimit      = latestSub?.status === "revision" ? 8 : 5;
+  const uploadUsed       = submissions.length;
 
   if (loading || !student || !task) {
     return (
@@ -637,10 +663,12 @@ export default function StudentTaskDetailPage() {
                     Teslim Geçmişi
                   </p>
                   <div className="space-y-3">
-                    {submissions.map(sub => (
+                    {submissions.map((sub, idx) => (
                       <HistoryRow
                         key={sub.id}
                         sub={sub}
+                        isDueDatePassed={isDueDatePassed}
+                        hasTeacherActivity={idx === 0 ? hasTeacherGrade : false}
                         onDelete={async (submissionId) => {
                           if (!window.confirm("Bu teslimi geri çekmek istediğine emin misin? Dosya Drive'dan da silinecek.")) return;
                           try {
@@ -675,19 +703,10 @@ export default function StudentTaskDetailPage() {
 
             <div className="shrink-0 px-5 py-4 border-b border-surface-100">
               <p className="text-[13px] font-bold text-text-primary">Yorumlar</p>
-              {!latestSub && (
-                <p className="body-sm text-surface-400 mt-0.5">Teslim ettikten sonra aktif olur.</p>
-              )}
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-              {!latestSub ? (
-                <div className="flex flex-col items-center justify-center h-full gap-2 text-surface-400 text-center">
-                  <p className="body-sm max-w-[180px] leading-relaxed">
-                    Teslim yaptıktan sonra eğitmenle yazışabilirsin.
-                  </p>
-                </div>
-              ) : comments.length === 0 ? (
+              {comments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-surface-400">
                   <p className="body-sm font-medium">Henüz yorum yok</p>
                   <p className="text-[12px] text-center max-w-[180px] leading-relaxed">
@@ -700,6 +719,9 @@ export default function StudentTaskDetailPage() {
                     key={c.id}
                     comment={c}
                     studentName={studentFullName}
+                    myId={auth.currentUser?.uid ?? ""}
+                    onEdit={editComment}
+                    onDelete={deleteComment}
                   />
                 ))
               )}
@@ -713,8 +735,7 @@ export default function StudentTaskDetailPage() {
                 onKeyDown={e => {
                   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendComment(); }
                 }}
-                disabled={!latestSub}
-                placeholder={latestSub ? "Eğitmene yorum yaz..." : "Teslim gerekiyor..."}
+                placeholder="Eğitmene yorum yaz..."
                 rows={2}
                 className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2.5 body-sm
                   text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white
@@ -722,7 +743,7 @@ export default function StudentTaskDetailPage() {
               />
               <button
                 onClick={sendComment}
-                disabled={!commentText.trim() || sendingComment || !latestSub}
+                disabled={!commentText.trim() || sendingComment}
                 className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center
                   hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
               >
@@ -744,13 +765,20 @@ export default function StudentTaskDetailPage() {
 
 function HistoryRow({
   sub,
+  isDueDatePassed = false,
+  hasTeacherActivity = false,
   onDelete,
 }: {
   sub: SubmissionRow;
+  isDueDatePassed?: boolean;
+  hasTeacherActivity?: boolean;
   onDelete?: (submissionId: string) => void;
 }) {
   const st = STATUS_UI[sub.status];
-  const canDelete = sub.status === "submitted" || sub.status === "revision";
+  const canDelete =
+    (sub.status === "submitted" || sub.status === "revision") &&
+    !isDueDatePassed &&
+    !hasTeacherActivity;
 
   return (
     <div className="flex items-center gap-3 py-3 border-b border-surface-100 last:border-0">
@@ -796,29 +824,109 @@ function HistoryRow({
 
 /* ── ThreadBubble ── */
 
-function ThreadBubble({ comment, studentName }: { comment: CommentItem; studentName: string }) {
+function ThreadBubble({
+  comment, studentName, myId = "", onEdit, onDelete,
+}: {
+  comment: CommentItem;
+  studentName: string;
+  myId?: string;
+  onEdit?: (id: string, newText: string) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing,  setEditing]  = useState(false);
+  const [editText, setEditText] = useState(comment.text);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
   const isStudent = comment.authorType === "student";
+  const canAct    = !!myId && comment.authorId === myId;
   const parts     = comment.authorName.trim().split(" ");
   const initials  = ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
 
+  async function saveEdit() {
+    const t = editText.trim();
+    if (!t || t === comment.text) { setEditing(false); return; }
+    await onEdit?.(comment.id, t);
+    setEditing(false);
+  }
+
   return (
-    <div className={`flex gap-2.5 items-start ${isStudent ? "flex-row-reverse" : ""}`}>
+    <div className={`flex gap-2.5 items-start group ${isStudent ? "flex-row-reverse" : ""}`}>
       <div className={`w-7 h-7 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 select-none ${
         isStudent ? "bg-base-primary-600 text-white" : "bg-surface-200 text-text-secondary"
       }`}>
         {initials}
       </div>
       <div className={`max-w-[80%] flex flex-col gap-0.5 ${isStudent ? "items-end" : "items-start"}`}>
-        <span className="text-[11px] font-semibold text-surface-400">
-          {isStudent ? "Sen" : comment.authorName}
-        </span>
-        <div className={`px-3.5 py-2.5 rounded-2xl body-sm leading-snug ${
-          isStudent
-            ? "bg-base-primary-600 text-white rounded-tr-sm"
-            : "bg-surface-100 text-text-primary rounded-tl-sm"
-        }`}>
-          {comment.text}
+        {/* İsim + menü */}
+        <div className={`flex items-center gap-1 ${isStudent ? "flex-row-reverse" : ""}`}>
+          <span className="text-[11px] font-semibold text-surface-400">
+            {isStudent ? "Sen" : comment.authorName}
+          </span>
+          {canAct && !editing && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
+                className="p-1 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-500 hover:text-surface-800 transition-colors cursor-pointer"
+              >
+                <MoreHorizontal size={13} />
+              </button>
+              {menuOpen && (
+                <div
+                  className={`absolute z-20 top-5 ${isStudent ? "right-0" : "left-0"} bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden min-w-[100px]`}
+                >
+                  <button
+                    onClick={() => { setEditText(comment.text); setEditing(true); setMenuOpen(false); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
+                  >
+                    <Pencil size={11} /> Düzenle
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); onDelete?.(comment.id); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-status-danger-600 hover:bg-status-danger-50 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={11} /> Sil
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Balon / edit */}
+        {editing ? (
+          <div className="flex flex-col gap-1.5 w-full">
+            <textarea
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEdit(); } }}
+              rows={2}
+              autoFocus
+              className="w-full resize-none rounded-xl border border-base-primary-300 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-500 bg-white"
+            />
+            <div className="flex gap-1">
+              <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-surface-100 text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer">İptal</button>
+              <button onClick={saveEdit} className="px-2.5 py-1 text-[11px] rounded-lg bg-base-primary-600 text-white hover:bg-base-primary-700 transition-colors cursor-pointer">Kaydet</button>
+            </div>
+          </div>
+        ) : (
+          <div className={`px-3.5 py-2.5 rounded-2xl body-sm leading-snug ${
+            isStudent
+              ? "bg-base-primary-600 text-white rounded-tr-sm"
+              : "bg-surface-100 text-text-primary rounded-tl-sm"
+          }`}>
+            {comment.text}
+          </div>
+        )}
         <span className="text-[10px] text-surface-400">{fmtTime(comment.createdAt)}</span>
       </div>
     </div>

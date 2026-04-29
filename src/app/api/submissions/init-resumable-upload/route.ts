@@ -6,7 +6,7 @@ import {
   generateActualFileName,
   validateDriveFile,
 } from "@/app/lib/googledrive";
-import { verifyRequestToken } from "@/app/lib/submission-validation";
+import { verifyRequestToken, FILE_SIZE_LIMIT_LABEL } from "@/app/lib/submission-validation";
 import {
   validateFileSizeLimit,
   validateUploadCount,
@@ -51,10 +51,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Dosya boyutu kontrolü (100 MB)
+    // 3. Dosya boyutu kontrolü (250 MB)
     if (!validateFileSizeLimit(fileSize)) {
       return NextResponse.json(
-        { error: `Dosya boyutu 100 MB sınırını aşıyor. Yüklenen: ${(fileSize / 1024 / 1024).toFixed(1)} MB` },
+        { error: `Dosya boyutu ${FILE_SIZE_LIMIT_LABEL} sınırını aşıyor. Yüklenen: ${(fileSize / 1024 / 1024).toFixed(1)} MB` },
         { status: 413 },
       );
     }
