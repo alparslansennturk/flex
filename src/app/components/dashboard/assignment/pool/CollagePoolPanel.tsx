@@ -67,14 +67,26 @@ function ItemForm({
 
   return (
     <div className={`flex items-center gap-2.5 px-5 py-3 ${meta.bg} border-b ${meta.border}`}>
-      <input
-        value={emoji}
-        onChange={e => setEmoji(e.target.value)}
-        onKeyDown={handleKey}
-        placeholder="✦"
-        maxLength={2}
-        className="w-10 h-9 text-center text-base border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors shrink-0"
-      />
+      <div className="relative shrink-0">
+        <input
+          value={emoji}
+          onChange={e => setEmoji(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="✦"
+          maxLength={2}
+          className="w-10 h-9 text-center text-base border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors"
+        />
+        {emoji && (
+          <button
+            type="button"
+            onClick={() => setEmoji("")}
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-surface-400 text-white flex items-center justify-center cursor-pointer hover:bg-status-danger-500 transition-colors"
+            style={{ fontSize: 9, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        )}
+      </div>
       <input
         type="color"
         value={color}
