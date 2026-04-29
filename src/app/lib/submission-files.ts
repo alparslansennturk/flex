@@ -15,15 +15,20 @@ const COL = "submission_files";
 function docToFile(id: string, data: FirebaseFirestore.DocumentData): SubmissionFileVersion {
   return {
     id,
-    submissionId: data.submissionId,
-    studentId:    data.studentId,
-    driveFileId:  data.driveFileId,
-    fileUrl:      data.fileUrl,
-    fileName:     data.fileName,
-    fileSize:     data.fileSize ?? 0,
-    versionNo:    data.versionNo ?? 1,
-    isLatest:     data.isLatest ?? false,
-    uploadedAt:   (data.uploadedAt as Timestamp).toDate(),
+    submissionId:  data.submissionId,
+    studentId:     data.studentId,
+    driveFileId:   data.driveFileId,
+    driveViewLink: data.driveViewLink ?? "",
+    fileUrl:       data.fileUrl,
+    fileName:      data.fileName,
+    fileSize:      data.fileSize ?? 0,
+    mimeType:      data.mimeType ?? "",
+    versionNo:     data.versionNo ?? 1,
+    isLatest:      data.isLatest ?? false,
+    uploadedAt:    (data.uploadedAt as Timestamp).toDate(),
+    ...(data.deleted    ? { deleted: true }                                       : {}),
+    ...(data.deletedBy  ? { deletedBy: data.deletedBy as string }                 : {}),
+    ...(data.deletedAt  ? { deletedAt: (data.deletedAt as Timestamp).toDate() }   : {}),
   };
 }
 
@@ -32,23 +37,22 @@ function docToFile(id: string, data: FirebaseFirestore.DocumentData): Submission
 export async function createSubmissionFile(
   payload: SubmissionFileCreate,
 ): Promise<SubmissionFileVersion> {
-  // Mevcut versiyonları bul
+  // Mevcut versiyonları bul — orderBy yok (FAILED_PRECONDITION riski), JS sort kullan
   const existing = await adminDb.collection(COL)
     .where("submissionId", "==", payload.submissionId)
-    .orderBy("versionNo", "desc")
-    .limit(1)
     .get();
 
-  const versionNo = existing.empty ? 1 : (existing.docs[0].data().versionNo ?? 0) + 1;
+  const maxVersion = existing.empty
+    ? 0
+    : Math.max(...existing.docs.map(d => d.data().versionNo ?? 0));
+  const versionNo = maxVersion + 1;
 
   // Eski "isLatest" kayıtlarını temizle
   if (!existing.empty) {
     const batch = adminDb.batch();
-    const outdated = await adminDb.collection(COL)
-      .where("submissionId", "==", payload.submissionId)
-      .where("isLatest", "==", true)
-      .get();
-    outdated.docs.forEach(d => batch.update(d.ref, { isLatest: false }));
+    existing.docs
+      .filter(d => d.data().isLatest === true)
+      .forEach(d => batch.update(d.ref, { isLatest: false }));
     await batch.commit();
   }
 
@@ -83,6 +87,55 @@ export async function getLatestFile(submissionId: string): Promise<SubmissionFil
     .get();
   if (snap.empty) return null;
   return docToFile(snap.docs[0].id, snap.docs[0].data());
+}
+
+// ─── Delete ──────────────────────────────────────────────────────────────────
+
+/**
+ * Dosyayı soft-delete yapar (Drive silme ayrıca yapılır).
+ * Audit trail için kayıt korunur, isLatest=false olur.
+ */
+export async function softDeleteFile(fileId: string, deletedBy: string): Promise<void> {
+  const ref  = adminDb.collection(COL).doc(fileId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error(`[submission-files] Silinecek file bulunamadı: ${fileId}`);
+
+  const batch = adminDb.batch();
+
+  // Eğer isLatest ise bir önceki silinmemiş versiyonu latest yap
+  if (snap.data()!.isLatest) {
+    const submissionId = snap.data()!.submissionId as string;
+    const allFiles = await adminDb.collection(COL)
+      .where("submissionId", "==", submissionId)
+      .get();
+
+    // Silinmemiş + bu dosya olmayan en yüksek versionNo'lu kaydı bul
+    const candidate = allFiles.docs
+      .filter(d => d.id !== fileId && !d.data().deleted)
+      .sort((a, b) => (b.data().versionNo ?? 0) - (a.data().versionNo ?? 0))[0];
+
+    if (candidate) batch.update(candidate.ref, { isLatest: true });
+  }
+
+  batch.update(ref, {
+    deleted:   true,
+    deletedBy,
+    deletedAt: FieldValue.serverTimestamp(),
+    isLatest:  false,
+  });
+
+  await batch.commit();
+}
+
+/**
+ * Bir submission'ın silinmemiş dosya sayısını döner (upload limit için).
+ */
+export async function getActiveFileCount(submissionId: string): Promise<number> {
+  const snap = await adminDb.collection(COL)
+    .where("submissionId", "==", submissionId)
+    .where("deleted", "!=", true)
+    .get();
+  return snap.size;
 }
 
 // ─── Update ───────────────────────────────────────────────────────────────────

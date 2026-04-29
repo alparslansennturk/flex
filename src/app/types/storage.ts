@@ -58,11 +58,13 @@ export const ALLOWED_MIME_TYPES = [
 
 export type AllowedMimeType = typeof ALLOWED_MIME_TYPES[number];
 
-/** Maksimum dosya boyutu: 50 MB */
+/** Maksimum dosya boyutu: 50 MB (eski /api/submit endpoint'i) */
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
-
-/** İnsan okunabilir boyut etiketi */
 export const MAX_FILE_SIZE_LABEL = '50 MB';
+
+/** Maksimum dosya boyutu: 100 MB (resumable upload endpoint'i) */
+export const MAX_RESUMABLE_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+export const MAX_RESUMABLE_FILE_SIZE_LABEL = '100 MB';
 
 /** MIME türünden uzantı tahmin et */
 export function mimeToExtension(mime: string): string {

@@ -9,19 +9,28 @@ export interface FileMetadata {
 }
 
 export interface SubmissionFileVersion {
-  id:           string;
-  submissionId: string;
-  studentId:    string;
-  driveFileId:  string;
-  fileUrl:      string;
-  fileName:     string;
-  fileSize:     number;
-  versionNo:    number;
-  isLatest:     boolean;
-  uploadedAt:   Date;
+  id:            string;
+  submissionId:  string;
+  studentId:     string;
+  driveFileId:   string;
+  driveViewLink?: string; // eski kayıtlarda olmayabilir
+  fileUrl:        string;
+  fileName:       string;
+  fileSize:       number;
+  mimeType?:      string; // eski kayıtlarda olmayabilir
+  versionNo:     number;
+  isLatest:      boolean;
+  uploadedAt:    Date;
+  // Soft delete
+  deleted?:      boolean;
+  deletedBy?:    string;
+  deletedAt?:    Date;
 }
 
 export type SubmissionFileCreate = Omit<
   SubmissionFileVersion,
-  "id" | "uploadedAt" | "isLatest" | "versionNo"
->;
+  "id" | "uploadedAt" | "isLatest" | "versionNo" | "deleted" | "deletedBy" | "deletedAt"
+> & {
+  driveViewLink?: string;
+  mimeType?:      string;
+};

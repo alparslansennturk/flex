@@ -86,3 +86,7 @@
 | 81 | 2026-04-28 | Tamamlananlar sıralaması: submittedAt bazlı (endDate fallback) | `student/[studentId]/page.tsx` |
 | 82 | 2026-04-28 | Öğrenci dashboard header: groupCode gösterimi + studentFullName fix | `student/[studentId]/page.tsx` |
 | 83 | 2026-04-28 | [YAPILACAK] Google Drive klasör yapısı: Gruplar/{groupCode}/{öğrenciAdı} — googledrive.ts'e getOrCreateFolder + submit API güncelleme (~10 dk) | `lib/googledrive.ts`, `api/submit/route.ts` |
+| 84 | 2026-04-28 | Resumable upload altyapısı: 4.5 MB Vercel sınırı aşıldı, browser→Drive direkt chunk upload | `lib/googledrive.ts`, `api/submissions/init-resumable-upload`, `complete-upload`, `delete-file`, `upload-count` |
+| 85 | 2026-04-29 | Öğrenci upload UI: chunk upload flow, progress bar, upload counter (x/5), 100 MB limit | `student/[studentId]/[taskId]/page.tsx` |
+| 86 | 2026-04-29 | Upload CORS fix: browser→Drive direkt yerine Vercel proxy (upload-chunk endpoint) | `api/submissions/upload-chunk/route.ts`, `student/[studentId]/[taskId]/page.tsx` |
+| 87 | 2026-04-29 | Teslim geri çekme: öğrenci (submitted/revision) + eğitmen (tüm) — Drive + Firestore silme | `api/submissions/retract/route.ts`, `student/[studentId]/[taskId]/page.tsx`, `dashboard/.../[assignmentId]/page.tsx` |

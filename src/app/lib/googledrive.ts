@@ -13,6 +13,19 @@
 
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_LABEL } from "@/app/types/storage";
 
+// ─── Yardımcı ────────────────────────────────────────────────────────────────
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+function getFolderId(): string {
+  const raw = process.env.GOOGLE_DRIVE_FOLDER_ID ?? "";
+  const id  = raw.replace(/^["']|["']$/g, "").trim();
+  if (!id) throw driveError("UPLOAD_FAILED", "GOOGLE_DRIVE_FOLDER_ID env var eksik.");
+  return id;
+}
+
 // ─── Tipler ──────────────────────────────────────────────────────────────────
 
 export interface DriveUploadResult {
@@ -86,6 +99,21 @@ async function getAccessToken(): Promise<string> {
   }
 
   return data.access_token;
+}
+
+// ─── Unique Filename ─────────────────────────────────────────────────────────
+
+const UUID_LEN  = 36;
+const SEP       = "__";
+
+/** uploadId ile orijinal dosya adını birleştirir. Collision imkânsız. */
+export function generateActualFileName(uploadId: string, originalFileName: string): string {
+  return `${uploadId}${SEP}${originalFileName}`;
+}
+
+/** actualFileName'den orijinal dosya adını çıkarır. */
+export function extractOriginalFileName(actualFileName: string): string {
+  return actualFileName.slice(UUID_LEN + SEP.length);
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -201,4 +229,163 @@ export async function uploadToDrive(
     fileSize: buffer.length,
     mimeType,
   };
+}
+
+// ─── Resumable Upload ─────────────────────────────────────────────────────────
+
+/**
+ * Google Drive'da resumable upload oturumu başlatır.
+ * Dönen sessionUri'yi browser direkt chunk upload için kullanır.
+ * Vercel'in 4.5 MB sınırını atlatır — dosya Vercel'den geçmez.
+ */
+export async function initResumableSession(
+  actualFileName: string,
+  fileSize: number,
+  mimeType: string,
+): Promise<string> {
+  const token    = await getAccessToken();
+  const folderId = getFolderId();
+
+  const res = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+    {
+      method: "POST",
+      headers: {
+        Authorization:             `Bearer ${token}`,
+        "Content-Type":            "application/json; charset=UTF-8",
+        "X-Upload-Content-Type":   mimeType,
+        "X-Upload-Content-Length": String(fileSize),
+      },
+      body: JSON.stringify({ name: actualFileName, parents: [folderId] }),
+    },
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw driveError("UPLOAD_FAILED", `Resumable session başlatılamadı (${res.status}): ${errText}`);
+  }
+
+  const sessionUri = res.headers.get("Location");
+  if (!sessionUri) throw driveError("UPLOAD_FAILED", "Google Drive'dan sessionUri alınamadı.");
+
+  return sessionUri;
+}
+
+// ─── Public Permission ────────────────────────────────────────────────────────
+
+/**
+ * Drive dosyasını herkese açık (link ile görüntüle) yapar.
+ * complete-upload sonrası çağrılır.
+ */
+export async function setPublicReadPermission(fileId: string): Promise<void> {
+  const token = await getAccessToken();
+
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ role: "reader", type: "anyone" }),
+    },
+  );
+
+  if (!res.ok) {
+    console.warn(`[gdrive] setPublicReadPermission başarısız (${res.status}):`, await res.text());
+  }
+}
+
+// ─── Fallback: Find File By Name ──────────────────────────────────────────────
+
+const FALLBACK_DELAYS = [0, 100, 300];
+
+async function searchByName(
+  actualFileName: string,
+  token: string,
+  folderId: string,
+): Promise<{ id: string; createdTime: string }[]> {
+  const q   = encodeURIComponent(
+    `name = '${actualFileName.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed = false`,
+  );
+  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,createdTime)&orderBy=createdTime%20desc`;
+
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) return [];
+
+  const data = await res.json() as { files?: { id: string; createdTime: string }[] };
+  return data.files ?? [];
+}
+
+/**
+ * actualFileName'e göre Drive'da dosya arar (retry: 0ms, 100ms, 300ms).
+ * driveFileId browser'dan alınamadığında kullanılır.
+ * Unique filename (UUID prefix) garantisi nedeniyle collision imkânsız.
+ */
+export async function findFileByActualName(actualFileName: string): Promise<{
+  id:      string;
+  source:  "fallback_single" | "fallback_latest";
+  retries: number;
+}> {
+  const token    = await getAccessToken();
+  const folderId = getFolderId();
+
+  let files: { id: string; createdTime: string }[] = [];
+  let attempts = 0;
+
+  for (const delay of FALLBACK_DELAYS) {
+    if (delay > 0) await sleep(delay);
+    files = await searchByName(actualFileName, token, folderId);
+    attempts++;
+    if (files.length > 0) break;
+  }
+
+  if (files.length === 0) {
+    throw driveError(
+      "UPLOAD_FAILED",
+      `Dosya ${attempts} denemede bulunamadı: ${actualFileName}`,
+    );
+  }
+
+  // Unique filename'e rağmen birden fazla sonuç (edge case)
+  if (files.length > 1) {
+    const times = files.map(f => new Date(f.createdTime).getTime());
+    const diff  = Math.max(...times) - Math.min(...times);
+    if (diff < 2000) {
+      throw driveError(
+        "UPLOAD_FAILED",
+        `Belirsiz dosya: ${files.length} kayıt <2s farkla bulundu — ${actualFileName}`,
+      );
+    }
+    files.sort((a, b) =>
+      new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime(),
+    );
+    return { id: files[0].id, source: "fallback_latest", retries: attempts };
+  }
+
+  return { id: files[0].id, source: "fallback_single", retries: attempts };
+}
+
+// ─── Delete ───────────────────────────────────────────────────────────────────
+
+/**
+ * Drive'dan dosyayı kalıcı olarak siler.
+ * 404 → zaten silinmiş, hata fırlatma.
+ */
+export async function deleteFromDrive(fileId: string): Promise<void> {
+  const token = await getAccessToken();
+
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}`,
+    {
+      method:  "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  if (!res.ok && res.status !== 404) {
+    const errText = await res.text();
+    throw driveError("UPLOAD_FAILED", `Drive dosyası silinemedi (${res.status}): ${errText}`);
+  }
 }

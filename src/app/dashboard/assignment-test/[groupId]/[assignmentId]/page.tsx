@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import {
   collection, getDocs, doc, getDoc, query, where,
   onSnapshot, orderBy, addDoc, serverTimestamp,
@@ -12,7 +12,7 @@ import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
 import {
   ArrowLeft, Loader2, Check, ChevronDown, FileText,
-  ExternalLink, Send, Lock, Users, Download,
+  ExternalLink, Send, Lock, Users, Download, Trash2,
 } from "lucide-react";
 import type { Submission, SubmissionStatus } from "@/app/types/submission";
 
@@ -604,6 +604,31 @@ export default function AssignmentDetailPage() {
                                   <Download size={12} /> İndir
                                 </a>
                               )}
+                              <button
+                                onClick={async () => {
+                                  if (!window.confirm(`v${sub.iteration} teslimini silmek istediğine emin misin? Drive'dan da silinecek.`)) return;
+                                  try {
+                                    const token = await auth.currentUser?.getIdToken();
+                                    const res = await fetch("/api/submissions/retract", {
+                                      method:  "POST",
+                                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                      body:    JSON.stringify({ submissionId: sub.id }),
+                                    });
+                                    if (!res.ok) {
+                                      const json = await res.json().catch(() => ({})) as { error?: string };
+                                      alert(json.error ?? "Silme başarısız.");
+                                      return;
+                                    }
+                                    await loadData();
+                                  } catch {
+                                    alert("Bağlantı hatası, tekrar dene.");
+                                  }
+                                }}
+                                title="Teslimi sil"
+                                className="p-1.5 rounded-lg hover:bg-status-danger-50 transition-colors text-surface-300 hover:text-status-danger-500 cursor-pointer"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
                           </div>
                         ))}

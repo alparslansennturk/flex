@@ -100,6 +100,38 @@ export function validateStudentOwnsSubmission(
   return callerUid === ownerUid;
 }
 
+// ─── Upload Validation ────────────────────────────────────────────────────────
+
+import { MAX_RESUMABLE_FILE_SIZE_BYTES, MAX_RESUMABLE_FILE_SIZE_LABEL } from "@/app/types/storage";
+
+/**
+ * Dosya boyutunun 100 MB sınırını aşmadığını kontrol eder.
+ * true → geçerli, false → aşıyor
+ */
+export function validateFileSizeLimit(fileSize: number): boolean {
+  return fileSize <= MAX_RESUMABLE_FILE_SIZE_BYTES;
+}
+
+export const FILE_SIZE_LIMIT_LABEL = MAX_RESUMABLE_FILE_SIZE_LABEL;
+
+/**
+ * Upload sayısının izin verilen limite ulaşmadığını kontrol eder.
+ * true → hâlâ yüklenebilir, false → limit doldu
+ */
+export function validateUploadCount(currentCount: number, maxAllowed: number): boolean {
+  return currentCount < maxAllowed;
+}
+
+/**
+ * Submission statusüne göre maksimum upload sayısını döner.
+ * null → ilk yükleme (daha önce submission yok)
+ */
+export function getMaxUploads(latestStatus: string | null): number {
+  if (latestStatus === "completed") return 0;  // Kilitli
+  if (latestStatus === "revision")  return 8;  // 5 temel + 3 revizyon
+  return 5; // submitted | reviewing | null
+}
+
 /**
  * Text boş olamaz.
  */
