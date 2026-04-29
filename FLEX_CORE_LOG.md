@@ -113,3 +113,7 @@
 | 108 | 2026-04-29 | [YAPILACAK] Kura PDF → Drive: kura çekilince öğrenci klasörüne `{ödevAdı}/` alt klasörü oluştur + PDF kopyası yükle — kura route'u + createAssignmentFolder helper | `lib/googledrive-folder.ts`, kura API route'u |
 | 109 | 2026-04-29 | AssignActivateModal ve DesignParkour cancel — try/catch eklendi, hata durumunda loader sıkışması giderildi | `AssignActivateModal.tsx`, `DesignParkour.tsx` |
 | 110 | 2026-04-29 | Firestore isInstructor JWT token fallback: getUserData() başarısız olursa request.auth.token.role ile doğrula — tüm ödev yazma işlemleri düzeldi | `firestore.rules` |
+| 111 | 2026-04-29 | Firestore rules JWT-öncelikli yeniden yapılandırma: isAdmin/isInstructor token birincil Firestore fallback, isStudentOwner null-safe, rol ayrımı netleştirildi | `firestore.rules` |
+| 112 | 2026-04-29 | Login oturumu 1 saat → 30 gün: onIdTokenChanged ile otomatik cookie yenileme, max-age=2592000 | `UserContext.tsx`, `login/page.tsx` |
+| 113 | 2026-04-29 | Deadline hatırlatma maili: 2 gün + 1 gün → sadece 1 gün kala tek mail | `api/cron/deadline-reminder/route.ts` |
+| 114 | 2026-04-29 | Firestore composite index deploy: submission_comments ve submission_timeline (submissionId+createdAt) — not girişi detay sayfası düzeldi | `firestore.indexes.json` (deploy) |
