@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "TalkToFigma": {
+      "command": "node",
+      "args": [
+        "D:/Alp/Eğitim/Yazılım Proje/mcp-server/dist/talk_to_figma_mcp/server.js"
+      ]
+    }
+  }
+}
