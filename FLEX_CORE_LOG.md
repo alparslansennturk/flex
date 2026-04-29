@@ -104,3 +104,10 @@
 | 99 | 2026-04-29 | DesignParkour süresi dolan ödev: "Ödev Detay" → "Not Ver" (yeşil, grading sayfasına yönlendir) | `DesignParkour.tsx` |
 | 100 | 2026-04-29 | Google Drive klasör yapısı: lazy /groups/group_{id}/students|instructors/{role}_{userId}/ — getAccessToken export, initResumableSession targetFolderId, findFileByActualName parent-bağımsız | `googledrive-folder.ts` (NEW), `googledrive.ts`, `init-resumable-upload/route.ts`, `types/upload.ts` |
 | 101 | 2026-04-29 | Drive dosya isimlendirme: UUID → 01-dosya.pdf (Firestore sayacı + klasör-içi fallback arama) | `googledrive.ts`, `init-resumable-upload/route.ts`, `complete-upload/route.ts`, `types/upload.ts` |
+| 102 | 2026-04-29 | Çoklu dosya yükleme: 5 başlangıç / 8 revizyon limiti, ikinci dosya yüklemede UI kayboluş fix | `student/[studentId]/[taskId]/page.tsx` |
+| 103 | 2026-04-29 | Unique öğrenci sayısı submission stats, deadline sıralaması (aktif ASC/tamamlanan DESC), accordion Material easing, query resilience (.catch) | `assignment-test/[groupId]/page.tsx`, `student/[studentId]/page.tsx` |
+| 104 | 2026-04-29 | Firestore rules: getUserData() null-safe → users doc'u olmayan öğrencilerde permission denied fix | `firestore.rules` |
+| 105 | 2026-04-29 | Drive arşiv/geri al: group klasörünü Gruplar↔Arşiv arasında taşır (fire-and-forget) | `api/groups/drive-folder/route.ts` (NEW), `hooks/useManagement.ts` |
+| 106 | 2026-04-29 | Drive klasör isimlendirme: Eğitmenler→Eğitmen, eğitmen adı alt klasörü, kök "Ödev Dosyaları" | `lib/googledrive-folder.ts` |
+| 107 | 2026-04-29 | Drive migrasyon scripti: --init-all (tüm gruplar/öğrenciler), --migrate (eski yapı→yeni), --dry-run | `scripts/migrate-drive-folders.mjs` (NEW) |
+| 108 | 2026-04-29 | [YAPILACAK] Kura PDF → Drive: kura çekilince öğrenci klasörüne `{ödevAdı}/` alt klasörü oluştur + PDF kopyası yükle — kura route'u + createAssignmentFolder helper | `lib/googledrive-folder.ts`, kura API route'u |
