@@ -898,7 +898,11 @@ export default function DesignParkour() {
         <CancelConfirmModal
           task={cancelConfirmTask}
           onCancel={() => setCancelConfirmTask(null)}
-          onConfirm={() => { handleCancelTask(cancelConfirmTask); setCancelConfirmTask(null); }}
+          onConfirm={async () => {
+            const t = cancelConfirmTask;
+            setCancelConfirmTask(null);
+            try { await handleCancelTask(t); } catch (err) { console.error("İptal hatası:", err); alert("Ödev iptal edilemedi. Tekrar deneyin."); }
+          }}
         />
       )}
     </section>

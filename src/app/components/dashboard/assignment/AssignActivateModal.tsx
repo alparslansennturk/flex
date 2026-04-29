@@ -102,9 +102,15 @@ export function AssignActivateModal({
       const g = groups.find(gr => gr.id === id)!;
       return { classId: g.code, groupId: g.id, groupBranch: g.branch ?? "", groupModule: g.module, level, endDate };
     });
-    await onConfirm(selections);
-    setVisible(false);
-    setLoading(false);
+    try {
+      await onConfirm(selections);
+      setVisible(false);
+    } catch (err) {
+      console.error("Ödev başlatma hatası:", err);
+      alert("Ödev başlatılamadı. Sayfayı yenileyip tekrar deneyin.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
