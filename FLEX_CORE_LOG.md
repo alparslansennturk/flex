@@ -98,3 +98,7 @@
 | 93 | 2026-04-29 | Submission öncesi yorum: tasks/{taskId}/threads/{studentId}/comments — stable private thread | `firestore.rules`, `student/[taskId]/page.tsx`, `dashboard/.../[assignmentId]/page.tsx` |
 | 94 | 2026-04-29 | Preview sayfası yorum path fix: submissions/{id}/comments → tasks/{taskId}/threads/{studentId}/comments | `[submissionId]/preview/page.tsx` |
 | 95 | 2026-04-29 | Mesaj düzenle/sil: hover menüsü (···) + inline edit + Firestore update/delete | `firestore.rules`, tüm comment bileşenleri |
+| 96 | 2026-04-29 | Accordion kartlar responsive: font/ikon/layout küçük ekranda sm: breakpoint ile ölçeklenir | `assignment-test/[groupId]/page.tsx` |
+| 97 | 2026-04-29 | Chat menüsü dışına tıklayınca kapanma: onMouseLeave → useRef+mousedown listener | `[assignmentId]/page.tsx`, `student/[taskId]/page.tsx`, `[submissionId]/preview/page.tsx` |
+| 98 | 2026-04-29 | Öğrenci yorum sonrası silme: yorum engeli kaldırıldı, sadece grade/feedback varsa blokla | `api/submissions/retract/route.ts`, `student/[studentId]/[taskId]/page.tsx` |
+| 99 | 2026-04-29 | DesignParkour süresi dolan ödev: "Ödev Detay" → "Not Ver" (yeşil, grading sayfasına yönlendir) | `DesignParkour.tsx` |
