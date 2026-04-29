@@ -39,7 +39,9 @@ service cloud.firestore {
     function isInstructor() {
       return isAdmin() ||
         (isSignedIn() && getUserData().get('roles', []).hasAny(['instructor'])) ||
-        (isSignedIn() && getUserData().get('role', '') == 'instructor');
+        (isSignedIn() && getUserData().get('role', '') == 'instructor') ||
+        (isSignedIn() && request.auth.token.role == 'instructor') ||
+        (isSignedIn() && request.auth.token.role == 'admin');
     }
 
     function hasPermissionOverride(perm) {
