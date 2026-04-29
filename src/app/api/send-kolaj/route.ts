@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMail } from "@/app/lib/email";
+import { saveMailLog } from "@/app/services/emailService";
 import { createFolderStructure } from "@/app/lib/googledrive-folder";
 import { uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
 
@@ -66,6 +67,13 @@ export async function POST(req: NextRequest) {
       subject: `Kolaj Bahçesi Ödevin — ${taskName}`,
       html,
       attachments,
+    });
+
+    await saveMailLog({
+      to,
+      subject: `Kolaj Bahçesi Ödevin — ${taskName}`,
+      type: "kolaj-assignment",
+      result,
     });
 
     if (!result.success) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMail } from "@/app/lib/email";
+import { saveMailLog } from "@/app/services/emailService";
 
 interface SosyalMailRequest {
   to: string;
@@ -44,6 +45,13 @@ export async function POST(req: NextRequest) {
           contentType: "application/pdf",
         },
       ],
+    });
+
+    await saveMailLog({
+      to,
+      subject: `Sosyal Medya Ödevin — ${brandName}`,
+      type: "sosyal-assignment",
+      result,
     });
 
     if (!result.success) {
