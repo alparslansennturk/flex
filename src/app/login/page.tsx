@@ -65,7 +65,7 @@ function LoginForm() {
 
       // Token + Firestore paralel — cookie race condition önlenir, hız korunur.
       const [idToken, userDoc] = await Promise.all([user.getIdToken(), getDoc(userDocRef)]);
-      document.cookie = `flex-token=${idToken}; path=/; max-age=3600; SameSite=Lax`;
+      document.cookie = `flex-token=${idToken}; path=/; max-age=2592000; SameSite=Lax`;
 
       if (userDoc.exists()) {
         const userData = userDoc.data();

@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, onIdTokenChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore'; 
 import { auth, db } from '@/app/lib/firebase';
 import { UserDocument } from '@/app/types/user';
@@ -42,11 +42,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     let unsubscribeDoc: (() => void) | null = null;
     let activeUid: string | null = null;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    // onIdTokenChanged: her token yenilenişinde (saatte bir) tetiklenir → cookie daima taze kalır
+    const unsubscribeAuth = onIdTokenChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // Middleware için role cookie — token refresh'te de güncellenir
+        // Cookie 30 gün ömürlü; Firebase SDK saatte bir token'ı yeniler, bu satır da günceller
         firebaseUser.getIdToken().then(token => {
-          document.cookie = `flex-token=${token}; path=/; max-age=3600; SameSite=Lax`;
+          document.cookie = `flex-token=${token}; path=/; max-age=2592000; SameSite=Lax`;
         });
 
         // Aynı kullanıcının token refresh'i → yeni listener açma, mevcut çalışmaya devam etsin
