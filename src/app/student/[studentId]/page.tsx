@@ -177,17 +177,15 @@ export default function StudentDashboard() {
   }
 
   const today        = new Date(); today.setHours(0, 0, 0, 0);
+  // Aktif: deadline'ı yakın olan en üstte (artan endDate)
   const activeTasks  = tasks
     .filter(t => { const d = parseDate(t.endDate); return d ? d >= today : !!t.isActive; })
     .sort((a, b) => (parseDate(a.endDate)?.getTime() ?? 0) - (parseDate(b.endDate)?.getTime() ?? 0));
 
+  // Tamamlananlar: en son biten (en yakın geçmiş deadline) en üstte (azalan endDate)
   const pastTasks    = tasks
     .filter(t => { const d = parseDate(t.endDate); return d ? d < today : false; })
-    .sort((a, b) => {
-      const sa = subMap[a.id]?.submittedAt?.getTime() ?? parseDate(a.endDate)?.getTime() ?? 0;
-      const sb = subMap[b.id]?.submittedAt?.getTime() ?? parseDate(b.endDate)?.getTime() ?? 0;
-      return sb - sa;
-    });
+    .sort((a, b) => (parseDate(b.endDate)?.getTime() ?? 0) - (parseDate(a.endDate)?.getTime() ?? 0));
 
   const showActive   = filter === "all" || filter === "active";
   const showPast     = filter === "all" || filter === "completed";
@@ -428,7 +426,7 @@ function StudentTaskAccordion({
           )}
           <ChevronDown
             size={16}
-            className={`text-surface-500 transition-transform duration-250 ${open ? "rotate-180" : ""}`}
+            className={`text-surface-500 transition-transform duration-[320ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${open ? "rotate-180" : ""}`}
           />
         </div>
       </div>
@@ -437,9 +435,9 @@ function StudentTaskAccordion({
       <div style={{
         display: "grid",
         gridTemplateRows: open ? "1fr" : "0fr",
-        transition: `grid-template-rows 0.28s ${open ? "cubic-bezier(0.4,0,1,1)" : "cubic-bezier(0,0,0.6,1)"}`,
+        transition: "grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1)",
       }}>
-        <div style={{ overflow: "hidden" }}>
+        <div style={{ overflow: "hidden", minHeight: 0 }}>
           <div className="h-px bg-surface-100" />
 
           <div className="p-6">

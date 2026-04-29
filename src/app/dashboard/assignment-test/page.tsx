@@ -60,8 +60,8 @@ export default function AssignmentTestPage() {
 
       // Her grup için task ve submission sayıları
       const [taskSnap, subSnap] = await Promise.all([
-        getDocs(collection(db, "tasks")),
-        getDocs(collection(db, "submissions")),
+        getDocs(collection(db, "tasks")).catch(() => ({ docs: [] })),
+        getDocs(collection(db, "submissions")).catch(() => ({ docs: [] })),
       ]);
 
       const statsMap: Record<string, GroupStats> = {};

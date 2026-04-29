@@ -25,7 +25,9 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(currentUid())).data;
+      // users koleksiyonunda kaydı olmayan kullanıcılar (öğrenciler) için güvenli dönüş
+      let userDoc = get(/databases/$(database)/documents/users/$(currentUid()));
+      return userDoc.exists ? userDoc.data : {};
     }
 
     function isAdmin() {

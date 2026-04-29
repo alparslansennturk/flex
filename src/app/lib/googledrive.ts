@@ -62,7 +62,7 @@ export function isDriveError(err: unknown): err is DriveError {
  * Refresh token kullanarak kısa ömürlü access token alır.
  * Her upload isteğinde çağrılır (token 1 saat geçerli).
  */
-async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   const clientId     = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
@@ -103,17 +103,15 @@ async function getAccessToken(): Promise<string> {
 
 // ─── Unique Filename ─────────────────────────────────────────────────────────
 
-const UUID_LEN  = 36;
-const SEP       = "__";
-
-/** uploadId ile orijinal dosya adını birleştirir. Collision imkânsız. */
-export function generateActualFileName(uploadId: string, originalFileName: string): string {
-  return `${uploadId}${SEP}${originalFileName}`;
+/** Sıra numaralı dosya adı üretir: 01-dosya.pdf, 02-dosya.jpg */
+export function generateActualFileName(sequence: number, originalFileName: string): string {
+  return `${String(sequence).padStart(2, "0")}-${originalFileName}`;
 }
 
-/** actualFileName'den orijinal dosya adını çıkarır. */
+/** actualFileName'den orijinal dosya adını çıkarır: "01-dosya.pdf" → "dosya.pdf" */
 export function extractOriginalFileName(actualFileName: string): string {
-  return actualFileName.slice(UUID_LEN + SEP.length);
+  const idx = actualFileName.indexOf("-");
+  return idx >= 0 ? actualFileName.slice(idx + 1) : actualFileName;
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -239,12 +237,13 @@ export async function uploadToDrive(
  * Vercel'in 4.5 MB sınırını atlatır — dosya Vercel'den geçmez.
  */
 export async function initResumableSession(
-  actualFileName: string,
-  fileSize: number,
-  mimeType: string,
+  actualFileName:  string,
+  fileSize:        number,
+  mimeType:        string,
+  targetFolderId?: string,
 ): Promise<string> {
   const token    = await getAccessToken();
-  const folderId = getFolderId();
+  const folderId = targetFolderId ?? getFolderId();
 
   const res = await fetch(
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
@@ -302,13 +301,16 @@ export async function setPublicReadPermission(fileId: string): Promise<void> {
 const FALLBACK_DELAYS = [0, 100, 300];
 
 async function searchByName(
-  actualFileName: string,
-  token: string,
-  folderId: string,
+  actualFileName:  string,
+  token:           string,
+  parentFolderId?: string,
 ): Promise<{ id: string; createdTime: string }[]> {
-  const q   = encodeURIComponent(
-    `name = '${actualFileName.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed = false`,
-  );
+  const parts = [
+    `name = '${actualFileName.replace(/'/g, "\\'")}'`,
+    ...(parentFolderId ? [`'${parentFolderId}' in parents`] : []),
+    `trashed = false`,
+  ];
+  const q   = encodeURIComponent(parts.join(" and "));
   const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,createdTime)&orderBy=createdTime%20desc`;
 
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -323,20 +325,22 @@ async function searchByName(
  * driveFileId browser'dan alınamadığında kullanılır.
  * Unique filename (UUID prefix) garantisi nedeniyle collision imkânsız.
  */
-export async function findFileByActualName(actualFileName: string): Promise<{
+export async function findFileByActualName(
+  actualFileName:  string,
+  parentFolderId?: string,
+): Promise<{
   id:      string;
   source:  "fallback_single" | "fallback_latest";
   retries: number;
 }> {
-  const token    = await getAccessToken();
-  const folderId = getFolderId();
+  const token = await getAccessToken();
 
   let files: { id: string; createdTime: string }[] = [];
   let attempts = 0;
 
   for (const delay of FALLBACK_DELAYS) {
     if (delay > 0) await sleep(delay);
-    files = await searchByName(actualFileName, token, folderId);
+    files = await searchByName(actualFileName, token, parentFolderId);
     attempts++;
     if (files.length > 0) break;
   }

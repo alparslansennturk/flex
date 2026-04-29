@@ -102,3 +102,5 @@
 | 97 | 2026-04-29 | Chat menüsü dışına tıklayınca kapanma: onMouseLeave → useRef+mousedown listener | `[assignmentId]/page.tsx`, `student/[taskId]/page.tsx`, `[submissionId]/preview/page.tsx` |
 | 98 | 2026-04-29 | Öğrenci yorum sonrası silme: yorum engeli kaldırıldı, sadece grade/feedback varsa blokla | `api/submissions/retract/route.ts`, `student/[studentId]/[taskId]/page.tsx` |
 | 99 | 2026-04-29 | DesignParkour süresi dolan ödev: "Ödev Detay" → "Not Ver" (yeşil, grading sayfasına yönlendir) | `DesignParkour.tsx` |
+| 100 | 2026-04-29 | Google Drive klasör yapısı: lazy /groups/group_{id}/students|instructors/{role}_{userId}/ — getAccessToken export, initResumableSession targetFolderId, findFileByActualName parent-bağımsız | `googledrive-folder.ts` (NEW), `googledrive.ts`, `init-resumable-upload/route.ts`, `types/upload.ts` |
+| 101 | 2026-04-29 | Drive dosya isimlendirme: UUID → 01-dosya.pdf (Firestore sayacı + klasör-içi fallback arama) | `googledrive.ts`, `init-resumable-upload/route.ts`, `complete-upload/route.ts`, `types/upload.ts` |

@@ -88,17 +88,22 @@ export default function GroupDetailPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [groupSnap, studentSnap, subSnap, taskSnap] = await Promise.all([
+      // Grup bilgisi + öğrenciler her zaman yüklenir
+      const [groupSnap, studentSnap] = await Promise.all([
         getDoc(doc(db, "groups", groupId)),
         getDocs(query(collection(db, "students"), where("groupId", "==", groupId))),
-        getDocs(query(collection(db, "submissions"), where("groupId", "==", groupId))),
-        getDocs(query(collection(db, "tasks"), where("groupId", "==", groupId))),
       ]);
 
       if (groupSnap.exists()) {
         const g = groupSnap.data();
         setGroup({ code: g.code, session: g.session, branch: g.branch, instructor: g.instructor, students: g.students });
       }
+
+      // Submissions ve tasks — permission hatası olursa sessiz geç
+      const [subSnap, taskSnap] = await Promise.all([
+        getDocs(query(collection(db, "submissions"), where("groupId", "==", groupId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, "tasks"),       where("groupId", "==", groupId))).catch(() => ({ docs: [] })),
+      ]);
 
       const studentList: Student[] = studentSnap.docs.map(d => ({
         id: d.id, name: d.data().name ?? "", lastName: d.data().lastName ?? "", points: d.data().points ?? 0,
@@ -174,11 +179,13 @@ export default function GroupDetailPage() {
                     <ArrowLeft size={18} className="text-surface-700" />
                   </button>
                   <div>
-                    <p className="text-[12px] font-medium text-surface-400">
-                      {group?.branch} Şb. &nbsp;•&nbsp; {group?.session}
-                    </p>
+                    {(group?.branch || group?.session) && (
+                      <p className="text-[12px] font-medium text-surface-400">
+                        {group.branch ? `${group.branch} Şb.` : ""}{group.branch && group.session ? " • " : ""}{group?.session ?? ""}
+                      </p>
+                    )}
                     <h1 className="text-[22px] font-bold text-base-primary-900 leading-tight">
-                      {group?.code ?? groupId}
+                      {group?.code ?? ""}
                     </h1>
                   </div>
                 </div>
@@ -300,8 +307,15 @@ function AssignmentsTab({
   const [filter, setFilter] = useState<Filter>("all");
 
   const today          = new Date(); today.setHours(0, 0, 0, 0);
-  const activeTasks    = tasks.filter(t => { const d = parseDate(t.endDate); return d ? d >= today : false; });
-  const completedTasks = tasks.filter(t => { const d = parseDate(t.endDate); return !d || d < today; });
+  // Aktif: deadline yakın olan en üstte
+  const activeTasks    = tasks
+    .filter(t => { const d = parseDate(t.endDate); return d ? d >= today : false; })
+    .sort((a, b) => (parseDate(a.endDate)?.getTime() ?? 0) - (parseDate(b.endDate)?.getTime() ?? 0));
+
+  // Tamamlananlar: en son biten (en yakın geçmiş deadline) en üstte
+  const completedTasks = tasks
+    .filter(t => { const d = parseDate(t.endDate); return !d || d < today; })
+    .sort((a, b) => (parseDate(b.endDate)?.getTime() ?? 0) - (parseDate(a.endDate)?.getTime() ?? 0));
 
   const FILTERS: { key: Filter; label: string }[] = [
     { key: "all",       label: "Tümü" },
@@ -396,9 +410,18 @@ function TaskAccordion({
   const router        = useRouter();
   const [open, setOpen] = useState(false);
 
-  const teslimEdenler = submissions.filter(s => s.status !== "revision").length;
-  const revize        = submissions.filter(s => s.status === "revision").length;
-  const bekleyenler   = Math.max(0, totalStudents - submissions.length);
+  // Öğrenci başına en son teslim (iteration en yüksek)
+  const latestByStudent = new Map<string, SubmissionRow>();
+  for (const s of submissions) {
+    const cur = latestByStudent.get(s.studentId);
+    if (!cur || (s.iteration ?? 0) > (cur.iteration ?? 0)) {
+      latestByStudent.set(s.studentId, s);
+    }
+  }
+  const uniqueSubs    = [...latestByStudent.values()];
+  const teslimEdenler = uniqueSubs.filter(s => s.status !== "revision").length;
+  const revize        = uniqueSubs.filter(s => s.status === "revision").length;
+  const bekleyenler   = Math.max(0, totalStudents - latestByStudent.size);
 
   // TODO: task.description ile değiştirilecek — ödev ekleme formu hazır olunca
   const descHeading = "Merhabalar,";
@@ -427,7 +450,7 @@ function TaskAccordion({
           )}
           <ChevronDown
             size={15}
-            className={`text-surface-500 transition-transform duration-250 ${open ? "rotate-180" : ""}`}
+            className={`text-surface-500 transition-transform duration-[320ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${open ? "rotate-180" : ""}`}
           />
           <button
             onClick={e => e.stopPropagation()}
@@ -438,15 +461,15 @@ function TaskAccordion({
         </div>
       </div>
 
-      {/* Accordion gövdesi — CSS grid trick ile smooth transition */}
+      {/* Accordion gövdesi */}
       <div
         style={{
           display: "grid",
           gridTemplateRows: open ? "1fr" : "0fr",
-          transition: `grid-template-rows 0.28s ${open ? "cubic-bezier(0.4,0,1,1)" : "cubic-bezier(0,0,0.6,1)"}`,
+          transition: "grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
-        <div style={{ overflow: "hidden" }}>
+        <div style={{ overflow: "hidden", minHeight: 0 }}>
           <div className="h-px bg-surface-100" />
 
           <div className="p-4 sm:p-6">

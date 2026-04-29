@@ -9,10 +9,12 @@ export interface UploadSession {
   taskId:           string;
   groupId:          string;
   originalFileName: string;
-  actualFileName:   string; // UUID prefix + originalFileName
+  actualFileName:   string; // 01-dosya.pdf (sıra numarası + orijinal ad)
   fileSize:         number;
   mimeType:         string;
   sessionUri:       string; // Google Drive resumable URI
+  folderId:         string; // Google Drive klasör ID (alt klasör)
+  folderPath:       string; // İnsan okunabilir yol: /groups/group_{id}/students/...
   status:           UploadSessionStatus;
   driveFileId?:     string;
   driveFileIdSource?: "response" | "fallback_single" | "fallback_latest";
@@ -31,6 +33,7 @@ export interface InitUploadResponse {
   maxUploads:       number;
   uploadsRemaining: number;
   totalBytes:       number;
+  folderPath?:      string; // Drive klasör yolu (loglama)
 }
 
 export interface CompleteUploadResponse {

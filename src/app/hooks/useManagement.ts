@@ -556,6 +556,14 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         await batch.commit();
         if (selectedGroupId === modalConfig.groupId) setSelectedGroupId(null);
         showNotification("Grup bitirildi, öğrenciler mezun listesine alındı.");
+        // Drive: Gruplar → Arşiv (fire-and-forget)
+        auth.currentUser?.getIdToken().then(token =>
+          fetch("/api/groups/drive-folder", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body:    JSON.stringify({ groupName: groupCode, action: "archive" }),
+          }).catch(() => {})
+        ).catch(() => {});
       } else if (modalConfig.type === 'restore') {
         // lastGroupId ile mezun listesindeki öğrencileri bul
         const studentsToRestore = students.filter(s => s.lastGroupId === modalConfig.groupId);
@@ -571,6 +579,14 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         });
         await batch.commit();
         showNotification("Grup ve öğrencileri geri yüklendi.");
+        // Drive: Arşiv → Gruplar (fire-and-forget)
+        auth.currentUser?.getIdToken().then(token =>
+          fetch("/api/groups/drive-folder", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body:    JSON.stringify({ groupName: targetGroup?.code ?? "", action: "restore" }),
+          }).catch(() => {})
+        ).catch(() => {});
       }
     } catch (error) { showNotification("Hata oluştu."); }
     setIsProcessing(false);

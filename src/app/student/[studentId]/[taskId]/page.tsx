@@ -395,12 +395,12 @@ export default function StudentTaskDetailPage() {
   /* ── Derived ── */
 
   const latestSub        = submissions[0] ?? null;
-  const canUpload        = !latestSub || latestSub.status === "revision";
   const dl               = deadlineMeta(task?.endDate);
   const isDueDatePassed  = dl?.danger === true;
-  const hasTeacherGrade = !!latestSub?.feedback || (latestSub as any)?.grade !== undefined;
+  const hasTeacherGrade  = !!latestSub?.feedback || (latestSub as any)?.grade !== undefined;
   const uploadLimit      = latestSub?.status === "revision" ? 8 : 5;
   const uploadUsed       = submissions.length;
+  const canUpload        = uploadUsed < uploadLimit && latestSub?.status !== "completed";
 
   if (loading || !student || !task) {
     return (

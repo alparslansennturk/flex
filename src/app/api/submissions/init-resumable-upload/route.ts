@@ -6,6 +6,7 @@ import {
   generateActualFileName,
   validateDriveFile,
 } from "@/app/lib/googledrive";
+import { createFolderStructure } from "@/app/lib/googledrive-folder";
 import { verifyRequestToken, FILE_SIZE_LIMIT_LABEL } from "@/app/lib/submission-validation";
 import {
   validateFileSizeLimit,
@@ -127,14 +128,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 8. Unique filename oluştur
+    // 8. Sıralı dosya adı oluştur (01-dosya.pdf, 02-dosya.pdf …)
     const uploadId       = crypto.randomUUID();
-    const actualFileName = generateActualFileName(uploadId, fileName);
+    const actualFileName = generateActualFileName(currentUploads + 1, fileName);
 
-    // 9. Google Drive resumable session başlat
-    const sessionUri = await initResumableSession(actualFileName, fileSize, mimeType);
+    // ✅ NEW FOLDER STRUCTURE START
+    // 9. Drive klasör hiyerarşisi oluştur (okunabilir isimlerle, lazy)
+    const userRole: "student" | "instructor" =
+      caller.role === "student" ? "student" : "instructor";
 
-    // 10. upload_sessions'a kaydet
+    const sd        = studentSnap.data()!;
+    const gd        = groupSnap.data()!;
+    const groupName = (gd.code as string | undefined)?.trim() || groupId;
+    const userName  = userRole === "student"
+      ? `${sd.name ?? ""} ${sd.lastName ?? ""}`.trim() || studentId
+      : (gd.instructor as string | undefined)?.trim() || "Eğitmen";
+
+    let folderResult: { folderId: string; folderPath: string };
+    try {
+      folderResult = await createFolderStructure(groupName, userName, userRole);
+    } catch (folderErr) {
+      const detail = folderErr instanceof Error ? folderErr.message : String(folderErr);
+      console.error("[init-resumable-upload] Klasör oluşturulamadı:", folderErr);
+      return NextResponse.json(
+        { error: "Drive klasör yapısı oluşturulamadı.", detail },
+        { status: 500 },
+      );
+    }
+    // ✅ NEW FOLDER STRUCTURE END
+
+    // 10. Google Drive resumable session başlat (hedef klasöre)
+    const sessionUri = await initResumableSession(
+      actualFileName,
+      fileSize,
+      mimeType,
+      folderResult.folderId,
+    );
+
+    // 11. upload_sessions'a kaydet
     const now       = new Date();
     const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
 
@@ -149,6 +180,8 @@ export async function POST(req: NextRequest) {
       fileSize,
       mimeType,
       sessionUri,
+      folderId:         folderResult.folderId,   // ✅ NEW
+      folderPath:       folderResult.folderPath,  // ✅ NEW
       status:           "uploading",
       createdAt:        FieldValue.serverTimestamp(),
       expiresAt,
@@ -162,6 +195,7 @@ export async function POST(req: NextRequest) {
       maxUploads,
       uploadsRemaining: maxUploads - currentUploads - 1,
       totalBytes:       fileSize,
+      folderPath:       folderResult.folderPath,  // ✅ NEW (logging için)
     };
 
     return NextResponse.json(response);

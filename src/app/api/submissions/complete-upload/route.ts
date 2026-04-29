@@ -99,8 +99,11 @@ export async function POST(req: NextRequest) {
       driveFileId       = clientDriveFileId.trim();
       driveFileIdSource = "response";
     } else {
-      // Fallback: Drive'da actualFileName ile ara (retry: 0ms, 100ms, 300ms)
-      const fallback = await findFileByActualName(session.actualFileName as string);
+      // Fallback: Drive'da actualFileName ile ara (klasör-içi, retry: 0ms, 100ms, 300ms)
+      const fallback = await findFileByActualName(
+        session.actualFileName as string,
+        session.folderId as string | undefined,
+      );
       driveFileId      = fallback.id;
       driveFileIdSource = fallback.source;
       fallbackUsed     = true;
