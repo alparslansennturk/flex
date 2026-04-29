@@ -20,12 +20,11 @@ export async function GET(req: NextRequest) {
 
   const today    = trDateString(0);
   const tomorrow = trDateString(1);
-  const dayAfter = trDateString(2);
 
   try {
     const tasksSnap = await adminDb
       .collection("tasks")
-      .where("endDate", "in", [tomorrow, dayAfter])
+      .where("endDate", "==", tomorrow)
       .get();
 
     let sent = 0;
@@ -55,7 +54,7 @@ export async function GET(req: NextRequest) {
         .where("groupId", "==", task.groupId)
         .get();
 
-      const daysLeft = task.endDate === tomorrow ? "yarın" : "2 gün sonra";
+      const daysLeft = "yarın";
       const taskName = task.name ?? "Ödev";
       const instructorName = task.createdByName ?? "Eğitmeniniz";
       const endDateFormatted = new Date(task.endDate + "T00:00:00").toLocaleDateString("tr-TR", {
