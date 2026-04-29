@@ -111,3 +111,5 @@
 | 106 | 2026-04-29 | Drive klasör isimlendirme: Eğitmenler→Eğitmen, eğitmen adı alt klasörü, kök "Ödev Dosyaları" | `lib/googledrive-folder.ts` |
 | 107 | 2026-04-29 | Drive migrasyon scripti: --init-all (tüm gruplar/öğrenciler), --migrate (eski yapı→yeni), --dry-run | `scripts/migrate-drive-folders.mjs` (NEW) |
 | 108 | 2026-04-29 | [YAPILACAK] Kura PDF → Drive: kura çekilince öğrenci klasörüne `{ödevAdı}/` alt klasörü oluştur + PDF kopyası yükle — kura route'u + createAssignmentFolder helper | `lib/googledrive-folder.ts`, kura API route'u |
+| 109 | 2026-04-29 | AssignActivateModal ve DesignParkour cancel — try/catch eklendi, hata durumunda loader sıkışması giderildi | `AssignActivateModal.tsx`, `DesignParkour.tsx` |
+| 110 | 2026-04-29 | Firestore isInstructor JWT token fallback: getUserData() başarısız olursa request.auth.token.role ile doğrula — tüm ödev yazma işlemleri düzeldi | `firestore.rules` |
