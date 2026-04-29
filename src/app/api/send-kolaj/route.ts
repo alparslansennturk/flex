@@ -74,6 +74,8 @@ export async function POST(req: NextRequest) {
       subject: `Kolaj Bahçesi Ödevin — ${taskName}`,
       type: "kolaj-assignment",
       result,
+      name: `${studentName} ${studentLastName}`.trim(),
+      groupCode: groupName ?? undefined,
     });
 
     if (!result.success) {

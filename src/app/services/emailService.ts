@@ -10,6 +10,8 @@ export async function saveMailLog(params: {
   subject: string;
   type: string;
   result: SendResult;
+  name?: string;
+  groupCode?: string;
 }) {
   try {
     const toStr = Array.isArray(params.to) ? params.to.join(", ") : params.to;
@@ -20,6 +22,8 @@ export async function saveMailLog(params: {
       status: params.result.success ? "success" : "failed",
       messageId: params.result.messageId ?? null,
       error: params.result.error ?? null,
+      name: params.name ?? null,
+      groupCode: params.groupCode ?? null,
       createdAt: FieldValue.serverTimestamp(),
     });
   } catch (e) {

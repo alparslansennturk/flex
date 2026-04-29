@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       subject: `Sosyal Medya Ödevin — ${brandName}`,
       type: "sosyal-assignment",
       result,
+      name: studentName,
     });
 
     if (!result.success) {

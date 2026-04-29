@@ -86,6 +86,8 @@ export async function GET(req: NextRequest) {
           subject: `Hatırlatma: "${taskName}" teslim tarihi yaklaşıyor (${endDateFormatted})`,
           type: "deadline-reminder",
           result: mailResult,
+          name: `${student.name ?? ""} ${student.lastName ?? ""}`.trim(),
+          groupCode: task.groupId ?? undefined,
         });
 
         sent++;

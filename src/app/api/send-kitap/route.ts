@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       subject: `Kitap Kapağı Ödevin — ${bookTitle}`,
       type: "kitap-assignment",
       result,
+      name: `${studentName} ${studentLastName}`.trim(),
     });
 
     if (!result.success) {
