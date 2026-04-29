@@ -110,10 +110,13 @@
 | 105 | 2026-04-29 | Drive arşiv/geri al: group klasörünü Gruplar↔Arşiv arasında taşır (fire-and-forget) | `api/groups/drive-folder/route.ts` (NEW), `hooks/useManagement.ts` |
 | 106 | 2026-04-29 | Drive klasör isimlendirme: Eğitmenler→Eğitmen, eğitmen adı alt klasörü, kök "Ödev Dosyaları" | `lib/googledrive-folder.ts` |
 | 107 | 2026-04-29 | Drive migrasyon scripti: --init-all (tüm gruplar/öğrenciler), --migrate (eski yapı→yeni), --dry-run | `scripts/migrate-drive-folders.mjs` (NEW) |
-| 108 | 2026-04-29 | [YAPILACAK] Kura PDF → Drive: kura çekilince öğrenci klasörüne `{ödevAdı}/` alt klasörü oluştur + PDF kopyası yükle — kura route'u + createAssignmentFolder helper | `lib/googledrive-folder.ts`, kura API route'u |
+| 108 | 2026-04-30 | Ödev bazlı Drive klasör yapısı + kolaj PDF Drive yükleme: createFolderStructure'a taskName 5. seviye, tüm yüklemeler /Öğrenciler/{ad}/{ödevAdı}/ altına, kolaj PDF mail sonrası Drive'a da kaydedilir | `lib/googledrive-folder.ts`, `lib/googledrive.ts`, `init-resumable-upload/route.ts`, `send-kolaj/route.ts`, `kolaj/GameScreen.tsx` |
 | 109 | 2026-04-29 | AssignActivateModal ve DesignParkour cancel — try/catch eklendi, hata durumunda loader sıkışması giderildi | `AssignActivateModal.tsx`, `DesignParkour.tsx` |
 | 110 | 2026-04-29 | Firestore isInstructor JWT token fallback: getUserData() başarısız olursa request.auth.token.role ile doğrula — tüm ödev yazma işlemleri düzeldi | `firestore.rules` |
 | 111 | 2026-04-29 | Firestore rules JWT-öncelikli yeniden yapılandırma: isAdmin/isInstructor token birincil Firestore fallback, isStudentOwner null-safe, rol ayrımı netleştirildi | `firestore.rules` |
 | 112 | 2026-04-29 | Login oturumu 1 saat → 30 gün: onIdTokenChanged ile otomatik cookie yenileme, max-age=2592000 | `UserContext.tsx`, `login/page.tsx` |
 | 113 | 2026-04-29 | Deadline hatırlatma maili: 2 gün + 1 gün → sadece 1 gün kala tek mail | `api/cron/deadline-reminder/route.ts` |
 | 114 | 2026-04-29 | Firestore composite index deploy: submission_comments ve submission_timeline (submissionId+createdAt) — not girişi detay sayfası düzeldi | `firestore.indexes.json` (deploy) |
+| 115 | 2026-04-30 | Kolaj havuzu emoji temizleme: ItemForm'a × butonu eklendi, emoji alanı pool editöründen silinebilir hale geldi | `pool/CollagePoolPanel.tsx` |
+| 116 | 2026-04-30 | Mail log eksiklikleri: send-kolaj/kitap/sosyal route'larına saveMailLog eklendi; saveMailLog name+groupCode alanlarını da kaydeder, tüm mail türlerinde Ad Soyad ve Grup kolonları dolar | `emailService.ts`, `send-kolaj/route.ts`, `send-kitap/route.ts`, `send-sosyal/route.ts`, `deadline-reminder/route.ts` |
+| 117 | 2026-04-30 | Canlı test başladı: kolaj kura çekildi, PDF mail gitti, Drive'da öğrenci klasörü + ödev alt klasörü oluştu, sistem doğrulandı | — |
