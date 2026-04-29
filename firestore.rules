@@ -24,34 +24,40 @@ service cloud.firestore {
         request.auth.token.email == 'flexos.platform@gmail.com';
     }
 
+    // users koleksiyonunda kaydı olmayan kullanıcılar için güvenli dönüş ({})
     function getUserData() {
-      // users koleksiyonunda kaydı olmayan kullanıcılar (öğrenciler) için güvenli dönüş
       let userDoc = get(/databases/$(database)/documents/users/$(currentUid()));
       return userDoc.exists ? userDoc.data : {};
     }
 
+    // Admin: JWT token birincil, Firestore fallback
+    // Sadece gerçek admin rolüne sahip kullanıcılar — instructor bu fonksiyonu geçemez
     function isAdmin() {
       return isSuperAdmin() ||
+        (isSignedIn() && request.auth.token.role == 'admin') ||
         (isSignedIn() && getUserData().get('roles', []).hasAny(['admin'])) ||
         (isSignedIn() && getUserData().get('role', '') == 'admin');
     }
 
+    // Instructor: JWT token birincil, Firestore fallback
+    // isAdmin() dahil — admin her şeyi yapabilir, instructor yalnızca kendi sınıflarını
     function isInstructor() {
       return isAdmin() ||
-        (isSignedIn() && getUserData().get('roles', []).hasAny(['instructor'])) ||
-        (isSignedIn() && getUserData().get('role', '') == 'instructor') ||
         (isSignedIn() && request.auth.token.role == 'instructor') ||
-        (isSignedIn() && request.auth.token.role == 'admin');
+        (isSignedIn() && getUserData().get('roles', []).hasAny(['instructor'])) ||
+        (isSignedIn() && getUserData().get('role', '') == 'instructor');
     }
 
+    // Belirli eğitmenlere verilen ek izinler (permissionOverrides map'i üzerinden)
     function hasPermissionOverride(perm) {
       return isSignedIn() && getUserData().get('permissionOverrides', {}).get(perm, false) == true;
     }
 
     // Öğrenci auth UID ile studentId (doc ID) eşleşmeyebilir — her ikisini kontrol et
     function isStudentOwner(studentDocId) {
+      let studentDoc = get(/databases/$(database)/documents/students/$(studentDocId));
       return studentDocId == currentUid() ||
-             get(/databases/$(database)/documents/students/$(studentDocId)).data.authUid == currentUid();
+             (studentDoc.exists && studentDoc.data.authUid == currentUid());
     }
 
     // Bir submission'ın sahibi mi?
