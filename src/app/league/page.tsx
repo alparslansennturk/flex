@@ -568,7 +568,6 @@ function LeagueContent() {
   const [selectedBranch,  setSelectedBranch]  = useState<string>(branchParam);
   const [scoreMode,       setScoreMode]       = useState<ScoreMode>("monthly");
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
-  const [sortAlpha,       setSortAlpha]       = useState(false);
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
   const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: string; classId?: string; status?: string }>>({});
   const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({});
@@ -859,10 +858,9 @@ function LeagueContent() {
       const same = prev.score === sorted[i].score && (prev.latePenaltyTotal ?? 0) === (sorted[i].latePenaltyTotal ?? 0) && (prev.completedTasks ?? 0) === (sorted[i].completedTasks ?? 0);
       byScore.push({ ...sorted[i], rank: same ? prevRank : prevRank + 1 } as RankedStudent);
     }
-    if (sortAlpha) return [...byScore].sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
     return byScore;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, sortAlpha]);
+  }, [filtered]);
 
   // ── Sıralı gruplar ────────────────────────────────────────────────────────
   const rankedGroups = useMemo<RankedGroup[]>(() => {
@@ -1065,22 +1063,6 @@ function LeagueContent() {
                         }`}
                       >
                         {mode === "monthly" ? "Aylık" : "Toplam"}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Sıralama modu */}
-                  <div className="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-full p-1">
-                    {([false, true] as const).map((alpha) => (
-                      <button
-                        key={String(alpha)}
-                        onClick={() => setSortAlpha(alpha)}
-                        className={`text-[11px] font-semibold px-3 h-6 rounded-full transition-all cursor-pointer outline-none whitespace-nowrap ${
-                          sortAlpha === alpha
-                            ? "bg-white text-text-primary shadow-sm"
-                            : "text-text-tertiary hover:text-text-primary"
-                        }`}
-                      >
-                        {alpha ? "A–Z" : "Puan"}
                       </button>
                     ))}
                   </div>

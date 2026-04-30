@@ -42,6 +42,13 @@ export async function GET(req: NextRequest) {
   });
 
   try {
+    // Duplicate koruması — aynı gün ikinci çağrı skip eder
+    const todayKey     = now.toISOString().substring(0, 10); // "2026-04-30"
+    const previewDocRef = adminDb.collection("monthly_winner_previews").doc(todayKey);
+    if ((await previewDocRef.get()).exists) {
+      return NextResponse.json({ success: true, skipped: true, reason: "already_sent_today", date: todayKey });
+    }
+
     // Scoring ayarlarını çek
     const settingsSnap = await adminDb.collection("settings").doc("scoring").get();
     const settings: ScoringSettings = settingsSnap.exists
@@ -234,6 +241,13 @@ export async function GET(req: NextRequest) {
     const subject = `👀 Önizleme: ${monthLabel} Aylık Lig Birincisi — Yarın Mail Gidecek`;
     const result = await sendMail({ to: ADMIN_EMAIL, subject, html });
     await saveMailLog({ to: ADMIN_EMAIL, subject, type: "monthly-winner-preview", result });
+
+    // Duplicate koruması kaydı
+    await previewDocRef.set({
+      sentAt:  new Date().toISOString(),
+      month:   `${year}-${mo}`,
+      winners: winners.map(w => `${w.name} ${w.lastName}`),
+    });
 
     console.log(`[monthly-winner-preview] ${monthLabel} → ${ADMIN_EMAIL} [${result.success ? "OK" : "FAIL"}]`);
 
