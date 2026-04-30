@@ -120,3 +120,5 @@
 | 115 | 2026-04-30 | Kolaj havuzu emoji temizleme: ItemForm'a × butonu eklendi, emoji alanı pool editöründen silinebilir hale geldi | `pool/CollagePoolPanel.tsx` |
 | 116 | 2026-04-30 | Mail log eksiklikleri: send-kolaj/kitap/sosyal route'larına saveMailLog eklendi; saveMailLog name+groupCode alanlarını da kaydeder, tüm mail türlerinde Ad Soyad ve Grup kolonları dolar | `emailService.ts`, `send-kolaj/route.ts`, `send-kitap/route.ts`, `send-sosyal/route.ts`, `deadline-reminder/route.ts` |
 | 117 | 2026-04-30 | Canlı test başladı: kolaj kura çekildi, PDF mail gitti, Drive'da öğrenci klasörü + ödev alt klasörü oluştu, sistem doğrulandı | — |
+| 118 | 2026-04-30 | Lig A-Z butonu kaldırıldı: puan sıfırlandığında sortFn zaten A-Z sıralar, manuel buton gereksizdi | `league/page.tsx` |
+| 119 | 2026-04-30 | Aylık cron çift mail fix: monthly-winner-preview'a Firestore duplicate koruması eklendi (monthly_winner_previews/{tarih}) — Vercel + GitHub Actions aynı anda tetiklenince ikincisi skip eder | `api/cron/monthly-winner-preview/route.ts`, `vercel.json` |
