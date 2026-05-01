@@ -45,11 +45,14 @@ export async function PATCH(
     if (subData.status === "completed")
       return NextResponse.json({ error: "Zaten onaylanmış gönderim tekrar notlandırılamaz." }, { status: 400 });
 
-    // 5. Caller grubun üyesi mi (token varsa)
+    // 5. Caller grubun üyesi mi (token varsa) — eğitmen/admin role tabanlı erişir
     if (caller && subData.groupId) {
-      const isMember = await validateUserInGroup(caller.uid, subData.groupId as string);
-      if (!isMember)
-        return NextResponse.json({ error: "Bu grubun üyesi değilsiniz." }, { status: 403 });
+      const isTeacherOrAdmin = caller.role === "instructor" || caller.role === "teacher" || caller.role === "admin";
+      if (!isTeacherOrAdmin) {
+        const isMember = await validateUserInGroup(caller.uid, subData.groupId as string);
+        if (!isMember)
+          return NextResponse.json({ error: "Bu grubun üyesi değilsiniz." }, { status: 403 });
+      }
     }
     // ✅ NEW VALIDATION END
 

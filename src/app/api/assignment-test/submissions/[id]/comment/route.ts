@@ -45,10 +45,22 @@ export async function POST(
     // 2. Token varsa ek güvenlik kontrolleri uygula
     const caller = await verifyRequestToken(req);
     if (caller) {
-      // 3. Grup üyeliği doğrula
-      const isMember = await validateUserInGroup(caller.uid, subData.groupId as string);
-      if (!isMember)
-        return NextResponse.json({ error: "Bu grubun üyesi değilsiniz." }, { status: 403 });
+      const isTeacherOrAdmin = caller.role === "instructor" || caller.role === "teacher" || caller.role === "admin";
+
+      console.log("[comment] auth:", {
+        uid: caller.uid,
+        role: caller.role,
+        groupId: subData.groupId,
+        isTeacherOrAdmin,
+      });
+
+      // 3. Grup üyeliği: eğitmen/admin role tabanlı erişim, öğrenci membership kontrolü
+      if (!isTeacherOrAdmin) {
+        const isMember = await validateUserInGroup(caller.uid, subData.groupId as string);
+        console.log("[comment] membershipExists:", isMember);
+        if (!isMember)
+          return NextResponse.json({ error: "Bu grubun üyesi değilsiniz." }, { status: 403 });
+      }
 
       // 4. Öğrenci sadece kendi submission'ına yorum yapabilir
       if (!validateStudentOwnsSubmission(caller.uid, subData.studentId as string, caller.role))
