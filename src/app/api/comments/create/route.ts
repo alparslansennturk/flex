@@ -70,19 +70,23 @@ export async function POST(req: NextRequest) {
   const safeText       = sanitize(text);
   const safeAuthorName = sanitize(rawAuthorName);
 
-  // ── Step 6: Resolve role (token birincil, DB fallback) ───────────────────
+  // ── Step 6: Resolve role (token birincil, DB sadece fallback) ───────────────
   const uid = decoded.uid;
   const tokenRole = decoded.role as string | undefined;
 
-  // users doc'u her iki rol için de gerekebilir
-  const userDoc  = await adminDb.collection("users").doc(uid).get();
-  const userData = userDoc.exists ? userDoc.data()! : {};
-  const role     = tokenRole || (userData.role as string) || (userData.roles as string[])?.[0] || "";
+  // Sadece token'da role yoksa DB'ye git
+  let role = tokenRole ?? "";
+  let userData: Record<string, unknown> = {};
+  if (!tokenRole) {
+    const userDoc = await adminDb.collection("users").doc(uid).get();
+    userData = userDoc.exists ? (userDoc.data() as Record<string, unknown>) : {};
+    role = (userData.role as string) || (userData.roles as string[])?.[0] || "";
+  }
 
   const isTeacher = role === "instructor" || role === "admin";
   const isStudent = role === "student";
 
-  console.log("[comments/create] role resolved:", { tokenRole, dbRole: userData.role, resolved: role });
+  console.log("[comments/create] role resolved:", { tokenRole, resolved: role });
 
   // ── Step 7: Authorization ────────────────────────────────────────────────
   if (isStudent) {
@@ -90,10 +94,16 @@ export async function POST(req: NextRequest) {
     let resolvedDocId = decoded.studentDocId as string | undefined;
     let ownerSource = "token";
 
-    // 2. users doc fallback
-    if (!resolvedDocId && userData.studentDocId) {
-      resolvedDocId = userData.studentDocId as string;
-      ownerSource = "users_doc";
+    // 2. users doc fallback (sadece claims'te yoksa DB'ye git)
+    if (!resolvedDocId) {
+      if (!userData.studentDocId) {
+        const userDoc = await adminDb.collection("users").doc(uid).get();
+        userData = userDoc.exists ? (userDoc.data() as Record<string, unknown>) : {};
+      }
+      if (userData.studentDocId) {
+        resolvedDocId = userData.studentDocId as string;
+        ownerSource = "users_doc";
+      }
     }
 
     // 3. students koleksiyon query fallback (authUid ile)
@@ -119,11 +129,6 @@ export async function POST(req: NextRequest) {
     console.log("[comments/create] Authorization: OWNER", { source: ownerSource });
 
   } else if (isTeacher) {
-    // Öğrencinin var olduğunu doğrula
-    const studentDoc = await adminDb.collection("students").doc(studentId).get();
-    if (!studentDoc.exists) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 });
-    }
     // Eğitmen/admin role tabanlı erişim — memberships koleksiyonunda kayıt gerekmez
     console.log("[comments/create] Authorization: TEACHER — role-based access granted:", { uid, role });
 
