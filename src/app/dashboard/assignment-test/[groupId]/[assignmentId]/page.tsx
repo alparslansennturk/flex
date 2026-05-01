@@ -245,6 +245,33 @@ export default function AssignmentDetailPage() {
     commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [generalComments, privateComments, activeTab]);
 
+  /* Sayfaya odak dönünce (preview'dan geri gelince) private snapshot'ı yenile */
+  useEffect(() => {
+    if (!viewingId) return;
+    const onFocus = () => {
+      const q = query(
+        collection(db, "tasks", assignmentId, "threads", viewingId, "comments"),
+        orderBy("createdAt", "asc"),
+      );
+      // Tek seferlik get — onSnapshot zaten aktif, sadece stale state'i temizle
+      import("firebase/firestore").then(({ getDocs }) =>
+        getDocs(q).then(snap => {
+          setPrivateComments(snap.docs.map(d => ({
+            id: d.id,
+            commentType: "private" as const,
+            authorId:   d.data().authorId   ?? "",
+            authorType: d.data().authorType ?? "teacher",
+            authorName: d.data().authorName ?? "—",
+            text:       d.data().text ?? d.data().body ?? "",
+            createdAt:  d.data().createdAt?.toDate?.() ?? new Date(),
+          })));
+        }).catch(() => {})
+      );
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [viewingId, assignmentId]);
+
   /* ── Data ── */
 
   async function loadData() {
@@ -373,15 +400,34 @@ export default function AssignmentDetailPage() {
 
   async function editComment(id: string, newText: string) {
     if (!viewingId) return;
-    await updateDoc(
-      doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id),
-      { text: newText, editedAt: serverTimestamp() },
-    );
+    try {
+      await updateDoc(
+        doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id),
+        { text: newText, editedAt: serverTimestamp() },
+      );
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === "not-found") {
+        // Firestore'da yok — stale state, listeden kaldır
+        setPrivateComments(prev => prev.filter(c => c.id !== id));
+      }
+      console.error("[editComment]", err);
+    }
   }
 
-  async function deleteComment(id: string) {
+  function deleteComment(id: string) {
     if (!viewingId) return;
-    await deleteDoc(doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id));
+    // Optimistic: anında listeden kaldır
+    setPrivateComments(prev => prev.filter(c => c.id !== id));
+    deleteDoc(doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id))
+      .catch((err: unknown) => {
+        const code = (err as { code?: string })?.code;
+        if (code !== "not-found") {
+          // Gerçek hata — geri yükle (onSnapshot gelince düzelir)
+          console.error("[deleteComment]", err);
+        }
+        // not-found: zaten silinmiş, optimistic kaldırma doğruydu
+      });
   }
 
   /* ── Yorum gönder ── */
@@ -786,7 +832,7 @@ function CommentRow({
   comment: CommentItem;
   myId: string;
   onEdit?: (id: string, newText: string) => Promise<void>;
-  onDelete?: (id: string) => Promise<void>;
+  onDelete?: (id: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing,  setEditing]  = useState(false);
