@@ -246,9 +246,15 @@ export default function SubmissionPreviewPage() {
     );
   }
 
-  async function deleteComment(id: string) {
+  function deleteComment(id: string) {
     if (!submission) return;
-    await deleteDoc(doc(db, "tasks", submission.taskId, "threads", submission.studentId, "comments", id));
+    // Optimistic: anında kaldır
+    setComments(prev => prev.filter(c => c.id !== id));
+    deleteDoc(doc(db, "tasks", submission.taskId, "threads", submission.studentId, "comments", id))
+      .catch((err: unknown) => {
+        console.error("[preview deleteComment]", err);
+        // Silme başarısız — onSnapshot güncel veriyi getirecek
+      });
   }
 
   function sendComment() {
@@ -501,7 +507,7 @@ function ThreadMessage({
   comment: CommentItem;
   myId: string;
   onEdit?: (id: string, newText: string) => Promise<void>;
-  onDelete?: (id: string) => Promise<void>;
+  onDelete?: (id: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing,  setEditing]  = useState(false);

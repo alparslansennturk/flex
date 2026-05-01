@@ -879,18 +879,12 @@ export default function LeaguePage() {
     const lastDay    = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const monthEnd   = `${currentMonthKey}-${String(lastDay).padStart(2, "0")}`;
 
-    // Hybrid kural: hangi aya yazılacağını belirler
-    //   completedAt <= endDate → deadline ayı (zamanında / erken)
-    //   completedAt >  endDate → teslim ayı (geç)
-    //   completedAt yoksa     → endDate ayı (eski veri)
+    // Kural: deadline hangi aydaysa o aya yaz (geç teslim de deadline ayına girer)
     const effectiveMonthKey = (
       ca: string | undefined,
       end: string | undefined,
     ): string | null => {
-      let d: string | null;
-      if (!ca)       d = end ?? null;
-      else if (!end) d = ca;
-      else           d = ca <= end ? end : ca;
+      const d = end ?? ca ?? null;
       return d ? d.substring(0, 7) : null;
     };
 

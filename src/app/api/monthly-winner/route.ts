@@ -21,17 +21,12 @@ function getPrevMonthRange(): { start: string; end: string; label: string; year:
   return { start, end, label, year, month };
 }
 
-// Hybrid kural: hangi aya yazılacağını belirler
-//   completedAt <= endDate → deadline ayı (zamanında / erken)
-//   completedAt >  endDate → teslim ayı (geç)
-//   completedAt yoksa     → endDate ayı (eski veri)
+// Kural: deadline hangi aydaysa o aya yaz (geç teslim de deadline ayına girer)
 function effectiveDate(
   completedAt: string | undefined,
   endDate: string | undefined,
 ): string | null {
-  if (!completedAt) return endDate ?? null;
-  if (!endDate)     return completedAt;
-  return completedAt <= endDate ? endDate : completedAt;
+  return endDate ?? completedAt ?? null;
 }
 
 export async function POST() {
