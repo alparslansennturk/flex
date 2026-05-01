@@ -35,3 +35,4 @@
 | 129 | 2026-05-01 | welcome API: setCustomUserClaims'e studentDocId eklendi | `api/welcome/route.ts` |
 | 130 | 2026-05-01 | 3 sayfada sendComment → API'ye taşındı; Firestore thread create: false | `student/[taskId]/page.tsx`, `[assignmentId]/page.tsx`, `preview/page.tsx`, `firestore.rules` |
 | 131 | 2026-05-01 | CLAIMS_STALE kalıcı fix: comments/create 3 kademeli fallback (token→users_doc→students_query); sync'te users doc + setCustomUserClaims; login'de sync await + getIdToken(true) redirect öncesi | `api/comments/create/route.ts`, `api/student/sync/route.ts`, `login/page.tsx` |
+| 132 | 2026-05-01 | Aylık lig cron zamanlaması: winner 1→5, preview son gün→4; effectiveDate endDate-only (geç not girişi artık ay sınıflandırmasını etkilemiyor); ilk etki Haziran 4/5 | `vercel.json`, `.github/workflows/monthly-winner.yml`, `.github/workflows/monthly-winner-preview.yml`, `api/cron/monthly-winner/route.ts`, `api/cron/monthly-winner-preview/route.ts` |

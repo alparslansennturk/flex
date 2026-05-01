@@ -6,14 +6,13 @@ import { calcStudentFinalScore, DEFAULT_SCORING, ScoringSettings } from "@/app/l
 
 const ADMIN_EMAIL = "alparslan.sennturk@gmail.com";
 
-// Hybrid kural: hangi aya yazılacağını belirler
+// Görev her zaman deadline ayına (endDate) yazılır.
+// Notun ne zaman girildiği ay sınıflandırmasını etkilemez.
 function effectiveDate(
-  completedAt: string | undefined,
+  _completedAt: string | undefined,
   endDate: string | undefined,
 ): string | null {
-  if (!completedAt) return endDate ?? null;
-  if (!endDate)     return completedAt;
-  return completedAt <= endDate ? endDate : completedAt;
+  return endDate ?? null;
 }
 
 export async function GET(req: NextRequest) {
@@ -26,13 +25,14 @@ export async function GET(req: NextRequest) {
   const now      = new Date(Date.now() + 3 * 60 * 60 * 1000);
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-  // Yalnızca ayın son günüyse çalış (yarın 1. gün = bugün son gün)
-  if (tomorrow.getUTCDate() !== 1) {
-    return NextResponse.json({ success: true, skipped: true, reason: "not_last_day_of_month" });
+  // Yalnızca ayın 4'ünde çalış (winner ayın 5'inde gönderilir)
+  if (now.getUTCDate() !== 4) {
+    return NextResponse.json({ success: true, skipped: true, reason: "not_4th_of_month" });
   }
 
-  const year  = now.getUTCFullYear();
-  const month = now.getUTCMonth(); // 0-indexed, bu ay
+  // Bir önceki ay (winner cron ile aynı mantık)
+  const year  = now.getUTCMonth() === 0 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+  const month = now.getUTCMonth() === 0 ? 11 : now.getUTCMonth() - 1; // 0-indexed, önceki ay
   const mo    = String(month + 1).padStart(2, "0");
   const monthStart = `${year}-${mo}-01`;
   const lastDay    = new Date(year, month + 1, 0).getDate();
@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
   <tr>
     <td style="padding:24px 32px 16px">
       <p style="margin:0;font-size:15px;color:#374151;line-height:1.6">
-        Yarın <strong>1 ${monthLabel.split(" ")[0]}</strong> tarihinde aylık lig maili otomatik gönderilecek.<br>
+        Yarın <strong>${tomorrow.toLocaleDateString("tr-TR", { day: "numeric", month: "long" })}</strong> tarihinde aylık lig maili otomatik gönderilecek.<br>
         Şu anki duruma göre ${winners.length > 1 ? "birinciler" : "birinci"}: ${winnerNames}
       </p>
       ${winners.length > 1 ? `<p style="margin:12px 0 0;font-size:13px;color:#6B7280">⚠️ ${winners.length} kişi berabere — hepsine mail gidecek.</p>` : ""}

@@ -114,17 +114,13 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
 </html>`;
 }
 
-// Hybrid kural: hangi aya yazılacağını belirler
-//   completedAt <= endDate → deadline ayı (zamanında / erken)
-//   completedAt >  endDate → teslim ayı (geç)
-//   completedAt yoksa     → endDate ayı (eski veri)
+// Görev her zaman deadline ayına (endDate) yazılır.
+// Notun ne zaman girildiği ay sınıflandırmasını etkilemez.
 function effectiveDate(
-  completedAt: string | undefined,
+  _completedAt: string | undefined,
   endDate: string | undefined,
 ): string | null {
-  if (!completedAt) return endDate ?? null;
-  if (!endDate)     return completedAt;
-  return completedAt <= endDate ? endDate : completedAt;
+  return endDate ?? null;
 }
 
 export async function GET(req: NextRequest) {
