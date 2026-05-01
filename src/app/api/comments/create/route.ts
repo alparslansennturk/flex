@@ -119,28 +119,13 @@ export async function POST(req: NextRequest) {
     console.log("[comments/create] Authorization: OWNER", { source: ownerSource });
 
   } else if (isTeacher) {
-    // Öğrencinin grubunu bul
+    // Öğrencinin var olduğunu doğrula
     const studentDoc = await adminDb.collection("students").doc(studentId).get();
     if (!studentDoc.exists) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
-    const groupId = studentDoc.data()?.groupId as string | undefined;
-    if (!groupId) {
-      return NextResponse.json({ error: "Student has no group" }, { status: 400 });
-    }
-
-    // Group membership kontrolü
-    const memberSnap = await adminDb.collection("memberships")
-      .where("userId",  "==", uid)
-      .where("groupId", "==", groupId)
-      .limit(1)
-      .get();
-
-    if (memberSnap.empty) {
-      console.log("[comments/create] FORBIDDEN — not member of group:", groupId);
-      return NextResponse.json({ error: "Not member of this group" }, { status: 403 });
-    }
-    console.log("[comments/create] Authorization: TEACHER — group membership verified:", groupId);
+    // Eğitmen/admin role tabanlı erişim — memberships koleksiyonunda kayıt gerekmez
+    console.log("[comments/create] Authorization: TEACHER — role-based access granted:", { uid, role });
 
   } else {
     console.log("[comments/create] FORBIDDEN — unknown role:", role);
