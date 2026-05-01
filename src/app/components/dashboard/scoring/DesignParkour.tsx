@@ -267,6 +267,8 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
   const needsGrading  = isCompleted && !task.isGraded;
   const isFullyDone   = isCompleted && !!task.isGraded;
   const isDisabled    = !isCompleted && (isBorrowed || isExpired || isNoDate);
+  const isLottery     = task.assignmentType === "kolaj" || task.assignmentType === "kitap" || task.assignmentType === "sosyal_medya";
+  const isSelectionDone = task.status === "published";
 
   // Notlandırma tamamlandıysa kart şablon (ghost) pozisyonuna döner
   if (isFullyDone) {
@@ -424,7 +426,10 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
           </div>
         ) : isExpired ? (
           <button
-            onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
+            onClick={() => task.groupId
+              ? router.push(`/dashboard/assignment-test/${task.groupId}/${task.id}`)
+              : router.push(`/dashboard/grading?taskId=${task.id}`)
+            }
             className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
           >
             Not Ver <ChevronRight size={16} />
@@ -434,7 +439,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
             onClick={() => onDetail(task)}
             className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer"
           >
-            Ödev Detay <ChevronRight size={16} />
+            {isLottery && !isSelectionDone ? "Seçimi Başlat" : "Ödev Detay"} <ChevronRight size={16} />
           </button>
         )}
       </div>
@@ -842,11 +847,16 @@ export default function DesignParkour() {
             onComplete={setCompleteConfirmTask}
             onCancel={setCancelConfirmTask}
             onDetail={t => {
-              const route = t.assignmentType === "kitap"       ? "kitap"
-                          : t.assignmentType === "kolaj"       ? "kolaj"
-                          : t.assignmentType === "sosyal_medya" ? "sosyalmedya"
-                          : null;
-              if (route) router.push(`/dashboard/${route}?taskId=${t.id}`);
+              const isLottery = t.assignmentType === "kolaj" || t.assignmentType === "kitap" || t.assignmentType === "sosyal_medya";
+              const isSelectionDone = t.status === "published";
+              if (isLottery && !isSelectionDone) {
+                const route = t.assignmentType === "kitap" ? "kitap"
+                            : t.assignmentType === "kolaj" ? "kolaj"
+                            : "sosyalmedya";
+                router.push(`/dashboard/${route}?taskId=${t.id}`);
+              } else if (t.groupId) {
+                router.push(`/dashboard/assignment-test/${t.groupId}/${t.id}`);
+              }
             }}
           />
         ))}
