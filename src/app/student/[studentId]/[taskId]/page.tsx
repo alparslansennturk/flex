@@ -153,7 +153,6 @@ export default function StudentTaskDetailPage() {
   /* Comments */
   const [comments,       setComments]       = useState<CommentItem[]>([]);
   const [commentText,    setCommentText]    = useState("");
-  const [sendingComment, setSendingComment] = useState(false);
   const [commentError,   setCommentError]   = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
@@ -408,22 +407,33 @@ export default function StudentTaskDetailPage() {
     await deleteDoc(doc(db, "tasks", taskId, "threads", studentId, "comments", id));
   }
 
-  async function sendComment() {
-    if (!commentText.trim() || sendingComment || !student) return;
-    setSendingComment(true);
+  function sendComment() {
+    const text = commentText.trim();
+    if (!text || !student) return;
+
+    const authorName = `${student.name} ${student.lastName}`.trim();
+    const tempId = `opt_${crypto.randomUUID()}`;
+
+    // Optimistic: anında ekle + input'u temizle
+    setCommentText("");
     setCommentError(null);
-    const result = await sendThreadComment(
-      taskId,
-      studentId,
-      commentText.trim(),
-      `${student.name} ${student.lastName}`.trim(),
-    );
-    if (result.ok) {
-      setCommentText("");
-    } else {
-      setCommentError(result.error ?? "Yorum gönderilemedi, tekrar dene.");
-    }
-    setSendingComment(false);
+    setComments(prev => [...prev, {
+      id: tempId,
+      authorId:   auth.currentUser?.uid ?? "",
+      authorType: "student",
+      authorName,
+      text,
+      createdAt:  new Date(),
+    }]);
+
+    // Arka planda gönder
+    sendThreadComment(taskId, studentId, text, authorName).then(result => {
+      if (!result.ok) {
+        setComments(prev => prev.filter(c => c.id !== tempId));
+        setCommentError(result.error ?? "Yorum gönderilemedi, tekrar dene.");
+      }
+      // Başarıda onSnapshot real mesajı getirir, tempId otomatik düşer
+    });
   }
 
   /* ── Derived ── */
@@ -781,14 +791,11 @@ export default function StudentTaskDetailPage() {
               />
               <button
                 onClick={sendComment}
-                disabled={!commentText.trim() || sendingComment}
+                disabled={!commentText.trim()}
                 className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center
                   hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
               >
-                {sendingComment
-                  ? <Loader2 size={14} className="animate-spin" />
-                  : <Send size={14} />
-                }
+                <Send size={14} />
               </button>
               </div>
             </div>

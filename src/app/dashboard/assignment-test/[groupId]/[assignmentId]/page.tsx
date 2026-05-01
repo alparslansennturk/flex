@@ -139,7 +139,6 @@ export default function AssignmentDetailPage() {
   const [generalComments, setGeneralComments] = useState<CommentItem[]>([]);
   const [privateComments, setPrivateComments] = useState<CommentItem[]>([]);
   const [commentText,     setCommentText]     = useState("");
-  const [sendingComment,  setSendingComment]  = useState(false);
 
   const dropdownRef   = useRef<HTMLDivElement>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
@@ -387,31 +386,47 @@ export default function AssignmentDetailPage() {
 
   /* ── Yorum gönder ── */
 
-  async function sendComment() {
-    if (!user || !commentText.trim() || sendingComment) return;
-    setSendingComment(true);
+  function sendComment() {
+    if (!user || !commentText.trim()) return;
+
+    const text       = commentText.trim();
     const authorName = `${user.name ?? ""} ${user.surname ?? ""}`.trim() || "Eğitmen";
-    try {
-      if (activeTab === "general") {
-        /* Genel → tasks/{assignmentId}/comments */
-        await addDoc(collection(db, "tasks", assignmentId, "comments"), {
-          commentType: "general",
-          authorId:   user.uid,
-          authorType: "teacher",
-          authorName,
-          text:       commentText.trim(),
-          createdAt:  serverTimestamp(),
-        });
-      } else {
-        /* Özel → /api/comments/create */
-        if (!viewingId) return;
-        const result = await sendThreadComment(assignmentId, viewingId, commentText.trim(), authorName);
-        if (!result.ok) throw new Error(result.error);
-      }
+
+    // Genel yorum — addDoc zaten anlık (Firestore client SDK)
+    if (activeTab === "general") {
       setCommentText("");
-    } finally {
-      setSendingComment(false);
+      addDoc(collection(db, "tasks", assignmentId, "comments"), {
+        commentType: "general",
+        authorId:   user.uid,
+        authorType: "teacher",
+        authorName,
+        text,
+        createdAt:  serverTimestamp(),
+      });
+      return;
     }
+
+    // Özel yorum — optimistic UI
+    if (!viewingId) return;
+    const tempId = `opt_${crypto.randomUUID()}`;
+    setCommentText("");
+    setPrivateComments(prev => [...prev, {
+      id: tempId,
+      commentType: "private",
+      authorId:   user.uid,
+      authorType: "teacher",
+      authorName,
+      text,
+      createdAt:  new Date(),
+    }]);
+
+    sendThreadComment(assignmentId, viewingId, text, authorName).then(result => {
+      if (!result.ok) {
+        setPrivateComments(prev => prev.filter(c => c.id !== tempId));
+        // TODO: toast ile hata göster
+      }
+      // Başarıda onSnapshot real mesajı getirir, tempId otomatik düşer
+    });
   }
 
   /* ── Derived ── */
@@ -743,13 +758,10 @@ export default function AssignmentDetailPage() {
                       />
                       <button
                         onClick={sendComment}
-                        disabled={!commentText.trim() || sendingComment || (activeTab === "private" && !viewingId)}
+                        disabled={!commentText.trim() || (activeTab === "private" && !viewingId)}
                         className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
                       >
-                        {sendingComment
-                          ? <Loader2 size={14} className="animate-spin" />
-                          : <Send size={14} />
-                        }
+                        <Send size={14} />
                       </button>
                     </div>
                   </div>
