@@ -10,6 +10,14 @@
       ]
     },
     {
+      "collectionGroup": "submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "groupId",     "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "submission_files",
       "queryScope": "COLLECTION",
       "fields": [

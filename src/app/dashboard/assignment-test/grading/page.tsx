@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
-  collection, getDocs, query, where, onSnapshot, orderBy,
+  collection, getDocs, query, where, onSnapshot,
 } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
@@ -150,11 +150,10 @@ export default function GradingPage() {
       setContentLoading(false);
     })();
 
-    // Real-time submissions
+    // Real-time submissions (orderBy client-side — composite index gerekmez)
     const q = query(
       collection(db, "submissions"),
       where("groupId", "==", selectedGroupId),
-      orderBy("submittedAt", "desc"),
     );
     subUnsubRef.current = onSnapshot(q, snap => {
       const docs: SubmissionDoc[] = snap.docs.map(d => {
