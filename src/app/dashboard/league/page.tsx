@@ -1301,6 +1301,11 @@ export default function LeaguePage() {
                   <span className="text-[13px] font-medium text-neutral-400 border-l border-neutral-200 pl-3 ml-3 h-5 flex items-center shrink-0">
                     {rankedGroups.length} grup · {rankedStudents.length} öğrenci
                   </span>
+                  {scoreMode === "monthly" && viewMode === "students" && (
+                    <span className="text-[11px] font-medium text-neutral-400 ml-2 shrink-0">
+                      · ({new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })})
+                    </span>
+                  )}
                   {/* Öğrenci / Grup Bazlı — 32px sağda */}
                   <div className="ml-8 flex items-center bg-surface-50 p-1 rounded-xl border border-neutral-100 shadow-sm">
                     {(["students", "groups"] as ViewMode[]).map((mode) => (

@@ -9,7 +9,6 @@ import {
   signInWithEmailAndPassword,
   setPersistence,
   browserLocalPersistence,
-  browserSessionPersistence
 } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { getFlexMessage } from "../lib/messages";
@@ -55,8 +54,9 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-      await setPersistence(auth, persistenceType);
+      // Auth state her zaman localStorage'da — sessionStorage tab'a özgüdür ve
+      // yeni tab açılınca Firebase null dönüp diğer tab'ların cookie'sini siler.
+      await setPersistence(auth, browserLocalPersistence);
 
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
