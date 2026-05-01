@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
   doc, getDoc, getDocs, collection, query, where,
-  onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp,
+  onSnapshot, orderBy, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
+import { sendThreadComment } from "@/app/lib/sendThreadComment";
 import { useUser } from "@/app/context/UserContext";
 import {
   ArrowLeft, Loader2, RotateCcw, CheckCircle2,
@@ -255,21 +256,14 @@ export default function SubmissionPreviewPage() {
     if (!user || !commentText.trim() || sendingComment || !submission) return;
     setSendingComment(true);
     const authorName = `${user.name ?? ""} ${user.surname ?? ""}`.trim() || "Eğitmen";
-    try {
-      await addDoc(
-        collection(db, "tasks", submission.taskId, "threads", submission.studentId, "comments"),
-        {
-          authorId:   user.uid,
-          authorType: "teacher",
-          authorName,
-          text:       commentText.trim(),
-          createdAt:  serverTimestamp(),
-        },
-      );
-      setCommentText("");
-    } finally {
-      setSendingComment(false);
-    }
+    const result = await sendThreadComment(
+      submission.taskId,
+      submission.studentId,
+      commentText.trim(),
+      authorName,
+    );
+    if (result.ok) setCommentText("");
+    setSendingComment(false);
   }
 
   /* ── Derived ── */

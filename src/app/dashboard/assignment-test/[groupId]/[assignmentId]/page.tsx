@@ -7,6 +7,7 @@ import {
   collection, getDocs, doc, getDoc, query, where,
   onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
+import { sendThreadComment } from "@/app/lib/sendThreadComment";
 import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
@@ -402,16 +403,10 @@ export default function AssignmentDetailPage() {
           createdAt:  serverTimestamp(),
         });
       } else {
-        /* Özel → tasks/{assignmentId}/threads/{studentId}/comments */
+        /* Özel → /api/comments/create */
         if (!viewingId) return;
-        await addDoc(collection(db, "tasks", assignmentId, "threads", viewingId, "comments"), {
-          commentType: "private",
-          authorId:   user.uid,
-          authorType: "teacher",
-          authorName,
-          text:       commentText.trim(),
-          createdAt:  serverTimestamp(),
-        });
+        const result = await sendThreadComment(assignmentId, viewingId, commentText.trim(), authorName);
+        if (!result.ok) throw new Error(result.error);
       }
       setCommentText("");
     } finally {

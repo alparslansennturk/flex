@@ -37,14 +37,10 @@ export function middleware(request: NextRequest) {
   if (!payload) return NextResponse.redirect(new URL("/login", request.url));
 
   const role = typeof payload.role === "string" ? payload.role : null;
-  const exp  = typeof payload.exp  === "number" ? payload.exp  : null;
 
-  // Süresi dolmuş token → login'e yönlendir, cookie temizle
-  if (exp && Math.floor(Date.now() / 1000) > exp) {
-    const res = NextResponse.redirect(new URL("/login", request.url));
-    res.cookies.delete("flex-token");
-    return res;
-  }
+  // exp kontrolü YAPILMAZ: Firebase JWT'leri 1 saatte bir expire olur ama
+  // Firebase SDK arka planda yenileyip cookie'yi günceller. Middleware burada
+  // exp'e bakıp logout ederse, SDK yenileme fırsatı bulamadan kullanıcı çıkarılır.
 
   // ─── Role isolation ───────────────────────────────────────────────────────
 

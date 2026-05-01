@@ -9,7 +9,6 @@ import {
   signInWithEmailAndPassword,
   setPersistence,
   browserLocalPersistence,
-  browserSessionPersistence
 } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { getFlexMessage } from "../lib/messages";
@@ -55,8 +54,9 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-      await setPersistence(auth, persistenceType);
+      // Auth state her zaman localStorage'da — sessionStorage tab'a özgüdür ve
+      // yeni tab açılınca Firebase null dönüp diğer tab'ların cookie'sini siler.
+      await setPersistence(auth, browserLocalPersistence);
 
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -85,6 +85,16 @@ function LoginForm() {
             );
             studentDocId = snap.empty ? user.uid : snap.docs[0].id;
           }
+          // students/{studentDocId}.authUid + claims sync
+          try {
+            await fetch("/api/student/sync", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${idToken}` },
+            });
+          } catch { /* sync başarısız olursa devam et */ }
+          // Redirect'ten önce claims yenile — try/catch dışında, kesinlikle çalışır
+          const freshToken = await auth.currentUser!.getIdToken(true);
+          document.cookie = `flex-token=${freshToken}; path=/; max-age=2592000; SameSite=Lax`;
           router.push(`/student/${studentDocId}`);
           return;
         }
@@ -267,7 +277,15 @@ function ActivationForm({ prefillEmail, prefillCode }: { prefillEmail: string; p
       }
 
       // Aktivasyon başarılı → otomatik giriş yap
-      await signInWithEmailAndPassword(auth, prefillEmail, newPassword);
+      const cred = await signInWithEmailAndPassword(auth, prefillEmail, newPassword);
+      const activationToken = await cred.user.getIdToken();
+      // Cookie set et (normal login gibi)
+      document.cookie = `flex-token=${activationToken}; path=/; max-age=2592000; SameSite=Lax`;
+      // authUid sync
+      fetch("/api/student/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${activationToken}` },
+      }).catch(() => {});
       router.push(`/student/${data.studentDocId ?? data.userId}`);
 
     } catch {

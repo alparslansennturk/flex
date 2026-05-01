@@ -1580,3 +1580,79 @@ totalScore = g2Bonus (bir kez, düz toplama)
 | `src/app/api/cron/monthly-winner-preview/route.ts` | Yeni — admin önizleme maili |
 | `vercel.json` | `monthly-winner-preview` cron eklendi |
 
+---
+
+## Fix 31–99 (2026-04-15 → 2026-04-29)
+
+| # | Tarih | Konu | Dosya |
+|---|-------|------|-------|
+| 31 | 2026-04-15 | completionRate: deadline gelmemiş hariç | `LeaderboardWidget.tsx`, `league/page.tsx` |
+| 32 | 2026-04-15 | Görev oranı `4/5 (+1)` formatı | `league/page.tsx` |
+| 33 | 2026-04-15 | Ödevi Bitir: gelecek endDate bugüne çek | `DesignParkour.tsx` |
+| 34 | 2026-04-15 | Ödevi İptal: deleteDoc ile tamamen sil | `DesignParkour.tsx` |
+| 35 | 2026-04-15 | G1→G2 carry-over grup düzenlemede | `useManagement.ts` |
+| 36 | 2026-04-16 | G1+G2 çift sayım — classEntries ayrımı + todayStr revert | `dashboard/league`, `league/page.tsx` |
+| 37 | 2026-04-16 | Öğrenci kartı completionRate 1.0 (totalAssigned eksikti) | `StudentDetailModal.tsx` |
+| 38 | 2026-04-16 | Carry-over: stale g2StartXP → G1 dinamik hesaplama | `dashboard/league`, `league/page.tsx` |
+| 39 | 2026-04-16 | Vercel: /api/league cache sorunu force-dynamic | `api/league/route.ts` |
+| 40 | 2026-04-16 | Şablon ikon değişimi aktif kartlara real-time yansıma | `DesignParkour.tsx`, `TasksContent.tsx` |
+| 41 | 2026-04-16 | Öğrenci kartı G1 öğrencide Grafik-2 "—" göster | `StudentDetailModal.tsx` |
+| 42 | 2026-04-19 | Otomatik kart geçişi: süresi dolan → not ver (gece 00:00) | `api/cron/auto-grade-transition/route.ts`, `vercel.json` |
+| 43 | 2026-04-19 | Cron mailleri mailLogs'a kaydedilmedi | `emailService.ts`, `deadline-reminder`, `monthly-winner`, `monthly-winner-preview` |
+| 44 | 2026-04-19 | Deadline hatırlatma mail imzası: eğitmen adı | `deadline-reminder/route.ts` |
+| 45 | 2026-04-22 | Ödev Test kart grid sabit 330px genişlik (auto-fill) | `assignment-test/page.tsx` |
+| 46 | 2026-04-22 | GroupCard branch uppercase kaldırıldı | `GroupCard.tsx` |
+| 47 | 2026-04-22 | GroupCard arşiv menüsü (··· dropdown) + onArchive handler | `GroupCard.tsx`, `assignment-test/page.tsx` |
+| 48 | 2026-04-22 | Arşive Al onay modalı — turuncu butonlar, 640×480 oranı | `GroupCard.tsx` |
+| 49 | 2026-04-23 | GroupCard Annoyed → Smile ikonu | `GroupCard.tsx` |
+| 50 | 2026-04-23 | Grup detay sayfası yeniden tasarım — pembe banner, filtre pill, görev listesi | `[groupId]/page.tsx` |
+| 51 | 2026-04-23 | Görev satırı → accordion kart: kapalı/açık, istatistikler, Ödev Detay butonu | `[groupId]/page.tsx` |
+| 52 | 2026-04-23 | Ödev detay sayfası: 3 sütun — öğrenci listesi, önizleme, dosyalar+yorumlar+aksiyon | `[groupId]/[assignmentId]/page.tsx` |
+| 53 | 2026-04-24 | Ödev detay sayfası yeniden tasarım — 2 panel, avatar, durum grupları, toplu aksiyon, yorum sekmeleri | `[groupId]/[assignmentId]/page.tsx` |
+| 54 | 2026-04-24 | Preview sayfası — sidebar yok, iframe önizleme, öğrenci-eğitmen özel yorum thread'i | `[submissionId]/preview/page.tsx` |
+| 55 | 2026-04-24 | Firestore güvenlik kuralları: tasks/comments ve submissions/comments alt koleksiyonları | `firestore.rules` |
+| 56 | 2026-04-24 | Firestore composite index: submission_files, submission_comments, submission_timeline | `firestore.indexes.json` |
+| 57 | 2026-04-24 | Sidebar compact mod iyileştirme: eşik 900px, logo/nav padding azaltma, alt menü py-2 | `Sidebar.tsx` |
+| 58 | 2026-04-25 | Ödev detay sol panel: grup başlığı noktalı renk → düz text-primary, öğrenci ismi text-secondary | `[groupId]/[assignmentId]/page.tsx` |
+| 59 | 2026-04-26 | Öğrenci portal MVP: ödev listesi + detay/upload/yorum sayfaları | `student/[studentId]/page.tsx`, `student/[studentId]/[taskId]/page.tsx` |
+| 60 | 2026-04-26 | Submit API: note alanı desteği eklendi | `api/submit/route.ts` |
+| 61 | 2026-04-26 | Öğrenci dashboard: Classroom tarzı layout — sidebar, template banner, accordion | `student/[studentId]/page.tsx`, `StudentSidebar.tsx` |
+| 62 | 2026-04-26 | Ödev yükle sayfası: sidebar eklendi, upload alanı büyütüldü | `student/[studentId]/[taskId]/page.tsx` |
+| 63 | 2026-04-26 | Sidebar: Sınıf Ligi widget + /league nav linki | `StudentSidebar.tsx`, `StudentLeagueWidget.tsx` |
+| 64 | 2026-04-26 | dev-seed yanıtına studentId + studentPortalUrl eklendi | `api/dev-seed/route.ts` |
+| 65 | 2026-04-27 | Firestore rules: users self-read short-circuit | `firestore.rules` |
+| 66 | 2026-04-27 | Login redirect: Auth UID → students doc ID (studentDocId via welcome API) | `login/page.tsx`, `api/welcome/route.ts` |
+| 67 | 2026-04-27 | students koleksiyonu: `allow read: if isSignedIn()` | `firestore.rules` |
+| 68 | 2026-04-27 | /league route koruması: middleware + matcher güncellendi | `middleware.ts` |
+| 69 | 2026-04-27 | /league sayfası: StudentSidebar + sidebarReady flash önleme | `league/page.tsx` |
+| 70 | 2026-04-27 | StudentSidebar yeniden tasarım: avatar kaldırıldı, Çıkış Yap butonu, aktif nav highlight | `StudentSidebar.tsx` |
+| 71 | 2026-04-27 | getStudentTaskSubmission: orderBy kaldırıldı → composite index gerekmez | `lib/submissions.ts` |
+| 72 | 2026-04-27 | Firestore indexes deploy (submissions: studentId+taskId+submittedAt) | `firestore.indexes.json` |
+| 73 | 2026-04-27 | Google Drive refresh token — OAuth app publish edildi (Testing→Production) | `scripts/refresh-google-token.mjs` |
+| 74 | 2026-04-28 | Login sessiz kalma: cookie race condition fix — getIdToken+getDoc paralel | `login/page.tsx` |
+| 75 | 2026-04-28 | Banner image git'e eklendi (untracked'dı) | `public/assets/templates/` |
+| 76 | 2026-04-28 | Firestore rules: isStudentOwner + isSubmissionOwner helper'ları | `firestore.rules` |
+| 77 | 2026-04-28 | Öğrenci yorum gönderme: addDoc'a authorId eklendi | `student/[studentId]/[taskId]/page.tsx` |
+| 78 | 2026-04-28 | Öğrenci görev sayfası: undefined daysLate fix, ExternalLink ikonu | `student/[studentId]/[taskId]/page.tsx` |
+| 79 | 2026-04-28 | FilePreview: iframe src fix, mimeType tespiti, driveFileId thumbnail | `components/assignment-test/FilePreview.tsx` |
+| 80 | 2026-04-28 | Eğitmen ödev detay: inline dosya kartı, tab "Genel" + öğrenci adı | `dashboard/assignment-test/[groupId]/[assignmentId]/page.tsx` |
+| 81 | 2026-04-28 | Tamamlananlar sıralaması: submittedAt bazlı (endDate fallback) | `student/[studentId]/page.tsx` |
+| 82 | 2026-04-28 | Öğrenci dashboard header: groupCode gösterimi + studentFullName fix | `student/[studentId]/page.tsx` |
+| 83 | 2026-04-28 | Google Drive klasör yapısı planı (YAPILACAK → 100'de tamamlandı) | `lib/googledrive.ts` |
+| 84 | 2026-04-28 | Resumable upload altyapısı: 4.5 MB Vercel sınırı — chunk upload | `lib/googledrive.ts`, `api/submissions/init-resumable-upload` |
+| 85 | 2026-04-29 | Öğrenci upload UI: chunk upload flow, progress bar, upload counter | `student/[studentId]/[taskId]/page.tsx` |
+| 86 | 2026-04-29 | Upload CORS fix: Vercel proxy (upload-chunk endpoint) | `api/submissions/upload-chunk/route.ts` |
+| 87 | 2026-04-29 | Teslim geri çekme: öğrenci + eğitmen — Drive + Firestore silme | `api/submissions/retract/route.ts` |
+| 88 | 2026-04-29 | Desteklenen dosya türleri: ZIP, RAR, PSD, AI, EPS eklendi | `types/storage.ts` |
+| 89 | 2026-04-29 | Öğrenci silme fix: authUid sahiplik + dueDate mühür + eğitmen kilidi | `api/submissions/retract/route.ts` |
+| 90 | 2026-04-29 | Real-time submissions: eğitmen sayfası onSnapshot | `dashboard/.../[assignmentId]/page.tsx` |
+| 91 | 2026-04-29 | permission-denied onError handler: listener sessiz kapanır | `dashboard/.../[assignmentId]/page.tsx` |
+| 92 | 2026-04-29 | Real-time submissions öğrenci: eğitmen değişikliklerini anında alır | `student/[studentId]/[taskId]/page.tsx` |
+| 93 | 2026-04-29 | Submission öncesi yorum: tasks/{taskId}/threads/{studentId}/comments | `firestore.rules` |
+| 94 | 2026-04-29 | Preview sayfası yorum path fix | `[submissionId]/preview/page.tsx` |
+| 95 | 2026-04-29 | Mesaj düzenle/sil: hover menüsü + inline edit | `firestore.rules`, tüm comment bileşenleri |
+| 96 | 2026-04-29 | Accordion kartlar responsive: sm: breakpoint | `assignment-test/[groupId]/page.tsx` |
+| 97 | 2026-04-29 | Chat menüsü dışına tıklayınca kapanma: useRef+mousedown | `[assignmentId]/page.tsx` |
+| 98 | 2026-04-29 | Öğrenci yorum sonrası silme engeli kaldırıldı | `api/submissions/retract/route.ts` |
+| 99 | 2026-04-29 | DesignParkour süresi dolan ödev: "Ödev Detay" → "Not Ver" | `DesignParkour.tsx` |
+

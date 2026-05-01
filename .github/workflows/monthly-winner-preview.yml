@@ -2,7 +2,7 @@ name: Monthly Winner Preview
 
 on:
   schedule:
-    - cron: '0 6 28-31 * *'
+    - cron: '0 6 4 * *'
   workflow_dispatch:
 
 jobs:

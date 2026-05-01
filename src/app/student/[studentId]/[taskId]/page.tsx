@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
 import {
   doc, getDoc, collection, query, where,
-  onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp,
+  onSnapshot, orderBy, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
+import { sendThreadComment } from "@/app/lib/sendThreadComment";
 import {
   ArrowLeft, Loader2, Upload, FileText, CheckCircle2,
   RotateCcw, Send, Clock, X, AlertCircle, Download, ExternalLink, Trash2,
@@ -153,9 +154,39 @@ export default function StudentTaskDetailPage() {
   const [comments,       setComments]       = useState<CommentItem[]>([]);
   const [commentText,    setCommentText]    = useState("");
   const [sendingComment, setSendingComment] = useState(false);
+  const [commentError,   setCommentError]   = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
+  // authUid sync'i tamamlandıktan sonra listener'ları yeniden başlatmak için
+  const [listenerKey, setListenerKey] = useState(0);
+
   useEffect(() => { loadData(); }, [studentId, taskId]);
+
+  /* Sayfa açılışında authUid'yi senkronize et (Firestore rules için gerekli) */
+  useEffect(() => {
+    let cancelled = false;
+    async function syncAuth() {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token || cancelled) return;
+        const res = await fetch("/api/student/sync", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!cancelled && res.ok) {
+          const data = await res.json() as { updated?: boolean };
+          if (data.updated) {
+            // authUid güncellendi → listener'ları yeniden başlat
+            setListenerKey(k => k + 1);
+          }
+        }
+      } catch {
+        // sync hatası kritik değil, sessizce geç
+      }
+    }
+    syncAuth();
+    return () => { cancelled = true; };
+  }, [studentId]);
 
   /* Real-time submissions — eğitmen sildiğinde/güncellediğinde anlık yansır */
   useEffect(() => {
@@ -189,7 +220,7 @@ export default function StudentTaskDetailPage() {
       setSubmissions(rows);
     }, err => { if (err.code !== "permission-denied") console.error("[submissions-rt]", err); });
     return unsub;
-  }, [studentId, taskId]);
+  }, [studentId, taskId, listenerKey]);
 
   /* Real-time yorumlar — submission olmadan da çalışır */
   useEffect(() => {
@@ -207,7 +238,7 @@ export default function StudentTaskDetailPage() {
         createdAt:  d.data().createdAt?.toDate?.() ?? new Date(),
       })));
     }, err => { if (err.code !== "permission-denied") console.error("[comments]", err); });
-  }, [studentId, taskId]);
+  }, [studentId, taskId, listenerKey]);
 
   useEffect(() => {
     commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -230,6 +261,8 @@ export default function StudentTaskDetailPage() {
         const td = taskSnap.data();
         setTask({ name: td.name ?? "", points: td.points ?? 0, endDate: td.endDate, description: td.description });
       }
+    } catch (err) {
+      console.error("[loadData]", err);
     } finally {
       setLoading(false);
     }
@@ -378,18 +411,19 @@ export default function StudentTaskDetailPage() {
   async function sendComment() {
     if (!commentText.trim() || sendingComment || !student) return;
     setSendingComment(true);
-    try {
-      await addDoc(collection(db, "tasks", taskId, "threads", studentId, "comments"), {
-        authorType: "student",
-        authorId:   auth.currentUser?.uid ?? "",
-        authorName: `${student.name} ${student.lastName}`.trim(),
-        text:       commentText.trim(),
-        createdAt:  serverTimestamp(),
-      });
+    setCommentError(null);
+    const result = await sendThreadComment(
+      taskId,
+      studentId,
+      commentText.trim(),
+      `${student.name} ${student.lastName}`.trim(),
+    );
+    if (result.ok) {
       setCommentText("");
-    } finally {
-      setSendingComment(false);
+    } else {
+      setCommentError(result.error ?? "Yorum gönderilemedi, tekrar dene.");
     }
+    setSendingComment(false);
   }
 
   /* ── Derived ── */
@@ -728,7 +762,11 @@ export default function StudentTaskDetailPage() {
               <div ref={commentsEndRef} />
             </div>
 
-            <div className="shrink-0 border-t border-surface-100 px-4 py-3 flex items-end gap-2">
+            <div className="shrink-0 border-t border-surface-100 px-4 py-3 space-y-2">
+              {commentError && (
+                <p className="text-[11px] text-status-danger-500 px-1">{commentError}</p>
+              )}
+              <div className="flex items-end gap-2">
               <textarea
                 value={commentText}
                 onChange={e => setCommentText(e.target.value)}
@@ -752,6 +790,7 @@ export default function StudentTaskDetailPage() {
                   : <Send size={14} />
                 }
               </button>
+              </div>
             </div>
           </div>
 
