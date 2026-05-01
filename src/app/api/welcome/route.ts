@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
           uid = authUser.uid;
         }
 
-        // Custom claims set et
-        await auth.setCustomUserClaims(uid, { role: "student", type: "external" });
+        // Custom claims set et (studentDocId Firestore rules + API auth için gerekli)
+        await auth.setCustomUserClaims(uid, { role: "student", type: "external", studentDocId });
 
         // users/{uid} doc oluştur
         const userDoc = await adminDb.collection("users").doc(uid).get();

@@ -53,11 +53,13 @@ service cloud.firestore {
       return isSignedIn() && getUserData().get('permissionOverrides', {}).get(perm, false) == true;
     }
 
-    // Öğrenci auth UID ile studentId (doc ID) eşleşmeyebilir — her ikisini kontrol et
+    // Öğrenci auth UID ile studentId (doc ID) eşleşmeyebilir — üç yol ile kontrol et
     function isStudentOwner(studentDocId) {
       let studentDoc = get(/databases/$(database)/documents/students/$(studentDocId));
+      let userDoc    = get(/databases/$(database)/documents/users/$(currentUid()));
       return studentDocId == currentUid() ||
-             (studentDoc.exists && studentDoc.data.authUid == currentUid());
+             (studentDoc.exists && studentDoc.data.authUid == currentUid()) ||
+             (userDoc.exists && userDoc.data.studentDocId == studentDocId);
     }
 
     // Bir submission'ın sahibi mi?
@@ -134,19 +136,13 @@ service cloud.firestore {
     // Submission bağımsız stabil private thread
 
     match /tasks/{taskId}/threads/{studentId}/comments/{commentId} {
-      allow read:   if isSignedIn() && (isInstructor() || isStudentOwner(studentId));
-      allow create: if isSignedIn() && (
-        isInstructor() ||
-        (isStudentOwner(studentId) && request.resource.data.authorId == currentUid())
-      );
-      allow update: if isSignedIn() && (
-        isInstructor() ||
-        (isStudentOwner(studentId) && resource.data.authorId == currentUid())
-      );
-      allow delete: if isSignedIn() && (
-        isInstructor() ||
-        (isStudentOwner(studentId) && resource.data.authorId == currentUid())
-      );
+      // Read: isStudentOwner + token role fallback (authUid eksik öğrenciler için)
+      allow read:   if isSignedIn() && (isInstructor() || isStudentOwner(studentId) || request.auth.token.role == 'student');
+      // Create: sadece backend (Admin SDK) yazar — client write kapalı
+      allow create: if false;
+      // Update/delete: kendi yorumunu düzenleyebilir/silebilir
+      allow update: if isSignedIn() && (isInstructor() || resource.data.authorId == currentUid());
+      allow delete: if isSignedIn() && (isInstructor() || resource.data.authorId == currentUid());
     }
 
     // ─── templates ────────────────────────────────────────────────────────────
