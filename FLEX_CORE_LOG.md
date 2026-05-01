@@ -45,3 +45,4 @@
 | 139 | 2026-05-01 | Firestore rules: tasks/{taskId}/comments allow update eklendi (eksikti — genel yorum düzenleme permission denied veriyordu) | `firestore.rules` |
 | 140 | 2026-05-01 | editComment/deleteComment: activeTab closure Vercel'de stale kalıyordu → commentType parametresine geçildi, her yorum kendi tipini taşıyor | `[assignmentId]/page.tsx` |
 | 141 | 2026-05-01 | DesignParkour akıllı navigasyon: Ödev Detay → assignment-test/{groupId}/{taskId}; kura ödevi seçimsizse "Seçimi Başlat" → lottery sayfası; deadline sonrası "Not Ver" → assignment-test | `DesignParkour.tsx` |
+| 142 | 2026-05-01 | SocialGameScreen "Seçimi Tamamla": eksik öğrencilerle seçimi bitir → status:published → assignment-test; allDone buton metni güncellendi | `SocialGameScreen.tsx` |

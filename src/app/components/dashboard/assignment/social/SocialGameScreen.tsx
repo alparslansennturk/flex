@@ -327,9 +327,9 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
         }],
       });
 
-      // Tüm grup tamamlandıysa görevi kapat
+      // Tüm grup tamamlandıysa seçim aşamasını kapat (not girişi aşamasına geç)
       if (groupStudentCount > 0 && newDraws.length >= groupStudentCount) {
-        updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+        updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
       }
 
       // 1.35sn blink → modal
@@ -425,7 +425,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
         })),
       });
       if (groupStudentCount > 0 && drawsRef.current.length >= groupStudentCount) {
-        await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+        await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
       }
       setArchived(true);
       setTimeout(() => router.push("/dashboard"), 3000);
@@ -456,9 +456,12 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
           })),
         });
       }
-      await updateDoc(doc(db, "tasks", task.id), { status: "completed", isActive: true });
+      await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
       setFinalized(true);
-      setTimeout(() => router.push("/dashboard"), 2000);
+      const dest = task.groupId
+        ? `/dashboard/assignment-test/${task.groupId}/${task.id}`
+        : "/dashboard";
+      setTimeout(() => router.push(dest), 1500);
     } finally {
       setFinalizing(false);
     }
@@ -715,7 +718,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                       onClick={() => setConfirmFinish(true)}
                       style={{ fontSize: 14, fontWeight: 700, color: "rgba(248,113,113,0.70)", background: "none", border: "none", cursor: "pointer" }}
                     >
-                      Ödevi Tamamla ve Ana Sayfaya Git →
+                      Seçimi Tamamla ve Not Girişine Git →
                     </button>
                   ) : (
                     <div style={{
@@ -724,10 +727,10 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                       background: "rgba(254,226,226,0.08)", border: "1px solid rgba(248,113,113,0.25)",
                     }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: "rgba(252,165,165,0.90)", margin: 0 }}>
-                        Ödev kapatılsın ve ana sayfaya dönülsün mü?
+                        Seçim tamamlansın ve not girişine geçilsin mi?
                       </p>
                       <p style={{ fontSize: 11, color: "rgba(252,165,165,0.55)", margin: 0 }}>
-                        Eksik öğrenciler olsa bile ödev artık aktif olmayacak.
+                        Tüm çekişler kayıt altına alındı.
                       </p>
                       <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
                         <button
@@ -781,12 +784,14 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                       background: "transparent", border: "2px solid rgba(248,113,113,0.30)", color: "rgba(248,113,113,0.70)", cursor: "pointer",
                     }}
                   >
-                    Ödevi Tamamla
+                    Seçimi Tamamla
                   </button>
                 )}
                 {confirmFinish && (
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.40)" }}>Eksik öğrencilerle kapat?</span>
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.40)" }}>
+                      {remainingStudents.length} öğrenci atlanacak. Seçimi bitir?
+                    </span>
                     <button onClick={() => { setConfirmFinish(false); handleFinalizeTask(); }}
                       style={{ padding: "10px 20px", borderRadius: 10, background: "#e53e3e", color: "white", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" }}>
                       Evet
