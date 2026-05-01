@@ -96,7 +96,6 @@ export default function SubmissionPreviewPage() {
   /* Comments — sadece özel thread */
   const [comments,       setComments]       = useState<CommentItem[]>([]);
   const [commentText,    setCommentText]    = useState("");
-  const [sendingComment, setSendingComment] = useState(false);
 
   /* Actions */
   const [actionLoading, setActionLoading] = useState(false);
@@ -252,18 +251,29 @@ export default function SubmissionPreviewPage() {
     await deleteDoc(doc(db, "tasks", submission.taskId, "threads", submission.studentId, "comments", id));
   }
 
-  async function sendComment() {
-    if (!user || !commentText.trim() || sendingComment || !submission) return;
-    setSendingComment(true);
+  function sendComment() {
+    if (!user || !commentText.trim() || !submission) return;
+
+    const text       = commentText.trim();
     const authorName = `${user.name ?? ""} ${user.surname ?? ""}`.trim() || "Eğitmen";
-    const result = await sendThreadComment(
-      submission.taskId,
-      submission.studentId,
-      commentText.trim(),
+    const tempId     = `opt_${crypto.randomUUID()}`;
+
+    setCommentText("");
+    setComments(prev => [...prev, {
+      id: tempId,
+      authorId:   user.uid,
+      authorType: "teacher",
       authorName,
-    );
-    if (result.ok) setCommentText("");
-    setSendingComment(false);
+      text,
+      createdAt:  new Date(),
+    }]);
+
+    sendThreadComment(submission.taskId, submission.studentId, text, authorName).then(result => {
+      if (!result.ok) {
+        setComments(prev => prev.filter(c => c.id !== tempId));
+        showToast(result.error ?? "Yorum gönderilemedi.", false);
+      }
+    });
   }
 
   /* ── Derived ── */
@@ -461,13 +471,10 @@ export default function SubmissionPreviewPage() {
               />
               <button
                 onClick={sendComment}
-                disabled={!commentText.trim() || sendingComment}
+                disabled={!commentText.trim()}
                 className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
               >
-                {sendingComment
-                  ? <Loader2 size={14} className="animate-spin" />
-                  : <Send size={14} />
-                }
+                <Send size={14} />
               </button>
             </div>
           </div>
