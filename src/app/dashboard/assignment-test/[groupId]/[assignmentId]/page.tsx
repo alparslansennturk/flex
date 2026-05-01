@@ -398,36 +398,36 @@ export default function AssignmentDetailPage() {
 
   /* ── Yorum düzenle / sil ── */
 
-  async function editComment(id: string, newText: string) {
-    if (!viewingId) return;
+  async function editComment(id: string, newText: string, commentType: "general" | "private") {
+    const isGeneral = commentType === "general";
+    const ref = isGeneral
+      ? doc(db, "tasks", assignmentId, "comments", id)
+      : viewingId ? doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id) : null;
+    if (!ref) return;
     try {
-      await updateDoc(
-        doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id),
-        { text: newText, editedAt: serverTimestamp() },
-      );
+      await updateDoc(ref, { text: newText, editedAt: serverTimestamp() });
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
       if (code === "not-found") {
-        // Firestore'da yok — stale state, listeden kaldır
-        setPrivateComments(prev => prev.filter(c => c.id !== id));
+        if (isGeneral) setGeneralComments(prev => prev.filter(c => c.id !== id));
+        else           setPrivateComments(prev => prev.filter(c => c.id !== id));
       }
       console.error("[editComment]", err);
     }
   }
 
-  function deleteComment(id: string) {
-    if (!viewingId) return;
-    // Optimistic: anında listeden kaldır
-    setPrivateComments(prev => prev.filter(c => c.id !== id));
-    deleteDoc(doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id))
-      .catch((err: unknown) => {
-        const code = (err as { code?: string })?.code;
-        if (code !== "not-found") {
-          // Gerçek hata — geri yükle (onSnapshot gelince düzelir)
-          console.error("[deleteComment]", err);
-        }
-        // not-found: zaten silinmiş, optimistic kaldırma doğruydu
-      });
+  function deleteComment(id: string, commentType: "general" | "private") {
+    const isGeneral = commentType === "general";
+    const ref = isGeneral
+      ? doc(db, "tasks", assignmentId, "comments", id)
+      : viewingId ? doc(db, "tasks", assignmentId, "threads", viewingId, "comments", id) : null;
+    if (!ref) return;
+    if (isGeneral) setGeneralComments(prev => prev.filter(c => c.id !== id));
+    else           setPrivateComments(prev => prev.filter(c => c.id !== id));
+    deleteDoc(ref).catch((err: unknown) => {
+      if ((err as { code?: string })?.code !== "not-found")
+        console.error("[deleteComment]", err);
+    });
   }
 
   /* ── Yorum gönder ── */
@@ -777,7 +777,13 @@ export default function AssignmentDetailPage() {
                         </p>
                       ) : (
                         visibleComments.map(c => (
-                          <CommentRow key={c.id} comment={c} myId={user.uid} onEdit={editComment} onDelete={deleteComment} />
+                          <CommentRow
+                            key={c.id}
+                            comment={c}
+                            myId={user.uid}
+                            onEdit={(id, text) => editComment(id, text, c.commentType)}
+                            onDelete={(id) => deleteComment(id, c.commentType)}
+                          />
                         ))
                       )}
                       <div ref={commentsEndRef} />
