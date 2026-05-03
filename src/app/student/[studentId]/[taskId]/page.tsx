@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
 import {
@@ -79,8 +79,12 @@ const ACCEPTED = [
   "application/illustrator", "application/postscript", ".ai", ".eps",
 ].join(",");
 
-const MAX_MB      = 250;
-const CHUNK_SIZE  = 256 * 1024; // 256 KB
+const MAX_MB     = 250;
+const CHUNK_SIZE = 256 * 1024; // 256 KB
+
+type JobStatus = "pending" | "uploading" | "success" | "error";
+interface UploadJobState { file: File; status: JobStatus; progress: number; error?: string; }
+
 
 const STATUS_UI: Record<SubmissionStatus, { label: string; cls: string }> = {
   submitted: { label: "Teslim Edildi",     cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
@@ -141,13 +145,11 @@ export default function StudentTaskDetailPage() {
   const [loading,     setLoading]     = useState(true);
 
   /* Upload */
-  const [file,          setFile]          = useState<File | null>(null);
-  const [note,          setNote]          = useState("");
-  const [uploading,     setUploading]     = useState(false);
-  const [uploadError,   setUploadError]   = useState<string | null>(null);
-  const [dragOver,      setDragOver]      = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadPhase,   setUploadPhase]   = useState<"idle" | "init" | "uploading" | "completing">("idle");
+  const [files,       setFiles]       = useState<File[]>([]);
+  const [note,        setNote]        = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [dragOver,    setDragOver]    = useState(false);
+  const [uploadJobs,  setUploadJobs]  = useState<UploadJobState[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* Comments */
@@ -269,57 +271,42 @@ export default function StudentTaskDetailPage() {
 
   /* ── Upload ── */
 
-  const validateFile = useCallback((f: File): string | null => {
-    if (f.size > MAX_MB * 1024 * 1024) return `Dosya ${MAX_MB} MB'dan büyük olamaz.`;
-    return null;
-  }, []);
-
-  function pickFile(f: File) {
-    const err = validateFile(f);
-    if (err) { setUploadError(err); return; }
-    setUploadError(null);
-    setFile(f);
+  function pickFiles(incoming: FileList | File[]) {
+    const valid = Array.from(incoming).filter(f => f.size <= MAX_MB * 1024 * 1024);
+    setFiles(prev => [...prev, ...valid]);
   }
 
-  async function handleSubmit() {
-    if (!file || !student || !task || uploading) return;
-    setUploading(true);
-    setUploadError(null);
-    setUploadProgress(0);
-    setUploadPhase("init");
+  function removeFile(index: number) {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  }
 
+  function updateJob(index: number, patch: Partial<UploadJobState>) {
+    setUploadJobs(prev => prev.map((j, i) => i === index ? { ...j, ...patch } : j));
+  }
+
+  async function uploadSingleFile(file: File, index: number, currentNote: string) {
+    updateJob(index, { status: "uploading", progress: 0 });
     try {
-      // 1. Auth token
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Oturum bulunamadı, lütfen tekrar giriş yapın.");
 
-      // 2. Resumable session başlat (Vercel'de sadece küçük JSON geçer)
       const initRes = await fetch("/api/submissions/init-resumable-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          studentId,
-          taskId,
-          groupId:  student.groupId,
+          studentId, taskId,
+          groupId:  student!.groupId,
           fileName: file.name,
           fileSize: file.size,
           mimeType: file.type || "application/octet-stream",
         }),
       });
-
       if (!initRes.ok) {
-        const json = await initRes.json().catch(() => ({}));
+        const json = await initRes.json().catch(() => ({})) as { error?: string };
         throw new Error(json.error ?? "Upload başlatılamadı.");
       }
+      const { uploadId, totalBytes } = await initRes.json() as { uploadId: string; totalBytes: number };
 
-      const { uploadId, totalBytes } = await initRes.json() as {
-        uploadId: string; totalBytes: number;
-        currentUploads: number; maxUploads: number; uploadsRemaining: number;
-      };
-
-      // 3. Chunk'ları /api/submissions/upload-chunk üzerinden ilet
-      //    Vercel → Google Drive (CORS yok, sessionUri browser'a gitmez)
-      setUploadPhase("uploading");
       let uploadedBytes = 0;
       let driveFileId: string | null | undefined;
       const mimeType = file.type || "application/octet-stream";
@@ -332,66 +319,66 @@ export default function StudentTaskDetailPage() {
         const chunkRes = await fetch("/api/submissions/upload-chunk", {
           method:  "POST",
           headers: {
-            "Authorization":  `Bearer ${token}`,
-            "x-upload-id":    uploadId,
-            "content-range":  `bytes ${start}-${end - 1}/${totalBytes}`,
-            "x-file-type":    mimeType,
+            Authorization:   `Bearer ${token}`,
+            "x-upload-id":   uploadId,
+            "content-range": `bytes ${start}-${end - 1}/${totalBytes}`,
+            "x-file-type":   mimeType,
           },
           body: chunk,
         });
-
         if (!chunkRes.ok) {
-          const json = await chunkRes.json().catch(() => ({})) as { error?: string; detail?: string };
-          throw new Error(json.detail ? `${json.error}: ${json.detail}` : (json.error ?? `Chunk upload başarısız (${chunkRes.status})`));
+          const json = await chunkRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(json.error ?? `Chunk upload başarısız (${chunkRes.status})`);
         }
-
-        const result = await chunkRes.json() as {
-          status: "incomplete" | "complete";
-          uploadedBytes?: number;
-          driveFileId?: string | null;
-        };
-
+        const result = await chunkRes.json() as { status: string; uploadedBytes?: number; driveFileId?: string };
         if (result.status === "complete") {
           driveFileId   = result.driveFileId;
           uploadedBytes = totalBytes;
         } else {
-          // Drive'ın onayladığı offset'i kullan (varsa), yoksa end
           uploadedBytes = result.uploadedBytes ?? end;
         }
-
-        setUploadProgress(Math.round((uploadedBytes / totalBytes) * 100));
+        updateJob(index, { progress: Math.round((uploadedBytes / totalBytes) * 100) });
       }
 
-      // 4. Backend'e tamamlandığını bildir → submission oluşturulsun
-      setUploadPhase("completing");
+      const completeToken = await auth.currentUser?.getIdToken(true);
       const completeRes = await fetch("/api/submissions/complete-upload", {
         method:  "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${completeToken}` },
         body: JSON.stringify({
           uploadId,
-          ...(driveFileId  ? { driveFileId }       : {}),
-          ...(note.trim()  ? { note: note.trim() } : {}),
+          ...(driveFileId         ? { driveFileId }               : {}),
+          ...(currentNote.trim()  ? { note: currentNote.trim() }  : {}),
         }),
       });
-
       if (!completeRes.ok) {
-        const json = await completeRes.json().catch(() => ({}));
+        const json = await completeRes.json().catch(() => ({})) as { error?: string };
         throw new Error(json.error ?? "Upload tamamlanamadı.");
       }
 
-      setFile(null);
-      setNote("");
-      setUploadProgress(0);
-      setUploadPhase("idle");
-      await loadData();
-
+      updateJob(index, { status: "success", progress: 100 });
     } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : "Bilinmeyen hata.");
-      setUploadPhase("idle");
-      setUploadProgress(0);
-    } finally {
-      setUploading(false);
+      updateJob(index, { status: "error", error: err instanceof Error ? err.message : "Bilinmeyen hata." });
     }
+  }
+
+  async function handleSubmit() {
+    if (files.length === 0 || isUploading) return;
+    setIsUploading(true);
+    const currentNote = note;
+    setUploadJobs(files.map(f => ({ file: f, status: "pending", progress: 0 })));
+
+    // max 4 eş zamanlı
+    const MAX = 4;
+    for (let i = 0; i < files.length; i += MAX) {
+      await Promise.all(
+        files.slice(i, i + MAX).map((f, offset) => uploadSingleFile(f, i + offset, currentNote))
+      );
+    }
+
+    setIsUploading(false);
+    setFiles([]);
+    setNote("");
+    setUploadJobs([]);
   }
 
   /* ── Comment ── */
@@ -568,84 +555,38 @@ export default function StudentTaskDetailPage() {
 
                   {/* Drop zone */}
                   <div
-                    onDragOver={e => { e.preventDefault(); if (!uploading) setDragOver(true); }}
+                    onDragOver={e => { e.preventDefault(); if (!isUploading) setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={e => {
                       e.preventDefault();
                       setDragOver(false);
-                      if (uploading) return;
-                      const f = e.dataTransfer.files[0];
-                      if (f) pickFile(f);
+                      if (isUploading) return;
+                      pickFiles(e.dataTransfer.files);
                     }}
-                    onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
-                    className={`border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-4 transition-colors
-                      ${uploading
+                    onClick={() => { if (!isUploading) fileInputRef.current?.click(); }}
+                    className={`border-2 border-dashed rounded-2xl flex flex-col transition-colors
+                      ${isUploading
                         ? "border-base-primary-200 bg-base-primary-50/50 cursor-default"
                         : dragOver
                         ? "border-base-primary-400 bg-base-primary-50 cursor-pointer"
-                        : file
-                        ? "border-status-success-500 bg-status-success-100/20 cursor-pointer"
+                        : files.length > 0
+                        ? "border-status-success-400 bg-status-success-100/20 cursor-pointer"
                         : "border-surface-200 hover:border-base-primary-300 bg-surface-50 hover:bg-base-primary-50 cursor-pointer"
                       }`}
-                    style={{ minHeight: "clamp(220px, 30vh, 380px)" }}
+                    style={{ minHeight: "clamp(140px, 18vh, 240px)" }}
                   >
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept={ACCEPTED}
+                      multiple
                       className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) pickFile(f); }}
+                      onChange={e => { if (e.target.files) pickFiles(e.target.files); e.target.value = ""; }}
                     />
 
-                    {uploading ? (
-                      /* ── Progress state ── */
-                      <div className="w-full px-8 flex flex-col items-center gap-5">
-                        <div className="w-14 h-14 rounded-2xl bg-base-primary-50 flex items-center justify-center">
-                          <Loader2 size={24} className="animate-spin text-base-primary-600" />
-                        </div>
-                        <div className="w-full space-y-2">
-                          <div className="h-2 bg-surface-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-base-primary-600 rounded-full transition-all duration-200"
-                              style={{ width: `${uploadProgress}%` }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-[12px] text-surface-500 font-medium">
-                              {uploadPhase === "init"
-                                ? "Başlatılıyor..."
-                                : uploadPhase === "completing"
-                                ? "Kaydediliyor..."
-                                : `${uploadProgress}%`}
-                            </p>
-                            {uploadPhase === "uploading" && (
-                              <p className="text-[12px] text-surface-400">
-                                {formatBytes(file ? file.size * uploadProgress / 100 : 0)} / {formatBytes(file?.size ?? 0)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : file ? (
-                      /* ── Dosya seçildi ── */
-                      <>
-                        <div className="w-16 h-16 rounded-2xl bg-status-success-100 flex items-center justify-center">
-                          <FileText size={28} className="text-status-success-700" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[15px] font-semibold text-text-primary">{file.name}</p>
-                          <p className="body-sm text-surface-400 mt-1">{formatBytes(file.size)}</p>
-                        </div>
-                        <button
-                          onClick={e => { e.stopPropagation(); setFile(null); setUploadError(null); }}
-                          className="flex items-center gap-1.5 body-sm text-surface-400 hover:text-status-danger-500 transition-colors cursor-pointer"
-                        >
-                          <X size={13} /> Kaldır
-                        </button>
-                      </>
-                    ) : (
-                      /* ── Boş state ── */
-                      <>
+                    {/* Boş state */}
+                    {!isUploading && files.length === 0 && (
+                      <div className="flex flex-col items-center justify-center flex-1 gap-4 p-8">
                         <div className="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center">
                           <Upload size={28} className="text-surface-400" />
                         </div>
@@ -657,7 +598,67 @@ export default function StudentTaskDetailPage() {
                             PDF, Resim, Word, PowerPoint, Video · Maks {MAX_MB} MB
                           </p>
                         </div>
-                      </>
+                      </div>
+                    )}
+
+                    {/* Dosya listesi (seçildi veya yükleniyor) */}
+                    {(files.length > 0 || isUploading) && (
+                      <div className="p-4 space-y-2 flex-1" onClick={e => e.stopPropagation()}>
+                        {(isUploading ? uploadJobs : files.map(f => ({ file: f, status: "pending" as JobStatus, progress: 0, error: undefined }))).map((job, i) => (
+                          <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-surface-100">
+                            <div className="w-9 h-9 rounded-xl bg-base-primary-50 flex items-center justify-center shrink-0">
+                              <FileText size={16} className="text-base-primary-600" />
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <p className="text-[13px] font-semibold text-text-primary truncate">{job.file.name}</p>
+                              {isUploading ? (
+                                job.status === "success" ? (
+                                  <p className="text-[11px] text-status-success-500 font-semibold">Tamamlandı ✓</p>
+                                ) : job.status === "error" ? (
+                                  <p className="text-[11px] text-status-danger-500">{job.error}</p>
+                                ) : (
+                                  <div className="space-y-0.5">
+                                    <div className="w-full h-1.5 bg-surface-100 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-base-primary-600 rounded-full transition-all duration-200"
+                                        style={{ width: `${job.progress}%` }}
+                                      />
+                                    </div>
+                                    <p className="text-[10px] text-surface-400">
+                                      {job.status === "pending" ? "Sırada..." : `${job.progress}%`}
+                                    </p>
+                                  </div>
+                                )
+                              ) : (
+                                <p className="text-[11px] text-surface-400">{formatBytes(job.file.size)}</p>
+                              )}
+                            </div>
+                            {!isUploading && (
+                              <button
+                                onClick={() => removeFile(i)}
+                                className="text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer shrink-0"
+                              >
+                                <X size={15} />
+                              </button>
+                            )}
+                            {isUploading && job.status === "success" && (
+                              <CheckCircle2 size={15} className="text-status-success-500 shrink-0" />
+                            )}
+                          </div>
+                        ))}
+
+                        {/* Daha fazla dosya ekle */}
+                        {!isUploading && (
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl
+                              border border-dashed border-surface-200 text-[12px] font-medium text-surface-400
+                              hover:border-base-primary-300 hover:text-base-primary-500 transition-colors cursor-pointer"
+                          >
+                            <Upload size={12} /> Dosya ekle
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -665,7 +666,7 @@ export default function StudentTaskDetailPage() {
                   <textarea
                     value={note}
                     onChange={e => setNote(e.target.value)}
-                    disabled={uploading}
+                    disabled={isUploading}
                     placeholder="Eğitmene not ekle (isteğe bağlı)..."
                     rows={3}
                     className="w-full resize-none rounded-xl border border-surface-200 px-4 py-3 body-sm
@@ -673,28 +674,18 @@ export default function StudentTaskDetailPage() {
                       disabled:opacity-40 disabled:cursor-not-allowed"
                   />
 
-                  {uploadError && (
-                    <div className="flex items-center gap-2 body-sm text-status-danger-500">
-                      <AlertCircle size={14} /> {uploadError}
-                    </div>
-                  )}
-
                   <button
                     onClick={handleSubmit}
-                    disabled={!file || uploading}
+                    disabled={files.length === 0 || isUploading}
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
                       bg-base-primary-600 text-white text-[14px] font-bold
                       hover:bg-base-primary-700 transition-colors cursor-pointer
                       disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {uploading ? (
-                      <><Loader2 size={16} className="animate-spin" /> {
-                        uploadPhase === "init"       ? "Başlatılıyor..." :
-                        uploadPhase === "completing" ? "Kaydediliyor..." :
-                        `Yükleniyor ${uploadProgress}%`
-                      }</>
+                    {isUploading ? (
+                      <><Loader2 size={16} className="animate-spin" /> Yükleniyor...</>
                     ) : (
-                      <><Upload size={16} /> Teslim Et</>
+                      <><Upload size={16} /> {files.length > 1 ? `${files.length} Dosyayı Teslim Et` : "Teslim Et"}</>
                     )}
                   </button>
                 </div>

@@ -47,3 +47,6 @@
 | 140 | 2026-05-01 | editComment/deleteComment: activeTab closure Vercel'de stale kalıyordu → commentType parametresine geçildi, her yorum kendi tipini taşıyor | `[assignmentId]/page.tsx` |
 | 141 | 2026-05-01 | DesignParkour akıllı navigasyon: Ödev Detay → assignment-test/{groupId}/{taskId}; kura ödevi seçimsizse "Seçimi Başlat" → lottery sayfası; deadline sonrası "Not Ver" → assignment-test | `DesignParkour.tsx` |
 | 142 | 2026-05-01 | SocialGameScreen "Seçimi Tamamla": eksik öğrencilerle seçimi bitir → status:published → assignment-test; allDone buton metni güncellendi | `SocialGameScreen.tsx` |
+| 143 | 2026-05-03 | Çoklu dosya yükleme altyapısı: UploadJob interface, useUploadQueue hook (max 4 paralel, AbortController iptal, retry, 256KB chunk), UploadQueueUI bileşeni (test sayfası) | `types/upload.ts`, `hooks/useUploadQueue.ts` (NEW), `components/upload/UploadQueueUI.tsx` (NEW), `dashboard/test/upload/page.tsx` |
+| 144 | 2026-05-03 | Öğrenci upload ekranı çoklu dosya: eski büyük drop zone tasarımı korundu, birden fazla dosya seçimi + "Dosya ekle" butonu + her dosya için ayrı progress bar + max 4 eş zamanlı yükleme; UploadQueueUI yerine inline mantık | `student/[studentId]/[taskId]/page.tsx` |
+| 145 | 2026-05-03 | Drop zone yüksekliği azaltıldı: clamp(220px,30vh,380px) → clamp(140px,18vh,240px) | `student/[studentId]/[taskId]/page.tsx` |

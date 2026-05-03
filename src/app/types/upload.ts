@@ -1,3 +1,18 @@
+// Upload queue job — frontend state for a single file in the queue
+export interface UploadJob {
+  id:            string;
+  file:          File;
+  fileName:      string;
+  fileSize:      number;
+  status:        "pending" | "initializing" | "uploading" | "completing" | "success" | "error" | "cancelled";
+  progress:      number;   // 0-100
+  uploadedBytes: number;
+  error?:        string;
+  submissionId?: string;   // populated on success
+  startTime?:    Date;
+  endTime?:      Date;
+}
+
 // upload_sessions collection types
 
 export type UploadSessionStatus = "initializing" | "uploading" | "completed" | "failed";

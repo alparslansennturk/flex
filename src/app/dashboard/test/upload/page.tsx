@@ -13,6 +13,7 @@ import { FlaskConical, ChevronDown, ChevronUp } from "lucide-react";
 import UploadForm       from "@/app/components/upload/UploadForm";
 import SubmissionList   from "@/app/components/upload/SubmissionList";
 import CommentSection   from "@/app/components/upload/CommentSection";
+import { UploadQueueUI } from "@/app/components/upload/UploadQueueUI";
 import type { Submission, Comment } from "@/app/types/submission";
 
 // ─── Test ID girişi ───────────────────────────────────────────────────────────
@@ -104,13 +105,31 @@ export default function UploadTestPage() {
       {/* Ana içerik */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Sol: Yükleme formu */}
+        {/* Sol: Çoklu Yükleme Kuyruğu (yeni) */}
         <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-6 py-5 space-y-4">
           <div>
-            <h2 className="text-[15px] font-bold text-base-primary-900">Ödev Teslim</h2>
+            <h2 className="text-[15px] font-bold text-base-primary-900">Çoklu Yükleme Kuyruğu</h2>
+            <p className="text-[12px] text-surface-400 mt-0.5">UploadQueueUI · max 4 eş zamanlı · resumable</p>
+          </div>
+          {idsReady ? (
+            <UploadQueueUI
+              studentId={studentId.trim()}
+              taskId={taskId.trim()}
+              groupId={groupId.trim()}
+            />
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-[13px] text-surface-400">Yukarıdaki ID alanlarını doldur</p>
+            </div>
+          )}
+        </div>
+
+        {/* Sağ: Tekli Yükleme Formu (eski) */}
+        <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-6 py-5 space-y-4">
+          <div>
+            <h2 className="text-[15px] font-bold text-base-primary-900">Tekli Yükleme (Eski)</h2>
             <p className="text-[12px] text-surface-400 mt-0.5">UploadForm componenti</p>
           </div>
-
           {idsReady ? (
             <UploadForm
               studentId={studentId.trim()}
@@ -126,7 +145,7 @@ export default function UploadTestPage() {
           )}
         </div>
 
-        {/* Sağ: Teslim geçmişi */}
+        {/* Teslim geçmişi */}
         <div className="bg-white rounded-16 border border-surface-100 shadow-sm px-6 py-5 space-y-4">
           <div>
             <h2 className="text-[15px] font-bold text-base-primary-900">Teslim Geçmişi</h2>
