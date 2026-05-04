@@ -20,7 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { uploadToDrive, validateDriveFile, isDriveError } from "@/app/lib/googledrive";
+import { uploadToDrive, validateDriveFile, isDriveError, ensureFolderPath, uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
 
 export async function POST(req: NextRequest) {
   // ── 1. FormData parse ──────────────────────────────────────────────────────
@@ -52,6 +52,17 @@ export async function POST(req: NextRequest) {
 
   const mimeType = file.type || "application/octet-stream";
 
+  // Opsiyonel klasör yolu: JSON dizisi — ["gruplar", "Grup 541", "Eğitmen", "Ödev adı"]
+  const folderPathRaw = formData.get("folderPath");
+  let folderSegments: string[] | null = null;
+  if (typeof folderPathRaw === "string" && folderPathRaw.trim()) {
+    try {
+      folderSegments = JSON.parse(folderPathRaw) as string[];
+    } catch {
+      // geçersiz JSON → root klasöre yükle
+    }
+  }
+
   // ── 3. Dosya kısıtı kontrolü ───────────────────────────────────────────────
   const valErr = validateDriveFile(mimeType, file.size);
   if (valErr) {
@@ -62,15 +73,31 @@ export async function POST(req: NextRequest) {
   // ── 4. Google Drive'a yükle ────────────────────────────────────────────────
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await uploadToDrive(buffer, fileName, mimeType);
+
+    let fileId: string;
+    let webViewLink: string;
+
+    if (folderSegments && folderSegments.length > 0) {
+      // Klasör hiyerarşisi oluştur / bul ve o klasöre yükle
+      const targetFolderId = await ensureFolderPath(folderSegments);
+      const res = await uploadBufferToFolder(buffer, fileName, mimeType, targetFolderId);
+      fileId      = res.fileId;
+      webViewLink = res.webViewLink;
+      // Herkese açık izin ver
+      await setPublicReadPermission(fileId);
+    } else {
+      const result = await uploadToDrive(buffer, fileName, mimeType);
+      fileId      = result.fileId;
+      webViewLink = result.webViewLink;
+    }
 
     return NextResponse.json({
-      fileId:      result.fileId,
-      webViewLink: result.webViewLink,
-      downloadUrl: result.downloadUrl,
-      fileName:    result.fileName,
-      fileSize:    result.fileSize,
-      mimeType:    result.mimeType,
+      fileId,
+      webViewLink,
+      downloadUrl: `https://drive.google.com/uc?export=download&id=${fileId}`,
+      fileName,
+      fileSize:    buffer.length,
+      mimeType,
     });
   } catch (err: unknown) {
     if (isDriveError(err)) {

@@ -202,7 +202,9 @@ function GhostParkourCard({ task, canManage, onActivate }: {
       </div>
       <div className="mb-5">
         <h4 className="text-[20px] text-[#10294C] font-bold mb-1.5 leading-tight">{task.name}</h4>
-        <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{task.description || "Açıklama yok"}</p>
+        {task.subtitle && (
+          <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{task.subtitle}</p>
+        )}
       </div>
       <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-6 border border-[#EEF0F3]">
         <div className="flex flex-col"><span className="text-[11px] text-[#8E95A3]">Durum</span><span className="text-[13px] font-bold mt-0.5 text-[#AEB4C0]">Pasif</span></div>
@@ -362,9 +364,9 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
             </span>
           )}
         </h4>
-        <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">
-          {task.description || "Açıklama yok"}
-        </p>
+        {task.subtitle && (
+          <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{task.subtitle}</p>
+        )}
       </div>
 
       <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-6 border border-[#EEF0F3]">
@@ -770,6 +772,7 @@ export default function DesignParkour() {
       const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
       await addDoc(collection(db, "tasks"), {
         name:           t.name,
+        subtitle:       t.subtitle ?? null,
         description:    t.description ?? null,
         type:           t.type ?? null,
         points:         t.points ?? null,

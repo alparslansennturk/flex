@@ -34,6 +34,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
   const [name, setName]                 = useState(editingTask?.name ?? prefill?.name ?? "");
   const [type, setType]                 = useState<TaskType>(editingTask?.type ?? prefill?.type ?? "odev");
   const [selectedIcon, setSelectedIcon] = useState<IconKey>(editingTask?.icon ?? prefill?.icon ?? DEFAULT_ICON[editingTask?.type ?? prefill?.type ?? "odev"]);
+  const [subtitle, setSubtitle]         = useState(editingTask?.subtitle ?? prefill?.subtitle ?? "");
   const [description, setDescription]  = useState(editingTask?.description ?? prefill?.description ?? "");
   const [startDate]                     = useState(editingTask?.startDate ?? "");
   const [endDate, setEndDate]           = useState(editingTask?.endDate ?? "");
@@ -85,6 +86,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
     try {
       const payload = {
         name: name.trim(), type, icon: selectedIcon,
+        subtitle: subtitle.trim(),
         description: description.trim(),
         startDate: startDate || null, endDate: endDate || null,
         assignmentType: assignmentType ?? null,
@@ -103,6 +105,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
           name:           payload.name,
           type:           payload.type,
           icon:           payload.icon,
+          subtitle:       payload.subtitle || null,
           description:    payload.description,
           startDate:      payload.startDate ?? null,
           assignmentType: payload.assignmentType,
@@ -303,14 +306,25 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
           </div>
 
 
-          {/* Satır 4: Açıklama (full width) */}
+          {/* Alt Başlık (full width) */}
           <div className="col-span-2 space-y-1.5">
-            <label className={labelCls}>Açıklama</label>
+            <label className={labelCls}>Alt Başlık</label>
+            <input
+              value={subtitle}
+              onChange={e => setSubtitle(e.target.value)}
+              placeholder="ör. Kolaj tekniğiyle bir bahçe tasarla"
+              className={`${inputCls} border-surface-200 bg-surface-50 focus:border-base-primary-500 focus:bg-white`}
+            />
+          </div>
+
+          {/* Ödev Metni (full width) */}
+          <div className="col-span-2 space-y-1.5">
+            <label className={labelCls}>Ödev Metni</label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Bu ödev ne hakkında?"
-              rows={3}
+              placeholder="Öğrenciye gösterilecek tam ödev açıklaması..."
+              rows={4}
               className="w-full px-4 py-3 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium placeholder:text-text-placeholder outline-none resize-none focus:border-base-primary-500 focus:bg-white transition-all"
             />
           </div>

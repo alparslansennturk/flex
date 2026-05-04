@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
-import { collection, getDocs, doc, getDoc, query, where } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, query, where, updateDoc } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
@@ -11,6 +11,7 @@ import SubmissionTable from "@/app/components/assignment-test/SubmissionTable";
 import {
   ArrowLeft, Loader2, BookOpen, ClipboardList, MoreVertical,
   Search, Users, ChevronDown, Smile, Meh, RefreshCw, ArrowRight,
+  Upload, ExternalLink, X,
 } from "lucide-react";
 import type { Submission } from "@/app/types/submission";
 import type { Task } from "@/app/components/dashboard/assignment/taskTypes";
@@ -423,9 +424,8 @@ function TaskAccordion({
   const revize        = uniqueSubs.filter(s => s.status === "revision").length;
   const bekleyenler   = Math.max(0, totalStudents - latestByStudent.size);
 
-  // TODO: task.description ile değiştirilecek — ödev ekleme formu hazır olunca
-  const descHeading = "Merhabalar,";
-  const descBody    = "En son derste yaptığımız şekilde bir sosyal medya reklamı çalışması istiyorum. Ona göre size verilen ödeve göre bir araştırma yapacaksınız öncelikle. En başta kağıda çizeceğiniz ya da bilgisayar üzerinde de yapabileceğiniz bir scetch yapın. Kağıt üzerinde kurgulayın. Sonrasında ilgili görselleri araştırıp bularak çalışmayı yapacaksınız. Logolar vektörel olacak. İnternette ilgili firmanın logosunu vektörel olarak bulabilirsiniz. Ödevi zamanı içerisinde tamamlamış olmanız önemli. Beni müşteri gibi düşünün. Süreniz 3 hafta.";
+  const descHeading = task.subtitle || null;
+  const descBody    = task.description || null;
 
   return (
     <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
@@ -525,17 +525,18 @@ function TaskAccordion({
               <p className="text-[12px] sm:text-[14px] font-bold text-text-primary">{task.createdByName}</p>
             )}
 
-            {/* Satır 4: Dosya kartı (sol) + Ödev Detay butonu (sağ) */}
+            {/* Satır 4: Dosya alanı (sol) + Ödev Detay butonu (sağ) */}
             <div className="flex flex-wrap items-center justify-between gap-3 mt-5 sm:mt-8">
-              {/* Dosya kartı */}
-              <div className="flex items-center bg-white border border-surface-200 rounded-xl cursor-pointer hover:border-surface-300 transition-colors px-3 sm:px-4 py-2.5 sm:py-3">
-                <div>
-                  <p className="text-[12px] sm:text-[13px] font-bold text-text-primary leading-tight">Market.zip</p>
-                  <p className="text-[10px] sm:text-[11px] text-surface-500 mt-0.5">Ödev Dosyası</p>
-                </div>
-                <div className="w-px self-stretch bg-surface-200 mx-3 sm:mx-4" />
-                <GoogleDriveIcon />
-              </div>
+              {/* Dosya yönetimi */}
+              <AttachmentManager
+                taskId={task.id}
+                initialUrl={task.attachmentUrl}
+                initialName={task.attachmentName}
+                initialType={task.attachmentType}
+                groupName={task.classId}
+                instructorName={task.createdByName}
+                taskName={task.name}
+              />
 
               {/* Ödev Detay butonu */}
               <button
@@ -564,6 +565,167 @@ function StatBlock({ icon, iconLg, label, count }: { icon: React.ReactNode; icon
       {iconLg}
       <p className="mt-1 text-[11px] sm:text-[13px] xl:text-[14px] font-medium text-text-primary text-center leading-tight">{label}</p>
       <p className="mt-1 sm:mt-2 text-[22px] sm:text-[28px] lg:text-[32px] font-bold text-text-secondary leading-none">{count}</p>
+    </div>
+  );
+}
+
+/* ── Attachment Manager (eğitmen ödev dosyası yönetimi) ──────── */
+
+function AttachmentManager({ taskId, initialUrl, initialName, initialType, groupName, instructorName, taskName }: {
+  taskId: string;
+  initialUrl?: string;
+  initialName?: string;
+  initialType?: string;
+  groupName?: string;
+  instructorName?: string;
+  taskName?: string;
+}) {
+  const [attachment, setAttachment] = useState<{ url: string; name: string; type: string } | null>(
+    initialUrl ? { url: initialUrl, name: initialName ?? "Ödev Dosyası", type: initialType ?? "upload" } : null
+  );
+  const [mode,      setMode]      = useState<"idle" | "choosing" | "drive">("idle");
+  const [driveLink, setDriveLink] = useState<string>("");
+  const [driveName, setDriveName] = useState<string>("");
+  const [uploading, setUploading] = useState(false);
+  const [error,     setError]     = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const save = async (type: string, url: string, name: string) => {
+    await updateDoc(doc(db, "tasks", taskId), { attachmentType: type, attachmentUrl: url, attachmentName: name });
+    setAttachment({ url, name, type });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setMode("idle");
+    setUploading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      // Klasör hiyerarşisi: gruplar / [grup] / [eğitmen] / [ödev adı]
+      const segments = ["gruplar"];
+      if (groupName)     segments.push(groupName);
+      if (instructorName) segments.push(instructorName);
+      if (taskName)      segments.push(taskName);
+      fd.append("folderPath", JSON.stringify(segments));
+      const res  = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Yükleme başarısız");
+      await save("upload", data.webViewLink!, data.fileName ?? file.name);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Yükleme başarısız");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDriveSave = async () => {
+    const url = driveLink.trim();
+    if (!url) return;
+    const name = driveName.trim() || "Google Drive Dosyası";
+    await save("drive", url, name);
+    setMode("idle");
+    setDriveLink("");
+    setDriveName("");
+  };
+
+  const handleRemove = async () => {
+    await updateDoc(doc(db, "tasks", taskId), { attachmentType: null, attachmentUrl: null, attachmentName: null });
+    setAttachment(null);
+  };
+
+  /* Tek return — erken return yapma, React DOM reconciliation sorununu önler */
+  return (
+    <div>
+      {/* Gizli dosya input — her zaman aynı pozisyonda */}
+      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+
+      {/* Var olan dosya kartı */}
+      {attachment && (
+        <div className="flex items-center bg-white border border-surface-200 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 gap-2.5">
+          <div>
+            <p className="text-[12px] sm:text-[13px] font-bold text-text-primary leading-tight truncate max-w-[160px]">
+              {attachment.name}
+            </p>
+            <p className="text-[10px] sm:text-[11px] text-surface-500 mt-0.5">Ödev Dosyası</p>
+          </div>
+          <div className="w-px self-stretch bg-surface-200 mx-2" />
+          <a href={attachment.url} target="_blank" rel="noopener noreferrer"
+            className="text-surface-400 hover:text-base-primary-600 transition-colors p-1">
+            <ExternalLink size={16} />
+          </a>
+          <button onClick={handleRemove}
+            className="text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer p-1">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Yükleniyor */}
+      {!attachment && uploading && (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-surface-200 rounded-xl text-surface-400">
+          <Loader2 size={14} className="animate-spin" />
+          <span className="text-[12px] font-medium">Yükleniyor...</span>
+        </div>
+      )}
+
+      {/* Drive link girişi */}
+      {!attachment && !uploading && mode === "drive" && (
+        <div className="flex flex-col gap-2 bg-white border border-surface-200 rounded-xl p-3 min-w-[300px]">
+          <input
+            value={driveName}
+            onChange={e => setDriveName(e.target.value)}
+            placeholder="Dosya adı (isteğe bağlı)"
+            className="w-full h-8 px-3 rounded-lg border border-surface-200 text-[12px] outline-none focus:border-base-primary-400 transition-colors"
+          />
+          <div className="flex gap-2">
+            <input
+              value={driveLink}
+              onChange={e => setDriveLink(e.target.value)}
+              placeholder="Google Drive linki..."
+              className="flex-1 h-8 px-3 rounded-lg border border-surface-200 text-[12px] outline-none focus:border-base-primary-400 transition-colors"
+            />
+            <button onClick={handleDriveSave} disabled={!driveLink.trim()}
+              className="px-3 h-8 bg-base-primary-700 text-white text-[11px] font-bold rounded-lg disabled:opacity-40 cursor-pointer hover:bg-base-primary-800 transition-colors shrink-0">
+              Ekle
+            </button>
+            <button onClick={() => setMode("idle")}
+              className="px-2 h-8 bg-surface-100 text-surface-600 rounded-lg cursor-pointer hover:bg-surface-200 transition-colors shrink-0">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* İki seçenek */}
+      {!attachment && !uploading && mode === "choosing" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-surface-200 rounded-xl text-[12px] font-semibold text-text-secondary hover:border-base-primary-300 hover:text-base-primary-600 transition-colors cursor-pointer">
+            <Upload size={13} /> Bilgisayardan Yükle
+          </button>
+          <button onClick={() => setMode("drive")}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-surface-200 rounded-xl text-[12px] font-semibold text-text-secondary hover:border-base-primary-300 hover:text-base-primary-600 transition-colors cursor-pointer">
+            <img src="/icons/google-drive.svg" width={14} height={14} alt="" /> Google Drive
+          </button>
+          <button onClick={() => setMode("idle")}
+            className="text-surface-400 hover:text-surface-600 transition-colors cursor-pointer p-1">
+            <X size={15} />
+          </button>
+          {error && <p className="w-full text-[11px] text-status-danger-500">{error}</p>}
+        </div>
+      )}
+
+      {/* Boş — ekle butonu */}
+      {!attachment && !uploading && mode === "idle" && (
+        <button onClick={() => setMode("choosing")}
+          className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-dashed border-surface-300 rounded-xl text-[11px] sm:text-[12px] font-semibold text-surface-400 hover:border-base-primary-300 hover:text-base-primary-500 transition-colors cursor-pointer">
+          <Upload size={13} /> Ödev Dosyası Ekle
+        </button>
+      )}
     </div>
   );
 }

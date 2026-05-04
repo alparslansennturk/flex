@@ -229,6 +229,72 @@ export async function uploadToDrive(
   };
 }
 
+// ─── Folder Management ───────────────────────────────────────────────────────
+
+/**
+ * Belirtilen parent klasörde verilen isimde bir klasör arar; yoksa oluşturur.
+ * Döner: klasör ID'si
+ */
+async function findOrCreateFolder(
+  name:     string,
+  parentId: string,
+  token:    string,
+): Promise<string> {
+  const safeName = name.replace(/'/g, "\\'");
+  const q = encodeURIComponent(
+    `name='${safeName}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
+  );
+  const searchRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (searchRes.ok) {
+    const data = await searchRes.json() as { files?: { id: string }[] };
+    if (data.files && data.files.length > 0) return data.files[0].id;
+  }
+
+  // Klasör yok — oluştur
+  const createRes = await fetch(
+    "https://www.googleapis.com/drive/v3/files?fields=id",
+    {
+      method:  "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        mimeType: "application/vnd.google-apps.folder",
+        parents:  [parentId],
+      }),
+    },
+  );
+  if (!createRes.ok) {
+    const errText = await createRes.text();
+    throw driveError("UPLOAD_FAILED", `Klasör oluşturulamadı "${name}": ${errText}`);
+  }
+  const folder = await createRes.json() as { id: string };
+  return folder.id;
+}
+
+/**
+ * Kök klasörden başlayarak iç içe klasör yolunu oluşturur / bulur.
+ * Örnek: ["gruplar", "Grup 541", "Ahmet Yılmaz", "Menü Tasarımı"]
+ * Döner: en içteki klasörün ID'si.
+ */
+export async function ensureFolderPath(
+  pathSegments: string[],
+  rootFolderId?: string,
+): Promise<string> {
+  const token     = await getAccessToken();
+  let currentId   = rootFolderId ?? getFolderId();
+
+  for (const raw of pathSegments) {
+    // Geçersiz Drive karakter temizliği
+    const segment = raw.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim() || "Genel";
+    currentId = await findOrCreateFolder(segment, currentId, token);
+  }
+
+  return currentId;
+}
+
 // ─── Upload to Specific Folder ───────────────────────────────────────────────
 
 /**

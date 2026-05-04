@@ -167,7 +167,7 @@ function TemplateRow({
       </div>
       <div className="flex-2 min-w-0 hidden md:block">
         <span className="text-[13px] text-surface-500 truncate block">
-          {task.description || <span className="italic text-surface-300">Açıklama yok</span>}
+          {task.subtitle || task.description || <span className="italic text-surface-300">Açıklama yok</span>}
         </span>
       </div>
       <div className="w-24 shrink-0 hidden lg:block">
@@ -260,7 +260,7 @@ function TaskRow({
       {/* Açıklama */}
       <div className="flex-1 min-w-0 hidden md:block">
         <span className="text-[13px] text-surface-500 truncate block">
-          {task.description || <span className="italic text-surface-300">—</span>}
+          {task.subtitle || task.description || <span className="italic text-surface-300">—</span>}
         </span>
       </div>
       {/* Eğitmen */}
@@ -576,7 +576,11 @@ export default function TaskManagementPanel() {
     setFormOpen(true);
   };
 
-  const openTaskEdit = (task: Task) => setQuickEditTask(task);
+  const openTaskEdit = (task: Task) => {
+    setFormCollection("tasks");
+    setEditingTask(task);
+    setFormOpen(true);
+  };
 
   const handleQuickEditSave = async (classId: string, level: string, endDate: string) => {
     if (!quickEditTask) return;

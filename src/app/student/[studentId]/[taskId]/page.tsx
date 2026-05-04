@@ -30,7 +30,11 @@ interface Task {
   name: string;
   points: number;
   endDate?: string;
+  subtitle?: string;
   description?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
 }
 
 interface SubmissionRow {
@@ -260,7 +264,7 @@ export default function StudentTaskDetailPage() {
 
       if (taskSnap.exists()) {
         const td = taskSnap.data();
-        setTask({ name: td.name ?? "", points: td.points ?? 0, endDate: td.endDate, description: td.description });
+        setTask({ name: td.name ?? "", points: td.points ?? 0, endDate: td.endDate, subtitle: td.subtitle, description: td.description, attachmentUrl: td.attachmentUrl, attachmentName: td.attachmentName, attachmentType: td.attachmentType });
       }
     } catch (err) {
       console.error("[loadData]", err);
@@ -530,6 +534,42 @@ export default function StudentTaskDetailPage() {
                     <p className="text-[14px] font-bold text-text-secondary">Eğitmen İnceliyor</p>
                     <p className="body-sm text-surface-400 mt-0.5">Teslimini aldık. Eğitmen inceleme yapıyor.</p>
                   </div>
+                </div>
+              )}
+
+              {/* ── Ödev dosyası (sadece yüklenmişse görünür) ── */}
+              {task.attachmentUrl && (
+                <div className="bg-white border border-surface-200 rounded-2xl px-6 py-4">
+                  <p className="text-[11px] font-bold text-surface-400 uppercase tracking-widest mb-3">Ödev Dosyası</p>
+                  <a
+                    href={task.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 px-4 py-3 bg-surface-50 border border-surface-200 rounded-xl hover:border-base-primary-300 hover:bg-base-primary-50 transition-colors"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-base-primary-100 flex items-center justify-center shrink-0">
+                      <Download size={16} className="text-base-primary-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-bold text-text-primary truncate">
+                        {task.attachmentName ?? "Ödev Dosyası"}
+                      </p>
+                      <p className="text-[11px] text-surface-400">İndir / Görüntüle</p>
+                    </div>
+                    <ExternalLink size={14} className="text-surface-400 shrink-0" />
+                  </a>
+                </div>
+              )}
+
+              {/* ── Ödev metni ── */}
+              {(task.subtitle || task.description) && (
+                <div className="bg-white border border-surface-200 rounded-2xl px-6 py-5 space-y-1.5">
+                  {task.subtitle && (
+                    <p className="text-[14px] font-semibold text-text-primary leading-snug">{task.subtitle}</p>
+                  )}
+                  {task.description && (
+                    <p className="text-[13px] text-surface-500 leading-relaxed">{task.description}</p>
+                  )}
                 </div>
               )}
 

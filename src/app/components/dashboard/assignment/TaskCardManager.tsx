@@ -93,7 +93,7 @@ export function TaskRow({ task, onEdit, onDelete, onSendToLibrary, onActivate }:
         <TypeBadge type={task.type} />
       </div>
       <p className="flex-1 min-w-0 text-[13px] xl:text-[14px] text-surface-500 truncate hidden md:block">
-        {task.description || <span className="italic text-surface-300">Açıklama yok</span>}
+        {task.subtitle || task.description || <span className="italic text-surface-300">Açıklama yok</span>}
       </p>
       <div className="shrink-0 w-32 hidden xl:block truncate">
         <span className="text-[12px] xl:text-[13px] font-medium text-surface-600 truncate block">{task.createdByName || "—"}</span>

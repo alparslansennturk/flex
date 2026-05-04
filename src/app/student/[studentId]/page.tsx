@@ -31,6 +31,7 @@ interface TaskRow {
   points: number;
   endDate?: any;
   createdAt?: any;
+  subtitle?: string;
   description?: string;
   createdByName?: string;
   isActive: boolean;
@@ -138,6 +139,7 @@ export default function StudentDashboard() {
         points:        d.data().points        ?? 0,
         endDate:       d.data().endDate,
         createdAt:     d.data().createdAt,
+        subtitle:      d.data().subtitle,
         description:   d.data().description,
         createdByName: d.data().createdByName,
         isActive:      d.data().isActive ?? true,
@@ -387,9 +389,8 @@ function StudentTaskAccordion({
 
   const statusMeta = sub ? STATUS_META[sub.status] : null;
 
-  const DESC_HEADING = "Merhabalar,";
-  const DESC_BODY    = task.description
-    || "En son derste yaptığımız şekilde bir sosyal medya reklamı çalışması istiyorum. Ona göre size verilen ödeve göre bir araştırma yapacaksınız öncelikle. En başta kağıda çizeceğiniz ya da bilgisayar üzerinde de yapabileceğiniz bir scetch yapın. Kağıt üzerinde kurgulayın. Sonrasında ilgili görselleri araştırıp bularak çalışmayı yapacaksınız. Logolar vektörel olacak. İnternette ilgili firmanın logosunu vektörel olarak bulabilirsiniz. Ödevi zamanı içerisinde tamamlamış olmanız önemli. Beni müşteri gibi düşünün. Süreniz 3 hafta.";
+  const DESC_HEADING = task.subtitle || null;
+  const DESC_BODY    = task.description || null;
 
   return (
     <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">

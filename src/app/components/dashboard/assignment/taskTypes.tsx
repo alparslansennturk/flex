@@ -12,6 +12,7 @@ export type IconKey = string; // PascalCase Lucide icon adı (ör. "Palette", "B
 export interface Task {
   id: string;
   name: string;
+  subtitle?: string;
   description: string;
   type: TaskType;
   points: number;
@@ -35,6 +36,9 @@ export interface Task {
   status?: 'active' | 'archived' | 'completed' | 'published'; // published: kura seçimi bitti, not girişi aşaması
   isGraded?: boolean;       // Not girişi yapıldıysa true
   assignmentType?: "kolaj" | "kitap" | "sosyal_medya"; // Ödev tipi yönlendirmesi için
+  attachmentType?: "upload" | "drive";  // Yüklenen dosyanın kaynağı
+  attachmentUrl?:  string;              // Google Drive webViewLink veya Drive linki
+  attachmentName?: string;              // Görüntülenecek dosya adı
 }
 
 // Eski lowercase key'leri PascalCase'e çevir (Firestore'daki eski veriler için)

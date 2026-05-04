@@ -36,7 +36,7 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
         </div>
         <div className="truncate flex-1 min-w-0">
           <h5 className="text-[15px] font-bold text-[#10294C] mb-0.5 truncate">{task.name}</h5>
-          <p className="text-[11px] text-[#8E95A3] line-clamp-2">{task.description || "Açıklama yok"}</p>
+          <p className="text-[11px] text-[#8E95A3] line-clamp-2">{task.subtitle || task.description || "Açıklama yok"}</p>
         </div>
         {/* 3-dot menü */}
         <div className="relative shrink-0" ref={menuRef}>
@@ -151,6 +151,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
               const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
               await addDoc(collection(db, "tasks"), {
                 name:          t.name,
+                subtitle:      t.subtitle ?? null,
                 description:   t.description,
                 type:          t.type,
                 points:        t.points ?? null,
