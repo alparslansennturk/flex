@@ -429,7 +429,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
         ) : isExpired ? (
           <button
             onClick={() => task.groupId
-              ? router.push(`/dashboard/assignment-test/${task.groupId}/${task.id}`)
+              ? router.push(`/dashboard/assignment-test/${task.groupId}?taskId=${task.id}`)
               : router.push(`/dashboard/grading?taskId=${task.id}`)
             }
             className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
@@ -858,7 +858,7 @@ export default function DesignParkour() {
                             : "sosyalmedya";
                 router.push(`/dashboard/${route}?taskId=${t.id}`);
               } else if (t.groupId) {
-                router.push(`/dashboard/assignment-test/${t.groupId}/${t.id}`);
+                router.push(`/dashboard/assignment-test/${t.groupId}?taskId=${t.id}`);
               }
             }}
           />

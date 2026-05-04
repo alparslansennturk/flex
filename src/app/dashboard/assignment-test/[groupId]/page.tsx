@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import { collection, getDocs, doc, getDoc, query, where, updateDoc } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
@@ -65,9 +65,11 @@ function formatCreatedAt(createdAt: any): string {
 
 export default function GroupDetailPage() {
   const { user, loading: authLoading } = useUser();
-  const router  = useRouter();
-  const params  = useParams<{ groupId: string }>();
-  const groupId = params.groupId;
+  const router       = useRouter();
+  const params       = useParams<{ groupId: string }>();
+  const groupId      = params.groupId;
+  const searchParams = useSearchParams();
+  const defaultOpenTaskId = searchParams.get("taskId");
 
   const [tab,           setTab]           = useState<MainTab>("assignments");
   const [group,         setGroup]         = useState<GroupInfo | null>(null);
@@ -229,6 +231,7 @@ export default function GroupDetailPage() {
                     submissions={submissions}
                     totalStudents={group?.students ?? 0}
                     groupId={groupId}
+                    defaultOpenTaskId={defaultOpenTaskId ?? undefined}
                   />
                 )}
 
@@ -298,12 +301,13 @@ export default function GroupDetailPage() {
 /* ── Ödevler Tab ─────────────────────────────────────────────── */
 
 function AssignmentsTab({
-  tasks, submissions, totalStudents, groupId,
+  tasks, submissions, totalStudents, groupId, defaultOpenTaskId,
 }: {
   tasks: Task[];
   submissions: SubmissionRow[];
   totalStudents: number;
   groupId: string;
+  defaultOpenTaskId?: string;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -362,6 +366,7 @@ function AssignmentsTab({
                 totalStudents={totalStudents}
                 groupId={groupId}
                 isActiveSection={true}
+                defaultOpen={task.id === defaultOpenTaskId}
               />
             ))}
           </div>
@@ -381,6 +386,7 @@ function AssignmentsTab({
                 totalStudents={totalStudents}
                 groupId={groupId}
                 isActiveSection={false}
+                defaultOpen={task.id === defaultOpenTaskId}
               />
             ))}
           </div>
@@ -400,16 +406,17 @@ function AssignmentsTab({
 /* ── Accordion Kart ──────────────────────────────────────────── */
 
 function TaskAccordion({
-  task, submissions, totalStudents, groupId, isActiveSection,
+  task, submissions, totalStudents, groupId, isActiveSection, defaultOpen = false,
 }: {
   task: Task;
   submissions: SubmissionRow[];
   totalStudents: number;
   groupId: string;
   isActiveSection: boolean;
+  defaultOpen?: boolean;
 }) {
   const router        = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   // Öğrenci başına en son teslim (iteration en yüksek)
   const latestByStudent = new Map<string, SubmissionRow>();
@@ -538,7 +545,7 @@ function TaskAccordion({
                 taskName={task.name}
               />
 
-              {/* Ödev Detay butonu */}
+              {/* Teslim Durumu butonu */}
               <button
                 onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${task.id}`)}
                 className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[12px] sm:text-[14px] font-semibold text-white cursor-pointer transition-colors"
@@ -546,7 +553,7 @@ function TaskAccordion({
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#4D52A6")}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#5E63C2")}
               >
-                Ödev Detay
+                Teslim Durumu
                 <ArrowRight size={13} strokeWidth={2.5} className="sm:hidden" />
                 <ArrowRight size={15} strokeWidth={2.5} className="hidden sm:block" />
               </button>

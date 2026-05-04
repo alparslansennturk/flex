@@ -148,8 +148,9 @@ export default function AssignmentDetailPage() {
   const [privateComments, setPrivateComments] = useState<CommentItem[]>([]);
   const [commentText,     setCommentText]     = useState("");
 
-  const dropdownRef   = useRef<HTMLDivElement>(null);
+  const dropdownRef    = useRef<HTMLDivElement>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
+  const autoSelectedRef = useRef(false);
 
   useEffect(() => { if (!authLoading && !user) router.push("/login"); }, [user, authLoading, router]);
   useEffect(() => { if (user) loadData(); }, [user, groupId, assignmentId]);
@@ -279,6 +280,29 @@ export default function AssignmentDetailPage() {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [viewingId, assignmentId]);
+
+  /* İlk yüklemede teslim eden ilk öğrenciyi seç; yoksa teslim etmeyenden ilkini */
+  useEffect(() => {
+    if (loading || autoSelectedRef.current || allStudents.length === 0) return;
+    autoSelectedRef.current = true;
+
+    const getLatest = (studentId: string) =>
+      submissions
+        .filter(s => s.studentId === studentId)
+        .sort((a, b) => b.iteration - a.iteration)[0] ?? null;
+
+    const firstSubmitted = allStudents.find(s => {
+      const st = getLatest(s.id)?.status;
+      return st === "submitted" || st === "reviewing" || st === "completed";
+    });
+
+    if (firstSubmitted) {
+      setViewingId(firstSubmitted.id);
+    } else {
+      const firstPending = allStudents.find(s => !getLatest(s.id));
+      if (firstPending) setViewingId(firstPending.id);
+    }
+  }, [loading, allStudents, submissions]);
 
   /* ── Data ── */
 
@@ -633,7 +657,7 @@ export default function AssignmentDetailPage() {
                 </div>
               ) : (
                 <>
-                  <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                     <div className="p-6 space-y-4">
 
                       {/* ── Üst: Öğrenci kartı + Mevcut Durum ── */}
@@ -796,14 +820,11 @@ export default function AssignmentDetailPage() {
                         </div>
                       )}
 
-                    </div>
-                  </div>
+                      {/* ════ Yorum Paneli — scrollable içeriğin bir parçası ════ */}
+                      <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
 
-                  {/* ════ Yorum Paneli ════ */}
-                  <div className="shrink-0 border-t border-surface-200 bg-white flex flex-col overflow-hidden" style={{ height: 300 }}>
-
-                    {/* Tab başlıkları */}
-                    <div className="flex border-b border-surface-100 px-6 shrink-0">
+                        {/* Tab başlıkları */}
+                        <div className="flex border-b border-surface-100 px-6">
                       {([
                         { key: "general", label: "Genel",                                                   icon: <Users size={12} /> },
                         { key: "private", label: viewingStudent ? `${viewingStudent.name} ${viewingStudent.lastName}`.trim() : "Özel", icon: <Lock  size={12} /> },
@@ -822,52 +843,55 @@ export default function AssignmentDetailPage() {
                       ))}
                     </div>
 
-                    {/* Yorum listesi */}
-                    <div className="flex-1 overflow-y-auto px-6 py-3 space-y-4">
-                      {visibleComments.length === 0 ? (
-                        <p className="text-[12px] text-surface-400 text-center py-4">
-                          {activeTab === "general" ? "Henüz genel yorum yok." : "Henüz yorum yok."}
-                        </p>
-                      ) : (
-                        visibleComments.map(c => (
-                          <CommentRow
-                            key={c.id}
-                            comment={c}
-                            myId={user.uid}
-                            onEdit={(id, text) => editComment(id, text, c.commentType)}
-                            onDelete={(id) => deleteComment(id, c.commentType)}
-                          />
-                        ))
-                      )}
-                      <div ref={commentsEndRef} />
-                    </div>
+                        {/* Yorum listesi */}
+                        <div className="px-6 py-3 space-y-4">
+                          {visibleComments.length === 0 ? (
+                            <p className="text-[12px] text-surface-400 text-center py-4">
+                              {activeTab === "general" ? "Henüz genel yorum yok." : "Henüz yorum yok."}
+                            </p>
+                          ) : (
+                            visibleComments.map(c => (
+                              <CommentRow
+                                key={c.id}
+                                comment={c}
+                                myId={user.uid}
+                                onEdit={(id, text) => editComment(id, text, c.commentType)}
+                                onDelete={(id) => deleteComment(id, c.commentType)}
+                              />
+                            ))
+                          )}
+                          <div ref={commentsEndRef} />
+                        </div>
 
-                    {/* Yorum input */}
-                    <div className="shrink-0 px-4 pb-3 pt-2.5 border-t border-surface-100 flex items-end gap-2">
-                      <textarea
-                        value={commentText}
-                        onChange={e => setCommentText(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            sendComment();
-                          }
-                        }}
-                        placeholder={
-                          activeTab === "general"
-                            ? "Tüm sınıfa yorum ekle..."
-                            : "Öğrenciye özel yorum yaz..."
-                        }
-                        rows={2}
-                        className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                      <button
-                        onClick={sendComment}
-                        disabled={!commentText.trim() || (activeTab === "private" && !viewingId)}
-                        className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
-                      >
-                        <Send size={14} />
-                      </button>
+                        {/* Yorum input */}
+                        <div className="px-4 pb-4 pt-2.5 border-t border-surface-100 flex items-end gap-2">
+                          <textarea
+                            value={commentText}
+                            onChange={e => setCommentText(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                sendComment();
+                              }
+                            }}
+                            placeholder={
+                              activeTab === "general"
+                                ? "Tüm sınıfa yorum ekle..."
+                                : "Öğrenciye özel yorum yaz..."
+                            }
+                            rows={2}
+                            className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                          <button
+                            onClick={sendComment}
+                            disabled={!commentText.trim() || (activeTab === "private" && !viewingId)}
+                            className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
+                          >
+                            <Send size={14} />
+                          </button>
+                        </div>
+                      </div>
+
                     </div>
                   </div>
                 </>
