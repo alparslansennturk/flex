@@ -11,7 +11,7 @@ import { sendThreadComment } from "@/app/lib/sendThreadComment";
 import { useUser } from "@/app/context/UserContext";
 import {
   ArrowLeft, Loader2, RotateCcw, CheckCircle2,
-  Send, Download, FileText, ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Trash2,
+  Send, Download, FileText, MoreHorizontal, Pencil, Trash2,
 } from "lucide-react";
 import type { Submission, SubmissionStatus } from "@/app/types/submission";
 
@@ -37,6 +37,7 @@ interface FileVersion {
   versionNo: number;
   isLatest: boolean;
   uploadedAt: Date;
+  iteration: number;
 }
 
 /* ── Helpers ── */
@@ -139,12 +140,13 @@ export default function SubmissionPreviewPage() {
       if (!subSnap.exists()) return;
       const sd = subSnap.data();
 
-      const [taskSnap, studentSnap, filesSnap] = await Promise.all([
+      const [taskSnap, studentSnap, allSubsSnap] = await Promise.all([
         getDoc(doc(db, "tasks", sd.taskId)),
         getDoc(doc(db, "students", sd.studentId)),
         getDocs(query(
-          collection(db, "submission_files"),
-          where("submissionId", "==", submissionId),
+          collection(db, "submissions"),
+          where("studentId", "==", sd.studentId),
+          where("taskId", "==", sd.taskId),
         )),
       ]);
 
@@ -177,36 +179,68 @@ export default function SubmissionPreviewPage() {
       }
       if (taskSnap.exists()) setTaskName(taskSnap.data().name ?? "");
 
-      const versionList: FileVersion[] = filesSnap.docs
-        .map(d => ({
-          id:           d.id,
-          driveFileId:  d.data().driveFileId  ?? "",
-          driveViewLink: d.data().driveViewLink,
-          fileUrl:      d.data().fileUrl      ?? "",
-          fileName:     d.data().fileName     ?? "",
-          mimeType:     d.data().mimeType,
-          fileSize:     d.data().fileSize     ?? 0,
-          versionNo:    d.data().versionNo    ?? 1,
-          isLatest:     d.data().isLatest     ?? false,
-          uploadedAt:   d.data().uploadedAt?.toDate?.() ?? new Date(),
-        }))
-        .sort((a, b) => a.versionNo - b.versionNo);
+      // Tüm submission'ları iteration sırasına göre sırala
+      const sortedSubs = allSubsSnap.docs
+        .sort((a, b) => (a.data().iteration ?? 1) - (b.data().iteration ?? 1));
 
-      const effectiveFiles = versionList.length > 0 ? versionList : [{
-        id: "main",
-        driveFileId:  sd.file?.driveFileId  ?? "",
-        driveViewLink: sd.file?.driveViewLink,
-        fileUrl:      sd.file?.fileUrl      ?? "",
-        fileName:     sd.file?.fileName     ?? "",
-        mimeType:     sd.file?.mimeType,
-        fileSize:     sd.file?.fileSize     ?? 0,
-        versionNo: 1, isLatest: true,
-        uploadedAt: sd.submittedAt?.toDate?.() ?? new Date(),
-      }];
+      // Her submission için dosyaları paralel yükle
+      const allFilesSnaps = await Promise.all(
+        sortedSubs.map(subDoc =>
+          getDocs(query(
+            collection(db, "submission_files"),
+            where("submissionId", "==", subDoc.id),
+          ))
+        )
+      );
 
-      setFiles(effectiveFiles);
-      const latest = effectiveFiles.find(f => f.isLatest) ?? effectiveFiles[effectiveFiles.length - 1];
-      setActiveFileId(latest?.id);
+      // Tüm dosyaları birleştir
+      const allFiles: FileVersion[] = [];
+      sortedSubs.forEach((subDoc, i) => {
+        const subData    = subDoc.data();
+        const filesSnap  = allFilesSnaps[i];
+        const iteration  = subData.iteration ?? 1;
+
+        if (filesSnap.docs.length > 0) {
+          filesSnap.docs
+            .map(d => ({
+              id:            d.id,
+              driveFileId:   d.data().driveFileId  ?? "",
+              driveViewLink: d.data().driveViewLink,
+              fileUrl:       d.data().fileUrl      ?? "",
+              fileName:      d.data().fileName     ?? "",
+              mimeType:      d.data().mimeType,
+              fileSize:      d.data().fileSize     ?? 0,
+              versionNo:     d.data().versionNo    ?? 1,
+              isLatest:      d.data().isLatest     ?? false,
+              uploadedAt:    d.data().uploadedAt?.toDate?.() ?? new Date(),
+              iteration,
+            }))
+            .sort((a, b) => a.versionNo - b.versionNo)
+            .forEach(f => allFiles.push(f));
+        } else {
+          // submission_files yoksa submission.file'dan fallback
+          allFiles.push({
+            id:            subDoc.id,
+            driveFileId:   subData.file?.driveFileId  ?? "",
+            driveViewLink: subData.file?.driveViewLink,
+            fileUrl:       subData.file?.fileUrl      ?? "",
+            fileName:      subData.file?.fileName     ?? "",
+            mimeType:      subData.file?.mimeType,
+            fileSize:      subData.file?.fileSize     ?? 0,
+            versionNo:     iteration,
+            isLatest:      subDoc.id === submissionId,
+            uploadedAt:    subData.submittedAt?.toDate?.() ?? new Date(),
+            iteration,
+          });
+        }
+      });
+
+      setFiles(allFiles);
+      // Aktif dosya: mevcut submissionId'ye ait son dosya ya da listenin sonu
+      const currentSubFile =
+        allFiles.filter(f => f.iteration === (sd.iteration ?? 1)).at(-1)
+        ?? allFiles.at(-1);
+      setActiveFileId(currentSubFile?.id);
     } finally {
       setLoading(false);
     }
@@ -358,54 +392,6 @@ export default function SubmissionPreviewPage() {
           {/* ── Sol: Dosya önizleme ── */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#1a1a1a]">
 
-            {/* Versiyon bar */}
-            {files.length > 1 && (
-              <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-[#111] border-b border-white/10">
-                <button
-                  onClick={() => {
-                    const idx = files.findIndex(f => f.id === activeFileId);
-                    if (idx > 0) setActiveFileId(files[idx - 1].id);
-                  }}
-                  disabled={files[0].id === activeFileId}
-                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20 disabled:opacity-30 cursor-pointer"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                {files.map(f => (
-                  <button
-                    key={f.id}
-                    onClick={() => setActiveFileId(f.id)}
-                    className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer
-                      ${f.id === activeFileId
-                        ? "bg-white text-[#1a1a1a]"
-                        : "text-white/60 hover:text-white hover:bg-white/10"
-                      }`}
-                  >
-                    v{f.versionNo}
-                  </button>
-                ))}
-                <button
-                  onClick={() => {
-                    const idx = files.findIndex(f => f.id === activeFileId);
-                    if (idx < files.length - 1) setActiveFileId(files[idx + 1].id);
-                  }}
-                  disabled={files[files.length - 1].id === activeFileId}
-                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20 disabled:opacity-30 cursor-pointer"
-                >
-                  <ChevronRight size={14} />
-                </button>
-                {activeFile?.fileUrl && (
-                  <a
-                    href={activeFile.fileUrl}
-                    download={activeFile.fileName}
-                    className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white text-[11px] font-semibold transition-colors"
-                  >
-                    <Download size={12} /> İndir
-                  </a>
-                )}
-              </div>
-            )}
-
             {/* Önizleme */}
             <div className="flex-1 min-h-0">
               {previewUrl ? (
@@ -447,6 +433,41 @@ export default function SubmissionPreviewPage() {
                 </div>
               )}
             </div>
+
+            {/* Gönderilen Dosyalar */}
+            {files.length > 0 && (
+              <div className="shrink-0 border-b border-surface-100 px-4 py-3">
+                <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider mb-2">
+                  Gönderilen Dosyalar
+                </p>
+                <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-0.5">
+                  {files.map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setActiveFileId(f.id)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors cursor-pointer
+                        ${f.id === activeFileId
+                          ? "bg-base-primary-50 border border-base-primary-200"
+                          : "bg-surface-50 border border-transparent hover:bg-surface-100"
+                        }`}
+                    >
+                      <FileText size={14} className={f.id === activeFileId ? "text-base-primary-600" : "text-surface-400"} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] font-semibold text-text-primary truncate">{f.fileName || `Dosya ${f.iteration}`}</p>
+                        <p className="text-[10px] text-surface-400">
+                          Gönderim #{f.iteration} · {f.fileSize > 0 ? `${(f.fileSize / 1024).toFixed(0)} KB` : "—"}
+                        </p>
+                      </div>
+                      {f.id === files[files.length - 1]?.id && (
+                        <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">
+                          Son
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Thread */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">

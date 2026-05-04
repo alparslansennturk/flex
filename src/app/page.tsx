@@ -10,18 +10,28 @@ export default function RootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Firebase'in oturum durumunu dinliyoruz
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // Eğer kullanıcı tanınıyorsa (Beni Hatırla sayesinde)
-        router.push("/dashboard");
-      } else {
-        // Eğer kullanıcı yoksa
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
         router.push("/login");
+        return;
+      }
+
+      const tokenResult = await user.getIdTokenResult();
+      const role = tokenResult.claims.role as string | undefined;
+
+      if (role === "student") {
+        const studentDocId = tokenResult.claims.studentDocId as string | undefined;
+        if (studentDocId) {
+          router.push(`/student/${studentDocId}`);
+        } else {
+          // studentDocId claim henüz set edilmemişse login'e gönder
+          router.push("/login");
+        }
+      } else {
+        router.push("/dashboard");
       }
     });
 
-    // Sayfa kapandığında dinleyiciyi temizle
     return () => unsubscribe();
   }, [router]);
 

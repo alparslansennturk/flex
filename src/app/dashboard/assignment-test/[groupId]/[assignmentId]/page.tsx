@@ -653,7 +653,7 @@ export default function AssignmentDetailPage() {
                         }
                         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-base-primary-600 text-white text-[13px] font-semibold hover:bg-base-primary-700 transition-colors cursor-pointer shrink-0"
                       >
-                        <ExternalLink size={14} /> Tam Ekran
+                        <ExternalLink size={14} /> Detay
                       </button>
                     )}
                   </div>
