@@ -13,7 +13,8 @@ import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
 import {
   ArrowLeft, Loader2, Check, ChevronDown, FileText,
-  ExternalLink, Send, Lock, Users, Download, Trash2, MoreHorizontal, Pencil,
+  ExternalLink, Send, Download, Trash2, MoreHorizontal, Pencil,
+  Calendar, RotateCcw, CheckCircle2, User, Users, Lock,
 } from "lucide-react";
 import type { Submission, SubmissionStatus } from "@/app/types/submission";
 
@@ -46,9 +47,9 @@ interface CommentItem {
 function fmtDateTime(val: any): string {
   if (!val) return "—";
   const d: Date = val?.toDate ? val.toDate() : val instanceof Date ? val : new Date(val);
-  return d.toLocaleDateString("tr-TR", {
-    day: "numeric", month: "long", year: "numeric", weekday: "short",
-  });
+  const date = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric", weekday: "short" });
+  const time = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return `${date} ${time}`;
 }
 
 function fmtTime(val: Date): string {
@@ -78,6 +79,13 @@ const STATUS_COLOR: Record<SubmissionStatus, string> = {
   reviewing: "text-status-success-500",
   revision:  "text-status-info",
   completed: "text-status-success-700",
+};
+
+const STATUS_BADGE: Record<SubmissionStatus, string> = {
+  submitted: "bg-base-primary-100 text-base-primary-600 border-base-primary-200",
+  reviewing: "bg-base-primary-100 text-base-primary-600 border-base-primary-200",
+  revision:  "bg-designstudio-primary-50 text-designstudio-primary-600 border-designstudio-primary-200",
+  completed: "bg-status-success-100 text-status-success-700 border-status-success-100",
 };
 
 /* ── Avatar (SVG sistemi) ── */
@@ -396,6 +404,23 @@ export default function AssignmentDetailPage() {
     }
   }
 
+  /* ── Tekil durum değiştir ── */
+
+  async function handleSingleStatus(subId: string, status: SubmissionStatus) {
+    if (!user || actionLoading) return;
+    setActionLoading(true);
+    try {
+      await fetch(`/api/assignment-test/submissions/${subId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, authorId: user.uid }),
+      });
+      await loadData();
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   /* ── Yorum düzenle / sil ── */
 
   async function editComment(id: string, newText: string, commentType: "general" | "private") {
@@ -520,7 +545,7 @@ export default function AssignmentDetailPage() {
                     <p className="text-[15px] font-bold text-text-primary leading-snug line-clamp-2">
                       {task?.name}
                     </p>
-                    <p className="text-[12px] text-surface-400 mt-1">
+                    <p className="text-[12px] text-surface-500 mt-1">
                       {allStudents.length - grouped.pending.length} / {allStudents.length} teslim
                     </p>
                   </div>
@@ -542,7 +567,7 @@ export default function AssignmentDetailPage() {
 
                     {dropdownOpen && (
                       <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-surface-200 rounded-2xl shadow-xl z-50 overflow-hidden py-1.5">
-                        <p className="px-4 pt-2 pb-1.5 text-[10px] font-bold text-surface-400 uppercase tracking-widest">
+                        <p className="px-4 pt-2 pb-1.5 text-[10px] font-bold text-surface-500 uppercase tracking-widest">
                           Toplu İşlem
                         </p>
                         {([
@@ -608,142 +633,170 @@ export default function AssignmentDetailPage() {
                 </div>
               ) : (
                 <>
-                  {/* Öğrenci header */}
-                  <div className="px-7 py-4 border-b border-surface-200 bg-white flex items-center justify-between gap-4 shrink-0">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <StudentAvatar
-                        gender={viewingStudent.gender}
-                        avatarId={viewingStudent.avatarId}
-                        size="lg"
-                      />
-                      <div className="min-w-0">
-                        <h2 className="text-[17px] font-bold text-text-primary leading-tight">
-                          {viewingStudent.name} {viewingStudent.lastName}
-                        </h2>
-                        {viewingSub ? (
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <span className={`text-[12px] font-semibold ${STATUS_COLOR[viewingSub.status]}`}>
-                              {STATUS_LABEL[viewingSub.status]}
-                            </span>
-                            <span className="text-surface-300">·</span>
-                            <span className="text-[12px] text-surface-400">
-                              {fmtDateTime(viewingSub.submittedAt)}
-                            </span>
-                            {viewingSub.isLate && (
-                              <>
-                                <span className="text-surface-300">·</span>
-                                <span className="text-[12px] text-red-500 font-semibold">
-                                  {viewingSub.daysLate} gün geç
-                                </span>
-                              </>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="p-6 space-y-4">
+
+                      {/* ── Üst: Öğrenci kartı + Mevcut Durum ── */}
+                      <div className="flex gap-4 items-stretch">
+
+                        {/* Öğrenci bilgi kartı */}
+                        <div className="flex-1 bg-white border border-surface-200 rounded-2xl p-5 flex flex-col">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <StudentAvatar gender={viewingStudent.gender} avatarId={viewingStudent.avatarId} size="lg" />
+                              <div className="min-w-0">
+                                <h2 className="text-[16px] font-bold text-text-primary leading-tight">
+                                  {viewingStudent.name} {viewingStudent.lastName}
+                                </h2>
+                                <p className="text-[12px] text-surface-500 mt-0.5">{task?.name}</p>
+                              </div>
+                            </div>
+                            {viewingSub && (
+                              <span className={`shrink-0 text-[12px] font-bold px-3 py-1 rounded-full border ${STATUS_BADGE[viewingSub.status]}`}>
+                                {STATUS_LABEL[viewingSub.status]}
+                              </span>
                             )}
                           </div>
-                        ) : (
-                          <p className="text-[12px] text-status-danger-500 mt-0.5 font-medium">Henüz teslim yapmadı</p>
-                        )}
-                      </div>
-                    </div>
 
-                    {viewingSub && (
-                      <button
-                        onClick={() =>
-                          router.push(
-                            `/dashboard/assignment-test/${groupId}/${assignmentId}/${viewingSub.id}/preview`
-                          )
-                        }
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-base-primary-600 text-white text-[13px] font-semibold hover:bg-base-primary-700 transition-colors cursor-pointer shrink-0"
-                      >
-                        <ExternalLink size={14} /> Detay
-                      </button>
-                    )}
-                  </div>
+                          {viewingSub ? (
+                            <div className="mt-3 flex items-center gap-2 text-[12px] text-surface-500 flex-wrap">
+                              <span>Teslim: {String(viewingSub.iteration).padStart(2, "0")}</span>
+                              <span className="text-surface-200">·</span>
+                              <span>{fmtDateTime(viewingSub.submittedAt)}</span>
+                              {viewingSub.isLate && (
+                                <>
+                                  <span className="text-surface-200">·</span>
+                                  <span className="text-red-500 font-semibold">{viewingSub.daysLate} gün geç</span>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[12px] text-status-danger-500 mt-3 font-medium">Henüz teslim yapmadı</p>
+                          )}
 
-                  {/* Dosya içeriği */}
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    {!viewingSub ? (
-                      <div className="h-full flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-3 text-surface-400">
-                          <div className="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center">
-                            <FileText size={28} strokeWidth={1.5} />
+                          <div className="mt-3 flex-1 px-4 py-3 bg-surface-50 rounded-xl border border-surface-100">
+                            <p className="text-[11px] font-bold text-surface-500 mb-1">Öğrenci Notu</p>
+                            {viewingSub?.note ? (
+                              <p className="text-[13px] text-text-secondary italic">"{viewingSub.note}"</p>
+                            ) : (
+                              <p className="text-[13px] text-surface-400 italic">Not girilmemiş</p>
+                            )}
                           </div>
-                          <p className="text-[15px] font-semibold text-surface-500">Teslim Edilmedi</p>
-                          <p className="text-[12px] text-surface-400 text-center max-w-[200px]">
-                            Bu öğrenci henüz ödevi teslim etmedi.
-                          </p>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="p-6 space-y-3">
-                        {viewingAllSubs.map((sub, i) => (
-                          <div key={sub.id} className="bg-white border border-surface-200 rounded-2xl p-4 flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
-                              <FileText size={18} className="text-surface-400" strokeWidth={1.5} />
+
+                        {/* Mevcut Durum kartı */}
+                        {viewingSub && (
+                          <div className="w-[196px] lg:w-[255px] shrink-0 bg-white border border-surface-200 rounded-2xl p-5 space-y-3">
+                            <p className="text-[11px] font-bold text-surface-500 uppercase tracking-wider">Mevcut Durum</p>
+                            <span className={`inline-flex items-center gap-1.5 text-[12px] font-bold px-3 py-1 rounded-full border ${STATUS_BADGE[viewingSub.status]}`}>
+                              {STATUS_LABEL[viewingSub.status]}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-1.5 text-[11px] text-surface-500">
+                                <Calendar size={11} /> Teslim Tarihi
+                              </div>
+                              <p className="text-[13px] font-semibold text-text-primary mt-0.5">{fmtDateTime(viewingSub.submittedAt)}</p>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-semibold text-text-primary truncate">
-                                {sub.file.fileName || "dosya"}
-                              </p>
-                              <p className="text-[11px] text-surface-400 mt-0.5">
-                                {mimeToLabel(sub.file.mimeType)} · {sub.file.fileSize ? `${(sub.file.fileSize / 1024).toFixed(0)} KB` : ""} · v{sub.iteration} · {fmtDateTime(sub.submittedAt)}
-                              </p>
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-[12px] text-surface-500">Revize:</span>
+                              <span className="text-[15px] font-bold text-text-primary">{viewingAllSubs.filter(s => s.status === "revision").length}</span>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {sub.file.driveViewLink && (
-                                <a
-                                  href={sub.file.driveViewLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-200 text-surface-600 text-[12px] font-semibold hover:bg-surface-50 transition-colors"
-                                >
-                                  <ExternalLink size={12} /> Drive
-                                </a>
-                              )}
-                              {sub.file.fileUrl && (
-                                <a
-                                  href={sub.file.fileUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-base-primary-600 text-white text-[12px] font-semibold hover:bg-base-primary-700 transition-colors"
-                                >
-                                  <Download size={12} /> İndir
-                                </a>
-                              )}
+                            <div className="space-y-2 pt-2 border-t border-surface-100">
                               <button
-                                onClick={async () => {
-                                  if (!window.confirm(`v${sub.iteration} teslimini silmek istediğine emin misin? Drive'dan da silinecek.`)) return;
-                                  try {
-                                    const token = await auth.currentUser?.getIdToken();
-                                    const res = await fetch("/api/submissions/retract", {
-                                      method:  "POST",
-                                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                                      body:    JSON.stringify({ submissionId: sub.id }),
-                                    });
-                                    if (!res.ok) {
-                                      const json = await res.json().catch(() => ({})) as { error?: string };
-                                      alert(json.error ?? "Silme başarısız.");
-                                      return;
-                                    }
-                                    await loadData();
-                                  } catch {
-                                    alert("Bağlantı hatası, tekrar dene.");
-                                  }
-                                }}
-                                title="Teslimi sil"
-                                className="p-1.5 rounded-lg hover:bg-status-danger-50 transition-colors text-surface-300 hover:text-status-danger-500 cursor-pointer"
+                                onClick={() => handleSingleStatus(viewingSub.id, "revision")}
+                                disabled={actionLoading || viewingSub.status === "completed"}
+                                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-designstudio-primary-200 bg-designstudio-primary-50 text-designstudio-primary-600 text-[12px] font-bold hover:bg-designstudio-primary-100 transition-colors cursor-pointer disabled:opacity-40"
                               >
-                                <Trash2 size={14} />
+                                <RotateCcw size={12} /> Revize İste
+                              </button>
+                              <button
+                                onClick={() => handleSingleStatus(viewingSub.id, "completed")}
+                                disabled={actionLoading || viewingSub.status === "completed"}
+                                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-status-success-500 text-white text-[12px] font-bold hover:bg-status-success-700 transition-colors cursor-pointer disabled:opacity-40"
+                              >
+                                <CheckCircle2 size={12} /> Onayla
                               </button>
                             </div>
                           </div>
-                        ))}
-                        {viewingSub.note && (
-                          <div className="p-4 bg-white border border-surface-200 rounded-2xl">
-                            <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider mb-1.5">Öğrenci Notu</p>
-                            <p className="text-[13px] text-text-primary leading-relaxed">{viewingSub.note}</p>
-                          </div>
                         )}
                       </div>
-                    )}
+
+                      {/* ── Dosya ── */}
+                      {viewingSub ? (
+                        <div className="bg-white border border-surface-200 rounded-2xl p-5">
+                          <h2 className="text-[14px] font-bold text-text-primary mb-3">Dosya</h2>
+                          <div>
+                            {viewingAllSubs.map(sub => (
+                              <div key={sub.id} className="flex items-center gap-3 py-3 border-b border-surface-100 last:border-b-0">
+                                <div className="w-9 h-9 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
+                                  <FileText size={16} className="text-surface-400" strokeWidth={1.5} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[13px] font-semibold text-text-primary truncate">
+                                    {sub.file.fileName || "dosya"}
+                                  </p>
+                                  <p className="text-[11px] text-surface-500 mt-0.5">
+                                    {mimeToLabel(sub.file.mimeType)} · {sub.file.fileSize ? `${(sub.file.fileSize / 1024).toFixed(0)} KB` : ""} · v{sub.iteration} · {fmtDateTime(sub.submittedAt)}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {sub.file.driveViewLink && (
+                                    <a href={sub.file.driveViewLink} target="_blank" rel="noopener noreferrer"
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-200 text-surface-600 text-[12px] font-semibold hover:bg-surface-50 transition-colors">
+                                      <ExternalLink size={12} /> Drive
+                                    </a>
+                                  )}
+                                  {sub.file.fileUrl && (
+                                    <a href={sub.file.fileUrl} target="_blank" rel="noopener noreferrer"
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-base-primary-600 text-white text-[12px] font-semibold hover:bg-base-primary-700 transition-colors">
+                                      <Download size={12} /> İndir
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={async () => {
+                                      if (!window.confirm(`v${sub.iteration} teslimini silmek istediğine emin misin? Drive'dan da silinecek.`)) return;
+                                      try {
+                                        const token = await auth.currentUser?.getIdToken();
+                                        const res = await fetch("/api/submissions/retract", {
+                                          method:  "POST",
+                                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                          body:    JSON.stringify({ submissionId: sub.id }),
+                                        });
+                                        if (!res.ok) {
+                                          const json = await res.json().catch(() => ({})) as { error?: string };
+                                          alert(json.error ?? "Silme başarısız.");
+                                          return;
+                                        }
+                                        await loadData();
+                                      } catch { alert("Bağlantı hatası, tekrar dene."); }
+                                    }}
+                                    title="Teslimi sil"
+                                    className="p-1.5 rounded-lg hover:bg-status-danger-50 transition-colors text-surface-300 hover:text-status-danger-500 cursor-pointer"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex justify-end mt-4">
+                            <button
+                              onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${assignmentId}/${viewingSub.id}/preview`)}
+                              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-status-success-500 text-white text-[13px] font-semibold hover:bg-status-success-700 transition-colors cursor-pointer"
+                            >
+                              <ExternalLink size={14} /> Detay Gör
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-white border border-surface-200 rounded-2xl p-10 flex flex-col items-center gap-3 text-surface-400">
+                          <FileText size={28} strokeWidth={1.5} />
+                          <p className="text-[14px] font-semibold text-surface-500">Teslim Edilmedi</p>
+                          <p className="text-[12px] text-center max-w-[200px]">Bu öğrenci henüz ödevi teslim etmedi.</p>
+                        </div>
+                      )}
+
+                    </div>
                   </div>
 
                   {/* ════ Yorum Paneli ════ */}
@@ -949,14 +1002,14 @@ function FileCard({
         {thumbnailUrl ? (
           <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          <FileText size={22} className="text-surface-400" strokeWidth={1.5} />
+          <FileText size={22} className="text-surface-500" strokeWidth={1.5} />
         )}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-semibold text-text-primary truncate">
           {sub.file.fileName || "dosya"}
         </p>
-        <p className="text-[11px] text-surface-400 mt-0.5">
+        <p className="text-[11px] text-surface-500 mt-0.5">
           {mimeToLabel(sub.file.mimeType)} · v{sub.iteration} · {fmtDateTime(sub.submittedAt)}
         </p>
       </div>
