@@ -499,6 +499,7 @@ export async function findFileByActualName(
 export async function deleteFromDrive(fileId: string): Promise<void> {
   const token = await getAccessToken();
 
+  console.log(`[gdrive] deleteFromDrive — fileId: ${fileId}`);
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}`,
     {
@@ -507,8 +508,14 @@ export async function deleteFromDrive(fileId: string): Promise<void> {
     },
   );
 
-  if (!res.ok && res.status !== 404) {
+  console.log(`[gdrive] deleteFromDrive yanıt: ${res.status}`);
+  if (res.status === 404) {
+    console.warn(`[gdrive] deleteFromDrive — dosya zaten yok (404): ${fileId}`);
+    return;
+  }
+  if (!res.ok) {
     const errText = await res.text();
+    console.error(`[gdrive] deleteFromDrive HATA (${res.status}):`, errText);
     throw driveError("UPLOAD_FAILED", `Drive dosyası silinemedi (${res.status}): ${errText}`);
   }
 }

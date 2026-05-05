@@ -561,17 +561,6 @@ export default function StudentTaskDetailPage() {
                 </div>
               )}
 
-              {/* ── Ödev metni ── */}
-              {(task.subtitle || task.description) && (
-                <div className="bg-white border border-surface-200 rounded-2xl px-6 py-5 space-y-1.5">
-                  {task.subtitle && (
-                    <p className="text-[14px] font-semibold text-text-primary leading-snug">{task.subtitle}</p>
-                  )}
-                  {task.description && (
-                    <p className="text-[13px] text-surface-500 leading-relaxed">{task.description}</p>
-                  )}
-                </div>
-              )}
 
               {/* ── Upload alanı ── */}
               {canUpload && (

@@ -78,12 +78,16 @@ export async function POST(req: NextRequest) {
 
     // 5. Google Drive'dan dosyayı sil (non-fatal — Drive'da yoksa devam et)
     const driveFileId = subData.file?.driveFileId as string | undefined;
+    console.log(`[retract] submissionId=${submissionId} driveFileId=${driveFileId ?? "YOK"} status=${subData.status}`);
     if (driveFileId) {
       try {
         await deleteFromDrive(driveFileId);
+        console.log(`[retract] Drive silme başarılı: ${driveFileId}`);
       } catch (driveErr) {
         console.warn("[retract] Drive silme başarısız (devam ediliyor):", driveErr);
       }
+    } else {
+      console.warn("[retract] driveFileId yok — Drive'dan silinecek dosya bulunamadı. subData.file:", JSON.stringify(subData.file ?? null));
     }
 
     // 6. submission_files kayıtlarını soft-delete yap (non-fatal)

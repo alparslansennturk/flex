@@ -16,6 +16,8 @@ async function ensureFolderExists(
   parentFolderId: string,
   token:          string,
 ): Promise<string> {
+  console.log(`[drive-folder] ensureFolderExists — arıyor: "${folderName}" (parent: ${parentFolderId})`);
+
   const q = encodeURIComponent(
     `name = '${folderName.replace(/'/g, "\\'")}' and ` +
     `'${parentFolderId}' in parents and ` +
@@ -28,12 +30,21 @@ async function ensureFolderExists(
     { headers: { Authorization: `Bearer ${token}` } },
   );
 
+  console.log(`[drive-folder] search yanıtı — status: ${searchRes.status}`);
+
   if (searchRes.ok) {
     const data = await searchRes.json() as { files?: { id: string }[] };
-    if (data.files && data.files.length > 0) return data.files[0].id;
+    if (data.files && data.files.length > 0) {
+      console.log(`[drive-folder] klasör bulundu: "${folderName}" → ${data.files[0].id}`);
+      return data.files[0].id;
+    }
+  } else {
+    const searchErr = await searchRes.text();
+    console.warn(`[drive-folder] search başarısız (${searchRes.status}):`, searchErr);
   }
 
   // Bulunamadı — oluştur
+  console.log(`[drive-folder] klasör yok, oluşturuluyor: "${folderName}"`);
   const createRes = await fetch(
     "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true",
     {
@@ -52,11 +63,13 @@ async function ensureFolderExists(
 
   if (!createRes.ok) {
     const errText = await createRes.text();
-    throw new Error(`Klasör oluşturulamadı "${folderName}": ${errText}`);
+    console.error(`[drive-folder] HATA — create başarısız (${createRes.status}) "${folderName}":`, errText);
+    throw new Error(`Klasör oluşturulamadı "${folderName}" (${createRes.status}): ${errText}`);
   }
 
   const created = await createRes.json() as { id?: string };
   if (!created.id) throw new Error(`Klasör ID alınamadı: ${folderName}`);
+  console.log(`[drive-folder] klasör oluşturuldu: "${folderName}" → ${created.id}`);
   return created.id;
 }
 
@@ -75,11 +88,14 @@ export async function createFolderStructure(
   userRole:  "student" | "instructor",
   taskName?: string,              // "Kolaj Bahçesi" — opsiyonel 5. seviye
 ): Promise<FolderStructureResult> {
+  console.log(`[drive-folder] createFolderStructure — groupName="${groupName}" userName="${userName}" role="${userRole}" taskName="${taskName ?? ""}"`);
+
   const rawRoot = (process.env.GOOGLE_DRIVE_FOLDER_ID ?? "")
     .replace(/^["']|["']$/g, "")
     .trim();
 
   if (!rawRoot) throw new Error("GOOGLE_DRIVE_FOLDER_ID env var eksik.");
+  console.log(`[drive-folder] root klasör ID: ${rawRoot}`);
 
   const token = await getAccessToken();
 
