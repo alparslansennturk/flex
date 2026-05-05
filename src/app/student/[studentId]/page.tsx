@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
-  doc, getDoc, getDocs, collection, query, where,
+  doc, getDoc, getDocs, collection, query, where, onSnapshot,
 } from "firebase/firestore";
 import {
   Loader2, BookOpen, ClipboardList, ChevronDown, MoreVertical,
-  CheckCircle2, RotateCcw, Clock, ArrowRight,
+  CheckCircle2, RotateCcw, Clock, ArrowRight, FileText,
 } from "lucide-react";
 import StudentSidebar from "@/app/components/student/StudentSidebar";
 import StudentLeagueWidget from "@/app/components/student/StudentLeagueWidget";
@@ -36,6 +36,12 @@ interface TaskRow {
   description?: string;
   createdByName?: string;
   isActive: boolean;
+  file?: {
+    driveFileId?: string;
+    driveViewLink?: string;
+    fileUrl?: string;
+    fileName?: string;
+  };
 }
 
 interface SubInfo {
@@ -52,6 +58,10 @@ interface SubInfo {
 type Filter = "all" | "active" | "completed";
 
 /* ── Helpers ── */
+
+function isImageFile(name: string): boolean {
+  return /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
+}
 
 function parseDate(val: any): Date | null {
   if (!val) return null;
@@ -113,6 +123,26 @@ export default function StudentDashboard() {
 
   useEffect(() => { loadData(); }, [studentId]);
 
+  useEffect(() => {
+    if (!student?.groupId) return;
+    const q = query(collection(db, "tasks"), where("groupId", "==", student.groupId));
+    const unsub = onSnapshot(q, snap => {
+      setTasks(snap.docs.map(d => ({
+        id:            d.id,
+        name:          d.data().name          ?? "",
+        points:        d.data().points        ?? 0,
+        endDate:       d.data().endDate,
+        createdAt:     d.data().createdAt,
+        subtitle:      d.data().subtitle,
+        description:   d.data().description,
+        createdByName: d.data().createdByName,
+        isActive:      d.data().isActive ?? true,
+        file:          d.data().file ?? undefined,
+      })));
+    });
+    return unsub;
+  }, [student?.groupId]);
+
   async function loadData() {
     setLoading(true);
     try {
@@ -129,23 +159,7 @@ export default function StudentDashboard() {
       };
       setStudent(student);
 
-      const [taskSnap, subSnap] = await Promise.all([
-        getDocs(query(collection(db, "tasks"), where("groupId", "==", student.groupId))),
-        getDocs(query(collection(db, "submissions"), where("studentId", "==", studentId))),
-      ]);
-
-      const tasks: TaskRow[] = taskSnap.docs.map(d => ({
-        id:            d.id,
-        name:          d.data().name          ?? "",
-        points:        d.data().points        ?? 0,
-        endDate:       d.data().endDate,
-        createdAt:     d.data().createdAt,
-        subtitle:      d.data().subtitle,
-        description:   d.data().description,
-        createdByName: d.data().createdByName,
-        isActive:      d.data().isActive ?? true,
-      }));
-      setTasks(tasks);
+      const subSnap = await getDocs(query(collection(db, "submissions"), where("studentId", "==", studentId)));
 
       /* taskId → en son submission */
       const map: Record<string, SubInfo> = {};
@@ -316,7 +330,7 @@ export default function StudentDashboard() {
               </div>
 
               {/* ══ Sağ: Lig + Duyurular ══ */}
-              <aside className="w-72 shrink-0 sticky top-7 hidden xl:flex xl:flex-col xl:gap-6">
+              <aside className="w-72 shrink-0 sticky top-7 hidden xl:flex xl:flex-col xl:gap-6 xl:pt-14">
 
                 {/* Sınıf Ligi */}
                 <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
@@ -388,8 +402,19 @@ function StudentTaskAccordion({
   studentId: string;
   isActiveSection: boolean;
 }) {
-  const router        = useRouter();
+  const router          = useRouter();
   const [open, setOpen] = useState(false);
+  const bodyRef         = useRef<HTMLDivElement>(null);
+  const [bodyHeight, setBodyHeight] = useState(0);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setBodyHeight(el.offsetHeight));
+    ro.observe(el);
+    setBodyHeight(el.offsetHeight);
+    return () => ro.disconnect();
+  }, []);
 
   const statusMeta = sub ? STATUS_META[sub.status] : null;
 
@@ -431,18 +456,18 @@ function StudentTaskAccordion({
           )}
           <ChevronDown
             size={16}
-            className={`text-surface-500 transition-transform duration-[320ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${open ? "rotate-180" : ""}`}
+            className={`text-surface-500 transition-transform duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${open ? "rotate-180" : ""}`}
           />
         </div>
       </div>
 
       {/* Accordion gövdesi */}
       <div style={{
-        display: "grid",
-        gridTemplateRows: open ? "1fr" : "0fr",
-        transition: "grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1)",
+        height: open ? bodyHeight : 0,
+        overflow: "hidden",
+        transition: "height 350ms cubic-bezier(0.4, 0, 0.2, 1)",
       }}>
-        <div style={{ overflow: "hidden", minHeight: 0 }}>
+        <div ref={bodyRef}>
           <div className="h-px bg-surface-100" />
 
           <div className="p-6">
@@ -509,17 +534,41 @@ function StudentTaskAccordion({
               <p className="text-[14px] font-bold text-text-primary">{task.createdByName}</p>
             )}
 
-            {/* Alt satır: dosya kartı (sol) + Ödev Detay butonu (sağ) */}
+            {/* Alt satır: dosya kartı (sol) + Ödev Yükle butonu (sağ) */}
             <div className="flex items-center justify-between mt-8">
-              {/* Dosya kartı placeholder */}
-              <div className="flex items-center bg-white border border-surface-200 rounded-xl cursor-pointer hover:border-surface-300 transition-colors px-4 py-3">
-                <div>
-                  <p className="text-[13px] font-bold text-text-primary leading-tight">Market.zip</p>
-                  <p className="text-[11px] text-surface-500 mt-0.5">Ödev Dosyası</p>
-                </div>
-                <div className="w-px self-stretch bg-surface-200 mx-4" />
-                <img src="/icons/google-drive.svg" width={32} height={32} alt="Drive" />
-              </div>
+              {/* Eğitmen dosya kartı */}
+              {task.file?.fileUrl ? (() => {
+                const isImg  = isImageFile(task.file?.fileName ?? "");
+                const thumb  = isImg && task.file?.driveFileId
+                  ? `https://drive.google.com/thumbnail?id=${task.file.driveFileId}&sz=w80`
+                  : null;
+                return (
+                  <a
+                    href={task.file?.driveViewLink || task.file?.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center bg-white border border-surface-200 rounded-xl hover:border-surface-300 transition-colors px-4 py-3 max-w-[240px]"
+                  >
+                    {thumb ? (
+                      <img src={thumb} className="w-10 h-10 object-cover rounded-lg shrink-0" alt="" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-surface-100 flex items-center justify-center shrink-0">
+                        <FileText size={18} className="text-surface-400" />
+                      </div>
+                    )}
+                    <div className="ml-3 min-w-0">
+                      <p className="text-[13px] font-bold text-text-primary leading-tight truncate">
+                        {task.file?.fileName || "Ödev Dosyası"}
+                      </p>
+                      <p className="text-[11px] text-surface-500 mt-0.5">Ödev Dosyası · İndir</p>
+                    </div>
+                    <div className="w-px self-stretch bg-surface-200 mx-3 shrink-0" />
+                    <img src="/icons/google-drive.svg" width={28} height={28} alt="Drive" className="shrink-0" />
+                  </a>
+                );
+              })() : (
+                <div />
+              )}
 
               {/* Ödev Detay butonu */}
               <button
@@ -529,7 +578,7 @@ function StudentTaskAccordion({
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#4D52A6")}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#5E63C2")}
               >
-                Ödev Detay
+                Ödev Yükle
                 <ArrowRight size={15} strokeWidth={2.5} />
               </button>
             </div>

@@ -148,8 +148,8 @@ export default function AssignmentDetailPage() {
   const [privateComments, setPrivateComments] = useState<CommentItem[]>([]);
   const [commentText,     setCommentText]     = useState("");
 
-  const dropdownRef    = useRef<HTMLDivElement>(null);
-  const commentsEndRef = useRef<HTMLDivElement>(null);
+  const dropdownRef     = useRef<HTMLDivElement>(null);
+  const commentsEndRef  = useRef<HTMLDivElement>(null);
   const autoSelectedRef = useRef(false);
 
   useEffect(() => { if (!authLoading && !user) router.push("/login"); }, [user, authLoading, router]);
@@ -656,15 +656,14 @@ export default function AssignmentDetailPage() {
                   <p className="text-[13px] text-surface-400">Sol listeden bir öğrenci seçin.</p>
                 </div>
               ) : (
-                <>
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                    <div className="p-6 space-y-4">
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col">
+                  <div className="p-6 space-y-6 shrink-0">
 
                       {/* ── Üst: Öğrenci kartı + Mevcut Durum ── */}
-                      <div className="flex gap-4 items-stretch">
+                      <div className="flex gap-6 items-stretch">
 
                         {/* Öğrenci bilgi kartı */}
-                        <div className="flex-1 bg-white border border-surface-200 rounded-2xl p-5 flex flex-col">
+                        <div className="flex-1 min-w-0 bg-white border border-surface-200 rounded-2xl p-5 flex flex-col">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0">
                               <StudentAvatar gender={viewingStudent.gender} avatarId={viewingStudent.avatarId} size="lg" />
@@ -710,7 +709,7 @@ export default function AssignmentDetailPage() {
 
                         {/* Mevcut Durum kartı */}
                         {viewingSub && (
-                          <div className="w-[196px] lg:w-[255px] shrink-0 bg-white border border-surface-200 rounded-2xl p-5 space-y-3">
+                          <div className="shrink-0 bg-white border border-surface-200 rounded-2xl p-5 space-y-3">
                             <p className="text-[11px] font-bold text-surface-500 uppercase tracking-wider">Mevcut Durum</p>
                             <span className={`inline-flex items-center gap-1.5 text-[12px] font-bold px-3 py-1 rounded-full border ${STATUS_BADGE[viewingSub.status]}`}>
                               {STATUS_LABEL[viewingSub.status]}
@@ -820,11 +819,19 @@ export default function AssignmentDetailPage() {
                         </div>
                       )}
 
-                      {/* ════ Yorum Paneli — scrollable içeriğin bir parçası ════ */}
-                      <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
+                  </div>
 
-                        {/* Tab başlıkları */}
-                        <div className="flex border-b border-surface-100 px-6">
+                  {/* ════ Yorum Paneli ════ */}
+                  <div className="mt-auto mx-6 shrink-0 h-[28vh] min-h-[200px] flex flex-col">
+                    <div className="flex-1 bg-white border border-surface-200 rounded-tl-2xl rounded-tr-2xl flex flex-col overflow-hidden">
+
+                    {/* Yorumlar başlık */}
+                    <div className="px-5 pt-4 pb-1 shrink-0">
+                      <h2 className="text-[14px] font-bold text-text-primary">Yorumlar</h2>
+                    </div>
+
+                    {/* Tab başlıkları */}
+                    <div className="flex border-b border-surface-100 px-5 shrink-0">
                       {([
                         { key: "general", label: "Genel",                                                   icon: <Users size={12} /> },
                         { key: "private", label: viewingStudent ? `${viewingStudent.name} ${viewingStudent.lastName}`.trim() : "Özel", icon: <Lock  size={12} /> },
@@ -843,58 +850,56 @@ export default function AssignmentDetailPage() {
                       ))}
                     </div>
 
-                        {/* Yorum listesi */}
-                        <div className="px-6 py-3 space-y-4">
-                          {visibleComments.length === 0 ? (
-                            <p className="text-[12px] text-surface-400 text-center py-4">
-                              {activeTab === "general" ? "Henüz genel yorum yok." : "Henüz yorum yok."}
-                            </p>
-                          ) : (
-                            visibleComments.map(c => (
-                              <CommentRow
-                                key={c.id}
-                                comment={c}
-                                myId={user.uid}
-                                onEdit={(id, text) => editComment(id, text, c.commentType)}
-                                onDelete={(id) => deleteComment(id, c.commentType)}
-                              />
-                            ))
-                          )}
-                          <div ref={commentsEndRef} />
-                        </div>
-
-                        {/* Yorum input */}
-                        <div className="px-4 pb-4 pt-2.5 border-t border-surface-100 flex items-end gap-2">
-                          <textarea
-                            value={commentText}
-                            onChange={e => setCommentText(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                sendComment();
-                              }
-                            }}
-                            placeholder={
-                              activeTab === "general"
-                                ? "Tüm sınıfa yorum ekle..."
-                                : "Öğrenciye özel yorum yaz..."
-                            }
-                            rows={2}
-                            className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    {/* Yorum listesi */}
+                    <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4">
+                      {visibleComments.length === 0 ? (
+                        <p className="text-[12px] text-surface-400 text-center py-4">
+                          {activeTab === "general" ? "Henüz genel yorum yok." : "Henüz yorum yok."}
+                        </p>
+                      ) : (
+                        visibleComments.map(c => (
+                          <CommentRow
+                            key={c.id}
+                            comment={c}
+                            myId={user.uid}
+                            onEdit={(id, text) => editComment(id, text, c.commentType)}
+                            onDelete={(id) => deleteComment(id, c.commentType)}
                           />
-                          <button
-                            onClick={sendComment}
-                            disabled={!commentText.trim() || (activeTab === "private" && !viewingId)}
-                            className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
-                          >
-                            <Send size={14} />
-                          </button>
-                        </div>
-                      </div>
+                        ))
+                      )}
+                      <div ref={commentsEndRef} />
+                    </div>
 
+                    {/* Yorum input */}
+                    <div className="shrink-0 px-4 pb-4 pt-2.5 border-t border-surface-100 flex items-end gap-2">
+                      <textarea
+                        value={commentText}
+                        onChange={e => setCommentText(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            sendComment();
+                          }
+                        }}
+                        placeholder={
+                          activeTab === "general"
+                            ? "Tüm sınıfa yorum ekle..."
+                            : "Öğrenciye özel yorum yaz..."
+                        }
+                        rows={2}
+                        className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <button
+                        onClick={sendComment}
+                        disabled={!commentText.trim() || (activeTab === "private" && !viewingId)}
+                        className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </div>
                     </div>
                   </div>
-                </>
+                </div>
               )}
             </main>
 
