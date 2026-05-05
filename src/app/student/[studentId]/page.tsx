@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import StudentSidebar from "@/app/components/student/StudentSidebar";
 import StudentLeagueWidget from "@/app/components/student/StudentLeagueWidget";
+import StudentHeader from "@/app/components/layout/StudentHeader";
 import type { SubmissionStatus } from "@/app/types/submission";
 
 /* ── Types ── */
@@ -213,6 +214,12 @@ export default function StudentDashboard() {
 
       {/* ── Main ── */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <StudentHeader
+          studentName={studentFullName}
+          groupCode={student.groupCode}
+          gender={student.gender}
+          avatarId={student.avatarId}
+        />
         <main className="flex-1 overflow-y-auto overflow-x-clip [scrollbar-gutter:stable]">
           <div className="w-[94%] mx-auto pt-7 pb-12 max-w-[960px] xl:max-w-[1200px] 2xl:max-w-[1480px]">
 
@@ -225,17 +232,14 @@ export default function StudentDashboard() {
                 {/* Üst başlık */}
                 <div className="flex items-end gap-4 mb-7">
                   <div>
-                    <p className="text-[12px] font-medium text-surface-400">
-                      {student.groupCode ? `${student.groupCode} · Öğrenci Paneli` : "Öğrenci Paneli"}
-                    </p>
-                    <h1 className="text-[22px] font-bold text-base-primary-900 leading-tight">{studentFullName}</h1>
+                    <h1 className="text-[22px] font-bold text-base-primary-900 leading-tight">{student.groupCode || "Öğrenci Paneli"}</h1>
                   </div>
                 </div>
 
                 {/* Template banner */}
                 <div
                   className="w-full rounded-2xl mb-6 overflow-hidden bg-surface-200"
-                  style={{ height: 220 }}
+                  style={{ height: 240 }}
                 >
                   <img
                     src="/assets/templates/desgin-studio-templale-01.jpg"
