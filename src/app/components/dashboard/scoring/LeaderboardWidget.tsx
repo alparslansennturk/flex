@@ -6,7 +6,7 @@ import { db } from "@/app/lib/firebase";
 import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
-import { calcStudentFinalScore, computeStudentStats } from "@/app/lib/scoring";
+import { calcStudentFinalScore } from "@/app/lib/scoring";
 import Link from "next/link";
 
 interface StudentRank {
@@ -159,27 +159,97 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
     }
 
     return onSnapshot(q, snap => {
-      const all = snap.docs.map(d => {
-        const data    = { id: d.id, ...d.data() } as StudentRank & { g2StartXP?: number };
-        const allGT   = (data as any).gradedTasks ?? {};
-        // Sadece öğrencinin mevcut grubuna ait görevleri hesaba kat
-        const filteredGT = Object.fromEntries(
-          Object.entries(allGT).filter(([, e]: any) => {
-            const cid = e?.classId;
-            if (!cid) return true;
-            return cid === data.groupCode;
-          })
-        ) as typeof allGT;
-        const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(filteredGT, data.isScoreHidden, activeSeasonId);
-        const g2Bonus = data.isScoreHidden ? 0 : (data.g2StartXP ?? 0);
-        const todayStr = new Date().toISOString().split("T")[0];
-        const totalAssignedTasks = Object.values(tasksMap).filter(t =>
-          t.classId === data.groupCode &&
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+      const effectiveMonthKey = (ca?: string, end?: string): string | null => {
+        const d = end ?? ca ?? null;
+        return d ? d.substring(0, 7) : null;
+      };
+
+      const assignedInMonth = (mStart: string, mEnd: string, classId: string): number | undefined =>
+        Object.values(tasksMap).filter(t =>
+          t.classId === classId &&
           (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
-          (t.endDate ? t.endDate <= todayStr : false)
-        ).length;
-        const { finalScore: score } = calcStudentFinalScore(totalXP, completedTasks, settings, totalAssignedTasks || undefined, g2Bonus, 0);
-        return { ...data, points: score, completedTasks, latePenaltyTotal };
+          t.endDate && t.endDate >= mStart && t.endDate <= mEnd
+        ).length || undefined;
+
+      const all = snap.docs.map(d => {
+        const data  = { id: d.id, ...d.data() } as StudentRank & { g2StartXP?: number };
+        if (data.isScoreHidden) return { ...data, points: 0, completedTasks: 0, latePenaltyTotal: 0 };
+
+        const allGT = (data as any).gradedTasks ?? {};
+
+        // G2 (mevcut grup) entry'leri
+        const classEntries = Object.entries(allGT).filter(([tid, e]: any) => {
+          const cid = e?.classId;
+          if (cid) return cid === data.groupCode;
+          const mapCid = tasksMap[tid]?.classId;
+          if (!mapCid) return true;
+          return mapCid === data.groupCode;
+        });
+
+        // G1 (eski grup) entry'leri — g2Bonus hesabı için
+        const g1Entries = Object.entries(allGT).filter(([tid, e]: any) => {
+          const cid = e?.classId;
+          if (cid) return cid !== data.groupCode;
+          const mapCid = tasksMap[tid]?.classId;
+          return mapCid ? mapCid !== data.groupCode : false;
+        });
+
+        // G1 ay-ay skor → g2Bonus (%10)
+        const g1ByMonth: Record<string, any[]> = {};
+        for (const [tid, e] of g1Entries) {
+          const m = effectiveMonthKey((e as any).completedAt, (e as any).endDate ?? tasksMap[tid]?.endDate);
+          if (!m) continue;
+          if (!g1ByMonth[m]) g1ByMonth[m] = [];
+          g1ByMonth[m].push([tid, e]);
+        }
+        const g1Codes = [...new Set(g1Entries.map(([tid, e]: any) => (e?.classId ?? tasksMap[tid]?.classId)).filter(Boolean))] as string[];
+
+        let g1TotalScore = 0;
+        for (const [month, entries] of Object.entries(g1ByMonth)) {
+          const mXP      = entries.reduce((s: number, [, e]: any) => s + (e.xp ?? 0), 0);
+          const mComp    = entries.length;
+          const [y, mo]  = month.split("-");
+          const mStart   = `${y}-${mo}-01`;
+          const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
+          const mEnd     = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+          const mAssigned = g1Codes.reduce((s, cid) => s + (assignedInMonth(mStart, mEnd, cid) ?? 0), 0) || undefined;
+          const { finalScore: mScore } = calcStudentFinalScore(mXP, mComp, settings, mAssigned, 0, 0);
+          g1TotalScore += mScore;
+        }
+        const g2Bonus = Math.round(g1TotalScore * 0.10);
+
+        // G2 ay-ay kümülatif skor
+        const byMonth: Record<string, any[]> = {};
+        for (const [tid, e] of classEntries) {
+          const m = effectiveMonthKey((e as any).completedAt, (e as any).endDate ?? tasksMap[tid]?.endDate);
+          if (!m) continue;
+          if (!byMonth[m]) byMonth[m] = [];
+          byMonth[m].push([tid, e]);
+        }
+
+        let cumulativeScore = g2Bonus;
+        for (const [month, entries] of Object.entries(byMonth)) {
+          const mXP      = entries.reduce((s: number, [, e]: any) => s + (e.xp ?? 0), 0);
+          const mComp    = entries.length;
+          const [y, mo]  = month.split("-");
+          const mStart   = `${y}-${mo}-01`;
+          const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
+          const mEndFull = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+          const mEnd     = month === currentMonthKey ? todayStr : mEndFull;
+          const mAssigned = assignedInMonth(mStart, mEnd, data.groupCode);
+          const { finalScore: mScore } = calcStudentFinalScore(mXP, mComp, settings, mAssigned, 0, 0);
+          cumulativeScore += mScore;
+        }
+
+        const score          = isFinite(cumulativeScore) && !isNaN(cumulativeScore) ? cumulativeScore : 0;
+        const totalCompleted = classEntries.length;
+        const totalPenalty   = classEntries.reduce((s: number, [, e]: any) => s + (e.penalty ?? 0), 0);
+
+        return { ...data, points: score, completedTasks: totalCompleted, latePenaltyTotal: totalPenalty };
       });
 
       all.sort((a, b) => {

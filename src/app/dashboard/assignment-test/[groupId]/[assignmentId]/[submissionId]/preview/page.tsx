@@ -56,7 +56,7 @@ function fmtTime(d: Date): string {
 const STATUS_MAP: Record<SubmissionStatus, { label: string; cls: string }> = {
   submitted: { label: "Teslim Edildi", cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
   reviewing: { label: "İncelemede",   cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
-  revision:  { label: "Revize",       cls: "bg-blue-50 text-status-info border-blue-100" },
+  revision:  { label: "Revize Durumunda", cls: "bg-blue-50 text-status-info border-blue-100" },
   completed: { label: "Tamamlandı",   cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
 };
 
@@ -360,10 +360,10 @@ export default function SubmissionPreviewPage() {
             <>
               <button
                 onClick={() => handleStatus("revision")}
-                disabled={actionLoading || submission.status === "completed"}
+                disabled={actionLoading || submission.status === "completed" || submission.status === "revision"}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-orange-200 bg-orange-50 text-orange-600 text-[12px] font-semibold hover:bg-orange-100 transition-colors cursor-pointer disabled:opacity-40"
               >
-                <RotateCcw size={13} /> Revizyon İste
+                <RotateCcw size={13} /> Revize İste
               </button>
               <button
                 onClick={() => handleStatus("completed")}

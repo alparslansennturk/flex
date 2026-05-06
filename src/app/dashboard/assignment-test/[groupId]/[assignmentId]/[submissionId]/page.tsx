@@ -327,12 +327,12 @@ export default function SubmissionDetailPage() {
                     <div className="pt-2 space-y-2 border-t border-surface-100">
                       <button
                         onClick={() => handleStatusChange("revision")}
-                        disabled={actionLoading || sub.status === "completed"}
+                        disabled={actionLoading || sub.status === "completed" || sub.status === "revision"}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-orange-200 bg-orange-50
                           text-orange-600 text-[13px] font-bold hover:bg-orange-100 transition-colors cursor-pointer
                           disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        <RotateCcw size={14} /> Revizyon İste
+                        <RotateCcw size={14} /> Revize İste
                       </button>
                       <button
                         onClick={() => handleStatusChange("completed")}

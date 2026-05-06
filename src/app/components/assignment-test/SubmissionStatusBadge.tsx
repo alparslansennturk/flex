@@ -19,9 +19,9 @@ const STATUS_CONFIG: Record<SubmissionStatus, {
     className: "bg-amber-50 text-amber-600 border-amber-100",
   },
   revision: {
-    label: "Revizyon",
+    label: "Revize Durumunda",
     icon: <RotateCcw size={11} />,
-    className: "bg-orange-50 text-orange-600 border-orange-100",
+    className: "bg-blue-50 text-blue-700 border-blue-100",
   },
   completed: {
     label: "Tamamlandı",

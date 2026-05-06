@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
-  doc, getDoc, getDocs, collection, query, where, onSnapshot,
+  doc, getDoc, getDocs, collection, query, where, onSnapshot, orderBy,
 } from "firebase/firestore";
 import {
   Loader2, BookOpen, ClipboardList, ChevronDown, MoreVertical,
@@ -56,6 +56,15 @@ interface SubInfo {
 }
 
 type Filter = "all" | "active" | "completed";
+
+interface AnnouncementItem {
+  id: string;
+  taskId: string;
+  taskName: string;
+  text: string;
+  authorName: string;
+  createdAt: Date;
+}
 
 /* ── Helpers ── */
 
@@ -115,13 +124,44 @@ export default function StudentDashboard() {
   const { studentId } = useParams<{ studentId: string }>();
   const router = useRouter();
 
-  const [student,   setStudent]   = useState<Student | null>(null);
-  const [tasks,     setTasks]     = useState<TaskRow[]>([]);
-  const [subMap,    setSubMap]    = useState<Record<string, SubInfo>>({});
-  const [loading,   setLoading]   = useState(true);
-  const [filter,    setFilter]    = useState<Filter>("all");
+  const [student,       setStudent]       = useState<Student | null>(null);
+  const [tasks,         setTasks]         = useState<TaskRow[]>([]);
+  const [subMap,        setSubMap]        = useState<Record<string, SubInfo>>({});
+  const [loading,       setLoading]       = useState(true);
+  const [filter,        setFilter]        = useState<Filter>("all");
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [selectedAnn,   setSelectedAnn]   = useState<AnnouncementItem | null>(null);
 
   useEffect(() => { loadData(); }, [studentId]);
+
+  /* Duyurular: tasks/{taskId}/comments'ten general yorumları çek */
+  useEffect(() => {
+    if (tasks.length === 0) return;
+    const taskNameMap: Record<string, string> = {};
+    tasks.forEach(t => { taskNameMap[t.id] = t.name; });
+    Promise.all(
+      tasks.map(t =>
+        getDocs(query(
+          collection(db, "tasks", t.id, "comments"),
+          orderBy("createdAt", "asc"),
+        )).then(snap =>
+          snap.docs
+            .filter(d => !d.data().commentType || d.data().commentType === "general")
+            .map(d => ({
+              id:         d.id,
+              taskId:     t.id,
+              taskName:   t.name,
+              text:       d.data().text ?? "",
+              authorName: d.data().authorName ?? "Eğitmen",
+              createdAt:  d.data().createdAt?.toDate?.() ?? new Date(),
+            } as AnnouncementItem))
+        )
+      )
+    ).then(results => {
+      const all = results.flat().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      setAnnouncements(all);
+    }).catch(() => {});
+  }, [tasks]);
 
   useEffect(() => {
     if (!student?.groupId) return;
@@ -207,14 +247,6 @@ export default function StudentDashboard() {
   const showActive   = filter === "all" || filter === "active";
   const showPast     = filter === "all" || filter === "completed";
 
-  /* Duyurular: tüm task'ler createdAt'e göre ters sıralı */
-  const announcements = [...tasks]
-    .filter(t => !!t.createdAt)
-    .sort((a, b) => {
-      const da = parseDate(a.createdAt)?.getTime() ?? 0;
-      const db = parseDate(b.createdAt)?.getTime() ?? 0;
-      return db - da;
-    });
 
   const studentFullName = `${student.name} ${student.lastName}`.trim();
 
@@ -349,9 +381,12 @@ export default function StudentDashboard() {
                   <p className="text-[13px] text-surface-400">Duyuru yok.</p>
                 ) : (
                   <div className="space-y-1">
-                    {announcements.map((task, i) => (
-                      <div key={task.id} className="flex gap-3 py-3 border-b border-surface-100 last:border-0">
-                        {/* Dot + line */}
+                    {announcements.map((ann, i) => (
+                      <button
+                        key={ann.id}
+                        onClick={() => setSelectedAnn(ann)}
+                        className="w-full text-left flex gap-3 py-3 border-b border-surface-100 last:border-0 hover:bg-surface-50 rounded-xl px-2 transition-colors cursor-pointer"
+                      >
                         <div className="flex flex-col items-center pt-1 shrink-0">
                           <div className="w-2 h-2 rounded-full bg-base-primary-300 shrink-0" />
                           {i < announcements.length - 1 && (
@@ -359,25 +394,15 @@ export default function StudentDashboard() {
                           )}
                         </div>
                         <div className="min-w-0 pb-2">
+                          <p className="text-[12px] text-surface-400 font-medium mb-0.5">{ann.taskName}</p>
                           <p className="text-[13px] font-semibold text-text-primary leading-snug line-clamp-2">
-                            {task.name}
+                            {ann.text}
                           </p>
                           <p className="text-[11px] text-surface-400 mt-1">
-                            Eklendi · {fmtCreatedAt(task.createdAt)}
+                            {ann.authorName} · {fmtCreatedAt(ann.createdAt)}
                           </p>
-                          {subMap[task.id] && (
-                            <span className={`inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                              subMap[task.id].status === "completed"
-                                ? "bg-status-success-100 text-status-success-700"
-                                : subMap[task.id].status === "revision"
-                                ? "bg-blue-50 text-status-info"
-                                : "bg-surface-100 text-surface-500"
-                            }`}>
-                              {STATUS_META[subMap[task.id].status].label}
-                            </span>
-                          )}
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -388,6 +413,29 @@ export default function StudentDashboard() {
           </div>
         </main>
       </div>
+
+      {/* Duyuru detay modalı */}
+      {selectedAnn && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setSelectedAnn(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-3"
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">{selectedAnn.taskName}</p>
+            <p className="text-[15px] font-semibold text-text-primary leading-snug whitespace-pre-wrap">{selectedAnn.text}</p>
+            <p className="text-[12px] text-surface-400">{selectedAnn.authorName} · {fmtCreatedAt(selectedAnn.createdAt)}</p>
+            <button
+              onClick={() => setSelectedAnn(null)}
+              className="mt-2 w-full py-2 rounded-xl bg-surface-100 text-[13px] font-semibold text-text-secondary hover:bg-surface-200 transition-colors cursor-pointer"
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -500,11 +548,6 @@ function StudentTaskAccordion({
                       <p className={`text-[18px] font-bold ${statusMeta.cls}`}>
                         {statusMeta.label}
                       </p>
-                      {sub!.iteration > 1 && (
-                        <p className="text-[13px] text-surface-400 mt-0.5">
-                          {sub!.iteration - 1}. revizyon teslimi
-                        </p>
-                      )}
                       {sub!.grade != null && (
                         <p className="text-[16px] font-bold text-base-primary-700 mt-1">
                           {sub!.grade} / 100

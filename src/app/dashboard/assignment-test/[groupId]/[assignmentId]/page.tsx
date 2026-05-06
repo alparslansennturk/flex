@@ -70,7 +70,7 @@ function mimeToLabel(mime: string): string {
 const STATUS_LABEL: Record<SubmissionStatus, string> = {
   submitted: "Teslim Edildi",
   reviewing: "İncelemede",
-  revision:  "Revize",
+  revision:  "Revize Durumunda",
   completed: "Tamamlandı",
 };
 
@@ -84,7 +84,7 @@ const STATUS_COLOR: Record<SubmissionStatus, string> = {
 const STATUS_BADGE: Record<SubmissionStatus, string> = {
   submitted: "bg-base-primary-100 text-base-primary-600 border-base-primary-200",
   reviewing: "bg-base-primary-100 text-base-primary-600 border-base-primary-200",
-  revision:  "bg-designstudio-primary-50 text-designstudio-primary-600 border-designstudio-primary-200",
+  revision:  "bg-blue-50 text-blue-700 border-blue-100",
   completed: "bg-status-success-100 text-status-success-700 border-status-success-100",
 };
 
@@ -299,8 +299,13 @@ export default function AssignmentDetailPage() {
     if (firstSubmitted) {
       setViewingId(firstSubmitted.id);
     } else {
-      const firstPending = allStudents.find(s => !getLatest(s.id));
-      if (firstPending) setViewingId(firstPending.id);
+      const firstRevision = allStudents.find(s => getLatest(s.id)?.status === "revision");
+      if (firstRevision) {
+        setViewingId(firstRevision.id);
+      } else {
+        const firstPending = allStudents.find(s => !getLatest(s.id));
+        if (firstPending) setViewingId(firstPending.id);
+      }
     }
   }, [loading, allStudents, submissions]);
 
@@ -727,7 +732,7 @@ export default function AssignmentDetailPage() {
                             <div className="space-y-2 pt-2 border-t border-surface-100">
                               <button
                                 onClick={() => handleSingleStatus(viewingSub.id, "revision")}
-                                disabled={actionLoading || viewingSub.status === "completed"}
+                                disabled={actionLoading || viewingSub.status === "completed" || viewingSub.status === "revision"}
                                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-designstudio-primary-200 bg-designstudio-primary-50 text-designstudio-primary-600 text-[12px] font-bold hover:bg-designstudio-primary-100 transition-colors cursor-pointer disabled:opacity-40"
                               >
                                 <RotateCcw size={12} /> Revize İste
@@ -833,7 +838,7 @@ export default function AssignmentDetailPage() {
                     {/* Tab başlıkları */}
                     <div className="flex border-b border-surface-100 px-5 shrink-0">
                       {([
-                        { key: "general", label: "Genel",                                                   icon: <Users size={12} /> },
+                        { key: "general", label: "Duyuru",                                                  icon: <Users size={12} /> },
                         { key: "private", label: viewingStudent ? `${viewingStudent.name} ${viewingStudent.lastName}`.trim() : "Özel", icon: <Lock  size={12} /> },
                       ] as const).map(({ key, label, icon }) => (
                         <button
@@ -854,7 +859,7 @@ export default function AssignmentDetailPage() {
                     <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4">
                       {visibleComments.length === 0 ? (
                         <p className="text-[12px] text-surface-400 text-center py-4">
-                          {activeTab === "general" ? "Henüz genel yorum yok." : "Henüz yorum yok."}
+                          {activeTab === "general" ? "Henüz duyuru yok." : "Henüz yorum yok."}
                         </p>
                       ) : (
                         visibleComments.map(c => (
@@ -883,7 +888,7 @@ export default function AssignmentDetailPage() {
                         }}
                         placeholder={
                           activeTab === "general"
-                            ? "Tüm sınıfa yorum ekle..."
+                            ? "Tüm sınıfa duyuru yaz..."
                             : "Öğrenciye özel yorum yaz..."
                         }
                         rows={2}

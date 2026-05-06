@@ -109,6 +109,7 @@ export default function StudentLeagueWidget({
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
+    console.log("[LeagueWidget] groupCode:", groupCode);
     if (!groupCode) { setLoading(false); return; }
     setLoading(true);
     fetch("/api/league")

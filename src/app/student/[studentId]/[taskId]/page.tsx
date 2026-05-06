@@ -93,7 +93,7 @@ interface UploadJobState { file: File; status: JobStatus; progress: number; erro
 const STATUS_UI: Record<SubmissionStatus, { label: string; cls: string }> = {
   submitted: { label: "Teslim Edildi",     cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
   reviewing: { label: "İncelemede",        cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
-  revision:  { label: "Revize Bekleniyor", cls: "bg-blue-50 text-status-info border-blue-100" },
+  revision:  { label: "Revize Durumunda",  cls: "bg-blue-50 text-blue-700 border-blue-100" },
   completed: { label: "Tamamlandı",        cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
 };
 
@@ -433,7 +433,7 @@ export default function StudentTaskDetailPage() {
   const dl               = deadlineMeta(task?.endDate);
   const isDueDatePassed  = dl?.danger === true;
   const hasTeacherGrade  = !!latestSub?.feedback || (latestSub as any)?.grade !== undefined;
-  const uploadLimit      = latestSub?.status === "revision" ? 8 : 5;
+  const uploadLimit      = latestSub?.status === "revision" ? 7 : 5;
   const uploadUsed       = submissions.length;
   const canUpload        = uploadUsed < uploadLimit && latestSub?.status !== "completed";
 
@@ -868,11 +868,11 @@ function HistoryRow({
           </a>
         )}
         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-          sub.status === "revision"  ? "bg-blue-50 text-status-info" :
           sub.status === "completed" ? "bg-status-success-100 text-status-success-700" :
+          (sub.status === "submitted" || sub.status === "revision") ? "bg-status-success-100 text-status-success-700" :
           "bg-surface-100 text-surface-500"
         }`}>
-          {st.label}
+          {sub.status === "revision" ? "Teslim Edildi" : st.label}
         </span>
         {canDelete && onDelete && (
           <button
