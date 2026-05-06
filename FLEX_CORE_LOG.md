@@ -85,3 +85,6 @@
 | 179 | 2026-05-06 | "Genel" yorum tab → "Duyuru": placeholder "Tüm sınıfa duyuru yaz...", boş durum "Henüz duyuru yok." | `[assignmentId]/page.tsx` |
 | 180 | 2026-05-06 | Öğrenci Duyurular paneli: task listesi yerine tasks/{taskId}/comments koleksiyonundan gerçek duyurular; tıklanınca detay modal açılır | `student/[studentId]/page.tsx` |
 | 181 | 2026-05-06 | Mevcut Durum + öğrenci bilgi kartı: STATUS_LABEL revision "Revize"→"Revize Durumunda", STATUS_BADGE revision turuncu→mavi | `[assignmentId]/page.tsx` |
+| 182 | 2026-05-07 | Teslim geçmişi badge fix: HistoryRow'da completed dahil tüm satırlar "Teslim Edildi" gösteriyor (eski: completed→"Tamamlandı" yazıyordu); unused `st` değişkeni kaldırıldı | `student/[studentId]/[taskId]/page.tsx` |
+| 183 | 2026-05-07 | Assignment-test yorum paneli yüksekliği: h-[28vh] min-h-[200px] → h-[38vh] min-h-[260px] (küçük ekranlarda konuşma alanı çok dardı) | `[assignmentId]/page.tsx` |
+| 184 | 2026-05-07 | Kaldır butonu tamamlanan ödevde gizlendi: latestSub.status==="completed" ise hasTeacherActivity tüm satırlara true geçilir → hiçbir teslim satırında delete butonu çıkmaz; gereksiz spacer kaldırıldı | `student/[studentId]/[taskId]/page.tsx` |

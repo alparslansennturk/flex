@@ -732,7 +732,7 @@ export default function StudentTaskDetailPage() {
                         key={sub.id}
                         sub={sub}
                         isDueDatePassed={isDueDatePassed}
-                        hasTeacherActivity={idx === 0 ? hasTeacherGrade : false}
+                        hasTeacherActivity={latestSub?.status === "completed" || (idx === 0 ? hasTeacherGrade : false)}
                         onDelete={async (submissionId) => {
                           if (!window.confirm("Bu teslimi geri çekmek istediğine emin misin? Dosya Drive'dan da silinecek.")) return;
                           try {
@@ -840,7 +840,6 @@ function HistoryRow({
   hasTeacherActivity?: boolean;
   onDelete?: (submissionId: string) => void;
 }) {
-  const st = STATUS_UI[sub.status];
   const canDelete =
     (sub.status === "submitted" || sub.status === "revision") &&
     !isDueDatePassed &&
@@ -867,12 +866,8 @@ function HistoryRow({
             <ExternalLink size={13} />
           </a>
         )}
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-          sub.status === "completed" ? "bg-status-success-100 text-status-success-700" :
-          (sub.status === "submitted" || sub.status === "revision") ? "bg-status-success-100 text-status-success-700" :
-          "bg-surface-100 text-surface-500"
-        }`}>
-          {sub.status === "revision" ? "Teslim Edildi" : st.label}
+        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-status-success-100 text-status-success-700">
+          Teslim Edildi
         </span>
         {canDelete && onDelete && (
           <button

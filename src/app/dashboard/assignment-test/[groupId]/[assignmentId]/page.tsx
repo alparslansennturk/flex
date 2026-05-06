@@ -827,7 +827,7 @@ export default function AssignmentDetailPage() {
                   </div>
 
                   {/* ════ Yorum Paneli ════ */}
-                  <div className="mt-auto mx-6 shrink-0 h-[28vh] min-h-[200px] flex flex-col">
+                  <div className="mt-auto mx-6 shrink-0 h-[38vh] min-h-[260px] flex flex-col">
                     <div className="flex-1 bg-white border border-surface-200 rounded-tl-2xl rounded-tr-2xl flex flex-col overflow-hidden">
 
                     {/* Yorumlar başlık */}
