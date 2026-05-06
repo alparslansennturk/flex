@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "@/app/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
 import { Trophy } from "lucide-react";
+import { calcStudentFinalScore, DEFAULT_SCORING, type ScoringSettings } from "@/app/lib/scoring";
 
 interface StudentEntry {
   id: string;
@@ -11,7 +10,7 @@ interface StudentEntry {
   lastName: string;
   gender?: string;
   avatarId?: number;
-  points: number;
+  score: number;
   rank: number;
 }
 
@@ -30,35 +29,101 @@ function Avatar({ gender, avatarId }: { gender?: string; avatarId?: number }) {
   );
 }
 
-export default function StudentLeagueWidget({ groupId, light = false }: { groupId: string; light?: boolean }) {
+// Aylık skor hesaplama — league/page.tsx ile aynı mantık
+function calcGroupScores(
+  students: any[],
+  tasksMap: Record<string, { endDate?: string; classId?: string; status?: string }>,
+  settings: ScoringSettings,
+  groupCode: string,
+): StudentEntry[] {
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const monthStart = `${currentMonthKey}-01`;
+
+  const effectiveMonthKey = (ca?: string, end?: string): string | null => {
+    const d = end ?? ca ?? null;
+    return d ? d.substring(0, 7) : null;
+  };
+
+  const assignedInMonth = (mStart: string, mEnd: string, classId: string) =>
+    Object.values(tasksMap).filter(t =>
+      t.classId === classId &&
+      (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
+      t.endDate && t.endDate >= mStart && t.endDate <= mEnd
+    ).length || undefined;
+
+  return students
+    .filter(s => s.groupCode === groupCode)
+    .map(s => {
+      // Sadece mevcut gruba (groupCode) ait görevler — G1 carry-over karışmasın
+      const classEntries = Object.entries(s.gradedTasks ?? {}).filter(([tid, entry]: any) => {
+        const storedClassId = entry.classId;
+        if (storedClassId) return storedClassId === s.groupCode;
+        const mapClassId = tasksMap[tid]?.classId;
+        if (!mapClassId) return true;
+        return mapClassId === s.groupCode;
+      });
+
+      const byMonth: Record<string, any[]> = {};
+      for (const [tid, entry] of classEntries) {
+        const m = effectiveMonthKey((entry as any).completedAt, (entry as any).endDate ?? tasksMap[tid]?.endDate);
+        if (!m) continue;
+        if (!byMonth[m]) byMonth[m] = [];
+        byMonth[m].push([tid, entry]);
+      }
+
+      const monthlyEntries   = byMonth[currentMonthKey] ?? [];
+      const monthlyXP        = monthlyEntries.reduce((sum: number, [, e]: any) => sum + (e.xp ?? 0), 0);
+      const monthlyCompleted = monthlyEntries.length;
+      // Sadece mevcut grup için atanan görev sayısı
+      const monthlyAssigned  = assignedInMonth(monthStart, todayStr, s.groupCode);
+
+      const { finalScore } = calcStudentFinalScore(monthlyXP, monthlyCompleted, settings, monthlyAssigned, 0, 0);
+
+      return {
+        id:       s.id,
+        name:     s.name ?? "",
+        lastName: s.lastName ?? "",
+        gender:   s.gender,
+        avatarId: s.avatarId,
+        score:    finalScore,
+        rank:     0,
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map((s, i) => ({ ...s, rank: i + 1 }));
+}
+
+export default function StudentLeagueWidget({
+  groupId,
+  groupCode,
+  light = false,
+}: {
+  groupId?: string;
+  groupCode?: string;
+  light?: boolean;
+}) {
   const [students, setStudents] = useState<StudentEntry[]>([]);
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
-    if (!groupId) return;
-    getDocs(query(
-      collection(db, "students"),
-      where("groupId", "==", groupId),
-      where("status",  "==", "active"),
-    ))
-      .then(snap => {
-        const list = snap.docs
-          .map(d => ({
-            id:       d.id,
-            name:     d.data().name     ?? "",
-            lastName: d.data().lastName ?? "",
-            gender:   d.data().gender,
-            avatarId: d.data().avatarId,
-            points:   d.data().points   ?? 0,
-            rank:     0,
-          }))
-          .sort((a, b) => b.points - a.points)
-          .slice(0, 5)
-          .map((s, i) => ({ ...s, rank: i + 1 }));
-        setStudents(list);
+    if (!groupCode) { setLoading(false); return; }
+    setLoading(true);
+    fetch("/api/league")
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then((data: { students: any[]; tasks: any[]; scoringSettings?: ScoringSettings }) => {
+        const settings = data.scoringSettings ?? DEFAULT_SCORING;
+        const tasksMap: Record<string, { endDate?: string; classId?: string; status?: string }> = {};
+        data.tasks.forEach((t: any) => {
+          tasksMap[t.id] = { endDate: t.endDate ?? undefined, classId: t.classId ?? undefined, status: t.status ?? undefined };
+        });
+        setStudents(calcGroupScores(data.students, tasksMap, settings, groupCode));
       })
+      .catch(() => setStudents([]))
       .finally(() => setLoading(false));
-  }, [groupId]);
+  }, [groupCode]);
 
   if (light) {
     return (
@@ -85,7 +150,7 @@ export default function StudentLeagueWidget({ groupId, light = false }: { groupI
                   </p>
                 </div>
                 <span className="text-[12px] font-bold text-text-secondary shrink-0 tabular-nums">
-                  {Math.round(s.points)}<span className="text-[10px] text-surface-400 ml-0.5">P</span>
+                  {Math.round(s.score)}<span className="text-[10px] text-surface-400 ml-0.5">P</span>
                 </span>
               </div>
             ))}
@@ -128,7 +193,7 @@ export default function StudentLeagueWidget({ groupId, light = false }: { groupI
                   </p>
                 </div>
                 <span className="text-[12px] font-bold text-white/70 shrink-0 tabular-nums">
-                  {Math.round(s.points)}<span className="text-[10px] text-white/30 ml-0.5">P</span>
+                  {Math.round(s.score)}<span className="text-[10px] text-white/30 ml-0.5">P</span>
                 </span>
               </div>
             ))}

@@ -645,6 +645,7 @@ function LeagueContent() {
   // ── Puan hesaplama ────────────────────────────────────────────────────────
   const withScores = useMemo(() => {
     const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const monthStart = `${currentMonthKey}-01`;
     const lastDay    = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -734,7 +735,7 @@ function LeagueContent() {
       const monthlyXP        = monthlyEntries.reduce((sum, [, e]) => sum + (e.xp      ?? 0), 0);
       const monthlyPenalty   = monthlyEntries.reduce((sum, [, e]) => sum + (e.penalty ?? 0), 0);
       const monthlyCompleted = monthlyEntries.length;
-      const monthlyAssigned  = assignedInMonthMulti(monthStart, monthEnd, matchCodes);
+      const monthlyAssigned  = assignedInMonthMulti(monthStart, todayStr, matchCodes);
 
       const { finalScore: monthlyScore } = calcStudentFinalScore(
         monthlyXP, monthlyCompleted, settings, monthlyAssigned, 0, 0,
@@ -784,7 +785,8 @@ function LeagueContent() {
         const [y, mo]   = month.split("-");
         const mStart    = `${y}-${mo}-01`;
         const mLastDay  = new Date(parseInt(y), parseInt(mo), 0).getDate();
-        const mEnd      = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+        const mEndFull  = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+        const mEnd      = month === currentMonthKey ? todayStr : mEndFull;
         const mAssigned = assignedInMonth(mStart, mEnd, s.groupCode);
         const { finalScore: mScore } = calcStudentFinalScore(mXP, mComplete, settings, mAssigned, 0, 0);
         cumulativeScore += mScore;

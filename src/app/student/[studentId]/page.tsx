@@ -338,7 +338,7 @@ export default function StudentDashboard() {
                     <span className="text-[15px] font-bold text-text-primary">Sınıf Ligi</span>
                   </div>
                   <div className="px-2 py-2">
-                    <StudentLeagueWidget groupId={student.groupId} light />
+                    <StudentLeagueWidget groupId={student.groupId} groupCode={student.groupCode} light />
                   </div>
                 </div>
 
