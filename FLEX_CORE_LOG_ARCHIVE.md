@@ -504,6 +504,41 @@
 - Brevo: `xsmtpsib-` = SMTP credentials (nodemailer için), `xkeysib-` = REST API key (`/v3/smtp/email` için); `email.ts` REST API kullandığı için `BREVO_API_KEY=xkeysib-...` olmalı
 - Cron deadline reminder: `tasks.endDate` YYYY-MM-DD string; cron her çalışmada güncel değeri okur — eğitmen tarihi değiştirse de sistem otomatik adapte olur; `reminderSentDates[]` duplicate önler; aktif etmek için `vercel.json` + `CRON_SECRET` env var gerekli
 - Logs sistemi: `mailLogs` ve `scoreLogs` Firestore koleksiyonları — server-side `adminDb` ile yazılır, client-side silinemez; emailService sadece API route'lardan import edilir (firebase-admin güvenli)
+
+---
+
+## 27. Kullanıcı Yönetimi — Kullanıcılar / Öğrenciler Tab Ayrımı (2026-05-06)
+
+**Sorun:**
+- `UserManagement` sayfasında admin, eğitmen ve öğrenciler tek listede karışık görünüyordu
+- Öğrenci düzenlenince `UserForm` açılıyor ancak rol listesinde `student` seçeneği yoktu
+- Mezun (passive) öğrenciler de aktif listede gözükuyordu
+
+**Çözüm:**
+- Sayfaya yatay tab bar eklendi: **Kullanıcılar** (admin/instructor) + **Öğrenciler** (students koleksiyonu)
+- `users` koleksiyonundan `roles.includes('student')` olanlar Kullanıcılar tabından filtrelendi
+- `students` koleksiyonu ayrıca dinleniyor; mezun/passive öğrenciler listelenmez
+- Öğrenciler için ayrı `StudentQuickEditModal` — rol alanı "Öğrenci" olarak sabit gösterilir, değiştirilemez
+- Freeze mekanizması: `status: 'passive'` yerine `isFrozen: boolean` field'ı — aktif öğrenciyi silmeden dondurur; Durum kolonu "Aktif / Dondurulmuş" gösterir
+- `isActivated` badge kaldırıldı — bu field `users` koleksiyonunda, `students` koleksiyonunda yok
+
+**Mezun filtresi mantığı:**
+- `status === 'passive'` → eski akışla manuel passive yapılan (mezun kabul) → listede yok
+- `graduatedBy` field doluysa → graduation sayfasından mezun → listede yok
+- `groupCode.startsWith('Mezun')` → graduation sayfası groupCode formatı → listede yok
+- `isFrozen: true` → admin tarafından dondurulan aktif öğrenci → listede **var**, kırmızı badge
+
+**Yeni dosyalar:**
+- `src/app/components/dashboard/user-management/StudentUserTable.tsx` — öğrenci tablosu (avatar, rol badge, şube, sınıf, e-posta, durum+toggle, işlem)
+- `src/app/components/dashboard/user-management/StudentQuickEditModal.tsx` — öğrenci düzenleme modalı
+
+**Güncellenen dosyalar:**
+- `src/app/components/dashboard/user-management/UserManagement.tsx` — tab state, students listener, handleStudentToggle (isFrozen), handleStudentEditClick, delete handler ayrımı (isStudent flag)
+
+**Veri modeli notu:**
+- Freeze: `students/{id}.isFrozen: boolean` — öğrenci portalında giriş engellemek için portal tarafında da kontrol edilmesi gerekir
+- Mezun akışı: graduation sayfası → `status: "passive"` + `graduatedBy: uid` + `groupCode: "Mezun (...)"` set eder
+- Eski mezunlar: sadece `status: "passive"` var, `graduatedBy` yok — `status !== 'passive'` filtresi ile yakalanır
 - scoreLogs write noktası: `grading/page.tsx` `handleSaveGrades()` içinde `batch.commit()` sonrası — hata olsa bile grading işlemi etkilenmez (try/catch ayrı)
 - Sertifikasyon layout: `max-w-250` (~1000px) → `max-w-[1920px]` — 3 yerde değişti (GradingTabs, CertificationPanel, GradingRouter sekme başlığı)
 

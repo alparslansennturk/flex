@@ -1,12 +1,14 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Users, GraduationCap } from "lucide-react";
 import { auth, db } from "@/app/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { setDoc, doc, serverTimestamp, collection, onSnapshot, query, deleteDoc } from "firebase/firestore";
 import { GlobalConfirmationModal } from "../management-components/Modals";
 import { UserTable } from "./UserTable";
 import { UserForm } from "./UserForm";
+import { StudentUserTable } from "./StudentUserTable";
+import { StudentQuickEditModal } from "./StudentQuickEditModal";
 import { MASTER_ID } from "@/app/lib/constants";
 const ROLE_DEFAULTS: Record<string, string[]> = {
     admin: ["ASSIGNMENT_MANAGE", "CLASS_MANAGE", "MANAGEMENT_PANEL"],
@@ -50,16 +52,20 @@ interface UserData {
 }
 
 export default function UserManagement() {
+    const [activeTab, setActiveTab] = useState<'users' | 'students'>('users');
     const [isFormOpen, setIsUserFormOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
+    const [students, setStudents] = useState<any[]>([]);
+    const [editingStudent, setEditingStudent] = useState<any | null>(null);
+    const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
     const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
     const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean>>({});
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const [errors, setErrors] = useState<Record<string, boolean>>({});
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
-    const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: null, userId: "" });
+    const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: null, userId: "", isStudent: false });
     const [avatarId, setAvatarId] = useState<number>(1);
     const [shake, setShake] = useState(false);
     const [formKey, setFormKey] = useState(0);
@@ -71,6 +77,29 @@ export default function UserManagement() {
             setUsers(allUsers.filter((u: any) => u.id !== MASTER_ID));
         }, (error) => console.error("Firebase Hatası:", error));
     }, []);
+
+    useEffect(() => {
+        const q = query(collection(db, "students"));
+        return onSnapshot(q, (snapshot) => {
+            const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            setStudents(all.filter((s: any) =>
+                s.status !== 'passive' &&
+                !s.graduatedBy &&
+                !(typeof s.groupCode === 'string' && s.groupCode.startsWith('Mezun'))
+            ));
+        }, (error) => console.error("Firebase Hatası:", error));
+    }, []);
+
+    const handleStudentToggle = async (student: any) => {
+        try {
+            await setDoc(doc(db, "students", student.id), { isFrozen: !student.isFrozen }, { merge: true });
+        } catch (err) { console.error(err); }
+    };
+
+    const handleStudentEditClick = (student: any) => {
+        setEditingStudent(student);
+        setIsStudentFormOpen(true);
+    };
 
   const handleEditClick = (user: UserData) => { // 👈 any gitti, UserData geldi
     setEditingUser(user);
@@ -172,6 +201,8 @@ export default function UserManagement() {
         return () => document.removeEventListener("mousedown", handle);
     }, []);
 
+    const staffUsers = users.filter((u: any) => !u.roles?.includes('student'));
+
     return (
         <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-700">
             <div className="flex items-center justify-between pb-8 border-b border-neutral-100">
@@ -179,10 +210,47 @@ export default function UserManagement() {
                     <h2 className="text-[24px] font-bold text-[#10294C]">Kullanıcı Yönetimi</h2>
                     <p className="text-neutral-400 text-[14px] mt-1 font-medium italic">Sistem erişimlerini ve yetki matrisini yönetin.</p>
                 </div>
-               <button onClick={() => { setEditingUser(null); setSelectedRoles([]); setPermissionOverrides({}); setErrors({}); setAvatarId(Math.floor(Math.random() * 70) + 1); setFormKey(k => k + 1); setIsUserFormOpen(true); }} className="bg-[#FF8D28] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer"><UserPlus size={18} /><span>Kullanıcı Oluştur</span></button>
+                {activeTab === 'users' && (
+                    <button onClick={() => { setEditingUser(null); setSelectedRoles([]); setPermissionOverrides({}); setErrors({}); setAvatarId(Math.floor(Math.random() * 70) + 1); setFormKey(k => k + 1); setIsUserFormOpen(true); }} className="bg-[#FF8D28] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer">
+                        <UserPlus size={18} /><span>Kullanıcı Oluştur</span>
+                    </button>
+                )}
             </div>
 
-            <UserTable users={users} onEdit={handleEditClick} onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id })} />
+            {/* Tab Bar */}
+            <div className="flex gap-1 mt-6 bg-neutral-100 p-1 rounded-2xl w-fit">
+                <button
+                    onClick={() => setActiveTab('users')}
+                    className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === 'users' ? 'bg-white text-[#10294C] shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
+                >
+                    <Users size={15} />
+                    <span>Kullanıcılar</span>
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold ${activeTab === 'users' ? 'bg-[#10294C]/10 text-[#10294C]' : 'bg-neutral-200 text-neutral-400'}`}>
+                        {staffUsers.length}
+                    </span>
+                </button>
+                <button
+                    onClick={() => setActiveTab('students')}
+                    className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === 'students' ? 'bg-white text-[#10294C] shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
+                >
+                    <GraduationCap size={15} />
+                    <span>Öğrenciler</span>
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold ${activeTab === 'students' ? 'bg-[#10294C]/10 text-[#10294C]' : 'bg-neutral-200 text-neutral-400'}`}>
+                        {students.length}
+                    </span>
+                </button>
+            </div>
+
+            {activeTab === 'users' ? (
+                <UserTable users={staffUsers} onEdit={handleEditClick} onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id, isStudent: false })} />
+            ) : (
+                <StudentUserTable
+                    students={students}
+                    onEdit={handleStudentEditClick}
+                    onToggle={handleStudentToggle}
+                    onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id, isStudent: true })}
+                />
+            )}
 
             <UserForm
                 key={editingUser ? editingUser.id : `new-user-form-${formKey}`} // 👈 SİHİRLİ SATIR: Hafızayı bu temizler
@@ -214,12 +282,24 @@ export default function UserManagement() {
                 onConfirm={async () => {
                     setLoading(true);
                     try {
-                        await fetch('/api/delete-user', { method: 'POST', body: JSON.stringify({ uid: modalConfig.userId }), headers: { 'Content-Type': 'application/json' } });
-                        await deleteDoc(doc(db, "users", modalConfig.userId));
-                        setUsers(prev => prev.filter(u => u.id !== modalConfig.userId));
-                        setModalConfig({ isOpen: false, type: null, userId: "" });
+                        if (modalConfig.isStudent) {
+                            await deleteDoc(doc(db, "students", modalConfig.userId));
+                            setStudents(prev => prev.filter(s => s.id !== modalConfig.userId));
+                        } else {
+                            await fetch('/api/delete-user', { method: 'POST', body: JSON.stringify({ uid: modalConfig.userId }), headers: { 'Content-Type': 'application/json' } });
+                            await deleteDoc(doc(db, "users", modalConfig.userId));
+                            setUsers(prev => prev.filter(u => u.id !== modalConfig.userId));
+                        }
+                        setModalConfig({ isOpen: false, type: null, userId: "", isStudent: false });
                     } catch (err) { console.error(err); } finally { setLoading(false); }
                 }}
+            />
+
+            <StudentQuickEditModal
+                isOpen={isStudentFormOpen}
+                student={editingStudent}
+                onClose={() => { setIsStudentFormOpen(false); setEditingStudent(null); }}
+                onSaved={() => { setIsStudentFormOpen(false); setEditingStudent(null); }}
             />
         </div>
     );
