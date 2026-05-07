@@ -152,6 +152,18 @@ export default function AssignmentDetailPage() {
   const commentsEndRef  = useRef<HTMLDivElement>(null);
   const autoSelectedRef = useRef(false);
 
+  const SESSION_KEY = `assignment_viewing_${assignmentId}`;
+
+  /* Preview'dan geri gelindiğinde seçili öğrenciyi geri yükle */
+  useEffect(() => {
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    if (saved) {
+      setViewingId(saved);
+      autoSelectedRef.current = true; // ilk-yükleme auto-select'i devre dışı bırak
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  }, []);
+
   useEffect(() => { if (!authLoading && !user) router.push("/login"); }, [user, authLoading, router]);
   useEffect(() => { if (user) loadData(); }, [user, groupId, assignmentId]);
 
@@ -291,13 +303,19 @@ export default function AssignmentDetailPage() {
         .filter(s => s.studentId === studentId)
         .sort((a, b) => b.iteration - a.iteration)[0] ?? null;
 
-    const firstSubmitted = allStudents.find(s => {
-      const st = getLatest(s.id)?.status;
-      return st === "submitted" || st === "reviewing" || st === "completed";
-    });
+    const submittedStudents = allStudents
+      .filter(s => {
+        const st = getLatest(s.id)?.status;
+        return st === "submitted" || st === "reviewing" || st === "completed";
+      })
+      .sort((a, b) => {
+        const tA = getLatest(a.id)?.submittedAt?.getTime() ?? 0;
+        const tB = getLatest(b.id)?.submittedAt?.getTime() ?? 0;
+        return tB - tA;
+      });
 
-    if (firstSubmitted) {
-      setViewingId(firstSubmitted.id);
+    if (submittedStudents.length > 0) {
+      setViewingId(submittedStudents[0].id);
     } else {
       const firstRevision = allStudents.find(s => getLatest(s.id)?.status === "revision");
       if (firstRevision) {
@@ -379,10 +397,16 @@ export default function AssignmentDetailPage() {
       .sort((a, b) => a.iteration - b.iteration);
 
   const grouped = {
-    submitted: allStudents.filter(s => {
-      const st = getLatestSub(s.id)?.status;
-      return st === "submitted" || st === "reviewing" || st === "completed";
-    }),
+    submitted: allStudents
+      .filter(s => {
+        const st = getLatestSub(s.id)?.status;
+        return st === "submitted" || st === "reviewing" || st === "completed";
+      })
+      .sort((a, b) => {
+        const tA = getLatestSub(a.id)?.submittedAt?.getTime() ?? 0;
+        const tB = getLatestSub(b.id)?.submittedAt?.getTime() ?? 0;
+        return tB - tA; // en son teslim eden üstte
+      }),
     revision: allStudents.filter(s => getLatestSub(s.id)?.status === "revision"),
     pending:  allStudents.filter(s => !getLatestSub(s.id)),
   };
@@ -564,9 +588,10 @@ export default function AssignmentDetailPage() {
               <div className="px-5 pt-5 pb-4 border-b border-surface-100">
                 <button
                   onClick={() => router.push(`/dashboard/assignment-test/${groupId}`)}
-                  className="flex items-center gap-1.5 text-[12px] text-surface-400 hover:text-surface-600 transition-colors mb-3 cursor-pointer"
+                  className="flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 bg-neutral-200 text-neutral-600 hover:bg-neutral-300 hover:text-neutral-900 hover:border-neutral-400 transition-all mb-6 cursor-pointer"
+                  title="Geri"
                 >
-                  <ArrowLeft size={13} /> Geri
+                  <ArrowLeft size={15} />
                 </button>
 
                 <div className="flex items-start justify-between gap-3">
@@ -809,7 +834,7 @@ export default function AssignmentDetailPage() {
                           </div>
                           <div className="flex justify-end mt-4">
                             <button
-                              onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${assignmentId}/${viewingSub.id}/preview`)}
+                              onClick={() => { sessionStorage.setItem(SESSION_KEY, viewingId!); router.push(`/dashboard/assignment-test/${groupId}/${assignmentId}/${viewingSub.id}/preview`); }}
                               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-status-success-500 text-white text-[13px] font-semibold hover:bg-status-success-700 transition-colors cursor-pointer"
                             >
                               <ExternalLink size={14} /> Detay Gör

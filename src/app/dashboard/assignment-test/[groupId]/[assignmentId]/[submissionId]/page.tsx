@@ -219,9 +219,10 @@ export default function SubmissionDetailPage() {
             {/* Geri */}
             <button
               onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${assignmentId}`)}
-              className="flex items-center gap-2 text-[13px] font-bold text-surface-500 hover:text-base-primary-600 transition-colors mb-5 cursor-pointer"
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 bg-neutral-200 text-neutral-600 hover:bg-neutral-300 hover:text-neutral-900 hover:border-neutral-400 transition-all mb-6 cursor-pointer"
+              title="Geri"
             >
-              <ArrowLeft size={15} /> Geri Dön
+              <ArrowLeft size={15} />
             </button>
 
             {loading ? (

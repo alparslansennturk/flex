@@ -63,8 +63,11 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // students/{studentDocId} docuna authUid ekle
-        await adminDb.collection("students").doc(studentDocId).update({ authUid: uid });
+        // students/{studentDocId} docuna authUid ve accountStatus ekle
+        await adminDb.collection("students").doc(studentDocId).update({
+          authUid: uid,
+          accountStatus: "pending",
+        });
 
         // Aktivasyon kodu üret
         code = generateActivationCode();

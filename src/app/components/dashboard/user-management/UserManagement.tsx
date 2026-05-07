@@ -52,7 +52,9 @@ interface UserData {
 }
 
 export default function UserManagement() {
-    const [activeTab, setActiveTab] = useState<'users' | 'students'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'students'>(() =>
+        (sessionStorage.getItem("usermgmt_active_tab") as 'users' | 'students') ?? 'users'
+    );
     const [isFormOpen, setIsUserFormOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
@@ -91,14 +93,34 @@ export default function UserManagement() {
     }, []);
 
     const handleStudentToggle = async (student: any) => {
+        if (!student.authUid) return;
+        const action = student.accountStatus === "disabled" ? "enable" : "disable";
         try {
-            await setDoc(doc(db, "students", student.id), { isFrozen: !student.isFrozen }, { merge: true });
+            const token = await auth.currentUser?.getIdToken();
+            const res = await fetch("/api/student/set-account-status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ studentDocId: student.id, action }),
+            });
+            if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
         } catch (err) { console.error(err); }
     };
 
     const handleStudentEditClick = (student: any) => {
         setEditingStudent(student);
         setIsStudentFormOpen(true);
+    };
+
+    const handleResendActivation = async (student: any) => {
+        try {
+            const token = await auth.currentUser?.getIdToken();
+            const res = await fetch("/api/resend-activation", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ studentDocId: student.id }),
+            });
+            if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+        } catch (err) { console.error(err); throw err; }
     };
 
   const handleEditClick = (user: UserData) => { // 👈 any gitti, UserData geldi
@@ -220,7 +242,7 @@ export default function UserManagement() {
             {/* Tab Bar */}
             <div className="flex gap-1 mt-6 bg-neutral-100 p-1 rounded-2xl w-fit">
                 <button
-                    onClick={() => setActiveTab('users')}
+                    onClick={() => { setActiveTab('users'); sessionStorage.setItem("usermgmt_active_tab", 'users'); }}
                     className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === 'users' ? 'bg-white text-[#10294C] shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
                 >
                     <Users size={15} />
@@ -230,7 +252,7 @@ export default function UserManagement() {
                     </span>
                 </button>
                 <button
-                    onClick={() => setActiveTab('students')}
+                    onClick={() => { setActiveTab('students'); sessionStorage.setItem("usermgmt_active_tab", 'students'); }}
                     className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === 'students' ? 'bg-white text-[#10294C] shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
                 >
                     <GraduationCap size={15} />
@@ -245,7 +267,14 @@ export default function UserManagement() {
                 <UserTable users={staffUsers} onEdit={handleEditClick} onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id, isStudent: false })} />
             ) : (
                 <StudentUserTable
-                    students={students}
+                    onResend={handleResendActivation}
+                    students={students.map(s => {
+                        if (!s.authUid) return s;
+                        if (s.accountStatus) return s; // zaten set edilmişse dokunma
+                        const userDoc = users.find((u: any) => u.id === s.authUid);
+                        if (!userDoc) return s;
+                        return { ...s, accountStatus: userDoc.isActivated ? "active" : "pending" };
+                    })}
                     onEdit={handleStudentEditClick}
                     onToggle={handleStudentToggle}
                     onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id, isStudent: true })}

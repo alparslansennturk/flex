@@ -462,9 +462,10 @@ export default function StudentTaskDetailPage() {
         <header className="shrink-0 h-14 bg-white border-b border-surface-200 flex items-center gap-3 px-6">
           <button
             onClick={() => router.push(`/student/${studentId}`)}
-            className="flex items-center gap-1.5 body-sm font-semibold text-surface-500 hover:text-base-primary-600 transition-colors cursor-pointer shrink-0"
+            className="flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 bg-neutral-200 text-neutral-600 hover:bg-neutral-300 hover:text-neutral-900 hover:border-neutral-400 transition-all cursor-pointer shrink-0"
+            title="Geri"
           >
-            <ArrowLeft size={15} /> Geri
+            <ArrowLeft size={15} />
           </button>
 
           <div className="w-px h-5 bg-surface-200" />

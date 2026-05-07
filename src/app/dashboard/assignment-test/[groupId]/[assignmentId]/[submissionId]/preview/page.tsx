@@ -102,7 +102,8 @@ export default function SubmissionPreviewPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const commentsEndRef = useRef<HTMLDivElement>(null);
+  const commentsEndRef    = useRef<HTMLDivElement>(null);
+  const commentsScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!authLoading && !user) router.push("/login"); }, [user, authLoading, router]);
   useEffect(() => { if (user) loadData(); }, [user, submissionId]);
@@ -126,9 +127,12 @@ export default function SubmissionPreviewPage() {
     }, err => { if (err.code !== "permission-denied") console.error("[preview-comments]", err); });
   }, [submission?.taskId, submission?.studentId]);
 
-  /* Yeni yorum gelince en alta kaydır */
+  /* Yeni yorum gelince en alta kaydır — scrollIntoView yerine parent scrollTop kullanıyoruz,
+     çünkü scrollIntoView bazı tarayıcılarda overflow:hidden dış container'ı da etkiliyor */
   useEffect(() => {
-    commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (commentsScrollRef.current) {
+      commentsScrollRef.current.scrollTop = commentsScrollRef.current.scrollHeight;
+    }
   }, [comments]);
 
   /* ── Data ── */
@@ -334,9 +338,10 @@ export default function SubmissionPreviewPage() {
       <div className="shrink-0 h-[56px] border-b border-surface-200 bg-white flex items-center gap-4 px-5">
         <button
           onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${assignmentId}`)}
-          className="flex items-center gap-1.5 text-[13px] font-semibold text-surface-500 hover:text-base-primary-600 transition-colors cursor-pointer shrink-0"
+          className="flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 bg-neutral-200 text-neutral-600 hover:bg-neutral-300 hover:text-neutral-900 hover:border-neutral-400 transition-all cursor-pointer shrink-0"
+          title="Geri"
         >
-          <ArrowLeft size={15} /> Geri
+          <ArrowLeft size={15} />
         </button>
 
         <div className="w-px h-5 bg-surface-200" />
@@ -393,9 +398,9 @@ export default function SubmissionPreviewPage() {
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#1a1a1a]">
 
             {/* Önizleme */}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 relative">
               {previewUrl ? (
-                <iframe src={previewUrl} className="w-full h-full border-0" allow="autoplay" />
+                <iframe src={previewUrl} className="absolute inset-0 w-full h-full border-0" allow="autoplay" />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center gap-4 text-white/40">
                   <FileText size={40} strokeWidth={1.2} />
@@ -469,8 +474,13 @@ export default function SubmissionPreviewPage() {
               </div>
             )}
 
+            {/* Yorumlar başlığı */}
+            <div className="shrink-0 px-5 pt-6 pb-0">
+              <p className="preview-section-heading">Yorumlar</p>
+            </div>
+
             {/* Thread */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <div ref={commentsScrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
               {comments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-surface-400">
                   <p className="text-[13px] font-medium">Henüz mesaj yok</p>

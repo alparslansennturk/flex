@@ -16,6 +16,7 @@ export const FLEX_MESSAGES: Record<string, FlexMessage> = {
   'auth/wrong-password': { text: 'Giriş bilgileri hatalı', type: 'error' },
   'auth/too-many-requests': { text: 'Çok fazla deneme yapıldı. Lütfen bekleyin.', type: 'error' },
   'auth/invalid-credential': { text: 'Giriş bilgileri hatalı.', type: 'error' },
+  'auth/user-disabled': { text: 'Hesabınız devre dışı bırakıldı. Eğitmeninizle iletişime geçin.', type: 'error' },
   'auth/password-criteria-failed': { text: 'Parola kriterleri karşılanmıyor', type: 'error' },
   'auth/passwords-do-not-match': { text: 'Parolalar eşleşmiyor', type: 'error' },
   'auth/weak-password': { text: 'Seçtiğiniz şifre güvenlik standartlarının altında.', type: 'warning' },

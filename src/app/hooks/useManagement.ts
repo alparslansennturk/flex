@@ -29,13 +29,15 @@ interface Student {
   name: string;
   lastName: string;
   email: string;
-  gender?: string; // İŞTE BURAYA EKLEDİK
+  gender?: string;
   note: string;
   groupId: string;
   branch: string;
   groupCode: string;
   points: number;
   status?: 'active' | 'passive';
+  accountStatus?: 'pending' | 'active' | 'disabled';
+  authUid?: string;
   lastGroupCode?: string;
   lastGroupId?: string;
   hiddenFromInstructors?: string[];
@@ -69,6 +71,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [studentUsersMap, setStudentUsersMap] = useState<Map<string, boolean>>(new Map());
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
@@ -236,6 +239,13 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         }));
 
       setInstructors(insList);
+
+      // authUid → isActivated map (öğrenci hesap durumu için)
+      const map = new Map<string, boolean>();
+      allDocs.filter(u => u.role === "student" || u.roles?.includes("student")).forEach(u => {
+        map.set(u.id, u.isActivated === true);
+      });
+      setStudentUsersMap(map);
     }, () => {});
     return () => unsubscribe();
   }, [isAdmin]);
@@ -689,6 +699,27 @@ throw error;
     } catch { showNotification("Hata oluştu."); }
   };
 
+  const handleToggleAccountStatus = async (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student?.authUid) return;
+
+    const currentStatus = student.accountStatus;
+    const action = currentStatus === 'disabled' ? 'enable' : 'disable';
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/student/set-account-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ studentDocId: studentId, action }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      showNotification(action === 'disable' ? 'Hesap devre dışı bırakıldı.' : 'Hesap tekrar aktifleştirildi.');
+    } catch (e: any) {
+      showNotification(e?.message ?? 'Hata oluştu.');
+    }
+  };
+
   const handleDeleteGraduatedStudent = async (studentId: string) => {
     if (isAdminRef.current) {
       const student = students.find(s => s.id === studentId);
@@ -787,7 +818,7 @@ throw error;
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, requestBulkDeleteArchive, confirmModalAction,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm,
-    handleGraduateStudent, handleBulkGraduateStudents, handleRestoreStudent, handleDeleteGraduatedStudent,
+    handleGraduateStudent, handleBulkGraduateStudents, handleRestoreStudent, handleDeleteGraduatedStudent, handleToggleAccountStatus, studentUsersMap,
     filteredGroups, filteredArchiveGroups, filteredStudents, pagedStudents, myGroupCards,
     totalPages, activePage, setActivePage, passivePage, setPassivePage,
     studentPanel, setStudentPanel,

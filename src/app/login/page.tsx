@@ -103,7 +103,10 @@ function LoginForm() {
       router.push("/dashboard");
     } catch (error: any) {
       console.error("Giriş Hatası:", error.code);
-      setErrors({ general: getFlexMessage('auth/invalid-credential').text });
+      const msg = error.code === 'auth/user-disabled'
+        ? getFlexMessage('auth/user-disabled').text
+        : getFlexMessage('auth/invalid-credential').text;
+      setErrors({ general: msg });
       setShake(true);
     } finally {
       setIsLoading(false);

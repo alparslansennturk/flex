@@ -29,7 +29,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     modalConfig, setModalConfig, isProcessing, scheduleRef, menuRef, schedules,
     handleOpenForm, handleCancel, handleSave, handleEdit, requestModal, requestBulkDeleteArchive, confirmModalAction, formRef,
     handleAddStudent, handleDeleteStudent, handleBulkDeleteStudents, handleEditStudent, resetStudentForm, setEditingStudentId,
-    handleGraduateStudent, handleBulkGraduateStudents, handleRestoreStudent, handleDeleteGraduatedStudent,
+    handleGraduateStudent, handleBulkGraduateStudents, handleRestoreStudent, handleDeleteGraduatedStudent, studentUsersMap,
     filteredGroups, filteredArchiveGroups, filteredStudents, pagedStudents, myGroupCards,
     totalPages, activePage, setActivePage, passivePage, setPassivePage,
     studentPanel, setStudentPanel,
@@ -313,6 +313,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 handleEditStudent={handleEditStudent}
                 handleRestoreStudent={handleRestoreStudent}
                 handleGraduateStudent={handleGraduateStudent}
+                studentUsersMap={studentUsersMap}
                 setDeleteModal={setDeleteModal}
                 onStudentClick={(s) => setDetailStudent({ id: s.id, name: s.name, lastName: s.lastName, rank: 0, score: 0, branch: s.branch, groupCode: s.groupCode, gender: s.gender, avatarId: s.avatarId })}
               />

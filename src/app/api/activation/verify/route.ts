@@ -58,6 +58,13 @@ export async function POST(req: NextRequest) {
       activatedAt:  FieldValue.serverTimestamp(),
     });
 
+    // Öğrenci doc'unu aktive et (varsa)
+    if (studentDocId) {
+      await adminDb.collection("students").doc(studentDocId).update({
+        accountStatus: "active",
+      }).catch(() => {/* doc yoksa sessizce geç */});
+    }
+
     // Kodu kullanıldı olarak işaretle
     await codeDoc.ref.update({
       status: "used",

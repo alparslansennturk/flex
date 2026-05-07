@@ -48,6 +48,15 @@ export async function GET(req: NextRequest) {
 
       if (!task.groupId) continue;
 
+      // Bu task için teslim yapmış öğrenci ID'lerini çek
+      const submissionsSnap = await adminDb
+        .collection("submissions")
+        .where("taskId", "==", taskDoc.id)
+        .get();
+      const submittedStudentIds = new Set(
+        submissionsSnap.docs.map(d => d.data().studentId).filter(Boolean)
+      );
+
       // Gruptaki öğrencileri çek
       const studentsSnap = await adminDb
         .collection("students")
@@ -64,6 +73,9 @@ export async function GET(req: NextRequest) {
       for (const studentDoc of studentsSnap.docs) {
         const student = studentDoc.data();
         if (!student.email) continue;
+        if (student.isPassive) continue;                          // mezun / pasife alınmış
+        if (student.accountStatus === "disabled") continue;      // hesabı devre dışı
+        if (submittedStudentIds.has(studentDoc.id)) continue;    // ödevi zaten teslim etmiş
 
         const html = `
           <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:40px 32px;color:#111">

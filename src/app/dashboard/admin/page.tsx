@@ -14,7 +14,11 @@ import SystemPanel from "../../components/dashboard/admin/SystemPanel";
 
 export default function AdminPage() {
   const [headerTitle, setHeaderTitle] = useState("Yönetim Paneli");
-  const [activeSubTab, setActiveSubTab] = useState("general");
+  const [activeSubTab, setActiveSubTab] = useState<string>(() =>
+    typeof window !== "undefined"
+      ? (sessionStorage.getItem("admin_active_tab") ?? "general")
+      : "general"
+  );
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const router = useRouter();
 
@@ -65,7 +69,7 @@ export default function AdminPage() {
         <Header activeTabLabel={headerTitle} />
         <main className="flex-1 overflow-y-auto bg-surface-50/20 [scrollbar-gutter:stable]">
           <div className="w-full max-w-[1920px] mx-auto">
-            <SubNavigation activeTab={activeSubTab} onTabChange={setActiveSubTab} />
+            <SubNavigation activeTab={activeSubTab} onTabChange={(tab) => { setActiveSubTab(tab); sessionStorage.setItem("admin_active_tab", tab); }} />
             {activeSubTab === "users" && <UserManagement />}
             {activeSubTab === "task-management" && <TaskManagementPanel />}
             {activeSubTab === "logs" && <SystemPanel />}

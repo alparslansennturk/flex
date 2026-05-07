@@ -1,6 +1,17 @@
 import React from "react";
 import { Trash2, PencilLine, RotateCcw, Users, GraduationCap } from "lucide-react";
 
+function getDotColor(student: any, usersMap: Map<string, boolean>): string {
+  if (!student.authUid) return "bg-red-400";           // kod gönderilmemiş
+  if (student.accountStatus === "disabled") return "bg-red-400"; // devre dışı
+  if (student.accountStatus === "active")  return "bg-emerald-400"; // aktif
+  if (student.accountStatus === "pending") return "bg-amber-400";  // beklemede
+  // Legacy: accountStatus yok → users map'e bak
+  const activated = usersMap.get(student.authUid);
+  if (activated === undefined) return "bg-amber-400";
+  return activated ? "bg-emerald-400" : "bg-amber-400";
+}
+
 interface StudentTableProps {
   students: any[];
   selectedStudentIds: string[];
@@ -8,6 +19,7 @@ interface StudentTableProps {
   groups: any[];
   studentPanel: 'active' | 'passive';
   isAdmin: boolean;
+  studentUsersMap: Map<string, boolean>;
   toggleStudentSelection: (id: string) => void;
   handleSelectAll: () => void;
   handleEditStudent: (student: any) => void;
@@ -24,6 +36,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   groups,
   studentPanel,
   isAdmin,
+  studentUsersMap,
   toggleStudentSelection,
   handleSelectAll,
   handleEditStudent,
@@ -100,97 +113,107 @@ export const StudentTable: React.FC<StudentTableProps> = ({
 
         <tbody className="divide-y divide-neutral-200">
           {students.length > 0 ? (
-            students.map((student) => (
-              <tr key={student.id} className="h-13 hover:bg-base-primary-50/30 transition-colors group cursor-default">
-                <td className="px-5 text-center">
-                  {!isPassive && (
-                    <input
-                      type="checkbox"
-                      className="w-3.5 h-3.5 rounded border-neutral-300 cursor-pointer accent-base-primary-600"
-                      checked={selectedStudentIds.includes(student.id)}
-                      onChange={() => toggleStudentSelection(student.id)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  )}
-                </td>
-                <td className="px-6">
-                  {onStudentClick ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onStudentClick(student); }}
-                      className="text-[13px] font-semibold text-neutral-900 leading-none hover:text-[#3a7bd5] transition-colors cursor-pointer outline-none text-left"
-                    >
-                      {student.name} {student.lastName}
-                    </button>
-                  ) : (
-                    <span className="text-[13px] font-semibold text-neutral-900 leading-none">
-                      {student.name} {student.lastName}
-                    </span>
-                  )}
-                </td>
-                <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.branch || "—"}</td>
-                <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.groupCode || "—"}</td>
-                <td className="px-6 text-[13px] font-medium text-neutral-400 leading-none truncate">{student.email || "—"}</td>
-                <td className="px-6 text-[13px] font-medium text-neutral-400 leading-none truncate">{student.note || "—"}</td>
-                {showBranchCol && (
-                  <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">
-                    {groups.find(g => g.id === student.groupId)?.instructor || "—"}
-                  </td>
-                )}
-                <td className="px-6 pr-6 text-right">
-                  <div className="flex items-center justify-end gap-3">
-                    {/* Düzenle — her iki panelde de */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleEditStudent(student); }}
-                      title="Düzenle"
-                      className="text-[#8B5CF6] hover:text-[#6D28D9] transition-colors cursor-pointer outline-none"
-                    >
-                      <PencilLine size={16} />
-                    </button>
+            students.map((student) => {
+              const dotColor = isPassive ? null : getDotColor(student, studentUsersMap);
 
-                    {isPassive ? (
-                      /* MEZUN PANELİ: Geri Al + Sil */
-                      <>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleRestoreStudent(student.id); }}
-                          title="Aktife al"
-                          className="text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer outline-none"
-                        >
-                          <RotateCcw size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'graduated' });
-                          }}
-                          title={isAdmin ? "Kalıcı sil" : "Listeden kaldır"}
-                          className="text-red-400 hover:text-red-600 transition-colors cursor-pointer outline-none"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </>
-                    ) : (
-                      /* AKTİF PANELİ: Mezun Et + Sil */
-                      <>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'graduate' }); }}
-                          title="Mezun Et"
-                          className="text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer outline-none"
-                        >
-                          <GraduationCap size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'active' }); }}
-                          title="Sil"
-                          className="text-red-400 hover:text-red-600 transition-colors cursor-pointer outline-none"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </>
+              return (
+                <tr key={student.id} className="h-13 hover:bg-base-primary-50/30 transition-colors group cursor-default">
+                  <td className="px-5 text-center">
+                    {!isPassive && (
+                      <input
+                        type="checkbox"
+                        className="w-3.5 h-3.5 rounded border-neutral-300 cursor-pointer accent-base-primary-600"
+                        checked={selectedStudentIds.includes(student.id)}
+                        onChange={() => toggleStudentSelection(student.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     )}
-                  </div>
-                </td>
-              </tr>
-            ))
+                  </td>
+                  <td className="px-6">
+                    <div className="flex items-center gap-2">
+                      {/* Minik hesap durum noktası */}
+                      {dotColor && (
+                        <span
+                          className={`w-1 h-1 rounded-full shrink-0 ${dotColor}`}
+                          style={{ width: 6, height: 6 }}
+                        />
+                      )}
+                      {onStudentClick ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onStudentClick(student); }}
+                          className="text-[13px] font-semibold text-neutral-900 leading-none hover:text-[#3a7bd5] transition-colors cursor-pointer outline-none text-left"
+                        >
+                          {student.name} {student.lastName}
+                        </button>
+                      ) : (
+                        <span className="text-[13px] font-semibold text-neutral-900 leading-none">
+                          {student.name} {student.lastName}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.branch || "—"}</td>
+                  <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.groupCode || "—"}</td>
+                  <td className="px-6 text-[13px] font-medium text-neutral-400 leading-none truncate">{student.email || "—"}</td>
+                  <td className="px-6 text-[13px] font-medium text-neutral-400 leading-none truncate">{student.note || "—"}</td>
+                  {showBranchCol && (
+                    <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">
+                      {groups.find(g => g.id === student.groupId)?.instructor || "—"}
+                    </td>
+                  )}
+                  <td className="px-6 pr-6 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleEditStudent(student); }}
+                        title="Düzenle"
+                        className="text-[#8B5CF6] hover:text-[#6D28D9] transition-colors cursor-pointer outline-none"
+                      >
+                        <PencilLine size={16} />
+                      </button>
+
+                      {isPassive ? (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRestoreStudent(student.id); }}
+                            title="Aktife al"
+                            className="text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer outline-none"
+                          >
+                            <RotateCcw size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'graduated' });
+                            }}
+                            title={isAdmin ? "Kalıcı sil" : "Listeden kaldır"}
+                            className="text-red-400 hover:text-red-600 transition-colors cursor-pointer outline-none"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'graduate' }); }}
+                            title="Mezun Et"
+                            className="text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer outline-none"
+                          >
+                            <GraduationCap size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, studentId: student.id, deleteType: 'active' }); }}
+                            title="Sil"
+                            className="text-red-400 hover:text-red-600 transition-colors cursor-pointer outline-none"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
           ) : (
             <tr>
               <td colSpan={colCount} className="py-16 text-center">

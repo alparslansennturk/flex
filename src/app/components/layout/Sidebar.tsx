@@ -51,7 +51,7 @@ export default function Sidebar() {
       </div>
 
       {/* ANA OPERASYONEL MENÜ — compact'ta üst margin ve item arası biraz azalır */}
-      <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-6 space-y-1" : "mt-16 space-y-3"}`}>
+      <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-6 space-y-1" : "mt-10 space-y-1.5"}`}>
         <SidebarLink href="/dashboard" icon={<LayoutDashboard size={18} />} label="Ana Sayfa" exact compact={compact} />
         <SidebarLink href={NAV_CONFIG.GROUPS.path} icon={<Users size={18} />} label="Sınıf Yönetimi" compact={compact} />
 
@@ -69,7 +69,7 @@ export default function Sidebar() {
             <button
               onClick={() => setAssignmentTestOpen(o => !o)}
               className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
-                ${compact ? "py-3.25" : "py-4"}
+                ${compact ? "py-3.25" : "py-3.5"}
                 ${(pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive')
                   ? 'bg-white/10 text-white shadow-sm'
                   : 'text-white hover:bg-white/5'
@@ -118,7 +118,7 @@ export default function Sidebar() {
 
         <div
           onClick={handleLogout}
-          className={`flex items-center gap-4 px-6 text-white cursor-pointer hover:bg-white/5 transition-all duration-200 group rounded-xl outline-none ${compact ? "py-3.25" : "py-4"}`}
+          className={`flex items-center gap-4 px-6 text-white cursor-pointer hover:bg-white/5 transition-all duration-200 group rounded-xl outline-none ${compact ? "py-3.25" : "py-3.5"}`}
         >
           <span className="transition-colors duration-200 group-hover:text-[#FF8D28]">
             <LogOut size={18} />
@@ -140,7 +140,7 @@ function SidebarLink({ href, icon, label, exact = false, compact = false, sub = 
     <Link
       href={href}
       className={`flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
-        ${sub ? (compact ? "py-2" : "py-3") : compact ? "py-3.25" : "py-4"}
+        ${sub ? (compact ? "py-2" : "py-2.5") : compact ? "py-3.25" : "py-3.5"}
         ${active ? 'bg-white/10 text-white shadow-sm' : 'text-white hover:bg-white/5'}`}
     >
       <span className={`transition-colors duration-200 ${active ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>

@@ -302,6 +302,14 @@
   font-size: 13px !important;
   line-height: 1.4;
 }
+
+/* Preview sayfası — yorumlar bölüm başlığı */
+.preview-section-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
 html body #main-user-form-area::-webkit-scrollbar {
   width: 14px !important; /* Biraz geniş tutuyoruz ki içindeki boşlukla beraber düzgün dursun */
 }
