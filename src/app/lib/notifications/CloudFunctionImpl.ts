@@ -14,13 +14,17 @@
 //   - No Firestore quota concerns (Admin SDK)
 //   - Cost: ~$0.04 per announcement (negligible)
 
-import type { INotificationService, SendAnnouncementOptions, NotificationResult } from '@/app/lib/notifications/types'
+import type { INotificationService, SendNotificationOptions, SendAnnouncementOptions, NotificationResult } from '@/app/lib/notifications/types'
 
 export class CloudFunctionNotificationImpl implements INotificationService {
   private readonly baseUrl: string
 
   constructor(baseUrl = '/api/notifications') {
     this.baseUrl = baseUrl
+  }
+
+  async dispatch(_options: SendNotificationOptions): Promise<NotificationResult> {
+    throw new Error('CloudFunctionNotificationImpl.dispatch not yet implemented')
   }
 
   async sendAnnouncement(options: SendAnnouncementOptions): Promise<NotificationResult> {
