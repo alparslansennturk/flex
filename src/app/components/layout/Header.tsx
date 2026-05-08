@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, Settings, LayoutGrid, BookOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, LayoutGrid, BookOpen, Bell } from "lucide-react";
 import NotificationBell from "@/app/components/notifications/NotificationBell";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
@@ -54,6 +54,11 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
       icon: <Settings size={22} strokeWidth={2.5} />,
       title: "Yönetim Paneli",
       description: "Atölye, sınıf ve kullanıcı ayarlarını buradan yönet.",
+    },
+    "/dashboard/notifications": {
+      icon: <Bell size={22} strokeWidth={2.5} />,
+      title: "Bildirimler",
+      description: "Öğrenci ve eğitmenlere sistem bildirimi gönder.",
     },
   };
   const currentPage = pathname ? Object.entries(pageConfigs).find(([key]) => pathname.startsWith(key))?.[1] : null;

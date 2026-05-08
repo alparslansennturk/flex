@@ -55,7 +55,7 @@ export default function NotificationsPage() {
     <div className="flex h-screen bg-[#F7F8FA] overflow-hidden">
       <div className="w-[260px] shrink-0 h-full"><Sidebar /></div>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header title="Bildirimler" />
+        <Header />
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-2xl mx-auto space-y-6">
 
