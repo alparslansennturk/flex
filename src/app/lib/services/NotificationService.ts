@@ -1,12 +1,15 @@
-import type { INotificationService, SendAnnouncementOptions } from '@/app/lib/notifications/types'
+import type { INotificationService, SendAnnouncementOptions, SendNotificationOptions } from '@/app/lib/notifications/types'
 import { ClientSideNotificationImpl } from '@/app/lib/notifications/ClientSideImpl'
 
 export class NotificationService {
-  // Default fallback prevents crash if initializeNotificationService() is never called
   private static implementation: INotificationService = new ClientSideNotificationImpl()
 
   static setImplementation(impl: INotificationService) {
     this.implementation = impl
+  }
+
+  static async dispatch(options: SendNotificationOptions) {
+    return this.implementation.dispatch(options)
   }
 
   static async sendAnnouncement(options: SendAnnouncementOptions) {

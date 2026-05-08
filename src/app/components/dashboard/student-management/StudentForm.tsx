@@ -83,6 +83,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   // İçine gömdüğümüz yerel state'ler
   const [localErrors, setLocalErrors] = useState<Record<string, boolean>>({});
   const [localShake, setLocalShake] = useState(false);
+  const [emailErrorMsg, setEmailErrorMsg] = useState("");
 
   // Shake etkisini temizlemek için useEffect
   useEffect(() => {
@@ -120,6 +121,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
       setIsSuccess(false);
       setLoading(false);
       setLocalErrors({});
+      setEmailErrorMsg("");
       setStudentName("");
       setStudentLastName("");
       setStudentEmail("");
@@ -177,9 +179,14 @@ export const StudentForm: React.FC<StudentFormProps> = ({
         // Eğer resetStudentForm proplardan gelmiyorsa yerelde tanımlı olmalı
         if (typeof resetStudentForm === 'function') resetStudentForm();
       }, 1500);
-    } catch (err) {
-      console.error("Kayıt hatası:", err);
-      setLocalShake(true); // <--- Hata durumunda da titret
+    } catch (err: any) {
+      if (err?.code === "DUPLICATE_EMAIL") {
+        setLocalErrors({ email: true });
+        setEmailErrorMsg(err.message);
+      } else {
+        console.error("Kayıt hatası:", err);
+      }
+      setLocalShake(true);
     } finally {
       setLoading(false);
     }
@@ -251,7 +258,14 @@ export const StudentForm: React.FC<StudentFormProps> = ({
               </div>
               <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">E-Posta</label>
-                <input name="email" type="email" placeholder="ornek@email.com" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.email ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`} />
+                <input
+                  name="email" type="email" placeholder="ornek@email.com" value={studentEmail}
+                  onChange={(e) => { setStudentEmail(e.target.value); setLocalErrors(p => { const n = {...p}; delete n.email; return n; }); setEmailErrorMsg(""); }}
+                  className={`h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-500 placeholder:font-normal ${localErrors.email ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}
+                />
+                {emailErrorMsg && (
+                  <p className="text-[12px] font-semibold text-red-500 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">{emailErrorMsg}</p>
+                )}
               </div>
               <div className="space-y-1.5 relative">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Cinsiyet</label>

@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { LibraryBig, ChevronLeft, ChevronRight, PlusCircle, MoreHorizontal } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where } from "firebase/firestore";
 import { auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon } from "./taskTypes";
 import { AssignActivateModal, AssignSelection } from "./AssignActivateModal";
+import { NotificationService } from "@/app/lib/services/NotificationService";
 
 // ---- TASK KÜTÜPHANESİ KARTI ----
 function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
@@ -149,7 +150,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
             for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
               // Grafik 2 şablonu → Grafik 1 sınıfına verilirse seviye otomatik Seviye 1'e düşer
               const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
-              await addDoc(collection(db, "tasks"), {
+              const taskRef = await addDoc(collection(db, "tasks"), {
                 name:          t.name,
                 subtitle:      t.subtitle ?? null,
                 description:   t.description,
@@ -175,6 +176,46 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                 branch:        groupBranch || user?.branch || null,
                 ownedBy:       user?.uid ?? null,
               });
+
+              // Fire-and-forget: gruba yeni ödev bildirimi gönder
+              const senderId = user?.uid ?? auth.currentUser?.uid;
+              if (senderId) {
+                (async () => {
+                  try {
+                    const snap = await getDocs(
+                      query(collection(db, "students"), where("groupId", "==", groupId))
+                    );
+                    const activeStudents = snap.docs
+                      .filter(d => d.data().status !== "passive")
+                      .map(d => ({ docId: d.id, authUid: d.data().authUid as string | undefined }))
+                      .filter((s): s is { docId: string; authUid: string } => !!s.authUid);
+
+                    if (!activeStudents.length) return;
+
+                    const fmtDate = endDate
+                      ? new Date(endDate).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                      : null;
+                    const preview = fmtDate
+                      ? `Son teslim tarihin: ${fmtDate}.`
+                      : "Yeni bir ödev eklendi.";
+
+                    for (const { docId, authUid } of activeStudents) {
+                      await NotificationService.dispatch({
+                        eventId:   `assign_${taskRef.id}_${docId}`,
+                        notifType: "assignment",
+                        audience:  { type: "users", userIds: [authUid] },
+                        senderId,
+                        title:     `Yeni Ödev: ${t.name}`,
+                        preview,
+                        actionUrl: "/",
+                        entityId:  taskRef.id,
+                      });
+                    }
+                  } catch (err) {
+                    console.error("[AssignmentLibrary] Bildirim gönderilemedi:", err);
+                  }
+                })();
+              }
             }
             setAssignModalTask(null);
           }}

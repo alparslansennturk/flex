@@ -475,12 +475,12 @@ export default function SubmissionPreviewPage() {
             )}
 
             {/* Yorumlar başlığı */}
-            <div className="shrink-0 px-5 pt-6 pb-0">
+            <div className="shrink-0 px-5 pt-6 pb-6">
               <p className="preview-section-heading">Yorumlar</p>
             </div>
 
             {/* Thread */}
-            <div ref={commentsScrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <div ref={commentsScrollRef} className="flex-1 overflow-y-auto px-5 pt-0 pb-4 space-y-5">
               {comments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-surface-400">
                   <p className="text-[13px] font-medium">Henüz mesaj yok</p>
@@ -495,7 +495,7 @@ export default function SubmissionPreviewPage() {
             </div>
 
             {/* Input */}
-            <div className="shrink-0 border-t border-surface-100 px-4 py-3 flex items-end gap-2">
+            <div className="shrink-0 border-t border-surface-100 px-4 pt-3 pb-6 flex items-end gap-2">
               <textarea
                 value={commentText}
                 onChange={e => setCommentText(e.target.value)}

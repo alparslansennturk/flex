@@ -167,6 +167,15 @@ export default function StudentTaskDetailPage() {
 
   useEffect(() => { loadData(); }, [studentId, taskId]);
 
+  /* Presence: bu sayfadayken activeTaskId yaz, ayrılınca sil */
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const userRef = doc(db, "users", user.uid);
+    updateDoc(userRef, { activeTaskId: taskId }).catch(() => {});
+    return () => { updateDoc(userRef, { activeTaskId: null }).catch(() => {}); };
+  }, [taskId]);
+
   /* Sayfa açılışında authUid'yi senkronize et (Firestore rules için gerekli) */
   useEffect(() => {
     let cancelled = false;

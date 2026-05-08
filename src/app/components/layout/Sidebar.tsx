@@ -41,7 +41,7 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#10294C] text-white transition-all duration-500">
+    <div className="flex flex-col h-full w-[280px] 2xl:w-[320px] bg-[#10294C] text-white transition-all duration-500">
       {/* Logo */}
       <div className={`select-none transition-all duration-300 ${compact ? "p-[20px_40px_0_40px]" : "p-[40px_40px_0_40px]"}`}>
         <Link href="/dashboard" className="flex items-center gap-1">

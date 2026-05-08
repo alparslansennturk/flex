@@ -57,6 +57,8 @@ export class NotificationRealtimeService {
 
         console.log(`📡 [${userId}] Received ${notifications.length} notifications`)
         callback(notifications)
+      }, (error) => {
+        console.warn(`[NotificationRealtimeService] Permission denied for ${userId}:`, error.code)
       })
 
       console.log(`📡 Subscribed to notifications for ${userId}`)

@@ -99,10 +99,10 @@ service cloud.firestore {
         // Only the owner reads their own notifications
         allow read: if request.auth.uid == userId;
 
-        // Instructors/teachers write (fan-out from sendAnnouncement)
+        // Instructors/admins write (fan-out: sendAnnouncement + dispatch)
+        // groupId opsiyonel — grup bildirimi, rol bildirimi veya sistem bildirimi olabilir
         allow create: if request.auth != null &&
-                         request.auth.token.role in ['instructor', 'teacher'] &&
-                         request.resource.data.groupId is string &&
+                         (isAdmin() || request.auth.token.role in ['admin', 'instructor', 'teacher']) &&
                          request.resource.data.entityId is string &&
                          request.resource.data.senderId == request.auth.uid &&
                          request.resource.data.title is string &&
@@ -112,20 +112,10 @@ service cloud.firestore {
                          request.resource.data.preview.size() <= 100 &&
                          request.resource.data.title.size() <= 200;
 
-        // Owner can only update read/archive state — all other fields are immutable
+        // Owner can only update read/archive state — affectedKeys guarantee immutability of all other fields
         allow update: if request.auth.uid == userId &&
                          request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['isRead', 'readAt', 'isArchived', 'archivedAt']) &&
-                         request.resource.data.id == resource.data.id &&
-                         request.resource.data.senderId == resource.data.senderId &&
-                         request.resource.data.entityId == resource.data.entityId &&
-                         request.resource.data.groupId == resource.data.groupId &&
-                         request.resource.data.title == resource.data.title &&
-                         request.resource.data.preview == resource.data.preview &&
-                         request.resource.data.actionUrl == resource.data.actionUrl &&
-                         request.resource.data.createdAt == resource.data.createdAt &&
-                         (!('isRead' in request.resource.data) || request.resource.data.isRead is bool) &&
-                         (!('isArchived' in request.resource.data) || request.resource.data.isArchived is bool);
+                           .hasOnly(['isRead', 'readAt', 'isArchived', 'archivedAt']);
 
         allow delete: if false;
       }
@@ -252,7 +242,8 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         isInstructor() ||
         resource.data.studentId == currentUid() ||
-        get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.authUid == currentUid()
+        get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.authUid == currentUid() ||
+        get(/databases/$(database)/documents/users/$(currentUid())).data.get('studentDocId', '') == resource.data.studentId
       );
       allow update: if isInstructor() &&
         request.resource.data.diff(resource.data).affectedKeys()

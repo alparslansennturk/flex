@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, Bell, Settings, LayoutGrid, BookOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, LayoutGrid, BookOpen } from "lucide-react";
+import NotificationBell from "@/app/components/notifications/NotificationBell";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 
@@ -96,10 +97,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
 
         {/* SAĞ TARAF: Bildirim, Profil ve Şube */}
         <div className="flex items-center shrink-0">
-          <div className="relative text-neutral-900 cursor-pointer hover:text-base-primary-500 transition-colors">
-            <Bell size={24} />
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-status-danger-500 text-white text-[11px] flex items-center justify-center rounded-full font-bold border-2 border-white leading-none">3</span>
-          </div>
+          <NotificationBell />
           <div className="h-8 w-px bg-surface-200 mx-5"></div>
 
           <div className="text-right hidden md:block">

@@ -630,6 +630,16 @@ status:'active',
 updatedAt:new Date(),
 };
 try{
+// Email benzersizlik kontrolü — tüm gruplarda Firestore'a sorgula
+if(email?.trim()){
+  const normalizedEmail=email.trim().toLowerCase();
+  const emailSnap=await getDocs(query(collection(db,"students"),where("email","==",normalizedEmail)));
+  const conflict=emailSnap.docs.find(d=>d.id!==editingStudentId);
+  if(conflict){
+    const cd=conflict.data();
+    throw Object.assign(new Error(`Bu e-posta "${cd.name} ${cd.lastName}" adlı öğrenciye tanımlı (${cd.groupCode||"farklı grup"}).`),{code:"DUPLICATE_EMAIL"});
+  }
+}
 if(editingStudentId){
 const oldStudent=students.find((s)=>s.id===editingStudentId);
 const isGroupChange = oldStudent && oldStudent.groupId !== groupId;
@@ -666,11 +676,17 @@ setStudents((prev)=>prev.map((s)=>(s.id===editingStudentId?{...s,...studentData}
 const newStudentRef = await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
 await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
 if(email?.trim()){
-  fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),name:`${name.trim()} ${lastName.trim()}`,groupCode:studentData.groupCode??"",groupId,studentDocId:newStudentRef.id})}).catch((e)=>console.error("[welcome mail]",e));
+  try {
+    const mailRes = await fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),name:`${name.trim()} ${lastName.trim()}`,groupCode:studentData.groupCode??"",groupId,studentDocId:newStudentRef.id})});
+    if(!mailRes.ok){
+      const mailErr = await mailRes.json().catch(()=>({}));
+      showNotification(`Öğrenci eklendi fakat mail gönderilemedi: ${mailErr.error ?? mailRes.status}`);
+    }
+  } catch(e){ console.error("[welcome mail]",e); }
 }
 }
-}catch(error){
-console.error("HATA:",error);
+}catch(error: any){
+if(error?.code !== "DUPLICATE_EMAIL") console.error("HATA:",error);
 throw error;
 }
 };

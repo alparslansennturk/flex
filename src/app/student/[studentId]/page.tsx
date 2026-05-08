@@ -36,6 +36,9 @@ interface TaskRow {
   description?: string;
   createdByName?: string;
   isActive: boolean;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
   file?: {
     driveFileId?: string;
     driveViewLink?: string;
@@ -176,8 +179,11 @@ export default function StudentDashboard() {
         subtitle:      d.data().subtitle,
         description:   d.data().description,
         createdByName: d.data().createdByName,
-        isActive:      d.data().isActive ?? true,
-        file:          d.data().file ?? undefined,
+        isActive:        d.data().isActive ?? true,
+        attachmentUrl:   d.data().attachmentUrl  ?? undefined,
+        attachmentName:  d.data().attachmentName ?? undefined,
+        attachmentType:  d.data().attachmentType ?? undefined,
+        file:            d.data().file ?? undefined,
       })));
     });
     return unsub;
@@ -199,27 +205,29 @@ export default function StudentDashboard() {
       };
       setStudent(student);
 
-      const subSnap = await getDocs(query(collection(db, "submissions"), where("studentId", "==", studentId)));
-
-      /* taskId → en son submission */
-      const map: Record<string, SubInfo> = {};
-      subSnap.docs.forEach(d => {
-        const data = d.data();
-        const curr = map[data.taskId];
-        if (!curr || data.iteration > curr.iteration) {
-          map[data.taskId] = {
-            id:          d.id,
-            status:      data.status,
-            iteration:   data.iteration ?? 1,
-            grade:       data.grade,
-            feedback:    data.feedback,
-            isLate:      data.isLate ?? false,
-            daysLate:    data.daysLate,
-            submittedAt: data.submittedAt?.toDate?.() ?? undefined,
-          };
-        }
-      });
-      setSubMap(map);
+      try {
+        const subSnap = await getDocs(query(collection(db, "submissions"), where("studentId", "==", studentId)));
+        const map: Record<string, SubInfo> = {};
+        subSnap.docs.forEach(d => {
+          const data = d.data();
+          const curr = map[data.taskId];
+          if (!curr || data.iteration > curr.iteration) {
+            map[data.taskId] = {
+              id:          d.id,
+              status:      data.status,
+              iteration:   data.iteration ?? 1,
+              grade:       data.grade,
+              feedback:    data.feedback,
+              isLate:      data.isLate ?? false,
+              daysLate:    data.daysLate,
+              submittedAt: data.submittedAt?.toDate?.() ?? undefined,
+            };
+          }
+        });
+        setSubMap(map);
+      } catch (subErr: any) {
+        console.warn("[StudentDashboard] Submissions yüklenemedi:", subErr.code);
+      }
     } finally {
       setLoading(false);
     }
@@ -234,10 +242,10 @@ export default function StudentDashboard() {
   }
 
   const today        = new Date(); today.setHours(0, 0, 0, 0);
-  // Aktif: deadline'ı yakın olan en üstte (artan endDate)
+  // Aktif: en son sisteme eklenen en üstte
   const activeTasks  = tasks
     .filter(t => { const d = parseDate(t.endDate); return d ? d >= today : !!t.isActive; })
-    .sort((a, b) => (parseDate(a.endDate)?.getTime() ?? 0) - (parseDate(b.endDate)?.getTime() ?? 0));
+    .sort((a, b) => (parseDate(b.createdAt)?.getTime() ?? 0) - (parseDate(a.createdAt)?.getTime() ?? 0));
 
   // Tamamlananlar: en son biten (en yakın geçmiş deadline) en üstte (azalan endDate)
   const pastTasks    = tasks
@@ -580,36 +588,24 @@ function StudentTaskAccordion({
             {/* Alt satır: dosya kartı (sol) + Ödev Yükle butonu (sağ) */}
             <div className="flex items-center justify-between mt-8">
               {/* Eğitmen dosya kartı */}
-              {task.file?.fileUrl ? (() => {
-                const isImg  = isImageFile(task.file?.fileName ?? "");
-                const thumb  = isImg && task.file?.driveFileId
-                  ? `https://drive.google.com/thumbnail?id=${task.file.driveFileId}&sz=w80`
-                  : null;
-                return (
-                  <a
-                    href={task.file?.driveViewLink || task.file?.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center bg-white border border-surface-200 rounded-xl hover:border-surface-300 transition-colors px-4 py-3 max-w-[240px]"
-                  >
-                    {thumb ? (
-                      <img src={thumb} className="w-10 h-10 object-cover rounded-lg shrink-0" alt="" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-surface-100 flex items-center justify-center shrink-0">
-                        <FileText size={18} className="text-surface-400" />
-                      </div>
-                    )}
-                    <div className="ml-3 min-w-0">
-                      <p className="text-[13px] font-bold text-text-primary leading-tight truncate">
-                        {task.file?.fileName || "Ödev Dosyası"}
-                      </p>
-                      <p className="text-[11px] text-surface-500 mt-0.5">Ödev Dosyası · İndir</p>
-                    </div>
-                    <div className="w-px self-stretch bg-surface-200 mx-3 shrink-0" />
-                    <img src="/icons/google-drive.svg" width={28} height={28} alt="Drive" className="shrink-0" />
-                  </a>
-                );
-              })() : (
+              {task.attachmentUrl ? (
+                <a
+                  href={task.attachmentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 bg-base-primary-50 border border-base-primary-100 rounded-xl hover:bg-base-primary-100 transition-colors px-4 py-3 max-w-[260px] group"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-base-primary-100 flex items-center justify-center shrink-0">
+                    <FileText size={18} className="text-base-primary-600" strokeWidth={1.5} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-base-primary-700 leading-tight truncate">
+                      {task.attachmentName || "Ödev Dosyası"}
+                    </p>
+                    <p className="text-[11px] text-base-primary-400 mt-0.5">Ödev Dosyası · İndir</p>
+                  </div>
+                </a>
+              ) : (
                 <div />
               )}
 

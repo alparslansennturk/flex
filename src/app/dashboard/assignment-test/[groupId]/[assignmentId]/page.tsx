@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { sendThreadComment } from "@/app/lib/sendThreadComment";
 import { useUser } from "@/app/context/UserContext";
+import { NotificationService } from "@/app/lib/services/NotificationService";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
 import {
@@ -26,9 +27,10 @@ interface Student {
   lastName: string;
   gender?: "male" | "female";
   avatarId?: number;
+  authUid?: string;
 }
 
-interface TaskInfo { name: string; points: number; isActive: boolean; }
+interface TaskInfo { name: string; points: number; isActive: boolean; attachmentUrl?: string; attachmentName?: string; attachmentType?: string; }
 
 interface SubmissionRow extends Submission { studentName: string; }
 
@@ -340,7 +342,7 @@ export default function AssignmentDetailPage() {
 
       if (taskSnap.exists()) {
         const d = taskSnap.data();
-        setTask({ name: d.name, points: d.points, isActive: !!d.isActive });
+        setTask({ name: d.name, points: d.points, isActive: !!d.isActive, attachmentUrl: d.attachmentUrl, attachmentName: d.attachmentName, attachmentType: d.attachmentType });
       }
 
       const students: Student[] = stuSnap.docs.map(d => ({
@@ -349,6 +351,7 @@ export default function AssignmentDetailPage() {
         lastName: d.data().lastName ?? "",
         gender:   d.data().gender   ?? "male",
         avatarId: d.data().avatarId ?? 1,
+        authUid:  d.data().authUid  as string | undefined,
       }));
       setAllStudents(students);
 
@@ -516,7 +519,7 @@ export default function AssignmentDetailPage() {
     const text       = commentText.trim();
     const authorName = `${user.name ?? ""} ${user.surname ?? ""}`.trim() || "Eğitmen";
 
-    // Genel yorum — addDoc zaten anlık (Firestore client SDK)
+    // Genel yorum (duyuru) — her öğrenciye bildirim de gönder
     if (activeTab === "general") {
       setCommentText("");
       addDoc(collection(db, "tasks", assignmentId, "comments"), {
@@ -526,7 +529,22 @@ export default function AssignmentDetailPage() {
         authorName,
         text,
         createdAt:  serverTimestamp(),
-      });
+      }).then(docRef => {
+        if (!task) return;
+        for (const student of allStudents) {
+          if (!student.authUid) continue;
+          NotificationService.dispatch({
+            eventId:   `announce_${assignmentId}_${docRef.id}_${student.id}`,
+            notifType: "announcement",
+            audience:  { type: "users", userIds: [student.authUid] },
+            senderId:  user.uid,
+            title:     `Duyuru: ${task.name}`,
+            preview:   text.slice(0, 100),
+            actionUrl: `/student/${student.id}`,
+            entityId:  assignmentId,
+          }).catch(console.error);
+        }
+      }).catch(console.error);
       return;
     }
 
@@ -642,6 +660,29 @@ export default function AssignmentDetailPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Ödev Dosyası */}
+              {task?.attachmentUrl && (
+                <div className="px-4 pb-3 shrink-0">
+                  <a
+                    href={task.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 px-3 py-2.5 bg-base-primary-50 border border-base-primary-100 rounded-xl hover:bg-base-primary-100 transition-colors group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-base-primary-100 flex items-center justify-center shrink-0">
+                      <FileText size={15} className="text-base-primary-600" strokeWidth={1.5} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-base-primary-700 truncate leading-tight">
+                        {task.attachmentName ?? "Ödev Dosyası"}
+                      </p>
+                      <p className="text-[10px] text-base-primary-400 mt-0.5">Öğrenci için dosya</p>
+                    </div>
+                    <Download size={14} className="text-base-primary-400 group-hover:text-base-primary-600 transition-colors shrink-0" />
+                  </a>
+                </div>
+              )}
 
               {/* Öğrenci listesi */}
               <div className="flex-1 overflow-y-auto py-2 px-3">

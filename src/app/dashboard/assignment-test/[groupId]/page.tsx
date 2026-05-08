@@ -315,12 +315,11 @@ function AssignmentsTab({
   // Aktif: deadline yakın olan en üstte
   const activeTasks    = tasks
     .filter(t => { const d = parseDate(t.endDate); return d ? d >= today : false; })
-    .sort((a, b) => (parseDate(a.endDate)?.getTime() ?? 0) - (parseDate(b.endDate)?.getTime() ?? 0));
+    .sort((a, b) => (parseDate(b.createdAt)?.getTime() ?? 0) - (parseDate(a.createdAt)?.getTime() ?? 0));
 
-  // Tamamlananlar: en son biten (en yakın geçmiş deadline) en üstte
   const completedTasks = tasks
     .filter(t => { const d = parseDate(t.endDate); return !d || d < today; })
-    .sort((a, b) => (parseDate(b.endDate)?.getTime() ?? 0) - (parseDate(a.endDate)?.getTime() ?? 0));
+    .sort((a, b) => (parseDate(b.createdAt)?.getTime() ?? 0) - (parseDate(a.createdAt)?.getTime() ?? 0));
 
   const FILTERS: { key: Filter; label: string }[] = [
     { key: "all",       label: "Tümü" },
@@ -728,10 +727,13 @@ function AttachmentManager({ taskId, initialUrl, initialName, initialType, group
 
       {/* Boş — ekle butonu */}
       {!attachment && !uploading && mode === "idle" && (
-        <button onClick={() => setMode("choosing")}
-          className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-dashed border-surface-300 rounded-xl text-[11px] sm:text-[12px] font-semibold text-surface-400 hover:border-base-primary-300 hover:text-base-primary-500 transition-colors cursor-pointer">
-          <Upload size={13} /> Ödev Dosyası Ekle
-        </button>
+        <div className="flex flex-col gap-1">
+          <button onClick={() => setMode("choosing")}
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-dashed border-surface-300 rounded-xl text-[11px] sm:text-[12px] font-semibold text-surface-400 hover:border-base-primary-300 hover:text-base-primary-500 transition-colors cursor-pointer">
+            <Upload size={13} /> Ödev Dosyası Ekle
+          </button>
+          {error && <p className="text-[11px] text-status-danger-500">{error}</p>}
+        </div>
       )}
     </div>
   );

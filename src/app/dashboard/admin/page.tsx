@@ -11,6 +11,7 @@ import SubNavigation from "../../components/layout/SubNavigation";
 import UserManagement from "../../components/dashboard/user-management/UserManagement";
 import TaskManagementPanel from "../../components/dashboard/assignment/TaskManagementPanel";
 import SystemPanel from "../../components/dashboard/admin/SystemPanel";
+import NotificationPanel from "../../components/dashboard/admin/NotificationPanel";
 
 export default function AdminPage() {
   const [headerTitle, setHeaderTitle] = useState("Yönetim Paneli");
@@ -72,6 +73,7 @@ export default function AdminPage() {
             <SubNavigation activeTab={activeSubTab} onTabChange={(tab) => { setActiveSubTab(tab); sessionStorage.setItem("admin_active_tab", tab); }} />
             {activeSubTab === "users" && <UserManagement />}
             {activeSubTab === "task-management" && <TaskManagementPanel />}
+            {activeSubTab === "notifications" && <NotificationPanel />}
             {activeSubTab === "logs" && <SystemPanel />}
           </div>
         </main>

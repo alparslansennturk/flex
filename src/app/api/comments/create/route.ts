@@ -165,5 +165,43 @@ export async function POST(req: NextRequest) {
   });
 
   console.log("[comments/create] Written:", commentRef.id);
+
+  // ── Step 10: Eğitmen yorumu → öğrenciye bildirim ─────────────────────────
+  // Deterministic ID: aynı task için önceki notif üzerine yazar (spam önler)
+  if (isTeacher) {
+    (async () => {
+      try {
+        const studentDoc = await adminDb.collection("students").doc(studentId).get();
+        const studentAuthUid = studentDoc.data()?.authUid as string | undefined;
+        if (!studentAuthUid) return;
+
+        // Presence check: öğrenci şu an bu task sayfasında mı?
+        const userDoc = await adminDb.collection("users").doc(studentAuthUid).get();
+        const activeTaskId = userDoc.data()?.activeTaskId as string | undefined;
+        const isOnPage = activeTaskId === taskId;
+
+        const notifId = `notif_comment_${taskId}_${studentId}`;
+        await adminDb
+          .collection("users").doc(studentAuthUid)
+          .collection("notifications").doc(notifId)
+          .set({
+            type:      "message",
+            entityId:  taskId,
+            senderId:  uid,
+            title:     "Yeni mesajınız var",
+            preview:   "Eğitmeniniz size özel bir mesaj bıraktı. Görmek için tıklayın.",
+            actionUrl: `/student/${studentId}/${taskId}`,
+            createdAt: FieldValue.serverTimestamp(),
+            isRead:    isOnPage,
+            isArchived: false,
+          });
+
+        console.log(`[comments/create] Bildirim → ${studentAuthUid}, isRead: ${isOnPage}`);
+      } catch (err) {
+        console.error("[comments/create] Bildirim hatası:", err);
+      }
+    })();
+  }
+
   return NextResponse.json({ success: true, commentId: commentRef.id });
 }

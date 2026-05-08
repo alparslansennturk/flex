@@ -25,6 +25,17 @@ export async function POST(req: NextRequest) {
         try {
           authUser = await auth.getUserByEmail(email.trim());
           uid = authUser.uid;
+
+          // Bu UID zaten başka bir öğrenciye bağlıysa blokla
+          const existingStudents = await adminDb.collection("students")
+            .where("authUid", "==", uid)
+            .limit(1)
+            .get();
+          if (!existingStudents.empty && existingStudents.docs[0].id !== studentDocId) {
+            return NextResponse.json({
+              error: `Bu e-posta adresi başka bir öğrenciye (${existingStudents.docs[0].id}) zaten tanımlı. Her öğrenci için farklı bir e-posta kullanılmalıdır.`
+            }, { status: 409 });
+          }
         } catch {
           // Yoksa oluştur
           authUser = await auth.createUser({

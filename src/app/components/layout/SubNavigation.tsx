@@ -11,6 +11,7 @@ const SubNavigation: React.FC<SubNavigationProps> = ({ activeTab, onTabChange })
   const tabs = [
     { id: "general",            label: "Genel Ayarlar",      href: null },
     { id: "users",              label: "Kullanıcı Yönetimi", href: null },
+    { id: "notifications",      label: "Bildirimler",        href: null },
     { id: "header-footer",      label: "Header & Footer",    href: null },
     { id: "sidebar-management", label: "Sidebar Yönetimi",   href: null },
     { id: "logs-page",          label: "Logs",               href: "/dashboard/logs" },
