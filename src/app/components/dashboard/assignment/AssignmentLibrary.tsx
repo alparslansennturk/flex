@@ -177,7 +177,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                 ownedBy:       user?.uid ?? null,
               });
 
-              // Fire-and-forget: gruba yeni ödev bildirimi gönder
+              // Fire-and-forget: gruba yeni ödev bildirimi gönder (in-app)
               const senderId = user?.uid ?? auth.currentUser?.uid;
               if (senderId) {
                 (async () => {
@@ -213,6 +213,32 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                     }
                   } catch (err) {
                     console.error("[AssignmentLibrary] Bildirim gönderilemedi:", err);
+                  }
+                })();
+              }
+
+              // Fire-and-forget: standart ödevlerde öğrencilere mail at
+              // (Kolaj / Kitap / Sosyal Medya kendi mail sistemine sahip, hariç tutulur)
+              if (!t.assignmentType) {
+                (async () => {
+                  try {
+                    const token = await auth.currentUser?.getIdToken();
+                    if (!token) return;
+                    await fetch("/api/task-assigned", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({
+                        groupId,
+                        taskName:    t.name,
+                        taskSubtitle: t.subtitle ?? null,
+                        endDate,
+                      }),
+                    });
+                  } catch (err) {
+                    console.error("[AssignmentLibrary] Mail gönderilemedi:", err);
                   }
                 })();
               }

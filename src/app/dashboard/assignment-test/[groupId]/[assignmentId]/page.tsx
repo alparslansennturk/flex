@@ -156,6 +156,16 @@ export default function AssignmentDetailPage() {
 
   const SESSION_KEY = `assignment_viewing_${assignmentId}`;
 
+  /* Eğitmenin aktif thread'ini Firestore'a yaz — bildirim spam önleme */
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const userRef = doc(db, "users", uid);
+    const key = viewingId ? `${assignmentId}_${viewingId}` : null;
+    updateDoc(userRef, { activeThreadKey: key }).catch(() => {});
+    return () => { updateDoc(userRef, { activeThreadKey: null }).catch(() => {}); };
+  }, [viewingId, assignmentId]);
+
   /* Preview'dan geri gelindiğinde seçili öğrenciyi geri yükle */
   useEffect(() => {
     const saved = sessionStorage.getItem(SESSION_KEY);

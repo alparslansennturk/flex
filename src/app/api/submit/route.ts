@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 import { uploadToDrive, validateDriveFile, isDriveError } from "@/app/lib/googledrive";
 import { createSubmission, getStudentTaskSubmission } from "@/app/lib/submissions";
 // ✅ NEW VALIDATION START
@@ -105,6 +106,44 @@ export async function POST(req: NextRequest) {
       isLate: false,
       ...(note ? { note } : {}),
     });
+
+    // Fire-and-forget: öğrenci teslim edince grubun eğitmenine bildirim
+    (async () => {
+      try {
+        const [studentDoc, taskDoc, groupDoc] = await Promise.all([
+          adminDb.collection("students").doc(studentId).get(),
+          adminDb.collection("tasks").doc(taskId).get(),
+          adminDb.collection("groups").doc(groupId).get(),
+        ]);
+
+        const instructorId = groupDoc.data()?.instructorId as string | undefined;
+        if (!instructorId) return;
+
+        const sData = studentDoc.data();
+        const studentName = sData
+          ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
+          : "Bir öğrenci";
+        const taskName = taskDoc.data()?.name || "ödev";
+
+        const notifId = `notif_submit_${submission.id}`;
+        await adminDb
+          .collection("users").doc(instructorId)
+          .collection("notifications").doc(notifId)
+          .set({
+            type:      "assignment",
+            entityId:  taskId,
+            senderId:  studentId,
+            title:     `${studentName} ödev yükledi`,
+            preview:   `"${taskName}" için yeni teslim. İncelemek için tıklayın.`,
+            actionUrl: `/dashboard/assignment-test/${groupId}/${taskId}`,
+            createdAt: FieldValue.serverTimestamp(),
+            isRead:    false,
+            isArchived: false,
+          });
+      } catch (err) {
+        console.error("[submit] Bildirim hatası:", err);
+      }
+    })();
 
     return NextResponse.json({
       submissionId:  submission.id,

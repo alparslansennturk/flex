@@ -123,10 +123,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Student identity not found" }, { status: 403 });
     }
     if (resolvedDocId !== studentId) {
-      console.log("[comments/create] FORBIDDEN — studentDocId mismatch:", { resolvedDocId, studentId });
-      return NextResponse.json({ error: "Forbidden: not your thread" }, { status: 403 });
+      // Claims/DB stale olabilir (grup değişimi, yeniden aktivasyon vb.)
+      // Son kontrol: students/{studentId}.authUid doğrudan eşleşiyor mu?
+      const targetDoc = await adminDb.collection("students").doc(studentId).get();
+      if (!targetDoc.exists || targetDoc.data()?.authUid !== uid) {
+        console.log("[comments/create] FORBIDDEN — studentDocId mismatch:", { resolvedDocId, studentId, uid });
+        return NextResponse.json({ error: "Forbidden: not your thread" }, { status: 403 });
+      }
+      console.log("[comments/create] Authorization: OWNER via direct authUid check (claims stale)", { studentId, uid });
+    } else {
+      console.log("[comments/create] Authorization: OWNER", { source: ownerSource });
     }
-    console.log("[comments/create] Authorization: OWNER", { source: ownerSource });
 
   } else if (isTeacher) {
     // Eğitmen/admin role tabanlı erişim — memberships koleksiyonunda kayıt gerekmez
@@ -166,24 +173,23 @@ export async function POST(req: NextRequest) {
 
   console.log("[comments/create] Written:", commentRef.id);
 
-  // ── Step 10: Eğitmen yorumu → öğrenciye bildirim ─────────────────────────
-  // Deterministic ID: aynı task için önceki notif üzerine yazar (spam önler)
-  if (isTeacher) {
-    (async () => {
-      try {
+  // ── Step 10: Bildirim tetikleyiciler ─────────────────────────────────────
+  (async () => {
+    try {
+      if (isTeacher) {
+        // Eğitmen yorumu → öğrenciye bildirim
         const studentDoc = await adminDb.collection("students").doc(studentId).get();
         const studentAuthUid = studentDoc.data()?.authUid as string | undefined;
         if (!studentAuthUid) return;
 
-        // Presence check: öğrenci şu an bu task sayfasında mı?
         const userDoc = await adminDb.collection("users").doc(studentAuthUid).get();
         const activeTaskId = userDoc.data()?.activeTaskId as string | undefined;
         const isOnPage = activeTaskId === taskId;
 
-        const notifId = `notif_comment_${taskId}_${studentId}`;
+        // Her yorum için unique ID — overwrite değil yeni doc → toast her seferinde tetiklenir
         await adminDb
           .collection("users").doc(studentAuthUid)
-          .collection("notifications").doc(notifId)
+          .collection("notifications").doc()
           .set({
             type:      "message",
             entityId:  taskId,
@@ -197,11 +203,50 @@ export async function POST(req: NextRequest) {
           });
 
         console.log(`[comments/create] Bildirim → ${studentAuthUid}, isRead: ${isOnPage}`);
-      } catch (err) {
-        console.error("[comments/create] Bildirim hatası:", err);
+
+      } else if (isStudent) {
+        // Öğrenci yorumu → sadece o grubun eğitmenine bildirim
+        const studentDoc = await adminDb.collection("students").doc(studentId).get();
+        const sData = studentDoc.data();
+        const studentName = sData
+          ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
+          : "Bir öğrenci";
+        const sGroupId = sData?.groupId as string | undefined;
+        if (!sGroupId) return;
+
+        const groupDoc = await adminDb.collection("groups").doc(sGroupId).get();
+        const instructorId = groupDoc.data()?.instructorId as string | undefined;
+        if (!instructorId) return;
+
+        const preview = safeText.length > 80 ? safeText.slice(0, 80) + "…" : safeText;
+
+        // Eğitmen o an bu thread'i açık mı bakıyor?
+        const instrDoc = await adminDb.collection("users").doc(instructorId).get();
+        const activeThreadKey = instrDoc.data()?.activeThreadKey as string | undefined;
+        const isOnThread = activeThreadKey === `${taskId}_${studentId}`;
+
+        // Her yorum için unique ID — her yorum ayrı toast tetikler
+        await adminDb
+          .collection("users").doc(instructorId)
+          .collection("notifications").doc()
+          .set({
+            type:      "message",
+            entityId:  taskId,
+            senderId:  uid,
+            title:     `${studentName} yorum yaptı`,
+            preview,
+            actionUrl: `/dashboard/assignment-test/${sGroupId}/${taskId}`,
+            createdAt: FieldValue.serverTimestamp(),
+            isRead:    isOnThread,
+            isArchived: false,
+          });
+
+        console.log(`[comments/create] Öğrenci bildirimi → ${instructorId}`);
       }
-    })();
-  }
+    } catch (err) {
+      console.error("[comments/create] Bildirim hatası:", err);
+    }
+  })();
 
   return NextResponse.json({ success: true, commentId: commentRef.id });
 }
