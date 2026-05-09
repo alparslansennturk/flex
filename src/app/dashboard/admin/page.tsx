@@ -65,7 +65,7 @@ export default function AdminPage() {
 
   return (
     <div className="flex h-screen w-full bg-white font-inter overflow-hidden">
-      <div className="h-full shrink-0"><Sidebar /></div>
+      <aside className="hidden lg:block h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-[#10294C]"><Sidebar /></aside>
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header activeTabLabel={headerTitle} />
         <main className="flex-1 overflow-y-auto bg-surface-50/20 [scrollbar-gutter:stable]">

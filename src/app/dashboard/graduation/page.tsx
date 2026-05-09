@@ -477,7 +477,7 @@ export default function GraduationPage() {
     <>
       <div className="flex h-screen overflow-hidden bg-surface-50 font-inter antialiased text-text-primary">
         {/* Sidebar */}
-        <aside className="hidden lg:block h-full shrink-0 z-50 transition-all duration-300 w-70 2xl:w-[320px] bg-[#10294C]">
+        <aside className="hidden lg:block h-full shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
           <Sidebar />
         </aside>
 
