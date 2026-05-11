@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
             isArchived: false,
           });
 
-        console.log(`[comments/create] Bildirim → ${studentAuthUid}, isRead: ${isOnPage}`);
+        console.log(`[comments/create] Bildirim → ${studentAuthUid}`);
 
       } else if (isStudent) {
         // Öğrenci yorumu → sadece o grubun eğitmenine bildirim
