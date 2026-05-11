@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateSubmissionStatus } from "@/app/lib/submissions";
 import { createTimelineEntry } from "@/app/lib/submission-timeline";
 import { adminDb } from "@/app/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 import type { SubmissionStatus } from "@/app/types/submission";
 import type { TimelineEntryType } from "@/app/types/submission-timeline";
 
