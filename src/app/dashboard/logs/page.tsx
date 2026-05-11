@@ -7,7 +7,8 @@ import { doc, getDoc } from "firebase/firestore";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
-import { Trash2, CheckSquare, Square, Minus, ChevronDown, ChevronRight } from "lucide-react";
+import SubNavigation from "../../components/layout/SubNavigation";
+import { Trash2, CheckSquare, Square, Minus, ChevronDown, ChevronRight, Mail, Star } from "lucide-react";
 
 // ─── Tipler ──────────────────────────────────────────────────────────────────
 
@@ -503,37 +504,46 @@ export default function LogsPage() {
       <aside className="hidden lg:block h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-[#10294C]"><Sidebar /></aside>
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header activeTabLabel="Logs" />
-        <main className="flex-1 overflow-y-auto bg-surface-50/20 [scrollbar-gutter:stable]">
-          <div className="w-full max-w-[1920px] mx-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto bg-surface-50/20 [scrollbar-gutter:stable] pb-8">
+          <div className="w-full max-w-[1920px] mx-auto">
+            <SubNavigation
+              activeTab="logs-page"
+              onTabChange={(tab) => {
+                sessionStorage.setItem("admin_active_tab", tab);
+                router.push("/dashboard/admin");
+              }}
+            />
+          </div>
+          <div className="w-full max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-700">
 
-            {/* Sekme Başlıkları */}
-            <div className="border-b border-surface-200 mb-8">
-              <nav className="flex items-center">
-                {(["mail", "score"] as LogTab[]).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className="relative h-12 flex items-center px-6 first:pl-0 cursor-pointer outline-none group transition-colors"
-                  >
-                    <span
-                      className={`text-[15px] font-semibold tracking-tight whitespace-nowrap transition-colors ${
-                        activeTab === tab
-                          ? "text-base-primary-500"
-                          : "text-text-tertiary hover:text-text-secondary"
-                      }`}
-                    >
-                      {tab === "mail" ? "Mail Logs" : "Puan Logları"}
-                    </span>
-                    {activeTab === tab && (
-                      <div className="absolute bottom-0 left-0 w-full h-[3px] bg-base-primary-500 rounded-t-full" />
-                    )}
-                  </button>
-                ))}
-              </nav>
+            {/* Başlık */}
+            <div className="flex items-center justify-between pb-8 border-b border-neutral-100">
+              <div>
+                <h2 className="text-[24px] font-bold text-[#10294C]">Loglar</h2>
+                <p className="text-neutral-400 text-[14px] mt-1 font-medium italic">Mail ve puan geçmişini görüntüleyin.</p>
+              </div>
+            </div>
+
+            {/* Tab Bar */}
+            <div className="flex gap-1 mt-6 bg-neutral-100 p-1 rounded-2xl w-fit">
+              <button
+                onClick={() => setActiveTab("mail")}
+                className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === "mail" ? "bg-white text-[#10294C] shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}
+              >
+                <Mail size={15} />
+                <span>Mail Logs</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("score")}
+                className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === "score" ? "bg-white text-[#10294C] shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}
+              >
+                <Star size={15} />
+                <span>Puan Logları</span>
+              </button>
             </div>
 
             {/* İçerik */}
-            <div className="logs-panel">
+            <div className="logs-panel mt-6">
               {activeTab === "mail" && <MailLogsTab />}
               {activeTab === "score" && <ScoreLogsTab />}
             </div>
