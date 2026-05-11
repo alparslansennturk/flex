@@ -750,9 +750,9 @@ export default function DesignParkour() {
   const handleReactivateConfirm = async (selections: AssignSelection[]) => {
     if (!reactivateTask || selections.length === 0) return;
     const { classId, groupId, groupBranch, groupModule, level, endDate } = selections[0];
-    // Grafik 2 şablonu → Grafik 1 sınıfına verilirse seviye otomatik Seviye 1'e düşer
     const effectiveLevel = (reactivateTask.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
     await updateDoc(doc(db, "tasks", reactivateTask.id), { classId, groupId, groupBranch, level: effectiveLevel, endDate, groupModule: groupModule ?? null, isPaused: false, isActive: true });
+    sendTaskAssignedNotification(reactivateTask.id, groupId, reactivateTask.name, endDate);
     setReactivateTask(null);
   };
 
@@ -762,15 +762,25 @@ export default function DesignParkour() {
     setEditTask(null);
   };
 
+  // Fire-and-forget: öğrencilere "yeni ödev" bildirimi
+  function sendTaskAssignedNotification(taskId: string, groupId: string, taskName: string, endDate?: string) {
+    auth.currentUser?.getIdToken().then(token => {
+      fetch("/api/notifications/task-assigned", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ taskId, groupId, taskName, endDate }),
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
   // Ghost kart → AssignActivateModal → klon oluştur
   const handleGhostActivate = async (selections: AssignSelection[]) => {
     if (!ghostModalTask) return;
     const t = ghostModalTask;
     const uid = user?.uid ?? auth.currentUser?.uid ?? null;
     for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
-      // Grafik 2 şablonu → Grafik 1 sınıfına verilirse seviye otomatik Seviye 1'e düşer
       const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
-      await addDoc(collection(db, "tasks"), {
+      const taskRef = await addDoc(collection(db, "tasks"), {
         name:           t.name,
         subtitle:       t.subtitle ?? null,
         description:    t.description ?? null,
@@ -796,6 +806,7 @@ export default function DesignParkour() {
         branch:         groupBranch || user?.branch || null,
         ownedBy:        uid,
       });
+      sendTaskAssignedNotification(taskRef.id, groupId, t.name, endDate);
     }
     setGhostModalTask(null);
   };

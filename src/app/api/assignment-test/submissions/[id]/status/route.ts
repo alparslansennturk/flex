@@ -46,6 +46,42 @@ export async function PATCH(
       });
     }
 
+    // Öğrenciye bildirim (revision veya completed)
+    if (status === "revision" || status === "completed") {
+      (async () => {
+        try {
+          const [studentDoc, taskDoc] = await Promise.all([
+            adminDb.collection("students").doc(subData.studentId).get(),
+            adminDb.collection("tasks").doc(subData.taskId).get(),
+          ]);
+          const studentAuthUid = studentDoc.data()?.authUid as string | undefined;
+          if (!studentAuthUid) return;
+
+          const taskTitle = (taskDoc.data()?.name ?? taskDoc.data()?.title ?? "Ödeviniz") as string;
+          const isRevision = status === "revision";
+
+          await adminDb
+            .collection("users").doc(studentAuthUid)
+            .collection("notifications").doc()
+            .set({
+              type:       isRevision ? "message" : "assignment",
+              entityId:   subData.taskId,
+              senderId:   authorId ?? "system",
+              title:      isRevision ? "Revize İstendi" : "Ödeviniz Onaylandı! 🎉",
+              preview:    isRevision
+                ? `"${taskTitle}" için revize gönderildi.`
+                : `"${taskTitle}" tamamlandı, tebrikler!`,
+              actionUrl:  `/student/${subData.studentId}/${subData.taskId}`,
+              createdAt:  FieldValue.serverTimestamp(),
+              isRead:     false,
+              isArchived: false,
+            });
+        } catch (err) {
+          console.error("[status] Bildirim hatası:", err);
+        }
+      })();
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[status] Hata:", err);

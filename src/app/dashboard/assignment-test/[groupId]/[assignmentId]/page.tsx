@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
 import {
   collection, getDocs, doc, getDoc, query, where,
@@ -130,8 +130,9 @@ function CheckBox({ checked, indeterminate = false }: { checked: boolean; indete
 
 export default function AssignmentDetailPage() {
   const { user, loading: authLoading } = useUser();
-  const router  = useRouter();
-  const params  = useParams<{ groupId: string; assignmentId: string }>();
+  const router       = useRouter();
+  const params       = useParams<{ groupId: string; assignmentId: string }>();
+  const searchParams = useSearchParams();
   const { groupId, assignmentId } = params;
 
   const [task,        setTask]        = useState<TaskInfo | null>(null);
@@ -166,13 +167,23 @@ export default function AssignmentDetailPage() {
     return () => { updateDoc(userRef, { activeThreadKey: null }).catch(() => {}); };
   }, [viewingId, assignmentId]);
 
-  /* Preview'dan geri gelindiğinde seçili öğrenciyi geri yükle */
+  /* Preview'dan geri gelince veya bildirimden yönlendirilince öğrenci+tab seç */
   useEffect(() => {
+    // 1. Preview geri dönüşü (öncelikli)
     const saved = sessionStorage.getItem(SESSION_KEY);
     if (saved) {
       setViewingId(saved);
-      autoSelectedRef.current = true; // ilk-yükleme auto-select'i devre dışı bırak
+      autoSelectedRef.current = true;
       sessionStorage.removeItem(SESSION_KEY);
+      return;
+    }
+    // 2. Bildirim yönlendirmesi: ?student=X&tab=private
+    const studentParam = searchParams.get('student');
+    const tabParam     = searchParams.get('tab');
+    if (studentParam) {
+      setViewingId(studentParam);
+      autoSelectedRef.current = true;
+      if (tabParam === 'private') setActiveTab('private');
     }
   }, []);
 

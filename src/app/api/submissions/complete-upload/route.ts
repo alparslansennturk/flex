@@ -159,6 +159,47 @@ export async function POST(req: NextRequest) {
       completedAt:      FieldValue.serverTimestamp(),
     });
 
+    // 10. Eğitmene teslim bildirimi (fire-and-forget)
+    (async () => {
+      try {
+        const [studentDoc, groupDoc, taskDoc] = await Promise.all([
+          adminDb.collection("students").doc(session.studentId as string).get(),
+          adminDb.collection("groups").doc(session.groupId as string).get(),
+          adminDb.collection("tasks").doc(session.taskId as string).get(),
+        ]);
+
+        const sData = studentDoc.data();
+        const studentName = sData
+          ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
+          : "Bir öğrenci";
+
+        const instructorId = groupDoc.data()?.instructorId as string | undefined;
+        if (!instructorId) return;
+
+        const taskTitle = taskDoc.data()?.title as string | undefined;
+        const preview   = taskTitle ? `"${taskTitle}" ödevini teslim etti.` : "Yeni bir teslim yapıldı.";
+
+        await adminDb
+          .collection("users").doc(instructorId)
+          .collection("notifications").doc()
+          .set({
+            type:       "assignment",
+            entityId:   session.taskId,
+            senderId:   caller.uid,
+            title:      `${studentName} ödev teslim etti`,
+            preview,
+            actionUrl:  `/dashboard/assignment-test/${session.groupId}/${session.taskId}?student=${session.studentId}`,
+            createdAt:  FieldValue.serverTimestamp(),
+            isRead:     false,
+            isArchived: false,
+          });
+
+        console.log(`[complete-upload] Teslim bildirimi → eğitmen ${instructorId}`);
+      } catch (err) {
+        console.error("[complete-upload] Bildirim hatası:", err);
+      }
+    })();
+
     const response: CompleteUploadResponse = {
       submissionId:      submission.id,
       driveFileId,

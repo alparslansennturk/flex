@@ -182,10 +182,6 @@ export async function POST(req: NextRequest) {
         const studentAuthUid = studentDoc.data()?.authUid as string | undefined;
         if (!studentAuthUid) return;
 
-        const userDoc = await adminDb.collection("users").doc(studentAuthUid).get();
-        const activeTaskId = userDoc.data()?.activeTaskId as string | undefined;
-        const isOnPage = activeTaskId === taskId;
-
         // Her yorum için unique ID — overwrite değil yeni doc → toast her seferinde tetiklenir
         await adminDb
           .collection("users").doc(studentAuthUid)
@@ -198,7 +194,7 @@ export async function POST(req: NextRequest) {
             preview:   "Eğitmeniniz size özel bir mesaj bıraktı. Görmek için tıklayın.",
             actionUrl: `/student/${studentId}/${taskId}`,
             createdAt: FieldValue.serverTimestamp(),
-            isRead:    isOnPage,
+            isRead:    false,
             isArchived: false,
           });
 
@@ -220,11 +216,6 @@ export async function POST(req: NextRequest) {
 
         const preview = safeText.length > 80 ? safeText.slice(0, 80) + "…" : safeText;
 
-        // Eğitmen o an bu thread'i açık mı bakıyor?
-        const instrDoc = await adminDb.collection("users").doc(instructorId).get();
-        const activeThreadKey = instrDoc.data()?.activeThreadKey as string | undefined;
-        const isOnThread = activeThreadKey === `${taskId}_${studentId}`;
-
         // Her yorum için unique ID — her yorum ayrı toast tetikler
         await adminDb
           .collection("users").doc(instructorId)
@@ -235,9 +226,9 @@ export async function POST(req: NextRequest) {
             senderId:  uid,
             title:     `${studentName} yorum yaptı`,
             preview,
-            actionUrl: `/dashboard/assignment-test/${sGroupId}/${taskId}`,
+            actionUrl: `/dashboard/assignment-test/${sGroupId}/${taskId}?student=${studentId}&tab=private`,
             createdAt: FieldValue.serverTimestamp(),
-            isRead:    isOnThread,
+            isRead:    false,
             isArchived: false,
           });
 

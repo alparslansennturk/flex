@@ -50,10 +50,8 @@ export class NotificationRealtimeService {
               groupId: data.groupId
             } as NotificationPayload
           })
-          // Filter out docs with unresolved serverTimestamp (createdAt not yet set)
-          .filter((n) => n.createdAt instanceof Timestamp)
-          // Stable sort against Firestore cache inconsistencies
-          .sort((a, b) => b.createdAt!.toMillis() - a.createdAt!.toMillis())
+          // Sort: confirmed timestamps first (desc), pending (null) at top as brand-new
+          .sort((a, b) => (b.createdAt?.toMillis() ?? Infinity) - (a.createdAt?.toMillis() ?? Infinity))
 
         console.log(`📡 [${userId}] Received ${notifications.length} notifications`)
         callback(notifications)
