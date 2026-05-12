@@ -40,13 +40,17 @@ interface UserFormProps {
     handlePermissionChange: (id: string, checked: boolean) => void;
     loading: boolean;
     isSuccess: boolean;
+    availableBranches: { id: string; name: string; slug: string }[];
+    selectedBranches: string[];
+    setSelectedBranches: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 export const UserForm: React.FC<UserFormProps> = ({
     isFormOpen, setIsUserFormOpen, editingUser, setEditingUser, handleSaveUser,
     errors, shake, selectedRoles, isRoleDropdownOpen, setIsRoleDropdownOpen,
     handleRoleToggle, roleDropdownRef, formatPhoneNumber, permissionsList,
-    getPermissionStatus, handlePermissionChange, loading, isSuccess, avatarId, setAvatarId
+    getPermissionStatus, handlePermissionChange, loading, isSuccess, avatarId, setAvatarId,
+    availableBranches, selectedBranches, setSelectedBranches,
 }) => {
     const [localGender, setLocalGender] = useState<string>(editingUser?.gender || "");
     const [isVisible, setIsVisible] = useState(false);
@@ -216,6 +220,37 @@ export const UserForm: React.FC<UserFormProps> = ({
                 <input name="birthDate" defaultValue={editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: any) => { let v = e.target.value.replace(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); e.target.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
             </div>
         </div>
+
+        {/* BRANŞLAR */}
+        {selectedRoles.includes('instructor') && availableBranches.length > 0 && (
+            <div className="space-y-3 shrink-0">
+                <div>
+                    <p className="text-[15px] font-bold text-[#10294C]">Branşlar</p>
+                    <p className="text-[12px] text-neutral-400 mt-0.5">Eğitmenin ders verebileceği branşları seçin</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {availableBranches.map(b => {
+                        const checked = selectedBranches.includes(b.id);
+                        return (
+                            <button
+                                key={b.id}
+                                type="button"
+                                onClick={() => setSelectedBranches(prev =>
+                                    prev.includes(b.id) ? prev.filter(x => x !== b.id) : [...prev, b.id]
+                                )}
+                                className={`px-5 h-10 rounded-xl border-2 font-bold text-[13px] transition-all cursor-pointer ${
+                                    checked
+                                        ? 'bg-[#10294C] border-[#10294C] text-white'
+                                        : 'bg-neutral-50 border-neutral-200 text-neutral-500 hover:border-neutral-300'
+                                }`}
+                            >
+                                {b.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
 
         {/* EK YETKİLER */}
         <div className="space-y-4 pb-10">

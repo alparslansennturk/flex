@@ -58,6 +58,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [instructors, setInstructors] = useState<any[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState("");
   const [groupBranch, setGroupBranch] = useState("Kadıköy");
+  const [groupDiscipline, setGroupDiscipline] = useState("");
   const [tempStudentBranch, setTempStudentBranch] = useState(""); 
 
   const [activeSubTab, setActiveSubTab] = useState("groups");
@@ -332,6 +333,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setEditingGroupId(null);
     setGroupCode("");
     setGroupModule("");
+    setGroupDiscipline("");
     setSelectedInstructorId("");
     setSelectedSchedule("Grup seansı seçiniz...");
     setCustomSchedule("");
@@ -395,6 +397,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           code: formattedCode,
           session: finalSession,
           branch: groupBranch,
+          discipline: groupDiscipline || null,
           instructorId: selectedInstructorId,
           instructor: instructorName,
           module: groupModule || null,
@@ -444,6 +447,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         const docRef = await addDoc(collection(db, "groups"), {
           code: formattedCode,
           branch: groupBranch,
+          discipline: groupDiscipline || null,
           instructor: instructorName,
           instructorId: selectedInstructorId,
           session: finalSession,
@@ -472,6 +476,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setEditingGroupId(group.id);
     setGroupCode(group.code.replace("Grup ", ""));
     setGroupBranch(group.branch);
+    setGroupDiscipline((group as any).discipline || "");
     setGroupModule(group.module ?? "");
     setSelectedInstructorId(group.instructorId || "");
     if (schedules.includes(group.session)) {
@@ -821,6 +826,7 @@ throw error;
     isFormOpen, setIsFormOpen, students, groups,
     selectedGroupId, setSelectedGroupId, openMenuId, setOpenMenuId,
     editingGroupId, setEditingGroupId, groupCode, setGroupCode, groupBranch, setGroupBranch,
+    groupDiscipline, setGroupDiscipline,
     groupModule, setGroupModule, moduleBlockModal, setModuleBlockModal,
     instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,

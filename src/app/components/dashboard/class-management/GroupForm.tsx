@@ -8,6 +8,9 @@ interface GroupFormProps {
   setGroupCode: (val: string) => void;
   groupBranch: string;
   setGroupBranch: (val: string) => void;
+  groupDiscipline: string;
+  setGroupDiscipline: (val: string) => void;
+  availableBranches: { id: string; name: string }[];
   groupModule: "GRAFIK_1" | "GRAFIK_2" | "";
   setGroupModule: (val: "GRAFIK_1" | "GRAFIK_2" | "") => void;
   instructors: any[];
@@ -30,6 +33,7 @@ interface GroupFormProps {
 
 export const GroupForm: React.FC<GroupFormProps> = ({
   isFormOpen, groupCode, setGroupCode, groupBranch, setGroupBranch,
+  groupDiscipline, setGroupDiscipline, availableBranches,
   groupModule, setGroupModule,
   instructors, selectedInstructorId, setSelectedInstructorId,
   errors, setErrors, selectedSchedule, setSelectedSchedule,
@@ -71,7 +75,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-6 items-end">
             {/* Şube */}
             <div className="flex flex-col gap-2">
               <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Şube</label>
@@ -84,6 +88,24 @@ export const GroupForm: React.FC<GroupFormProps> = ({
                   <option value="Kadıköy">Kadıköy</option>
                   <option value="Şirinevler">Şirinevler</option>
                   <option value="Pendik">Pendik</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Branş */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Branş</label>
+              <div className="relative">
+                <select
+                  value={groupDiscipline}
+                  onChange={(e) => setGroupDiscipline(e.target.value)}
+                  className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer transition-all"
+                >
+                  <option value="">Seçiniz...</option>
+                  {availableBranches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
                 </select>
                 <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
               </div>

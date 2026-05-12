@@ -21,6 +21,7 @@ export interface UserDocument {
   status?: 'pending_activation' | 'code_sent' | 'active' | 'suspended';
   isActivated?: boolean;
   branch: string;
+  branches?: string[];
   overrides?: Record<string, boolean>;
   permissionOverrides?: Record<string, boolean>;
   createdAt?: unknown;

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { UserPlus, Users, GraduationCap } from "lucide-react";
+import { UserPlus, Users, GraduationCap, GitBranch } from "lucide-react";
 import { auth, db } from "@/app/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { setDoc, doc, serverTimestamp, collection, onSnapshot, query, deleteDoc } from "firebase/firestore";
@@ -9,6 +9,7 @@ import { UserTable } from "./UserTable";
 import { UserForm } from "./UserForm";
 import { StudentUserTable } from "./StudentUserTable";
 import { StudentQuickEditModal } from "./StudentQuickEditModal";
+import { BranchManagement } from "./BranchManagement";
 import { MASTER_ID } from "@/app/lib/constants";
 const ROLE_DEFAULTS: Record<string, string[]> = {
     admin: ["ASSIGNMENT_MANAGE", "CLASS_MANAGE", "MANAGEMENT_PANEL"],
@@ -52,13 +53,15 @@ interface UserData {
 }
 
 export default function UserManagement() {
-    const [activeTab, setActiveTab] = useState<'users' | 'students'>(() =>
-        (sessionStorage.getItem("usermgmt_active_tab") as 'users' | 'students') ?? 'users'
+    const [activeTab, setActiveTab] = useState<'users' | 'students' | 'branches'>(() =>
+        (sessionStorage.getItem("usermgmt_active_tab") as 'users' | 'students' | 'branches') ?? 'users'
     );
     const [isFormOpen, setIsUserFormOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
     const [students, setStudents] = useState<any[]>([]);
+    const [branches, setBranches] = useState<any[]>([]);
+    const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
     const [editingStudent, setEditingStudent] = useState<any | null>(null);
     const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
     const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
@@ -77,6 +80,13 @@ export default function UserManagement() {
         return onSnapshot(q, (snapshot) => {
             const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setUsers(allUsers.filter((u: any) => u.id !== MASTER_ID));
+        }, (error) => console.error("Firebase Hatası:", error));
+    }, []);
+
+    useEffect(() => {
+        const q = query(collection(db, "branches"));
+        return onSnapshot(q, (snapshot) => {
+            setBranches(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
         }, (error) => console.error("Firebase Hatası:", error));
     }, []);
 
@@ -123,15 +133,13 @@ export default function UserManagement() {
         } catch (err) { console.error(err); throw err; }
     };
 
-  const handleEditClick = (user: UserData) => { // 👈 any gitti, UserData geldi
+  const handleEditClick = (user: UserData) => {
     setEditingUser(user);
     setSelectedRoles(user.roles || []);
     setPermissionOverrides(user.permissionOverrides || {});
-    
-    // Veritabanındaki avatarId'yi sayıya zorlayarak alıyoruz
+    setSelectedBranches((user as any).branches || []);
     const savedAvatarId = typeof user.avatarId === 'number' ? user.avatarId : Number(user.avatarId || 1);
-    setAvatarId(savedAvatarId); 
-    
+    setAvatarId(savedAvatarId);
     setIsUserFormOpen(true);
 };
 
@@ -183,12 +191,13 @@ export default function UserManagement() {
     setLoading(true);
 
     try {
-        const finalUserData = { 
-            ...data, 
-            avatarId: Number(avatarId), // 👈 İşte burası! Kesin rakam olarak gitsin.
-            roles: selectedRoles, 
-            permissionOverrides: permissionOverrides, 
-            updatedAt: serverTimestamp() 
+        const finalUserData = {
+            ...data,
+            avatarId: Number(avatarId),
+            roles: selectedRoles,
+            permissionOverrides: permissionOverrides,
+            branches: selectedBranches,
+            updatedAt: serverTimestamp()
         };
 
         if (editingUser) {
@@ -212,7 +221,7 @@ export default function UserManagement() {
         }
 
         setIsSuccess(true);
-        setTimeout(() => { setIsUserFormOpen(false); setEditingUser(null); setErrors({}); setPermissionOverrides({}); setSelectedRoles([]); setIsSuccess(false); }, 1000);
+        setTimeout(() => { setIsUserFormOpen(false); setEditingUser(null); setErrors({}); setPermissionOverrides({}); setSelectedRoles([]); setSelectedBranches([]); setIsSuccess(false); }, 1000);
     } catch (err: any) { console.error("Hata:", err); setErrors({ firebaseError: true }); } finally { setLoading(false); }
 };
 
@@ -233,7 +242,7 @@ export default function UserManagement() {
                     <p className="text-neutral-400 text-[14px] mt-1 font-medium italic">Sistem erişimlerini ve yetki matrisini yönetin.</p>
                 </div>
                 {activeTab === 'users' && (
-                    <button onClick={() => { setEditingUser(null); setSelectedRoles([]); setPermissionOverrides({}); setErrors({}); setAvatarId(Math.floor(Math.random() * 70) + 1); setFormKey(k => k + 1); setIsUserFormOpen(true); }} className="bg-[#FF8D28] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer">
+                    <button onClick={() => { setEditingUser(null); setSelectedRoles([]); setPermissionOverrides({}); setSelectedBranches([]); setErrors({}); setAvatarId(Math.floor(Math.random() * 70) + 1); setFormKey(k => k + 1); setIsUserFormOpen(true); }} className="bg-[#FF8D28] text-white px-8 h-[46px] rounded-[12px] font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer">
                         <UserPlus size={18} /><span>Kullanıcı Oluştur</span>
                     </button>
                 )}
@@ -261,10 +270,22 @@ export default function UserManagement() {
                         {students.length}
                     </span>
                 </button>
+                <button
+                    onClick={() => { setActiveTab('branches'); sessionStorage.setItem("usermgmt_active_tab", 'branches'); }}
+                    className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === 'branches' ? 'bg-white text-[#10294C] shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
+                >
+                    <GitBranch size={15} />
+                    <span>Branşlar</span>
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold ${activeTab === 'branches' ? 'bg-[#10294C]/10 text-[#10294C]' : 'bg-neutral-200 text-neutral-400'}`}>
+                        {branches.length}
+                    </span>
+                </button>
             </div>
 
             {activeTab === 'users' ? (
-                <UserTable users={staffUsers} onEdit={handleEditClick} onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id, isStudent: false })} />
+                <UserTable users={staffUsers} branches={branches} onEdit={handleEditClick} onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id, isStudent: false })} />
+            ) : activeTab === 'branches' ? (
+                <BranchManagement branches={branches} users={staffUsers} />
             ) : (
                 <StudentUserTable
                     onResend={handleResendActivation}
@@ -282,7 +303,7 @@ export default function UserManagement() {
             )}
 
             <UserForm
-                key={editingUser ? editingUser.id : `new-user-form-${formKey}`} // 👈 SİHİRLİ SATIR: Hafızayı bu temizler
+                key={editingUser ? editingUser.id : `new-user-form-${formKey}`}
                 isFormOpen={isFormOpen}
                 setIsUserFormOpen={setIsUserFormOpen}
                 editingUser={editingUser}
@@ -301,8 +322,11 @@ export default function UserManagement() {
                 handlePermissionChange={handlePermissionChange}
                 loading={loading}
                 isSuccess={isSuccess}
-                avatarId={avatarId}      
-                setAvatarId={setAvatarId} 
+                avatarId={avatarId}
+                setAvatarId={setAvatarId}
+                availableBranches={branches}
+                selectedBranches={selectedBranches}
+                setSelectedBranches={setSelectedBranches}
             />
 
             <GlobalConfirmationModal

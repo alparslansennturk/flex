@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, GraduationCap, Zap, BookOpen, Star } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, query, where, getDocs, getDoc, doc, onSnapshot } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, doc, onSnapshot, documentId } from "firebase/firestore";
 import { useScoring } from "@/app/context/ScoringContext";
 import { calcScore, calcStudentFinalScore, getLevelXP, computeStudentStats } from "@/app/lib/scoring";
 
@@ -225,9 +225,6 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       const sData = sDoc.exists() ? (sDoc.data() as any) : {};
       const studentEmail = sData.email ?? "";
 
-      // carryOverScore ve groupCode — lig hesabıyla aynı parametreler
-      const g2StartXP = (sData.g2StartXP ?? 0) as number;
-      setCarryOver(g2StartXP);
       const groupCode = (sData.groupCode  ?? "") as string;
 
       // Lig puanını Firestore'dan gelen gerçek gradedTasks ile hesapla
@@ -251,10 +248,8 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
 
       const groupId = sData.groupId as string | undefined;
       if (!groupId) {
-        // Grup yoksa totalAssignedTasks bilinmiyor → undefined geç (completionRate=1.0)
         if (!cancelled) {
-          const { finalScore: fs, debug: dbg } = calcStudentFinalScore(cXP, cTasks, settings, undefined, g2StartXP, 0);
-          if (process.env.NODE_ENV === "development") console.log(`[StudentModal] ${student.name} ${student.lastName}`, dbg);
+          const { finalScore: fs } = calcStudentFinalScore(cXP, cTasks, settings, undefined, 0, 0);
           setComputedScore(fs);
           setComputedXP(cXP);
           setComputedTasks(cTasks);
@@ -264,26 +259,158 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
         return;
       }
 
-      // 2. Grup belgesi, proje notları ve görev sayısı → hepsini paralel çek
+      // 2. Grup belgesi, proje notları ve G2 görevleri paralel çek
       const [gDoc, g1Doc, g2Doc, tasksSnap] = await Promise.all([
         getDoc(doc(db, "groups", groupId)),
         getDoc(doc(db, "projectGrades", `${student.id}_${groupId}_GRAFIK_1`)),
         getDoc(doc(db, "projectGrades", `${student.id}_${groupId}_GRAFIK_2`)),
         getDocs(query(collection(db, "tasks"), where("classId", "==", groupCode))),
       ]);
-      // Lig hesabıyla aynı totalAssignedTasks: published veya completed görevler (draft hariç)
-      const todayStr = new Date().toISOString().split("T")[0];
-      const totalAssignedTasks = tasksSnap.docs.filter(d => {
+
+      // Birleşik task haritası: önce G2 task'larını ekle
+      const combinedTasksMap: Record<string, { endDate?: string; classId?: string; status?: string }> = {};
+      tasksSnap.docs.forEach(d => {
         const data = d.data() as any;
-        const st = data.status as string | undefined;
-        const ed = data.endDate as string | undefined;
-        return (st === "active" || st === "published" || st === "completed" || !st) &&
-               (st === "completed" || (ed ? ed <= todayStr : true));
-      }).length;
-      const { finalScore: computedFinalScore, debug: scoreDebug } = calcStudentFinalScore(
-        cXP, cTasks, settings, totalAssignedTasks || undefined, g2StartXP, 0,
-      );
-      if (process.env.NODE_ENV === "development") console.log(`[StudentModal] ${student.name} ${student.lastName}`, scoreDebug);
+        combinedTasksMap[d.id] = { endDate: data.endDate, classId: data.classId, status: data.status };
+      });
+
+      // G2'de olmayan gradedTask ID'lerini doğrudan çek (G1 veya silinmiş task ayrımı için)
+      // Bu lig'in tasksMap'ini kopyalar: hangi task hangi sınıfa ait bilgisi tam olur
+      const g2TaskIds = new Set(tasksSnap.docs.map(d => d.id));
+      const unknownIds = Object.keys(allGradedTasks).filter(tid => !g2TaskIds.has(tid));
+      if (unknownIds.length > 0) {
+        const chunks: string[][] = [];
+        for (let i = 0; i < unknownIds.length; i += 10) chunks.push(unknownIds.slice(i, i + 10));
+        const extraSnaps = await Promise.all(
+          chunks.map(ids => getDocs(query(collection(db, "tasks"), where(documentId(), "in", ids))))
+        );
+        extraSnaps.forEach(snap => snap.docs.forEach(d => {
+          const data = d.data() as any;
+          combinedTasksMap[d.id] = { endDate: data.endDate, classId: data.classId, status: data.status };
+        }));
+      }
+
+      // G1 classId'leri: lig ile aynı — sadece entry'lerde açıkça yazılı classId'ler
+      const g1ClassIds = [...new Set(
+        Object.values(allGradedTasks)
+          .map((e: any) => e?.classId as string | undefined)
+          .filter((c): c is string => !!c && c !== groupCode)
+      )];
+
+      // G1 sınıflarına ait TÜM görevleri çek (öğrencinin sadece tamamladıkları değil)
+      // → lig sayfasındaki assignedInMonthMulti ile eşdeğer mAssigned hesabı için
+      let g1AllTasks: Array<{ endDate?: string; classId?: string; status?: string }> = [];
+      if (g1ClassIds.length > 0) {
+        const g1Chunks: string[][] = [];
+        for (let i = 0; i < g1ClassIds.length; i += 10) g1Chunks.push(g1ClassIds.slice(i, i + 10));
+        const g1Snaps = await Promise.all(
+          g1Chunks.map(ids => getDocs(query(collection(db, "tasks"), where("classId", "in", ids))))
+        );
+        g1Snaps.forEach(snap => snap.docs.forEach(d => {
+          const data = d.data() as any;
+          g1AllTasks.push({ endDate: data.endDate, classId: data.classId, status: data.status });
+        }));
+      }
+
+      // ─── Lig sayfası ile birebir aynı algoritma ────────────────────────────
+      const ligNow = new Date();
+      const ligToday = ligNow.toISOString().split("T")[0];
+      const ligCurrentMonth = `${ligNow.getFullYear()}-${String(ligNow.getMonth() + 1).padStart(2, "0")}`;
+
+      const effectiveMonth = (ca?: string, end?: string): string | null =>
+        ((end ?? ca ?? null) as string | null)?.substring(0, 7) ?? null;
+
+      // G2 için aylık atanan görev sayısı (sadece G2 task'ları — tasksSnap)
+      const countAssignedInMonth = (mStart: string, mEnd: string): number | undefined => {
+        const n = tasksSnap.docs.filter(d => {
+          const data = d.data() as any;
+          const st = data.status as string | undefined;
+          const ed = data.endDate as string | undefined;
+          return (st === "active" || st === "published" || st === "completed" || !st) &&
+                 ed && ed >= mStart && ed <= mEnd;
+        }).length;
+        return n || undefined;
+      };
+
+      // G1 için aylık atanan görev sayısı (g1AllTasks üzerinden — tüm G1 görevleri)
+      const countAssignedInMonthForCodes = (mStart: string, mEnd: string, codes: string[]): number | undefined => {
+        const n = g1AllTasks.filter(t =>
+          codes.includes(t.classId ?? "") &&
+          (t.status === "active" || t.status === "published" || t.status === "completed" || !t.status) &&
+          t.endDate && t.endDate >= mStart && t.endDate <= mEnd
+        ).length;
+        return n || undefined;
+      };
+
+      // g2Bonus: lig sayfası gibi G1 entry'lerden dinamik hesapla (g2StartXP değil)
+      let g2Bonus = 0;
+      if (g1ClassIds.length > 0) {
+        const g1Entries = Object.entries(allGradedTasks).filter(([tid, e]) => {
+          const cid = (e as any)?.classId as string | undefined;
+          if (cid) return g1ClassIds.includes(cid);
+          const mapCid = combinedTasksMap[tid]?.classId;
+          return mapCid ? g1ClassIds.includes(mapCid) : false;
+        });
+        const g1ByMonth: Record<string, Array<[string, any]>> = {};
+        for (const [tid, e] of g1Entries) {
+          const m = effectiveMonth((e as any).completedAt, (e as any).endDate ?? combinedTasksMap[tid]?.endDate);
+          if (!m) continue;
+          if (!g1ByMonth[m]) g1ByMonth[m] = [];
+          g1ByMonth[m].push([tid, e]);
+        }
+        let g1TotalScore = 0;
+        for (const [month, entries] of Object.entries(g1ByMonth)) {
+          const mXP   = entries.reduce((s, [, e]) => s + ((e as any).xp ?? 0), 0);
+          const mComp = entries.length;
+          const [y, mo] = month.split("-");
+          const mStart   = `${y}-${mo}-01`;
+          const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
+          const mEndFull = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+          const mAssigned = countAssignedInMonthForCodes(mStart, mEndFull, g1ClassIds);
+          const { finalScore: mScore } = calcStudentFinalScore(mXP, mComp, settings, mAssigned, 0, 0);
+          g1TotalScore += mScore;
+        }
+        g2Bonus = Math.round(g1TotalScore * 0.10);
+      }
+      setCarryOver(g2Bonus);
+
+      // G2 classEntries — lig ile aynı filtre (combinedTasksMap ile classId-siz entry'ler çözülür)
+      const g2ClassEntries = Object.entries(allGradedTasks).filter(([tid, e]) => {
+        const cid = (e as any)?.classId as string | undefined;
+        if (cid) return cid === groupCode;
+        const mapCid = combinedTasksMap[tid]?.classId;
+        if (!mapCid) return true; // task silinmiş → G2 kabul (lig ile aynı)
+        return mapCid === groupCode;
+      });
+
+      // G2 entry'lerini aya göre grupla
+      const byMonthEntries: Record<string, Array<[string, { xp: number; penalty: number }]>> = {};
+      for (const [tid, e] of g2ClassEntries) {
+        const m = effectiveMonth((e as any).completedAt, (e as any).endDate ?? combinedTasksMap[tid]?.endDate);
+        if (!m) continue;
+        if (!byMonthEntries[m]) byMonthEntries[m] = [];
+        byMonthEntries[m].push([tid, e as { xp: number; penalty: number }]);
+      }
+
+      // Kümülatif skor: g2Bonus + Σ aylık skor
+      let cumulativeMonthlyScore = g2Bonus;
+      for (const [month, entries] of Object.entries(byMonthEntries)) {
+        const mXP   = entries.reduce((s, [, e]) => s + (e.xp ?? 0), 0);
+        const mComp = entries.length;
+        const [y, mo] = month.split("-");
+        const mStart   = `${y}-${mo}-01`;
+        const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
+        const mEndFull = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
+        const mEnd     = month === ligCurrentMonth ? ligToday : mEndFull;
+        const mAssigned = countAssignedInMonth(mStart, mEnd);
+        const { finalScore: mScore } = calcStudentFinalScore(mXP, mComp, settings, mAssigned, 0, 0);
+        cumulativeMonthlyScore += mScore;
+      }
+      const computedFinalScore = isFinite(cumulativeMonthlyScore) && !isNaN(cumulativeMonthlyScore)
+        ? cumulativeMonthlyScore : 0;
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[StudentModal] ${student.name} ${student.lastName}`, { computedFinalScore, g2Bonus, g2ClassEntries: g2ClassEntries.length, months: Object.keys(byMonthEntries) });
+      }
 
       const gData = gDoc.exists()  ? (gDoc.data()  as any) : {};
       const g1Raw = g1Doc.exists() ? (g1Doc.data() as any) : null;

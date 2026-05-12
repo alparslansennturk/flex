@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react";
+import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid, ChevronDown } from "lucide-react";
 import { GlobalConfirmationModal, StudentDeleteModal } from "./management-components/Modals";
 import { StudentTable } from "./student-management/StudentTable";
 import { GroupCards } from "./class-management/GroupCards";
@@ -8,6 +8,8 @@ import { GroupForm } from "./class-management/GroupForm";
 import { StudentForm } from "./student-management/StudentForm";
 import { useManagement } from "@/app/hooks/useManagement";
 import StudentDetailModal, { ModalStudent } from "./student-management/StudentDetailModal";
+import { db, auth } from "@/app/lib/firebase";
+import { collection, onSnapshot, query, getDoc, doc } from "firebase/firestore";
 
 export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: (t: string) => void }) {
   const {
@@ -17,6 +19,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     selectedGroupId, setSelectedGroupId, openMenuId, setOpenMenuId,
     editingGroupId, groupCode, setGroupCode,
     groupBranch, setGroupBranch,
+    groupDiscipline, setGroupDiscipline,
     groupModule, setGroupModule, moduleBlockModal, setModuleBlockModal,
     instructors, selectedInstructorId, setSelectedInstructorId,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
@@ -38,6 +41,50 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   } = useManagement(setHeaderTitle);
 
   const [detailStudent, setDetailStudent] = useState<ModalStudent | null>(null);
+  const [branches, setBranches] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [activeDiscipline, setActiveDiscipline] = useState("all");
+  const [userBranches, setUserBranches] = useState<string[]>([]);
+
+  useEffect(() => {
+    return onSnapshot(query(collection(db, "branches")), snap => {
+      setBranches(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)));
+    });
+  }, []);
+
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    getDoc(doc(db, "users", uid)).then(d => {
+      const b = d.data()?.branches || [];
+      setUserBranches(b);
+      if (b.length > 0) setActiveStudentDiscipline(b[0]);
+    });
+  }, []);
+
+  const availableDisciplines = isAdmin
+    ? branches
+    : branches.filter(b => userBranches.includes(b.id));
+
+  const [activeStudentDiscipline, setActiveStudentDiscipline] = useState("all");
+
+  // Seçili discipline'deki tüm grup ID'leri
+  const disciplineGroupIds = new Set(
+    activeStudentDiscipline === "all"
+      ? []
+      : groups.filter((g: any) => g.discipline === activeStudentDiscipline).map((g: any) => g.id)
+  );
+
+  // Admin'in seçili discipline'de kendi grubu var mı?
+  const hasOwnGroupsInDiscipline = activeStudentDiscipline === "all"
+    || myGroupCards.some((g: any) => g.discipline === activeStudentDiscipline);
+
+  const disciplineFilteredStudents = activeStudentDiscipline === "all"
+    ? filteredStudents
+    : filteredStudents.filter((s: any) => disciplineGroupIds.has(s.groupId));
+
+  const disciplinePagedStudents = activeStudentDiscipline === "all"
+    ? pagedStudents
+    : pagedStudents.filter((s: any) => disciplineGroupIds.has(s.groupId));
 
   useEffect(() => {
     if (!isFormOpen || !editingGroupId) return;
@@ -111,6 +158,9 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             setGroupCode={setGroupCode}
             groupBranch={groupBranch}
             setGroupBranch={setGroupBranch}
+            groupDiscipline={groupDiscipline}
+            setGroupDiscipline={setGroupDiscipline}
+            availableBranches={availableDisciplines}
             groupModule={groupModule}
             setGroupModule={setGroupModule}
             instructors={instructors}
@@ -159,7 +209,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
         {/* GÖRÜNÜM SEKMELERİ + KARTLAR */}
         <div className="mt-6">
-          <div className="mb-8">
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            {/* Aktif/Tüm/Arşiv */}
             <div className="flex items-center bg-surface-50 w-fit p-1 rounded-xl border border-neutral-100 shadow-sm">
               {(["Aktif Sınıflar", "Tüm Sınıflar", "Arşiv"] as string[]).map((t) => (
                 <button
@@ -171,10 +222,29 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 </button>
               ))}
             </div>
+            {/* Branş filtresi */}
+            {availableDisciplines.length > 0 && (
+              <div className="relative">
+                <select
+                  value={activeDiscipline}
+                  onChange={e => setActiveDiscipline(e.target.value)}
+                  className="h-10 bg-white border border-neutral-200 rounded-xl pl-4 pr-9 text-[13px] font-bold text-base-primary-900 outline-none shadow-sm cursor-pointer appearance-none focus:border-base-primary-400 transition-all"
+                >
+                  <option value="all">Tüm Branşlar</option>
+                  {availableDisciplines.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+              </div>
+            )}
           </div>
           <GroupCards
             currentView={currentView}
-            filteredGroups={currentView === "Arşiv" ? filteredArchiveGroups : currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards}
+            filteredGroups={(() => {
+              const base = currentView === "Arşiv" ? filteredArchiveGroups : currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards;
+              return activeDiscipline === "all" ? base : base.filter((g: any) => g.discipline === activeDiscipline);
+            })()}
             selectedGroupId={selectedGroupId}
             setSelectedGroupId={setSelectedGroupId}
             openMenuId={openMenuId}
@@ -191,13 +261,13 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         {currentView === "Aktif Sınıflar" && (
           <div className="mt-16 animate-in fade-in duration-500">
 
-            {/* ROW 1: BAŞLIK + AKTİF/MEZUN TOGGLE + ÖĞRENCI EKLE */}
+            {/* ROW 1: BAŞLIK + AKTİF/MEZUN TOGGLE + BRANŞ FİLTRE + ÖĞRENCI EKLE */}
             <div className="flex items-center justify-between pb-5 border-b border-neutral-200">
               <div className="flex items-center gap-5">
                 <div className="flex items-center gap-2.5">
                   <Users size={17} className="text-base-primary-900 shrink-0" />
                   <h2 className="text-[16px] font-bold text-base-primary-900 tracking-tight">Öğrenci Yönetimi</h2>
-                  <span className="text-[12px] font-medium text-neutral-400">({filteredStudents.length} Kayıt)</span>
+                  <span className="text-[12px] font-medium text-neutral-400">({disciplineFilteredStudents.length} Kayıt)</span>
                 </div>
                 <div className="flex items-center bg-surface-50 p-1 rounded-lg border border-neutral-100 shadow-sm shrink-0">
                   <button
@@ -215,24 +285,50 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 </div>
               </div>
 
-              <button
-                onClick={() => { if (!isStudentFormOpen) resetStudentForm(); setIsStudentFormOpen(!isStudentFormOpen); }}
-                disabled={studentPanel === 'passive'}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg text-[13px] font-semibold transition-all outline-none shadow-sm shrink-0 ${studentPanel === 'passive' ? 'bg-neutral-100 text-neutral-300 cursor-not-allowed' : isStudentFormOpen ? 'bg-neutral-600 text-white cursor-pointer' : 'bg-designstudio-secondary-500 text-white cursor-pointer'}`}
-              >
-                {isStudentFormOpen && studentPanel === 'active' ? <X size={15} strokeWidth={2.5} /> : <PlusCircle size={15} strokeWidth={2.5} />}
-                <span className="leading-none whitespace-nowrap">{isStudentFormOpen && studentPanel === 'active' ? "Vazgeç" : "Öğrenci Ekle"}</span>
-              </button>
+              <div className="flex items-center gap-6 shrink-0">
+                {/* Branş filtre dropdown */}
+                {availableDisciplines.length > 0 && (
+                  <div className="relative">
+                    <select
+                      value={activeStudentDiscipline}
+                      onChange={e => setActiveStudentDiscipline(e.target.value)}
+                      className="h-10 bg-white border border-neutral-200 rounded-xl pl-4 pr-9 text-[13px] font-bold text-base-primary-900 outline-none shadow-sm cursor-pointer appearance-none focus:border-base-primary-400 transition-all"
+                    >
+                      <option value="all">Tüm Branşlar</option>
+                      {availableDisciplines.map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                  </div>
+                )}
+                <button
+                  onClick={() => { if (!isStudentFormOpen) resetStudentForm(); setIsStudentFormOpen(!isStudentFormOpen); }}
+                  disabled={studentPanel === 'passive'}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-lg text-[13px] font-semibold transition-all outline-none shadow-sm ${studentPanel === 'passive' ? 'bg-neutral-100 text-neutral-300 cursor-not-allowed' : isStudentFormOpen ? 'bg-neutral-600 text-white cursor-pointer' : 'bg-designstudio-secondary-500 text-white cursor-pointer'}`}
+                >
+                  {isStudentFormOpen && studentPanel === 'active' ? <X size={15} strokeWidth={2.5} /> : <PlusCircle size={15} strokeWidth={2.5} />}
+                  <span className="leading-none whitespace-nowrap">{isStudentFormOpen && studentPanel === 'active' ? "Vazgeç" : "Öğrenci Ekle"}</span>
+                </button>
+              </div>
             </div>
 
             {/* ROW 2: FİLTRE SEKMELERİ + SEARCH (24px üst boşluk) */}
             <div className="flex items-center justify-between mt-6 mb-5">
               <div className="flex items-center gap-3">
                 <div className="flex items-center bg-surface-50 p-1 rounded-lg border border-neutral-100 shadow-sm shrink-0">
-                  <button onClick={() => setViewMode("group-list")} className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "group-list" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>
+                  <button
+                    onClick={() => hasOwnGroupsInDiscipline && setViewMode("group-list")}
+                    disabled={!hasOwnGroupsInDiscipline}
+                    className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all whitespace-nowrap ${!hasOwnGroupsInDiscipline ? "text-neutral-300 cursor-not-allowed" : viewMode === "group-list" ? "bg-white text-base-primary-900 shadow-sm cursor-pointer" : "text-neutral-400 hover:text-neutral-600 cursor-pointer"}`}
+                  >
                     Mevcut Sınıf
                   </button>
-                  <button onClick={() => setViewMode("all-groups")} className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap ${viewMode === "all-groups" ? "bg-white text-base-primary-900 shadow-sm" : "text-neutral-400 hover:text-neutral-600"}`}>
+                  <button
+                    onClick={() => hasOwnGroupsInDiscipline && setViewMode("all-groups")}
+                    disabled={!hasOwnGroupsInDiscipline}
+                    className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all whitespace-nowrap ${!hasOwnGroupsInDiscipline ? "text-neutral-300 cursor-not-allowed" : viewMode === "all-groups" ? "bg-white text-base-primary-900 shadow-sm cursor-pointer" : "text-neutral-400 hover:text-neutral-600 cursor-pointer"}`}
+                  >
                     Sınıflarım
                   </button>
                   {isAdmin && (
@@ -244,12 +340,15 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                 {isAdmin && viewMode === "all-branches" && (
                   <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-200">
                     <div className="h-5 w-px bg-neutral-200" />
-                    <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className="bg-white border border-neutral-200 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-base-primary-900 outline-none shadow-sm cursor-pointer">
-                      <option value="Tümü">Tümü</option>
-                      <option value="Kadıköy">Kadıköy</option>
-                      <option value="Şirinevler">Şirinevler</option>
-                      <option value="Pendik">Pendik</option>
-                    </select>
+                    <div className="relative">
+                      <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className="h-10 bg-white border border-neutral-200 rounded-xl pl-4 pr-9 text-[13px] font-bold text-base-primary-900 outline-none shadow-sm cursor-pointer appearance-none focus:border-base-primary-400 transition-all">
+                        <option value="Tümü">Tümü</option>
+                        <option value="Kadıköy">Kadıköy</option>
+                        <option value="Şirinevler">Şirinevler</option>
+                        <option value="Pendik">Pendik</option>
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                    </div>
                   </div>
                 )}
               </div>
@@ -302,7 +401,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             {/* TABLO */}
             <div className="w-full overflow-hidden">
               <StudentTable
-                students={pagedStudents}
+                students={disciplinePagedStudents}
                 selectedStudentIds={selectedStudentIds}
                 viewMode={viewMode}
                 groups={groups}

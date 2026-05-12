@@ -11,13 +11,16 @@ interface UserData {
   email: string;
   phone: string;
   branch: string;
+  branches?: string[];
   gender: 'male' | 'female' | '';
   title: string;
   avatarId: number;
   roles: string[];
   isActivated: boolean;
 }
-export const UserTable = ({ users, onEdit, onDelete }: any) => {
+export const UserTable = ({ users, branches = [], onEdit, onDelete }: any) => {
+  const getBranchNames = (branchIds: string[]) =>
+    (branchIds || []).map((id: string) => branches.find((b: any) => b.id === id)?.name).filter(Boolean);
   return (
     <div className="bg-white rounded-[24px] border border-neutral-100 overflow-hidden shadow-sm mt-6">
       <div>
@@ -26,10 +29,10 @@ export const UserTable = ({ users, onEdit, onDelete }: any) => {
             <tr className="border-b border-neutral-100 bg-neutral-50/50">
               <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-64 xl:w-72">Kullanıcı</th>
               <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-24 xl:w-28 text-left">Roller</th>
-              <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-40 xl:w-48 text-left">Ünvan</th>
-              <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-52 xl:w-60 text-left">E-Posta</th>
-              <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-40 xl:w-44 text-left">Telefon</th>
-              <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-36 xl:w-44 text-left">Şube</th>
+              <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-40 xl:w-48 text-left">Branşlar</th>
+              <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-48 xl:w-56 text-left">E-Posta</th>
+              <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-36 xl:w-40 text-left">Telefon</th>
+              <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-32 xl:w-36 text-left">Şube</th>
               <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 w-36 xl:w-44 text-left">Durum</th>
               <th className="p-3 xl:p-5 text-[12px] xl:text-[13px] font-bold text-neutral-500 text-right sticky right-0 bg-neutral-50/80 backdrop-blur-sm">İşlem</th>
             </tr>
@@ -65,11 +68,22 @@ export const UserTable = ({ users, onEdit, onDelete }: any) => {
             ))}
           </div>
         </td>
-        <td className="p-3 xl:p-5 w-40 xl:w-48 text-[12px] xl:text-[13px] text-[#10294C] font-medium text-left whitespace-nowrap">{user.roles?.includes('admin') ? "Yönetici | Eğitmen" : "Eğitmen"}</td>
-        <td className="p-3 xl:p-5 w-52 xl:w-60 text-[12px] xl:text-[13px] text-neutral-400 text-left truncate">{user.email}</td>
-        <td className="p-3 xl:p-5 w-40 xl:w-44 text-[12px] xl:text-[13px] font-bold text-[#10294C] text-left whitespace-nowrap">{user.phone || "—"}</td>
-        <td className="p-3 xl:p-5 w-36 xl:w-44 text-left">
-          <span className="text-[12px] xl:text-[13px] font-semibold text-[#10294C] bg-neutral-100 px-2 xl:px-3 py-0.5 xl:py-1 rounded-lg border border-neutral-200 whitespace-nowrap inline-block">{user.branch || "Kadıköy Şb"}</span>
+        <td className="p-3 xl:p-5 w-40 xl:w-48 text-left">
+          <div className="flex flex-wrap gap-1 max-w-[160px]">
+            {getBranchNames(user.branches || []).length > 0
+              ? getBranchNames(user.branches || []).map((name: string) => (
+                  <span key={name} className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 whitespace-nowrap">
+                    {name}
+                  </span>
+                ))
+              : <span className="text-[11px] text-neutral-300 font-medium">—</span>
+            }
+          </div>
+        </td>
+        <td className="p-3 xl:p-5 w-48 xl:w-56 text-[12px] xl:text-[13px] text-neutral-400 text-left truncate">{user.email}</td>
+        <td className="p-3 xl:p-5 w-36 xl:w-40 text-[12px] xl:text-[13px] font-bold text-[#10294C] text-left whitespace-nowrap">{user.phone || "—"}</td>
+        <td className="p-3 xl:p-5 w-32 xl:w-36 text-left">
+          <span className="text-[11px] xl:text-[12px] font-semibold text-[#10294C] bg-neutral-100 px-2 py-0.5 rounded-lg border border-neutral-200 whitespace-nowrap inline-block">{user.branch || "—"}</span>
         </td>
 
         <td className="p-3 xl:p-5 w-36 xl:w-44 text-left">

@@ -129,24 +129,23 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                       />
                     )}
                   </td>
-                  <td className="px-6">
-                    <div className="flex items-center gap-2">
-                      {/* Minik hesap durum noktası */}
+                  <td className="px-6 max-w-[200px]">
+                    <div className="flex items-center gap-2 min-w-0">
                       {dotColor && (
                         <span
-                          className={`w-1 h-1 rounded-full shrink-0 ${dotColor}`}
+                          className={`rounded-full shrink-0 ${dotColor}`}
                           style={{ width: 6, height: 6 }}
                         />
                       )}
                       {onStudentClick ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); onStudentClick(student); }}
-                          className="text-[13px] font-semibold text-neutral-900 leading-none hover:text-[#3a7bd5] transition-colors cursor-pointer outline-none text-left"
+                          className="text-[13px] font-medium text-neutral-900 leading-none hover:text-[#3a7bd5] transition-colors cursor-pointer outline-none text-left truncate"
                         >
                           {student.name} {student.lastName}
                         </button>
                       ) : (
-                        <span className="text-[13px] font-semibold text-neutral-900 leading-none">
+                        <span className="text-[13px] font-medium text-neutral-900 leading-none truncate">
                           {student.name} {student.lastName}
                         </span>
                       )}
