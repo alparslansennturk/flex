@@ -51,6 +51,14 @@ export const GroupForm: React.FC<GroupFormProps> = ({
     return () => clearTimeout(t);
   }, [errors]);
 
+  const isGrafik = availableBranches.find(b => b.id === groupDiscipline)?.name?.toLowerCase().includes('grafik') ?? false;
+
+  const handleDisciplineChange = (val: string) => {
+    setGroupDiscipline(val);
+    const newIsGrafik = availableBranches.find(b => b.id === val)?.name?.toLowerCase().includes('grafik') ?? false;
+    if (!newIsGrafik) setGroupModule("");
+  };
+
   return (
     <div
       className={`
@@ -99,7 +107,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
               <div className="relative">
                 <select
                   value={groupDiscipline}
-                  onChange={(e) => setGroupDiscipline(e.target.value)}
+                  onChange={(e) => handleDisciplineChange(e.target.value)}
                   className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer transition-all"
                 >
                   <option value="">Seçiniz...</option>
@@ -153,18 +161,19 @@ export const GroupForm: React.FC<GroupFormProps> = ({
 
             {/* Modül */}
             <div className="flex flex-col gap-2">
-              <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Modül</label>
+              <label className={`text-[12px] font-bold uppercase tracking-wider ml-1 ${isGrafik ? "text-neutral-400" : "text-neutral-300"}`}>Modül</label>
               <div className="relative">
                 <select
                   value={groupModule}
                   onChange={e => setGroupModule(e.target.value as "GRAFIK_1" | "GRAFIK_2" | "")}
-                  className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer transition-all"
+                  disabled={!isGrafik}
+                  className={`w-full h-11 border rounded-lg px-4 text-[13px] font-bold outline-none appearance-none transition-all ${isGrafik ? "bg-neutral-50 border-neutral-200 text-base-primary-900 focus:border-base-primary-500 cursor-pointer" : "bg-neutral-100 border-neutral-100 text-neutral-300 cursor-not-allowed"}`}
                 >
-                  <option value="">Belirtilmemiş</option>
+                  <option value="">{isGrafik ? "Belirtilmemiş" : "Uygulanamaz"}</option>
                   <option value="GRAFIK_1">Grafik 1</option>
                   <option value="GRAFIK_2">Grafik 2</option>
                 </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                <ChevronDown size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isGrafik ? "text-neutral-400" : "text-neutral-300"}`} />
               </div>
             </div>
 

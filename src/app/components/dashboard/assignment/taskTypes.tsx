@@ -39,6 +39,7 @@ export interface Task {
   attachmentType?: "upload" | "drive";  // Yüklenen dosyanın kaynağı
   attachmentUrl?:  string;              // Google Drive webViewLink veya Drive linki
   attachmentName?: string;              // Görüntülenecek dosya adı
+  scope?: "personal" | "global" | "gamified";
 }
 
 // Eski lowercase key'leri PascalCase'e çevir (Firestore'daki eski veriler için)

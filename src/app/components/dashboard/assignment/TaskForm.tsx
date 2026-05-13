@@ -29,7 +29,7 @@ interface TaskFormProps {
 }
 
 export default function TaskForm({ editingTask, onClose, onSaved, targetCollection = "tasks", prefill, sourceTemplateId }: TaskFormProps) {
-  const { user }                        = useUser();
+  const { user, isAdmin }               = useUser();
   const [visible, setVisible]           = useState(false);
   const [name, setName]                 = useState(editingTask?.name ?? prefill?.name ?? "");
   const [type, setType]                 = useState<TaskType>(editingTask?.type ?? prefill?.type ?? "odev");
@@ -45,6 +45,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
   const [module, setModule] = useState<"GRAFIK_1" | "GRAFIK_2" | "">(
     (editingTask?.module ?? prefill?.module ?? "") as "GRAFIK_1" | "GRAFIK_2" | ""
   );
+  const [scope, setScope]               = useState<"personal" | "global" | "gamified">(editingTask?.scope ?? "personal");
   const [saving, setSaving]             = useState(false);
   const [errors, setErrors]             = useState<Record<string, boolean>>({});
   const [shake, setShake]               = useState(false);
@@ -121,7 +122,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
         };
 
         if (isTemplate) {
-          // templates koleksiyonu: endDate, status, ownedBy, classId eklenmez
+          // templates koleksiyonu: scope + createdBy yazılır
+          baseData.scope = isAdmin() ? scope : "personal";
         } else {
           // tasks koleksiyonu
           baseData.endDate = payload.endDate ?? null;
@@ -305,6 +307,32 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
             </div>
           </div>
 
+
+          {/* Kapsam — sadece admin + yeni template */}
+          {isAdmin() && targetCollection === "templates" && !editingTask && !sourceTemplateId && (
+            <div className="col-span-2 space-y-1.5">
+              <label className={labelCls}>Kapsam</label>
+              <div className="flex gap-2">
+                {([
+                  { value: "personal",  label: "Kişisel"          },
+                  { value: "global",    label: "Global"            },
+                  { value: "gamified",  label: "Oyunlaştırılmış"  },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setScope(opt.value)}
+                    className={`flex-1 h-10 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
+                      scope === opt.value
+                        ? "bg-designstudio-secondary-500 text-white border-designstudio-secondary-500"
+                        : "bg-surface-50 text-surface-500 border-surface-200 hover:border-surface-400"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Alt Başlık (full width) */}
           <div className="col-span-2 space-y-1.5">

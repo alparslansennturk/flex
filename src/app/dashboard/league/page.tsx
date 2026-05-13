@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Trophy,
   ArrowBigUpDash,
@@ -14,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDocs, doc, getDoc } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { useScoring } from "@/app/context/ScoringContext";
 
@@ -800,9 +801,16 @@ export default function LeaguePage() {
   const [modalOpen,       setModalOpen]       = useState(false);
   const [openDropdown,    setOpenDropdown]    = useState<"groups" | "branches" | null>(null);
 
+  const router                       = useRouter();
   const { user }                     = useUser();
   const { settings, activeSeasonId } = useScoring();
 
+  // ── Lig global kontrolü — kapalıysa dashboard'a yönlendir ─────────────────
+  useEffect(() => {
+    getDoc(doc(db, "settings", "platform")).then(snap => {
+      if (snap.data()?.leagueGlobalEnabled === false) router.replace("/dashboard");
+    });
+  }, [router]);
 
   // ── Eğitmene ait aktif grup kodları ────────────────────────────────────────
   useEffect(() => {

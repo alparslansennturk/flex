@@ -22,6 +22,7 @@ interface Group {
   status: string;
   createdAt?: any;
   module?: "GRAFIK_1" | "GRAFIK_2";
+  discipline?: string;
 }
 
 interface Student {
@@ -628,6 +629,7 @@ email:email.trim(),
 note:note.trim(),
 groupId:groupId,
 groupCode:targetGroup?.code||"Tanımsız",
+discipline:targetGroup?.discipline||null,
 branch:branch,
 gender:gender,
 avatarId: avatarIdValue,

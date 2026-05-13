@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { LibraryBig, ChevronLeft, ChevronRight, PlusCircle, MoreHorizontal } from "lucide-react";
+import { LibraryBig, ChevronLeft, ChevronRight, PlusCircle, MoreHorizontal, User, Globe, Sparkles } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where } from "firebase/firestore";
 import { auth } from "@/app/lib/firebase";
@@ -9,6 +9,13 @@ import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon } from "./taskTypes";
 import { AssignActivateModal, AssignSelection } from "./AssignActivateModal";
 import { NotificationService } from "@/app/lib/services/NotificationService";
+
+type LibraryTab = "personal" | "global";
+
+const TAB_CONFIG: { key: LibraryTab; label: string; icon: React.ReactNode; emptyMsg: string }[] = [
+  { key: "personal", label: "Kişisel", icon: <User size={14} />,  emptyMsg: "Henüz kişisel şablonunuz yok." },
+  { key: "global",   label: "Global",  icon: <Globe size={14} />, emptyMsg: "Henüz global şablon yok." },
+];
 
 // ---- TASK KÜTÜPHANESİ KARTI ----
 function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
@@ -67,7 +74,13 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
       </div>
       <div className="border-t border-[#EEF0F3] my-4" />
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-[#AEB4C0] italic font-semibold opacity-60">Tasarım atölyesi</span>
+        {task.scope === "gamified" ? (
+          <span className="flex items-center gap-1 text-[10px] font-bold text-purple-500 bg-purple-50 px-2 py-0.5 rounded-full">
+            <Sparkles size={10} /> Oyunlaştırılmış
+          </span>
+        ) : (
+          <span className="text-[10px] text-[#AEB4C0] italic font-semibold opacity-60">Global</span>
+        )}
         <button
           onClick={() => onStartAssignment(task)}
           className="px-4 py-1.5 bg-[#F7F8FA] text-[#10294C] rounded-xl text-[11px] font-bold flex items-center gap-2 hover:bg-[#10294C] hover:text-white transition-all cursor-pointer"
@@ -81,19 +94,18 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
 
 // ---- ANA BİLEŞEN ----
 export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
-  const [templates, setTemplates]         = useState<Task[]>([]);
-  const [hasOverflow, setHasOverflow]     = useState(false);
+  const [templates, setTemplates]             = useState<Task[]>([]);
+  const [activeTab, setActiveTab]             = useState<LibraryTab>("personal");
+  const [hasOverflow, setHasOverflow]         = useState(false);
   const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
   const { user } = useUser();
 
-  // templates koleksiyonunu dinle
   useEffect(() => {
     return onSnapshot(collection(db, "templates"), snap => {
       setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
     });
   }, []);
 
-  // Scroll taşıyor mu?
   useEffect(() => {
     const el = scrollRef?.current;
     if (!el) return;
@@ -102,44 +114,75 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
     const ro = new ResizeObserver(check);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [templates, scrollRef]);
+  }, [templates, activeTab, scrollRef]);
 
-  // Sadece gizlenmemiş şablonları göster
-  const visibleTemplates = templates.filter(t => !t.isHidden);
+  const uid = user?.uid ?? auth.currentUser?.uid;
 
-  // Kütüphanede görünür şablon yoksa section'ı gizle
-  if (visibleTemplates.length === 0) return null;
+  const visibleTemplates = templates.filter(t => {
+    if (t.isHidden) return false;
+    if (activeTab === "personal") return t.scope === "personal" && t.createdBy === uid;
+    // global: standart + gamified birlikte; scope yazılmamış eski şablonlar da buraya düşer
+    return t.scope === "global" || t.scope === "gamified" || !t.scope;
+  });
 
   const handleRemove = async (task: Task) => {
     await updateDoc(doc(db, "templates", task.id), { isHidden: true });
   };
 
+  const tabConfig = TAB_CONFIG.find(t => t.key === activeTab)!;
+
   return (
     <section className="mt-[48px] mb-[64px] space-y-[24px]">
-      <div className="flex items-center gap-3 text-[#5C6370] px-2">
-        <LibraryBig size={22} />
-        <h3 className="text-[22px] font-bold text-[#5C6370] cursor-default">Ödev kütüphanesi</h3>
-      </div>
-      <div className="relative overflow-visible">
-        {hasOverflow && (
-          <>
-            <button onClick={() => handleScroll('left')}  className="absolute -left-5  top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft  size={24} /></button>
-            <button onClick={() => handleScroll('right')} className="absolute -right-5 top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
-          </>
-        )}
-        <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">
-          {visibleTemplates.map(task => (
-            <TaskLibraryCard
-              key={task.id}
-              task={task}
-              onStartAssignment={setAssignModalTask}
-              onRemove={handleRemove}
-            />
+      {/* Başlık + sekmeler */}
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3 text-[#5C6370]">
+          <LibraryBig size={22} />
+          <h3 className="text-[22px] font-bold text-[#5C6370] cursor-default">Ödev kütüphanesi</h3>
+        </div>
+        <div className="flex items-center bg-[#F7F8FA] p-1 rounded-xl border border-[#EEF0F3] gap-0.5">
+          {TAB_CONFIG.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[10px] text-[12px] font-bold transition-all cursor-pointer outline-none select-none ${
+                activeTab === tab.key
+                  ? "bg-white text-[#10294C] shadow-sm border border-[#EEF0F3]"
+                  : "text-[#8E95A3] hover:text-[#10294C]"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Şablondan ödev başlatma — AssignActivateModal ile grup/şube/tarih seçimi */}
+      {/* Kart listesi */}
+      {visibleTemplates.length === 0 ? (
+        <div className="flex items-center justify-center h-32 rounded-2xl border border-dashed border-[#D0D5DE] text-[#8E95A3] text-[13px] font-medium">
+          {tabConfig.emptyMsg}
+        </div>
+      ) : (
+        <div className="relative overflow-visible">
+          {hasOverflow && (
+            <>
+              <button onClick={() => handleScroll('left')}  className="absolute -left-5  top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft  size={24} /></button>
+              <button onClick={() => handleScroll('right')} className="absolute -right-5 top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
+            </>
+          )}
+          <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">
+            {visibleTemplates.map(task => (
+              <TaskLibraryCard
+                key={task.id}
+                task={task}
+                onStartAssignment={setAssignModalTask}
+                onRemove={handleRemove}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {assignModalTask && (
         <AssignActivateModal
           taskName={assignModalTask.name}
@@ -148,7 +191,6 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
           onConfirm={async (selections: AssignSelection[]) => {
             const t = assignModalTask;
             for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
-              // Grafik 2 şablonu → Grafik 1 sınıfına verilirse seviye otomatik Seviye 1'e düşer
               const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
               const taskRef = await addDoc(collection(db, "tasks"), {
                 name:          t.name,
@@ -177,7 +219,6 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                 ownedBy:       user?.uid ?? null,
               });
 
-              // Fire-and-forget: gruba yeni ödev bildirimi gönder (in-app)
               const senderId = user?.uid ?? auth.currentUser?.uid;
               if (senderId) {
                 (async () => {
@@ -195,9 +236,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                     const fmtDate = endDate
                       ? new Date(endDate).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
                       : null;
-                    const preview = fmtDate
-                      ? `Son teslim tarihin: ${fmtDate}.`
-                      : "Yeni bir ödev eklendi.";
+                    const preview = fmtDate ? `Son teslim tarihin: ${fmtDate}.` : "Yeni bir ödev eklendi.";
 
                     for (const { docId, authUid } of activeStudents) {
                       await NotificationService.dispatch({
@@ -217,8 +256,6 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                 })();
               }
 
-              // Fire-and-forget: standart ödevlerde öğrencilere mail at
-              // (Kolaj / Kitap / Sosyal Medya kendi mail sistemine sahip, hariç tutulur)
               if (!t.assignmentType) {
                 (async () => {
                   try {
@@ -226,16 +263,8 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
                     if (!token) return;
                     await fetch("/api/task-assigned", {
                       method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`,
-                      },
-                      body: JSON.stringify({
-                        groupId,
-                        taskName:    t.name,
-                        taskSubtitle: t.subtitle ?? null,
-                        endDate,
-                      }),
+                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                      body: JSON.stringify({ groupId, taskName: t.name, taskSubtitle: t.subtitle ?? null, endDate }),
                     });
                   } catch (err) {
                     console.error("[AssignmentLibrary] Mail gönderilemedi:", err);

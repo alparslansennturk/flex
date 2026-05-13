@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users } from "lucide-react";
+import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users, Plus } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs, getDoc, writeBatch, deleteField, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs, getDoc, writeBatch, deleteField, deleteDoc, documentId } from "firebase/firestore";
+import { QuickAssignModal } from "./QuickAssignModal";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon, TaskType } from "../assignment/taskTypes";
 import { PERMISSIONS } from "@/app/lib/constants";
@@ -679,9 +680,23 @@ export default function DesignParkour() {
   const [ghostModalTask, setGhostModalTask] = useState<Task | null>(null);
   const [completeConfirmTask, setCompleteConfirmTask] = useState<Task | null>(null);
   const [cancelConfirmTask,   setCancelConfirmTask]   = useState<Task | null>(null);
+  const [quickAssignOpen, setQuickAssignOpen]         = useState(false);
 
-  const { hasPermission, isTrainer, user } = useUser();
+  const { hasPermission, isTrainer, isAdmin, user } = useUser();
   const canManage  = hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || isTrainer();
+
+  // Kullanıcının en az bir "grafik" branşı var mı?
+  const [isGrafik, setIsGrafik] = useState<boolean>(true); // güvenli varsayılan: hepsini göster
+
+  useEffect(() => {
+    const uid = user?.uid ?? auth.currentUser?.uid;
+    if (!uid || isAdmin()) { setIsGrafik(true); return; }
+    const branchIds: string[] = (user as any)?.branches ?? [];
+    if (!branchIds.length) { setIsGrafik(false); return; }
+    getDocs(query(collection(db, "branches"), where(documentId(), "in", branchIds))).then(snap => {
+      setIsGrafik(snap.docs.some(d => d.data().name?.toLowerCase().includes("grafik")));
+    }).catch(() => setIsGrafik(true));
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // tasks koleksiyonu — closure sorunu yok: filter render'da yapılıyor
   useEffect(() => {
@@ -832,7 +847,10 @@ export default function DesignParkour() {
     activeTasks.filter(t => t.templateId).map(t => t.templateId!)
   );
   const ghostCount = Math.max(0, 3 - activeTasks.length);
-  const availableGhosts = templates.filter(t => !myActiveTemplateIds.has(t.id) && !t.isHidden);
+  const availableGhosts = templates.filter(t =>
+    !myActiveTemplateIds.has(t.id) && !t.isHidden &&
+    (isGrafik || t.scope !== "gamified")
+  );
   // Şablon listesi değiştiğinde bir kez karıştır (her render'da değişmemesi için id'ye göre sabit sıralama)
   const ghostTasks = [...availableGhosts]
     .sort((a, b) => {
@@ -846,9 +864,20 @@ export default function DesignParkour() {
 
   return (
     <section className="mt-[48px] space-y-[24px]">
-      <div className="flex items-center gap-3 text-[#10294C] px-2">
-        <Route size={22} className="text-[#FF8D28]" />
-        <h3 className="text-[22px] font-bold cursor-default">Tasarım parkuru</h3>
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3 text-[#10294C]">
+          <Route size={22} className="text-[#FF8D28]" />
+          <h3 className="text-[22px] font-bold cursor-default">Tasarım parkuru</h3>
+        </div>
+        {canManage && (
+          <button
+            onClick={() => setQuickAssignOpen(true)}
+            className="flex items-center gap-2 h-10 px-5 rounded-xl bg-designstudio-secondary-500 text-white text-[13px] font-bold hover:bg-designstudio-secondary-600 active:scale-95 transition-all cursor-pointer shadow-md shadow-designstudio-secondary-500/20"
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            Ödev Ver
+          </button>
+        )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {sortedActiveTasks.map(task => (
@@ -886,6 +915,8 @@ export default function DesignParkour() {
           <PlaceholderParkourCard key={`ph-${i}`} />
         ))}
       </div>
+
+      {quickAssignOpen && <QuickAssignModal onClose={() => setQuickAssignOpen(false)} />}
 
       {reactivateTask && (
         <AssignActivateModal

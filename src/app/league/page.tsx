@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Trophy,
   ArrowBigUpDash,
@@ -575,20 +575,30 @@ function LeagueContent() {
   const [error,           setError]           = useState<string | null>(null);
   const [apiSettings,     setApiSettings]     = useState<ScoringSettings | null>(null);
   const [apiSeasonId,     setApiSeasonId]     = useState<string | null>(null);
+  const router = useRouter();
   const [sidebarData,  setSidebarData]  = useState<SidebarData | null>(null);
   const [sidebarReady, setSidebarReady] = useState(false);
 
-  // Giriş yapan öğrencinin verilerini çek (sidebar için)
+  // Giriş yapan öğrencinin verilerini çek (sidebar için) + lig global kontrolü
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { setSidebarReady(true); return; }
       try {
-        const userSnap = await getDoc(doc(db, "users", user.uid));
+        const [userSnap, settingsSnap] = await Promise.all([
+          getDoc(doc(db, "users", user.uid)),
+          getDoc(doc(db, "settings", "platform")),
+        ]);
         if (!userSnap.exists()) { setSidebarReady(true); return; }
         const data = userSnap.data();
 
         const role = data.role || data.roles?.[0];
         if (role !== "student") { setSidebarReady(true); return; }
+
+        if (settingsSnap.data()?.leagueGlobalEnabled === false) {
+          const studentDocId = data.studentDocId as string | undefined;
+          router.replace(studentDocId ? `/student/${studentDocId}` : "/");
+          return;
+        }
 
         let studentDocId = data.studentDocId as string | undefined;
         if (!studentDocId) {

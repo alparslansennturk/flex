@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { BookOpen, Trophy, LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
-import { auth } from "@/app/lib/firebase";
+import { auth, db } from "@/app/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 interface Props {
   studentId?: string;
@@ -15,6 +17,26 @@ export default function StudentSidebar({ studentId: studentIdProp }: Props) {
   const router   = useRouter();
   const pathname = usePathname();
   const studentId = studentIdProp ?? params.studentId ?? "";
+
+  const [leagueEnabled, setLeagueEnabled] = useState(true);
+
+  useEffect(() => {
+    if (!studentId) return;
+    let cancelled = false;
+    Promise.all([
+      getDoc(doc(db, "settings", "platform")),
+      getDoc(doc(db, "students", studentId)).then(snap => {
+        const groupId = snap.data()?.groupId;
+        return groupId ? getDoc(doc(db, "groups", groupId)) : null;
+      }),
+    ]).then(([settingsSnap, groupSnap]) => {
+      if (cancelled) return;
+      const globalOn = settingsSnap.data()?.leagueGlobalEnabled !== false;
+      const groupOn  = groupSnap ? groupSnap.data()?.leagueEnabled !== false : true;
+      setLeagueEnabled(globalOn && groupOn);
+    });
+    return () => { cancelled = true; };
+  }, [studentId]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -48,17 +70,19 @@ export default function StudentSidebar({ studentId: studentIdProp }: Props) {
           <BookOpen size={18} className={!isLeague ? "text-designstudio-primary-500 shrink-0" : "shrink-0"} />
           <span className="text-[14px] font-semibold leading-none">Ödevlerim</span>
         </Link>
-        <Link
-          href="/league"
-          className={`flex items-center gap-4 px-6 py-4 rounded-xl transition-all ${
-            isLeague
-              ? "bg-white/10 text-white"
-              : "text-white/60 hover:text-white hover:bg-white/5"
-          }`}
-        >
-          <Trophy size={18} className={isLeague ? "text-designstudio-primary-500 shrink-0" : "shrink-0"} />
-          <span className="text-[14px] font-semibold leading-none">Sınıflar Ligi</span>
-        </Link>
+        {leagueEnabled && (
+          <Link
+            href="/league"
+            className={`flex items-center gap-4 px-6 py-4 rounded-xl transition-all ${
+              isLeague
+                ? "bg-white/10 text-white"
+                : "text-white/60 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Trophy size={18} className={isLeague ? "text-designstudio-primary-500 shrink-0" : "shrink-0"} />
+            <span className="text-[14px] font-semibold leading-none">Sınıflar Ligi</span>
+          </Link>
+        )}
       </div>
 
       {/* Alt: çıkış */}

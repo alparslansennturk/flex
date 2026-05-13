@@ -6,8 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
 import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive, ClipboardList, ChevronDown, FileCheck, Star, SlidersHorizontal, Eye } from "lucide-react";
-import { auth } from "@/app/lib/firebase";
+import { auth, db } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 
 function useCompact() {
   const [compact, setCompact] = useState(() =>
@@ -30,6 +31,13 @@ export default function Sidebar() {
   const [assignmentTestOpen, setAssignmentTestOpen] = useState(
     pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive'
   );
+  const [leagueGlobal, setLeagueGlobal] = useState(true);
+
+  useEffect(() => {
+    return onSnapshot(doc(db, "settings", "platform"), snap => {
+      setLeagueGlobal(snap.data()?.leagueGlobalEnabled !== false);
+    });
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -60,7 +68,7 @@ export default function Sidebar() {
         )}
 
         <SidebarLink href="/dashboard/grading" icon={<GraduationCap size={18} />} label="Sertifikasyon" compact={compact} />
-        <SidebarLink href="/dashboard/league" icon={<Trophy size={18} />} label="Sınıflar Ligi" compact={compact} />
+        {leagueGlobal && <SidebarLink href="/dashboard/league" icon={<Trophy size={18} />} label="Sınıflar Ligi" compact={compact} />}
         <SidebarLink href="/dashboard/profile" icon={<UserCircle size={18} />} label="Profil Ayarları" compact={compact} />
 
         {/* ── ÖDEV TEST (Accordion) ── */}
