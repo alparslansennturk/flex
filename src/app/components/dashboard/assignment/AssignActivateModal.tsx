@@ -31,12 +31,14 @@ export function AssignActivateModal({
   taskName,
   templateId,
   templateLevel,
+  templateScope,
   onConfirm,
   onCancel,
 }: {
   taskName: string;
   templateId?: string;
   templateLevel?: string; // şablonda belirlendiyse seçim disabled gelir
+  templateScope?: string; // "personal" ise busy kontrolü atlanır
   onConfirm: (selections: AssignSelection[]) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -63,20 +65,25 @@ export function AssignActivateModal({
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Group));
       setGroups(all.filter(g => g.status === "active"));
 
-      // Bu şablon için grubu daha önce almış olanları bul — tek where + JS filtre (composite index sorununu önler)
-      const taskSnap = templateId
-        ? await getDocs(query(collection(db, "tasks"), where("templateId", "==", templateId)))
-        : await getDocs(query(collection(db, "tasks"), where("ownedBy", "==", uid)));
-      const busy = taskSnap.docs
-        .filter(d => {
-          const data = d.data();
-          if (data.status !== "active") return false;
-          if (templateId) return data.ownedBy === uid;
-          return true;
-        })
-        .map(d => d.data().groupId as string)
-        .filter(Boolean);
-      setBusyGroupIds(busy);
+      // Kişisel şablonlar serbest tekrar kullanım için busy kontrolü atlanır
+      if (templateScope === "personal") {
+        setBusyGroupIds([]);
+      } else {
+        // Bu şablon için grubu daha önce almış olanları bul — tek where + JS filtre (composite index sorununu önler)
+        const taskSnap = templateId
+          ? await getDocs(query(collection(db, "tasks"), where("templateId", "==", templateId)))
+          : await getDocs(query(collection(db, "tasks"), where("ownedBy", "==", uid)));
+        const busy = taskSnap.docs
+          .filter(d => {
+            const data = d.data();
+            if (data.status !== "active") return false;
+            if (templateId) return data.ownedBy === uid;
+            return true;
+          })
+          .map(d => d.data().groupId as string)
+          .filter(Boolean);
+        setBusyGroupIds(busy);
+      }
 
       setGroupsLoading(false);
     });

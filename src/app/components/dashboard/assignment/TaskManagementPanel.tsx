@@ -17,7 +17,7 @@ import { DeleteConfirmModal } from "./TaskCardManager";
 import TaskForm from "./TaskForm";
 import AssignmentPoolPanel from "./pool/AssignmentPoolPanel";
 
-type AdminTab = "templates" | "active" | "archive" | "scoring" | "pools" | "league";
+type AdminTab = "templates" | "active" | "archive" | "pools" | "league";
 
 interface GroupRow { id: string; code: string; branch?: string; leagueEnabled?: boolean; }
 
@@ -610,6 +610,9 @@ export default function TaskManagementPanel() {
 
   const closeForm = () => { setFormOpen(false); setEditingTask(null); };
 
+  // Lig alt sekmesi
+  const [leagueSubTab, setLeagueSubTab] = useState<"league" | "scoring">("league");
+
   // ── Lig toggle ─────────────────────────────────────────────────────────────
   const handleGlobalLeagueToggle = async () => {
     await setDoc(doc(db, "settings", "platform"), { leagueGlobalEnabled: !leagueGlobal }, { merge: true });
@@ -625,9 +628,8 @@ export default function TaskManagementPanel() {
     { id: "templates", label: "Şablon Yönetimi" },
     { id: "active",    label: "Mevcut Ödevler"  },
     { id: "archive",   label: "Arşiv"            },
-    { id: "scoring",   label: "Puan Yönetimi"    },
     { id: "pools",     label: "Ödev Havuzları"   },
-    { id: "league",    label: "Lig Ayarları"     },
+    { id: "league",    label: "Lig Yönetimi"     },
   ];
 
   const enrichedActive   = activeTasks.map(enrichTask);
@@ -799,11 +801,6 @@ export default function TaskManagementPanel() {
         </div>
       )}
 
-      {/* ── PUANLAMA ────────────────────────────────────────────────────────── */}
-      {adminTab === "scoring" && (
-        <ScoringSettingsPanel />
-      )}
-
       {/* ── ÖDEV HAVUZLARI ──────────────────────────────────────────────────── */}
       {adminTab === "pools" && (
         <AssignmentPoolPanel />
@@ -812,55 +809,80 @@ export default function TaskManagementPanel() {
       {/* ── LIG AYARLARI ────────────────────────────────────────────────────── */}
       {adminTab === "league" && (
         <div className="space-y-6">
-          {/* Başlık + global toggle */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-[20px] font-bold text-base-primary-900 leading-none mb-1">Lig Ayarları</h2>
-              <p className="text-[13px] text-surface-400">Sınıf bazında ligi açıp kapatabilirsin. Kapatılan sınıfta puanlar korunur, öğrenci panelinde lig menüsü gizlenir.</p>
-            </div>
-            {/* MASTER SWITCH */}
-            <div className="flex items-center gap-3 shrink-0">
-              <span className={`text-[13px] font-bold ${leagueGlobal ? "text-green-600" : "text-surface-400"}`}>
-                {leagueGlobal ? "Lig Aktif" : "Lig Kapalı"}
-              </span>
+          {/* Alt tab bar */}
+          <div className="flex items-center gap-1 bg-surface-50 w-fit p-1 rounded-[14px] border border-surface-100 shadow-sm">
+            {([
+              { id: "league",  label: "Lig Ayarları"  },
+              { id: "scoring", label: "Puan Yönetimi" },
+            ] as const).map(tab => (
               <button
-                onClick={handleGlobalLeagueToggle}
-                className={`relative w-12 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${leagueGlobal ? "bg-green-500" : "bg-slate-300"}`}
+                key={tab.id}
+                onClick={() => setLeagueSubTab(tab.id)}
+                className={`px-5 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer outline-none ${
+                  leagueSubTab === tab.id
+                    ? "bg-white text-base-primary-900 shadow-sm border border-surface-100"
+                    : "text-surface-400 hover:text-surface-600 border border-transparent"
+                }`}
               >
-                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${leagueGlobal ? "left-7" : "left-1"}`} />
+                {tab.label}
               </button>
-            </div>
+            ))}
           </div>
 
-          {/* Grup listesi */}
-          <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
-            <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100">
-              <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide w-24">Sınıf</span>
-              <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide flex-1">Branş</span>
-              <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide w-28 text-right">Lig Katılımı</span>
-            </div>
-            {groups.length === 0 ? (
-              <div className="flex items-center justify-center py-12 text-surface-400 text-[13px]">Henüz sınıf yok.</div>
-            ) : (
-              groups.map(group => {
-                const inLeague = group.leagueEnabled !== false;
-                return (
-                  <div key={group.id} className={`flex items-center gap-4 px-5 py-4 border-b border-surface-50 last:border-0 transition-colors ${!leagueGlobal ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/50"}`}>
-                    <span className="text-[14px] font-bold text-base-primary-900 w-24">{group.code}</span>
-                    <span className="text-[13px] text-surface-500 flex-1">{group.branch || "—"}</span>
-                    <div className="w-28 flex justify-end">
-                      <button
-                        onClick={() => handleLeagueToggle(group)}
-                        className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${inLeague ? "bg-green-500" : "bg-slate-300"}`}
-                      >
-                        <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${inLeague ? "left-6" : "left-1"}`} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+          {/* Lig Ayarları alt sayfası */}
+          {leagueSubTab === "league" && (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-[20px] font-bold text-base-primary-900 leading-none mb-1">Lig Ayarları</h2>
+                  <p className="text-[13px] text-surface-400">Sınıf bazında ligi açıp kapatabilirsin. Kapatılan sınıfta puanlar korunur, öğrenci panelinde lig menüsü gizlenir.</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-[13px] font-bold ${leagueGlobal ? "text-green-600" : "text-surface-400"}`}>
+                    {leagueGlobal ? "Lig Aktif" : "Lig Kapalı"}
+                  </span>
+                  <button
+                    onClick={handleGlobalLeagueToggle}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${leagueGlobal ? "bg-green-500" : "bg-slate-300"}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${leagueGlobal ? "left-7" : "left-1"}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
+                <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100">
+                  <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide w-24">Sınıf</span>
+                  <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide flex-1">Branş</span>
+                  <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide w-28 text-right">Lig Katılımı</span>
+                </div>
+                {groups.length === 0 ? (
+                  <div className="flex items-center justify-center py-12 text-surface-400 text-[13px]">Henüz sınıf yok.</div>
+                ) : (
+                  groups.map(group => {
+                    const inLeague = group.leagueEnabled !== false;
+                    return (
+                      <div key={group.id} className={`flex items-center gap-4 px-5 py-4 border-b border-surface-50 last:border-0 transition-colors ${!leagueGlobal ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/50"}`}>
+                        <span className="text-[14px] font-bold text-base-primary-900 w-24">{group.code}</span>
+                        <span className="text-[13px] text-surface-500 flex-1">{group.branch || "—"}</span>
+                        <div className="w-28 flex justify-end">
+                          <button
+                            onClick={() => handleLeagueToggle(group)}
+                            className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${inLeague ? "bg-green-500" : "bg-slate-300"}`}
+                          >
+                            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${inLeague ? "left-6" : "left-1"}`} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Puan Yönetimi alt sayfası */}
+          {leagueSubTab === "scoring" && <ScoringSettingsPanel />}
         </div>
       )}
 

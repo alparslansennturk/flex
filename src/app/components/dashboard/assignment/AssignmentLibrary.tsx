@@ -188,6 +188,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
           taskName={assignModalTask.name}
           templateId={assignModalTask.id}
           templateLevel={assignModalTask.level}
+          templateScope={assignModalTask.scope}
           onConfirm={async (selections: AssignSelection[]) => {
             const t = assignModalTask;
             for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
@@ -195,7 +196,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
               const taskRef = await addDoc(collection(db, "tasks"), {
                 name:          t.name,
                 subtitle:      t.subtitle ?? null,
-                description:   t.description,
+                description:   t.description ?? null,
                 type:          t.type,
                 points:        t.points ?? null,
                 icon:           t.icon ?? null,
