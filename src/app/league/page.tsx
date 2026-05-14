@@ -953,7 +953,7 @@ function LeagueContent() {
             </div>
           )}
           {sidebarData && <div />}
-          <FilterDropdown selectedBranch={selectedBranch} branches={branches} onChange={setSelectedBranch} />
+          {branches.length >= 2 && <FilterDropdown selectedBranch={selectedBranch} branches={branches} onChange={setSelectedBranch} />}
         </div>
 
         {/* ── Scrollable content ─────────────────────────────────────────── */}

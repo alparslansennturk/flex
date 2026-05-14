@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Route, Clock, ChevronRight, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users, Plus } from "lucide-react";
+import { Route, Clock, ChevronRight, ChevronDown, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users, Plus } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
 import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs, getDoc, writeBatch, deleteField, deleteDoc, documentId } from "firebase/firestore";
 import { QuickAssignModal } from "./QuickAssignModal";
@@ -670,7 +670,7 @@ function TaskEditModal({ task, onSave, onCancel }: {
 }
 
 // ---- ANA BİLEŞEN ----
-export default function DesignParkour() {
+export default function DesignParkour({ activeBranch, setActiveBranch }: { activeBranch: string; setActiveBranch: (v: string) => void }) {
   const router = useRouter();
   // Tüm task'ları state'e al — filter render'da yapılır (closure sorunu önlenir)
   const [allTasks,      setAllTasks]      = useState<Task[]>([]);
@@ -681,6 +681,8 @@ export default function DesignParkour() {
   const [completeConfirmTask, setCompleteConfirmTask] = useState<Task | null>(null);
   const [cancelConfirmTask,   setCancelConfirmTask]   = useState<Task | null>(null);
   const [quickAssignOpen, setQuickAssignOpen]         = useState(false);
+  const [myGroups,       setMyGroups]                 = useState<{id: string; discipline?: string}[]>([]);
+  const [branchOptions,  setBranchOptions]            = useState<{id: string; name: string}[]>([]);
 
   const { hasPermission, isTrainer, isAdmin, user } = useUser();
   const canManage  = hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || isTrainer();
@@ -690,12 +692,41 @@ export default function DesignParkour() {
 
   useEffect(() => {
     const uid = user?.uid ?? auth.currentUser?.uid;
-    if (!uid || isAdmin()) { setIsGrafik(true); return; }
+    if (!uid) return;
+
     const branchIds: string[] = (user as any)?.branches ?? [];
-    if (!branchIds.length) { setIsGrafik(false); return; }
-    getDocs(query(collection(db, "branches"), where(documentId(), "in", branchIds))).then(snap => {
-      setIsGrafik(snap.docs.some(d => d.data().name?.toLowerCase().includes("grafik")));
-    }).catch(() => setIsGrafik(true));
+
+    // isGrafik: admin her zaman true; diğerleri branches'a göre
+    if (isAdmin()) {
+      setIsGrafik(true);
+    } else if (!branchIds.length) {
+      setIsGrafik(false);
+      return;
+    } else {
+      getDocs(query(collection(db, "branches"), where(documentId(), "in", branchIds)))
+        .then(snap => setIsGrafik(snap.docs.some(d => d.data().name?.toLowerCase().includes("grafik"))))
+        .catch(() => setIsGrafik(true));
+    }
+
+    // Branş filtresi — 2+ branşı olan herkes için (admin dahil)
+    if (branchIds.length < 2) return;
+
+    return onSnapshot(
+      query(collection(db, "groups"), where("instructorId", "==", uid), where("status", "==", "active")),
+      snap => {
+        const groups = snap.docs.map(d => ({ id: d.id, discipline: d.data().discipline as string | undefined }));
+        setMyGroups(groups);
+
+        const activeDisciplines = new Set(groups.map(g => g.discipline).filter(Boolean) as string[]);
+        const activeBranchIds = branchIds.filter(id => activeDisciplines.has(id));
+
+        if (activeBranchIds.length < 2) { setBranchOptions([]); return; }
+
+        getDocs(query(collection(db, "branches"), where(documentId(), "in", activeBranchIds)))
+          .then(branchSnap => setBranchOptions(branchSnap.docs.map(d => ({ id: d.id, name: d.data().name as string }))))
+          .catch(() => setBranchOptions([]));
+      }
+    );
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // tasks koleksiyonu — closure sorunu yok: filter render'da yapılıyor
@@ -826,6 +857,12 @@ export default function DesignParkour() {
     setGhostModalTask(null);
   };
 
+  // Grup → branş (discipline) haritası
+  const groupDisciplineMap = useMemo(
+    () => Object.fromEntries(myGroups.map(g => [g.id, g.discipline ?? ""])),
+    [myGroups]
+  );
+
   // Sıralama: aktif → pasif → tamamlanan; grup içinde createdAt DESC (kararlı sıra)
   const sortedActiveTasks = [...activeTasks].sort((a, b) => {
     const groupOf = (t: Task): number => {
@@ -842,15 +879,23 @@ export default function DesignParkour() {
     return bT - aT;
   });
 
+  // Branş filtresi uygulanmış görevler
+  const filteredActiveTasks = activeBranch === "all"
+    ? sortedActiveTasks
+    : sortedActiveTasks.filter(t => t.groupId && groupDisciplineMap[t.groupId] === activeBranch);
+
   // Ghost slot: henüz başlatılmamış şablonlar (rastgele seçilir)
   const myActiveTemplateIds = new Set(
     activeTasks.filter(t => t.templateId).map(t => t.templateId!)
   );
-  const ghostCount = Math.max(0, 3 - activeTasks.length);
-  const availableGhosts = templates.filter(t =>
-    !myActiveTemplateIds.has(t.id) && !t.isHidden &&
-    (isGrafik || t.scope !== "gamified")
-  );
+  const ghostCount = Math.max(0, 3 - filteredActiveTasks.length);
+  const availableGhosts = templates.filter(t => {
+    if (myActiveTemplateIds.has(t.id) || t.isHidden) return false;
+    if (!isGrafik && t.scope === "gamified") return false;
+    // Branch seçiliyse: discipline eşleşmeli; "all"da filtresiz
+    if (activeBranch !== "all" && t.discipline !== activeBranch) return false;
+    return true;
+  });
   // Şablon listesi değiştiğinde bir kez karıştır (her render'da değişmemesi için id'ye göre sabit sıralama)
   const ghostTasks = [...availableGhosts]
     .sort((a, b) => {
@@ -867,7 +912,22 @@ export default function DesignParkour() {
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-3 text-[#10294C]">
           <Route size={22} className="text-[#FF8D28]" />
-          <h3 className="text-[22px] font-bold cursor-default">Tasarım parkuru</h3>
+          <h3 className="text-[22px] font-bold cursor-default">Ödev Parkuru</h3>
+          {branchOptions.length >= 2 && (
+            <div className="relative ml-8">
+              <select
+                value={activeBranch}
+                onChange={e => setActiveBranch(e.target.value)}
+                className="h-9 pl-4 pr-9 rounded-[12px] border border-surface-200 bg-white text-[13px] font-medium text-text-primary outline-none focus:border-base-primary-400 cursor-pointer appearance-none"
+              >
+                <option value="all">Tüm Branşlar</option>
+                {branchOptions.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            </div>
+          )}
         </div>
         {canManage && (
           <button
@@ -880,7 +940,7 @@ export default function DesignParkour() {
         )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {sortedActiveTasks.map(task => (
+        {filteredActiveTasks.map(task => (
           <TaskParkourCard
             key={task.id}
             task={task}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db, auth } from "@/app/lib/firebase";
-import { collection, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, serverTimestamp, getDocs } from "firebase/firestore";
 import { X, CheckCircle2, ChevronDown } from "lucide-react";
 import {
   Task, TaskType, IconKey,
@@ -46,6 +46,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
     (editingTask?.module ?? prefill?.module ?? "") as "GRAFIK_1" | "GRAFIK_2" | ""
   );
   const [scope, setScope]               = useState<"personal" | "global" | "gamified">(editingTask?.scope ?? "personal");
+  const [templateDiscipline, setTemplateDiscipline] = useState<string>(editingTask?.discipline ?? "");
+  const [branchList, setBranchList]     = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving]             = useState(false);
   const [errors, setErrors]             = useState<Record<string, boolean>>({});
   const [shake, setShake]               = useState(false);
@@ -59,6 +61,22 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
     const t = setTimeout(() => setShake(false), 500);
     return () => clearTimeout(t);
   }, [shake]);
+
+  // Branş listesini yükle — yeni şablon oluşturulurken (admin: tüm branşlar, eğitmen: kendi branşları)
+  useEffect(() => {
+    if (targetCollection !== "templates" || editingTask || sourceTemplateId) return;
+    getDocs(collection(db, "branches")).then(snap => {
+      const all = snap.docs.map(d => ({ id: d.id, name: d.data().name as string }));
+      if (isAdmin()) {
+        setBranchList(all);
+      } else {
+        const userBranchIds = user?.branches ?? (user?.branch ? [user.branch] : []);
+        setBranchList(all.filter(b => userBranchIds.includes(b.id)));
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isGrafikDiscipline = branchList.find(b => b.id === templateDiscipline)?.name?.toLowerCase().includes("grafik") ?? false;
 
   const handleTypeChange = (t: TaskType) => {
     setType(t);
@@ -76,7 +94,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
   const handleSave = async () => {
     const newErrors: Record<string, boolean> = {};
     if (!name.trim()) newErrors.name = true;
-    if (targetCollection === "templates" && !sourceTemplateId && !module) newErrors.module = true;
+    if (targetCollection === "templates" && !sourceTemplateId && isGrafikDiscipline && !module) newErrors.module = true;
+    if (targetCollection === "templates" && !editingTask && !sourceTemplateId && !templateDiscipline) newErrors.discipline = true;
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setShake(true);
@@ -122,8 +141,9 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
         };
 
         if (isTemplate) {
-          // templates koleksiyonu: scope + createdBy yazılır
+          // templates koleksiyonu: scope + discipline yazılır
           baseData.scope = isAdmin() ? scope : "personal";
+          baseData.discipline = templateDiscipline || null;
         } else {
           // tasks koleksiyonu
           baseData.endDate = payload.endDate ?? null;
@@ -187,9 +207,9 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
 
           {/* Satır 1: Kart adı | Modül | Seviye (şablon) veya Kart adı | Bitiş tarihi (görev) */}
           {targetCollection === "templates" && !sourceTemplateId ? (
-            <div className="col-span-2 grid grid-cols-3 gap-x-6">
-              {/* Kart adı */}
-              <div className="space-y-1.5">
+            <>
+              {/* Kart adı — tam genişlik */}
+              <div className="col-span-2 space-y-1.5">
                 <label className={labelCls}>Kart adı <span className="text-status-danger-500">*</span></label>
                 <input
                   value={name}
@@ -199,42 +219,92 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
                 />
               </div>
 
-              {/* Modül */}
-              <div className="space-y-1.5">
-                <label className={labelCls}>Modül <span className="text-status-danger-500">*</span></label>
-                <div className="relative">
-                  <select
-                    value={module}
-                    onChange={e => { setModule(e.target.value as "GRAFIK_1" | "GRAFIK_2" | ""); setErrors(p => ({ ...p, module: false })); }}
-                    className={`w-full h-12 px-4 pr-10 rounded-xl border text-[14px] font-medium outline-none transition-all appearance-none cursor-pointer ${
-                      errors.module
-                        ? "border-status-danger-500 bg-status-danger-50 text-text-primary"
-                        : "border-surface-200 bg-surface-50 text-text-primary focus:border-base-primary-500 focus:bg-white"
-                    }`}
-                  >
-                    <option value="">Modül seçiniz</option>
-                    {MODULES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
-                  <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+              {/* Branş seçimi — Kart adından hemen sonra, yeni şablon için her zaman görünür */}
+              {!editingTask && branchList.length > 0 && (
+                <div className="col-span-2 space-y-1.5">
+                  <label className={`${labelCls} ${errors.discipline ? "text-red-500" : ""}`}>
+                    Branş <span className="font-normal text-red-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={templateDiscipline}
+                      onChange={e => {
+                        const id = e.target.value;
+                        const b = branchList.find(b => b.id === id);
+                        setTemplateDiscipline(id);
+                        setErrors(p => ({ ...p, discipline: false }));
+                        if (module && b && !b.name.toLowerCase().includes("grafik")) setModule("");
+                      }}
+                      className={`w-full h-12 px-4 pr-10 rounded-xl border text-[14px] font-medium outline-none transition-all appearance-none cursor-pointer ${
+                        errors.discipline
+                          ? "border-status-danger-500 bg-status-danger-50 text-text-primary"
+                          : templateDiscipline
+                            ? "border-surface-200 bg-surface-50 text-text-primary focus:border-base-primary-500 focus:bg-white"
+                            : "border-surface-200 bg-surface-50 text-text-placeholder focus:border-base-primary-500 focus:bg-white"
+                      }`}
+                    >
+                      <option value="">Branş seçiniz</option>
+                      {branchList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                    <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+                  </div>
+                  {errors.discipline && (
+                    <p className="text-[11px] text-red-500 font-medium mt-1">Branş seçimi zorunludur.</p>
+                  )}
                 </div>
-              </div>
+              )}
 
-              {/* Seviye */}
-              <div className="space-y-1.5">
-                <label className={labelCls}>Seviye</label>
-                <div className="relative">
-                  <select
-                    value={level}
-                    onChange={e => setLevel(e.target.value)}
-                    className="w-full h-12 px-4 pr-10 rounded-xl border border-surface-200 bg-surface-50 text-[14px] text-text-primary font-medium outline-none focus:border-base-primary-500 focus:bg-white transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="">Seviye seçiniz</option>
-                    {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                  <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+              {/* Modül | Seviye — admin: 2 kolon, eğitmen: modül tam genişlik */}
+              <div className={`col-span-2 grid gap-x-6 ${isAdmin() ? "grid-cols-2" : "grid-cols-1"}`}>
+                {/* Modül — yalnızca grafik branşı seçiliyse aktif */}
+                <div className="space-y-1.5">
+                  <label className={labelCls}>
+                    Modül {isGrafikDiscipline && <span className="text-status-danger-500">*</span>}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={module}
+                      disabled={!isGrafikDiscipline}
+                      onChange={e => { setModule(e.target.value as "GRAFIK_1" | "GRAFIK_2" | ""); setErrors(p => ({ ...p, module: false })); }}
+                      className={`w-full h-12 px-4 pr-10 rounded-xl border text-[14px] font-medium outline-none transition-all appearance-none ${
+                        !isGrafikDiscipline
+                          ? "border-surface-100 bg-surface-50 text-surface-300 cursor-not-allowed"
+                          : errors.module
+                            ? "border-status-danger-500 bg-status-danger-50 text-text-primary cursor-pointer"
+                            : "border-surface-200 bg-surface-50 text-text-primary focus:border-base-primary-500 focus:bg-white cursor-pointer"
+                      }`}
+                    >
+                      <option value="">{isGrafikDiscipline ? "Modül seçiniz" : "Grafik branşı seçin"}</option>
+                      {MODULES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    <ChevronDown size={15} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${!isGrafikDiscipline ? "text-surface-200" : "text-surface-400"}`} />
+                  </div>
                 </div>
+
+                {/* Seviye — yalnızca admin + gamified scope'ta görünür ve aktif */}
+                {isAdmin() && (
+                  <div className="space-y-1.5">
+                    <label className={labelCls}>Seviye</label>
+                    <div className="relative">
+                      <select
+                        value={level}
+                        disabled={scope !== "gamified"}
+                        onChange={e => setLevel(e.target.value)}
+                        className={`w-full h-12 px-4 pr-10 rounded-xl border text-[14px] font-medium outline-none transition-all appearance-none ${
+                          scope !== "gamified"
+                            ? "border-surface-100 bg-surface-50 text-surface-300 cursor-not-allowed"
+                            : "border-surface-200 bg-surface-50 text-text-primary focus:border-base-primary-500 focus:bg-white cursor-pointer"
+                        }`}
+                      >
+                        <option value="">{scope !== "gamified" ? "Oyunlaştırılmış kapsam gerekli" : "Seviye seçiniz"}</option>
+                        {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                      <ChevronDown size={15} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${scope !== "gamified" ? "text-surface-200" : "text-surface-400"}`} />
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            </>
           ) : (
             <>
               {/* Kart adı */}
@@ -308,8 +378,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
           </div>
 
 
-          {/* Kapsam — sadece admin + yeni template */}
-          {isAdmin() && targetCollection === "templates" && !editingTask && !sourceTemplateId && (
+          {/* Kapsam — admin: hepsi aktif; eğitmen: sadece Kişisel aktif */}
+          {targetCollection === "templates" && !editingTask && !sourceTemplateId && (
             <div className="col-span-2 space-y-1.5">
               <label className={labelCls}>Kapsam</label>
               <div className="flex gap-2">
@@ -317,19 +387,25 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
                   { value: "personal",  label: "Kişisel"          },
                   { value: "global",    label: "Global"            },
                   { value: "gamified",  label: "Oyunlaştırılmış"  },
-                ] as const).map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setScope(opt.value)}
-                    className={`flex-1 h-10 rounded-xl text-[12px] font-bold transition-all cursor-pointer border ${
-                      scope === opt.value
-                        ? "bg-designstudio-secondary-500 text-white border-designstudio-secondary-500"
-                        : "bg-surface-50 text-surface-500 border-surface-200 hover:border-surface-400"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                ] as const).map(opt => {
+                  const isDisabled = !isAdmin() && opt.value !== "personal";
+                  return (
+                    <button
+                      key={opt.value}
+                      disabled={isDisabled}
+                      onClick={() => { if (isDisabled) return; setScope(opt.value); if (opt.value !== "gamified") setLevel(""); }}
+                      className={`flex-1 h-10 rounded-xl text-[12px] font-bold transition-all border ${
+                        isDisabled
+                          ? "bg-surface-50 text-surface-300 border-surface-100 cursor-not-allowed"
+                          : scope === opt.value
+                            ? "bg-designstudio-secondary-500 text-white border-designstudio-secondary-500 cursor-pointer"
+                            : "bg-surface-50 text-surface-500 border-surface-200 hover:border-surface-400 cursor-pointer"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -1343,7 +1343,8 @@ export default function LeaguePage() {
 
                     {/* Sol: Eğitmen/Şube toggle + seçim butonları */}
                     <div className="flex items-center">
-                      {/* Eğitmen Bazlı / Şube Bazlı toggle — aktif lacivert */}
+                      {/* Eğitmen Bazlı / Şube Bazlı toggle — sadece 2+ farklı branşta grubu olan eğitmenlerde */}
+                      {branchOptions.filter(b => b !== ALL_BRANCH).length >= 2 && (
                       <div className="flex items-center gap-0.5 bg-surface-100 border border-surface-200 rounded-10 p-0.5">
                         {(["trainer", "branch"] as const).map((mode) => (
                           <button
@@ -1368,6 +1369,7 @@ export default function LeaguePage() {
                           </button>
                         ))}
                       </div>
+                      )}
 
                       {/* Seçim butonları — Trendyol pill stili, 64px sağda */}
                       <div className="ml-16 flex items-center gap-2">

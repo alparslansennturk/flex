@@ -40,6 +40,7 @@ export interface Task {
   attachmentUrl?:  string;              // Google Drive webViewLink veya Drive linki
   attachmentName?: string;              // Görüntülenecek dosya adı
   scope?: "personal" | "global" | "gamified";
+  discipline?: string | null;             // Branş ID — global/gamified şablonlar için; null = tüm branşlar
 }
 
 // Eski lowercase key'leri PascalCase'e çevir (Firestore'daki eski veriler için)

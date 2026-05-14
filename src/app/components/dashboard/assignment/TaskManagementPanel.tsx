@@ -16,6 +16,7 @@ import { Task } from "./taskTypes";
 import { DeleteConfirmModal } from "./TaskCardManager";
 import TaskForm from "./TaskForm";
 import AssignmentPoolPanel from "./pool/AssignmentPoolPanel";
+import { useUser } from "@/app/context/UserContext";
 
 type AdminTab = "templates" | "active" | "archive" | "pools" | "league";
 
@@ -384,6 +385,7 @@ function TaskRow({
 // ─── ANA BİLEŞEN ─────────────────────────────────────────────────────────────
 export default function TaskManagementPanel() {
   const router = useRouter();
+  const { user, isAdmin } = useUser();
   const [adminTab, setAdminTab] = useState<AdminTab>("templates");
 
   // Templates
@@ -624,13 +626,19 @@ export default function TaskManagementPanel() {
   };
 
   // ── Sekme yapılandırması ───────────────────────────────────────────────────
-  const innerTabs: { id: AdminTab; label: string }[] = [
-    { id: "templates", label: "Şablon Yönetimi" },
-    { id: "active",    label: "Mevcut Ödevler"  },
-    { id: "archive",   label: "Arşiv"            },
-    { id: "pools",     label: "Ödev Havuzları"   },
-    { id: "league",    label: "Lig Yönetimi"     },
+  const allTabs: { id: AdminTab; label: string; adminOnly: boolean }[] = [
+    { id: "templates", label: "Şablon Yönetimi", adminOnly: false },
+    { id: "active",    label: "Mevcut Ödevler",  adminOnly: true  },
+    { id: "archive",   label: "Arşiv",            adminOnly: true  },
+    { id: "pools",     label: "Ödev Havuzları",   adminOnly: true  },
+    { id: "league",    label: "Lig Yönetimi",     adminOnly: false },
   ];
+  const innerTabs = allTabs.filter(t => isAdmin() || !t.adminOnly);
+
+  // Şablonlar: eğitmen sadece kendi kişisel şablonlarını görür
+  const visibleTemplates = isAdmin()
+    ? templates
+    : templates.filter(t => t.scope === "personal" && t.createdBy === user?.uid);
 
   const enrichedActive   = activeTasks.map(enrichTask);
   const enrichedArchived = archivedTasks.map(enrichTask);
@@ -679,7 +687,11 @@ export default function TaskManagementPanel() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-[20px] font-bold text-base-primary-900 leading-none mb-1">Şablon Yönetimi</h2>
-              <p className="text-[13px] text-surface-400">Eğitmenlerin kullanacağı ödev şablonlarını oluştur ve yönet.</p>
+              <p className="text-[13px] text-surface-400">
+                {isAdmin()
+                  ? "Eğitmenlerin kullanacağı ödev şablonlarını oluştur ve yönet."
+                  : "Kişisel ödev şablonlarını oluştur ve yönet."}
+              </p>
             </div>
             <button
               onClick={openTemplateCreate}
@@ -715,7 +727,7 @@ export default function TaskManagementPanel() {
               <div className="flex items-center justify-center py-20">
                 <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
               </div>
-            ) : templates.length === 0 ? (
+            ) : visibleTemplates.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-surface-300">
                 <p className="text-[14px] font-semibold mb-3">Henüz şablon yok</p>
                 <button onClick={openTemplateCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-50 text-surface-500 text-[13px] font-bold hover:text-surface-700 transition-all cursor-pointer">
@@ -723,7 +735,7 @@ export default function TaskManagementPanel() {
                 </button>
               </div>
             ) : (
-              templates.map(t => (
+              visibleTemplates.map(t => (
                 <TemplateRow
                   key={t.id}
                   task={t}
@@ -809,12 +821,12 @@ export default function TaskManagementPanel() {
       {/* ── LIG AYARLARI ────────────────────────────────────────────────────── */}
       {adminTab === "league" && (
         <div className="space-y-6">
-          {/* Alt tab bar */}
+          {/* Alt tab bar — Puan Yönetimi sadece admin */}
           <div className="flex items-center gap-1 bg-surface-50 w-fit p-1 rounded-[14px] border border-surface-100 shadow-sm">
             {([
-              { id: "league",  label: "Lig Ayarları"  },
-              { id: "scoring", label: "Puan Yönetimi" },
-            ] as const).map(tab => (
+              { id: "league",  label: "Lig Ayarları",  adminOnly: false },
+              { id: "scoring", label: "Puan Yönetimi", adminOnly: true  },
+            ] as const).filter(t => isAdmin() || !t.adminOnly).map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setLeagueSubTab(tab.id)}
@@ -830,56 +842,69 @@ export default function TaskManagementPanel() {
           </div>
 
           {/* Lig Ayarları alt sayfası */}
-          {leagueSubTab === "league" && (
-            <>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-[20px] font-bold text-base-primary-900 leading-none mb-1">Lig Ayarları</h2>
-                  <p className="text-[13px] text-surface-400">Sınıf bazında ligi açıp kapatabilirsin. Kapatılan sınıfta puanlar korunur, öğrenci panelinde lig menüsü gizlenir.</p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={`text-[13px] font-bold ${leagueGlobal ? "text-green-600" : "text-surface-400"}`}>
-                    {leagueGlobal ? "Lig Aktif" : "Lig Kapalı"}
-                  </span>
-                  <button
-                    onClick={handleGlobalLeagueToggle}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${leagueGlobal ? "bg-green-500" : "bg-slate-300"}`}
-                  >
-                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${leagueGlobal ? "left-7" : "left-1"}`} />
-                  </button>
-                </div>
-              </div>
+          {leagueSubTab === "league" && (() => {
+            // Eğitmen: sadece kendi branch'lerindeki grupları görsün
+            const userBranchIds = user?.branches ?? (user?.branch ? [user.branch] : []);
+            const visibleGroups = isAdmin()
+              ? groups
+              : groups.filter(g => g.branch && userBranchIds.includes(g.branch));
 
-              <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100">
-                  <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide w-24">Sınıf</span>
-                  <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide flex-1">Branş</span>
-                  <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide w-28 text-right">Lig Katılımı</span>
+            return (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-[20px] font-bold text-base-primary-900 leading-none mb-1">Lig Ayarları</h2>
+                    <p className="text-[13px] text-surface-400">Sınıf bazında ligi açıp kapatabilirsin. Kapatılan sınıfta puanlar korunur, öğrenci panelinde lig menüsü gizlenir.</p>
+                  </div>
+                  {/* Global toggle: admin aktif, eğitmen disabled */}
+                  <div className={`flex items-center gap-3 shrink-0 ${!isAdmin() ? "opacity-40" : ""}`}>
+                    <span className={`text-[13px] font-bold ${leagueGlobal ? "text-green-600" : "text-surface-400"}`}>
+                      {leagueGlobal ? "Lig Aktif" : "Lig Kapalı"}
+                    </span>
+                    <button
+                      onClick={isAdmin() ? handleGlobalLeagueToggle : undefined}
+                      disabled={!isAdmin()}
+                      title={!isAdmin() ? "Bu ayar yalnızca admin tarafından değiştirilebilir" : undefined}
+                      className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none ${leagueGlobal ? "bg-green-500" : "bg-slate-300"} ${isAdmin() ? "cursor-pointer" : "cursor-not-allowed"}`}
+                    >
+                      <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${leagueGlobal ? "left-7" : "left-1"}`} />
+                    </button>
+                  </div>
                 </div>
-                {groups.length === 0 ? (
-                  <div className="flex items-center justify-center py-12 text-surface-400 text-[13px]">Henüz sınıf yok.</div>
-                ) : (
-                  groups.map(group => {
-                    const inLeague = group.leagueEnabled !== false;
-                    return (
-                      <div key={group.id} className={`flex items-center gap-4 px-5 py-4 border-b border-surface-50 last:border-0 transition-colors ${!leagueGlobal ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/50"}`}>
-                        <span className="text-[14px] font-bold text-base-primary-900 w-24">{group.code}</span>
-                        <span className="text-[13px] text-surface-500 flex-1">{group.branch || "—"}</span>
-                        <div className="w-28 flex justify-end">
-                          <button
-                            onClick={() => handleLeagueToggle(group)}
-                            className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${inLeague ? "bg-green-500" : "bg-slate-300"}`}
-                          >
-                            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${inLeague ? "left-6" : "left-1"}`} />
-                          </button>
+
+                <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-4 px-5 py-3 bg-surface-50 border-b border-surface-100">
+                    <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide w-24">Sınıf</span>
+                    <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide flex-1">Branş</span>
+                    <span className="text-[11px] font-bold text-surface-400 uppercase tracking-wide w-28 text-right">Lig Katılımı</span>
+                  </div>
+                  {visibleGroups.length === 0 ? (
+                    <div className="flex items-center justify-center py-12 text-surface-400 text-[13px]">
+                      {isAdmin() ? "Henüz sınıf yok." : "Lig ayarlanacak grubunuz bulunmuyor."}
+                    </div>
+                  ) : (
+                    visibleGroups.map(group => {
+                      const inLeague = group.leagueEnabled !== false;
+                      return (
+                        <div key={group.id} className={`flex items-center gap-4 px-5 py-4 border-b border-surface-50 last:border-0 transition-colors ${!leagueGlobal ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/50"}`}>
+                          <span className="text-[14px] font-bold text-base-primary-900 w-24">{group.code}</span>
+                          <span className="text-[13px] text-surface-500 flex-1">{group.branch || "—"}</span>
+                          <div className="w-28 flex justify-end">
+                            <button
+                              onClick={() => handleLeagueToggle(group)}
+                              className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${inLeague ? "bg-green-500" : "bg-slate-300"}`}
+                            >
+                              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${inLeague ? "left-6" : "left-1"}`} />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </>
-          )}
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            );
+          })()}
 
           {/* Puan Yönetimi alt sayfası */}
           {leagueSubTab === "scoring" && <ScoringSettingsPanel />}

@@ -93,7 +93,7 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
 }
 
 // ---- ANA BİLEŞEN ----
-export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
+export default function AssignmentLibrary({ scrollRef, handleScroll, activeBranch = "all" }: any) {
   const [templates, setTemplates]             = useState<Task[]>([]);
   const [activeTab, setActiveTab]             = useState<LibraryTab>("personal");
   const [hasOverflow, setHasOverflow]         = useState(false);
@@ -122,7 +122,10 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
     if (t.isHidden) return false;
     if (activeTab === "personal") return t.scope === "personal" && t.createdBy === uid;
     // global: standart + gamified birlikte; scope yazılmamış eski şablonlar da buraya düşer
-    return t.scope === "global" || t.scope === "gamified" || !t.scope;
+    if (!(t.scope === "global" || t.scope === "gamified" || !t.scope)) return false;
+    // Branch seçiliyse: discipline kesin eşleşmeli; "all"da filtresiz
+    if (activeBranch !== "all") return t.discipline === activeBranch;
+    return true;
   });
 
   const handleRemove = async (task: Task) => {

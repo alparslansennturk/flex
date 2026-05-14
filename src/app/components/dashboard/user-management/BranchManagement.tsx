@@ -1,10 +1,10 @@
 "use client";
 import React, { useState } from "react";
-import { Plus, Trash2, GitBranch, Users } from "lucide-react";
+import { Plus, Trash2, GitBranch, Users, Clock } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 
-interface Branch { id: string; name: string; slug: string; }
+interface Branch { id: string; name: string; slug: string; sessionHours?: number; }
 
 export const BranchManagement = ({ branches, users }: { branches: Branch[]; users: any[] }) => {
     const [name, setName] = useState("");
@@ -31,6 +31,11 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
             setName(""); setError("");
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
+    };
+
+    const handleUpdateHours = async (b: Branch, hours: number) => {
+        if (isNaN(hours) || hours < 1) return;
+        await updateDoc(doc(db, "branches", b.id), { sessionHours: hours });
     };
 
     const handleDelete = async (b: Branch) => {
@@ -75,20 +80,36 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
                     {branches.map(b => {
                         const count = instructorCount(b.id);
                         return (
-                            <div key={b.id} className="bg-white border border-neutral-100 rounded-2xl p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow group">
-                                <div>
-                                    <p className="font-bold text-[15px] text-[#10294C]">{b.name}</p>
-                                    <div className="flex items-center gap-1.5 mt-1.5 text-neutral-400">
-                                        <Users size={12} />
-                                        <span className="text-[12px] font-medium">{count} eğitmen</span>
+                            <div key={b.id} className="bg-white border border-neutral-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow group">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <p className="font-bold text-[15px] text-[#10294C]">{b.name}</p>
+                                        <div className="flex items-center gap-1.5 mt-1.5 text-neutral-400">
+                                            <Users size={12} />
+                                            <span className="text-[12px] font-medium">{count} eğitmen</span>
+                                        </div>
                                     </div>
+                                    <button
+                                        onClick={() => handleDelete(b)}
+                                        className="w-9 h-9 flex items-center justify-center rounded-xl text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                                    >
+                                        <Trash2 size={15} />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => handleDelete(b)}
-                                    className="w-9 h-9 flex items-center justify-center rounded-xl text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100"
-                                >
-                                    <Trash2 size={15} />
-                                </button>
+                                {/* Session hours */}
+                                <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3">
+                                    <Clock size={12} className="text-neutral-400 shrink-0" />
+                                    <span className="text-[11px] text-neutral-400 font-medium">Ders süresi:</span>
+                                    <input
+                                        type="number" min={1} max={12}
+                                        defaultValue={b.sessionHours ?? ""}
+                                        placeholder="—"
+                                        onBlur={e => handleUpdateHours(b, parseInt(e.target.value, 10))}
+                                        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                                        className="w-12 text-center text-[13px] font-bold text-[#10294C] border border-neutral-200 rounded-lg py-1 outline-none focus:border-orange-400 transition-colors bg-neutral-50"
+                                    />
+                                    <span className="text-[11px] text-neutral-400">saat</span>
+                                </div>
                             </div>
                         );
                     })}

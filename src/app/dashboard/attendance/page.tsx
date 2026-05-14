@@ -7,9 +7,9 @@ import { doc, getDoc } from "firebase/firestore";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
-import TaskManagementPanel from "../../components/dashboard/assignment/TaskManagementPanel";
+import AttendancePanel from "../../components/dashboard/attendance/AttendancePanel";
 
-export default function TasksPage() {
+export default function AttendancePage() {
   const router = useRouter();
 
   useEffect(() => {
@@ -22,8 +22,7 @@ export default function TasksPage() {
         const hasAccess = data && (
           data.role === "admin" ||
           data.role === "instructor" ||
-          (data.roles && (data.roles.includes("admin") || data.roles.includes("instructor"))) ||
-          data.permissionOverrides?.ASSIGNMENT_MANAGE === true
+          (data.roles && (data.roles.includes("admin") || data.roles.includes("instructor")))
         );
         if (!hasAccess) router.push("/dashboard");
       } catch {
@@ -39,13 +38,9 @@ export default function TasksPage() {
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header activeTabLabel="Ödev Yönetimi" />
-        <main className="flex-1 overflow-y-auto bg-surface-50/20 [scrollbar-gutter:stable]">
-          <div className="w-full max-w-480 mx-auto pb-20">
-            <div className="px-0 pt-8">
-              <TaskManagementPanel />
-            </div>
-          </div>
+        <Header activeTabLabel="Yoklamalar" />
+        <main className="flex-1 min-h-0 bg-white [scrollbar-gutter:stable] overflow-hidden">
+          <AttendancePanel />
         </main>
         <Footer />
       </div>
