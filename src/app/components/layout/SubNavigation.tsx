@@ -5,18 +5,21 @@ import Link from "next/link";
 interface SubNavigationProps {
   activeTab: string;
   onTabChange: (tabId: string) => void;
+  allowedTabs?: string[];
 }
 
-const SubNavigation: React.FC<SubNavigationProps> = ({ activeTab, onTabChange }) => {
-  const tabs = [
-    { id: "general",            label: "Genel Ayarlar",      href: null },
-    { id: "users",              label: "Kullanıcı Yönetimi", href: null },
-    { id: "notifications",      label: "Bildirimler",        href: null },
-    { id: "header-footer",      label: "Header & Footer",    href: null },
-    { id: "sidebar-management", label: "Sidebar Yönetimi",   href: null },
-    { id: "logs-page",          label: "Logs",               href: "/dashboard/logs" },
-    { id: "logs",               label: "Yedekleme",          href: null },
-  ];
+const ALL_TABS = [
+  { id: "general",            label: "Genel Ayarlar",      href: null },
+  { id: "users",              label: "Kullanıcı Yönetimi", href: null },
+  { id: "notifications",      label: "Bildirimler",        href: null },
+  { id: "header-footer",      label: "Header & Footer",    href: null },
+  { id: "sidebar-management", label: "Sidebar Yönetimi",   href: null },
+  { id: "logs-page",          label: "Logs",               href: "/dashboard/logs" },
+  { id: "logs",               label: "Yedekleme",          href: null },
+];
+
+const SubNavigation: React.FC<SubNavigationProps> = ({ activeTab, onTabChange, allowedTabs }) => {
+  const tabs = allowedTabs ? ALL_TABS.filter(t => allowedTabs.includes(t.id)) : ALL_TABS;
 
   return (
     <div className="w-full mt-6">

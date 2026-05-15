@@ -18,7 +18,10 @@ export async function POST(req: NextRequest) {
   }
 
   const role = decoded.role as string | undefined;
-  if (role !== "admin" && decoded.email !== MASTER_UID) {
+  const isAdmin      = role === "admin" || decoded.email === MASTER_UID;
+  const isInstructor = role === "instructor";
+
+  if (!isAdmin && !isInstructor) {
     return NextResponse.json({ error: "Yetkisiz." }, { status: 403 });
   }
 
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
   const { title, preview, audience, actionUrl, groupId } = await req.json() as {
     title?: string;
     preview?: string;
-    audience?: "students" | "instructors" | "all" | "group";
+    audience?: "students" | "instructors" | "all" | "group" | "my-groups";
     actionUrl?: string;
     groupId?: string;
   };
@@ -38,27 +41,53 @@ export async function POST(req: NextRequest) {
   if (audience === "group" && !groupId)
     return NextResponse.json({ error: "Grup seçilmedi." }, { status: 400 });
 
+  // Eğitmenler sadece kendi gruplarına gönderebilir
+  if (isInstructor) {
+    if (audience === "group") {
+      const groupDoc = await adminDb.collection("groups").doc(groupId!).get();
+      if (!groupDoc.exists || groupDoc.data()?.instructorId !== decoded.uid)
+        return NextResponse.json({ error: "Bu grup size ait değil." }, { status: 403 });
+    } else if (audience !== "my-groups") {
+      return NextResponse.json({ error: "Eğitmenler sadece kendi gruplarına gönderebilir." }, { status: 403 });
+    }
+  }
+
   // ── Hedef kullanıcıları bul ───────────────────────────────────────────────
   let targetUids: string[] = [];
 
+  /** Verilen groupId listesindeki tüm öğrencilerin authUid'lerini döner */
+  async function uidsFromGroups(groupIds: string[]): Promise<string[]> {
+    const snaps = await Promise.all(
+      groupIds.map(gid =>
+        adminDb.collection("students").where("groupId", "==", gid).get()
+      )
+    );
+    const authUids = snaps.flatMap(s =>
+      s.docs.map(d => d.data().authUid as string | undefined).filter((u): u is string => !!u)
+    );
+    const unique = [...new Set(authUids)];
+    const checks = await Promise.all(unique.map(uid => adminDb.collection("users").doc(uid).get()));
+    return checks.filter(d => d.exists).map(d => d.id);
+  }
+
   if (audience === "group" && groupId) {
-    // Grubun öğrencilerini students koleksiyonundan çek
-    const studentsSnap = await adminDb.collection("students")
-      .where("groupId", "==", groupId)
-      .get();
-
-    const authUids = studentsSnap.docs
-      .map(d => d.data().authUid as string | undefined)
-      .filter((uid): uid is string => !!uid);
-
-    if (!authUids.length)
+    targetUids = await uidsFromGroups([groupId]);
+    if (!targetUids.length)
       return NextResponse.json({ error: "Bu grupta aktif (giriş yapmış) öğrenci bulunamadı." }, { status: 404 });
 
-    // Sadece users koleksiyonunda gerçekten var olan UID'leri kullan
-    const userChecks = await Promise.all(
-      authUids.map(uid => adminDb.collection("users").doc(uid).get())
-    );
-    targetUids = userChecks.filter(d => d.exists).map(d => d.id);
+  } else if (audience === "my-groups") {
+    // Gönderenin kendi grupları
+    const myGroupsSnap = await adminDb.collection("groups")
+      .where("instructorId", "==", decoded.uid)
+      .get();
+    const myGroupIds = myGroupsSnap.docs
+      .filter(d => d.data().status !== "archived")
+      .map(d => d.id);
+    if (!myGroupIds.length)
+      return NextResponse.json({ error: "Size atanmış aktif grup bulunamadı." }, { status: 404 });
+    targetUids = await uidsFromGroups(myGroupIds);
+    if (!targetUids.length)
+      return NextResponse.json({ error: "Gruplarınızda aktif öğrenci bulunamadı." }, { status: 404 });
 
   } else {
     const usersSnap = await adminDb.collection("users").get();

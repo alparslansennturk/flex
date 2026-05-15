@@ -20,7 +20,9 @@ export default function AdminPage() {
       ? (sessionStorage.getItem("admin_active_tab") ?? "general")
       : "general"
   );
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isAdmin, setIsAdmin]           = useState<boolean | null>(null);
+  const [userRole, setUserRole]         = useState<string>("admin");
+  const [currentUid, setCurrentUid]     = useState<string>("");
   const router = useRouter();
 
   useEffect(() => {
@@ -30,12 +32,28 @@ export default function AdminPage() {
       try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         const data = userDoc.exists() ? userDoc.data() : null;
-        const hasAccess = data && (
-          data.role === "admin" ||
-          (data.roles && data.roles.includes("admin")) ||
-          data.permissionOverrides?.MANAGEMENT_PANEL === true
-        );
-        if (hasAccess) {
+        const role: string = data?.role || data?.roles?.[0] || "";
+
+        const isAdminRole = role === "admin" ||
+          (data?.roles && data.roles.includes("admin")) ||
+          data?.permissionOverrides?.MANAGEMENT_PANEL === true;
+        const isInstructorRole = role === "instructor";
+
+        if (isAdminRole) {
+          setUserRole("admin");
+          setCurrentUid(user.uid);
+          setIsAdmin(true);
+        } else if (isInstructorRole) {
+          setUserRole("instructor");
+          setCurrentUid(user.uid);
+          // Eğitmen sadece bildirimler tabına erişebilir
+          if (typeof window !== "undefined") {
+            const saved = sessionStorage.getItem("admin_active_tab");
+            if (!saved || saved !== "notifications") {
+              sessionStorage.setItem("admin_active_tab", "notifications");
+            }
+          }
+          setActiveSubTab("notifications");
           setIsAdmin(true);
         } else {
           router.push("/dashboard");
@@ -51,9 +69,10 @@ export default function AdminPage() {
     const labels: Record<string, string> = {
       users: "Kullanıcı Yönetimi",
       "task-management": "Ödev Yönetimi",
+      notifications: userRole === "instructor" ? "Bildirimler" : "Yönetim Paneli",
     };
     setHeaderTitle(labels[activeSubTab] || "Yönetim Paneli");
-  }, [activeSubTab]);
+  }, [activeSubTab, userRole]);
 
   if (isAdmin === null) {
     return (
@@ -70,10 +89,19 @@ export default function AdminPage() {
         <Header activeTabLabel={headerTitle} />
         <main className="flex-1 overflow-y-auto bg-surface-50/20 [scrollbar-gutter:stable]">
           <div className="w-full max-w-[1920px] mx-auto">
-            <SubNavigation activeTab={activeSubTab} onTabChange={(tab) => { setActiveSubTab(tab); sessionStorage.setItem("admin_active_tab", tab); }} />
+            <SubNavigation
+              activeTab={activeSubTab}
+              onTabChange={(tab) => { setActiveSubTab(tab); sessionStorage.setItem("admin_active_tab", tab); }}
+              allowedTabs={userRole === "instructor" ? ["notifications"] : undefined}
+            />
             {activeSubTab === "users" && <UserManagement />}
             {activeSubTab === "task-management" && <TaskManagementPanel />}
-            {activeSubTab === "notifications" && <NotificationPanel />}
+            {activeSubTab === "notifications" && (
+              <NotificationPanel
+                userRole={userRole}
+                instructorUid={currentUid}
+              />
+            )}
             {activeSubTab === "logs" && <SystemPanel />}
           </div>
         </main>

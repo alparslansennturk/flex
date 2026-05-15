@@ -174,14 +174,14 @@ export async function POST(req: NextRequest) {
   console.log("[comments/create] Written:", commentRef.id);
 
   // ── Step 10: Bildirim tetikleyiciler ─────────────────────────────────────
-  (async () => {
-    try {
-      if (isTeacher) {
-        // Eğitmen yorumu → öğrenciye bildirim
-        const studentDoc = await adminDb.collection("students").doc(studentId).get();
-        const studentAuthUid = studentDoc.data()?.authUid as string | undefined;
-        if (!studentAuthUid) return;
-
+  // await ile yazılır — fire-and-forget IIFE Vercel tarafından erken kesilebilir.
+  try {
+    if (isTeacher) {
+      // Eğitmen yorumu → öğrenciye bildirim
+      const studentDoc = await adminDb.collection("students").doc(studentId).get();
+      const studentAuthUid = studentDoc.data()?.authUid as string | undefined;
+      if (studentAuthUid) {
+        const teacherPreview = safeText.length > 80 ? safeText.slice(0, 80) + "…" : safeText;
         // Her yorum için unique ID — overwrite değil yeni doc → toast her seferinde tetiklenir
         await adminDb
           .collection("users").doc(studentAuthUid)
@@ -190,54 +190,52 @@ export async function POST(req: NextRequest) {
             type:      "message",
             entityId:  taskId,
             senderId:  uid,
-            title:     "Yeni mesajınız var",
-            preview:   "Eğitmeniniz size özel bir mesaj bıraktı. Görmek için tıklayın.",
+            title:     "Eğitmeninizden yeni mesaj",
+            preview:   teacherPreview,
             actionUrl: `/student/${studentId}/${taskId}`,
             createdAt: FieldValue.serverTimestamp(),
             isRead:    false,
             isArchived: false,
           });
-
         console.log(`[comments/create] Bildirim → ${studentAuthUid}`);
+      }
 
-      } else if (isStudent) {
-        // Öğrenci yorumu → sadece o grubun eğitmenine bildirim
-        const studentDoc = await adminDb.collection("students").doc(studentId).get();
-        const sData = studentDoc.data();
-        const studentName = sData
-          ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
-          : "Bir öğrenci";
-        const sGroupId = sData?.groupId as string | undefined;
-        if (!sGroupId) return;
-
+    } else if (isStudent) {
+      // Öğrenci yorumu → sadece o grubun eğitmenine bildirim
+      const studentDoc = await adminDb.collection("students").doc(studentId).get();
+      const sData = studentDoc.data();
+      const studentName = sData
+        ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
+        : "Bir öğrenci";
+      const sGroupId = sData?.groupId as string | undefined;
+      if (sGroupId) {
         const groupDoc = await adminDb.collection("groups").doc(sGroupId).get();
         const instructorId = groupDoc.data()?.instructorId as string | undefined;
-        if (!instructorId) return;
-
-        const preview = safeText.length > 80 ? safeText.slice(0, 80) + "…" : safeText;
-
-        // Her yorum için unique ID — her yorum ayrı toast tetikler
-        await adminDb
-          .collection("users").doc(instructorId)
-          .collection("notifications").doc()
-          .set({
-            type:      "message",
-            entityId:  taskId,
-            senderId:  uid,
-            title:     `${studentName} yorum yaptı`,
-            preview,
-            actionUrl: `/dashboard/assignment-test/${sGroupId}/${taskId}?student=${studentId}&tab=private`,
-            createdAt: FieldValue.serverTimestamp(),
-            isRead:    false,
-            isArchived: false,
-          });
-
-        console.log(`[comments/create] Öğrenci bildirimi → ${instructorId}`);
+        if (instructorId) {
+          const preview = safeText.length > 80 ? safeText.slice(0, 80) + "…" : safeText;
+          // Her yorum için unique ID — her yorum ayrı toast tetikler
+          await adminDb
+            .collection("users").doc(instructorId)
+            .collection("notifications").doc()
+            .set({
+              type:      "message",
+              entityId:  taskId,
+              senderId:  uid,
+              title:     `${studentName} yorum yaptı`,
+              preview,
+              actionUrl: `/dashboard/assignment-test/${sGroupId}/${taskId}?student=${studentId}&tab=private`,
+              createdAt: FieldValue.serverTimestamp(),
+              isRead:    false,
+              isArchived: false,
+            });
+          console.log(`[comments/create] Öğrenci bildirimi → ${instructorId}`);
+        }
       }
-    } catch (err) {
-      console.error("[comments/create] Bildirim hatası:", err);
     }
-  })();
+  } catch (err) {
+    console.error("[comments/create] Bildirim hatası:", err);
+    // Bildirim hatası yorum başarısını etkilemesin
+  }
 
   return NextResponse.json({ success: true, commentId: commentRef.id });
 }

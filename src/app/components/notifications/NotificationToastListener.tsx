@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useUser } from '@/app/context/UserContext';
 import { NotificationService } from '@/app/lib/services/NotificationService';
 import { NotificationRealtimeService } from '@/app/lib/services/NotificationRealtimeService';
+import { playNotificationSound } from '@/app/lib/notificationSound';
 import type { NotificationPayload } from '@/app/lib/notifications/types';
 
 const TYPE_ICON: Record<NotificationPayload['type'], string> = {
@@ -15,39 +16,36 @@ const TYPE_ICON: Record<NotificationPayload['type'], string> = {
   system:       '🔔',
 };
 
-function playNotificationSound() {
-  try {
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.4);
-  } catch {
-    // Ses API desteklenmiyorsa sessiz devam et
-  }
-}
-
 export default function NotificationToastListener() {
-  const { user }   = useUser();
-  const pathname   = usePathname();
-  const router     = useRouter();
-  const seenIds    = useRef(new Set<string>());
-  const subscribeAt = useRef(0);
+  const { user }    = useUser();
+  const pathname    = usePathname();
+  const router      = useRouter();
+  const seenIds       = useRef(new Set<string>());
+  const isInitialLoad = useRef(true);
+  // Ref'ler: subscription closure'ı her navigasyonda yeniden kurulmadan
+  // her zaman güncel pathname ve router'a erişebilsin.
+  const pathnameRef = useRef(pathname);
+  const routerRef   = useRef(router);
+
+  // Ref'leri her render'da güncelle (subscription'ı kesmeden)
+  useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
+  useEffect(() => { routerRef.current = router; }, [router]);
 
   useEffect(() => {
     if (!user?.uid) return;
 
+    // seenIds sadece kullanıcı değişince sıfırlanır — navigasyon kesmez.
+    // isInitialLoad: ilk snapshot'taki mevcut bildirimler sessizce seenIds'e eklenir,
+    // toast gösterilmez. Sonraki snapshot'larda sadece YENİ olanlar toast tetikler.
+    // subscribeAt/saat karşılaştırması YOK — sunucu/tarayıcı saat farkından etkilenmez.
     seenIds.current.clear();
-    subscribeAt.current = Date.now();
+    isInitialLoad.current = true;
 
     const unsub = NotificationRealtimeService.subscribe(user.uid, (notifications) => {
+      // İlk snapshot (isInitialLoad=true): eski bildirimler bastırılır ama
+      // son 30 saniyede oluşanlar toast gösterir (API hızlı yazarsa ilk snapshot'a düşebilir).
+      // 30s penceresi sunucu/tarayıcı saat farkından etkilenmez.
+      const recentCutoff = Date.now() - 30_000;
       let hasNew = false;
 
       for (const n of notifications) {
@@ -55,17 +53,17 @@ export default function NotificationToastListener() {
         seenIds.current.add(n.id);
         if (n.isRead) continue;
 
-        // Abonelik başlamadan 3 saniyeden önce yazılmış bildirimleri geç
-        const notifMs = n.createdAt?.toMillis();
-        if (notifMs !== undefined && notifMs < subscribeAt.current - 3000) continue;
+        // İlk snapshot'ta sadece çok yeni bildirimler toast gösterir
+        if (isInitialLoad.current) {
+          const notifMs = n.createdAt?.toMillis();
+          if (!notifMs || notifMs <= recentCutoff) continue;
+        }
 
-        // Sadece mesaj tipinde: zaten o sayfadaysa sessizce okundu say (badge + toast yok)
+        // Sadece mesaj tipinde: zaten o sayfadaysa toast bastır (badge değişmez)
+        // markAsRead çağrılmaz — badge bell'e tıklayınca kullanıcı tarafından okunur.
         if (n.type === 'message') {
           const targetPath = n.actionUrl?.split('?')[0] ?? '/';
-          if (pathname === targetPath) {
-            NotificationService.markAsRead(user.uid, n.id).catch(() => {});
-            continue;
-          }
+          if (pathnameRef.current === targetPath) continue;
         }
 
         hasNew = true;
@@ -74,16 +72,18 @@ export default function NotificationToastListener() {
           description: n.preview,
           duration: 6000,
           ...(n.actionUrl && n.actionUrl !== '/' ? {
-            action: { label: 'Git →', onClick: () => router.push(n.actionUrl) },
+            action: { label: 'Git →', onClick: () => routerRef.current.push(n.actionUrl) },
           } : {}),
         });
       }
 
       if (hasNew) playNotificationSound();
+      // Her snapshot'tan sonra false olur — ilk çağrıdan itibaren kalıcı
+      isInitialLoad.current = false;
     });
 
     return unsub;
-  }, [user?.uid, pathname, router]);
+  }, [user?.uid]); // Sadece user.uid değişince yeniden kur — pathname/router navigasyonu kesmez
 
   return null;
 }

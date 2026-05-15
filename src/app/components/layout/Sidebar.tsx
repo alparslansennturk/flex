@@ -121,7 +121,7 @@ export default function Sidebar() {
       {/* ALT BÖLÜM */}
       <div className={`mt-auto px-4 flex flex-col gap-2 shrink-0 transition-all duration-300 ${compact ? "pb-6" : "pb-8"}`}>
 
-        {(isAdmin || hasPermission(PERMISSIONS.MANAGEMENT_PANEL)) && (
+        {(isAdmin || hasPermission(PERMISSIONS.MANAGEMENT_PANEL) || user?.roles?.includes('instructor')) && (
           <>
             <SidebarLink href="/dashboard/admin" icon={<Settings2 size={18} />} label="Yönetim Paneli" compact={compact} />
             <div className="mx-2 my-1 border-t border-white/10" />

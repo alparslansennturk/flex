@@ -161,6 +161,9 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
     return onSnapshot(q, snap => {
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
+      const yesterdayDate = new Date(now);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const pastDueStr = yesterdayDate.toISOString().split("T")[0];
       const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
       const effectiveMonthKey = (ca?: string, end?: string): string | null => {
@@ -239,7 +242,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
           const mStart   = `${y}-${mo}-01`;
           const mLastDay = new Date(parseInt(y), parseInt(mo), 0).getDate();
           const mEndFull = `${y}-${mo}-${String(mLastDay).padStart(2, "0")}`;
-          const mEnd     = month === currentMonthKey ? todayStr : mEndFull;
+          const mEnd     = month === currentMonthKey ? pastDueStr : mEndFull;
           const mAssigned = assignedInMonth(mStart, mEnd, data.groupCode);
           const { finalScore: mScore } = calcStudentFinalScore(mXP, mComp, settings, mAssigned, 0, 0);
           cumulativeScore += mScore;
