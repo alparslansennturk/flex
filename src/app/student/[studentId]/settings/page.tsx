@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/app/lib/firebase";
 import { Settings, Volume2, VolumeX, Play } from "lucide-react";
 import StudentSidebar from "@/app/components/student/StudentSidebar";
 import StudentHeader from "@/app/components/layout/StudentHeader";
@@ -12,9 +14,18 @@ import {
   SOUND_TONES, type SoundTone,
 } from "@/app/lib/notificationSound";
 
+interface StudentInfo {
+  name: string;
+  lastName: string;
+  gender?: string;
+  avatarId?: number;
+  groupCode?: string;
+}
+
 export default function StudentSettingsPage() {
   const { studentId } = useParams<{ studentId: string }>();
 
+  const [student, setStudent] = useState<StudentInfo | null>(null);
   const [soundEnabled, setSoundEnabledState] = useState(true);
   const [soundTone,    setSoundToneState]    = useState<SoundTone>("ding");
 
@@ -22,6 +33,21 @@ export default function StudentSettingsPage() {
     setSoundEnabledState(getSoundEnabled());
     setSoundToneState(getSoundTone());
   }, []);
+
+  useEffect(() => {
+    if (!studentId) return;
+    getDoc(doc(db, "students", studentId)).then(snap => {
+      if (!snap.exists()) return;
+      const d = snap.data();
+      setStudent({
+        name:      d.name      ?? "",
+        lastName:  d.lastName  ?? "",
+        gender:    d.gender,
+        avatarId:  d.avatarId,
+        groupCode: d.groupCode ?? "",
+      });
+    });
+  }, [studentId]);
 
   const handleSoundToggle = () => {
     const next = !soundEnabled;
@@ -35,6 +61,8 @@ export default function StudentSettingsPage() {
     playNotificationSound(true);
   };
 
+  const studentFullName = student ? `${student.name} ${student.lastName}`.trim() : "";
+
   return (
     <div className="flex h-screen overflow-hidden bg-white font-inter antialiased text-text-primary">
 
@@ -43,7 +71,12 @@ export default function StudentSettingsPage() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <StudentHeader activeTabLabel="Ayarlar" studentId={studentId} />
+        <StudentHeader
+          studentName={studentFullName}
+          groupCode={student?.groupCode}
+          gender={student?.gender}
+          avatarId={student?.avatarId}
+        />
 
         <main className="flex-1 overflow-y-auto [scrollbar-gutter:stable] bg-surface-50/30">
           <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
