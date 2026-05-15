@@ -1,9 +1,10 @@
+"use client";
 import React, { useState, useEffect } from "react";
-import { X, ChevronDown, ChevronRight } from "lucide-react";
+import { X, ChevronDown, Check, Users } from "lucide-react";
 
 interface GroupFormProps {
   isFormOpen: boolean;
-  isShaking?: boolean;
+  editingGroupId?: string | null;
   groupCode: string;
   setGroupCode: (val: string) => void;
   groupBranch: string;
@@ -13,224 +14,339 @@ interface GroupFormProps {
   availableBranches: { id: string; name: string }[];
   groupModule: "GRAFIK_1" | "GRAFIK_2" | "";
   setGroupModule: (val: "GRAFIK_1" | "GRAFIK_2" | "") => void;
+  groupType: "standart" | "özel_ders" | "kurumsal";
+  setGroupType: (val: "standart" | "özel_ders" | "kurumsal") => void;
+  selectedModuleId: string;
+  setSelectedModuleId: (val: string) => void;
+  customHours: string;
+  setCustomHours: (val: string) => void;
+  companyName: string;
+  setCompanyName: (val: string) => void;
+  branchModules: { id: string; name: string; totalHours: number; sessionHours?: number }[];
   instructors: any[];
   selectedInstructorId: string;
   setSelectedInstructorId: (val: string) => void;
+  lessonHours: string;
+  setLessonHours: (val: string) => void;
+  groupStartDate: string;
+  setGroupStartDate: (val: string) => void;
   errors: { code?: string; schedule?: string; instructor?: string; duplicate?: string };
   setErrors: (val: any) => void;
   selectedSchedule: string;
   setSelectedSchedule: (val: string) => void;
-  isScheduleOpen: boolean;
-  setIsScheduleOpen: (val: boolean) => void;
+  isScheduleOpen?: boolean;
+  setIsScheduleOpen?: (val: boolean) => void;
   schedules: string[];
   customSchedule: string;
   setCustomSchedule: (val: string) => void;
   handleCancel: () => void;
-  handleSave: () => void;
-  scheduleRef: React.RefObject<HTMLDivElement | null>;
+  handleSave: () => Promise<void> | void;
+  scheduleRef?: React.RefObject<HTMLDivElement | null>;
   isAdmin?: boolean;
 }
 
 export const GroupForm: React.FC<GroupFormProps> = ({
-  isFormOpen, groupCode, setGroupCode, groupBranch, setGroupBranch,
+  isFormOpen, editingGroupId,
+  groupCode, setGroupCode, groupBranch, setGroupBranch,
   groupDiscipline, setGroupDiscipline, availableBranches,
   groupModule, setGroupModule,
+  groupType, setGroupType, selectedModuleId, setSelectedModuleId,
+  customHours, setCustomHours, companyName, setCompanyName, branchModules,
   instructors, selectedInstructorId, setSelectedInstructorId,
+  lessonHours, setLessonHours,
+  groupStartDate, setGroupStartDate,
   errors, setErrors, selectedSchedule, setSelectedSchedule,
-  isScheduleOpen, setIsScheduleOpen, schedules, customSchedule, setCustomSchedule,
-  handleCancel, handleSave, scheduleRef, isAdmin = true
+  schedules, customSchedule, setCustomSchedule,
+  handleCancel, handleSave, isAdmin = true,
 }) => {
+  const [loading, setLoading]     = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [shake, setShake]         = useState(false);
 
-  const [shake, setShake] = useState(false);
+  useEffect(() => {
+    if (!isFormOpen) { setIsSuccess(false); setLoading(false); }
+  }, [isFormOpen]);
 
   useEffect(() => {
     const hasErrors = Object.values(errors).some(Boolean);
     if (!hasErrors) return;
     setShake(true);
-    const t = setTimeout(() => setShake(false), 300);
+    const t = setTimeout(() => setShake(false), 400);
     return () => clearTimeout(t);
   }, [errors]);
 
-  const isGrafik = availableBranches.find(b => b.id === groupDiscipline)?.name?.toLowerCase().includes('grafik') ?? false;
-
   const handleDisciplineChange = (val: string) => {
     setGroupDiscipline(val);
-    const newIsGrafik = availableBranches.find(b => b.id === val)?.name?.toLowerCase().includes('grafik') ?? false;
-    if (!newIsGrafik) setGroupModule("");
+    setSelectedModuleId("");
+    const name = availableBranches.find(b => b.id === val)?.name?.toLowerCase() ?? "";
+    if (!name.includes("grafik")) setGroupModule("");
   };
 
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      await handleSave();
+      setIsSuccess(true);
+      setTimeout(() => setIsSuccess(false), 1500);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputBase   = "h-12 w-full border rounded-[12px] px-4 outline-none transition-all font-bold text-[14px] placeholder:text-neutral-400 placeholder:font-normal";
+  const inputNormal = `${inputBase} border-neutral-100 bg-neutral-50 focus:border-designstudio-secondary-400 focus:bg-white`;
+  const inputError  = `${inputBase} border-red-400 bg-red-50`;
+  const selectBase  = `${inputBase} appearance-none cursor-pointer pr-10`;
+
+  // Seçili branşa göre eğitmen filtrele (branches dizisi yoksa veya boşsa herkese göster)
+  const visibleInstructors = groupDiscipline
+    ? instructors.filter(i => !i.branches || i.branches.length === 0 || i.branches.includes(groupDiscipline))
+    : instructors;
+
   return (
-    <div
-      className={`
-        grid transition-[grid-template-rows,opacity,margin] duration-500 ease-in-out
-    max-width-[1400px] mx-auto w-full px-4 md:px-5 lg:px-3
-    ${isFormOpen ? "grid-rows-[1fr] opacity-100 mt-8 mb-4" : "grid-rows-[0fr] opacity-0 mt-0 mb-0"}
-`}>
+    <div className={`relative w-full bg-white rounded-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-[#10294C] ${shake ? "error-shake" : ""}`}>
 
-      {/* KRİTİK DÜZELTME: isScheduleOpen true ise overflow-hidden'ı kaldırıyoruz 
-        böylece liste dışarı taşabiliyor.
-      */}
-      <div className={`${isScheduleOpen ? "" : "overflow-hidden"}`}>
-        <div className={`
-    bg-white border border-neutral-200 rounded-[20px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]
-    ${shake ? "animate-shake-fast border-red-200" : ""}
-`}>
+      {/* Header */}
+      <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-designstudio-secondary-500 rounded-[12px] flex items-center justify-center shadow-lg shadow-designstudio-secondary-500/30">
+            <Users size={24} strokeWidth={2.5} />
+          </div>
+          <div>
+            <h3 className="text-[20px] font-bold">
+              {editingGroupId ? "Grubu Düzenle" : "Yeni Grup Oluştur"}
+            </h3>
+            <p className="text-white/50 text-[13px] font-medium">
+              Grup bilgilerini ve program detaylarını buradan yönetin.
+            </p>
+          </div>
+        </div>
+        <button type="button" onClick={handleCancel} className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer">
+          <X size={20} />
+        </button>
+      </div>
 
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-[16px] font-bold text-base-primary-900 tracking-tight">Grup Yapılandırması</h3>
-            <button onClick={handleCancel} className="p-2 hover:bg-neutral-50 rounded-full transition-colors cursor-pointer outline-none">
-              <X size={18} className="text-neutral-400" />
+      {/* Body */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-10 space-y-8 custom-scrollbar">
+
+        {/* Grup tipi */}
+        <div className="flex items-center gap-1 bg-neutral-100 w-fit p-1 rounded-xl">
+          {([
+            { id: "standart"  as const, label: "Standart" },
+            { id: "özel_ders" as const, label: "Özel Ders" },
+            { id: "kurumsal"  as const, label: "Kurumsal" },
+          ]).map(t => (
+            <button
+              key={t.id} type="button"
+              onClick={() => { setGroupType(t.id); setSelectedModuleId(""); setCustomHours(""); setCompanyName(""); }}
+              className={`px-5 py-2 rounded-[10px] text-[13px] font-bold transition-all cursor-pointer ${
+                groupType === t.id ? "bg-white text-designstudio-secondary-700 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              {t.label}
             </button>
-          </div>
+          ))}
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-6 items-end">
-            {/* Şube */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Şube</label>
-              <div className="relative">
-                <select
-                  value={groupBranch}
-                  onChange={(e) => { setGroupBranch(e.target.value); if (errors.duplicate) setErrors({ ...errors, duplicate: "" }); }}
-                  className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer transition-all"
-                >
-                  <option value="Kadıköy">Kadıköy</option>
-                  <option value="Şirinevler">Şirinevler</option>
-                  <option value="Pendik">Pendik</option>
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Branş */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Branş</label>
-              <div className="relative">
-                <select
-                  value={groupDiscipline}
-                  onChange={(e) => handleDisciplineChange(e.target.value)}
-                  className="w-full h-11 bg-neutral-50 border border-neutral-200 rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer transition-all"
-                >
-                  <option value="">Seçiniz...</option>
-                  {availableBranches.map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Eğitmen */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Sorumlu Eğitmen</label>
-              <div className="relative">
-                {!isAdmin ? (
-                  /* ELİF İÇİN: Dropdown falan yok, dümdüz kilitli bir kutu */
-                  <div className="w-full h-11 bg-neutral-100 border border-neutral-200 rounded-lg px-4 flex items-center text-[13px] font-bold text-base-primary-900 cursor-not-allowed select-none opacity-80">
-                    {instructors.find(i => i.id === selectedInstructorId)?.displayName || "Eğitmen Tanımlanıyor..."}
-                  </div>
-                ) : (
-                  /* ADMIN İÇİN: Normal seçim listesi */
-                  <>
-                    <select
-                      value={selectedInstructorId}
-                      onChange={(e) => { setSelectedInstructorId(e.target.value); if (errors.instructor) setErrors({ ...errors, instructor: "" }); }}
-                      className={`w-full h-11 border rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 appearance-none cursor-pointer ${errors.instructor ? "bg-red-50 border-red-300" : "bg-neutral-50 border-neutral-200"}`}
-                    >
-                      <option value="">Eğitmen Seçiniz</option>
-                      {instructors?.map((ins) => (
-                        <option key={ins.id} value={ins.id}>{ins.displayName}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Grup Kodu */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Grup Kodu</label>
-              <input
-                type="text"
-                value={groupCode}
-                onChange={(e) => { setGroupCode(e.target.value); if (errors.code || errors.duplicate) setErrors({ ...errors, code: "", duplicate: "" }); }}
-                placeholder="Örn: 101"
-                className={`w-full h-11 bg-neutral-50 border ${errors.code ? "border-red-300" : "border-neutral-200"} rounded-lg px-4 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 transition-all`}
-              />
-            </div>
-
-            {/* Modül */}
-            <div className="flex flex-col gap-2">
-              <label className={`text-[12px] font-bold uppercase tracking-wider ml-1 ${isGrafik ? "text-neutral-400" : "text-neutral-300"}`}>Modül</label>
-              <div className="relative">
-                <select
-                  value={groupModule}
-                  onChange={e => setGroupModule(e.target.value as "GRAFIK_1" | "GRAFIK_2" | "")}
-                  disabled={!isGrafik}
-                  className={`w-full h-11 border rounded-lg px-4 text-[13px] font-bold outline-none appearance-none transition-all ${isGrafik ? "bg-neutral-50 border-neutral-200 text-base-primary-900 focus:border-base-primary-500 cursor-pointer" : "bg-neutral-100 border-neutral-100 text-neutral-300 cursor-not-allowed"}`}
-                >
-                  <option value="">{isGrafik ? "Belirtilmemiş" : "Uygulanamaz"}</option>
-                  <option value="GRAFIK_1">Grafik 1</option>
-                  <option value="GRAFIK_2">Grafik 2</option>
-                </select>
-                <ChevronDown size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isGrafik ? "text-neutral-400" : "text-neutral-300"}`} />
-              </div>
-            </div>
-
-            {/* Seans */}
-            <div className="flex flex-col gap-2 relative" ref={scheduleRef}>
-              <label className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Seans</label>
-              <button
-                onClick={() => setIsScheduleOpen(!isScheduleOpen)}
-                className={`h-11 w-full bg-neutral-50 border ${errors.schedule ? "border-red-300" : "border-neutral-200"} rounded-lg px-4 flex items-center justify-between text-[13px] font-bold text-base-primary-900 cursor-pointer outline-none`}
+        {/* Satır 1: Şube · Branş · Grup Kodu */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Şube</label>
+            <div className="relative">
+              <select
+                value={groupBranch}
+                onChange={e => { setGroupBranch(e.target.value); if (errors.duplicate) setErrors({ ...errors, duplicate: "" }); }}
+                className={`${selectBase} ${inputNormal}`}
               >
-                <span className="truncate">{selectedSchedule}</span>
-                <ChevronDown size={14} className={`transition-transform duration-300 text-neutral-400 ${isScheduleOpen ? "rotate-180" : ""}`} />
-              </button>
-
-              {isScheduleOpen && (
-                <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white border border-neutral-200 shadow-[0_10px_30px_-5px_rgba(0,0,0,0.1)] rounded-xl py-1 z-[999] animate-in zoom-in-95 duration-200">
-                  {schedules.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => { setSelectedSchedule(s); setIsScheduleOpen(false); if (errors.schedule) setErrors({ ...errors, schedule: "" }); }}
-                      className="w-full px-4 py-1.5 text-left text-[13px] font-bold text-neutral-500 hover:bg-neutral-50 hover:text-base-primary-900 transition-colors cursor-pointer"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
+                <option value="Kadıköy">Kadıköy</option>
+                <option value="Şirinevler">Şirinevler</option>
+                <option value="Pendik">Pendik</option>
+              </select>
+              <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
             </div>
           </div>
 
-          {selectedSchedule === "Özel Grup Tanımla" && (
-            <div className="mt-4 p-4 bg-neutral-50 border border-neutral-100 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
-              <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Özel Seans Detayı</label>
-              <input
-                type="text"
-                value={customSchedule}
-                onChange={(e) => setCustomSchedule(e.target.value)}
-                placeholder="Pzt-Sal-Çar | 10:00 - 13:00"
-                className="w-full h-10 bg-white border border-neutral-200 rounded-lg px-4 text-[13px] font-semibold text-base-primary-900 outline-none focus:border-base-primary-500"
-              />
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Branş</label>
+            <div className="relative">
+              <select
+                value={groupDiscipline}
+                onChange={e => handleDisciplineChange(e.target.value)}
+                className={`${selectBase} ${inputNormal}`}
+              >
+                <option value="">Seçiniz...</option>
+                {availableBranches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Grup Kodu</label>
+            <input
+              type="text"
+              value={groupCode}
+              onChange={e => { setGroupCode(e.target.value); if (errors.code || errors.duplicate) setErrors({ ...errors, code: "", duplicate: "" }); }}
+              placeholder="Örn: 101"
+              className={errors.code ? inputError : inputNormal}
+            />
+          </div>
+        </div>
+
+        {/* Satır 2: Eğitmen · Seans · Ders Saati · Başlangıç Tarihi */}
+        <div className="grid grid-cols-4 gap-6">
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Sorumlu Eğitmen</label>
+            {!isAdmin ? (
+              <div className={`${inputNormal} flex items-center opacity-70 cursor-not-allowed`}>
+                {instructors.find(i => i.id === selectedInstructorId)?.displayName || "Eğitmen Tanımlanıyor..."}
+              </div>
+            ) : (
+              <div className="relative">
+                <select
+                  value={selectedInstructorId}
+                  onChange={e => { setSelectedInstructorId(e.target.value); if (errors.instructor) setErrors({ ...errors, instructor: "" }); }}
+                  className={`${selectBase} ${errors.instructor ? inputError : inputNormal}`}
+                >
+                  <option value="">Eğitmen Seçiniz</option>
+                  {visibleInstructors.map(ins => (
+                    <option key={ins.id} value={ins.id}>{ins.displayName}</option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Seans</label>
+            <div className="relative">
+              <select
+                value={selectedSchedule}
+                onChange={e => { setSelectedSchedule(e.target.value); if (errors.schedule) setErrors({ ...errors, schedule: "" }); }}
+                className={`${selectBase} ${errors.schedule ? inputError : inputNormal}`}
+              >
+                <option value="Grup seansı seçiniz..." disabled>Grup seansı seçiniz...</option>
+                {schedules.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Ders Saati</label>
+            <input
+              type="number" min={1} max={12}
+              value={lessonHours}
+              onChange={e => setLessonHours(e.target.value)}
+              placeholder="3"
+              className={inputNormal}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Başlangıç Tarihi</label>
+            <input
+              type="date"
+              value={groupStartDate}
+              onChange={e => setGroupStartDate(e.target.value)}
+              className={inputNormal}
+            />
+          </div>
+        </div>
+
+        {/* Satır 3: Modül + Özel alanlar + Aylık Ders Sayısı */}
+        <div className="grid grid-cols-4 gap-6">
+          {groupType === "standart" && (
+            <div className="col-span-2 space-y-2">
+              <label className={`text-[13px] font-semibold ml-1 ${branchModules.length > 0 ? "text-neutral-500" : "text-neutral-300"}`}>
+                Modül
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedModuleId}
+                  onChange={e => {
+                    setSelectedModuleId(e.target.value);
+                    const mod = branchModules.find(m => m.id === e.target.value);
+                    if (mod) {
+                      const n = mod.name.toLowerCase();
+                      if (n.includes("grafik") && (n.includes("-1") || n.includes("1"))) setGroupModule("GRAFIK_1");
+                      else if (n.includes("grafik") && (n.includes("-2") || n.includes("2"))) setGroupModule("GRAFIK_2");
+                      else setGroupModule("");
+                    } else setGroupModule("");
+                  }}
+                  disabled={branchModules.length === 0}
+                  className={`${selectBase} ${branchModules.length > 0 ? inputNormal : "border-neutral-100 bg-neutral-100 text-neutral-300 cursor-not-allowed"}`}
+                >
+                  <option value="">{branchModules.length > 0 ? "Belirtilmemiş" : "Önce branş seçin"}</option>
+                  {branchModules.map(m => (
+                    <option key={m.id} value={m.id}>{m.name} ({m.totalHours} saat)</option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className={`absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${branchModules.length > 0 ? "text-neutral-400" : "text-neutral-300"}`} />
+              </div>
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-neutral-100">
-            {errors.duplicate && (
-              <span className="text-[12px] font-medium text-red-500 mr-5">{errors.duplicate}</span>
-            )}
-            <button onClick={handleCancel} className="px-4 py-2 text-[13px] font-bold text-neutral-400 hover:text-neutral-600 transition-all cursor-pointer">Vazgeç</button>
-            <button
-              onClick={handleSave}
-              className="h-10 px-8 bg-[var(--color-designstudio-secondary-500)] text-white rounded-lg font-bold text-sm flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-500/10 active:scale-95 transition-all outline-none"
-            >
-              Kaydet
-              <ChevronRight size={18} />
-            </button>
-          </div>
+          {groupType === "kurumsal" && (
+            <div className="space-y-2">
+              <label className="text-[13px] font-semibold text-neutral-500 ml-1">Şirket Adı</label>
+              <input type="text" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Şirket adı" className={inputNormal} />
+            </div>
+          )}
+
+          {groupType !== "standart" && (
+            <div className="space-y-2">
+              <label className="text-[13px] font-semibold text-neutral-500 ml-1">Toplam Saat</label>
+              <input type="number" min={1} value={customHours} onChange={e => setCustomHours(e.target.value)} placeholder="Örn: 40" className={inputNormal} />
+            </div>
+          )}
+
         </div>
+
+        {/* Özel seans input */}
+        {selectedSchedule === "Özel Grup Tanımla" && (
+          <div className="p-5 bg-neutral-50 border border-neutral-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+            <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Özel Seans Detayı</label>
+            <input
+              type="text"
+              value={customSchedule}
+              onChange={e => setCustomSchedule(e.target.value)}
+              placeholder="Pzt-Sal-Çar | 10:00 - 13:00"
+              className={`${inputBase} border-neutral-200 bg-white focus:border-designstudio-secondary-400`}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="p-8 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end gap-3 shrink-0">
+        {errors.duplicate && (
+          <span className="text-[13px] font-bold text-red-500 mr-4 animate-in fade-in">{errors.duplicate}</span>
+        )}
+        <button type="button" onClick={handleCancel} className="px-8 font-bold text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer text-[14px]">
+          Vazgeç
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={loading || isSuccess}
+          className={`px-[24px] py-[12px] rounded-[12px] font-semibold text-[14px] transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 ${
+            isSuccess
+              ? "bg-green-500 text-white"
+              : "bg-designstudio-secondary-500 hover:bg-designstudio-secondary-600 text-white shadow-md shadow-designstudio-secondary-500/20"
+          } disabled:opacity-60`}
+        >
+          {isSuccess
+            ? <><Check size={18} strokeWidth={3} /><span>Kaydedildi</span></>
+            : loading ? "Kaydediliyor..."
+            : editingGroupId ? "Güncelle" : "Grubu Oluştur"
+          }
+        </button>
       </div>
     </div>
   );

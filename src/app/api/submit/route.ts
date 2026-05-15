@@ -107,18 +107,18 @@ export async function POST(req: NextRequest) {
       ...(note ? { note } : {}),
     });
 
-    // Fire-and-forget: öğrenci teslim edince grubun eğitmenine bildirim
-    (async () => {
-      try {
-        const [studentDoc, taskDoc, groupDoc] = await Promise.all([
-          adminDb.collection("students").doc(studentId).get(),
-          adminDb.collection("tasks").doc(taskId).get(),
-          adminDb.collection("groups").doc(groupId).get(),
-        ]);
+    // Eğitmene teslim bildirimi (response öncesi — serverless'ta güvenli)
+    try {
+      const [studentDoc, taskDoc, groupDoc] = await Promise.all([
+        adminDb.collection("students").doc(studentId).get(),
+        adminDb.collection("tasks").doc(taskId).get(),
+        adminDb.collection("groups").doc(groupId).get(),
+      ]);
 
-        const instructorId = groupDoc.data()?.instructorId as string | undefined;
-        if (!instructorId) return;
-
+      const instructorId = groupDoc.data()?.instructorId as string | undefined;
+      if (!instructorId) {
+        console.warn(`[submit] Grup ${groupId} için instructorId bulunamadı — bildirim atlandı`);
+      } else {
         const sData = studentDoc.data();
         const studentName = sData
           ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
@@ -140,10 +140,12 @@ export async function POST(req: NextRequest) {
             isRead:    false,
             isArchived: false,
           });
-      } catch (err) {
-        console.error("[submit] Bildirim hatası:", err);
+
+        console.log(`[submit] Teslim bildirimi → eğitmen ${instructorId}`);
       }
-    })();
+    } catch (err) {
+      console.error("[submit] Bildirim hatası (non-fatal):", err);
+    }
 
     return NextResponse.json({
       submissionId:  submission.id,

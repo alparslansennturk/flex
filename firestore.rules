@@ -325,9 +325,55 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // ─── categories ──────────────────────────────────────────────────────────
+
+    match /categories/{categoryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     // ─── branches ────────────────────────────────────────────────────────────
 
     match /branches/{branchId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /branches/{branchId}/modules/{moduleId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ─── sessions (seans şablonları) ─────────────────────────────────────────
+
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ─── attendance ───────────────────────────────────────────────────────────
+
+    match /design_attendance/{docId} {
+      allow read: if isInstructor();
+      allow create, update: if isInstructor();
+      allow delete: if isAdmin();
+    }
+
+    match /attendance/{docId} {
+      allow read: if isInstructor();
+      allow create, update: if isInstructor();
+      allow delete: if isAdmin();
+    }
+
+    match /lesson_exceptions/{docId} {
+      allow read: if isInstructor();
+      allow create, update: if isInstructor();
+      allow delete: if isAdmin();
+    }
+
+    // ─── holidays (tatil takvimi) ─────────────────────────────────────────────
+
+    match /holidays/{holidayId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }

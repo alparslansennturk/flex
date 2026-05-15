@@ -21,7 +21,11 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
     groupBranch, setGroupBranch,
     groupDiscipline, setGroupDiscipline,
     groupModule, setGroupModule, moduleBlockModal, setModuleBlockModal,
+    groupType, setGroupType, selectedModuleId, setSelectedModuleId,
+    customHours, setCustomHours, companyName, setCompanyName, branchModules,
     instructors, selectedInstructorId, setSelectedInstructorId,
+    lessonHours, setLessonHours,
+    groupStartDate, setGroupStartDate,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
     isScheduleOpen, setIsScheduleOpen, errors, setErrors,
     searchQuery, setSearchQuery, isStudentFormOpen, setIsStudentFormOpen,
@@ -149,36 +153,54 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
           </div>
         </div>
 
-        {/* FORM ALANI */}
-        <div ref={formRef}>
-          <GroupForm
-            isAdmin={isAdmin}
-            isFormOpen={isFormOpen}
-            groupCode={groupCode}
-            setGroupCode={setGroupCode}
-            groupBranch={groupBranch}
-            setGroupBranch={setGroupBranch}
-            groupDiscipline={groupDiscipline}
-            setGroupDiscipline={setGroupDiscipline}
-            availableBranches={availableDisciplines}
-            groupModule={groupModule}
-            setGroupModule={setGroupModule}
-            instructors={instructors}
-            selectedInstructorId={selectedInstructorId}
-            setSelectedInstructorId={setSelectedInstructorId}
-            errors={errors}
-            setErrors={setErrors}
-            selectedSchedule={selectedSchedule}
-            setSelectedSchedule={setSelectedSchedule}
-            isScheduleOpen={isScheduleOpen}
-            setIsScheduleOpen={setIsScheduleOpen}
-            schedules={schedules}
-            customSchedule={customSchedule}
-            setCustomSchedule={setCustomSchedule}
-            handleCancel={handleCancel}
-            handleSave={handleSave}
-            scheduleRef={scheduleRef}
-          />
+        {/* GRUP FORM MODAL */}
+        <div className={`fixed inset-0 z-[500] flex items-center justify-center p-6 ${isFormOpen ? "visible" : "invisible pointer-events-none"}`}>
+          <div className={`absolute inset-0 bg-[#10294C]/60 backdrop-blur-md transition-opacity duration-500 ${isFormOpen ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
+          <div className={`relative w-full max-w-4xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isFormOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
+            <GroupForm
+              isAdmin={isAdmin}
+              isFormOpen={isFormOpen}
+              editingGroupId={editingGroupId}
+              groupCode={groupCode}
+              setGroupCode={setGroupCode}
+              groupBranch={groupBranch}
+              setGroupBranch={setGroupBranch}
+              groupDiscipline={groupDiscipline}
+              setGroupDiscipline={setGroupDiscipline}
+              availableBranches={availableDisciplines}
+              groupModule={groupModule}
+              setGroupModule={setGroupModule}
+              groupType={groupType}
+              setGroupType={setGroupType}
+              selectedModuleId={selectedModuleId}
+              setSelectedModuleId={setSelectedModuleId}
+              customHours={customHours}
+              setCustomHours={setCustomHours}
+              companyName={companyName}
+              setCompanyName={setCompanyName}
+              branchModules={branchModules}
+              instructors={instructors}
+              selectedInstructorId={selectedInstructorId}
+              setSelectedInstructorId={setSelectedInstructorId}
+              lessonHours={lessonHours}
+              setLessonHours={setLessonHours}
+              groupStartDate={groupStartDate}
+              setGroupStartDate={setGroupStartDate}
+              errors={errors}
+              setErrors={setErrors}
+              selectedSchedule={selectedSchedule}
+              setSelectedSchedule={setSelectedSchedule}
+              isScheduleOpen={isScheduleOpen}
+              setIsScheduleOpen={setIsScheduleOpen}
+              schedules={schedules}
+              customSchedule={customSchedule}
+              setCustomSchedule={setCustomSchedule}
+              handleCancel={handleCancel}
+              handleSave={handleSave}
+              scheduleRef={scheduleRef}
+            />
+          </div>
+        </div>
 
           {/* Modül değişiklik engel modalı */}
           {moduleBlockModal?.isOpen && (
@@ -205,7 +227,6 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
               </div>
             </div>
           )}
-        </div>
 
         {/* GÖRÜNÜM SEKMELERİ + KARTLAR */}
         <div className="mt-6">

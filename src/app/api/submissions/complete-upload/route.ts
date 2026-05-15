@@ -159,23 +159,23 @@ export async function POST(req: NextRequest) {
       completedAt:      FieldValue.serverTimestamp(),
     });
 
-    // 10. Eğitmene teslim bildirimi (fire-and-forget)
-    (async () => {
-      try {
-        const [studentDoc, groupDoc, taskDoc] = await Promise.all([
-          adminDb.collection("students").doc(session.studentId as string).get(),
-          adminDb.collection("groups").doc(session.groupId as string).get(),
-          adminDb.collection("tasks").doc(session.taskId as string).get(),
-        ]);
+    // 10. Eğitmene teslim bildirimi (response öncesi — serverless'ta güvenli)
+    try {
+      const [studentDoc, groupDoc, taskDoc] = await Promise.all([
+        adminDb.collection("students").doc(session.studentId as string).get(),
+        adminDb.collection("groups").doc(session.groupId as string).get(),
+        adminDb.collection("tasks").doc(session.taskId as string).get(),
+      ]);
 
-        const sData = studentDoc.data();
-        const studentName = sData
-          ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
-          : "Bir öğrenci";
+      const sData = studentDoc.data();
+      const studentName = sData
+        ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
+        : "Bir öğrenci";
 
-        const instructorId = groupDoc.data()?.instructorId as string | undefined;
-        if (!instructorId) return;
-
+      const instructorId = groupDoc.data()?.instructorId as string | undefined;
+      if (!instructorId) {
+        console.warn(`[complete-upload] Grup ${session.groupId} için instructorId bulunamadı — bildirim atlandı`);
+      } else {
         const taskTitle = taskDoc.data()?.title as string | undefined;
         const preview   = taskTitle ? `"${taskTitle}" ödevini teslim etti.` : "Yeni bir teslim yapıldı.";
 
@@ -195,10 +195,10 @@ export async function POST(req: NextRequest) {
           });
 
         console.log(`[complete-upload] Teslim bildirimi → eğitmen ${instructorId}`);
-      } catch (err) {
-        console.error("[complete-upload] Bildirim hatası:", err);
       }
-    })();
+    } catch (err) {
+      console.error("[complete-upload] Bildirim hatası (non-fatal):", err);
+    }
 
     const response: CompleteUploadResponse = {
       submissionId:      submission.id,

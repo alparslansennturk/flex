@@ -12,6 +12,7 @@ import UserManagement from "../../components/dashboard/user-management/UserManag
 import TaskManagementPanel from "../../components/dashboard/assignment/TaskManagementPanel";
 import SystemPanel from "../../components/dashboard/admin/SystemPanel";
 import NotificationPanel from "../../components/dashboard/admin/NotificationPanel";
+import GroupBranchPanel from "../../components/dashboard/admin/GroupBranchPanel";
 
 export default function AdminPage() {
   const [headerTitle, setHeaderTitle] = useState("Yönetim Paneli");
@@ -95,6 +96,7 @@ export default function AdminPage() {
               allowedTabs={userRole === "instructor" ? ["notifications"] : undefined}
             />
             {activeSubTab === "users" && <UserManagement />}
+            {activeSubTab === "group-branch" && <GroupBranchPanel />}
             {activeSubTab === "task-management" && <TaskManagementPanel />}
             {activeSubTab === "notifications" && (
               <NotificationPanel

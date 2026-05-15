@@ -9,13 +9,12 @@ interface SubNavigationProps {
 }
 
 const ALL_TABS = [
-  { id: "general",            label: "Genel Ayarlar",      href: null },
   { id: "users",              label: "Kullanıcı Yönetimi", href: null },
+  { id: "group-branch",       label: "Grup Ayarları",      href: null },
   { id: "notifications",      label: "Bildirimler",        href: null },
-  { id: "header-footer",      label: "Header & Footer",    href: null },
-  { id: "sidebar-management", label: "Sidebar Yönetimi",   href: null },
+  { id: "header-footer",      label: "Görünüm",            href: null },
   { id: "logs-page",          label: "Logs",               href: "/dashboard/logs" },
-  { id: "logs",               label: "Yedekleme",          href: null },
+  { id: "logs",               label: "Sistem",             href: null },
 ];
 
 const SubNavigation: React.FC<SubNavigationProps> = ({ activeTab, onTabChange, allowedTabs }) => {

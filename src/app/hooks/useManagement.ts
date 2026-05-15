@@ -7,7 +7,7 @@ import { calcScore, computeStudentStats } from "@/app/lib/scoring";
 import {
   collection, onSnapshot, addDoc, doc,
   updateDoc, deleteDoc, increment, serverTimestamp, writeBatch,
-  getDocs, query, where, deleteField,
+  getDocs, query, where, deleteField, orderBy,
 } from "firebase/firestore";
 
 // --- INTERFACES ---
@@ -23,6 +23,7 @@ interface Group {
   createdAt?: any;
   module?: "GRAFIK_1" | "GRAFIK_2";
   discipline?: string;
+  startDate?: string;
 }
 
 interface Student {
@@ -44,6 +45,11 @@ interface Student {
   hiddenFromInstructors?: string[];
   updatedAt?: any;
 }
+const FALLBACK_SCHEDULES = [
+  "Pts - Çar | 19.00 - 21.30", "Sal - Per | 19.00 - 21.30", "Cts - Paz | 09.00 - 12.00",
+  "Cts - Paz | 12.00 - 15.00", "Cts - Paz | 15.00 - 18.00", "Özel Grup Tanımla",
+];
+
 export const useManagement = (setHeaderTitle: (t: string) => void) => {
   // --- TEMEL TANIMLAR ---
   const { user, hasPermission } = useUser();
@@ -82,7 +88,15 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupCode, setGroupCode] = useState("");
   const [groupModule, setGroupModule] = useState<"GRAFIK_1" | "GRAFIK_2" | "">("");
+  const [groupType, setGroupType] = useState<"standart" | "özel_ders" | "kurumsal">("standart");
+  const [selectedModuleId, setSelectedModuleId] = useState("");
+  const [customHours, setCustomHours] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [branchModules, setBranchModules] = useState<{ id: string; name: string; totalHours: number; sessionHours?: number }[]>([]);
+  const [firestoreSessions, setFirestoreSessions] = useState<string[]>([]);
   const [moduleBlockModal, setModuleBlockModal] = useState<{ isOpen: boolean; currentModule: string } | null>(null);
+  const [lessonHours, setLessonHours]   = useState("");
+  const [groupStartDate, setGroupStartDate] = useState("");
   const [selectedSchedule, setSelectedSchedule] = useState("Grup seansı seçiniz...");
   const [customSchedule, setCustomSchedule] = useState("");
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -122,10 +136,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const formRef = useRef<HTMLDivElement>(null);
   const pendingSelectIdRef = useRef<string | null>(null);
 
-  const schedules = [
-    "Pts - Çar | 19.00 - 21.30", "Sal - Per | 19.00 - 21.30", "Cts - Paz | 09.00 - 12.00",
-    "Cts - Paz | 12.00 - 15.00", "Cts - Paz | 15.00 - 18.00", "Özel Grup Tanımla",
-  ];
+  const schedules = firestoreSessions.length > 0 ? firestoreSessions : FALLBACK_SCHEDULES;
 
   const filteredGroups = groups
     .filter(g => currentView === "Arşiv" ? g.status === "archived" : g.status === "active")
@@ -188,8 +199,27 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       const sList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Student[];
       setStudents(sList);
     }, () => {});
-    return () => { unsubGroups(); unsubStudents(); };
+    const unsubSessions = onSnapshot(
+      query(collection(db, "sessions"), where("isActive", "==", true), orderBy("order", "asc")),
+      snap => setFirestoreSessions(snap.docs.map(d => (d.data() as any).label as string)),
+      () => {}
+    );
+    return () => { unsubGroups(); unsubStudents(); unsubSessions(); };
   }, []);
+
+  useEffect(() => {
+    if (!groupDiscipline) { setBranchModules([]); return; }
+    const unsub = onSnapshot(
+      query(collection(db, "branches", groupDiscipline, "modules"), orderBy("order", "asc")),
+      snap => setBranchModules(
+        snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as any))
+          .filter((m: any) => m.isActive !== false)
+      ),
+      (err) => console.error("[branchModules]", err)
+    );
+    return () => unsub();
+  }, [groupDiscipline]);
 
   useEffect(() => {
     // Eğitmen users koleksiyonunu okuyamaz (Firestore kuralı: sadece admin veya kendi dokümanı)
@@ -338,6 +368,8 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setSelectedInstructorId("");
     setSelectedSchedule("Grup seansı seçiniz...");
     setCustomSchedule("");
+    setLessonHours("");
+    setGroupStartDate("");
     setErrors({});
     if (lastSelectedId) setSelectedGroupId(lastSelectedId);
   };
@@ -402,6 +434,15 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           instructorId: selectedInstructorId,
           instructor: instructorName,
           module: groupModule || null,
+          type: groupType,
+          moduleId: groupType === "standart" && selectedModuleId ? selectedModuleId : null,
+          customHours: groupType !== "standart" && customHours ? parseInt(customHours, 10) : null,
+          companyName: groupType === "kurumsal" && companyName ? companyName : null,
+          startDate: groupStartDate || null,
+          sessionHours: lessonHours ? parseInt(lessonHours, 10) : null,
+          totalHours: groupType === "standart"
+            ? (selectedModuleId ? (branchModules.find(m => m.id === selectedModuleId)?.totalHours ?? null) : null)
+            : (customHours ? parseInt(customHours, 10) : null),
         });
 
         // Grup kodu değiştiyse VEYA modül GRAFIK_1→GRAFIK_2 geçişi varsa öğrencileri güncelle
@@ -455,6 +496,15 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           students: 0,
           status: "active",
           module: groupModule || null,
+          type: groupType,
+          moduleId: groupType === "standart" && selectedModuleId ? selectedModuleId : null,
+          customHours: groupType !== "standart" && customHours ? parseInt(customHours, 10) : null,
+          companyName: groupType === "kurumsal" && companyName ? companyName : null,
+          startDate: groupStartDate || null,
+          sessionHours: lessonHours ? parseInt(lessonHours, 10) : null,
+          totalHours: groupType === "standart"
+            ? (selectedModuleId ? (branchModules.find(m => m.id === selectedModuleId)?.totalHours ?? null) : null)
+            : (customHours ? parseInt(customHours, 10) : null),
           createdAt: serverTimestamp()
         });
         pendingSelectIdRef.current = docRef.id;
@@ -464,9 +514,15 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       setEditingGroupId(null);
       setGroupCode("");
       setGroupModule("");
+      setGroupType("standart");
+      setSelectedModuleId("");
+      setCustomHours("");
+      setCompanyName("");
       setSelectedInstructorId("");
       setSelectedSchedule("Grup seansı seçiniz...");
       setCustomSchedule("");
+      setLessonHours("");
+      setGroupStartDate("");
       setErrors({});
     } catch (error) {
       showNotification("Grup kaydedilirken bir hata oluştu.");
@@ -479,7 +535,13 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setGroupBranch(group.branch);
     setGroupDiscipline((group as any).discipline || "");
     setGroupModule(group.module ?? "");
+    setGroupType((group as any).type ?? "standart");
+    setSelectedModuleId((group as any).moduleId ?? "");
+    setCustomHours((group as any).customHours?.toString() ?? "");
+    setCompanyName((group as any).companyName ?? "");
     setSelectedInstructorId(group.instructorId || "");
+    setLessonHours((group as any).sessionHours?.toString() ?? "");
+    setGroupStartDate(group.startDate ?? "");
     if (schedules.includes(group.session)) {
       setSelectedSchedule(group.session);
       setCustomSchedule("");
@@ -830,7 +892,11 @@ throw error;
     editingGroupId, setEditingGroupId, groupCode, setGroupCode, groupBranch, setGroupBranch,
     groupDiscipline, setGroupDiscipline,
     groupModule, setGroupModule, moduleBlockModal, setModuleBlockModal,
+    groupType, setGroupType, selectedModuleId, setSelectedModuleId,
+    customHours, setCustomHours, companyName, setCompanyName, branchModules,
     instructors, selectedInstructorId, setSelectedInstructorId,
+    lessonHours, setLessonHours,
+    groupStartDate, setGroupStartDate,
     selectedSchedule, setSelectedSchedule, customSchedule, setCustomSchedule,
     isScheduleOpen, setIsScheduleOpen, errors, setErrors,
     searchQuery, setSearchQuery, isStudentFormOpen, setIsStudentFormOpen,

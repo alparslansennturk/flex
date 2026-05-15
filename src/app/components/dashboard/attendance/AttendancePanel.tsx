@@ -3,15 +3,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "@/app/lib/firebase";
 import {
-  collection, doc, getDoc, setDoc, onSnapshot,
-  query, where, getDocs, deleteDoc,
+  collection, doc, setDoc, onSnapshot,
+  query, where, getDocs, deleteDoc, getDoc,
 } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import {
-  CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight,
+  CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight,
   Save, CheckCheck, Users, Wifi, Trash2, AlertCircle,
   Pencil, Check, X,
 } from "lucide-react";
+import { DayCalendarPopover, MonthCalendarPopover } from "./CalendarPopover";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,9 +54,14 @@ interface Branch {
 
 interface Group {
   id: string;
-  name: string;
-  branch?: string;             // branch ID
-  monthlyLessonCount?: number; // planned lessons/month — added later via GroupForm
+  code: string;
+  discipline?: string;
+  session?: string;
+  sessionHours?: number;
+  startDate?: string;
+  totalHours?: number;
+  moduleId?: string;
+  customHours?: number;
 }
 
 interface Student {
@@ -78,6 +84,62 @@ const DEFAULT_SESSION_HOURS = 3;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toDateKey(d: Date)  { return d.toISOString().slice(0, 10); }
 function toMonthKey(d: Date) { return d.toISOString().slice(0, 7); }
+
+const TR_DAYS: Record<string, number> = {
+  pts: 1, pzt: 1, pazartesi: 1,
+  sal: 2, sali: 2,
+  çar: 3, car: 3, çarşamba: 3, carsamba: 3,
+  per: 4, perşembe: 4, persembe: 4,
+  cum: 5, cuma: 5,
+  cts: 6, cmt: 6, cumartesi: 6,
+  paz: 0, pazar: 0,
+};
+
+function parseWeekDays(label: string): number[] {
+  if (!label) return [];
+  const lower = label.toLowerCase().replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ö/g, "o");
+  const found: number[] = [];
+  for (const [key, day] of Object.entries(TR_DAYS)) {
+    if (lower.includes(key) && !found.includes(day)) found.push(day);
+  }
+  return found;
+}
+
+
+function calcEstimatedEndDate(
+  startDate: string,
+  totalSessions: number,
+  weekDays: number[],
+  holidayDates: Set<string>,
+): Date | null {
+  if (!startDate || totalSessions <= 0 || weekDays.length === 0) return null;
+  const d = new Date(startDate + "T12:00:00");
+  const max = new Date(d);
+  max.setFullYear(max.getFullYear() + 10);
+  let count = 0;
+  while (d <= max) {
+    const key = d.toISOString().slice(0, 10);
+    if (weekDays.includes(d.getDay()) && !holidayDates.has(key)) {
+      count++;
+      if (count >= totalSessions) return new Date(d);
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
+}
+
+function countWeekdaysInMonth(year: number, month: number, weekDays: number[], holidayDates: Set<string> = new Set()): number {
+  if (!weekDays || weekDays.length === 0) return 0;
+  const d = new Date(year, month, 1);
+  let count = 0;
+  while (d.getMonth() === month) {
+    const key = d.toISOString().slice(0, 10);
+    if (weekDays.includes(d.getDay()) && !holidayDates.has(key)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
 
 function formatDateDisplay(d: Date) {
   return d.toLocaleDateString("tr-TR", {
@@ -210,19 +272,42 @@ export default function AttendancePanel() {
   const [existingDoc, setExistingDoc]         = useState(false);
   const [exception, setException]             = useState<LessonException | null>(null);
   const [showExModal, setShowExModal]         = useState(false);
-  const [monthlyDone, setMonthlyDone]         = useState<Record<string, number>>({}); // groupId → done count
+  const [monthlyDone, setMonthlyDone]         = useState<Record<string, number>>({});
+  const [holidayDates, setHolidayDates]       = useState<Set<string>>(new Set());
+  const [totalDoneCount, setTotalDoneCount]   = useState(0);
+  const [moduleHours, setModuleHours]         = useState<number | null>(null);
+
 
   const dateKey  = toDateKey(selectedDate);
   const monthKey = toMonthKey(selectedMonth);
   const todayKey = toDateKey(new Date());
   const isToday  = dateKey === todayKey;
 
+  const getWeekDays = (g: Group): number[] => parseWeekDays(g.session ?? "");
+
   const selectedGroup   = groups.find(g => g.id === selectedGroupId);
-  const selectedBranch  = branches.find(b => b.id === selectedGroup?.branch);
-  const sessionHours    = selectedBranch?.sessionHours ?? DEFAULT_SESSION_HOURS;
-  const plannedCount    = selectedGroup?.monthlyLessonCount ?? 0;
+  const selectedBranch  = branches.find(b => b.id === selectedGroup?.discipline);
+  const sessionHours    = selectedGroup?.sessionHours ?? selectedBranch?.sessionHours ?? DEFAULT_SESSION_HOURS;
+  const selectedWeekDays = selectedGroup ? getWeekDays(selectedGroup) : [];
+  const plannedCount    = selectedGroup
+    ? countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), selectedWeekDays, holidayDates)
+    : 0;
   const doneCount       = selectedGroupId ? (monthlyDone[selectedGroupId] ?? 0) : 0;
   const remaining       = Math.max(0, plannedCount - doneCount);
+  const isHolidayDate   = holidayDates.has(dateKey);
+  const isActiveForDate = selectedGroup && !isHolidayDate
+    ? (selectedWeekDays.length === 0 ? true : selectedWeekDays.includes(selectedDate.getDay()))
+    : false;
+
+  // totalHours: new groups (denormalized), moduleHours: old standart groups (live lookup), customHours: old özel/kurumsal
+  const courseTotalHours     = selectedGroup?.totalHours ?? moduleHours ?? selectedGroup?.customHours ?? null;
+  const courseDoneHours      = totalDoneCount * sessionHours;
+  const courseRemainingHours = courseTotalHours !== null ? Math.max(0, courseTotalHours - courseDoneHours) : null;
+  const totalSessions        = courseTotalHours && sessionHours ? Math.ceil(courseTotalHours / sessionHours) : null;
+  const estimatedEndDate     = selectedGroup?.startDate && totalSessions && selectedWeekDays.length > 0
+    ? calcEstimatedEndDate(selectedGroup.startDate, totalSessions, selectedWeekDays, holidayDates)
+    : null;
+  const courseProgressPct    = courseTotalHours ? Math.min(100, Math.round((courseDoneHours / courseTotalHours) * 100)) : 0;
 
   // ── Load branches (for sessionHours) ──────────────────────────────────────
   useEffect(() => {
@@ -230,6 +315,24 @@ export default function AttendancePanel() {
       setBranches(snap.docs.map(d => ({ id: d.id, ...d.data() } as Branch)));
     });
   }, []);
+
+  // ── Load holidays → build Set of blocked dates ─────────────────────────
+  useEffect(() => {
+    return onSnapshot(collection(db, "holidays"), snap => {
+      const dates = new Set<string>();
+      snap.docs.forEach(d => {
+        const { startDate, endDate } = d.data() as { startDate: string; endDate: string };
+        const cur = new Date(startDate + "T12:00:00");
+        const end = new Date(endDate   + "T12:00:00");
+        while (cur <= end) {
+          dates.add(cur.toISOString().slice(0, 10));
+          cur.setDate(cur.getDate() + 1);
+        }
+      });
+      setHolidayDates(dates);
+    });
+  }, []);
+
 
   // ── Load groups ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -239,8 +342,8 @@ export default function AttendancePanel() {
       if (isAdmin()) {
         setGroups(all);
       } else {
-        const branchIds: string[] = user?.branches ?? (user?.branch ? [user.branch] : []);
-        setGroups(branchIds.length > 0 ? all.filter(g => g.branch && branchIds.includes(g.branch)) : all);
+        const branchIds: string[] = (user as any)?.branches ?? ((user as any)?.branch ? [(user as any).branch] : []);
+        setGroups(branchIds.length > 0 ? all.filter(g => g.discipline && branchIds.includes(g.discipline)) : all);
       }
     });
   }, [user, isAdmin]);
@@ -271,13 +374,32 @@ export default function AttendancePanel() {
     });
   }, [selectedGroupId]);
 
-  // ── Load attendance + exception for selected date ──────────────────────────
+  // ── Total done count (all-time) for course progress ──────────────────────
+  useEffect(() => {
+    if (!selectedGroupId) { setTotalDoneCount(0); return; }
+    return onSnapshot(
+      query(collection(db, "design_attendance"), where("groupId", "==", selectedGroupId)),
+      snap => setTotalDoneCount(snap.size),
+    );
+  }, [selectedGroupId]);
+
+  // ── Module totalHours lookup (fallback for old groups without totalHours) ─
+  useEffect(() => {
+    const g = selectedGroup;
+    if (!g?.moduleId || !g?.discipline) { setModuleHours(null); return; }
+    getDoc(doc(db, "branches", g.discipline, "modules", g.moduleId))
+      .then(d => setModuleHours(d.exists() ? (d.data()?.totalHours ?? null) : null))
+      .catch(() => setModuleHours(null));
+  }, [selectedGroup?.moduleId, selectedGroup?.discipline]);
+
+  // ── Load attendance + exceptions for selected date (real-time) ───────────
   useEffect(() => {
     if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); return; }
     setSaved(false);
 
     const docId = `${selectedGroupId}_${dateKey}`;
-    getDoc(doc(db, "design_attendance", docId)).then(d => {
+
+    const unsubAttendance = onSnapshot(doc(db, "design_attendance", docId), d => {
       if (d.exists()) {
         const data = d.data() as AttendanceDoc;
         setEntries(data.entries ?? {});
@@ -288,15 +410,18 @@ export default function AttendancePanel() {
       }
     });
 
-    // Check exception (group-specific or system-wide)
-    Promise.all([
-      getDoc(doc(db, "lesson_exceptions", `${selectedGroupId}_${dateKey}`)),
-      getDoc(doc(db, "lesson_exceptions", `system_${dateKey}`)),
-    ]).then(([groupEx, sysEx]) => {
-      if (groupEx.exists()) setException(groupEx.data() as LessonException);
-      else if (sysEx.exists()) setException(sysEx.data() as LessonException);
-      else setException(null);
+    const unsubGroupEx  = onSnapshot(doc(db, "lesson_exceptions", `${selectedGroupId}_${dateKey}`), d => {
+      if (d.exists()) { setException(d.data() as LessonException); return; }
+      // fall through — check system exception below via combined state
     });
+    const unsubSystemEx = onSnapshot(doc(db, "lesson_exceptions", `system_${dateKey}`), d => {
+      setException(prev => {
+        if (prev?.scope === "group") return prev; // group exception takes priority
+        return d.exists() ? (d.data() as LessonException) : null;
+      });
+    });
+
+    return () => { unsubAttendance(); unsubGroupEx(); unsubSystemEx(); };
   }, [selectedGroupId, dateKey]);
 
   // ── Sync selectedDate with selectedMonth ──────────────────────────────────
@@ -401,14 +526,25 @@ export default function AttendancePanel() {
         <div className="w-[260px] shrink-0 border-r border-surface-100 flex flex-col h-full overflow-hidden bg-surface-50/40">
 
           {/* Month navigator */}
-          <div className="px-5 py-4 border-b border-surface-100 flex items-center justify-between">
+          <div className="px-8 py-4 border-b border-surface-100 flex items-center justify-between">
             <button onClick={() => setSelectedMonth(d => shiftMonth(d, -1))}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-placeholder">
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary">
               <ChevronLeft size={14} />
             </button>
-            <span className="text-[12px] font-bold text-text-primary capitalize select-none">
-              {formatMonthDisplay(selectedMonth)}
-            </span>
+
+            <MonthCalendarPopover
+              value={selectedMonth}
+              maxDate={new Date()}
+              onChange={d => setSelectedMonth(d)}
+            >
+              <div className="flex items-center gap-1.5 group cursor-pointer">
+                <Calendar size={13} className="text-text-placeholder group-hover:text-base-primary-500 transition-colors" />
+                <span className="text-[13px] font-bold text-text-primary capitalize select-none group-hover:text-base-primary-600 transition-colors">
+                  {formatMonthDisplay(selectedMonth)}
+                </span>
+              </div>
+            </MonthCalendarPopover>
+
             <button onClick={() => setSelectedMonth(d => shiftMonth(d, 1))}
               disabled={toMonthKey(selectedMonth) === toMonthKey(new Date())}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-placeholder disabled:opacity-30 disabled:cursor-not-allowed">
@@ -417,7 +553,7 @@ export default function AttendancePanel() {
           </div>
 
           <div className="px-5 py-2.5 border-b border-surface-100">
-            <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-text-placeholder">Gruplarım</p>
+            <p className="text-[11px] font-semibold text-text-secondary">Gruplarım</p>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -425,29 +561,45 @@ export default function AttendancePanel() {
               <p className="px-5 py-6 text-[12px] text-text-placeholder text-center">Henüz grubunuz yok.</p>
             )}
             {groups.map(g => {
-              const done    = monthlyDone[g.id] ?? 0;
-              const planned = g.monthlyLessonCount ?? 0;
-              const p       = planned > 0 ? Math.min(100, Math.round((done / planned) * 100)) : 0;
-              const active  = selectedGroupId === g.id;
+              const gDays     = getWeekDays(g);
+              const done      = monthlyDone[g.id] ?? 0;
+              const planned   = countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), gDays, holidayDates);
+              const p         = planned > 0 ? Math.min(100, Math.round((done / planned) * 100)) : 0;
+              const active    = selectedGroupId === g.id;
+              const isHoliday = holidayDates.has(toDateKey(selectedDate));
+              const hasClass  = !isHoliday && (gDays.length === 0 ? true : gDays.includes(selectedDate.getDay()));
+              const flexible  = gDays.length === 0;
               return (
                 <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
-                  className={`w-full flex flex-col gap-1.5 px-5 py-3.5 text-left border-b border-surface-100 transition-colors cursor-pointer outline-none
-                    ${active ? "bg-base-primary-900" : "hover:bg-surface-50"}`}>
+                  className={`w-full flex flex-col gap-1.5 px-8 py-3.5 text-left border-b border-surface-100 transition-colors outline-none
+                    ${active ? "bg-base-primary-900" : hasClass ? "hover:bg-surface-50 cursor-pointer" : "opacity-40 cursor-not-allowed"}`}>
                   <div className="flex items-center justify-between gap-2">
-                    <p className={`text-[13px] font-bold truncate ${active ? "text-white" : "text-text-primary"}`}>{g.name}</p>
-                    {planned > 0 && (
-                      <span className={`text-[10px] font-bold shrink-0 ${active ? "text-white/60" : "text-text-placeholder"}`}>
-                        {done}/{planned}
-                      </span>
-                    )}
+                    <p className={`text-[13px] font-bold truncate ${active ? "text-white" : "text-text-primary"}`}>{g.code}</p>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {!flexible && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                          active ? "bg-white/10 text-white/60" :
+                          hasClass ? "bg-status-success-50 text-status-success-600" : "bg-surface-100 text-text-placeholder"
+                        }`}>
+                          {hasClass ? "Bugün ders var" : "Bugün ders yok"}
+                        </span>
+                      )}
+                      {planned > 0 && (
+                        <span className={`text-[11px] font-semibold ${active ? "text-white/70" : "text-text-secondary"}`}>
+                          {done}/{planned}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {planned > 0 ? (
-                    <div className={`w-full h-1 rounded-full ${active ? "bg-white/15" : "bg-surface-200"}`}>
+                    <div className={`w-full h-1.5 rounded-full ${active ? "bg-white/15" : "bg-surface-200"}`}>
                       <div className={`h-full rounded-full transition-all duration-300 ${p === 100 ? "bg-status-success-500" : active ? "bg-[#FF8D28]" : "bg-base-primary-400"}`}
                         style={{ width: `${p}%` }} />
                     </div>
                   ) : (
-                    <p className={`text-[10px] ${active ? "text-white/30" : "text-text-placeholder"}`}>Plan henüz girilmedi</p>
+                    <p className={`text-[11px] ${active ? "text-white/40" : "text-text-secondary"}`}>
+                      {flexible ? "Esnek seans" : "Gün seçilmedi"}
+                    </p>
                   )}
                 </button>
               );
@@ -466,35 +618,40 @@ export default function AttendancePanel() {
           ) : (
             <>
               {/* Monthly summary */}
-              <div className="px-8 py-5 border-b border-surface-100 bg-surface-50/30 shrink-0">
-                <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-placeholder mb-3">
-                  {formatMonthDisplay(selectedMonth)} — {selectedGroup?.name}
-                  {sessionHours ? ` · ${sessionHours} saat/ders` : ""}
-                </p>
+              <div className="px-8 py-6 border-b border-surface-100 bg-surface-50/30 shrink-0">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-[13px] font-bold text-text-primary">{selectedGroup?.code}</span>
+                  <span className="text-text-placeholder">·</span>
+                  <span className="text-[13px] font-medium text-text-secondary capitalize">{formatMonthDisplay(selectedMonth)}</span>
+                  {sessionHours ? (
+                    <span className="ml-1 text-[11px] font-bold text-text-placeholder bg-surface-100 px-2 py-0.5 rounded-md">{sessionHours} saat/ders</span>
+                  ) : null}
+                </div>
                 <div className="flex items-end gap-8">
-                  <div className="flex flex-col gap-0.5">
-                    <p className="text-[10px] font-bold text-text-placeholder uppercase tracking-wide">Planlanan</p>
-                    {plannedCount > 0
-                      ? <span className="text-[26px] font-bold text-base-primary-900 leading-none">{plannedCount}</span>
-                      : <span className="text-[13px] text-text-placeholder italic">—</span>}
-                    <p className="text-[10px] text-text-placeholder">ders</p>
-                  </div>
-                  <div className="w-px h-10 bg-surface-200 self-center" />
-                  <div className="flex flex-col gap-0.5">
-                    <p className="text-[10px] font-bold text-text-placeholder uppercase tracking-wide">Yapılan</p>
-                    <span className="text-[26px] font-bold text-status-success-600 leading-none">{doneCount}</span>
-                    <p className="text-[10px] text-text-placeholder">ders</p>
+                  {plannedCount > 0 && (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-[11px] font-semibold text-text-secondary">Bu Ay Planlanan</p>
+                        <span className="text-[28px] font-bold text-text-primary leading-none">{plannedCount}</span>
+                        <p className="text-[11px] text-text-secondary">ders günü{sessionHours ? ` · ${plannedCount * sessionHours} saat` : ""}</p>
+                      </div>
+                      <div className="w-px h-10 bg-surface-200 self-center" />
+                    </>
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <p className="text-[11px] font-semibold text-text-secondary">Bu Ay Yapılan</p>
+                    <span className="text-[28px] font-bold text-status-success-600 leading-none">{doneCount}</span>
+                    <p className="text-[11px] text-text-secondary">ders günü{sessionHours ? ` · ${doneCount * sessionHours} saat` : ""}</p>
                   </div>
                   {plannedCount > 0 && (
                     <>
                       <div className="w-px h-10 bg-surface-200 self-center" />
-                      <div className="flex flex-col gap-0.5">
-                        <p className="text-[10px] font-bold text-text-placeholder uppercase tracking-wide">Kalan</p>
-                        <span className={`text-[26px] font-bold leading-none ${remaining === 0 ? "text-status-success-600" : "text-base-primary-900"}`}>{remaining}</span>
-                        <p className="text-[10px] text-text-placeholder">ders</p>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-[11px] font-semibold text-text-secondary">Kalan</p>
+                        <span className={`text-[28px] font-bold leading-none ${remaining === 0 ? "text-status-success-600" : "text-text-primary"}`}>{remaining}</span>
+                        <p className="text-[11px] text-text-secondary">ders günü{sessionHours ? ` · ${remaining * sessionHours} saat` : ""}</p>
                       </div>
                       <div className="w-px h-10 bg-surface-200 self-center" />
-                      {/* Mini progress ring */}
                       <div className="relative w-12 h-12 self-center shrink-0">
                         <svg width="48" height="48" viewBox="0 0 48 48">
                           <circle cx="24" cy="24" r="19" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="4" />
@@ -509,7 +666,70 @@ export default function AttendancePanel() {
                       </div>
                     </>
                   )}
+                  {plannedCount === 0 && selectedWeekDays.length === 0 && (
+                    <div className="flex flex-col gap-1">
+                      <p className="text-[11px] font-semibold text-text-secondary">Seans Tipi</p>
+                      <span className="text-[15px] font-bold text-text-primary leading-none">Esnek Seans</span>
+                      <p className="text-[11px] text-text-secondary">Sabit gün yok</p>
+                    </div>
+                  )}
                 </div>
+
+                {/* Course progress strip */}
+                {(selectedGroup?.startDate || courseTotalHours !== null) && (
+                  <div className="flex items-center gap-5 mt-4 pt-4 border-t border-surface-100 flex-wrap">
+                    {selectedGroup?.startDate && (
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Başlangıç</p>
+                        <p className="text-[12px] font-bold text-text-secondary">
+                          {new Date(selectedGroup.startDate + "T12:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                    )}
+                    {estimatedEndDate && (
+                      <>
+                        <div className="w-px h-8 bg-surface-200 self-center" />
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Tahmini Bitiş</p>
+                          <p className="text-[12px] font-bold text-text-secondary">
+                            {estimatedEndDate.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                    {courseTotalHours !== null && (
+                      <>
+                        <div className="w-px h-8 bg-surface-200 self-center" />
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Toplam Kurs</p>
+                          <p className="text-[12px] font-bold text-text-secondary">{courseTotalHours} saat</p>
+                        </div>
+                        <div className="w-px h-8 bg-surface-200 self-center" />
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Yapılan</p>
+                          <p className="text-[12px] font-bold text-status-success-600">{courseDoneHours} saat</p>
+                        </div>
+                        <div className="w-px h-8 bg-surface-200 self-center" />
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Kalan</p>
+                          <p className={`text-[12px] font-bold ${courseRemainingHours === 0 ? "text-status-success-600" : "text-base-primary-800"}`}>
+                            {courseRemainingHours} saat
+                          </p>
+                        </div>
+                        <div className="flex-1 min-w-[100px] flex flex-col gap-1.5 self-center">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Kurs İlerleme</p>
+                            <span className="text-[11px] font-bold text-text-secondary">%{courseProgressPct}</span>
+                          </div>
+                          <div className="w-full h-2 rounded-full bg-surface-200">
+                            <div className={`h-full rounded-full transition-all ${courseProgressPct === 100 ? "bg-status-success-500" : "bg-base-primary-600"}`}
+                              style={{ width: `${courseProgressPct}%` }} />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Date header */}
@@ -519,9 +739,20 @@ export default function AttendancePanel() {
                     className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer">
                     <ChevronLeft size={13} />
                   </button>
-                  <span className="text-[13px] font-semibold text-text-primary select-none">
-                    {formatDateDisplay(selectedDate)}
-                  </span>
+                  {/* Takvim açılır date picker */}
+                  <DayCalendarPopover
+                    value={selectedDate}
+                    maxDate={new Date()}
+                    holidayDates={holidayDates}
+                    onChange={d => { setSelectedDate(d); setSelectedMonth(d); }}
+                  >
+                    <div className="flex items-center gap-1.5 group cursor-pointer">
+                      <Calendar size={13} className="text-text-placeholder group-hover:text-base-primary-500 transition-colors shrink-0" />
+                      <span className="text-[13px] font-semibold text-text-primary select-none group-hover:text-base-primary-600 transition-colors">
+                        {formatDateDisplay(selectedDate)}
+                      </span>
+                    </div>
+                  </DayCalendarPopover>
                   <button onClick={() => setSelectedDate(d => shiftDate(d, 1))} disabled={isToday}
                     className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronRight size={13} />
@@ -555,7 +786,7 @@ export default function AttendancePanel() {
                     </span>
                   )}
                   <button onClick={handleSave}
-                    disabled={saving || students.length === 0 || filledCount === 0 || !!exception}
+                    disabled={saving || students.length === 0 || filledCount === 0 || !!exception || !isActiveForDate}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer outline-none
                       ${saved
                         ? "bg-status-success-100 text-status-success-700 border border-status-success-300"

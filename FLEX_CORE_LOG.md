@@ -1,151 +1,190 @@
-# FLEX CORE LOG — INDEX
-> "oku" → sadece bu dosya. Detay için: `logs/YYYY-MM.md` veya `FLEX_CORE_LOG_ARCHIVE.md` (fix 1-99).
+# Flex Trainer — Core Development Log
 
-| # | Tarih | Konu | Dosya |
-| 🗺️ | 2026-05-15 | **DURUM — Admin Panel Yeniden Yapısı + Müfredat Sistemi** 🔜 Sıradaki büyük blok: (1) Admin panel sekme reorganizasyonu: Kullanıcı Yönetimi (Branşlar sekmesi çıkar) · **Grup & Branş** (YENİ — branş tanımı + modül yönetimi + grup ayarları) · Bildirimler · Görünüm (Header+Footer+Sidebar birleşik) · Sistem (Logs+Yedekleme birleşik). (2) `BranchManagement.tsx` User Management'tan alınıp Grup & Branş altına taşınır. (3) Modül sistemi: `branches/{id}/modules` alt koleksiyonu — name, totalHours, sessionHours, order, isActive. Admin modül tanımlar → GroupForm modül seçer → Yoklama planı otomatik oluşur. (4) Grup ayarları admin panelde kalır (eğitmen karışmaz); Sınıf Yönetimi günlük operasyonlar için. | — |
-| ✅ | 2026-05-12 | **AŞAMA 1 TAMAMLANDI — Branch Altyapısı (User Management):** `users` dokümanına `branches: string[]` eklendi. `BranchManagement.tsx` (YENİ) — branş listesi yönetimi, ekle/sil. `UserForm.tsx` — Eğitmen rolünde çoklu branş pill seçimi. `UserTable.tsx` — Branşlar kolonu, indigo badge. `UserManagement.tsx` — "Branşlar" 3. sekmesi, onSnapshot entegrasyonu. | `BranchManagement.tsx`, `UserForm.tsx`, `UserTable.tsx`, `UserManagement.tsx` |
-| 214 | 2026-05-12 | Branş filtresi tab bar → dropdown: gruplar bölümündeki yan yana buton listesi `<select>` dropdown'a çevrildi (branş sayısı artınca taşma sorunu) | `ManagementContent.tsx` |
-| ✅ | 2026-05-12 | **AŞAMA 2 TAMAMLANDI — Sınıf Yönetimi & Filtreleme:** `groups` koleksiyonuna `discipline` alanı eklendi. `useManagement.ts` — groupDiscipline state (create/update/edit/reset). `GroupForm.tsx` — Branş dropdown (branches collection'dan dinamik). `ManagementContent.tsx` — branches onSnapshot + activeDiscipline state + branş tab bar + grup/öğrenci filtresi. Admin tüm branşları görür, eğitmen sadece kendi `branches[]`'indekiler. `set-group-discipline.mjs` — mevcut gruplara Tasarım branşı atayan migration scripti. | `useManagement.ts`, `GroupForm.tsx`, `ManagementContent.tsx`, `scripts/set-group-discipline.mjs` |
-| 215 | 2026-05-13 | GroupForm modül disable: Modül alanı yalnızca branş adında "grafik" geçen disiplinlerde aktif. Diğer branşlarda disabled + "Uygulanamaz" gösterir. Branş değiştirilince `groupModule` otomatik sıfırlanır. | `GroupForm.tsx` |
-| 216 | 2026-05-13 | students.discipline alanı: Öğrenci eklenirken grubun `discipline` değeri `students` dokümanına kopyalanır. Migration scripti mevcut öğrencileri `groupId → groups.discipline` üzerinden doldurur. Aşama 3 lig filtresi için gerekli. | `hooks/useManagement.ts`, `scripts/set-student-discipline.mjs` (YENİ) |
-| 217 | 2026-05-14 | Kişisel şablon 2. kullanımda busy hata fix: `AssignActivateModal`'a `templateScope` prop eklendi; `personal` scope'ta `busyGroupIds=[]` — grup seçimi engellenmez. | `AssignActivateModal.tsx`, `AssignmentLibrary.tsx` |
-| 218 | 2026-05-14 | `addDoc` description undefined Firestore hatası: `AssignmentLibrary` onConfirm'de `t.description ?? null` — QuickAssignModal şablonlarında description alanı yoktu. | `AssignmentLibrary.tsx` |
-| 219 | 2026-05-14 | Puan Yönetimi → Lig Yönetimi altına taşındı: bağımsız sekme kaldırıldı; ana sekme "Lig Yönetimi" adını aldı; içinde Lig Ayarları / Puan Yönetimi alt tab bar'ı eklendi. | `TaskManagementPanel.tsx` |
-| 220 | 2026-05-14 | **Ödev Parkuru + Branş Filtresi:** "Tasarım Parkuru" → "Ödev Parkuru" rename. 2+ farklı branşta aktif grubu olan eğitmenlerde başlık yanına branş `<select>` çıkar (Tüm Branşlar varsayılan); tek branşlıda gizli. `activeBranch` state `dashboard/page.tsx`'e taşındı — DesignParkour + AssignmentLibrary paylaşır. Lig sayfaları: dashboard/league Eğitmen/Şube toggle + öğrenci league FilterDropdown tek branşlıda gizlendi. Admin erken-return bug fix: `isAdmin()` branş filtresi hesaplamasını atlıyordu. | `DesignParkour.tsx`, `dashboard/page.tsx`, `dashboard/league/page.tsx`, `league/page.tsx` |
-| 221 | 2026-05-14 | **Global Şablon Branş Ayırımı:** `Task` interface'ine `discipline?: string\|null` eklendi. `TaskForm` — admin global/gamified scope seçince branş buton listesi çıkar; branş seçimi zorunlu (validation), "Tümü" seçeneği kaldırıldı. Ghost kartlar + AssignmentLibrary global sekmesi sıkı filtre: `activeBranch` seçiliyse sadece eşleşen discipline'li şablonlar; "all"da tümü. Migration: `set-template-discipline.mjs` — 17 mevcut şablona grafik tasarım discipline (JR8cHEmax16d19BqgVki) atandı. | `taskTypes.tsx`, `TaskForm.tsx`, `AssignmentLibrary.tsx`, `DesignParkour.tsx`, `scripts/set-template-discipline.mjs` (YENİ) |
-| 222 | 2026-05-14 | **TaskForm Eğitmen Yeniden Tasarımı:** Branş seçimi dropdown'a taşındı (Kart adı'nın hemen altı). Modül: yalnızca branş adında "grafik" geçen disiplinlerde aktif, değilse disabled + "Grafik branşı seçin" placeholder. Seviye: eğitmende tamamen gizli (`{isAdmin() && ...}`). Kapsam: eğitmene global/gamified disabled (`disabled={!isAdmin() && opt.value !== "personal"}`). Grid: admin'de grid-cols-2 (modül+seviye yan yana), eğitmende grid-cols-1 (modül tam genişlik). Yeni şablonlarda `discipline` her zaman kaydedilir. Branş değişince grafik dışına geçilirse modül otomatik temizlenir. | `assignment/TaskForm.tsx` |
-| ✅ | 2026-05-14 | **AŞAMA 6 TAMAMLANDI — TaskManagementPanel Eğitmen Erişimi:** `useUser` entegrasyonu eklendi. Sekme filtresi: eğitmene sadece "Şablon Yönetimi" + "Lig Yönetimi" görünür (`adminOnly` flag). Şablon listesi: eğitmen yalnızca `scope=personal && createdBy===uid` şablonlarını görür. Lig sekmesinde "Puan Yönetimi" alt sekmesi eğitmene kapalı. Lig grup listesi: eğitmen yalnızca kendi `user.branches`'ıyla eşleşen grupları görür (IIFE pattern). Global toggle: her zaman render edilir ama eğitmene `disabled + opacity-40 + cursor-not-allowed`. Sidebar + tasks/page.tsx: instructor rolü erişim koruması eklendi. | `TaskManagementPanel.tsx`, `Sidebar.tsx`, `dashboard/tasks/page.tsx` |
-| 223 | 2026-05-14 | **Portal Preview Test Sayfası:** `/dashboard/portal-preview` — mock verilerle yeni dashboard konseptini gösteren statik UI. Satır 1: %70 lacivert stat kartı (Toplam Grup/Öğrenci/Ders + SVG donut chart devam oranı) + %30 Hızlı Not kartı. Satır 2: %60 Son Aktiviteler listesi + %40 Günlük Yoklama kartı. İki placeholder (Ödev Parkuru, Ödev Kütüphanesi). Firestore bağlantısı yok — saf UI test sayfası. | `dashboard/portal-preview/page.tsx` (YENİ) |
-| ✅ | 2026-05-14 | **AŞAMA 7 TAMAMLANDI — Yoklama Modülü Altyapısı:** Sidebar'a "Yoklamalar" menüsü eklendi (instructor+admin). `/dashboard/attendance` route + erişim koruması. **`AttendancePanel.tsx`** (YENİ): Sol panel — ay navigasyonu + branşa göre filtrelenmiş grup listesi + aylık ilerleme bar'ı. Sağ panel — ay özeti (Planlanan/Yapılan/Kalan + mini donut), tarih navigasyonu, öğrenci listesi. **Öğrenci başına:** saat butonları (0'dan sessionHours'a, yeşil=tam/sarı=kısmi/kırmızı=yok) + online toggle (Wifi ikonu, mavi=aktif). Toplu işlem (tüm sınıfı X saat yap). "Ders Olmadı" butonu → `ExceptionModal` (sebep seçimi + not + admin'e sistem/grup scope). Alt özet: Tam/Kısmi/Yok/Online sayıları. **Firestore:** `design_attendance/{groupId}_{YYYY-MM-DD}` → `{groupId, date, month, instructorId, sessionHours, entries:{studentId:{hours,online}}}`. `lesson_exceptions/{groupId|system}_{YYYY-MM-DD}` → `{scope, reason, note, groupId, date, month}`. `lesson_plans` kaldırıldı — plan group.monthlyLessonCount'tan gelecek (GroupForm sonrası). `isOnlineStudent` öğrenci formuna sonra eklenecek, şimdi entries.online override'ı çalışıyor. | `components/dashboard/attendance/AttendancePanel.tsx` (YENİ), `dashboard/attendance/page.tsx` (YENİ), `Sidebar.tsx` |
-| 224 | 2026-05-14 | **BranchManagement sessionHours:** Branş kartlarına "Ders süresi: [X] saat" alanı eklendi. `branches/{id}.sessionHours` olarak Firestore'a yazılır (`updateDoc`, onBlur+Enter). `AttendancePanel` sessionHours'ı artık gruptan değil branştan okur — grubun `branch` ID'si ile branches listesi eşleştirilir. Grafik → 3, Web → 5 gibi branş bazlı sabit ders süresi tanımlanabilir. GroupForm değişikliği olmadan çalışır. | `user-management/BranchManagement.tsx`, `components/dashboard/attendance/AttendancePanel.tsx` |
-| 225 | 2026-05-15 | **Lig puanı gün sonu bug fix:** `endDate <= todayStr` → `endDate <= pastDueStr` (dün). Bugün deadline'ı olan ödev gece 12'ye kadar "beklemede" sayılır, atanan ödev sayısına dahil olmaz. `pastDueStr` = yesterday ISO string; `currentMonthKey` için `mEnd = pastDueStr`. Hem `dashboard/league/page.tsx` hem `LeaderboardWidget.tsx`'te aynı fix. | `dashboard/league/page.tsx`, `components/dashboard/scoring/LeaderboardWidget.tsx` |
-| 226 | 2026-05-15 | **Toast N-1 gecikmesi kalıcı fix (isInitialLoad):** `subscribeAt` clock-drift yaklaşımı kaldırıldı. `isInitialLoad` ref + 30 saniyelik recency window: ilk snapshot'ta 30 saniyeden eski bildirimler sessizce seenIds'e eklenir (toast yok); 30s içindekiler toast gösterir (API hızlı yazarsa ilk snapshot'a düşebilir). `seenIds.current` sadece `user?.uid` değişince sıfırlanır — navigasyon subscription'ı kesmez. `pathnameRef` + `routerRef` ile closure sorunu çözüldü. `markAsRead` same-page suppression'dan kaldırıldı (badge flash düzeltmesi). `comments/create`: fire-and-forget IIFE → awaited try/catch (Vercel erken dondurma riski ortadan kalktı). | `NotificationToastListener.tsx`, `api/comments/create/route.ts` |
-| 227 | 2026-05-15 | **Bildirim ses sistemi:** `lib/notificationSound.ts` (YENİ) — `localStorage` tabanlı ses ayarları; `getSoundEnabled/setSoundEnabled`, `getSoundTone/setSoundTone`, `playNotificationSound(preview?)`. 4 ton: ding/soft/alert/pop (Web Audio API, oscillator). `NotificationPanel.tsx`'e "Bildirim Sesi" kartı eklendi — toggle switch + 4 ton butonu grid (tıklayınca önizleme çalar). `NotificationToastListener` ses fonksiyonu kaldırıldı, `playNotificationSound` import'la kullanılıyor. | `lib/notificationSound.ts` (YENİ), `components/dashboard/admin/NotificationPanel.tsx`, `NotificationToastListener.tsx` |
-| 228 | 2026-05-15 | **Eğitmen — Yönetim Paneli kısmi erişimi:** `Sidebar.tsx` — instructor rolü için "Yönetim Paneli" linki gösterildi. `admin/page.tsx` — instructor rolü tanındı; eğitmen "notifications" tabına yönlendirilir, `userRole`/`currentUid` state eklendi. `SubNavigation.tsx` — `allowedTabs?: string[]` prop; eğitmen sadece "Bildirimler" sekmesini görür. `NotificationPanel.tsx` — `userRole`/`instructorUid` props; eğitmen sadece `instructorId===uid` olan gruplarını görür, audience seçimi gizlenir, "my-groups" default. `broadcast/route.ts` — instructor rolüne izin verildi; grup sahipliği sunucu tarafında doğrulanır (UI bypass koruması). | `Sidebar.tsx`, `dashboard/admin/page.tsx`, `SubNavigation.tsx`, `NotificationPanel.tsx`, `api/notifications/broadcast/route.ts` |
-| 229 | 2026-05-15 | **NotificationPanel 2-kolon layout:** `max-w-2xl` tek kolon → `grid-cols-[1fr_380px]` iki kolon. Sol: bildirim gönder formu. Sağ: ses ayarları kartı + canlı önizleme kartı (toast görünümü + bell dropdown görünümü; başlık/mesaj yazılırken anlık güncellenir). `xl` altında tek kolon. Hedef kitle admin'de iki bölüm: "Sistem Bildirimi" (3 kolon: öğrenciler/eğitmenler/herkes) + "Grup Bazlı" (2 kolon: tüm gruplarım/belirli grup). | `components/dashboard/admin/NotificationPanel.tsx` |
-| 230 | 2026-05-15 | **"Tüm Gruplarım" audience:** `broadcast/route.ts` — `"my-groups"` audience türü eklendi; `instructorId===decoded.uid` olan tüm aktif grupların öğrencileri hedef alınır; `uidsFromGroups()` helper ile birden fazla grup tek sorguda. `NotificationPanel.tsx` — `GROUP_OPTIONS` dizisi (Tüm Gruplarım / Belirli Grup); admin her iki bölümü görür; eğitmen sadece grup bazlı bölüm; "Belirli Grup" seçilince dropdown açılır, diğerlerinde kapalı. | `api/notifications/broadcast/route.ts`, `components/dashboard/admin/NotificationPanel.tsx` |
-| 231 | 2026-05-15 | **Öğrenci ses ayarları + Bell temizliği:** `NotificationBell.tsx` — ses ayarları bölümü kaldırıldı; `min-h-[220px] 2xl:min-h-[260px]` eski yükseklik korundu, bildirim varken `max-h-[80vh]`'a büyür; boş durum `flex-1` ile dikey ortalandı. `StudentSidebar.tsx` — çıkış üstüne "Ayarlar" linki + ayırıcı eklendi. `student/[studentId]/settings/page.tsx` (YENİ) — StudentHeader (öğrenci verisi Firestore'dan çekilir) + tab bar (Profil Ayarları · Bildirimler) + ses toggle/ton seçimi kartı; Profil Ayarları sekmesi placeholder; `max-w-2xl` sol hizalı layout. | `NotificationBell.tsx`, `StudentSidebar.tsx`, `student/[studentId]/settings/page.tsx` (YENİ) |
-|---|-------|------|-------|
-| 🔜 | — | **SIRADAKI — GroupForm Yeniden Yapısı:** `sessionHours` (branştan otomatik, override mümkün), `monthlyLessonCount` (kaç ders/ay), `weeklyDays` (hangi günler). Şu an `group.monthlyLessonCount` ve `group.sessionHours` alanları henüz yok — GroupForm değişince AttendancePanel otomatik devreye girer. | `class-management/GroupForm.tsx` |
-| 🔜 | — | **SIRADAKI — StudentForm isOnlineStudent:** Online eğitim satın almış öğrenciye `isOnlineStudent: boolean` eklenir. Yoklama panelinde o öğrencinin online toggle'ı varsayılan açık gelir (override edilebilir). | `student-management/StudentForm.tsx` |
-| 🔜 | — | **SIRADAKI — Yoklama UI + Ay Sonu Rapor:** Yoklama geçmişi görünümü (takvim veya liste). Grup bazlı ay sonu raporu: planlanan/yapılan/kalan + öğrenci devam oranları. PDF/Excel çıktı (ileride). | `AttendancePanel.tsx` |
-| ✅ | 2026-05-13 | **AŞAMA 4 TAMAMLANDI — tasks.scope + Kütüphane:** `Task` interface'ine `scope?: 'personal'\|'global'\|'gamified'` eklendi. `Group` interface'ine `discipline?` eklendi. `scripts/set-task-scope.mjs` (YENİ) — templates koleksiyonuna scope yazıldı (gamified: kolaj/kitap/sosyal_medya, global: diğerleri). `scripts/set-student-discipline.mjs` (YENİ, Fix 216) — 24 öğrenciye discipline yazıldı. `useManagement.ts` handleAddStudent — öğrenci eklenirken grubun discipline'ini kopyalar. `AssignmentLibrary.tsx` — 2 sekme: **Kişisel** (varsayılan) + **Global** (standart+gamified birlikte); gamified kartlara ✨ mor rozet. `DesignParkour.tsx` — isGrafik state: kullanıcının branches'ında "grafik" yoksa gamified ghost kartlar gizlenir. Migration'lar çalıştırıldı, deploy edilebilir. | `taskTypes.tsx`, `AssignmentLibrary.tsx`, `DesignParkour.tsx`, `useManagement.ts`, `scripts/set-task-scope.mjs`, `scripts/set-student-discipline.mjs` |
-| ✅ | 2026-05-13 | **AŞAMA 5 TAMAMLANDI — Ödev Verme & Personal Template:** `QuickAssignModal.tsx` (YENİ) — "Ver unut" hızlı ödev formu; ad/altbaşlık/tür(buton)/grup(dropdown)/bitiş tarihi + "Şablona kaydet" checkbox; kaydedilirse tasks+templates koleksiyonlarına yazar. `DesignParkour.tsx` — başlık satırı `flex justify-between`; sağ üst lila `+ Ödev Ver` butonu (canManage kontrolü); `quickAssignOpen` state; `Plus` ikonu eklendi. `TaskForm.tsx` — `scope` state (default: editingTask.scope ?? "personal"); şablon kaydederken `baseData.scope = isAdmin() ? scope : "personal"`; admin+yeni şablon koşulunda Kişisel/Global/Oyunlaştırılmış seçici UI; `isAdmin` UserContext'ten destructure edildi. | `scoring/QuickAssignModal.tsx` (YENİ), `DesignParkour.tsx`, `assignment/TaskForm.tsx` |
-| ✅ | 2026-05-13 | **AŞAMA 3 TAMAMLANDI — Lig Toggle (Global + Per-Grup):** **Global switch:** `settings/platform.leagueGlobalEnabled` — `TaskManagementPanel` "Lig Ayarları" sekmesi sağ üstünde master toggle (yeşil=aktif, gri=kapalı). Kapalıyken grup satırları soluklaşır/dokunulamaz. **Per-grup:** Her grup satırında ayrı toggle → `groups/{id}.leagueEnabled`. **Sidebar (eğitmen):** `Sidebar.tsx` — `onSnapshot` ile real-time; kapalıysa "Sınıflar Ligi" linki gizlenir. **Öğrenci sidebar:** `StudentSidebar.tsx` — global + grup kontrolü birlikte; ikisi de açıksa link görünür. **Sayfa koruması:** `/dashboard/league` — kapalıysa `/dashboard`'a redirect. `/league` — kapalıysa öğrenci kendi sayfasına redirect. ⚠️ Puan verisi hiç silinmez, toggle sadece görünürlük kontrolü. `!== false` ile eski gruplar otomatik açık sayılır. | `TaskManagementPanel.tsx`, `Sidebar.tsx`, `StudentSidebar.tsx`, `dashboard/league/page.tsx`, `league/page.tsx` |
-| 🔜 | 2026-05-13 | **AŞAMA 6 — Header Branch Switcher:** 2+ branşı olan eğitmen için header'da aktif branş değiştirici. `UserContext`'e `activeBranch` + `setActiveBranch` (sessionStorage ile kalıcı). Header'da `user.branches.length > 1` ise switcher görünür, `user.branches`'ten dinamik liste. `ManagementContent` `activeDiscipline` başlangıcını context'ten alır. En son yapılır, tek branşlı eğitmenler etkilenmez. | `UserContext.tsx`, `Header.tsx`, `ManagementContent.tsx` |
-|---|-------|------|-------|
-| 100 | 2026-04-29 | Google Drive klasör yapısı: lazy /groups/group_{id}/students|instructors/ — getAccessToken, initResumableSession targetFolderId | `googledrive-folder.ts` (NEW), `googledrive.ts`, `init-resumable-upload/route.ts` |
-| 101 | 2026-04-29 | Drive dosya isimlendirme: UUID → 01-dosya.pdf (Firestore sayacı + fallback) | `googledrive.ts`, `init-resumable-upload/route.ts`, `complete-upload/route.ts` |
-| 102 | 2026-04-29 | Çoklu dosya yükleme: 5 başlangıç / 7 revizyon limiti, UI kayboluş fix | `student/[studentId]/[taskId]/page.tsx` |
-| 103 | 2026-04-29 | Unique öğrenci sayısı submission stats, deadline sıralaması, accordion easing | `assignment-test/[groupId]/page.tsx`, `student/[studentId]/page.tsx` |
-| 104 | 2026-04-29 | Firestore rules: getUserData() null-safe | `firestore.rules` |
-| 105 | 2026-04-29 | Drive arşiv/geri al: group klasörünü Gruplar↔Arşiv arasında taşır | `api/groups/drive-folder/route.ts` (NEW), `hooks/useManagement.ts` |
-| 106 | 2026-04-29 | Drive klasör isimlendirme: Eğitmenler→Eğitmen, eğitmen adı alt klasörü | `lib/googledrive-folder.ts` |
-| 107 | 2026-04-29 | Drive migrasyon scripti: --init-all, --migrate, --dry-run | `scripts/migrate-drive-folders.mjs` (NEW) |
-| 108 | 2026-04-30 | Ödev bazlı Drive klasör yapısı + kolaj PDF Drive yükleme (taskName 5. seviye) | `lib/googledrive-folder.ts`, `lib/googledrive.ts`, `send-kolaj/route.ts` |
-| 109 | 2026-04-29 | AssignActivateModal + DesignParkour cancel try/catch — loader sıkışması fix | `AssignActivateModal.tsx`, `DesignParkour.tsx` |
-| 110 | 2026-04-29 | Firestore isInstructor JWT token fallback: request.auth.token.role birincil | `firestore.rules` |
-| 111 | 2026-04-29 | Firestore rules JWT-öncelikli yeniden yapılandırma: isAdmin/isInstructor token birincil | `firestore.rules` |
-| 112 | 2026-04-29 | Login oturumu 1 saat → 30 gün: onIdTokenChanged cookie yenileme | `UserContext.tsx`, `login/page.tsx` |
-| 113 | 2026-04-29 | Deadline hatırlatma maili: 2 gün + 1 gün → sadece 1 gün kala | `api/cron/deadline-reminder/route.ts` |
-| 114 | 2026-04-29 | Firestore composite index deploy: submission_comments + submission_timeline | `firestore.indexes.json` |
-| 115 | 2026-04-30 | Kolaj havuzu emoji temizleme: ItemForm'a × butonu | `pool/CollagePoolPanel.tsx` |
-| 116 | 2026-04-30 | Mail log eksiklikleri: send-kolaj/kitap/sosyal'a saveMailLog + name+groupCode alanları | `emailService.ts`, `send-kolaj/route.ts`, `send-kitap/route.ts`, `send-sosyal/route.ts` |
-| 117 | 2026-04-30 | Canlı test: kolaj kura, PDF mail, Drive klasör — sistem doğrulandı | — |
-| 118 | 2026-04-30 | Lig A-Z butonu kaldırıldı (puan sıfırda zaten A-Z) | `league/page.tsx` |
-| 119 | 2026-04-30 | Aylık cron çift mail fix: monthly-winner-preview Firestore duplicate koruması | `api/cron/monthly-winner-preview/route.ts`, `vercel.json` |
-| 120 | 2026-05-01 | Öğrenci yorum sessiz kalma: catch eksikti; auth.currentUser null kontrolü + hata mesajı | `student/[studentId]/[taskId]/page.tsx` |
-| 121 | 2026-05-01 | Firestore rules: isStudentOwner users doc fallback (authUid eksik öğrenciler) | `firestore.rules` |
-| 122 | 2026-05-01 | adminAuth export: firebase-admin.ts'e getAuth eklendi | `lib/firebase-admin.ts` |
-| 123 | 2026-05-01 | /api/student/sync: students.authUid eksikse users.studentDocId üzerinden düzeltir | `api/student/sync/route.ts` (NEW) |
-| 124 | 2026-05-01 | Login + aktivasyon: sync endpoint çağrısı; aktivasyonda eksik cookie set | `login/page.tsx` |
-| 125 | 2026-05-01 | Sayfa açılışında authUid sync + listenerKey: listener'ları yeniden başlatır | `student/[studentId]/[taskId]/page.tsx` |
-| 126 | 2026-05-01 | Firestore rules threads: read'e role=='student' fallback, write'a authorId==currentUid() | `firestore.rules` |
-| 127 | 2026-05-01 | Server-side comment write: /api/comments/create — token verify, student ownership, teacher group membership, idempotency, XSS | `api/comments/create/route.ts` (NEW) |
-| 128 | 2026-05-01 | sendThreadComment helper: CLAIMS_STALE → force refresh + 1 retry, aynı idempotencyKey | `lib/sendThreadComment.ts` (NEW) |
-| 129 | 2026-05-01 | welcome API: setCustomUserClaims'e studentDocId eklendi | `api/welcome/route.ts` |
-| 130 | 2026-05-01 | 3 sayfada sendComment → API'ye taşındı; Firestore thread create: false | `student/[taskId]/page.tsx`, `[assignmentId]/page.tsx`, `preview/page.tsx`, `firestore.rules` |
-| 131 | 2026-05-01 | CLAIMS_STALE kalıcı fix: comments/create 3 kademeli fallback (token→users_doc→students_query); sync'te users doc + setCustomUserClaims; login'de sync await + getIdToken(true) redirect öncesi | `api/comments/create/route.ts`, `api/student/sync/route.ts`, `login/page.tsx` |
-| 132 | 2026-05-01 | Aylık lig cron zamanlaması: winner 1→5, preview son gün→4; effectiveDate endDate-only (geç not girişi artık ay sınıflandırmasını etkilemiyor); ilk etki Haziran 4/5 | `vercel.json`, `.github/workflows/monthly-winner.yml`, `.github/workflows/monthly-winner-preview.yml`, `api/cron/monthly-winner/route.ts`, `api/cron/monthly-winner-preview/route.ts` |
-| 133 | 2026-05-01 | Logout fix: middleware JWT exp kontrolü kaldırıldı (Firebase 1s token expire → middleware logout ediyordu, SDK yenileme fırsatı bulamıyordu); login persistence her zaman browserLocalPersistence (sessionStorage çok-tab cookie silme riski) | `middleware.ts`, `login/page.tsx` |
-| 134 | 2026-05-01 | Not girişi sayfası yeniden yazıldı: sol grup paneli + onSnapshot real-time + tüm öğrenciler (teslim etmeyenler dahil) listeleniyor — ONAY ALINMADAN YAPILDI, plan netleşince düzenlenecek | `dashboard/assignment-test/grading/page.tsx` |
-| 135 | 2026-05-01 | Eğitmen yorum 403: comments/create — teacher için memberships koleksiyon sorgusu kaldırıldı, role tabanlı erişim yeterli (eğitmenler memberships'te kayıtlı değil) | `api/comments/create/route.ts` |
-| 136 | 2026-05-01 | comments/create perf: users doc DB okuması lazy yapıldı — tokenRole varken Firestore sorgusu atlanır (~400ms kazanç) | `api/comments/create/route.ts` |
-| 137 | 2026-05-01 | Yorum optimistic UI: 3 sayfada sendingComment + loader kaldırıldı, mesaj anında görünür, API arka planda çalışır, hata gelince geri alınır | `[assignmentId]/page.tsx`, `[submissionId]/preview/page.tsx`, `student/[studentId]/[taskId]/page.tsx` |
-| 138 | 2026-05-01 | Assignment test + preview delete/edit optimistic: Firestore hata yakalama eklendi; deleteComment anında UI'dan kaldırır; editComment not-found → stale entry temizler | `[assignmentId]/page.tsx`, `[submissionId]/preview/page.tsx` |
-| 139 | 2026-05-01 | Assignment test deleteComment/editComment path fix: activeTab'a göre genel (`tasks/{id}/comments`) veya özel (`threads/`) path seçilir — genel yorumlarda silme/düzenleme çalışmıyordu | `[assignmentId]/page.tsx` |
-| 140 | 2026-05-01 | Firestore rules: tasks/{taskId}/comments allow update eklendi (eksikti — genel yorum düzenleme permission denied veriyordu) | `firestore.rules` |
-| 141 | 2026-05-01 | editComment/deleteComment: activeTab closure Vercel'de stale kalıyordu → commentType parametresine geçildi, her yorum kendi tipini taşıyor | `[assignmentId]/page.tsx` |
-| 142 | 2026-05-01 | DesignParkour akıllı navigasyon: Ödev Detay → assignment-test/{groupId}/{taskId}; kura ödevi seçimsizse "Seçimi Başlat" → lottery sayfası; deadline sonrası "Not Ver" → assignment-test | `DesignParkour.tsx` |
-| 143 | 2026-05-01 | SocialGameScreen "Seçimi Tamamla": eksik öğrencilerle seçimi bitir → status:published → assignment-test; allDone buton metni güncellendi | `SocialGameScreen.tsx` |
-| 144 | 2026-05-03 | Çoklu dosya yükleme altyapısı: UploadJob interface, useUploadQueue hook (max 4 paralel, AbortController iptal, retry, 256KB chunk), UploadQueueUI bileşeni (test sayfası) | `types/upload.ts`, `hooks/useUploadQueue.ts` (NEW), `components/upload/UploadQueueUI.tsx` (NEW), `dashboard/test/upload/page.tsx` |
-| 145 | 2026-05-03 | Öğrenci upload ekranı çoklu dosya: eski büyük drop zone tasarımı korundu, birden fazla dosya seçimi + "Dosya ekle" butonu + her dosya için ayrı progress bar + max 4 eş zamanlı yükleme; UploadQueueUI yerine inline mantık | `student/[studentId]/[taskId]/page.tsx` |
-| 146 | 2026-05-03 | Drop zone yüksekliği azaltıldı: clamp(220px,30vh,380px) → clamp(140px,18vh,240px) | `student/[studentId]/[taskId]/page.tsx` |
-| 147 | 2026-05-04 | Preview sayfası tüm dosyaları listele: versiyon bar kaldırıldı, sağ panele "Gönderilen Dosyalar" eklendi — aynı öğrencinin tüm submission'larındaki dosyalar listelenir, tıklayınca preview güncellenir | `[submissionId]/preview/page.tsx` |
-| 148 | 2026-05-04 | Assignment-test "Tam Ekran" → "Detay" rename | `[groupId]/[assignmentId]/page.tsx` |
-| 149 | 2026-05-04 | Root page öğrenci fix: onAuthStateChanged async yapıldı, JWT claim'den role+studentDocId okunur; öğrenci direkt /student/[id]'ye gider (eski: /dashboard → middleware → /student → 404) | `app/page.tsx` |
-| 150 | 2026-05-04 | Assignment-test sağ panel Figma tasarımına göre yeniden yazıldı: iki sütun üst alan (öğrenci kartı + Mevcut Durum), dosya listesinde Drive/İndir/Sil + "Detay Gör" butonu; STATUS_BADGE, handleSingleStatus eklendi | `assignment-test/[groupId]/[assignmentId]/page.tsx` |
-| 151 | 2026-05-04 | Student Info kartı tamamlandı: items-stretch eşit yükseklik, flex-col sol kart, Öğrenci Notu kutusu her zaman görünür (flex-1, "Not girilmemiş" placeholder) | `assignment-test/[groupId]/[assignmentId]/page.tsx` |
-| 152 | 2026-05-04 | Renk token düzeltmesi: STATUS_BADGE + Revize İste/Onayla/Detay Gör butonları Tailwind (blue/orange/emerald) → proje token'larına (base-primary/designstudio-primary/status-success) geçirildi | `assignment-test/[groupId]/[assignmentId]/page.tsx` |
-| 153 | 2026-05-04 | Info Box (Mevcut Durum kartı) iyileştirme: lg:w-[255px] (~%30 genişleme büyük ekran), Teslim Tarihi 2 satır (ikon+etiket / tarih-değer), Revize inline format, surface-400→surface-500 okunabilirlik | `assignment-test/[groupId]/[assignmentId]/page.tsx` |
-| 154 | 2026-05-04 | Revize sayısı fix: iteration-1 (tüm dosya yüklemelerini sayıyordu) → viewingAllSubs.filter(s=>s.status==="revision").length; fmtDateTime'a saat eklendi (24 Nisan 2026 Cum 23:39) | `assignment-test/[groupId]/[assignmentId]/page.tsx` |
-| 155 | 2026-05-05 | Ödev dinamik açıklama: Task arayüzüne subtitle+description eklendi; TaskForm'a "Alt Başlık" + "Ödev Metni" alanları; assignment-test + student sayfalarından sabit sosyal medya metni kaldırıldı, dinamik task.subtitle/description gösteriliyor | `taskTypes.tsx`, `TaskForm.tsx`, `assignment-test/[groupId]/page.tsx`, `student/[studentId]/page.tsx`, `student/[studentId]/[taskId]/page.tsx` |
-| 156 | 2026-05-05 | Tasarım parkuru kart fix: subtitle yoksa boş göster (description fallback kaldırıldı — eski ödevlerde sabit metin çıkıyordu); handleGhostActivate + AssignmentLibrary onConfirm'e subtitle kopyalandı | `DesignParkour.tsx`, `AssignmentLibrary.tsx` |
-| 157 | 2026-05-05 | Aktif ödev düzenleme: openTaskEdit artık TaskQuickEditModal yerine TaskForm açıyor — subtitle+description düzenlenebiliyor; şablon tablosunda Açıklama kolonu → task.subtitle gösteriyor | `TaskManagementPanel.tsx` |
-| 158 | 2026-05-05 | Grup 550 welcome script: mezun öğrencileri JS'de filtrele (status!=="passive") — Firestore composite index hatası önlendi | `scripts/send-welcome-group550.mjs` (NEW) |
-| 159 | 2026-05-05 | Ödev dosyası yükleme (eğitmen): assignment-test accordion'ına AttachmentManager eklendi — "Bilgisayardan Yükle" veya "Google Drive linki" seçeneği; attachmentType/Url/Name Firestore tasks doc'una kaydediliyor; öğrenci sayfasında dosya varsa kart göster, yoksa hiçbir şey yok | `assignment-test/[groupId]/page.tsx`, `student/[studentId]/[taskId]/page.tsx`, `taskTypes.tsx` |
-| 160 | 2026-05-05 | Drive klasör hiyerarşisi (ödev dosyaları): ensureFolderPath eklendi — gruplar/[grup]/[eğitmen]/[ödev adı]/ yapısında otomatik klasör oluşturur; /api/upload folderPath FormData parametresini alır; mevcut "ödev dosyaları" klasörü kullanılmıyor | `lib/googledrive.ts`, `api/upload/route.ts` |
-| 161 | 2026-05-05 | Öğrenci sayfasına header eklendi: StudentHeader bileşeni — sol: "Hoş Geldin, {firstName}", sağ: Bell + öğrenci adı + grupCode | Öğrenci + avatar | `components/layout/StudentHeader.tsx` (NEW), `student/[studentId]/page.tsx` |
-| 162 | 2026-05-05 | Öğrenci sayfası üst başlık: küçük gri "grupCode · Öğrenci Paneli" yazısı kaldırıldı, h1 direkt grupCode gösteriyor | `student/[studentId]/page.tsx` |
-| 163 | 2026-05-05 | Öğrenci sayfası banner yüksekliği: 220px → 240px | `student/[studentId]/page.tsx` |
-| 164 | 2026-05-05 | Öğrenci sayfası real-time ödev: getDocs → onSnapshot (student.groupId değişince yeniden abone olur, yeni ödev refresh gerektirmeden anlık görünür); lig widget hizası: aside'a xl:pt-14 → banner sol kenarıyla hizalanır | `student/[studentId]/page.tsx` |
-| 165 | 2026-05-05 | Öğrenci accordion akıcı animasyon: grid-template-rows 0fr→1fr (bazı tarayıcılarda sıçrıyordu) → ResizeObserver ile gerçek px yüksekliği ölçülür, height:0→Xpx 350ms cubic-bezier; chevron timing 320ms→350ms synced; "Ödev Detay" → "Ödev Yükle" | `student/[studentId]/page.tsx` |
-| 166 | 2026-05-05 | Ödev dosya kartı dinamik: hardcoded Market.zip kaldırıldı; TaskRow'a file:{driveFileId,driveViewLink,fileUrl,fileName} eklendi; onSnapshot'ta map'leniyor; task.file.fileUrl varsa Drive thumbnail (resim) veya FileText ikonu + dosya adı + "İndir" + Drive ikonu gösterilir, yoksa kart tamamen gizlenir | `student/[studentId]/page.tsx` |
-| 167 | 2026-05-06 | Google Drive upload fix: GOOGLE_REFRESH_TOKEN expired (invalid_grant) — OAuth scope drive.file → drive olarak güncellendi; scripts/refresh-google-token.mjs ile yeni token alındı; OAuth consent screen published moda alındı | `scripts/refresh-google-token.mjs` |
-| 168 | 2026-05-06 | Drive teşhis logları: createFolderStructure + ensureFolderExists + deleteFromDrive'a console.log eklendi — hangi seviyede hata olduğunu ve Drive API yanıtını gösterir | `lib/googledrive-folder.ts`, `lib/googledrive.ts`, `api/submissions/retract/route.ts` |
-| 169 | 2026-05-06 | Öğrenci upload sayfası: ödev açıklama (subtitle+description) kartı kaldırıldı | `student/[studentId]/[taskId]/page.tsx` |
-| 170 | 2026-05-06 | Lig senkronizasyon fix: student ve instructor lig sayfalarında monthlyAssigned için monthEnd → todayStr (geçerli ay), LeaderboardWidget per-month kümülatif skor hesaplama | `league/page.tsx`, `components/student/StudentLeagueWidget.tsx`, `components/dashboard/scoring/LeaderboardWidget.tsx` |
-| 171 | 2026-05-06 | Revize dosya badge: öğrenci upload sayfasında dosya seviyesi badge'i "Revize Bekleniyor"→"Teslim Edildi" (yeşil); STATUS_UI revision label "Teslim Edildi"→"Revize Durumunda" (mavi), dosya satırında ayrı override | `student/[studentId]/[taskId]/page.tsx` |
-| 172 | 2026-05-06 | Upload limit: 8→7 (5 başlangıç + 2 revize hakkı) | `student/[studentId]/[taskId]/page.tsx` |
-| 173 | 2026-05-06 | "Revizyon İste" → "Revize İste" buton metni (2 sayfa) | `[submissionId]/page.tsx`, `preview/page.tsx` |
-| 174 | 2026-05-06 | Öğrenci accordion: "X. revizyon teslimi" alt metni kaldırıldı | `student/[studentId]/page.tsx` |
-| 175 | 2026-05-06 | Revize İste butonu disable: zaten revision durumundaysa devre dışı (assignment-test + preview sayfaları) | `[submissionId]/page.tsx`, `preview/page.tsx`, `[assignmentId]/page.tsx` |
-| 176 | 2026-05-06 | Preview sağ üst badge: "Revize"→"Revize Durumunda" | `preview/page.tsx` |
-| 177 | 2026-05-06 | Revize badge rengi mavi: STATUS_UI/STATUS_MAP/STATUS_BADGE/SubmissionStatusBadge'de revision → bg-blue-50 text-blue-700 border-blue-100 | `[taskId]/page.tsx`, `[assignmentId]/page.tsx`, `SubmissionStatusBadge.tsx` |
-| 178 | 2026-05-06 | Ödev detay varsayılan seçim: Teslim Edenler → Revize Verilenler → Teslim Etmeyenler öncelik sırası | `[assignmentId]/page.tsx` |
-| 179 | 2026-05-06 | "Genel" yorum tab → "Duyuru": placeholder "Tüm sınıfa duyuru yaz...", boş durum "Henüz duyuru yok." | `[assignmentId]/page.tsx` |
-| 180 | 2026-05-06 | Öğrenci Duyurular paneli: task listesi yerine tasks/{taskId}/comments koleksiyonundan gerçek duyurular; tıklanınca detay modal açılır | `student/[studentId]/page.tsx` |
-| 181 | 2026-05-06 | Mevcut Durum + öğrenci bilgi kartı: STATUS_LABEL revision "Revize"→"Revize Durumunda", STATUS_BADGE revision turuncu→mavi | `[assignmentId]/page.tsx` |
-| 182 | 2026-05-07 | Teslim geçmişi badge fix: HistoryRow'da completed dahil tüm satırlar "Teslim Edildi" gösteriyor (eski: completed→"Tamamlandı" yazıyordu); unused `st` değişkeni kaldırıldı | `student/[studentId]/[taskId]/page.tsx` |
-| 183 | 2026-05-07 | Assignment-test yorum paneli yüksekliği: h-[28vh] min-h-[200px] → h-[38vh] min-h-[260px] (küçük ekranlarda konuşma alanı çok dardı) | `[assignmentId]/page.tsx` |
-| 184 | 2026-05-07 | Öğrenci hesap durumu: students doc'a accountStatus (pending/active/disabled) eklendi; welcome'da pending, activation/verify'da active set edilir; yeni /api/student/set-account-status — Firebase Auth disabled toggle + Firestore güncelle; StudentUserTable'da badge (Beklemede/Aktif/Pasif) + toggle; users.isActivated join ile mevcut öğrenciler doğru gösterildi; login'de auth/user-disabled özel hata | `api/student/set-account-status/route.ts` (NEW), `api/welcome/route.ts`, `api/activation/verify/route.ts`, `hooks/useManagement.ts`, `user-management/StudentUserTable.tsx`, `user-management/UserManagement.tsx`, `login/page.tsx`, `lib/messages.ts` |
-| 185 | 2026-05-07 | Aktivasyon kodu yenile: /api/resend-activation — eski pending kodları expire eder, yeni kod üretir, mail gönderir; StudentUserTable'da Beklemede satırlarına "Kodu Yenile" butonu (Send ikonu, loading+done state) | `api/resend-activation/route.ts` (NEW), `user-management/StudentUserTable.tsx`, `user-management/UserManagement.tsx` |
-| 184 | 2026-05-07 | Kaldır butonu tamamlanan ödevde gizlendi: latestSub.status==="completed" ise hasTeacherActivity tüm satırlara true geçilir → hiçbir teslim satırında delete butonu çıkmaz; gereksiz spacer kaldırıldı | `student/[studentId]/[taskId]/page.tsx` |
-| 186 | 2026-05-07 | Sidebar boşluk azaltıldı: space-y-3→space-y-1.5, py-4→py-3.5 (ana öğeler), py-3→py-2.5 (alt öğeler), mt-16→mt-10 | `components/layout/Sidebar.tsx` |
-| 187 | 2026-05-07 | Yönetim sayfası öğrenci durum noktası: hesap badge'i kaldırıldı; isim soluna 6×6px dot eklendi (yeşil=aktif, sarı=beklemede, kırmızı=kod yok); getDotColor + studentUsersMap hook'tan besleniyor | `student-management/StudentTable.tsx`, `hooks/useManagement.ts`, `ManagementContent.tsx` |
-| 188 | 2026-05-07 | Preview sayfası "Yorumlar" başlığı: globals.css'e preview-section-heading class; yorumlar alanı üstüne 24px mesafeli başlık; iframe dikey hizalama: container relative, iframe absolute inset-0 | `globals.css`, `[submissionId]/preview/page.tsx` |
-| 189 | 2026-05-07 | Assignment-test teslim sıralaması: grouped.submitted en son submittedAt'e göre azalan sıralanır; auto-select aynı sıralamayı kullanır (eskiden allStudents sırası) | `assignment-test/[groupId]/[assignmentId]/page.tsx` |
-| 190 | 2026-05-07 | Geri butonu yeniden tasarlandı: tüm sayfalarda yazısız 32×32px rounded-lg, bg-neutral-200 kenarlıklı ikon kutusu | `[assignmentId]/page.tsx`, `[submissionId]/page.tsx`, `preview/page.tsx`, `student/[studentId]/[taskId]/page.tsx` |
-| 191 | 2026-05-07 | Preview scrollIntoView fix: commentsEndRef.scrollIntoView → commentsScrollRef.scrollTop; tarayıcılarda overflow:hidden bypass edip iframe'i üste kaydırıyordu | `[submissionId]/preview/page.tsx` |
-| 192 | 2026-05-07 | Tab ve seçim kalıcılığı: admin SubNavigation + UserManagement tabs sessionStorage'da tutulur (refresh'te aynı tab); assignment-test preview gidip gelince viewingId korunur (sessionStorage, okunup temizlenir) | `dashboard/admin/page.tsx`, `user-management/UserManagement.tsx`, `assignment-test/[groupId]/[assignmentId]/page.tsx` |
-| 193 | 2026-05-07 | Deadline hatırlatma maili: isPassive / accountStatus==="disabled" / zaten teslim etmiş öğrenciler filtrelendi — mezun ve pasif öğrencilere artık mail gitmiyor | `api/cron/deadline-reminder/route.ts` |
-| 194 | 2026-05-08 | Notification System Backend: abstraction-layer mimarisi — INotificationService interface, NotificationService static wrapper (swappable impl), ClientSideNotificationImpl (writeBatch + deterministic ID + exponential backoff retry), CloudFunctionImpl placeholder (Phase 2), NotificationRealtimeService (onSnapshot + filterVisible + unreadCount), types.ts | `lib/notifications/types.ts` (NEW), `lib/notifications/ClientSideImpl.ts` (NEW), `lib/notifications/CloudFunctionImpl.ts` (NEW), `lib/services/NotificationService.ts` (NEW), `lib/services/NotificationRealtimeService.ts` (NEW) |
-| 195 | 2026-05-08 | Firestore rules: /announcements koleksiyonu (instructor/teacher create+update/delete, tüm roller read); /users/{userId}/notifications alt koleksiyonu (type whitelist + size validation + senderId==auth.uid create; immutable field korumalı owner update; delete:false) | `firestore.rules` |
-| 196 | 2026-05-08 | Notification System UI: NotificationBell bileşeni — bell butonu + kırmızı unread badge + dropdown panel (Figma tasarımına göre); 440px kart, rounded-xl, speech bubble tail, bg-black/25 scrim, type→icon/renk mapping (system/announcement/assignment/message), relTime + fmtDate, fontWeight:450 preview metni, hover efekti, tıkla-dışarı-kapat; mock data ile çalışıyor — fonksiyonellik sonraki adım | `components/notifications/NotificationBell.tsx` (NEW), `components/layout/Header.tsx` |
-| 197 | 2026-05-08 | Preview yorumlar boşluk: "Yorumlar" başlığı pb-6 (scroll container dışında 24px sabit gap); input alanı pt-3 pb-6 (ekran altından 24px) | `[submissionId]/preview/page.tsx` |
-| 198 | 2026-05-08 | Notification fonksiyonellik: useNotifications hook (Firestore onSnapshot + lastClearedAt real-time, optimistic markAsRead + revert, clearAll); NotificationBell mock → Firestore; tıkla → markAsRead + router.push(actionUrl) + dropdown kapan; hover → ChevronRight; okunmamış satır bg-base-primary-50; boş durum "Şu anda herhangi bir bildirim bulunmuyor." text-tertiary; firestore.rules deploy | `hooks/useNotifications.ts` (NEW), `components/notifications/NotificationBell.tsx` |
-| 199 | 2026-05-11 | "Bir geride" toast bug fix: NotificationRealtimeService'te `createdAt instanceof Timestamp` filtresi kaldırıldı (serverTimestamp pending'de bildirim görünmüyordu); ready.current → subscribeAt yaklaşımı (abonelik başından 3s önceki bildirimler atlanır, sayfa yüklenince eskiler toast olmuyor) | `NotificationRealtimeService.ts`, `NotificationToastListener.tsx` |
-| 209 | 2026-05-11 | Toast ses + navigasyon: Web Audio API ile 880→440Hz ding sesi; toast'a "Git →" action butonu eklendi → router.push(actionUrl); zaten hedef sayfadaysa toast çıkmaz | `NotificationToastListener.tsx` |
-| 210 | 2026-05-11 | isOnThread bug fix: comments/create'te isOnThread kontrolü kaldırıldı (eğitmen sayfadayken tüm bildirimler isRead:true yazılıyordu → badge 0, toast yok); her bildirim isRead:false; mesaj tipinde sayfadaysa client-side markAsRead → badge+toast sessiz | `comments/create/route.ts`, `NotificationToastListener.tsx` |
-| 211 | 2026-05-11 | Bildirim yönlendirme: actionUrl'e ?student=X&tab=private eklendi; assignment-test sayfasına useSearchParams — bildirime tıklayınca direkt öğrencinin private chat sekmesi açılır; sadece message tipinde same-page suppression (ödev/duyuru bildirimleri her zaman gelir) | `comments/create/route.ts`, `assignment-test/[assignmentId]/page.tsx` |
-| 200 | 2026-05-08 | DUPLICATE_EMAIL console.error fix: useManagement outer catch'te error.code==="DUPLICATE_EMAIL" ise console.error atlanır, sadece gerçek hatalar loglanır | `hooks/useManagement.ts` |
-| 201 | 2026-05-08 | Bildirim paneli Gruba Özel: hedef kitle kartları 2×2 grid'e geçti; 4. kart "Gruba Özel" eklendi — seçince grup dropdown'ı açılır, Firestore'daki aktif gruplar listelenir; onay mesajında grup adı gösterilir; grup seçilmeden Gönder disabled | `components/dashboard/admin/NotificationPanel.tsx` |
-| 202 | 2026-05-08 | Broadcast API grup desteği: audience==="group" + groupId gelince students koleksiyonunda groupId sorgusu; authUid dolu öğrencileri filtreler; users doc varlığı doğrulanır; diğer audience tipleri etkilenmedi | `api/notifications/broadcast/route.ts` |
-| 203 | 2026-05-08 | Sidebar genişlik tutarlılığı: Sidebar root div'e w-[280px] 2xl:w-[320px] eklendi — her sayfada wrapper bağımsız 280px garantili (bazı sayfalar shrink-0 kullanıyordu, genişlik tutarsızdı) | `components/layout/Sidebar.tsx` |
-| 204 | 2026-05-08 | Ödev sıralama createdAt azalan: assignment-test [groupId] ve student sayfasında aktif+tamamlanan ödevler endDate sırası yerine createdAt azalan sırayla listelenir (en son sisteme eklenen en üstte) | `assignment-test/[groupId]/page.tsx`, `student/[studentId]/page.tsx` |
-| 205 | 2026-05-08 | Assignment-test sol panel ödev dosyası: TaskInfo'ya attachmentUrl/Name/Type eklendi; loadData bunları Firestore'dan çeker; öğrenci listesinin üstünde mavi kart gösterir — tıklayınca Drive'da açılır | `assignment-test/[groupId]/[assignmentId]/page.tsx` |
-| 206 | 2026-05-08 | Öğrenci accordion ödev dosyası: TaskRow'a attachmentUrl/Name/Type eklendi; onSnapshot'ta map'leniyor; accordion alt sol kart attachmentUrl'e bağlandı (eski task.file.fileUrl legacy alan yerini aldı) | `student/[studentId]/page.tsx` |
-| 207 | 2026-05-08 | AttachmentManager hata görünürlüğü: upload başarısız olunca setMode("idle") anında çağrıldığı için error sadece "choosing" modunda görünüyordu → idle modunda da hata mesajı gösterilir | `assignment-test/[groupId]/page.tsx` |
-| 212 | 2026-05-12 | Safari login fix: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN `flexos-10ac4.firebaseapp.com` → `flex-one-iota.vercel.app` (Safari ITP cross-origin iframe localStorage bloğu); Firebase Console Authorized Domains'e Vercel domain eklendi — kod değişikliği yok, sadece env+config | Vercel env, Firebase Console |
-| 213 | 2026-05-12 | Logs sayfası SubNavigation + başlık: `SubNavigation` eklendi (aktif tab: logs-page, diğer sekmelere tıklayınca sessionStorage'a yazar → /dashboard/admin'e yönlendirir); "Loglar" başlığı + italik alt başlık; border-b nav → pill tab bar (Mail/Star ikonu) | `dashboard/logs/page.tsx` |
-| 208 | 2026-05-11 | Bildirim tetikleyicileri tamamlandı: öğrenci teslim→eğitmene; eğitmen revize/onay→öğrenciye; ödev atama→gruptaki tüm öğrencilere (yeni /api/notifications/task-assigned route); DesignParkour handleGhostActivate+handleReactivateConfirm entegrasyonu | `complete-upload/route.ts`, `submissions/[id]/status/route.ts`, `api/notifications/task-assigned/route.ts` (NEW), `DesignParkour.tsx` |
+---
+
+## Oturum: 2026-05-15 (1. Bölüm)
+
+### 1. Kategori → Branş → Modül Hiyerarşisi
+- `GroupBranchPanel.tsx` tamamen yeniden yazıldı
+- 3 sütunlu layout: Kategoriler (200px) | Branşlar (260px) | Modüller (1fr)
+- `categories` Firestore koleksiyonu eklendi: `{ id, name, slug, order, isActive }`
+- `branches` dökümanlarına `categoryId` alanı eklendi
+- `sessionHours` modül düzeyinde zorunlu hale getirildi
+- Firestore rules'a `categories` kuralı eklendi ve deploy edildi
+
+### 2. Bildirim Güvenilirliği Düzeltmesi
+- **Sorun:** Vercel serverless'ta response sonrası fire-and-forget IIFE çalışmıyor
+- **Düzeltme:** `submit/route.ts` ve `complete-upload/route.ts` — bildirim response öncesi `await`
+- Admin'e genel bildirim kaldırıldı, sadece ilgili grup eğitmeni bildirim alıyor
+
+### 3. GroupForm — Modal Yeniden Tasarım
+- StudentForm ile aynı pattern: ManagementContent'te `translate-y` + CSS transition wrapper
+- Transition: `duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]`, aşağıdan yukarı
+- Boyut: `max-w-4xl`, renk: `designstudio-secondary-500` (lila #6F74D8)
+- Header: `bg-[#10294C]`
+
+### 4. GroupForm — Bug Düzeltmeleri
+- **Seans overflow:** Custom dropdown → native `<select>`
+- **Modül disabled:** `orderBy` tek başına + client-side `isActive` filter
+- **Eğitmen branş filtresi:** `groupDiscipline` seçilince `instructor.branches.includes(discipline)`
+
+---
+
+## Oturum: 2026-05-15 (2. Bölüm) — Yoklama Altyapısı
+
+### 5. AttendancePanel — Alan Adı Düzeltmeleri
+- `Group.name` → `Group.code` (Firestore grup adı `code` alanında)
+- `Group.branch` → `Group.discipline` (branş ID `discipline` alanında)
+
+### 6. monthlyLessonCount — KALDIRILDI
+- Önceki oturumda hatalı eklenmişti. Gerçekte böyle bir kavram yok.
+- `useManagement`, `GroupForm`, `ManagementContent`, `AttendancePanel`'den tamamen silindi.
+- Firestore'a yazılmıyor. Eski dökümanlar varsa ignore edilir.
+
+### 7. Yoklama — Günlük Aktif/Disabled Sistemi
+- **Fikir:** Session label'ından ("Pts - Çar | 19.00 - 21.30") haftanın günleri otomatik parse edilir
+- **Fonksiyon:** `parseWeekDays(label)` — Türkçe gün kısaltmalarını tanır
+  - `pts/pzt` → 1 (Pazartesi), `sal` → 2, `çar` → 3, `per` → 4, `cum` → 5, `cts` → 6, `paz` → 0
+- **AttendancePanel sol listesi:** Bugün dersi olan gruplar aktif, olmayanlar `opacity-40 cursor-not-allowed`
+- **Esnek gruplar:** Label'da gün bulunamazsa (özel ders, kurumsal) her gün aktif
+- **Planlanan ders sayısı:** O ayda o haftanın günleri kaç kez düşüyor → otomatik hesap
+- **Hiçbir DB değişikliği gerekmez** — mevcut gruplar session label'ından okunur
+
+### 8. Ders Saati (sessionHours) — Grup Düzeyinde Manuel Giriş
+- **Karar:** Saat parse etmek yanlış — 1 ders saati = 45 dk, standart saatle aynı değil
+- GroupForm'da "Ders Saati" input alanı eklendi (Seans yanında, 4 kolonlu grid)
+- `groups.sessionHours` olarak Firestore'a kaydediliyor
+- **AttendancePanel öncelik sırası:** `group.sessionHours` → `branch.sessionHours` → `DEFAULT_SESSION_HOURS (3)`
+- handleSave (create+update), handleEdit, handleCancel, return object güncellendi
+
+### 9. GroupBranchPanel — sessionHours `key` Bug Fix
+- Branş değiştirilince `defaultValue` güncellenmiyor sorunu
+- Modül paneli "Varsayılan seans" input'una `key={selectedBranchId}` eklendi
+
+---
+
+## Oturum: 2026-05-15 (3. Bölüm) — AttendancePanel UI + Kurs İlerleme
+
+### 10. AttendancePanel UI Düzeltmeleri
+- **Padding:** Sol liste ve sağ panel genelinde minimum `px-8`
+- **Renkler:** `text-text-placeholder` → `text-text-secondary` (başlıklar ve etiketler)
+- **Büyük harf kaldırıldı:** Tüm `uppercase` etiketler title case'e çevrildi
+- **İstatistikler:** "Bu Ay Planlanan / Bu Ay Yapılan / Kalan" — alt satırda "X ders günü · Y saat"
+- **İlerleme çubuğu:** `h-1` → `h-1.5`, grup kartlarında daha belirgin
+
+### 11. Tatil Yönetimi (GroupBranchPanel)
+- "Tatiller & İptaller" sekmesi eklendi (`CalendarOff` ikonu)
+- `holidays` Firestore koleksiyonu: `{ name, startDate, endDate (YYYY-MM-DD), createdAt }`
+- Tarih aralığı giriş formu: isim + başlangıç + bitiş
+- `countWeekdaysInMonth` tatil günlerini otomatik çıkarır
+- Firestore rules eklendi ve deploy edildi
+
+### 12. Kurs Toplam/Kalan Saat + Bitiş Tarihi (AttendancePanel)
+- **Yeni Firestore alanı:** `groups.totalHours`
+  - Standart gruplar: `selectedModuleId`'e karşılık gelen `module.totalHours`
+  - Özel/Kurumsal: `customHours` (zaten girilen değer)
+  - `useManagement.handleSave` (create + update) güncellendi
+- **AttendancePanel Group arayüzü:** `startDate`, `totalHours` alanları eklendi
+- **Yeni state:** `totalDoneCount` — seçili grup için tüm zamanlardaki toplam yoklama sayısı (`onSnapshot` ile canlı)
+- **Yeni helper:** `calcEstimatedEndDate(startDate, totalSessions, weekDays, holidayDates)` — tatilleri atlayarak tahmini bitiş tarihi hesaplar
+- **Kurs ilerleme şeridi** (aylık istatistiklerin altında, sadece veri varsa görünür):
+  - Başlangıç tarihi
+  - Tahmini bitiş tarihi (startDate + totalSessions hesabından)
+  - Toplam kurs saati
+  - Yapılan saat (tüm zaman, sadece bu ay değil)
+  - Kalan saat
+  - İlerleme çubuğu + yüzde
+
+### 13. CalendarPopover — Custom Takvim Bileşeni
+- **Yeni dosya:** `src/app/components/dashboard/attendance/CalendarPopover.tsx`
+- Native `<input type="date/month">` + `showPicker()` yaklaşımı kaldırıldı
+- İki component export:
+
+**`DayCalendarPopover`** — gün seçici (sağ panel tarih başlığı):
+- Pazartesi başlangıçlı 7 sütun grid
+- Bugün: ring efekti
+- Seçili gün: `bg-[#10294C]` koyu mavi
+- Tatil günleri: kırmızı tint (`holidayDates: Set<string>` prop alır)
+- Hafta sonu: açık mavi
+- Gelecek günler disabled
+- Alt kısımda "Bugüne git" shortcut
+- `maxDate` prop ile üst sınır
+
+**`MonthCalendarPopover`** — ay seçici (sol panel "Mayıs 2026"):
+- 3×4 ay grid (Oca–Ara)
+- Üstte yıl navigatörü
+- Seçili ay: koyu mavi, bu ay: ring efekti, gelecek disabled
+
+**Tetikleyici:** Her iki bileşen de `children` prop alır (trigger olarak `<div>` veya herhangi element)
+**Konum:** `top-full left-0 mt-2` absolute popover, click-outside ile kapanır
+
+**AttendancePanel entegrasyonu:**
+- Sol panel ay navigatörü: `<MonthCalendarPopover>` ile sarıldı — Calendar ikonu + "Mayıs 2026"
+- Sağ panel tarih başlığı: `<DayCalendarPopover>` ile sarıldı — Calendar ikonu + full date string
+
+---
+
+## Kritik Alan Adları (Firestore ↔ Kod)
+
+| Firestore (`groups`) | Anlamı |
+|---|---|
+| `code` | Görünen ad — "Grup 101" |
+| `discipline` | Branş ID (branches koleksiyon key) |
+| `branch` | Şube — "Kadıköy" (coğrafi) |
+| `session` | Seans label string'i — gün ve saat parse edilir |
+| `sessionHours` | Ders saati sayısı (manuel, grup düzeyinde) |
+| `startDate` | Başlangıç tarihi (YYYY-MM-DD) |
+| `totalHours` | Toplam kurs saati (modülden veya customHours'tan denormalize) |
+| `customHours` | Özel/kurumsal grup için manuel toplam saat |
+| `moduleId` | Standart grupta seçilen modül ID'si |
+| `type` | "standart" / "ozel" / "kurumsal" |
+| `instructorId` | Eğitmen Firebase UID |
+
+| Koleksiyon | DocId Formatı | Açıklama |
+|---|---|---|
+| `design_attendance` | `{groupId}_{YYYY-MM-DD}` | Günlük yoklama kaydı |
+| `lesson_exceptions` | `{groupId}_{date}` / `system_{date}` | Ders olmayan günler |
+
+### parseWeekDays — Desteklenen Kısaltmalar
+```
+pts / pzt / pazartesi  →  1 (Pazartesi)
+sal / salı             →  2 (Salı)
+çar / car / çarşamba   →  3 (Çarşamba)
+per / perşembe         →  4 (Perşembe)
+cum / cuma             →  5 (Cuma)
+cts / cmt / cumartesi  →  6 (Cumartesi)
+paz / pazar            →  0 (Pazar)
+```
+JS `Date.getDay()` ile eşleşir (0=Pazar).
+
+---
+
+## Dosya Listesi — Yoklama Sistemi
+
+| Dosya | Açıklama |
+|---|---|
+| `src/app/components/dashboard/attendance/AttendancePanel.tsx` | Ana yoklama paneli |
+| `src/app/components/dashboard/attendance/CalendarPopover.tsx` | DayCalendarPopover + MonthCalendarPopover |
+| `src/app/components/dashboard/admin/GroupBranchPanel.tsx` | Tatil yönetimi sekmesi dahil |
+| `src/app/hooks/useManagement.ts` | lessonHours + totalHours kayıt mantığı |
+| `src/app/components/dashboard/class-management/GroupForm.tsx` | Ders Saati inputu |
+| `firestore.rules` | holidays + attendance kuralları |
+
+---
+
+## Sonraki Adımlar (Öncelik Sırasıyla)
+
+### 1. HEMEN — Yoklama Canlı Test
+- Mevcut gruplara `startDate` girilmemişse GroupForm'dan ekle → kurs şeridi görünür
+- Tatil sekmesinden Bayram tatillerini gir (Nisan sonunda 9 gün)
+- Birkaç gruba yoklama al, istatistiklerin doğru çalıştığını doğrula
+- Toplam/kalan saat ve tahmini bitiş tarihinin mantıklı göründüğünü kontrol et
+
+### 2. SONRA — StudentForm: isOnlineStudent
+- `students` dökümanına `isOnlineStudent: boolean` eklenecek
+- AttendancePanel zaten bu alanı okuyor (online toggle default olarak set oluyor)
+- **Yapılacak:** StudentForm'a toggle/checkbox ekle, useManagement'a handleSave/handleEdit entegre et
+
+### 3. BÜYÜK BLOK — Sertifikasyon Modülü
+- Not girişi → sertifikasyon akışı
+- Son büyük blok, altyapı sıfırdan kurulacak
