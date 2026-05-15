@@ -5,17 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   Bell, BellOff, Megaphone,
   ClipboardList, AlertCircle, MessageSquare, ChevronRight,
-  Volume2, VolumeX, Play,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { useNotifications } from "@/app/hooks/useNotifications";
-import {
-  getSoundEnabled, setSoundEnabled,
-  getSoundTone, setSoundTone,
-  playNotificationSound,
-  SOUND_TONES, type SoundTone,
-} from "@/app/lib/notificationSound";
 import type { NotificationPayload } from "@/app/lib/notifications/types";
 
 /* ── Helpers ── */
@@ -78,26 +71,6 @@ export default function NotificationBell() {
 
   const { notifications, unreadCount, markAsRead, clearAll } = useNotifications(user?.uid);
 
-  const [soundEnabled, setSoundEnabledState] = useState(true);
-  const [soundTone,    setSoundToneState]    = useState<SoundTone>("ding");
-
-  useEffect(() => {
-    setSoundEnabledState(getSoundEnabled());
-    setSoundToneState(getSoundTone());
-  }, []);
-
-  const handleSoundToggle = () => {
-    const next = !soundEnabled;
-    setSoundEnabled(next);
-    setSoundEnabledState(next);
-  };
-
-  const handleToneChange = (tone: SoundTone) => {
-    setSoundTone(tone);
-    setSoundToneState(tone);
-    playNotificationSound(true);
-  };
-
   /* ── Dışarı tıklayınca kapat ── */
   useEffect(() => {
     if (!open) return;
@@ -139,7 +112,7 @@ export default function NotificationBell() {
             className="fixed inset-0 bg-black/25 z-40 animate-in fade-in duration-200"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-[-37px] top-[calc(100%+14px)] w-[400px] 2xl:w-[440px] bg-white rounded-xl shadow-xl border border-surface-100 z-50 animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col max-h-[80vh]">
+          <div className="absolute right-[-37px] top-[calc(100%+14px)] w-[400px] 2xl:w-[440px] min-h-[220px] 2xl:min-h-[260px] max-h-[80vh] bg-white rounded-xl shadow-xl border border-surface-100 z-50 animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col">
 
             {/* Speech bubble tail */}
             <div className="absolute -top-[9px] right-[40px] w-[18px] h-[18px] bg-white border-l border-t border-surface-100 rotate-45" />
@@ -161,7 +134,7 @@ export default function NotificationBell() {
 
             {/* Empty state */}
             {notifications.length === 0 ? (
-              <div className="flex items-center justify-center mx-6 py-8">
+              <div className="flex-1 flex items-center justify-center mx-6 mb-8">
                 <p className="text-[13px] 2xl:text-[14px] text-text-tertiary text-center">
                   Şu anda herhangi bir bildirim bulunmuyor.
                 </p>
@@ -212,42 +185,6 @@ export default function NotificationBell() {
                 <div className="h-4" />
               </div>
             )}
-
-            {/* ── Ses Ayarları ── */}
-            <div className="border-t border-surface-100 px-6 py-4 shrink-0">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {soundEnabled
-                    ? <Volume2 size={14} className="text-text-tertiary" />
-                    : <VolumeX  size={14} className="text-text-tertiary" />}
-                  <span className="text-[12px] font-semibold text-text-secondary">Bildirim Sesi</span>
-                </div>
-                <button
-                  onClick={handleSoundToggle}
-                  className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${soundEnabled ? "bg-base-primary-500" : "bg-surface-300"}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${soundEnabled ? "translate-x-4" : "translate-x-0"}`} />
-                </button>
-              </div>
-
-              {soundEnabled && (
-                <div className="grid grid-cols-4 gap-1.5">
-                  {SOUND_TONES.map(t => (
-                    <button
-                      key={t.value}
-                      onClick={() => handleToneChange(t.value)}
-                      className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border transition-all cursor-pointer text-[11px] font-semibold
-                        ${soundTone === t.value
-                          ? "border-base-primary-400 bg-base-primary-50 text-base-primary-600"
-                          : "border-surface-200 text-text-tertiary hover:border-base-primary-300 hover:text-base-primary-500"}`}
-                    >
-                      <Play size={10} className="shrink-0" />
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
 
           </div>
         </>

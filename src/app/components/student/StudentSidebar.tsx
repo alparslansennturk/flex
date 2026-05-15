@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { BookOpen, Trophy, LogOut } from "lucide-react";
+import { BookOpen, Trophy, LogOut, Settings } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth, db } from "@/app/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -85,8 +85,20 @@ export default function StudentSidebar({ studentId: studentIdProp }: Props) {
         )}
       </div>
 
-      {/* Alt: çıkış */}
-      <div className="px-4 pb-4">
+      {/* Alt: ayarlar + çıkış */}
+      <div className="px-4 pb-4 flex flex-col gap-1">
+        <Link
+          href={`/student/${studentId}/settings`}
+          className={`flex items-center gap-4 px-6 py-4 rounded-xl transition-all group ${
+            pathname.startsWith(`/student/${studentId}/settings`)
+              ? "bg-white/10 text-white"
+              : "text-white/60 hover:text-white hover:bg-white/5"
+          }`}
+        >
+          <Settings size={18} className={`shrink-0 transition-colors ${pathname.startsWith(`/student/${studentId}/settings`) ? "text-designstudio-primary-500" : "group-hover:text-designstudio-primary-500"}`} />
+          <span className="text-[15px] font-medium leading-tight">Ayarlar</span>
+        </Link>
+        <div className="mx-2 border-t border-white/10" />
         <div
           onClick={handleLogout}
           className="flex items-center gap-4 px-6 py-4 text-white cursor-pointer hover:bg-white/5 transition-all duration-200 group rounded-xl"
