@@ -297,7 +297,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
       : "text-[#AEB4C0]";
 
   return (
-    <div className={`bg-white p-7 rounded-24 border border-[#CDD2DA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group ${isExpired && !isCompleted ? "opacity-60" : ""}`}>
+    <div className="bg-white p-7 rounded-24 border border-[#CDD2DA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group">
       <div className="flex justify-between items-start mb-5">
         <div className={`w-12 h-12 ${style.gradient} radius-12 flex items-center justify-center text-white shadow-lg shrink-0`}>
           {iconNode}
@@ -428,15 +428,15 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
             )}
           </div>
         ) : isExpired ? (
-          <button
-            onClick={() => task.groupId
-              ? router.push(`/dashboard/assignment-test/${task.groupId}?taskId=${task.id}`)
-              : router.push(`/dashboard/grading?taskId=${task.id}`)
-            }
-            className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
-          >
-            Not Ver <ChevronRight size={16} />
-          </button>
+          <div className="relative">
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
+            <button
+              onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
+              className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
+            >
+              Not Ver <ChevronRight size={16} />
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => onDetail(task)}

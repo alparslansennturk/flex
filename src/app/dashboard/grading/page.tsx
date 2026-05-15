@@ -319,16 +319,36 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
       const uid = await loadUid();
       if (!uid) { setLoading(false); return; }
       try {
-        const q    = query(collection(db, "tasks"), where("status", "==", "completed"));
-        const snap = await getDocs(q);
-        const all  = snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
-        const mine = all.filter(t => t.ownedBy === uid || t.createdBy === uid);
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+        // Single-field queries to avoid composite index requirements
+        const [ownedSnap, createdSnap] = await Promise.all([
+          getDocs(query(collection(db, "tasks"), where("ownedBy",   "==", uid))),
+          getDocs(query(collection(db, "tasks"), where("createdBy", "==", uid))),
+        ]);
+
+        // Deduplicate by id
+        const seen = new Set<string>();
+        const allDocs = [...ownedSnap.docs, ...createdSnap.docs].filter(d => {
+          if (seen.has(d.id)) return false;
+          seen.add(d.id);
+          return true;
+        });
+
+        const mine = allDocs.map(d => ({ id: d.id, ...d.data() } as Task))
+          .filter(t =>
+            t.status === "completed" ||
+            ((t.status === "active" || t.status === "published") && !!t.endDate && t.endDate < todayStr)
+          );
+
         mine.sort((a, b) => {
           const aT = (a as any).createdAt?.toMillis?.() ?? 0;
           const bT = (b as any).createdAt?.toMillis?.() ?? 0;
           return bT - aT;
         });
         setTasks(mine);
+      } catch (e) {
+        console.error("Grading tasks fetch error:", e);
       } finally { setLoading(false); }
     })();
   }, []);

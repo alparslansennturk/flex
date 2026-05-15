@@ -8,11 +8,11 @@ import {
 } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import {
-  CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight,
+  CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
   Save, CheckCheck, Users, Wifi, Trash2, AlertCircle,
   Pencil, Check, X,
 } from "lucide-react";
-import { DayCalendarPopover, MonthCalendarPopover } from "./CalendarPopover";
+import { DayCalendarPopover } from "./CalendarPopover";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -525,31 +525,30 @@ export default function AttendancePanel() {
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
         <div className="w-[260px] shrink-0 border-r border-surface-100 flex flex-col h-full overflow-hidden bg-surface-50/40">
 
-          {/* Month navigator */}
-          <div className="px-8 py-4 border-b border-surface-100 flex items-center justify-between">
-            <button onClick={() => setSelectedMonth(d => shiftMonth(d, -1))}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary">
-              <ChevronLeft size={14} />
-            </button>
-
-            <MonthCalendarPopover
-              value={selectedMonth}
-              maxDate={new Date()}
-              onChange={d => setSelectedMonth(d)}
-            >
-              <div className="flex items-center gap-1.5 group cursor-pointer">
-                <Calendar size={13} className="text-text-placeholder group-hover:text-base-primary-500 transition-colors" />
-                <span className="text-[13px] font-bold text-text-primary capitalize select-none group-hover:text-base-primary-600 transition-colors">
-                  {formatMonthDisplay(selectedMonth)}
-                </span>
-              </div>
-            </MonthCalendarPopover>
-
-            <button onClick={() => setSelectedMonth(d => shiftMonth(d, 1))}
-              disabled={toMonthKey(selectedMonth) === toMonthKey(new Date())}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-placeholder disabled:opacity-30 disabled:cursor-not-allowed">
-              <ChevronRight size={14} />
-            </button>
+          {/* Month dropdown */}
+          <div className="px-4 py-3 border-b border-surface-100">
+            <div className="relative flex items-center">
+              <select
+                value={toMonthKey(selectedMonth)}
+                onChange={e => {
+                  const [y, m] = e.target.value.split("-").map(Number);
+                  setSelectedMonth(new Date(y, m - 1, 1));
+                }}
+                className="w-full appearance-none text-[12px] font-bold text-text-primary bg-white border border-surface-200 rounded-xl pl-3 pr-8 py-2 outline-none cursor-pointer hover:border-surface-300 transition-colors"
+              >
+                {Array.from({ length: 24 }, (_, i) => {
+                  const d = new Date();
+                  d.setDate(1);
+                  d.setMonth(d.getMonth() - (23 - i));
+                  return d;
+                }).map(m => (
+                  <option key={toMonthKey(m)} value={toMonthKey(m)}>
+                    {m.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 pointer-events-none text-text-placeholder" />
+            </div>
           </div>
 
           <div className="px-5 py-2.5 border-b border-surface-100">
@@ -571,17 +570,15 @@ export default function AttendancePanel() {
               const flexible  = gDays.length === 0;
               return (
                 <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
-                  className={`w-full flex flex-col gap-1.5 px-8 py-3.5 text-left border-b border-surface-100 transition-colors outline-none
-                    ${active ? "bg-base-primary-900" : hasClass ? "hover:bg-surface-50 cursor-pointer" : "opacity-40 cursor-not-allowed"}`}>
+                  className={`w-full flex flex-col gap-1.5 px-8 py-3.5 text-left border-b border-surface-100 transition-colors outline-none cursor-pointer
+                    ${active ? "bg-base-primary-900" : "hover:bg-surface-50"}`}>
                   <div className="flex items-center justify-between gap-2">
                     <p className={`text-[13px] font-bold truncate ${active ? "text-white" : "text-text-primary"}`}>{g.code}</p>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {!flexible && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                          active ? "bg-white/10 text-white/60" :
-                          hasClass ? "bg-status-success-50 text-status-success-600" : "bg-surface-100 text-text-placeholder"
-                        }`}>
-                          {hasClass ? "Bugün ders var" : "Bugün ders yok"}
+                      {!flexible && !hasClass && (
+                        <span className={`flex items-center justify-center w-4 h-4 rounded-full shrink-0
+                          ${active ? "bg-white/15 text-white/50" : "bg-red-50 text-red-400"}`}>
+                          <X size={9} strokeWidth={2.5} />
                         </span>
                       )}
                       {planned > 0 && (
@@ -744,6 +741,7 @@ export default function AttendancePanel() {
                     value={selectedDate}
                     maxDate={new Date()}
                     holidayDates={holidayDates}
+                    weekDays={selectedWeekDays}
                     onChange={d => { setSelectedDate(d); setSelectedMonth(d); }}
                   >
                     <div className="flex items-center gap-1.5 group cursor-pointer">

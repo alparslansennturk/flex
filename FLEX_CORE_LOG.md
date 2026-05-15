@@ -172,6 +172,39 @@ JS `Date.getDay()` ile eşleşir (0=Pazar).
 
 ---
 
+## Oturum: 2026-05-16 — AttendancePanel UI + DesignParkour + Grading Bekleyen
+
+### 14. AttendancePanel — Ay Dropdown + Ders Günü X İkonu
+- **Sol panel ay navigatörü:** Ok butonları + `MonthCalendarPopover` → native `<select>` dropdown ile değiştirildi
+  - Son 24 ay listelenir, gelecek aylar gösterilmez
+- **Sol panel grup listesi:** Tüm gruplar `cursor-pointer`; ders olmayan gruplar metin badge yerine küçük kırmızı `<X>` ikon daire ile işaretlendi
+- **Sağ panel CalendarPopover:** `weekDays` prop eklendi — sadece dersin olduğu haftanın günleri seçilebilir, diğerleri disabled
+  - `CalendarPopover.tsx`'te `DayCalendarProps`'a `weekDays?: number[]` eklendi
+  - `isNonLesson = weekDays.length > 0 && !weekDays.includes(dow)` koşuluyla o günler seçilemez
+
+### 15. DesignParkour — Süresi Dolan Kart Düzeltmeleri
+- **Sorun 1:** Deadline geçmiş kartlar `opacity-60` ile soluk görünüyordu — kaldırıldı
+- **Sorun 2:** "Not Ver" butonu için `animate-ping` pulse animasyonu eklendi (süresi dolan ödevlerde yeşil nokta)
+- **Sorun 3:** "Not Ver" butonu `assignment-test` sayfasına yönlendiriyordu — `/dashboard/grading?taskId=${task.id}` olarak düzeltildi
+
+### 16. BranchManagement — UI Modernizasyonu
+- Kart kenarlıkları `border-neutral-100` → `border-neutral-200` (daha belirgin)
+- Eğitmen sayısı → indigo pill badge (`bg-indigo-50 text-indigo-600`)
+- Ders süresi bölümü `border-t` ile ayrıldı, input beyaz arka plan + focus ring
+- "Yeni Branş" input `focus:ring-2 focus:ring-orange-400/10`
+
+### 17. Grading — "Bekleyen" (Sertifikasyon) Bölümü Fix
+- **Sorun:** Sadece `status === "completed"` sorguluyordu — süresi dolan `active` ödevler yoktu
+- **1. deneme (başarısız):** İki `where()` ile composite sorgu — Firestore composite index olmadığında sessizce hata veriyordu (`try/finally`'de `catch` yoktu)
+- **Düzeltme:** Tek alan sorgusu: `ownedBy == uid` + `createdBy == uid` paralel, dedup + client-side filtre
+  - `status === "completed"` → her zaman dahil
+  - `status === "active" | "published"` → sadece `endDate < todayStr` ise dahil
+  - `published` statüsü de dahil edildi (kura tamamlandı, not girişi aşaması)
+- **`todayStr` UTC → yerel saat:** `toISOString()` UTC döndürür; TR gece 00:01'de hâlâ dünkü tarihi verebilir. `getFullYear/getMonth/getDate()` ile yerel tarih kullanıldı
+- **Kural:** `endDate < todayStr` (strict) — deadline günü bitmeden bekleyene düşmez, gece 00:01'den sonra düşer
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. HEMEN — Yoklama Canlı Test

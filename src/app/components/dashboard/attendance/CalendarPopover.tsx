@@ -19,11 +19,12 @@ interface DayCalendarProps {
   onChange: (d: Date) => void;
   maxDate?: Date;
   holidayDates?: Set<string>;
+  weekDays?: number[]; // 0=Sun,1=Mon,...,6=Sat — if set and non-empty, only these days are selectable
   children: React.ReactNode;
 }
 
 export function DayCalendarPopover({
-  value, onChange, maxDate, holidayDates = new Set(), children,
+  value, onChange, maxDate, holidayDates = new Set(), weekDays = [], children,
 }: DayCalendarProps) {
   const [open, setOpen]           = useState(false);
   const [viewMonth, setViewMonth] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
@@ -106,11 +107,12 @@ export function DayCalendarPopover({
               const dd      = String(day).padStart(2, "0");
               const dateStr = `${year}-${mm}-${dd}`;
               const dow     = new Date(dateStr).getDay(); // 0=Sun
-              const isWeekend  = dow === 0 || dow === 6;
-              const isSelected = dateStr === selectedStr;
-              const isToday    = dateStr === todayStr;
-              const isHoliday  = holidayDates.has(dateStr);
-              const isDisabled = maxStr ? dateStr > maxStr : false;
+              const isWeekend    = dow === 0 || dow === 6;
+              const isSelected   = dateStr === selectedStr;
+              const isToday      = dateStr === todayStr;
+              const isHoliday    = holidayDates.has(dateStr);
+              const isNonLesson  = weekDays.length > 0 && !weekDays.includes(dow);
+              const isDisabled   = (maxStr ? dateStr > maxStr : false) || isNonLesson;
 
               let cls = "h-8 w-full flex items-center justify-center rounded-lg text-[12px] font-semibold transition-colors outline-none ";
 

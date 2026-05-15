@@ -46,70 +46,83 @@ export const BranchManagement = ({ branches, users }: { branches: Branch[]; user
     };
 
     return (
-        <div className="mt-8 space-y-6">
+        <div className="mt-6 space-y-6">
+
+            {/* Add branch row */}
             <div className="flex gap-3 items-end">
-                <div className="space-y-1 flex-1 max-w-xs">
-                    <label className="text-[12px] font-bold text-neutral-500 ml-1">Yeni Branş</label>
+                <div className="space-y-1.5 flex-1 max-w-sm">
+                    <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-wide ml-0.5">Yeni Branş</label>
                     <input
                         value={name}
                         onChange={e => { setName(e.target.value); setError(""); }}
                         onKeyDown={e => e.key === "Enter" && handleAdd()}
                         placeholder="Örn: Yazılım"
-                        className="h-12 w-full border border-neutral-200 bg-neutral-50 rounded-xl px-4 outline-none focus:border-orange-500 font-bold text-[#10294C] placeholder:font-normal placeholder:text-neutral-400 transition-all"
+                        className="h-11 w-full border border-neutral-200 bg-white rounded-xl px-4 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/10 font-semibold text-[14px] text-[#10294C] placeholder:font-normal placeholder:text-neutral-400 transition-all"
                     />
                 </div>
                 <button
                     onClick={handleAdd}
                     disabled={loading || !name.trim()}
-                    className="h-12 px-6 bg-orange-500 text-white rounded-xl font-bold text-[14px] flex items-center gap-2 hover:bg-orange-600 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg"
+                    className="h-11 px-5 bg-orange-500 text-white rounded-xl font-bold text-[13px] flex items-center gap-2 hover:bg-orange-600 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                    <Plus size={16} /><span>Ekle</span>
+                    <Plus size={15} /><span>Ekle</span>
                 </button>
             </div>
 
-            {error && <p className="text-[13px] font-bold text-red-500">{error}</p>}
+            {error && <p className="text-[12px] font-bold text-red-500">{error}</p>}
 
             {branches.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 text-neutral-300">
-                    <GitBranch size={52} strokeWidth={1} />
-                    <p className="mt-4 font-bold text-[15px]">Henüz branş eklenmedi</p>
-                    <p className="text-[13px] mt-1">Yukarıdan yeni bir branş ekleyebilirsiniz.</p>
+                <div className="flex flex-col items-center justify-center py-20 text-neutral-300">
+                    <GitBranch size={44} strokeWidth={1} />
+                    <p className="mt-4 font-bold text-[14px]">Henüz branş eklenmedi</p>
+                    <p className="text-[12px] mt-1 text-neutral-400">Yukarıdan yeni bir branş ekleyebilirsiniz.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {branches.map(b => {
                         const count = instructorCount(b.id);
                         return (
-                            <div key={b.id} className="bg-white border border-neutral-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow group">
-                                <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                        <p className="font-bold text-[15px] text-[#10294C]">{b.name}</p>
-                                        <div className="flex items-center gap-1.5 mt-1.5 text-neutral-400">
-                                            <Users size={12} />
-                                            <span className="text-[12px] font-medium">{count} eğitmen</span>
+                            <div key={b.id} className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group">
+
+                                {/* Card header */}
+                                <div className="px-5 pt-5 pb-4 flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="font-bold text-[16px] text-[#10294C] leading-tight truncate">{b.name}</p>
+                                        <div className="flex items-center gap-1.5 mt-2">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold
+                                                ${count > 0 ? "bg-indigo-50 text-indigo-600" : "bg-neutral-100 text-neutral-400"}`}>
+                                                <Users size={10} />
+                                                {count} eğitmen
+                                            </span>
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => handleDelete(b)}
-                                        className="w-9 h-9 flex items-center justify-center rounded-xl text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                                        className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0 mt-0.5"
                                     >
-                                        <Trash2 size={15} />
+                                        <Trash2 size={14} />
                                     </button>
                                 </div>
+
                                 {/* Session hours */}
-                                <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3">
-                                    <Clock size={12} className="text-neutral-400 shrink-0" />
-                                    <span className="text-[11px] text-neutral-400 font-medium">Ders süresi:</span>
-                                    <input
-                                        type="number" min={1} max={12}
-                                        defaultValue={b.sessionHours ?? ""}
-                                        placeholder="—"
-                                        onBlur={e => handleUpdateHours(b, parseInt(e.target.value, 10))}
-                                        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                        className="w-12 text-center text-[13px] font-bold text-[#10294C] border border-neutral-200 rounded-lg py-1 outline-none focus:border-orange-400 transition-colors bg-neutral-50"
-                                    />
-                                    <span className="text-[11px] text-neutral-400">saat</span>
+                                <div className="px-5 pb-5 border-t border-neutral-100 pt-4">
+                                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                        <Clock size={10} />
+                                        Ders Süresi
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number" min={1} max={12}
+                                            defaultValue={b.sessionHours ?? ""}
+                                            placeholder="—"
+                                            onBlur={e => handleUpdateHours(b, parseInt(e.target.value, 10))}
+                                            onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                                            className="w-16 h-9 text-center text-[14px] font-bold text-[#10294C] border border-neutral-200 rounded-lg outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/10 transition-all bg-neutral-50 focus:bg-white"
+                                        />
+                                        <span className="text-[13px] font-medium text-neutral-500">saat / ders</span>
+                                    </div>
                                 </div>
+
                             </div>
                         );
                     })}
