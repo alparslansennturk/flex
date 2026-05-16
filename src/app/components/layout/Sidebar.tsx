@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
-import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive, ClipboardList, ChevronDown, FileCheck, Star, SlidersHorizontal, Eye, CalendarCheck } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive, ClipboardList, ChevronDown, FileCheck, Star, SlidersHorizontal, Eye, CalendarCheck, BarChart2, TrendingUp } from "lucide-react";
 import { auth, db } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -31,6 +31,7 @@ export default function Sidebar() {
   const [assignmentTestOpen, setAssignmentTestOpen] = useState(
     pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive'
   );
+  const [yoklamaOpen, setYoklamaOpen] = useState(pathname.startsWith('/dashboard/attendance'));
   const [leagueGlobal, setLeagueGlobal] = useState(true);
 
   useEffect(() => {
@@ -68,7 +69,36 @@ export default function Sidebar() {
         )}
 
         {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
-          <SidebarLink href="/dashboard/attendance" icon={<CalendarCheck size={18} />} label="Yoklamalar" compact={compact} />
+          <div>
+            <button
+              onClick={() => setYoklamaOpen(o => !o)}
+              className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
+                ${compact ? "py-3.25" : "py-3.5"}
+                text-white hover:bg-white/5 cursor-pointer outline-none`}
+            >
+              <span className={`transition-colors duration-200 ${pathname.startsWith('/dashboard/attendance') ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>
+                <CalendarCheck size={18} />
+              </span>
+              <span className="text-[15px] font-medium leading-tight flex-1 text-left">Yoklamalar</span>
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 opacity-60 ${yoklamaOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateRows: yoklamaOpen ? "1fr" : "0fr",
+                transition: "grid-template-rows 0.22s ease",
+              }}
+            >
+              <div style={{ overflow: "hidden" }}>
+                <SidebarLink href="/dashboard/attendance" icon={<CalendarCheck size={15} />} label="Yoklama Al" compact={compact} exact sub />
+                <SidebarLink href="/dashboard/attendance-report" icon={<BarChart2 size={15} />} label="Yoklama Detay" compact={compact} sub />
+                {isAdmin && <SidebarLink href="/dashboard/attendance-summary" icon={<TrendingUp size={15} />} label="Yoklama Raporu" compact={compact} sub />}
+              </div>
+            </div>
+          </div>
         )}
 
         <SidebarLink href="/dashboard/grading" icon={<GraduationCap size={18} />} label="Sertifikasyon" compact={compact} />
@@ -82,10 +112,7 @@ export default function Sidebar() {
               onClick={() => setAssignmentTestOpen(o => !o)}
               className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
                 ${compact ? "py-3.25" : "py-3.5"}
-                ${(pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive')
-                  ? 'bg-white/10 text-white shadow-sm'
-                  : 'text-white hover:bg-white/5'
-                } cursor-pointer outline-none`}
+                text-white hover:bg-white/5 cursor-pointer outline-none`}
             >
               <span className={`transition-colors duration-200 ${
                 (pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive') ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'

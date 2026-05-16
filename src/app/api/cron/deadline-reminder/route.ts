@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
 import { saveMailLog } from "@/app/services/emailService";
+import { findCandidateEndDates, getEffectiveDeadline } from "@/app/lib/deadlineUtils";
 
 // Türkiye saati (UTC+3) ile offset gün sonrasının tarihini YYYY-MM-DD olarak döndürür
 function trDateString(offsetDays: number): string {
@@ -22,9 +23,28 @@ export async function GET(req: NextRequest) {
   const tomorrow = trDateString(1);
 
   try {
+    // Tatilleri yükle — deadline tatile denk gelirse ilk iş gününe uzar
+    const holidaysSnap = await adminDb.collection("holidays").get();
+    const holidayDates = new Set<string>();
+    holidaysSnap.docs.forEach(d => {
+      const { startDate, endDate } = d.data() as { startDate: string; endDate: string };
+      const cur = new Date(startDate + "T12:00:00");
+      const end = new Date(endDate   + "T12:00:00");
+      while (cur <= end) {
+        holidayDates.add(cur.toISOString().slice(0, 10));
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+
+    // Yarın efektif deadline olan tüm ham endDate'ler (tatil uzatması dahil)
+    const candidateDates = findCandidateEndDates(tomorrow, holidayDates);
+    if (candidateDates.length === 0) {
+      return NextResponse.json({ success: true, sent: 0, skipped: 0, date: today, note: "yarın resmi iş günü değil" });
+    }
+
     const tasksSnap = await adminDb
       .collection("tasks")
-      .where("endDate", "==", tomorrow)
+      .where("endDate", "in", candidateDates)
       .get();
 
     let sent = 0;
@@ -63,10 +83,9 @@ export async function GET(req: NextRequest) {
         .where("groupId", "==", task.groupId)
         .get();
 
-      const daysLeft = "yarın";
+      const effectiveDate = getEffectiveDeadline(task.endDate, holidayDates);
       const taskName = task.name ?? "Ödev";
-      const instructorName = task.createdByName ?? "Eğitmeniniz";
-      const endDateFormatted = new Date(task.endDate + "T00:00:00").toLocaleDateString("tr-TR", {
+      const endDateFormatted = new Date(effectiveDate + "T00:00:00").toLocaleDateString("tr-TR", {
         day: "numeric", month: "long", year: "numeric",
       });
 
@@ -79,13 +98,11 @@ export async function GET(req: NextRequest) {
 
         const html = `
           <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:40px 32px;color:#111">
-            <p style="font-size:15px;margin:0 0 16px">Sayın <strong>${student.name} ${student.lastName}</strong>,</p>
+            <p style="font-size:15px;margin:0 0 16px">Merhaba ${student.name},</p>
             <p style="font-size:14px;line-height:1.7;margin:0 0 16px">
-              <strong>${taskName}</strong> adlı ödevinizin teslim tarihi <strong>${endDateFormatted}</strong> —
-              teslim için <strong>${daysLeft}</strong> kaldı.
+              "${taskName}" adlı ödevinizin teslim tarihi ${endDateFormatted}. Teslim için son 1 gün kaldı.
             </p>
-            <p style="font-size:14px;line-height:1.7;margin:0 0 32px">Ödevinizi zamanında teslim etmeyi unutmayın.</p>
-            <p style="font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;margin:0">${instructorName}</p>
+            <p style="font-size:14px;line-height:1.7;margin:0">Ödevinizi zamanında teslim etmeyi unutmayın 😊</p>
           </div>`;
 
         const mailResult = await sendMail({

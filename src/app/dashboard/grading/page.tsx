@@ -22,6 +22,7 @@ import { useScoring } from "@/app/context/ScoringContext";
 import { calculateXP, getLevelXP, calculateLeaderboardScore, computeStudentStats, GradedTaskEntry } from "@/app/lib/scoring";
 import { Task, TYPE_CONFIG, TYPE_GRADIENT, getIcon } from "../../components/dashboard/assignment/taskTypes";
 import StudentDetailModal, { ModalStudent } from "../../components/dashboard/student-management/StudentDetailModal";
+import { getEffectiveDeadline } from "@/app/lib/deadlineUtils";
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 interface Student {
@@ -321,6 +322,20 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
       try {
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+
+        // Tatilleri yükle (deadline uzatması için)
+        const holidaysSnap = await getDocs(collection(db, "holidays"));
+        const holidayDates = new Set<string>();
+        holidaysSnap.docs.forEach(d => {
+          const { startDate, endDate } = d.data() as { startDate: string; endDate: string };
+          const cur = new Date(startDate + "T12:00:00");
+          const end = new Date(endDate   + "T12:00:00");
+          while (cur <= end) {
+            holidayDates.add(cur.toISOString().slice(0, 10));
+            cur.setDate(cur.getDate() + 1);
+          }
+        });
+
         // Single-field queries to avoid composite index requirements
         const [ownedSnap, createdSnap] = await Promise.all([
           getDocs(query(collection(db, "tasks"), where("ownedBy",   "==", uid))),
@@ -338,7 +353,8 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
         const mine = allDocs.map(d => ({ id: d.id, ...d.data() } as Task))
           .filter(t =>
             t.status === "completed" ||
-            ((t.status === "active" || t.status === "published") && !!t.endDate && t.endDate < todayStr)
+            ((t.status === "active" || t.status === "published") && !!t.endDate &&
+              getEffectiveDeadline(t.endDate, holidayDates) < todayStr)
           );
 
         mine.sort((a, b) => {
@@ -499,17 +515,79 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
                   <div className="flex-1 h-px bg-surface-100" />
                 </div>
                 <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
-                  {classTasks.map(task => (
-                    <div key={task.id} className="flex items-center gap-5 px-6 py-4 border-b border-surface-100 last:border-0 hover:bg-surface-50/60 transition-colors">
-                      <TaskMeta task={task} />
-                      <button
-                        onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
-                        className="flex items-center gap-2 h-9 px-5 rounded-xl bg-designstudio-primary-500 text-white text-[12px] font-bold hover:bg-designstudio-primary-600 active:scale-95 transition-all cursor-pointer shadow-sm shrink-0"
-                      >
-                        Not Girişi Yap <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  ))}
+                  {classTasks.map(task => {
+                    const grades     = (task as any).grades as GradesMap | undefined;
+                    const isExpanded = expandedId === task.id;
+                    const students   = detailMap[task.id] ?? [];
+                    const submittedCount = grades ? Object.values(grades).filter(g => g.submitted).length : 0;
+                    const totalGrades    = grades ? Object.keys(grades).length : 0;
+
+                    return (
+                      <div key={task.id} className="border-b border-surface-100 last:border-0">
+                        <div className="flex items-center gap-5 px-6 py-4 hover:bg-surface-50/60 transition-colors">
+                          <TaskMeta task={task} />
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => toggleDetail(task)}
+                              className={`flex items-center gap-1.5 h-9 px-4 rounded-xl border text-[12px] font-bold transition-all cursor-pointer shrink-0 ${
+                                isExpanded
+                                  ? "bg-base-primary-50 border-base-primary-200 text-base-primary-700"
+                                  : "border-surface-200 text-surface-600 hover:bg-surface-50"
+                              }`}
+                            >
+                              <Eye size={13} />
+                              Ödev Detay
+                              {totalGrades > 0 && (
+                                <span className="ml-1 text-[10px] font-bold text-designstudio-primary-600 bg-designstudio-primary-50 px-1.5 py-0.5 rounded-md">
+                                  {submittedCount}/{totalGrades}
+                                </span>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
+                              className="flex items-center gap-2 h-9 px-5 rounded-xl bg-designstudio-primary-500 text-white text-[12px] font-bold hover:bg-designstudio-primary-600 active:scale-95 transition-all cursor-pointer shadow-sm shrink-0"
+                            >
+                              Not Ver <ChevronRight size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <div className="px-6 pb-4 border-t border-surface-100 bg-surface-50/40">
+                            {!detailMap[task.id] ? (
+                              <div className="py-4 flex items-center justify-center">
+                                <div className="w-5 h-5 border-2 border-surface-200 border-t-base-primary-400 rounded-full animate-spin" />
+                              </div>
+                            ) : (
+                              <div className="pt-3 space-y-2">
+                                {students.map(student => {
+                                  const grade = grades?.[student.id];
+                                  const displayName = student.name ? `${student.name} ${student.lastName}` : student.id;
+                                  return (
+                                    <div key={student.id} className="flex items-center gap-3 py-1.5">
+                                      <div className="w-7 h-7 rounded-xl overflow-hidden shrink-0 border border-surface-100">
+                                        <img src={`/avatars/${student.gender}/${student.avatarId ?? 1}.svg`} alt="" className="w-full h-full object-cover"
+                                          onError={e => { (e.target as HTMLImageElement).src = `/avatars/${student.gender}/1.svg`; }} />
+                                      </div>
+                                      <span className="text-[13px] font-semibold text-base-primary-900 flex-1 truncate">{displayName}</span>
+                                      {grade ? (
+                                        grade.submitted ? (
+                                          <span className="text-[11px] font-bold text-status-success-600 bg-status-success-100 px-2 py-0.5 rounded-lg">Teslim etti</span>
+                                        ) : (
+                                          <span className="text-[11px] font-bold text-status-danger-500 bg-status-danger-50 px-2 py-0.5 rounded-lg">Etmedi</span>
+                                        )
+                                      ) : (
+                                        <span className="text-[11px] text-surface-300 font-medium">—</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))
@@ -845,7 +923,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
         touchedStudents.add(sid);
       });
 
-      batch.update(doc(db, "tasks", taskId), { grades, gradedAt: serverTimestamp(), ...(complete ? { isGraded: true } : {}) });
+      batch.update(doc(db, "tasks", taskId), { grades, gradedAt: serverTimestamp(), ...(complete ? { isGraded: true, status: "completed" } : {}) });
       await batch.commit();
 
       // scoreLogs'a kayıt at — XP alan her öğrenci için bir kayıt

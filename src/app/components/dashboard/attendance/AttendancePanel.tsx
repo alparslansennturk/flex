@@ -82,8 +82,12 @@ const EXCEPTION_LABELS: Record<ExceptionReason, string> = {
 const DEFAULT_SESSION_HOURS = 3;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function toDateKey(d: Date)  { return d.toISOString().slice(0, 10); }
-function toMonthKey(d: Date) { return d.toISOString().slice(0, 7); }
+function toDateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function toMonthKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 const TR_DAYS: Record<string, number> = {
   pts: 1, pzt: 1, pazartesi: 1,
@@ -128,13 +132,17 @@ function calcEstimatedEndDate(
   return null;
 }
 
-function countWeekdaysInMonth(year: number, month: number, weekDays: number[], holidayDates: Set<string> = new Set()): number {
+function countWeekdaysInMonth(
+  year: number, month: number, weekDays: number[],
+  holidayDates: Set<string> = new Set(),
+  startDate?: string,  // YYYY-MM-DD — başlangıç tarihinden önceki günler sayılmaz
+): number {
   if (!weekDays || weekDays.length === 0) return 0;
-  const d = new Date(year, month, 1);
+  const d = new Date(year, month, 1, 12, 0, 0); // noon → UTC offset sorunu yok
   let count = 0;
   while (d.getMonth() === month) {
-    const key = d.toISOString().slice(0, 10);
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key)) count++;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (weekDays.includes(d.getDay()) && !holidayDates.has(key) && (!startDate || key >= startDate)) count++;
     d.setDate(d.getDate() + 1);
   }
   return count;
@@ -290,7 +298,7 @@ export default function AttendancePanel() {
   const sessionHours    = selectedGroup?.sessionHours ?? selectedBranch?.sessionHours ?? DEFAULT_SESSION_HOURS;
   const selectedWeekDays = selectedGroup ? getWeekDays(selectedGroup) : [];
   const plannedCount    = selectedGroup
-    ? countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), selectedWeekDays, holidayDates)
+    ? countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), selectedWeekDays, holidayDates, selectedGroup.startDate)
     : 0;
   const doneCount       = selectedGroupId ? (monthlyDone[selectedGroupId] ?? 0) : 0;
   const remaining       = Math.max(0, plannedCount - doneCount);
@@ -424,11 +432,25 @@ export default function AttendancePanel() {
     return () => { unsubAttendance(); unsubGroupEx(); unsubSystemEx(); };
   }, [selectedGroupId, dateKey]);
 
+  // ── Clamp selectedMonth to group's startDate when group changes ───────────
+  useEffect(() => {
+    if (!selectedGroup?.startDate) return;
+    const s = new Date(selectedGroup.startDate + "T12:00:00");
+    const groupStartKey = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}`;
+    if (toMonthKey(selectedMonth) < groupStartKey) {
+      setSelectedMonth(new Date(s.getFullYear(), s.getMonth(), 1, 12, 0, 0));
+    }
+  }, [selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Sync selectedDate with selectedMonth ──────────────────────────────────
   useEffect(() => {
-    const now = new Date();
-    if (toMonthKey(selectedMonth) === toMonthKey(now)) setSelectedDate(now);
-    else { const f = new Date(selectedMonth); f.setDate(1); setSelectedDate(f); }
+    setSelectedDate(prev => {
+      const now = new Date();
+      // Takvimden tarih seçilince selectedMonth da güncellenir; o ay içindeyse dokunma
+      if (toMonthKey(prev) === toMonthKey(selectedMonth)) return prev;
+      if (toMonthKey(selectedMonth) === toMonthKey(now)) return now;
+      const f = new Date(selectedMonth); f.setDate(1); return f;
+    });
   }, [selectedMonth]);
 
   // ── Entry helpers ──────────────────────────────────────────────────────────
@@ -532,16 +554,31 @@ export default function AttendancePanel() {
                 value={toMonthKey(selectedMonth)}
                 onChange={e => {
                   const [y, m] = e.target.value.split("-").map(Number);
-                  setSelectedMonth(new Date(y, m - 1, 1));
+                  setSelectedMonth(new Date(y, m - 1, 1, 12, 0, 0));
                 }}
                 className="w-full appearance-none text-[12px] font-bold text-text-primary bg-white border border-surface-200 rounded-xl pl-3 pr-8 py-2 outline-none cursor-pointer hover:border-surface-300 transition-colors"
               >
-                {Array.from({ length: 24 }, (_, i) => {
-                  const d = new Date();
-                  d.setDate(1);
-                  d.setMonth(d.getMonth() - (23 - i));
-                  return d;
-                }).map(m => (
+                {(() => {
+                  const now = new Date();
+                  const endMonth = new Date(now.getFullYear(), now.getMonth(), 1, 12);
+                  let startMonth: Date;
+                  if (selectedGroup?.startDate) {
+                    const s = new Date(selectedGroup.startDate + "T12:00:00");
+                    startMonth = new Date(s.getFullYear(), s.getMonth(), 1, 12);
+                  } else {
+                    const starts = groups.filter(g => g.startDate).map(g => new Date(g.startDate! + "T12:00:00").getTime());
+                    if (starts.length > 0) {
+                      const earliest = new Date(Math.min(...starts));
+                      startMonth = new Date(earliest.getFullYear(), earliest.getMonth(), 1, 12);
+                    } else {
+                      startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1, 12);
+                    }
+                  }
+                  const options: Date[] = [];
+                  const cur = new Date(startMonth);
+                  while (cur <= endMonth) { options.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
+                  return options;
+                })().map(m => (
                   <option key={toMonthKey(m)} value={toMonthKey(m)}>
                     {m.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
                   </option>
@@ -562,7 +599,7 @@ export default function AttendancePanel() {
             {groups.map(g => {
               const gDays     = getWeekDays(g);
               const done      = monthlyDone[g.id] ?? 0;
-              const planned   = countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), gDays, holidayDates);
+              const planned   = countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), gDays, holidayDates, g.startDate);
               const p         = planned > 0 ? Math.min(100, Math.round((done / planned) * 100)) : 0;
               const active    = selectedGroupId === g.id;
               const isHoliday = holidayDates.has(toDateKey(selectedDate));
@@ -629,24 +666,24 @@ export default function AttendancePanel() {
                     <>
                       <div className="flex flex-col gap-1">
                         <p className="text-[11px] font-semibold text-text-secondary">Bu Ay Planlanan</p>
-                        <span className="text-[28px] font-bold text-text-primary leading-none">{plannedCount}</span>
-                        <p className="text-[11px] text-text-secondary">ders günü{sessionHours ? ` · ${plannedCount * sessionHours} saat` : ""}</p>
+                        <span className="text-[28px] font-bold text-text-primary leading-none">{sessionHours ? `${plannedCount * sessionHours} saat` : plannedCount}</span>
+                        <p className="text-[11px] text-text-secondary">{sessionHours ? `(${plannedCount} gün)` : "ders günü"}</p>
                       </div>
                       <div className="w-px h-10 bg-surface-200 self-center" />
                     </>
                   )}
                   <div className="flex flex-col gap-1">
                     <p className="text-[11px] font-semibold text-text-secondary">Bu Ay Yapılan</p>
-                    <span className="text-[28px] font-bold text-status-success-600 leading-none">{doneCount}</span>
-                    <p className="text-[11px] text-text-secondary">ders günü{sessionHours ? ` · ${doneCount * sessionHours} saat` : ""}</p>
+                    <span className="text-[28px] font-bold text-status-success-600 leading-none">{sessionHours ? `${doneCount * sessionHours} saat` : doneCount}</span>
+                    <p className="text-[11px] text-text-secondary">{sessionHours ? `(${doneCount} gün)` : "ders günü"}</p>
                   </div>
                   {plannedCount > 0 && (
                     <>
                       <div className="w-px h-10 bg-surface-200 self-center" />
                       <div className="flex flex-col gap-1">
                         <p className="text-[11px] font-semibold text-text-secondary">Kalan</p>
-                        <span className={`text-[28px] font-bold leading-none ${remaining === 0 ? "text-status-success-600" : "text-text-primary"}`}>{remaining}</span>
-                        <p className="text-[11px] text-text-secondary">ders günü{sessionHours ? ` · ${remaining * sessionHours} saat` : ""}</p>
+                        <span className={`text-[28px] font-bold leading-none ${remaining === 0 ? "text-status-success-600" : "text-text-primary"}`}>{sessionHours ? `${remaining * sessionHours} saat` : remaining}</span>
+                        <p className="text-[11px] text-text-secondary">{sessionHours ? `(${remaining} gün)` : "ders günü"}</p>
                       </div>
                       <div className="w-px h-10 bg-surface-200 self-center" />
                       <div className="relative w-12 h-12 self-center shrink-0">
@@ -732,13 +769,16 @@ export default function AttendancePanel() {
               {/* Date header */}
               <div className="px-8 py-4 border-b border-surface-100 flex items-center justify-between gap-4 shrink-0">
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setSelectedDate(d => shiftDate(d, -1))}
-                    className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer">
+                  <button
+                    onClick={() => setSelectedDate(d => shiftDate(d, -1))}
+                    disabled={!!selectedGroup?.startDate && toDateKey(shiftDate(selectedDate, -1)) < selectedGroup.startDate}
+                    className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronLeft size={13} />
                   </button>
                   {/* Takvim açılır date picker */}
                   <DayCalendarPopover
                     value={selectedDate}
+                    minDate={selectedGroup?.startDate ? new Date(selectedGroup.startDate + "T12:00:00") : undefined}
                     maxDate={new Date()}
                     holidayDates={holidayDates}
                     weekDays={selectedWeekDays}

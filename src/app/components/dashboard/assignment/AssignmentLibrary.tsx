@@ -192,35 +192,39 @@ export default function AssignmentLibrary({ scrollRef, handleScroll, activeBranc
           templateId={assignModalTask.id}
           templateLevel={assignModalTask.level}
           templateScope={assignModalTask.scope}
+          templateSubtitle={assignModalTask.description || assignModalTask.subtitle || ""}
           onConfirm={async (selections: AssignSelection[]) => {
             const t = assignModalTask;
-            for (const { classId, groupId, groupBranch, groupModule, level, endDate } of selections) {
+            for (const { classId, groupId, groupBranch, groupModule, level, endDate, customSubtitle, attachmentUrl, attachmentName, attachmentType } of selections) {
               const effectiveLevel = (t.module === "GRAFIK_2" && groupModule === "GRAFIK_1") ? "Seviye 1" : (level || null);
               const taskRef = await addDoc(collection(db, "tasks"), {
-                name:          t.name,
-                subtitle:      t.subtitle ?? null,
-                description:   t.description ?? null,
-                type:          t.type,
-                points:        t.points ?? null,
+                name:           t.name,
+                subtitle:       t.subtitle ?? null,
+                description:    customSubtitle ?? (t.description ?? null),
+                type:           t.type,
+                points:         t.points ?? null,
                 icon:           t.icon ?? null,
                 assignmentType: t.assignmentType ?? null,
-                module:        t.module ?? null,
-                groupModule:   groupModule ?? null,
+                module:         t.module ?? null,
+                groupModule:    groupModule ?? null,
                 classId,
                 groupId,
                 groupBranch,
-                level:         effectiveLevel,
+                level:          effectiveLevel,
                 endDate,
                 status:         "active",
-                isActive:      true,
-                isPaused:      false,
-                isHidden:      false,
-                templateId:    t.id,
-                createdAt:     serverTimestamp(),
-                createdBy:     user?.uid ?? null,
-                createdByName: user ? `${user.name} ${user.surname}` : null,
-                branch:        groupBranch || user?.branch || null,
-                ownedBy:       user?.uid ?? null,
+                isActive:       true,
+                isPaused:       false,
+                isHidden:       false,
+                templateId:     t.id,
+                attachmentUrl:  attachmentUrl  ?? null,
+                attachmentName: attachmentName ?? null,
+                attachmentType: attachmentType ?? null,
+                createdAt:      serverTimestamp(),
+                createdBy:      user?.uid ?? null,
+                createdByName:  user ? `${user.name} ${user.surname}` : null,
+                branch:         groupBranch || user?.branch || null,
+                ownedBy:        user?.uid ?? null,
               });
 
               const senderId = user?.uid ?? auth.currentUser?.uid;

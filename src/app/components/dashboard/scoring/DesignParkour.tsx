@@ -407,7 +407,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
       <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-5">
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Tasarım atölyesi</span>
         {isCompleted ? (
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
             {needsGrading && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             )}
@@ -419,17 +419,31 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
                 Tamamlandı
               </button>
             ) : (
-              <button
-                onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
-                className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
-              >
-                Not Girişi Yap <ChevronRight size={16} />
-              </button>
+              <>
+                <button
+                  onClick={() => onDetail(task)}
+                  className="px-4 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer"
+                >
+                  Ödev Detay
+                </button>
+                <button
+                  onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
+                  className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
+                >
+                  Not Girişi Yap <ChevronRight size={16} />
+                </button>
+              </>
             )}
           </div>
         ) : isExpired ? (
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
+            <button
+              onClick={() => onDetail(task)}
+              className="px-4 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer"
+            >
+              Ödev Detay
+            </button>
             <button
               onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
               className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"

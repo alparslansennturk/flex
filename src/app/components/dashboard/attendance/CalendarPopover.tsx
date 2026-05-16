@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import ReactDOM from "react-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 function shiftMonth(d: Date, delta: number) {
@@ -9,14 +10,19 @@ function shiftMonth(d: Date, delta: number) {
   n.setMonth(n.getMonth() + delta);
   return n;
 }
-function toDateKey(d: Date)  { return d.toISOString().slice(0, 10); }
-function toMonthKey(d: Date) { return d.toISOString().slice(0, 7); }
+function toDateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function toMonthKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 // ── DayCalendarPopover ────────────────────────────────────────────────────────
 
 interface DayCalendarProps {
   value: Date;
   onChange: (d: Date) => void;
+  minDate?: Date;
   maxDate?: Date;
   holidayDates?: Set<string>;
   weekDays?: number[]; // 0=Sun,1=Mon,...,6=Sat — if set and non-empty, only these days are selectable
@@ -24,11 +30,13 @@ interface DayCalendarProps {
 }
 
 export function DayCalendarPopover({
-  value, onChange, maxDate, holidayDates = new Set(), weekDays = [], children,
+  value, onChange, minDate, maxDate, holidayDates = new Set(), weekDays = [], children,
 }: DayCalendarProps) {
   const [open, setOpen]           = useState(false);
   const [viewMonth, setViewMonth] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos]             = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) setViewMonth(new Date(value.getFullYear(), value.getMonth(), 1));
@@ -37,11 +45,35 @@ export function DayCalendarPopover({
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (
+        (!triggerRef.current || !triggerRef.current.contains(t)) &&
+        (!popoverRef.current  || !popoverRef.current.contains(t))
+      ) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  // Scroll ya da resize → kapat
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const handleToggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 8, left: rect.left });
+    }
+    setOpen(o => !o);
+  };
 
   const year  = viewMonth.getFullYear();
   const month = viewMonth.getMonth();
@@ -58,107 +90,116 @@ export function DayCalendarPopover({
 
   const todayStr    = toDateKey(new Date());
   const selectedStr = toDateKey(value);
+  const minStr      = minDate ? toDateKey(minDate) : null;
   const maxStr      = maxDate ? toDateKey(maxDate) : null;
+  const canPrev     = !minStr || toMonthKey(viewMonth) > toMonthKey(minDate!);
   const canNext     = !maxStr || toMonthKey(viewMonth) < toMonthKey(maxDate!);
 
-  return (
-    <div className="relative" ref={ref}>
-      <div onClick={() => setOpen(o => !o)}>{children}</div>
+  const popoverContent = (
+    <div
+      ref={popoverRef}
+      style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="w-[288px] bg-white rounded-2xl shadow-2xl border border-surface-100 overflow-hidden select-none"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-50">
+        <button
+          onClick={() => setViewMonth(m => shiftMonth(m, -1))}
+          disabled={!canPrev}
+          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary disabled:opacity-25 disabled:cursor-not-allowed"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <span className="text-[13px] font-bold text-text-primary capitalize">
+          {viewMonth.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
+        </span>
+        <button
+          onClick={() => setViewMonth(m => shiftMonth(m, 1))}
+          disabled={!canNext}
+          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary disabled:opacity-25 disabled:cursor-not-allowed"
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-2 z-50 w-[288px] bg-white rounded-2xl shadow-2xl border border-surface-100 overflow-hidden select-none">
+      {/* Day-of-week labels */}
+      <div className="grid grid-cols-7 px-3 pt-3">
+        {["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"].map((d, i) => (
+          <div key={d} className={`h-7 flex items-center justify-center text-[10px] font-bold
+            ${i >= 5 ? "text-base-primary-300" : "text-text-placeholder"}`}>
+            {d}
+          </div>
+        ))}
+      </div>
 
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-50">
+      {/* Day cells */}
+      <div className="grid grid-cols-7 gap-y-0.5 px-3 pb-4">
+        {cells.map((day, i) => {
+          if (!day) return <div key={`e-${i}`} />;
+
+          const mm      = String(month + 1).padStart(2, "0");
+          const dd      = String(day).padStart(2, "0");
+          const dateStr = `${year}-${mm}-${dd}`;
+          const dow     = new Date(dateStr).getDay();
+          const isWeekend   = dow === 0 || dow === 6;
+          const isSelected  = dateStr === selectedStr;
+          const isToday     = dateStr === todayStr;
+          const isHoliday   = holidayDates.has(dateStr);
+          const isNonLesson = weekDays.length > 0 && !weekDays.includes(dow);
+          const isDisabled  = (maxStr ? dateStr > maxStr : false) || (minStr ? dateStr < minStr : false);
+
+          let cls = "h-8 w-full flex items-center justify-center rounded-lg text-[12px] font-semibold transition-colors outline-none ";
+
+          if (isDisabled) {
+            cls += "opacity-20 cursor-not-allowed ";
+          } else if (isSelected) {
+            cls += "bg-[#10294C] text-white cursor-pointer ";
+          } else if (isNonLesson) {
+            cls += "text-surface-300 hover:bg-surface-50 cursor-pointer ";
+          } else if (isHoliday) {
+            cls += "bg-red-50 text-red-500 hover:bg-red-100 cursor-pointer ";
+          } else if (isToday) {
+            cls += "ring-2 ring-[#10294C]/30 text-[#10294C] font-bold hover:bg-base-primary-50 cursor-pointer ";
+          } else if (isWeekend) {
+            cls += "text-base-primary-400 hover:bg-surface-100 cursor-pointer ";
+          } else {
+            cls += "text-text-primary hover:bg-surface-100 cursor-pointer ";
+          }
+
+          return (
             <button
-              onClick={() => setViewMonth(m => shiftMonth(m, -1))}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary"
+              key={dateStr}
+              disabled={isDisabled}
+              onClick={() => { onChange(new Date(dateStr + "T12:00:00")); setOpen(false); }}
+              className={cls}
             >
-              <ChevronLeft size={14} />
+              {day}
+              {isHoliday && !isSelected && (
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-red-400" />
+              )}
             </button>
-            <span className="text-[13px] font-bold text-text-primary capitalize">
-              {viewMonth.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
-            </span>
-            <button
-              onClick={() => setViewMonth(m => shiftMonth(m, 1))}
-              disabled={!canNext}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary disabled:opacity-25 disabled:cursor-not-allowed"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
+          );
+        })}
+      </div>
 
-          {/* Day-of-week labels */}
-          <div className="grid grid-cols-7 px-3 pt-3">
-            {["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"].map((d, i) => (
-              <div key={d} className={`h-7 flex items-center justify-center text-[10px] font-bold
-                ${i >= 5 ? "text-base-primary-300" : "text-text-placeholder"}`}>
-                {d}
-              </div>
-            ))}
-          </div>
-
-          {/* Day cells */}
-          <div className="grid grid-cols-7 gap-y-0.5 px-3 pb-4">
-            {cells.map((day, i) => {
-              if (!day) return <div key={`e-${i}`} />;
-
-              const mm      = String(month + 1).padStart(2, "0");
-              const dd      = String(day).padStart(2, "0");
-              const dateStr = `${year}-${mm}-${dd}`;
-              const dow     = new Date(dateStr).getDay(); // 0=Sun
-              const isWeekend    = dow === 0 || dow === 6;
-              const isSelected   = dateStr === selectedStr;
-              const isToday      = dateStr === todayStr;
-              const isHoliday    = holidayDates.has(dateStr);
-              const isNonLesson  = weekDays.length > 0 && !weekDays.includes(dow);
-              const isDisabled   = (maxStr ? dateStr > maxStr : false) || isNonLesson;
-
-              let cls = "h-8 w-full flex items-center justify-center rounded-lg text-[12px] font-semibold transition-colors outline-none ";
-
-              if (isDisabled) {
-                cls += "opacity-20 cursor-not-allowed ";
-              } else if (isSelected) {
-                cls += "bg-[#10294C] text-white cursor-pointer ";
-              } else if (isHoliday) {
-                cls += "bg-red-50 text-red-500 hover:bg-red-100 cursor-pointer ";
-              } else if (isToday) {
-                cls += "ring-2 ring-[#10294C]/30 text-[#10294C] font-bold hover:bg-base-primary-50 cursor-pointer ";
-              } else if (isWeekend) {
-                cls += "text-base-primary-400 hover:bg-surface-100 cursor-pointer ";
-              } else {
-                cls += "text-text-primary hover:bg-surface-100 cursor-pointer ";
-              }
-
-              return (
-                <button
-                  key={dateStr}
-                  disabled={isDisabled}
-                  onClick={() => { onChange(new Date(dateStr + "T12:00:00")); setOpen(false); }}
-                  className={cls}
-                >
-                  {day}
-                  {isHoliday && !isSelected && (
-                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-red-400" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Today shortcut */}
-          {maxStr && todayStr <= maxStr && (
-            <div className="px-4 pb-3 border-t border-surface-50 pt-2 flex justify-center">
-              <button
-                onClick={() => { onChange(new Date(todayStr + "T12:00:00")); setOpen(false); }}
-                className="text-[11px] font-bold text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer"
-              >
-                Bugüne git
-              </button>
-            </div>
-          )}
+      {/* Today shortcut */}
+      {maxStr && todayStr <= maxStr && (
+        <div className="px-4 pb-3 border-t border-surface-50 pt-2 flex justify-center">
+          <button
+            onClick={() => { onChange(new Date(todayStr + "T12:00:00")); setOpen(false); }}
+            className="text-[11px] font-bold text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer"
+          >
+            Bugüne git
+          </button>
         </div>
       )}
+    </div>
+  );
+
+  return (
+    <div className="relative" ref={triggerRef}>
+      <div onClick={handleToggle}>{children}</div>
+      {open && typeof document !== "undefined" && ReactDOM.createPortal(popoverContent, document.body)}
     </div>
   );
 }
@@ -178,9 +219,11 @@ interface MonthCalendarProps {
 }
 
 export function MonthCalendarPopover({ value, onChange, maxDate, children }: MonthCalendarProps) {
-  const [open, setOpen]       = useState(false);
+  const [open, setOpen]         = useState(false);
   const [viewYear, setViewYear] = useState(value.getFullYear());
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos]           = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) setViewYear(value.getFullYear());
@@ -189,74 +232,98 @@ export function MonthCalendarPopover({ value, onChange, maxDate, children }: Mon
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (
+        (!triggerRef.current || !triggerRef.current.contains(t)) &&
+        (!popoverRef.current  || !popoverRef.current.contains(t))
+      ) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const handleToggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 8, left: rect.left + rect.width / 2 - 116 });
+    }
+    setOpen(o => !o);
+  };
+
   const now      = maxDate ?? new Date();
   const maxYear  = now.getFullYear();
   const maxMonth = now.getMonth();
 
+  const popoverContent = (
+    <div
+      ref={popoverRef}
+      style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="w-[232px] bg-white rounded-2xl shadow-2xl border border-surface-100 overflow-hidden select-none"
+    >
+      {/* Year header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-50">
+        <button
+          onClick={() => setViewYear(y => y - 1)}
+          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <span className="text-[14px] font-bold text-text-primary">{viewYear}</span>
+        <button
+          onClick={() => setViewYear(y => y + 1)}
+          disabled={viewYear >= maxYear}
+          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary disabled:opacity-25 disabled:cursor-not-allowed"
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
+
+      {/* Month grid */}
+      <div className="grid grid-cols-3 gap-1.5 p-3">
+        {TR_MONTHS_SHORT.map((name, idx) => {
+          const isSelected = value.getMonth() === idx && value.getFullYear() === viewYear;
+          const isCurrent  = now.getMonth() === idx && now.getFullYear() === viewYear;
+          const isDisabled = viewYear > maxYear || (viewYear === maxYear && idx > maxMonth);
+
+          return (
+            <button
+              key={name}
+              disabled={isDisabled}
+              title={TR_MONTHS[idx]}
+              onClick={() => { onChange(new Date(viewYear, idx, 1, 12)); setOpen(false); }}
+              className={[
+                "h-9 rounded-xl text-[12px] font-semibold transition-colors outline-none",
+                isDisabled ? "opacity-25 cursor-not-allowed" : "cursor-pointer",
+                isSelected
+                  ? "bg-[#10294C] text-white"
+                  : isCurrent
+                    ? "ring-2 ring-[#10294C]/30 text-[#10294C] font-bold hover:bg-base-primary-50"
+                    : "text-text-primary hover:bg-surface-100",
+              ].join(" ")}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="relative" ref={ref}>
-      <div onClick={() => setOpen(o => !o)}>{children}</div>
-
-      {open && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 w-[232px] bg-white rounded-2xl shadow-2xl border border-surface-100 overflow-hidden select-none">
-
-          {/* Year header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-50">
-            <button
-              onClick={() => setViewYear(y => y - 1)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span className="text-[14px] font-bold text-text-primary">{viewYear}</span>
-            <button
-              onClick={() => setViewYear(y => y + 1)}
-              disabled={viewYear >= maxYear}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors cursor-pointer text-text-secondary disabled:opacity-25 disabled:cursor-not-allowed"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-
-          {/* Month grid */}
-          <div className="grid grid-cols-3 gap-1.5 p-3">
-            {TR_MONTHS_SHORT.map((name, idx) => {
-              const isSelected = value.getMonth() === idx && value.getFullYear() === viewYear;
-              const isCurrent  = now.getMonth() === idx && now.getFullYear() === viewYear;
-              const isDisabled = viewYear > maxYear || (viewYear === maxYear && idx > maxMonth);
-
-              return (
-                <button
-                  key={name}
-                  disabled={isDisabled}
-                  title={TR_MONTHS[idx]}
-                  onClick={() => {
-                    onChange(new Date(viewYear, idx, 1, 12));
-                    setOpen(false);
-                  }}
-                  className={[
-                    "h-9 rounded-xl text-[12px] font-semibold transition-colors outline-none",
-                    isDisabled ? "opacity-25 cursor-not-allowed" : "cursor-pointer",
-                    isSelected
-                      ? "bg-[#10294C] text-white"
-                      : isCurrent
-                        ? "ring-2 ring-[#10294C]/30 text-[#10294C] font-bold hover:bg-base-primary-50"
-                        : "text-text-primary hover:bg-surface-100",
-                  ].join(" ")}
-                >
-                  {name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+    <div className="relative" ref={triggerRef}>
+      <div onClick={handleToggle}>{children}</div>
+      {open && typeof document !== "undefined" && ReactDOM.createPortal(popoverContent, document.body)}
     </div>
   );
 }

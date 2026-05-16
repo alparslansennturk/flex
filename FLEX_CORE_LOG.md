@@ -205,6 +205,59 @@ JS `Date.getDay()` ile eşleşir (0=Pazar).
 
 ---
 
+## Oturum: 2026-05-16 (Devam) — Yoklama Mimari Yeniden Yapılanması
+
+### 18. Sidebar — Yoklamalar Accordion
+- Önceki: "Yoklamalar" ve "Yoklama Raporu" ayrı bağımsız linkler
+- Sonraki: "Yoklamalar" accordion altında 3 alt menü
+  - **Yoklama Al** → `/dashboard/attendance` (admin + eğitmen)
+  - **Yoklama Detay** → `/dashboard/attendance-report` (admin + eğitmen)
+  - **Yoklama Raporu** → `/dashboard/attendance-summary` (sadece admin)
+- `TrendingUp` ikonu eklendi, `yoklamaOpen` state eklendi
+
+### 19. Yoklama Raporu (yeni sayfa) — `/dashboard/attendance-summary`
+- Admin only erişim
+- **Amaç:** Eğitmen ücret hesabına temel oluşturacak aylık ders özeti
+- Ay dropdown seçici (son 24 ay)
+- 3 özet kart: Toplam Planlanan / Toplam Verilen / Toplam İptal
+- Eğitmen tablosu: Ad | Grup | Planlanan (ders+saat) | Verilen (ders+saat) | Kalan | İptal | İlerleme % | Detay
+- **Veri yükleme:** users + groups + design_attendance (month) + lesson_exceptions (month) tek seferde toplu yükleme, JS'de aggregation
+- **Detay butonu:** `/dashboard/attendance-report?instructorId=xxx&month=yyy`
+
+### 20. Yoklama Detay — `/dashboard/attendance-report` Güncelleme
+- `useSearchParams` ile `instructorId` ve `month` query param okunuyor
+- Admin + `instructorId`: sadece o eğitmenin grupları gösterilir
+- Admin + no `instructorId`: tüm gruplar (mevcut davranış)
+- Eğitmen: kendi branch filtresi (mevcut davranış)
+- Başlık dinamik: filterInstructorId varsa "Ad — Detay", yoksa "Yoklama Detay"
+- Back butonu: filterInstructorId varsa "← Rapor" linki → `/dashboard/attendance-summary`
+- Eğitmen özet tablosu (admin bölümü) KALDIRILDI — artık summary sayfasında
+- Boş grup durumunda spinner takılmaması için `setLoading(false)` guard eklendi
+- `Suspense` wrapper eklendi (useSearchParams zorunluluğu)
+
+---
+
+## Oturum: 2026-05-16 (Devam 2) — UI Düzeltmeleri
+
+### 21. CalendarPopover — Ders Olmayan Günler Tıklanabilir
+- `isNonLesson` artık `isDisabled`'a dahil değil — buton disabled değil
+- Görsel: `text-surface-300 hover:bg-surface-50` (soluk gri, tıklanabilir)
+- Geçmişe dönük yoklama düzenlemesi için (örn. Cumartesi dersi olan grup)
+
+### 22. Yoklama İstatistiklerinde Saat Öne Çıkarıldı
+- **AttendancePanel** (Yoklama Al): büyük rakam → `"93 saat"`, küçük yazı → `"(31 gün)"`
+  - sessionHours yoksa eski davranışa düşer (sayı + "ders günü")
+- **Yoklama Detay** StatCard'lar: `value` = saat, `sub` = "(X ders)"
+- **Yoklama Detay** tablo satırları: font `text-[20px]` → `text-[16px]`, saat öne, ders parantez
+- **Yoklama Raporu** eğitmen tablosu: saat öne, ders parantez
+
+### 23. Sidebar Accordion Standartlaştırma
+- **Sorun:** Accordion başlığı (`bg-white/10`) + ilk aktif sub-item (`bg-white/10`) görsel olarak birleşiyordu
+- **Fix:** Accordion trigger butonlarda `bg-white/10 shadow-sm` kaldırıldı — sadece turuncu ikon aktif göstergesi
+- **Yoklamalar** ve **Ödev Test** accordionlarına uygulandı, standart haline getirildi
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. HEMEN — Yoklama Canlı Test

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, ChevronDown, Check, Users } from "lucide-react";
+import { X, ChevronDown, Check, Users, Calendar } from "lucide-react";
+import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
 
 interface GroupFormProps {
   isFormOpen: boolean;
@@ -62,10 +63,40 @@ export const GroupForm: React.FC<GroupFormProps> = ({
   const [loading, setLoading]     = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [shake, setShake]         = useState(false);
+  const [dateDisplay, setDateDisplay] = useState("");
 
   useEffect(() => {
     if (!isFormOpen) { setIsSuccess(false); setLoading(false); }
   }, [isFormOpen]);
+
+  // groupStartDate (YYYY-MM-DD) → dd/mm/yy görüntüsünü senkronize et
+  useEffect(() => {
+    if (groupStartDate && /^\d{4}-\d{2}-\d{2}$/.test(groupStartDate)) {
+      const [y, m, d] = groupStartDate.split("-");
+      setDateDisplay(`${d}/${m}/${y}`);
+    } else if (!groupStartDate) {
+      setDateDisplay("");
+    }
+  }, [groupStartDate]);
+
+  const handleDateInput = (raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 2) formatted = digits.slice(0, 2) + "/" + digits.slice(2);
+    if (digits.length > 4) formatted = formatted.slice(0, 5) + "/" + digits.slice(4);
+    setDateDisplay(formatted);
+
+    // 8 rakam tamam → YYYY-MM-DD'ye çevir ve kaydet
+    if (digits.length === 8) {
+      const dd   = digits.slice(0, 2);
+      const mm   = digits.slice(2, 4);
+      const yyyy = digits.slice(4, 8);
+      const d = new Date(`${yyyy}-${mm}-${dd}`);
+      if (!isNaN(d.getTime())) setGroupStartDate(`${yyyy}-${mm}-${dd}`);
+    } else {
+      setGroupStartDate("");
+    }
+  };
 
   useEffect(() => {
     const hasErrors = Object.values(errors).some(Boolean);
@@ -250,12 +281,25 @@ export const GroupForm: React.FC<GroupFormProps> = ({
 
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Başlangıç Tarihi</label>
-            <input
-              type="date"
-              value={groupStartDate}
-              onChange={e => setGroupStartDate(e.target.value)}
-              className={inputNormal}
-            />
+            <DayCalendarPopover
+              value={groupStartDate ? new Date(groupStartDate + "T12:00:00") : new Date()}
+              onChange={d => setGroupStartDate(d.toISOString().slice(0, 10))}
+            >
+              <div className="relative">
+                <input
+                  type="text"
+                  value={dateDisplay}
+                  onChange={e => handleDateInput(e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                  placeholder="gg/aa/yyyy"
+                  maxLength={10}
+                  className={inputNormal}
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 cursor-pointer">
+                  <Calendar size={14} />
+                </span>
+              </div>
+            </DayCalendarPopover>
           </div>
         </div>
 

@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import {
   Plus, Edit2, Trash2, MoreHorizontal, X, CheckCircle2,
-  Star, CalendarDays, AlertTriangle, Check,
+  CalendarDays, AlertTriangle, Check,
 } from "lucide-react";
 import ScoringSettingsPanel from "../scoring/ScoringSettingsPanel";
 import { Task } from "./taskTypes";
@@ -301,11 +301,6 @@ function TaskRow({
           </span>
         )}
       </div>
-      {/* Puan */}
-      <div className="w-14 shrink-0 flex items-center gap-1 justify-center">
-        <Star size={11} className="text-designstudio-primary-500 fill-designstudio-primary-500" />
-        <span className="text-[13px] font-bold text-surface-700">{task.points}</span>
-      </div>
       {/* Teslim Tarihi */}
       <div className="w-24 shrink-0 hidden lg:flex items-center gap-1 text-[12px] text-surface-400">
         {task.endDate ? (
@@ -342,21 +337,22 @@ function TaskRow({
         </button>
         {menuOpen && (
           <div className="absolute right-0 top-9 z-50 bg-white border border-surface-100 rounded-2xl shadow-xl overflow-hidden min-w-43.75">
-            {tab === "active" && isInGrading && (
-              <button
-                onClick={() => { onGrade(task); setMenuOpen(false); }}
-                className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-status-success-600 hover:bg-status-success-50 transition-colors cursor-pointer"
-              >
-                Not Ver
-              </button>
-            )}
             {tab === "active" && (
-              <button
-                onClick={() => { onArchive(task); setMenuOpen(false); }}
-                className={`w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer ${isInGrading ? "border-t border-surface-100" : ""}`}
-              >
-                Arşive Taşı
-              </button>
+              <>
+                <button
+                  onClick={() => { onGrade(task); setMenuOpen(false); }}
+                  className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-designstudio-primary-600 hover:bg-surface-50 transition-colors cursor-pointer"
+                >
+                  Not Ver
+                </button>
+                <div className="border-t border-surface-100" />
+                <button
+                  onClick={() => { onArchive(task); setMenuOpen(false); }}
+                  className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-base-primary-900 hover:bg-surface-50 transition-colors cursor-pointer"
+                >
+                  Arşive Taşı
+                </button>
+              </>
             )}
             {tab === "archive" && (
               <>
@@ -1004,9 +1000,6 @@ function TaskTable({
         </div>
         <div className="w-28 shrink-0 hidden lg:block">
           <span className="text-[12px] font-bold text-surface-600">Statü</span>
-        </div>
-        <div className="w-14 shrink-0 text-center">
-          <span className="text-[12px] font-bold text-surface-600">Puan</span>
         </div>
         <div className="w-24 shrink-0 hidden lg:block">
           <span className="text-[12px] font-bold text-surface-600">Teslim</span>
