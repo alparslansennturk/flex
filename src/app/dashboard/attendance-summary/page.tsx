@@ -17,7 +17,9 @@ interface Group {
   session?: string;
   sessionHours?: number;
   startDate?: string;
+  totalHours?: number;
   instructorId?: string;
+  attendanceClosed?: boolean;
 }
 
 interface Branch {
@@ -64,16 +66,40 @@ function countWeekdaysInMonth(
   year: number, month: number, weekDays: number[],
   holidayDates: Set<string> = new Set(),
   startDate?: string,
+  endDate?: string,
 ): number {
   if (!weekDays || weekDays.length === 0) return 0;
   const d = new Date(year, month, 1, 12, 0, 0);
   let count = 0;
   while (d.getMonth() === month) {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key) && (!startDate || key >= startDate)) count++;
+    if (
+      weekDays.includes(d.getDay()) &&
+      !holidayDates.has(key) &&
+      (!startDate || key >= startDate) &&
+      (!endDate || key <= endDate)
+    ) count++;
     d.setDate(d.getDate() + 1);
   }
   return count;
+}
+
+function calcEstimatedEndDate(
+  startDate: string, totalSessions: number, weekDays: number[], holidayDates: Set<string>,
+): string | null {
+  if (!startDate || totalSessions <= 0 || weekDays.length === 0) return null;
+  const d = new Date(startDate + "T12:00:00");
+  const max = new Date(d); max.setFullYear(max.getFullYear() + 10);
+  let count = 0;
+  while (d <= max) {
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (weekDays.includes(d.getDay()) && !holidayDates.has(key)) {
+      count++;
+      if (count >= totalSessions) return key;
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
 }
 
 function toMonthKey(d: Date) {
@@ -209,7 +235,11 @@ function AttendanceSummaryContent() {
         const branch = branches.find(b => b.id === g.discipline);
         const sessionHours = g.sessionHours ?? branch?.sessionHours ?? 3;
         const weekDays = parseWeekDays(g.session ?? "");
-        const planned = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate);
+        const totalSessions = g.totalHours && sessionHours ? Math.ceil(g.totalHours / sessionHours) : null;
+        const estimatedEndDate = g.attendanceClosed && g.startDate && totalSessions
+          ? calcEstimatedEndDate(g.startDate, totalSessions, weekDays, holidayDates)
+          : null;
+        const planned = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate, estimatedEndDate ?? undefined);
         const done = attendanceByGroup[g.id] ?? 0;
         const cancelled = exceptionsByGroup[g.id] ?? 0;
         const remaining = Math.max(0, planned - done - cancelled);

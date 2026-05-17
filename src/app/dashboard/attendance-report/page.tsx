@@ -21,6 +21,7 @@ interface Group {
   totalHours?: number;
   moduleId?: string;
   instructorId?: string;
+  attendanceClosed?: boolean;
 }
 
 interface Branch {
@@ -65,16 +66,40 @@ function countWeekdaysInMonth(
   year: number, month: number, weekDays: number[],
   holidayDates: Set<string> = new Set(),
   startDate?: string,
+  endDate?: string,
 ): number {
   if (!weekDays || weekDays.length === 0) return 0;
   const d = new Date(year, month, 1, 12, 0, 0);
   let count = 0;
   while (d.getMonth() === month) {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key) && (!startDate || key >= startDate)) count++;
+    if (
+      weekDays.includes(d.getDay()) &&
+      !holidayDates.has(key) &&
+      (!startDate || key >= startDate) &&
+      (!endDate || key <= endDate)
+    ) count++;
     d.setDate(d.getDate() + 1);
   }
   return count;
+}
+
+function calcEstimatedEndDate(
+  startDate: string, totalSessions: number, weekDays: number[], holidayDates: Set<string>,
+): string | null {
+  if (!startDate || totalSessions <= 0 || weekDays.length === 0) return null;
+  const d = new Date(startDate + "T12:00:00");
+  const max = new Date(d); max.setFullYear(max.getFullYear() + 10);
+  let count = 0;
+  while (d <= max) {
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (weekDays.includes(d.getDay()) && !holidayDates.has(key)) {
+      count++;
+      if (count >= totalSessions) return key;
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
 }
 
 function toMonthKey(d: Date) {
@@ -100,14 +125,14 @@ function StatCard({ label, value, sub, color, icon }: {
   color: string; icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-surface-100 shadow-sm px-6 py-5 flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${color}`}>
+    <div className="bg-white rounded-2xl border border-surface-100 shadow-sm px-4 py-4 flex items-center gap-3 min-w-0">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
         {icon}
       </div>
-      <div>
-        <p className="text-[12px] font-semibold text-surface-400 mb-0.5">{label}</p>
-        <p className="text-[28px] font-bold text-base-primary-900 leading-none">{value}</p>
-        {sub && <p className="text-[11px] text-surface-400 mt-0.5">{sub}</p>}
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold text-surface-400 mb-0.5 whitespace-nowrap">{label}</p>
+        <p className="text-[18px] font-bold text-base-primary-900 leading-none whitespace-nowrap">{value}</p>
+        {sub && <p className="text-[10px] text-surface-400 mt-0.5 whitespace-nowrap">{sub}</p>}
       </div>
     </div>
   );
@@ -219,7 +244,11 @@ function AttendanceReportContent() {
       }
 
       const weekDays = parseWeekDays(g.session ?? "");
-      const plannedThisMonth = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate);
+      const totalSessions = totalHours && sessionHours ? Math.ceil(totalHours / sessionHours) : null;
+      const estimatedEndDate = g.attendanceClosed && g.startDate && totalSessions
+        ? calcEstimatedEndDate(g.startDate, totalSessions, weekDays, holidayDates)
+        : null;
+      const plannedThisMonth = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate, estimatedEndDate ?? undefined);
 
       const doneSnap = await getDocs(query(
         collection(db, "design_attendance"),
@@ -242,7 +271,6 @@ function AttendanceReportContent() {
         where("groupId", "==", g.id),
       ));
       const totalDoneAllTime = allTimeSnap.size;
-      const totalSessions = totalHours && sessionHours ? Math.ceil(totalHours / sessionHours) : null;
 
       return {
         group: g,

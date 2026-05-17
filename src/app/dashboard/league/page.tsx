@@ -792,6 +792,7 @@ export default function LeaguePage() {
   const [scoreMode,          setScoreMode]          = useState<ScoreMode>("monthly");
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
+  const [excludedGroupIds, setExcludedGroupIds] = useState<Set<string>>(new Set());
   const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: any; classId?: string; status?: string }>>({});
   const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({}); // groupCode → instructor name
   const [groupBranches,   setGroupBranches]   = useState<string[]>([]); // şube listesi groups'tan
@@ -831,13 +832,22 @@ export default function LeaguePage() {
     getDocs(collection(db, "groups")).then((snap) => {
       const map: Record<string, string> = {};
       const branches = new Set<string>();
+      const now = new Date();
+      const thisYearMonth = now.getFullYear() * 100 + (now.getMonth() + 1);
+      const excluded = new Set<string>();
       snap.docs.forEach((d) => {
         const data = d.data() as any;
         if (data.code) map[data.code] = data.instructor || "";
         if (data.branch) branches.add(data.branch);
+        if (data.attendanceClosed && data.attendanceClosedAt) {
+          const closedDate: Date = data.attendanceClosedAt.toDate();
+          const closedYearMonth = closedDate.getFullYear() * 100 + (closedDate.getMonth() + 1);
+          if (closedYearMonth < thisYearMonth) excluded.add(d.id);
+        }
       });
       setGroupsMap(map);
       setGroupBranches([ALL_BRANCH, ...Array.from(branches).sort()]);
+      setExcludedGroupIds(excluded);
     }).catch(() => {});
   }, []);
 
@@ -879,6 +889,12 @@ export default function LeaguePage() {
   }, [rawStudents, groupBranches]);
 
   // ── Puan hesaplama ────────────────────────────────────────────────────────
+  const activeStudents = useMemo(() =>
+    excludedGroupIds.size > 0
+      ? rawStudents.filter(s => !excludedGroupIds.has((s as any).groupId))
+      : rawStudents,
+  [rawStudents, excludedGroupIds]);
+
   const withScores = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
@@ -915,7 +931,7 @@ export default function LeaguePage() {
       return count || undefined;
     };
 
-    return rawStudents.map((s) => {
+    return activeStudents.map((s) => {
       // Öğrencinin kendi sınıfına (groupCode) ait görevleri filtrele.
       // isScoreHidden / seasonId filtresi KALDIRILDI: reset öncesi ve sonrası
       // aynı ay içindeki görevler tek skorda birleştirilir.
@@ -1078,7 +1094,7 @@ export default function LeaguePage() {
         score: isMonthly ? recentScore : generalScore,
       };
     });
-  }, [rawStudents, settings, scoreMode, tasksMap]);
+  }, [activeStudents, settings, scoreMode, tasksMap]);
 
   const sortFn = (a: typeof withScores[0], b: typeof withScores[0]) => {
     const sd = b.score - a.score; if (sd !== 0) return sd;

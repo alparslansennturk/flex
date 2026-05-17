@@ -33,13 +33,13 @@ export default function AttendancePage() {
   }, [router]);
 
   return (
-    <div className="flex h-screen w-full bg-white font-inter overflow-hidden">
-      <aside className="hidden lg:block h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-[#10294C]">
+    <div className="flex min-h-screen w-full bg-white font-inter">
+      <aside className="hidden lg:block sticky top-0 h-screen shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-[#10294C]">
         <Sidebar />
       </aside>
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      <div className="flex-1 flex flex-col min-w-0">
         <Header activeTabLabel="Yoklamalar" />
-        <main className="flex-1 min-h-0 bg-neutral-50 [scrollbar-gutter:stable] overflow-hidden">
+        <main className="flex-1 bg-neutral-50">
           <AttendancePanel />
         </main>
         <Footer />

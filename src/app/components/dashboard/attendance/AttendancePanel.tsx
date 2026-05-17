@@ -655,13 +655,13 @@ export default function AttendancePanel({
         />
       )}
 
-      <div className="flex h-full min-h-0 px-8 max-w-[1920px] mx-auto w-full">
+      <div className="flex px-8 max-w-[1920px] mx-auto w-full">
 
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
-        <div className="w-[260px] shrink-0 border-r border-surface-100 flex flex-col h-full overflow-hidden bg-neutral-50">
+        <div className="w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50">
 
           {/* Month dropdown */}
-          <div className="px-4 py-3 border-b border-surface-100">
+          <div className="px-4 pt-6 pb-3 border-b border-surface-100">
             <div className="relative flex items-center">
               <select
                 value={toMonthKey(selectedMonth)}
@@ -705,7 +705,7 @@ export default function AttendancePanel({
             <p className="text-[16px] font-bold text-text-primary">Gruplar</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div>
             {groups.length === 0 && (
               <p className="px-5 py-6 text-[12px] text-text-placeholder text-center">Henüz grubunuz yok.</p>
             )}
@@ -757,7 +757,7 @@ export default function AttendancePanel({
         </div>
 
         {/* ── RIGHT ─────────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden max-w-[1400px]">
+        <div className="flex-1 flex flex-col min-w-0 max-w-[1400px]">
 
           {!selectedGroupId ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-text-placeholder">
@@ -768,7 +768,7 @@ export default function AttendancePanel({
             <>
               {mode === "detailed" ? (
                 /* ── Detaylı: Sol (grup kartı + 3 stat kartı) | Sağ (donut), eşit yükseklik */
-                <div className="px-8 py-5 border-b border-surface-100 shrink-0">
+                <div className="px-8 pt-6 pb-5 border-b border-surface-100 shrink-0">
                   {/* max-w: 4K ekranlarda aşırı yayılmayı önler */}
                   <div className="max-w-[1200px]">
                     <div className="flex gap-4 items-stretch">
@@ -777,7 +777,7 @@ export default function AttendancePanel({
                       <div className="flex-1 flex flex-col gap-3 min-w-0">
 
                         {/* Grup bilgi kartı */}
-                        <div className="border border-surface-200 rounded-2xl px-5 py-4 bg-white">
+                        <div className="border border-surface-200 rounded-2xl px-5 pt-3 pb-4 bg-white">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-3 h-3 rounded-full bg-status-success-500 shrink-0" />
@@ -827,17 +827,19 @@ export default function AttendancePanel({
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.15, delay: 0 }}
-                                className="flex-1 border border-surface-200 rounded-2xl px-4 2xl:px-5 py-4 2xl:py-5 flex flex-col gap-1.5 2xl:gap-2 bg-white"
+                                className="flex-1 border border-surface-200 rounded-2xl px-6 pt-6 pb-2 2xl:pb-3 flex flex-col gap-1 2xl:gap-1.5 bg-white"
                               >
-                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full bg-base-primary-100 flex items-center justify-center mb-1">
-                                  <Timer size={15} className="text-base-primary-500 2xl:hidden" />
-                                  <Timer size={18} className="text-base-primary-500 hidden 2xl:block" />
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-[8px] bg-base-primary-100 flex items-center justify-center shrink-0">
+                                    <Timer size={15} className="text-base-primary-500 2xl:hidden" />
+                                    <Timer size={18} className="text-base-primary-500 hidden 2xl:block" />
+                                  </div>
+                                  <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                    {plannedCount * sessionHours}
+                                    <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                  </p>
                                 </div>
-                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
-                                  {plannedCount * sessionHours}
-                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
-                                </p>
-                                <p className="text-[11px] 2xl:text-[13px] text-text-secondary leading-snug">Bu Ay Planlanan Toplam Ders</p>
+                                <p className="text-[14px] 2xl:text-[15px] text-text-secondary leading-snug">Bu Ay Planlanan Toplam Ders</p>
                                 <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{plannedCount} gün</p>
                               </motion.div>
                               {/* Yapılan */}
@@ -845,17 +847,19 @@ export default function AttendancePanel({
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.15, delay: 0.03 }}
-                                className="flex-1 border border-surface-200 rounded-2xl px-4 2xl:px-5 py-4 2xl:py-5 flex flex-col gap-1.5 2xl:gap-2 bg-white"
+                                className="flex-1 border border-surface-200 rounded-2xl px-6 pt-6 pb-2 2xl:pb-3 flex flex-col gap-1 2xl:gap-1.5 bg-white"
                               >
-                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full bg-base-secondary-100 flex items-center justify-center mb-1">
-                                  <CheckCheck size={15} className="text-base-secondary-500 2xl:hidden" />
-                                  <CheckCheck size={18} className="text-base-secondary-500 hidden 2xl:block" />
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-[8px] bg-base-secondary-100 flex items-center justify-center shrink-0">
+                                    <CheckCheck size={15} className="text-base-secondary-500 2xl:hidden" />
+                                    <CheckCheck size={18} className="text-base-secondary-500 hidden 2xl:block" />
+                                  </div>
+                                  <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                    {doneCount * sessionHours}
+                                    <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                  </p>
                                 </div>
-                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
-                                  {doneCount * sessionHours}
-                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
-                                </p>
-                                <p className="text-[11px] 2xl:text-[13px] text-text-secondary leading-snug">Bu Ay Yapılan Toplam Ders</p>
+                                <p className="text-[14px] 2xl:text-[15px] text-text-secondary leading-snug">Bu Ay Yapılan Toplam Ders</p>
                                 <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{doneCount} gün</p>
                               </motion.div>
                               {/* Kalan */}
@@ -863,17 +867,19 @@ export default function AttendancePanel({
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.15, delay: 0.06 }}
-                                className="flex-1 border border-surface-200 rounded-2xl px-4 2xl:px-5 py-4 2xl:py-5 flex flex-col gap-1.5 2xl:gap-2 bg-white"
+                                className="flex-1 border border-surface-200 rounded-2xl px-6 pt-6 pb-2 2xl:pb-3 flex flex-col gap-1 2xl:gap-1.5 bg-white"
                               >
-                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full bg-designstudio-primary-100 flex items-center justify-center mb-1">
-                                  <CalendarClock size={15} className="text-designstudio-primary-500 2xl:hidden" />
-                                  <CalendarClock size={18} className="text-designstudio-primary-500 hidden 2xl:block" />
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-[8px] bg-designstudio-primary-100 flex items-center justify-center shrink-0">
+                                    <CalendarClock size={15} className="text-designstudio-primary-500 2xl:hidden" />
+                                    <CalendarClock size={18} className="text-designstudio-primary-500 hidden 2xl:block" />
+                                  </div>
+                                  <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                    {remaining * sessionHours}
+                                    <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                  </p>
                                 </div>
-                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
-                                  {remaining * sessionHours}
-                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
-                                </p>
-                                <p className="text-[11px] 2xl:text-[13px] text-text-secondary leading-snug">Kalan Toplam Ders</p>
+                                <p className="text-[14px] 2xl:text-[15px] text-text-secondary leading-snug">Kalan Toplam Ders</p>
                                 <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{remaining} gün</p>
                               </motion.div>
                             </>
@@ -893,11 +899,11 @@ export default function AttendancePanel({
                           initial={{ opacity: 0, scale: 0.94 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.2, ease: "easeOut" }}
-                          className="w-[280px] 2xl:w-[320px] shrink-0 border border-surface-200 rounded-2xl px-5 py-5 flex flex-col items-center gap-4 bg-white"
+                          className="w-[280px] 2xl:w-[320px] shrink-0 border border-surface-200 rounded-2xl px-5 pt-5 pb-3 flex flex-col items-center gap-2 bg-white"
                         >
                           {/* Donut chart — custom SVG + Framer Motion arc animasyonu */}
-                          <div key={selectedGroupId ?? "none"} className="relative shrink-0" style={{ width: 164, height: 164 }}>
-                            <svg width="164" height="164" viewBox="0 0 164 164" style={{ display: "block" }}>
+                          <div key={selectedGroupId ?? "none"} className="relative shrink-0" style={{ width: 130, height: 130 }}>
+                            <svg width="130" height="130" viewBox="0 0 164 164" style={{ display: "block" }}>
                               <defs>
                                 <linearGradient id="donutArcGrad" x1="0" y1="0" x2="164" y2="164" gradientUnits="userSpaceOnUse">
                                   <stop offset="0%" stopColor={courseProgressPct === 100 ? "#006B2B" : "#1a4f9e"} />
@@ -925,7 +931,7 @@ export default function AttendancePanel({
                             {/* Merkez metin */}
                             <div
                               className="pointer-events-none flex flex-col items-center"
-                              style={{ position: "absolute", top: 84, left: 82, transform: "translate(-50%, -50%)", gap: 3 }}
+                              style={{ position: "absolute", top: 65, left: 65, transform: "translate(-50%, -50%)", gap: 3 }}
                             >
                               <span className="text-[24px] font-bold text-base-primary-700 leading-none" style={{ fontFamily: "Inter, var(--font-main), sans-serif" }}>
                                 <CountUp to={courseDoneHours} duration={0.4} />
@@ -1020,8 +1026,8 @@ export default function AttendancePanel({
               )}
 
               {/* ── Yoklama kartı: beyaz, yuvarlak köşeli ── */}
-              <div className="flex-1 min-h-0 p-4 2xl:p-5 overflow-hidden">
-                <div className="h-full flex flex-col bg-white rounded-2xl border border-surface-200 overflow-hidden relative">
+              <div className="px-8 py-4 2xl:py-5">
+                <div className="flex flex-col bg-white rounded-2xl border border-surface-200 relative">
 
                   {/* Date header */}
                   <div className="px-5 py-3 border-b border-surface-100 flex items-center justify-between gap-4 shrink-0">
@@ -1118,7 +1124,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
-                  <div className="flex-1 overflow-y-auto pt-6">
+                  <div className="pt-6">
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
                         <Users size={28} strokeWidth={1.5} />

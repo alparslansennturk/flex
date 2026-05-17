@@ -414,6 +414,35 @@ onClick={(e) => {
 
 ---
 
+## Oturum: 2026-05-18 — AttendancePanel UI Düzeltmeleri & Layout Scroll
+
+### 39. Stat Kartları Yeniden Tasarım (AttendancePanel.tsx)
+- **İkon + değer yanyana:** `flex-col` → `flex items-center gap-2` (ikon sol, "18 saat" sağ)
+- **İkon şekli:** `rounded-full` → `rounded-[8px]` (dörtgen köşeli)
+- **Kartlar üst padding:** `px-6 pt-6 pb-2` — üstten 24px, soldan 24px
+- **Chart SVG küçültüldü:** 164px → 130px (`width/height`), merkez metin pozisyonu 84→65
+- **Label font büyütüldü:** "Bu Ay Planlanan/Yapılan Toplam Ders" ve "Kalan Toplam Ders" → `text-[14px]`
+- **Ay dropdown üst padding:** `pt-6` (24px) — grup kodu ile hizalanması için
+- **İstatistik bölümü üst padding:** `pt-6`
+- **Yoklama container padding:** `px-8` — üstündeki istatistik alanıyla eşit
+
+### 40. Sayfa Layout → Normal Scroll (attendance/page.tsx + AttendancePanel.tsx)
+- **Önceki:** `h-screen overflow-hidden` fixed viewport, iç scrolllar ayrı
+- **Sonraki:** `min-h-screen` — tam sayfa scroll, iç scrolllar yok
+- `page.tsx`: sidebar `sticky top-0 h-screen`, main wrapper `min-h-screen`
+- `AttendancePanel.tsx`: `h-full`, `overflow-hidden`, `overflow-y-auto` kaldırıldı (grup listesi + yoklama listesi + sağ panel)
+
+### 41. Bekleyen — Commit Edilmemiş Local Değişiklikler
+Aşağıdaki 6 dosya local'de değişti ama henüz commit/push edilmedi:
+- `src/app/dashboard/grading/page.tsx` — Grafik-2 Bitir → `attendanceClosed: true`
+- `src/app/api/league/route.ts` — `attendanceClosed` grupları ligden çıkar
+- `src/app/dashboard/league/page.tsx` — `excludedGroupIds` filtresi
+- `src/app/components/dashboard/scoring/LeaderboardWidget.tsx` — lig filtresi
+- `src/app/dashboard/attendance-report/page.tsx` — endDate cap + StatCard font düzeltmesi
+- `src/app/dashboard/attendance-summary/page.tsx` — endDate cap
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. HEMEN — Figma MCP Bağlantısı + Yoklama Revizesi

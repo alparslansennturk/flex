@@ -1512,8 +1512,10 @@ function CertModuleTab({ module }: { module: CertTab }) {
         }, { merge: true });
       }));
       // Grup dokümanına finalize anındaki kodu kaydet (gelecekte kod değişse bile orijinal bilinsin)
+      // GRAFIK_2 finalize → yoklama panelinden gizle (öğrenciler/ödevler etkilenmez)
       await updateDoc(doc(db, "groups", selectedGroupId), {
         [`codeAt_${module}`]: group.code,
+        ...(module === "GRAFIK_2" ? { attendanceClosed: true, attendanceClosedAt: serverTimestamp() } : {}),
       });
       setFinalized(true);
       setShowFinalize(false);

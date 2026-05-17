@@ -41,6 +41,7 @@ export async function GET() {
     const groups = groupsSnap.docs.map((d) => {
       const data = d.data();
       return {
+        id: d.id,
         code: data.code ?? null,
         instructor: data.instructor ?? null,
         instructorId: data.instructorId ?? null,
@@ -49,7 +50,23 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ students, tasks, groups, scoringSettings, activeSeasonId });
+    // attendanceClosed grupları: kapandığı ay bittiyse öğrencileri ligden çıkar
+    const now = new Date();
+    const thisYearMonth = now.getFullYear() * 100 + (now.getMonth() + 1); // örn: 202606
+    const excludedGroupIds = new Set<string>();
+    groupsSnap.docs.forEach((d) => {
+      const data = d.data();
+      if (!data.attendanceClosed || !data.attendanceClosedAt) return;
+      const closedDate: Date = data.attendanceClosedAt.toDate();
+      const closedYearMonth = closedDate.getFullYear() * 100 + (closedDate.getMonth() + 1);
+      if (closedYearMonth < thisYearMonth) excludedGroupIds.add(d.id);
+    });
+
+    const filteredStudents = excludedGroupIds.size > 0
+      ? students.filter((s: any) => !excludedGroupIds.has(s.groupId))
+      : students;
+
+    return NextResponse.json({ students: filteredStudents, tasks, groups, scoringSettings, activeSeasonId });
   } catch (err) {
     console.error("[api/league] Hata:", err);
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });

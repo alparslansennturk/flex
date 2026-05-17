@@ -103,10 +103,11 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
   const { user }                     = useUser();
   const { settings, activeSeasonId } = useScoring();
 
-  const [students,     setStudents]     = useState<StudentRank[]>([]);
-  const [myGroupCodes, setMyGroupCodes] = useState<string[] | null>(null);
-  const [loading,      setLoading]      = useState(true);
-  const [tasksMap,     setTasksMap]     = useState<Record<string, { classId?: string; status?: string; endDate?: string }>>({});
+  const [students,         setStudents]         = useState<StudentRank[]>([]);
+  const [myGroupCodes,     setMyGroupCodes]     = useState<string[] | null>(null);
+  const [loading,          setLoading]          = useState(true);
+  const [tasksMap,         setTasksMap]         = useState<Record<string, { classId?: string; status?: string; endDate?: string }>>({});
+  const [excludedGroupIds, setExcludedGroupIds] = useState<Set<string>>(new Set());
 
   // Eğitmene ait aktif grup kodları (Sınıflarım modu)
   useEffect(() => {
@@ -122,15 +123,29 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
     });
   }, [user?.uid]);
 
-  // Görev haritası — completionRate hesabı için (lig sayfasıyla tutarlı)
+  // Görev haritası + attendanceClosed grup filtresi
   useEffect(() => {
-    getDocs(collection(db, "tasks")).then(snap => {
+    const now = new Date();
+    const thisYearMonth = now.getFullYear() * 100 + (now.getMonth() + 1);
+    Promise.all([
+      getDocs(collection(db, "tasks")),
+      getDocs(collection(db, "groups")),
+    ]).then(([taskSnap, groupSnap]) => {
       const map: Record<string, { classId?: string; status?: string; endDate?: string }> = {};
-      snap.docs.forEach(d => {
+      taskSnap.docs.forEach(d => {
         const data = d.data() as any;
         map[d.id] = { classId: data.classId ?? undefined, status: data.status ?? undefined, endDate: data.endDate ?? undefined };
       });
       setTasksMap(map);
+      const excluded = new Set<string>();
+      groupSnap.docs.forEach(d => {
+        const data = d.data() as any;
+        if (!data.attendanceClosed || !data.attendanceClosedAt) return;
+        const closedDate: Date = data.attendanceClosedAt.toDate();
+        const closedYearMonth = closedDate.getFullYear() * 100 + (closedDate.getMonth() + 1);
+        if (closedYearMonth < thisYearMonth) excluded.add(d.id);
+      });
+      setExcludedGroupIds(excluded);
     }).catch(() => {});
   }, []);
 
@@ -178,7 +193,10 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
           t.endDate && t.endDate >= mStart && t.endDate <= mEnd
         ).length || undefined;
 
-      const all = snap.docs.map(d => {
+      const filteredDocs = excludedGroupIds.size > 0
+        ? snap.docs.filter(d => !excludedGroupIds.has((d.data() as any).groupId))
+        : snap.docs;
+      const all = filteredDocs.map(d => {
         const data  = { id: d.id, ...d.data() } as StudentRank & { g2StartXP?: number };
         if (data.isScoreHidden) return { ...data, points: 0, completedTasks: 0, latePenaltyTotal: 0 };
 
@@ -274,7 +292,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
       setStudents(ranked.slice(0, 4));
       setLoading(false);
     });
-  }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings, activeSeasonId, tasksMap]);
+  }, [viewMode, myGroupCodes, user?.uid, user?.branch, settings, activeSeasonId, tasksMap, excludedGroupIds]);
 
   return (
     <div className="col-span-12 xl:col-span-4 bg-white rounded-24 p-6 border border-surface-200 flex flex-col justify-between shadow-sm">
