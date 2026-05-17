@@ -389,7 +389,9 @@ export default function AttendancePanel({
   useEffect(() => {
     const q = query(collection(db, "groups"), where("status", "!=", "archived"));
     return onSnapshot(q, snap => {
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Group));
+      const all = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Group))
+        .filter(g => !(g as any).attendanceClosed);
       if (isAdmin()) {
         setGroups(all);
       } else {
