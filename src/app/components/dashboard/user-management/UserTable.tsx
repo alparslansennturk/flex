@@ -45,7 +45,7 @@ export const UserTable = ({ users, branches = [], onEdit, onDelete }: any) => {
       <tr key={user.id} className={`hover:bg-neutral-50/50 transition-colors group ${!user.isActivated ? 'bg-amber-50/30' : ''}`}>
         <td className="p-3 xl:p-5 w-64 xl:w-72">
           <div className="flex items-center gap-2 xl:gap-3 min-w-0">
-            <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-full bg-neutral-100 border border-neutral-200 overflow-hidden shrink-0 shadow-sm">
+            <div className="w-6 h-6 xl:w-8 xl:h-8 rounded-full bg-neutral-100 border border-neutral-200 overflow-hidden shrink-0 shadow-sm">
               <img
                 src={`/avatars/${user.gender === 'female' ? 'female' : 'male'}/${user.avatarId || 1}.svg`}
                 className="w-full h-full object-cover"

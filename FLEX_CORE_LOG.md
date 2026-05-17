@@ -258,19 +258,111 @@ JS `Date.getDay()` ile eşleşir (0=Pazar).
 
 ---
 
+---
+
+## Oturum: 2026-05-17 — UI Standardizasyonu & Dropdown Sistemi
+
+### 24. Framer Motion — Tüm Modal Animasyonları Standardize Edildi
+- **Form modalleri** (GroupForm, StudentForm, UserForm): `y: 80→0`, `type: "spring", stiffness: 350, damping: 28`
+- **Uyarı/onay modalleri** (GlobalConfirmationModal, StudentDeleteModal): `scale: 0.85→1`, `stiffness: 400, damping: 28`
+- **StudentDetailModal**: `AnimatePresence + onExitComplete` pattern, `setTimeout` kaldırıldı
+- `ManagementContent.tsx`: GroupForm ve StudentForm için `AnimatePresence` wrapper'ları eklendi
+- StudentForm çift-modal wrapper bug'ı düzeltildi (ManagementContent içinde ikinci wrapper yoktu)
+
+### 25. UserManagement — "Branşlar" Sekmesi Kaldırıldı
+- Branş verisi zaten Group Settings → GroupBranchPanel'de yönetiliyor
+- `UserManagement.tsx`'ten `BranchManagement` import ve render kaldırıldı
+- Tab state tipi `'users' | 'students' | 'branches'` → `'users' | 'students'`
+
+### 26. UserForm — Yeniden Tasarım
+- **Boşluk azaltıldı:** `p-10 gap-10` → `p-8 gap-5`, profil bölümü `pb-12` → `pb-5`
+- **Grid yeniden yapılandırıldı:** 4 sütunlu tek grid: Rol | Branş | Ünvan | Şube (coğrafi)
+  - İkinci satır: Cinsiyet | Doğum Tarihi
+- **Branş alanı:** Rol = Eğitmen seçilince aktif olur, aksi halde `opacity-40 cursor-not-allowed`
+- **Ek Yetkiler:** `border border-neutral-100` → `shadow-[inset_0_0_0_1px_...]` (box-shadow, layout etkilemiyor)
+- **overflow-y:** `auto` → `scroll` (scrollbar kaymasını engeller)
+
+### 27. Custom Portal Dropdown Sistemi — Tüm Formlara Uygulandı
+
+**Sorun:** `motion.div` (form animasyonu `y: 80→0`) CSS transform uygular. `position: fixed` içindeki child'lar bu transform'ı containing block alır → dropdown yanlış konumda açılır.
+
+**Çözüm:** `createPortal` ile dropdown'ları `document.body`'ye render etmek.
+
+**Pattern:**
+```tsx
+// Trigger'da pozisyon yakala:
+onClick={(e) => {
+  const r = (e.currentTarget).getBoundingClientRect();
+  setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
+  setIsOpen(!isOpen);
+}}
+
+// Portal:
+{mounted && createPortal(
+  <>
+    {isOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsOpen(false)} />}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div className="fixed z-[9999] ..."
+          style={{ top, left, width, transformOrigin: 'top' }}
+          initial={{ opacity: 0, y: -6, scaleY: 0.92 }}
+          animate={{ opacity: 1, y: 0, scaleY: 1 }}
+          exit={{ opacity: 0, y: -6, scaleY: 0.92 }}
+          transition={{ duration: 0.15 }}
+        >...</motion.div>
+      )}
+    </AnimatePresence>
+  </>,
+  document.body
+)}
+```
+
+**Uygulanan formlar ve dropdown'lar:**
+| Form | Dropdown'lar |
+|---|---|
+| `UserForm.tsx` | Rol (multi), Branş (multi), Cinsiyet (tek), Şube/coğrafi (tek) |
+| `StudentForm.tsx` | Cinsiyet (tek), Şube (tek), Grup Seçimi (tek, max-h-60 scroll) |
+| `GroupForm.tsx` | Şube (tek), Branş (tek), Sorumlu Eğitmen (tek), Seans (tek), Modül (tek, disabled state) |
+
+**Ek değişiklikler:**
+- `UserManagement.tsx` parent'taki `roleDropdownRef` click-outside handler kaldırıldı (portal kendi overlay'ini yönetiyor)
+- Tüm native `<select>` → hidden input + custom trigger div
+- Tek seçimli dropdown'lar seçince kapanır; çok seçimliler açık kalır
+- `mounted` state ile SSR güvenliği
+- Renk standardı: hepsi orange accent (`border-orange-500`, `text-orange-500`, `peer-checked:bg-orange-500`)
+
+### 28. UserTable — Avatar Küçültüldü
+- `w-8 h-8 xl:w-10 xl:h-10` → `w-6 h-6 xl:w-8 xl:h-8`
+
+### 29. Figma MCP — `.mcp.json` Güncellendi
+- Eski: `node dist/talk_to_figma_mcp/server.js` (local build)
+- Yeni: `bunx cursor-talk-to-figma-mcp@latest`
+- WebSocket bridge: `node dist/socket.js` (port 3055, ayrı terminal, çalışır durumda)
+- Claude Code yeniden başlatılınca MCP aktif olacak
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. HEMEN — Yoklama Canlı Test
-- Mevcut gruplara `startDate` girilmemişse GroupForm'dan ekle → kurs şeridi görünür
-- Tatil sekmesinden Bayram tatillerini gir (Nisan sonunda 9 gün)
-- Birkaç gruba yoklama al, istatistiklerin doğru çalıştığını doğrula
-- Toplam/kalan saat ve tahmini bitiş tarihinin mantıklı göründüğünü kontrol et
+### 1. HEMEN — Figma MCP Bağlantısı + Yoklama Revizesi
+- Claude Code yeniden başlat (yeni `.mcp.json` yüklensin)
+- Figma'da MCP Plugin'i aç → kanal ID paylaş → `join_channel`
+- Kullanıcının Figma'da revize ettiği yoklama ekranını oku
+- **İki ekran yapısı planlandı:**
+  - **Detaylı:** `/dashboard/attendance` — mevcut AttendancePanel, istatistik + grafik ağır
+  - **Basit:** `/yoklama` — bağımsız route, sadece grup seç + yoklama al, minimal UI
 
-### 2. SONRA — StudentForm: isOnlineStudent
+### 2. HEMEN — `/yoklama` Bağımsız Route
+- **Auth akışı:** Middleware'e `/yoklama` eklenir, login'e `?redirect=/yoklama` ile yönlendirilir
+- **Login sayfası:** `useSearchParams` zaten var, satır 103: `router.push("/dashboard")` → `router.push(redirect || "/dashboard")`
+- **`/yoklama/page.tsx`:** Dashboard layout dışında, kendi minimal layout'u
+- Dashboard'da "Hızlı Yoklama Al" kart/butonu → `/yoklama` linki
+
+### 3. SONRA — StudentForm: isOnlineStudent
 - `students` dökümanına `isOnlineStudent: boolean` eklenecek
-- AttendancePanel zaten bu alanı okuyor (online toggle default olarak set oluyor)
-- **Yapılacak:** StudentForm'a toggle/checkbox ekle, useManagement'a handleSave/handleEdit entegre et
+- AttendancePanel zaten bu alanı okuyor
+- **Yapılacak:** StudentForm'a toggle/checkbox ekle
 
-### 3. BÜYÜK BLOK — Sertifikasyon Modülü
+### 4. BÜYÜK BLOK — Sertifikasyon Modülü
 - Not girişi → sertifikasyon akışı
 - Son büyük blok, altyapı sıfırdan kurulacak

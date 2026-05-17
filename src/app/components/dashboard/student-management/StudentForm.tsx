@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { createPortal } from "react-dom";
 import { X, Check, GraduationCap, ChevronDown } from "lucide-react";
 import { getFlexMessage } from "@/app/lib/messages";
 
@@ -84,8 +86,17 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   const [localErrors, setLocalErrors] = useState<Record<string, boolean>>({});
   const [localShake, setLocalShake] = useState(false);
   const [emailErrorMsg, setEmailErrorMsg] = useState("");
+  const [isGenderDropOpen, setIsGenderDropOpen] = useState(false);
+  const [genderDropPos, setGenderDropPos]       = useState({ top: 0, left: 0, width: 0 });
+  const [isBranchDropOpen, setIsBranchDropOpen] = useState(false);
+  const [branchDropPos, setBranchDropPos]       = useState({ top: 0, left: 0, width: 0 });
+  const [isGroupDropOpen, setIsGroupDropOpen]   = useState(false);
+  const [groupDropPos, setGroupDropPos]         = useState({ top: 0, left: 0, width: 0 });
+  const [mounted, setMounted] = useState(false);
 
   // Shake etkisini temizlemek için useEffect
+  useEffect(() => { setMounted(true); }, []);
+
   useEffect(() => {
     if (localShake) {
       const timer = setTimeout(() => setLocalShake(false), 500);
@@ -130,15 +141,14 @@ export const StudentForm: React.FC<StudentFormProps> = ({
       setSelectedGroupIdForStudent("");
       setStudentGender("");
       setAvatarId(null);
+      setIsGenderDropOpen(false);
+      setIsBranchDropOpen(false);
+      setIsGroupDropOpen(false);
     }
   }, [isStudentFormOpen, editingStudent, selectedGroupId, setAvatarId, setStudentName, setStudentLastName, setStudentEmail, setStudentBranch, setStudentNote, setSelectedGroupIdForStudent, setStudentGender]);
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLocalErrors({});
-
-    const form = e.currentTarget;
-    const genderField = form.elements.namedItem("gender") as HTMLSelectElement;
-    const genderValue = genderField?.value;
 
     const data = {
       name: studentName,
@@ -147,7 +157,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
       branch: studentBranch,
       groupId: selectedGroupIdForStudent,
       note: studentNote,
-      gender: genderValue
+      gender: studentGender
     };
 
     // VALIDATION
@@ -203,12 +213,24 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-200">
-  <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md" onClick={() => setIsStudentFormOpen(false)} />
+    <>
+    <div className="fixed inset-0 z-[600] flex items-center justify-center p-6">
+  <motion.div
+    className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.3 }}
+    onClick={() => setIsStudentFormOpen(false)}
+  />
 
-  <form
+  <motion.form
     onSubmit={handleSubmit}
     className={`relative w-full max-w-5xl bg-white rounded-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] min-h-130 text-[#10294C] -mt-10 ${localShake ? 'error-shake' : ''}`}
+    initial={{ opacity: 0, y: 80 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: 60, transition: { duration: 0.2 } }}
+    transition={{ type: "spring", stiffness: 350, damping: 28 }}
   >
         <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
@@ -267,41 +289,25 @@ export const StudentForm: React.FC<StudentFormProps> = ({
                   <p className="text-[12px] font-semibold text-red-500 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">{emailErrorMsg}</p>
                 )}
               </div>
-              <div className="space-y-1.5 relative">
+              <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Cinsiyet</label>
-                <div className="relative">
-                  <select name="gender" value={studentGender || ""} onChange={(e) => {
-                    const g = e.target.value;
-                    setStudentGender(g);
-                    setAvatarId(getUnusedAvatar(g, students, editingStudent?.id ?? null, TOTAL_AVATARS));
-                  }} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all text-[14px] ${!studentGender ? 'text-neutral-400 font-normal' : 'text-[#10294C] font-bold'} ${localErrors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
-                    <option value="" disabled>Cinsiyet Seçiniz...</option>
-                    <option value="male" style={{ color: "#10294C", fontWeight: 600 }}>Erkek</option>
-                    <option value="female" style={{ color: "#10294C", fontWeight: 600 }}>Kadın</option>
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
+                <div onClick={(e) => { if (!isGenderDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGenderDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGenderDropOpen(!isGenderDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${localErrors.gender ? 'border-red-500 bg-red-50' : isGenderDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+                  <span className={`text-[14px] ${studentGender ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{studentGender === 'male' ? 'Erkek' : studentGender === 'female' ? 'Kadın' : 'Cinsiyet Seçiniz...'}</span>
+                  <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${isGenderDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
                 </div>
               </div>
-              <div className="space-y-1.5 relative">
+              <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Şube</label>
-                <div className="relative">
-                  <select value={studentBranch} onChange={(e) => setStudentBranch(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all text-[14px] ${!studentBranch ? 'text-neutral-400 font-normal' : 'text-[#10294C] font-bold'} ${localErrors.branch ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'}`}>
-                    <option value="" disabled>Şube Seçiniz...</option>
-                    <option value="Kadıköy" style={{ color: "#10294C", fontWeight: 600 }}>Kadıköy</option>
-                    <option value="Şirinevler" style={{ color: "#10294C", fontWeight: 600 }}>Şirinevler</option>
-                    <option value="Pendik" style={{ color: "#10294C", fontWeight: 600 }}>Pendik</option>
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
+                <div onClick={(e) => { if (!isBranchDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBranchDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsBranchDropOpen(!isBranchDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${localErrors.branch ? 'border-red-500 bg-red-50' : isBranchDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+                  <span className={`text-[14px] ${studentBranch ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{studentBranch || 'Şube Seçiniz...'}</span>
+                  <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${isBranchDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
                 </div>
               </div>
-              <div className="space-y-1.5 relative">
+              <div className="space-y-1.5">
                 <label className="text-[14px] font-semibold text-neutral-500 ml-1">Grup Seçimi</label>
-                <div className="relative">
-                  <select name="groupId" value={selectedGroupIdForStudent} onChange={(e) => setSelectedGroupIdForStudent(e.target.value)} className={`h-12 w-full border rounded-[12px] px-4 pr-10 outline-none appearance-none cursor-pointer transition-all font-bold text-[14px] ${localErrors.groupId ? 'border-red-500 bg-red-50' : 'border-neutral-100 bg-neutral-50 focus:border-orange-500 focus:bg-white'} ${!selectedGroupIdForStudent ? '!text-neutral-600' : '!text-[#10294C]'}`}>
-                    <option value="" disabled hidden>Bir grup seçin...</option>
-                    {groups.filter(g => g && (g.code || g.name)).map((g) => (<option key={g.id} value={g.id}>{g.code}{g.branch ? ` (${g.branch})` : ""}</option>))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
+                <div onClick={(e) => { if (!isGroupDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGroupDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGroupDropOpen(!isGroupDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${localErrors.groupId ? 'border-red-500 bg-red-50' : isGroupDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+                  <span className={`text-[14px] truncate ${selectedGroupIdForStudent ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{(() => { if (!selectedGroupIdForStudent) return 'Bir grup seçin...'; const g = groups.find(x => x.id === selectedGroupIdForStudent); return g ? `${g.code}${g.branch ? ` (${g.branch})` : ''}` : 'Bir grup seçin...'; })()}</span>
+                  <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${isGroupDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
                 </div>
               </div>
             </div>
@@ -320,7 +326,77 @@ export const StudentForm: React.FC<StudentFormProps> = ({
             {isSuccess ? <><Check size={24} strokeWidth={3} /><span>Öğrenci Kaydedildi</span></> : loading ? "Kaydediliyor..." : "Öğrenciyi Kaydet"}
           </button>
         </div>
-      </form>
+      </motion.form>
     </div>
+
+    {mounted && createPortal(
+      <>
+        {isGenderDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsGenderDropOpen(false)} />}
+        <AnimatePresence>
+          {isGenderDropOpen && (
+            <motion.div className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden"
+              initial={{ opacity: 0, y: -6, scaleY: 0.92 }} animate={{ opacity: 1, y: 0, scaleY: 1 }}
+              exit={{ opacity: 0, y: -6, scaleY: 0.92 }} transition={{ duration: 0.15 }}
+              style={{ transformOrigin: 'top', top: genderDropPos.top, left: genderDropPos.left, width: genderDropPos.width }}
+            >
+              {[{ value: 'male', label: 'Erkek' }, { value: 'female', label: 'Kadın' }].map(opt => (
+                <div key={opt.value} onClick={() => { setStudentGender(opt.value); setAvatarId(getUnusedAvatar(opt.value, students, editingStudent?.id ?? null, TOTAL_AVATARS)); setIsGenderDropOpen(false); }}
+                  className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                  <span className="text-[14px] font-medium text-neutral-700">{opt.label}</span>
+                  {studentGender === opt.value && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>, document.body
+    )}
+
+    {mounted && createPortal(
+      <>
+        {isBranchDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsBranchDropOpen(false)} />}
+        <AnimatePresence>
+          {isBranchDropOpen && (
+            <motion.div className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden"
+              initial={{ opacity: 0, y: -6, scaleY: 0.92 }} animate={{ opacity: 1, y: 0, scaleY: 1 }}
+              exit={{ opacity: 0, y: -6, scaleY: 0.92 }} transition={{ duration: 0.15 }}
+              style={{ transformOrigin: 'top', top: branchDropPos.top, left: branchDropPos.left, width: branchDropPos.width }}
+            >
+              {['Kadıköy', 'Şirinevler', 'Pendik'].map(loc => (
+                <div key={loc} onClick={() => { setStudentBranch(loc); setIsBranchDropOpen(false); }}
+                  className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                  <span className="text-[14px] font-medium text-neutral-700">{loc}</span>
+                  {studentBranch === loc && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>, document.body
+    )}
+
+    {mounted && createPortal(
+      <>
+        {isGroupDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsGroupDropOpen(false)} />}
+        <AnimatePresence>
+          {isGroupDropOpen && (
+            <motion.div className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden max-h-60 overflow-y-auto"
+              initial={{ opacity: 0, y: -6, scaleY: 0.92 }} animate={{ opacity: 1, y: 0, scaleY: 1 }}
+              exit={{ opacity: 0, y: -6, scaleY: 0.92 }} transition={{ duration: 0.15 }}
+              style={{ transformOrigin: 'top', top: groupDropPos.top, left: groupDropPos.left, width: groupDropPos.width }}
+            >
+              {groups.filter(g => g && (g.code || g.name)).map(g => (
+                <div key={g.id} onClick={() => { setSelectedGroupIdForStudent(g.id); setIsGroupDropOpen(false); }}
+                  className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                  <span className="text-[14px] font-medium text-neutral-700">{g.code}{g.branch ? ` (${g.branch})` : ''}</span>
+                  {selectedGroupIdForStudent === g.id && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>, document.body
+    )}
+    </>
   );
 };

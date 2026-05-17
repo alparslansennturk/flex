@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "TalkToFigma": {
-      "command": "node",
+      "command": "bunx",
       "args": [
-        "D:/Alp/Eğitim/Yazılım Proje/mcp-server/dist/talk_to_figma_mcp/server.js"
+        "cursor-talk-to-figma-mcp@latest"
       ]
     }
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { X, GraduationCap, Zap, BookOpen, Star } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, query, where, getDocs, getDoc, doc, onSnapshot, documentId } from "firebase/firestore";
@@ -593,18 +594,30 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
   const g1Pct = g1Stats.maxXP > 0 ? Math.round((g1Stats.xp / g1Stats.maxXP) * 100) : 0;
   const g2Pct = g2Stats.maxXP > 0 ? Math.round((g2Stats.xp / g2Stats.maxXP) * 100) : 0;
 
-  const handleClose = () => { setVisible(false); setTimeout(onClose, 280); };
+  const handleClose = () => setVisible(false);
 
   return (
-    <div className={`fixed inset-0 z-200 flex items-center justify-center p-4 sm:p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
+    <AnimatePresence onExitComplete={onClose}>
+    {visible && (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
       {/* Arka plan */}
-      <div
-        className={`absolute inset-0 bg-base-primary-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
+      <motion.div
+        className="absolute inset-0 bg-base-primary-900/40 backdrop-blur-md"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3 }}
         onClick={handleClose}
       />
 
       {/* Kart */}
-      <div className={`relative bg-white rounded-24 shadow-2xl w-full max-w-4xl max-h-[94vh] overflow-y-auto z-10 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-6"}`}>
+      <motion.div
+        className="relative bg-white rounded-24 shadow-2xl w-full max-w-4xl max-h-[94vh] overflow-y-auto z-10"
+        initial={{ opacity: 0, y: 80 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 60, transition: { duration: 0.2 } }}
+        transition={{ type: "spring", stiffness: 350, damping: 28 }}
+      >
 
         {/* Kapat */}
         <button
@@ -801,7 +814,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
 
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
+    )}
+    </AnimatePresence>
   );
 }

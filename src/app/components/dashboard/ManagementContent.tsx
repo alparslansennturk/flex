@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid, ChevronDown } from "lucide-react";
 import { GlobalConfirmationModal, StudentDeleteModal } from "./management-components/Modals";
 import { StudentTable } from "./student-management/StudentTable";
@@ -154,9 +155,24 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         </div>
 
         {/* GRUP FORM MODAL */}
-        <div className={`fixed inset-0 z-[500] flex items-center justify-center p-6 ${isFormOpen ? "visible" : "invisible pointer-events-none"}`}>
-          <div className={`absolute inset-0 bg-[#10294C]/60 backdrop-blur-md transition-opacity duration-500 ${isFormOpen ? "opacity-100" : "opacity-0"}`} onClick={handleCancel} />
-          <div className={`relative w-full max-w-4xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isFormOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
+        <AnimatePresence>
+          {isFormOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6">
+          <motion.div
+            className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={handleCancel}
+          />
+          <motion.div
+            className="relative w-full max-w-4xl"
+            initial={{ opacity: 0, y: 80 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 60, transition: { duration: 0.2 } }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+          >
             <GroupForm
               isAdmin={isAdmin}
               isFormOpen={isFormOpen}
@@ -199,8 +215,10 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
               handleSave={handleSave}
               scheduleRef={scheduleRef}
             />
-          </div>
+          </motion.div>
         </div>
+          )}
+        </AnimatePresence>
 
           {/* Modül değişiklik engel modalı */}
           {moduleBlockModal?.isOpen && (
@@ -388,9 +406,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             </div>
 
             {/* ÖĞRENCİ FORM MODALİ */}
-            <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 ${isStudentFormOpen ? "visible" : "invisible pointer-events-none"}`}>
-              <div className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isStudentFormOpen ? "opacity-100" : "opacity-0"}`} onClick={() => setIsStudentFormOpen(false)} />
-              <div className={`relative w-full max-w-5xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isStudentFormOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
+            <AnimatePresence>
+              {isStudentFormOpen && (
                 <StudentForm
                   isStudentFormOpen={isStudentFormOpen}
                   groups={isAdmin ? groups : myGroupCards}
@@ -416,8 +433,8 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                   setSelectedGroupIdForStudent={setSelectedGroupIdForStudent}
                   selectedGroupId={selectedGroupId}
                 />
-              </div>
-            </div>
+              )}
+            </AnimatePresence>
 
             {/* TABLO */}
             <div className="w-full overflow-hidden">

@@ -1,5 +1,7 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { X, UserPlus, Check, ChevronDown, ClipboardList, Users, LayoutDashboard, Lock } from "lucide-react";
 
 interface UserData {
@@ -53,26 +55,48 @@ export const UserForm: React.FC<UserFormProps> = ({
     availableBranches, selectedBranches, setSelectedBranches,
 }) => {
     const [localGender, setLocalGender] = useState<string>(editingUser?.gender || "");
-    const [isVisible, setIsVisible] = useState(false);
+    const [localLocation, setLocalLocation] = useState<string>(editingUser?.branch || "");
+    const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+    const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
+    const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+    const branchDropdownRef = useRef<HTMLDivElement>(null);
+    const [roleDropPos, setRoleDropPos]         = useState({ top: 0, left: 0, width: 0 });
+    const [branchDropPos, setBranchDropPos]     = useState({ top: 0, left: 0, width: 0 });
+    const [genderDropPos, setGenderDropPos]     = useState({ top: 0, left: 0, width: 0 });
+    const [locationDropPos, setLocationDropPos] = useState({ top: 0, left: 0, width: 0 });
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => { setMounted(true); }, []);
 
     useEffect(() => {
-        if (isFormOpen) {
-            const frame = requestAnimationFrame(() => setIsVisible(true));
-            return () => cancelAnimationFrame(frame);
-        } else {
-            setIsVisible(false);
-        }
+        if (!isFormOpen) { setIsBranchDropdownOpen(false); setIsGenderDropdownOpen(false); setIsLocationDropdownOpen(false); }
     }, [isFormOpen]);
 
     useEffect(() => {
         setLocalGender(editingUser?.gender || "");
+        setLocalLocation(editingUser?.branch || "");
     }, [editingUser, isFormOpen]);
 
     return (
-        <div className={`fixed inset-0 z-[600] flex items-center justify-center p-6 transition-all duration-300 ${isVisible ? "visible" : "invisible pointer-events-none"}`}>
-            <div className={`absolute inset-0 bg-[#10294C]/40 backdrop-blur-md transition-opacity duration-500 ${isVisible ? "opacity-100" : "opacity-0"}`}
-                onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }} />
-            <div className={`relative w-full max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform ${isVisible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"}`}>
+        <>
+        <AnimatePresence>
+        {isFormOpen && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6">
+            <motion.div
+                className="absolute inset-0 bg-[#10294C]/40 backdrop-blur-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                onClick={() => { setIsUserFormOpen(false); setEditingUser(null); }}
+            />
+            <motion.div
+                className="relative w-full max-w-6xl"
+                initial={{ opacity: 0, y: 80 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 60, transition: { duration: 0.2 } }}
+                transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            >
                 <form 
     key={editingUser?.id || "yeni-kullanici"} 
     onSubmit={handleSaveUser} 
@@ -96,19 +120,18 @@ export const UserForm: React.FC<UserFormProps> = ({
     </div>
 
     {/* SCROLLABLE GÖVDE - Kaydırılabilir Alan */}
-  <div 
-  className="flex-1 overflow-y-auto p-10 flex flex-col gap-10 custom-scrollbar"
+  <div
+  className="flex-1 overflow-y-scroll p-8 flex flex-col gap-5 custom-scrollbar"
   style={{
-    scrollbarWidth: 'auto', // Firefox için
-    scrollbarColor: '#10294C #F4F7FB', // Firefox için
-    msOverflowStyle: 'auto', // Edge/IE için
+    scrollbarWidth: 'thin',
+    scrollbarColor: '#10294C #F4F7FB',
   }}
 >
     
         
         {/* Profil ve Temel Bilgiler */}
-        <div className="flex gap-12 border-b border-neutral-100 pb-12 shrink-0">
-            <div className="w-48 h-48 rounded-[32px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shrink-0 shadow-inner group flex items-center justify-center">
+        <div className="flex gap-8 items-end border-b border-neutral-100 pb-5 shrink-0">
+            <div className="w-36 h-36 rounded-[24px] bg-neutral-50 border-2 border-dashed border-neutral-200 overflow-hidden relative shrink-0 shadow-inner group flex items-center justify-center">
                 {localGender ? (
                     <img
                         key={`${localGender}-${avatarId}`}
@@ -152,108 +175,78 @@ export const UserForm: React.FC<UserFormProps> = ({
             </div>
         </div>
 
-        {/* Roller ve Ek Bilgiler */}
-        <div className="grid grid-cols-3 gap-6 shrink-0">
-            <div className="space-y-1 relative h-[72px]" ref={roleDropdownRef}>
+        {/* Rol + Branş + Ünvan + Şube + Cinsiyet + Doğum */}
+        <div className="grid grid-cols-4 gap-4 shrink-0">
+
+            {/* Rol */}
+            <div className="space-y-1 relative" ref={roleDropdownRef}>
                 <label className="text-[12px] font-bold text-neutral-500 ml-1">Rol</label>
-                <div onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <span className={`text-[14px] truncate ${selectedRoles.length > 0 ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-600'}`}>{selectedRoles.length > 0 ? selectedRoles.map((r: any) => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Rol Seçiniz...'}</span>
-                    <ChevronDown size={18} className={`transition-transform duration-300 ${isRoleDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
+                <div onClick={(e) => { if (!isRoleDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setRoleDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsRoleDropdownOpen(!isRoleDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <span className={`text-[13px] truncate ${selectedRoles.length > 0 ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>{selectedRoles.length > 0 ? selectedRoles.map((r: any) => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Rol Seçiniz...'}</span>
+                    <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isRoleDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
                 </div>
-                {isRoleDropdownOpen && (
-                    <div className="absolute top-[76px] left-0 w-full bg-white border border-neutral-200 shadow-lg rounded-xl z-[999] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        {['admin', 'instructor'].map((r: string) => (
-                            <label key={r} className="flex items-center gap-3 p-4 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
-                                <div className="relative flex items-center justify-center w-[18px] h-[18px] shrink-0">
-                                    <input type="checkbox" checked={selectedRoles.includes(r)} onChange={() => handleRoleToggle(r)} className="peer absolute w-full h-full opacity-0 cursor-pointer z-10" />
-                                    <div className="w-full h-full border-2 border-neutral-300 rounded-[4px] peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-all" />
-                                    <Check size={14} className="absolute text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none" strokeWidth={4} />
-                                </div>
-                                <span className="text-[14px] font-medium text-neutral-700">{r === 'admin' ? 'Admin' : 'Eğitmen'}</span>
-                            </label>
-                        ))}
-                    </div>
-                )}
             </div>
+
+            {/* Branş — Rol'ün yanında, sadece eğitmen seçilince aktif */}
+            <div className="space-y-1 relative" ref={branchDropdownRef}>
+                <label className="text-[12px] font-bold text-neutral-500 ml-1">Branş</label>
+                <div
+                    onClick={(e) => { if (selectedRoles.includes('instructor') && availableBranches.length > 0) { if (!isBranchDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBranchDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsBranchDropdownOpen(!isBranchDropdownOpen); } }}
+                    className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between transition-all duration-200 ${
+                        !selectedRoles.includes('instructor')
+                            ? 'border-neutral-100 bg-neutral-50 opacity-40 cursor-not-allowed'
+                            : isBranchDropdownOpen
+                                ? 'border-orange-500 bg-white cursor-pointer'
+                                : 'border-neutral-200 bg-neutral-50 cursor-pointer'
+                    }`}
+                >
+                    <span className={`text-[13px] truncate ${selectedBranches.length > 0 ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>
+                        {!selectedRoles.includes('instructor')
+                            ? 'Eğitmen rolü gerekli'
+                            : selectedBranches.length === 0
+                                ? 'Branş Seçiniz...'
+                                : availableBranches.filter(b => selectedBranches.includes(b.id)).map(b => b.name).join(', ')}
+                    </span>
+                    <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isBranchDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
+                </div>
+            </div>
+
+            {/* Ünvan */}
             <div className="space-y-1">
                 <label className="text-[12px] font-bold text-neutral-500 ml-1">Ünvan</label>
-                <input name="title" defaultValue={editingUser?.title} placeholder="Örn: Eğitmen | Arı Bilgi" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.title ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                <input name="title" defaultValue={editingUser?.title} placeholder="Örn: Grafik Tasarım Eğitmeni" className={`h-12 w-full border rounded-xl px-4 outline-none transition-all font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal ${errors.title ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
             </div>
+
+            {/* Şube (coğrafi) */}
             <div className="space-y-1">
                 <label className="text-[12px] font-bold text-neutral-500 ml-1">Şube</label>
-                <div className="relative">
-                    <select name="branch" defaultValue={editingUser?.branch || ""} className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold text-neutral-800 transition-all ${errors.branch ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`}>
-                        <option value="" disabled hidden>Şube Seçiniz...</option>
-                        <option value="Kadıköy Şb">Kadıköy Şb</option>
-                        <option value="Şirinevler Şb">Şirinevler Şb</option>
-                        <option value="Pendik Şb">Pendik Şb</option>
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
+                <input type="hidden" name="branch" value={localLocation} />
+                <div onClick={(e) => { if (!isLocationDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setLocationDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsLocationDropdownOpen(!isLocationDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.branch ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isLocationDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <span className={`text-[13px] ${localLocation ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>{localLocation || 'Şube Seçiniz...'}</span>
+                    <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isLocationDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
                 </div>
             </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-6 shrink-0">
-            <div className="space-y-1 relative">
+            {/* Cinsiyet */}
+            <div className="space-y-1">
                 <label className="text-[12px] font-bold text-neutral-500 ml-1">Cinsiyet</label>
-                <div className="relative">
-                    <select
-                        name="gender"
-                        value={localGender}
-                        onChange={(e) => {
-                            const val = e.target.value as 'male' | 'female';
-                            setLocalGender(val);
-                            if (editingUser) setEditingUser({ ...editingUser, gender: val });
-                            if (!avatarId) setAvatarId(1);
-                        }}
-                        className={`h-12 w-full border rounded-xl px-4 pr-10 outline-none cursor-pointer appearance-none font-semibold transition-all ${!localGender ? 'text-neutral-600' : 'text-[#10294C] font-bold'} ${errors.gender ? 'border-red-500 bg-red-50' : 'border-neutral-200 bg-neutral-50'}`}
-                    >
-                        <option value="" disabled>Cinsiyet Seçiniz...</option>
-                        <option value="male">Erkek</option>
-                        <option value="female">Kadın</option>
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400"><ChevronDown size={18} /></div>
+                <input type="hidden" name="gender" value={localGender} />
+                <div onClick={(e) => { if (!isGenderDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGenderDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGenderDropdownOpen(!isGenderDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.gender ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isGenderDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <span className={`text-[13px] ${localGender ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>{localGender === 'male' ? 'Erkek' : localGender === 'female' ? 'Kadın' : 'Cinsiyet Seçiniz...'}</span>
+                    <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isGenderDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
                 </div>
             </div>
+
+            {/* Doğum Tarihi */}
             <div className="space-y-1">
                 <label className="text-[12px] font-bold text-neutral-500 ml-1">Doğum Tarihi</label>
                 <input name="birthDate" defaultValue={editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: any) => { let v = e.target.value.replace(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); e.target.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
             </div>
+
         </div>
 
-        {/* BRANŞLAR */}
-        {selectedRoles.includes('instructor') && availableBranches.length > 0 && (
-            <div className="space-y-3 shrink-0">
-                <div>
-                    <p className="text-[15px] font-bold text-[#10294C]">Branşlar</p>
-                    <p className="text-[12px] text-neutral-400 mt-0.5">Eğitmenin ders verebileceği branşları seçin</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {availableBranches.map(b => {
-                        const checked = selectedBranches.includes(b.id);
-                        return (
-                            <button
-                                key={b.id}
-                                type="button"
-                                onClick={() => setSelectedBranches(prev =>
-                                    prev.includes(b.id) ? prev.filter(x => x !== b.id) : [...prev, b.id]
-                                )}
-                                className={`px-5 h-10 rounded-xl border-2 font-bold text-[13px] transition-all cursor-pointer ${
-                                    checked
-                                        ? 'bg-[#10294C] border-[#10294C] text-white'
-                                        : 'bg-neutral-50 border-neutral-200 text-neutral-500 hover:border-neutral-300'
-                                }`}
-                            >
-                                {b.name}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-        )}
-
         {/* EK YETKİLER */}
-        <div className="space-y-4 pb-10">
+        <div className="space-y-4 pb-2">
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-[15px] font-bold text-[#10294C]">Ek Yetkiler</p>
@@ -280,7 +273,7 @@ export const UserForm: React.FC<UserFormProps> = ({
                                     ? 'bg-purple-50/60 border-l-purple-400 cursor-default'
                                     : isEnabled
                                     ? 'bg-indigo-50/50 border-l-indigo-500 cursor-pointer hover:bg-indigo-50'
-                                    : 'bg-neutral-50 border-l-transparent border border-neutral-100 cursor-pointer hover:bg-neutral-100/70'
+                                    : 'bg-neutral-50 border-l-transparent shadow-[inset_0_0_0_1px_theme(colors.neutral.100)] cursor-pointer hover:bg-neutral-100/70'
                             }`}
                         >
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
@@ -332,7 +325,148 @@ export const UserForm: React.FC<UserFormProps> = ({
         </button>
     </div>
 </form>
-            </div>
+            </motion.div>
         </div>
+        )}
+        </AnimatePresence>
+
+        {/* Rol dropdown portal — document.body'ye render edilir, form transform'undan etkilenmez */}
+        {mounted && createPortal(
+            <>
+                {isRoleDropdownOpen && (
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsRoleDropdownOpen(false)} />
+                )}
+                <AnimatePresence>
+                    {isRoleDropdownOpen && (
+                        <motion.div
+                            className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden"
+                            initial={{ opacity: 0, y: -6, scaleY: 0.92 }}
+                            animate={{ opacity: 1, y: 0, scaleY: 1 }}
+                            exit={{ opacity: 0, y: -6, scaleY: 0.92 }}
+                            transition={{ duration: 0.15 }}
+                            style={{ transformOrigin: 'top', top: roleDropPos.top, left: roleDropPos.left, width: roleDropPos.width }}
+                        >
+                            {['admin', 'instructor'].map((r: string) => (
+                                <label key={r} className="flex items-center gap-3 p-4 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                                    <div className="relative flex items-center justify-center w-[18px] h-[18px] shrink-0">
+                                        <input type="checkbox" checked={selectedRoles.includes(r)} onChange={() => handleRoleToggle(r)} className="peer absolute w-full h-full opacity-0 cursor-pointer z-10" />
+                                        <div className="w-full h-full border-2 border-neutral-300 rounded-[4px] peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-all" />
+                                        <Check size={14} className="absolute text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none" strokeWidth={4} />
+                                    </div>
+                                    <span className="text-[14px] font-medium text-neutral-700">{r === 'admin' ? 'Admin' : 'Eğitmen'}</span>
+                                </label>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </>,
+            document.body
+        )}
+
+        {/* Cinsiyet dropdown portal — tek seçim, seçince kapanır */}
+        {mounted && createPortal(
+            <>
+                {isGenderDropdownOpen && (
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsGenderDropdownOpen(false)} />
+                )}
+                <AnimatePresence>
+                    {isGenderDropdownOpen && (
+                        <motion.div
+                            className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden"
+                            initial={{ opacity: 0, y: -6, scaleY: 0.92 }}
+                            animate={{ opacity: 1, y: 0, scaleY: 1 }}
+                            exit={{ opacity: 0, y: -6, scaleY: 0.92 }}
+                            transition={{ duration: 0.15 }}
+                            style={{ transformOrigin: 'top', top: genderDropPos.top, left: genderDropPos.left, width: genderDropPos.width }}
+                        >
+                            {[{ value: 'male', label: 'Erkek' }, { value: 'female', label: 'Kadın' }].map(opt => (
+                                <div
+                                    key={opt.value}
+                                    onClick={() => {
+                                        const val = opt.value as 'male' | 'female';
+                                        setLocalGender(val);
+                                        if (editingUser) setEditingUser({ ...editingUser, gender: val });
+                                        if (!avatarId) setAvatarId(1);
+                                        setIsGenderDropdownOpen(false);
+                                    }}
+                                    className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100"
+                                >
+                                    <span className="text-[14px] font-medium text-neutral-700">{opt.label}</span>
+                                    {localGender === opt.value && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+                                </div>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </>,
+            document.body
+        )}
+
+        {/* Şube (coğrafi) dropdown portal */}
+        {mounted && createPortal(
+            <>
+                {isLocationDropdownOpen && (
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsLocationDropdownOpen(false)} />
+                )}
+                <AnimatePresence>
+                    {isLocationDropdownOpen && (
+                        <motion.div
+                            className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden"
+                            initial={{ opacity: 0, y: -6, scaleY: 0.92 }}
+                            animate={{ opacity: 1, y: 0, scaleY: 1 }}
+                            exit={{ opacity: 0, y: -6, scaleY: 0.92 }}
+                            transition={{ duration: 0.15 }}
+                            style={{ transformOrigin: 'top', top: locationDropPos.top, left: locationDropPos.left, width: locationDropPos.width }}
+                        >
+                            {['Kadıköy Şb', 'Şirinevler Şb', 'Pendik Şb'].map(loc => (
+                                <div
+                                    key={loc}
+                                    onClick={() => { setLocalLocation(loc); setIsLocationDropdownOpen(false); }}
+                                    className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100"
+                                >
+                                    <span className="text-[14px] font-medium text-neutral-700">{loc}</span>
+                                    {localLocation === loc && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+                                </div>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </>,
+            document.body
+        )}
+
+        {/* Branş dropdown portal */}
+        {mounted && createPortal(
+            <>
+                {isBranchDropdownOpen && selectedRoles.includes('instructor') && (
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsBranchDropdownOpen(false)} />
+                )}
+                <AnimatePresence>
+                    {isBranchDropdownOpen && selectedRoles.includes('instructor') && (
+                        <motion.div
+                            className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden"
+                            initial={{ opacity: 0, y: -6, scaleY: 0.92 }}
+                            animate={{ opacity: 1, y: 0, scaleY: 1 }}
+                            exit={{ opacity: 0, y: -6, scaleY: 0.92 }}
+                            transition={{ duration: 0.15 }}
+                            style={{ transformOrigin: 'top', top: branchDropPos.top, left: branchDropPos.left, width: branchDropPos.width }}
+                        >
+                            {availableBranches.map(b => (
+                                <label key={b.id} className="flex items-center gap-3 p-4 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                                    <div className="relative flex items-center justify-center w-[18px] h-[18px] shrink-0">
+                                        <input type="checkbox" checked={selectedBranches.includes(b.id)} onChange={() => setSelectedBranches(prev => prev.includes(b.id) ? prev.filter(x => x !== b.id) : [...prev, b.id])} className="peer absolute w-full h-full opacity-0 cursor-pointer z-10" />
+                                        <div className="w-full h-full border-2 border-neutral-300 rounded-[4px] peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-all" />
+                                        <Check size={14} className="absolute text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none" strokeWidth={4} />
+                                    </div>
+                                    <span className="text-[14px] font-medium text-neutral-700">{b.name}</span>
+                                </label>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </>,
+            document.body
+        )}
+        </>
     );
 };

@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { X, ChevronDown, Check, Users, Calendar } from "lucide-react";
 import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
 
@@ -64,9 +66,26 @@ export const GroupForm: React.FC<GroupFormProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [shake, setShake]         = useState(false);
   const [dateDisplay, setDateDisplay] = useState("");
+  const [isLocDropOpen, setIsLocDropOpen]           = useState(false);
+  const [locDropPos, setLocDropPos]                 = useState({ top: 0, left: 0, width: 0 });
+  const [isDisciplineDropOpen, setIsDisciplineDropOpen] = useState(false);
+  const [disciplineDropPos, setDisciplineDropPos]   = useState({ top: 0, left: 0, width: 0 });
+  const [isInstructorDropOpen, setIsInstructorDropOpen] = useState(false);
+  const [instructorDropPos, setInstructorDropPos]   = useState({ top: 0, left: 0, width: 0 });
+  const [isScheduleDropOpen, setIsScheduleDropOpen] = useState(false);
+  const [scheduleDropPos, setScheduleDropPos]       = useState({ top: 0, left: 0, width: 0 });
+  const [isModuleDropOpen, setIsModuleDropOpen]     = useState(false);
+  const [moduleDropPos, setModuleDropPos]           = useState({ top: 0, left: 0, width: 0 });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    if (!isFormOpen) { setIsSuccess(false); setLoading(false); }
+    if (!isFormOpen) {
+      setIsSuccess(false); setLoading(false);
+      setIsLocDropOpen(false); setIsDisciplineDropOpen(false);
+      setIsInstructorDropOpen(false); setIsScheduleDropOpen(false); setIsModuleDropOpen(false);
+    }
   }, [isFormOpen]);
 
   // groupStartDate (YYYY-MM-DD) → dd/mm/yy görüntüsünü senkronize et
@@ -134,7 +153,15 @@ export const GroupForm: React.FC<GroupFormProps> = ({
     ? instructors.filter(i => !i.branches || i.branches.length === 0 || i.branches.includes(groupDiscipline))
     : instructors;
 
+  const dropProps = {
+    initial: { opacity: 0, y: -6, scaleY: 0.92 as number },
+    animate: { opacity: 1, y: 0, scaleY: 1 as number },
+    exit:    { opacity: 0, y: -6, scaleY: 0.92 as number },
+    transition: { duration: 0.15 },
+  };
+
   return (
+    <>
     <div className={`relative w-full bg-white rounded-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-[#10294C] ${shake ? "error-shake" : ""}`}>
 
       {/* Header */}
@@ -183,34 +210,17 @@ export const GroupForm: React.FC<GroupFormProps> = ({
         <div className="grid grid-cols-3 gap-6">
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Şube</label>
-            <div className="relative">
-              <select
-                value={groupBranch}
-                onChange={e => { setGroupBranch(e.target.value); if (errors.duplicate) setErrors({ ...errors, duplicate: "" }); }}
-                className={`${selectBase} ${inputNormal}`}
-              >
-                <option value="Kadıköy">Kadıköy</option>
-                <option value="Şirinevler">Şirinevler</option>
-                <option value="Pendik">Pendik</option>
-              </select>
-              <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            <div onClick={(e) => { if (!isLocDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setLocDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsLocDropOpen(!isLocDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${isLocDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+              <span className={`text-[14px] ${groupBranch ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{groupBranch || 'Seçiniz...'}</span>
+              <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isLocDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
             </div>
           </div>
 
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Branş</label>
-            <div className="relative">
-              <select
-                value={groupDiscipline}
-                onChange={e => handleDisciplineChange(e.target.value)}
-                className={`${selectBase} ${inputNormal}`}
-              >
-                <option value="">Seçiniz...</option>
-                {availableBranches.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            <div onClick={(e) => { if (!isDisciplineDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setDisciplineDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsDisciplineDropOpen(!isDisciplineDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${isDisciplineDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+              <span className={`text-[14px] ${groupDiscipline ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{availableBranches.find(b => b.id === groupDiscipline)?.name || 'Seçiniz...'}</span>
+              <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isDisciplineDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
             </div>
           </div>
 
@@ -235,36 +245,18 @@ export const GroupForm: React.FC<GroupFormProps> = ({
                 {instructors.find(i => i.id === selectedInstructorId)?.displayName || "Eğitmen Tanımlanıyor..."}
               </div>
             ) : (
-              <div className="relative">
-                <select
-                  value={selectedInstructorId}
-                  onChange={e => { setSelectedInstructorId(e.target.value); if (errors.instructor) setErrors({ ...errors, instructor: "" }); }}
-                  className={`${selectBase} ${errors.instructor ? inputError : inputNormal}`}
-                >
-                  <option value="">Eğitmen Seçiniz</option>
-                  {visibleInstructors.map(ins => (
-                    <option key={ins.id} value={ins.id}>{ins.displayName}</option>
-                  ))}
-                </select>
-                <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+              <div onClick={(e) => { if (!isInstructorDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setInstructorDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsInstructorDropOpen(!isInstructorDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.instructor ? 'border-red-400 bg-red-50' : isInstructorDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+                <span className={`text-[14px] ${selectedInstructorId ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{visibleInstructors.find(i => i.id === selectedInstructorId)?.displayName || 'Eğitmen Seçiniz'}</span>
+                <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isInstructorDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
               </div>
             )}
           </div>
 
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Seans</label>
-            <div className="relative">
-              <select
-                value={selectedSchedule}
-                onChange={e => { setSelectedSchedule(e.target.value); if (errors.schedule) setErrors({ ...errors, schedule: "" }); }}
-                className={`${selectBase} ${errors.schedule ? inputError : inputNormal}`}
-              >
-                <option value="Grup seansı seçiniz..." disabled>Grup seansı seçiniz...</option>
-                {schedules.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            <div onClick={(e) => { if (!isScheduleDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setScheduleDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsScheduleDropOpen(!isScheduleDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.schedule ? 'border-red-400 bg-red-50' : isScheduleDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+              <span className={`text-[14px] truncate ${selectedSchedule && selectedSchedule !== 'Grup seansı seçiniz...' ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{selectedSchedule && selectedSchedule !== 'Grup seansı seçiniz...' ? selectedSchedule : 'Grup seansı seçiniz...'}</span>
+              <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isScheduleDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
             </div>
           </div>
 
@@ -310,28 +302,9 @@ export const GroupForm: React.FC<GroupFormProps> = ({
               <label className={`text-[13px] font-semibold ml-1 ${branchModules.length > 0 ? "text-neutral-500" : "text-neutral-300"}`}>
                 Modül
               </label>
-              <div className="relative">
-                <select
-                  value={selectedModuleId}
-                  onChange={e => {
-                    setSelectedModuleId(e.target.value);
-                    const mod = branchModules.find(m => m.id === e.target.value);
-                    if (mod) {
-                      const n = mod.name.toLowerCase();
-                      if (n.includes("grafik") && (n.includes("-1") || n.includes("1"))) setGroupModule("GRAFIK_1");
-                      else if (n.includes("grafik") && (n.includes("-2") || n.includes("2"))) setGroupModule("GRAFIK_2");
-                      else setGroupModule("");
-                    } else setGroupModule("");
-                  }}
-                  disabled={branchModules.length === 0}
-                  className={`${selectBase} ${branchModules.length > 0 ? inputNormal : "border-neutral-100 bg-neutral-100 text-neutral-300 cursor-not-allowed"}`}
-                >
-                  <option value="">{branchModules.length > 0 ? "Belirtilmemiş" : "Önce branş seçin"}</option>
-                  {branchModules.map(m => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.totalHours} saat)</option>
-                  ))}
-                </select>
-                <ChevronDown size={16} className={`absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${branchModules.length > 0 ? "text-neutral-400" : "text-neutral-300"}`} />
+              <div onClick={(e) => { if (branchModules.length === 0) return; if (!isModuleDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setModuleDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsModuleDropOpen(!isModuleDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between transition-all duration-200 ${branchModules.length === 0 ? 'border-neutral-100 bg-neutral-100 cursor-not-allowed opacity-60' : isModuleDropOpen ? 'border-orange-500 bg-white cursor-pointer' : 'border-neutral-100 bg-neutral-50 cursor-pointer'}`}>
+                <span className={`text-[14px] truncate ${selectedModuleId ? 'font-bold text-[#10294C]' : branchModules.length === 0 ? 'text-neutral-300' : 'font-normal text-neutral-400'}`}>{selectedModuleId ? (() => { const m = branchModules.find(x => x.id === selectedModuleId); return m ? `${m.name} (${m.totalHours} saat)` : 'Belirtilmemiş'; })() : branchModules.length > 0 ? 'Belirtilmemiş' : 'Önce branş seçin'}</span>
+                <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isModuleDropOpen ? 'rotate-180 text-orange-500' : branchModules.length === 0 ? 'text-neutral-300' : 'text-neutral-400'}`} />
               </div>
             </div>
           )}
@@ -393,5 +366,94 @@ export const GroupForm: React.FC<GroupFormProps> = ({
         </button>
       </div>
     </div>
+
+    {mounted && createPortal(<>
+      {isLocDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsLocDropOpen(false)} />}
+      <AnimatePresence>
+        {isLocDropOpen && (
+          <motion.div {...dropProps} className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden" style={{ transformOrigin: 'top', top: locDropPos.top, left: locDropPos.left, width: locDropPos.width }}>
+            {['Kadıköy', 'Şirinevler', 'Pendik'].map(loc => (
+              <div key={loc} onClick={() => { setGroupBranch(loc); if (errors.duplicate) setErrors({ ...errors, duplicate: "" }); setIsLocDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                <span className="text-[14px] font-medium text-neutral-700">{loc}</span>
+                {groupBranch === loc && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>, document.body)}
+
+    {mounted && createPortal(<>
+      {isDisciplineDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsDisciplineDropOpen(false)} />}
+      <AnimatePresence>
+        {isDisciplineDropOpen && (
+          <motion.div {...dropProps} className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden" style={{ transformOrigin: 'top', top: disciplineDropPos.top, left: disciplineDropPos.left, width: disciplineDropPos.width }}>
+            <div onClick={() => { handleDisciplineChange(""); setIsDisciplineDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b border-neutral-100">
+              <span className="text-[14px] font-medium text-neutral-400 italic">Seçilmemiş</span>
+              {!groupDiscipline && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+            </div>
+            {availableBranches.map(b => (
+              <div key={b.id} onClick={() => { handleDisciplineChange(b.id); setIsDisciplineDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                <span className="text-[14px] font-medium text-neutral-700">{b.name}</span>
+                {groupDiscipline === b.id && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>, document.body)}
+
+    {mounted && createPortal(<>
+      {isInstructorDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsInstructorDropOpen(false)} />}
+      <AnimatePresence>
+        {isInstructorDropOpen && (
+          <motion.div {...dropProps} className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden max-h-60 overflow-y-auto" style={{ transformOrigin: 'top', top: instructorDropPos.top, left: instructorDropPos.left, width: instructorDropPos.width }}>
+            {visibleInstructors.map(ins => (
+              <div key={ins.id} onClick={() => { setSelectedInstructorId(ins.id); if (errors.instructor) setErrors({ ...errors, instructor: "" }); setIsInstructorDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                <span className="text-[14px] font-medium text-neutral-700">{ins.displayName}</span>
+                {selectedInstructorId === ins.id && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>, document.body)}
+
+    {mounted && createPortal(<>
+      {isScheduleDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsScheduleDropOpen(false)} />}
+      <AnimatePresence>
+        {isScheduleDropOpen && (
+          <motion.div {...dropProps} className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden max-h-60 overflow-y-auto" style={{ transformOrigin: 'top', top: scheduleDropPos.top, left: scheduleDropPos.left, width: scheduleDropPos.width }}>
+            {schedules.map(s => (
+              <div key={s} onClick={() => { setSelectedSchedule(s); if (errors.schedule) setErrors({ ...errors, schedule: "" }); setIsScheduleDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                <span className="text-[14px] font-medium text-neutral-700">{s}</span>
+                {selectedSchedule === s && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>, document.body)}
+
+    {mounted && createPortal(<>
+      {isModuleDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsModuleDropOpen(false)} />}
+      <AnimatePresence>
+        {isModuleDropOpen && (
+          <motion.div {...dropProps} className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden" style={{ transformOrigin: 'top', top: moduleDropPos.top, left: moduleDropPos.left, width: moduleDropPos.width }}>
+            <div onClick={() => { setSelectedModuleId(""); setGroupModule(""); setIsModuleDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b border-neutral-100">
+              <span className="text-[14px] font-medium text-neutral-400 italic">Belirtilmemiş</span>
+              {!selectedModuleId && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+            </div>
+            {branchModules.map(m => (
+              <div key={m.id} onClick={() => { setSelectedModuleId(m.id); const n = m.name.toLowerCase(); if (n.includes("grafik") && (n.includes("-1") || n.includes("1"))) setGroupModule("GRAFIK_1"); else if (n.includes("grafik") && (n.includes("-2") || n.includes("2"))) setGroupModule("GRAFIK_2"); else setGroupModule(""); setIsModuleDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                <span className="text-[14px] font-medium text-neutral-700">{m.name} ({m.totalHours} saat)</span>
+                {selectedModuleId === m.id && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>, document.body)}
+    </>
   );
 };

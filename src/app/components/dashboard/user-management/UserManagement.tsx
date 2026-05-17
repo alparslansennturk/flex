@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { UserPlus, Users, GraduationCap, GitBranch } from "lucide-react";
+import { UserPlus, Users, GraduationCap } from "lucide-react";
 import { auth, db } from "@/app/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { setDoc, doc, serverTimestamp, collection, onSnapshot, query, deleteDoc } from "firebase/firestore";
@@ -9,7 +9,6 @@ import { UserTable } from "./UserTable";
 import { UserForm } from "./UserForm";
 import { StudentUserTable } from "./StudentUserTable";
 import { StudentQuickEditModal } from "./StudentQuickEditModal";
-import { BranchManagement } from "./BranchManagement";
 import { MASTER_ID } from "@/app/lib/constants";
 const ROLE_DEFAULTS: Record<string, string[]> = {
     admin: ["ASSIGNMENT_MANAGE", "CLASS_MANAGE", "MANAGEMENT_PANEL"],
@@ -53,8 +52,8 @@ interface UserData {
 }
 
 export default function UserManagement() {
-    const [activeTab, setActiveTab] = useState<'users' | 'students' | 'branches'>(() =>
-        (sessionStorage.getItem("usermgmt_active_tab") as 'users' | 'students' | 'branches') ?? 'users'
+    const [activeTab, setActiveTab] = useState<'users' | 'students'>(() =>
+        (sessionStorage.getItem("usermgmt_active_tab") as 'users' | 'students') ?? 'users'
     );
     const [isFormOpen, setIsUserFormOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -226,11 +225,6 @@ export default function UserManagement() {
 };
 
     const roleDropdownRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        const handle = (e: any) => { if (roleDropdownRef.current && !roleDropdownRef.current.contains(e.target)) setIsRoleDropdownOpen(false); };
-        document.addEventListener("mousedown", handle);
-        return () => document.removeEventListener("mousedown", handle);
-    }, []);
 
     const staffUsers = users.filter((u: any) => !u.roles?.includes('student'));
 
@@ -270,22 +264,10 @@ export default function UserManagement() {
                         {students.length}
                     </span>
                 </button>
-                <button
-                    onClick={() => { setActiveTab('branches'); sessionStorage.setItem("usermgmt_active_tab", 'branches'); }}
-                    className={`flex items-center gap-2 px-5 h-10 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${activeTab === 'branches' ? 'bg-white text-[#10294C] shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
-                >
-                    <GitBranch size={15} />
-                    <span>Branşlar</span>
-                    <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold ${activeTab === 'branches' ? 'bg-[#10294C]/10 text-[#10294C]' : 'bg-neutral-200 text-neutral-400'}`}>
-                        {branches.length}
-                    </span>
-                </button>
             </div>
 
             {activeTab === 'users' ? (
                 <UserTable users={staffUsers} branches={branches} onEdit={handleEditClick} onDelete={(id: string) => setModalConfig({ isOpen: true, type: "delete", userId: id, isStudent: false })} />
-            ) : activeTab === 'branches' ? (
-                <BranchManagement branches={branches} users={staffUsers} />
             ) : (
                 <StudentUserTable
                     onResend={handleResendActivation}
