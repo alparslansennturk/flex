@@ -342,6 +342,78 @@ onClick={(e) => {
 
 ---
 
+---
+
+## Oturum: 2026-05-17 (Devam) — AttendancePanel UI Yeniden Tasarımı
+
+### 30. Sol Panel (Gruplar Listesi) Tam Yeniden Tasarım
+- **Layout:** Her grup tam genişlik buton, `border-l-[3px]` sol accent border
+- **Aktif grup:** `border-l-designstudio-primary-500 bg-neutral-200`
+- **Hover:** `bg-neutral-100`, pasif: `bg-neutral-50`
+- **Sol durum noktası:** `w-2 h-2 rounded-full` — bugün ders varsa `bg-status-success-500`, yoksa `bg-surface-300`
+- **Progress bar:** `h-2 rounded-full bg-surface-200`, dolum `bg-base-primary-500`, tamamsa `bg-status-success-500`
+- **Grup kodu font:** 14px (önceki 16px → daha okunabilir)
+- **Sol padding:** 24px (`pl-6`)
+- **Gruplar başlık:** `text-[16px] font-bold text-text-primary`
+- **"Gruplar" başlık ile ay dropdown arası mesafe:** `pt-4` (16px)
+- **Gruplar arası boşluk:** Progress bar altında `pb-3`, üst içerik `pt-3.5 pb-2` — grup bazında 8px ayrım
+
+### 31. İçerik Hizalaması — Header ile Hizalama
+- Dış container: `px-8 max-w-[1920px] mx-auto w-full`
+- Header'daki "Hoşgeldin Alparslan" yazısıyla soldan hizalı
+- Sidebar'a yapışık active border sorunu giderildi (içerik sola 24px kaydırıldı)
+
+### 32. Ders Akışı (Lesson Flow State Machine)
+- **`lessonStarted` state:** `false` → "Dersi Başlat" butonu görünür ve aktif
+- "Dersi Başlat" tıklayınca `lessonStarted = true`; öğrenci satırı butonları unlock olur
+- Öğrenci işaretlenince: **"Kaydet"** (yeni kayıt, `CheckCircle2` ikonu) veya **"Güncelle"** (mevcut kayıt, `RefreshCw` ikonu)
+- Kayıt sonrası: **"Ders Devam Ediyor"** (disabled, aynı mavi renk, `Play` ikonu) — "Ders Devam Ediyor" kırmızı/sarı YAPILMADI, kullanıcı talep etti
+- Yeni öğrenci gelirse: tekrar "Güncelle" aktif
+- **"Dersi Bitir"** butonu: `lessonStarted && isActiveForDate` iken aktif, tıklayınca confirm modal
+
+### 33. "Temizle" Butonu + Firestore Silme
+- Tarih başlığının sağında, sadece `filledCount > 0` ise görünür
+- Tıklayınca: `entries = {}`, `saved = false`
+- Firestore'da kayıt varsa (`existingDoc`): `deleteDoc(design_attendance/{groupId}_{date})` ile siler
+- `monthlyDone` sayacını düşürür
+- **Race condition fix:** `clearingRef = useRef(false)` — temizleme sırasında `onSnapshot` handler `clearingRef.current` true ise erken return yapar; `finally` bloğunda false'a döner
+
+### 34. Avatar Sistemi
+- `Student` interface'e `gender?: "male" | "female"` ve `avatarId?: number` eklendi
+- Render önceliği: `avatarId + gender` → `/avatars/{gender}/{avatarId}.svg`
+- Yoksa: `photoURL`
+- Yoksa: baş harfli renkli daire (`AVATAR_COLORS` dizisi)
+- Boyut: `w-6 h-6 rounded-full`
+
+### 35. Alt Bar (Bottom Bar) — Stats + Butonlar
+- **Sol taraf (yatay, inline):** Yüz yüze · Online · Toplam katılan · Katılmayan
+  - Rakamlar `font-bold`, label rengi `text-text-primary` (önceki çok açık `text-text-placeholder` düzeltildi)
+- **Sağ taraf:** Dersi Başlat / Ders Devam Ediyor / Kaydet / Güncelle + Dersi Bitir
+
+### 36. Sınıf Geneli Bar
+- Öğrenci listesi üstünde, `lessonStarted` false iken tıklanırsa **hint toast** çıkar
+- Toast mesajı: "Önce Dersi Başlat butonuna tıklayın" — 2.2 sn sonra kaybolur
+- "Dersi Başlat" tıklanınca tüm öğrenciler otomatik yeşil YAPILMADI (UX kötü, 10 öğrenciden 1 gelebilir)
+
+### 37. Kur Bitiş Tarihi Açıklaması (calcEstimatedEndDate)
+- **Kod doğru:** Satır 131 — `weekDays.includes(d.getDay()) && !holidayDates.has(key)`
+- Sadece ders günüyse VE tatilse atlar; hafta içi tatiller Cts+Pazar grubu için yok sayılır
+- **541 grubu (Cts+Pazar, 3 saat, 96 saat = 32 seans):** Ramazan Bayramı'nın Cts+Pazar'a denk gelmesi → +1 hafta → 17 Mayıs
+- Sistem doğru hesaplar; Firestore `holidays` koleksiyonundaki veri sorunu
+
+### 38. Bekleyen: Kurs Tamamlandığında Yoklama Engeli
+- **Sorun:** `totalDoneCount >= totalSessions` olduğunda hâlâ yeni yoklama alınabiliyor
+- **Önerilen fix:**
+  ```ts
+  const courseComplete = totalSessions !== null && totalDoneCount >= totalSessions;
+  const isActiveForDate = selectedGroup && !isHolidayDate && !courseComplete
+    ? (selectedWeekDays.length === 0 ? true : selectedWeekDays.includes(selectedDate.getDay()))
+    : false;
+  ```
+- **Durum:** ❌ Henüz implemente edilmedi
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. HEMEN — Figma MCP Bağlantısı + Yoklama Revizesi

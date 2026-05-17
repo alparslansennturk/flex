@@ -28,7 +28,8 @@ export function middleware(request: NextRequest) {
       pathname.startsWith("/dashboard") ||
       pathname.startsWith("/admin") ||
       pathname === "/league" ||
-      pathname.startsWith("/league/");
+      pathname.startsWith("/league/") ||
+      pathname === "/attend";
     if (isProtected) return NextResponse.redirect(new URL("/login", request.url));
     return NextResponse.next();
   }
@@ -44,8 +45,8 @@ export function middleware(request: NextRequest) {
 
   // ─── Role isolation ───────────────────────────────────────────────────────
 
-  // Öğrenci /dashboard veya /admin'e gitmeye çalışıyor → öğrenci portala yönlendir
-  if (role === "student" && (pathname.startsWith("/dashboard") || pathname.startsWith("/admin"))) {
+  // Öğrenci /dashboard, /admin veya /attend'a gitmeye çalışıyor → öğrenci portala yönlendir
+  if (role === "student" && (pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || pathname === "/attend")) {
     return NextResponse.redirect(new URL("/student", request.url));
   }
 
@@ -63,5 +64,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/student/:path*", "/dashboard/:path*", "/admin/:path*", "/league/:path*", "/league"],
+  matcher: ["/student/:path*", "/dashboard/:path*", "/admin/:path*", "/league/:path*", "/league", "/attend"],
 };

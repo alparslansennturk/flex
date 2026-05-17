@@ -9,10 +9,12 @@ import {
 import { useUser } from "@/app/context/UserContext";
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
-  Save, CheckCheck, Users, Wifi, Trash2, AlertCircle,
-  Pencil, Check, X,
+  CheckCheck, Users, Wifi, Trash2, AlertCircle,
+  Pencil, Check, X, Timer, CalendarClock, Clock, Play, Square, RefreshCw,
 } from "lucide-react";
 import { DayCalendarPopover } from "./CalendarPopover";
+import { motion } from "framer-motion";
+import { PieChart, Pie, Cell } from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -69,7 +71,10 @@ interface Student {
   name: string;
   lastName?: string;
   groupId: string;
-  isOnlineStudent?: boolean; // will be added via StudentForm
+  isOnlineStudent?: boolean;
+  photoURL?: string;
+  gender?: "male" | "female";
+  avatarId?: number;
 }
 
 const EXCEPTION_LABELS: Record<ExceptionReason, string> = {
@@ -160,12 +165,40 @@ function formatMonthDisplay(d: Date) {
 function shiftDate(d: Date, delta: number)  { const n = new Date(d); n.setDate(n.getDate() + delta); return n; }
 function shiftMonth(d: Date, delta: number) { const n = new Date(d); n.setDate(1); n.setMonth(n.getMonth() + delta); return n; }
 
+// ── Avatar color palette ──────────────────────────────────────────────────────
+const AVATAR_COLORS = [
+  "bg-base-primary-100 text-base-primary-700",
+  "bg-base-secondary-100 text-base-secondary-700",
+  "bg-status-success-100 text-status-success-700",
+  "bg-amber-100 text-amber-700",
+  "bg-purple-100 text-purple-700",
+  "bg-pink-100 text-pink-700",
+];
+
+// ── CountUp ───────────────────────────────────────────────────────────────────
+function CountUp({ to, duration = 0.4 }: { to: number; duration?: number }) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    let raf: number;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / (duration * 1000), 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setVal(Math.round(to * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to, duration]);
+  return <>{val}</>;
+}
+
 // ── EditableCount ─────────────────────────────────────────────────────────────
 function EditableCount({ value, onSave }: { value: number; onSave: (n: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { setDraft(String(value)); }, [value]);
+  useEffect(() => { if (!editing) setDraft(String(value)); }, [value, editing]);
   useEffect(() => { if (editing) ref.current?.select(); }, [editing]);
   const commit = () => {
     const n = parseInt(draft, 10);
@@ -265,7 +298,13 @@ function ExceptionModal({
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function AttendancePanel() {
+export default function AttendancePanel({
+  mode = "detailed",
+  autoSelectToday = false,
+}: {
+  mode?: "detailed" | "simple";
+  autoSelectToday?: boolean;
+}) {
   const { user, isAdmin } = useUser();
 
   const [branches, setBranches]               = useState<Branch[]>([]);
@@ -277,6 +316,10 @@ export default function AttendancePanel() {
   const [entries, setEntries]                 = useState<Record<string, StudentEntry>>({});
   const [saving, setSaving]                   = useState(false);
   const [saved, setSaved]                     = useState(false);
+  const [lessonStarted, setLessonStarted]     = useState(false);
+  const [showStartHint, setShowStartHint]     = useState(false);
+  const [showEndConfirm, setShowEndConfirm]   = useState(false);
+  const clearingRef                           = useRef(false);
   const [existingDoc, setExistingDoc]         = useState(false);
   const [exception, setException]             = useState<LessonException | null>(null);
   const [showExModal, setShowExModal]         = useState(false);
@@ -356,6 +399,17 @@ export default function AttendancePanel() {
     });
   }, [user, isAdmin]);
 
+  // ── Auto-select today's group (simple / quick mode) ───────────────────────
+  useEffect(() => {
+    if (!autoSelectToday || selectedGroupId || groups.length === 0) return;
+    const todayDay = new Date().getDay();
+    const match = groups.find(g => {
+      const days = getWeekDays(g);
+      return days.length === 0 || days.includes(todayDay);
+    });
+    if (match) setSelectedGroupId(match.id);
+  }, [groups, autoSelectToday, selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Monthly done count for all groups ─────────────────────────────────────
   useEffect(() => {
     if (groups.length === 0) return;
@@ -402,16 +456,19 @@ export default function AttendancePanel() {
 
   // ── Load attendance + exceptions for selected date (real-time) ───────────
   useEffect(() => {
-    if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); return; }
+    if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); setLessonStarted(false); return; }
     setSaved(false);
+    setLessonStarted(false);
 
     const docId = `${selectedGroupId}_${dateKey}`;
 
     const unsubAttendance = onSnapshot(doc(db, "design_attendance", docId), d => {
+      if (clearingRef.current) return;
       if (d.exists()) {
         const data = d.data() as AttendanceDoc;
         setEntries(data.entries ?? {});
         setExistingDoc(true);
+        setLessonStarted(true);
       } else {
         setEntries({});
         setExistingDoc(false);
@@ -477,6 +534,32 @@ export default function AttendancePanel() {
     setSaved(false);
   };
 
+  const showHintToast = () => {
+    setShowStartHint(true);
+    setTimeout(() => setShowStartHint(false), 2200);
+  };
+
+  const handleClear = async () => {
+    clearingRef.current = true;
+    setEntries({});
+    setSaved(false);
+    if (existingDoc && selectedGroupId) {
+      const docId = `${selectedGroupId}_${dateKey}`;
+      try {
+        await deleteDoc(doc(db, "design_attendance", docId));
+        setExistingDoc(false);
+        setMonthlyDone(prev => ({
+          ...prev,
+          [selectedGroupId]: Math.max(0, (prev[selectedGroupId] ?? 0) - 1),
+        }));
+      } finally {
+        clearingRef.current = false;
+      }
+    } else {
+      clearingRef.current = false;
+    }
+  };
+
   // ── Save attendance ────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!selectedGroupId) return;
@@ -523,12 +606,42 @@ export default function AttendancePanel() {
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const filledCount   = students.filter(s => (entries[s.id]?.hours ?? 0) > 0).length;
+  const filledCount         = students.filter(s => (entries[s.id]?.hours ?? 0) > 0).length;
+  const onlineAttendCount   = students.filter(s => (entries[s.id]?.hours ?? 0) > 0 && entries[s.id]?.online).length;
+  const inPersonAttendCount = filledCount - onlineAttendCount;
+  const absentCount         = students.length - filledCount;
   const pct = plannedCount > 0 ? Math.min(100, Math.round((doneCount / plannedCount) * 100)) : 0;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
+      {showEndConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-[360px] overflow-hidden">
+            <div className="px-6 py-5 border-b border-surface-100">
+              <h3 className="text-[15px] font-bold text-text-primary">Dersi bitir</h3>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-[13px] text-text-secondary leading-relaxed">
+                Yoklamayı kaydedip dersi bitirmek istediğine emin misin?
+              </p>
+            </div>
+            <div className="px-6 pb-5 flex gap-2 justify-end">
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                className="px-4 py-2 rounded-xl text-[13px] font-bold text-text-primary border border-surface-200 hover:bg-surface-50 cursor-pointer">
+                İptal
+              </button>
+              <button
+                onClick={() => { setShowEndConfirm(false); handleSave(); }}
+                className="px-4 py-2 rounded-xl text-[13px] font-bold bg-base-primary-900 text-white hover:bg-base-primary-800 cursor-pointer">
+                Evet, Bitir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showExModal && selectedGroupId && (
         <ExceptionModal
           groupId={selectedGroupId}
@@ -542,10 +655,10 @@ export default function AttendancePanel() {
         />
       )}
 
-      <div className="flex h-full min-h-0">
+      <div className="flex h-full min-h-0 px-8 max-w-[1920px] mx-auto w-full">
 
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
-        <div className="w-[260px] shrink-0 border-r border-surface-100 flex flex-col h-full overflow-hidden bg-surface-50/40">
+        <div className="w-[260px] shrink-0 border-r border-surface-100 flex flex-col h-full overflow-hidden bg-neutral-50">
 
           {/* Month dropdown */}
           <div className="px-4 py-3 border-b border-surface-100">
@@ -588,8 +701,8 @@ export default function AttendancePanel() {
             </div>
           </div>
 
-          <div className="px-5 py-2.5 border-b border-surface-100">
-            <p className="text-[11px] font-semibold text-text-secondary">Gruplarım</p>
+          <div className="pl-6 pr-4 pt-5 pb-3 border-b border-surface-100">
+            <p className="text-[16px] font-bold text-text-primary">Gruplar</p>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -607,31 +720,33 @@ export default function AttendancePanel() {
               const flexible  = gDays.length === 0;
               return (
                 <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
-                  className={`w-full flex flex-col gap-1.5 px-8 py-3.5 text-left border-b border-surface-100 transition-colors outline-none cursor-pointer
-                    ${active ? "bg-base-primary-900" : "hover:bg-surface-50"}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className={`text-[13px] font-bold truncate ${active ? "text-white" : "text-text-primary"}`}>{g.code}</p>
+                  className={`w-full flex flex-col text-left border-b border-surface-100 outline-none cursor-pointer transition-colors border-l-[3px]
+                    ${active
+                      ? "border-l-designstudio-primary-500 bg-neutral-50"
+                      : "border-l-transparent hover:bg-neutral-50"}`}>
+                  <div className="flex items-center gap-3 pl-5 pr-4 pt-3.5 pb-2">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${hasClass ? "bg-status-success-500" : "bg-surface-300"}`} />
+                    <p className={`text-[14px] font-bold truncate flex-1 ${active ? "text-base-primary-700" : "text-text-primary"}`}>{g.code}</p>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {!flexible && !hasClass && (
-                        <span className={`flex items-center justify-center w-4 h-4 rounded-full shrink-0
-                          ${active ? "bg-white/15 text-white/50" : "bg-red-50 text-red-400"}`}>
-                          <X size={9} strokeWidth={2.5} />
-                        </span>
+                        <X size={11} strokeWidth={2.5} className="text-red-400" />
                       )}
                       {planned > 0 && (
-                        <span className={`text-[11px] font-semibold ${active ? "text-white/70" : "text-text-secondary"}`}>
-                          {done}/{planned}
-                        </span>
+                        <span className={`text-[11px] font-semibold ${active ? "text-base-primary-500" : "text-text-secondary"}`}>{done}/{planned}</span>
                       )}
                     </div>
                   </div>
                   {planned > 0 ? (
-                    <div className={`w-full h-1.5 rounded-full ${active ? "bg-white/15" : "bg-surface-200"}`}>
-                      <div className={`h-full rounded-full transition-all duration-300 ${p === 100 ? "bg-status-success-500" : active ? "bg-[#FF8D28]" : "bg-base-primary-400"}`}
-                        style={{ width: `${p}%` }} />
+                    <div className="pl-5 pr-4 pb-3">
+                      <div className="w-full h-2 rounded-full bg-surface-200">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${p === 100 ? "bg-status-success-500" : "bg-base-primary-500"}`}
+                          style={{ width: `${p}%` }}
+                        />
+                      </div>
                     </div>
                   ) : (
-                    <p className={`text-[11px] ${active ? "text-white/40" : "text-text-secondary"}`}>
+                    <p className="text-[11px] pl-5 pr-4 pb-3 text-text-placeholder">
                       {flexible ? "Esnek seans" : "Gün seçilmedi"}
                     </p>
                   )}
@@ -642,7 +757,7 @@ export default function AttendancePanel() {
         </div>
 
         {/* ── RIGHT ─────────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden max-w-[1400px]">
 
           {!selectedGroupId ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-text-placeholder">
@@ -651,123 +766,265 @@ export default function AttendancePanel() {
             </div>
           ) : (
             <>
-              {/* Monthly summary */}
-              <div className="px-8 py-6 border-b border-surface-100 bg-surface-50/30 shrink-0">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-[13px] font-bold text-text-primary">{selectedGroup?.code}</span>
-                  <span className="text-text-placeholder">·</span>
-                  <span className="text-[13px] font-medium text-text-secondary capitalize">{formatMonthDisplay(selectedMonth)}</span>
-                  {sessionHours ? (
-                    <span className="ml-1 text-[11px] font-bold text-text-placeholder bg-surface-100 px-2 py-0.5 rounded-md">{sessionHours} saat/ders</span>
-                  ) : null}
-                </div>
-                <div className="flex items-end gap-8">
-                  {plannedCount > 0 && (
-                    <>
-                      <div className="flex flex-col gap-1">
-                        <p className="text-[11px] font-semibold text-text-secondary">Bu Ay Planlanan</p>
-                        <span className="text-[28px] font-bold text-text-primary leading-none">{sessionHours ? `${plannedCount * sessionHours} saat` : plannedCount}</span>
-                        <p className="text-[11px] text-text-secondary">{sessionHours ? `(${plannedCount} gün)` : "ders günü"}</p>
-                      </div>
-                      <div className="w-px h-10 bg-surface-200 self-center" />
-                    </>
-                  )}
-                  <div className="flex flex-col gap-1">
-                    <p className="text-[11px] font-semibold text-text-secondary">Bu Ay Yapılan</p>
-                    <span className="text-[28px] font-bold text-status-success-600 leading-none">{sessionHours ? `${doneCount * sessionHours} saat` : doneCount}</span>
-                    <p className="text-[11px] text-text-secondary">{sessionHours ? `(${doneCount} gün)` : "ders günü"}</p>
-                  </div>
-                  {plannedCount > 0 && (
-                    <>
-                      <div className="w-px h-10 bg-surface-200 self-center" />
-                      <div className="flex flex-col gap-1">
-                        <p className="text-[11px] font-semibold text-text-secondary">Kalan</p>
-                        <span className={`text-[28px] font-bold leading-none ${remaining === 0 ? "text-status-success-600" : "text-text-primary"}`}>{sessionHours ? `${remaining * sessionHours} saat` : remaining}</span>
-                        <p className="text-[11px] text-text-secondary">{sessionHours ? `(${remaining} gün)` : "ders günü"}</p>
-                      </div>
-                      <div className="w-px h-10 bg-surface-200 self-center" />
-                      <div className="relative w-12 h-12 self-center shrink-0">
-                        <svg width="48" height="48" viewBox="0 0 48 48">
-                          <circle cx="24" cy="24" r="19" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="4" />
-                          <circle cx="24" cy="24" r="19" fill="none"
-                            stroke={pct === 100 ? "#22c55e" : "#10294C"} strokeWidth="4" strokeLinecap="round"
-                            strokeDasharray={`${(pct / 100) * 2 * Math.PI * 19} ${2 * Math.PI * 19}`}
-                            transform="rotate(-90 24 24)" />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-[10px] font-bold text-base-primary-900">%{pct}</span>
+              {mode === "detailed" ? (
+                /* ── Detaylı: Sol (grup kartı + 3 stat kartı) | Sağ (donut), eşit yükseklik */
+                <div className="px-8 py-5 border-b border-surface-100 shrink-0">
+                  {/* max-w: 4K ekranlarda aşırı yayılmayı önler */}
+                  <div className="max-w-[1200px]">
+                    <div className="flex gap-4 items-stretch">
+
+                      {/* ── SOL: grup bilgi kartı üstte, 3 stat kartı altta ── */}
+                      <div className="flex-1 flex flex-col gap-3 min-w-0">
+
+                        {/* Grup bilgi kartı */}
+                        <div className="border border-surface-200 rounded-2xl px-5 py-4 bg-white">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-3 h-3 rounded-full bg-status-success-500 shrink-0" />
+                              <span className="text-[16px] 2xl:text-[19px] font-bold text-text-primary truncate">{selectedGroup?.code}</span>
+                              {sessionHours > 0 && (
+                                <span className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder bg-surface-100 px-2 py-0.5 rounded-full shrink-0">
+                                  {sessionHours} saat/ders
+                                </span>
+                              )}
+                            </div>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-base-primary-100 text-[11px] 2xl:text-[13px] font-bold text-base-primary-500 shrink-0">
+                              <Clock size={10} />
+                              {formatMonthDisplay(selectedMonth)}
+                            </span>
+                          </div>
+                          {(selectedGroup?.startDate || estimatedEndDate) && (
+                            <div className="flex items-center gap-3 mt-2.5 text-[12px] 2xl:text-[14px] text-text-placeholder">
+                              {selectedGroup?.startDate && (
+                                <span>
+                                  Başlangıç Tarihi:{" "}
+                                  <span className="font-semibold text-text-secondary">
+                                    {new Date(selectedGroup.startDate + "T12:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
+                                  </span>
+                                </span>
+                              )}
+                              {selectedGroup?.startDate && estimatedEndDate && (
+                                <span className="text-surface-300">|</span>
+                              )}
+                              {estimatedEndDate && (
+                                <span>
+                                  Tahmini Bitiş:{" "}
+                                  <span className="font-semibold text-text-secondary">
+                                    {estimatedEndDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3 istatistik kartı */}
+                        <div className="flex gap-3 flex-1">
+                          {plannedCount > 0 ? (
+                            <>
+                              {/* Planlanan */}
+                              <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.15, delay: 0 }}
+                                className="flex-1 border border-surface-200 rounded-2xl px-4 2xl:px-5 py-4 2xl:py-5 flex flex-col gap-1.5 2xl:gap-2 bg-white"
+                              >
+                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full bg-base-primary-100 flex items-center justify-center mb-1">
+                                  <Timer size={15} className="text-base-primary-500 2xl:hidden" />
+                                  <Timer size={18} className="text-base-primary-500 hidden 2xl:block" />
+                                </div>
+                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                  {plannedCount * sessionHours}
+                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                </p>
+                                <p className="text-[11px] 2xl:text-[13px] text-text-secondary leading-snug">Bu Ay Planlanan Toplam Ders</p>
+                                <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{plannedCount} gün</p>
+                              </motion.div>
+                              {/* Yapılan */}
+                              <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.15, delay: 0.03 }}
+                                className="flex-1 border border-surface-200 rounded-2xl px-4 2xl:px-5 py-4 2xl:py-5 flex flex-col gap-1.5 2xl:gap-2 bg-white"
+                              >
+                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full bg-base-secondary-100 flex items-center justify-center mb-1">
+                                  <CheckCheck size={15} className="text-base-secondary-500 2xl:hidden" />
+                                  <CheckCheck size={18} className="text-base-secondary-500 hidden 2xl:block" />
+                                </div>
+                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                  {doneCount * sessionHours}
+                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                </p>
+                                <p className="text-[11px] 2xl:text-[13px] text-text-secondary leading-snug">Bu Ay Yapılan Toplam Ders</p>
+                                <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{doneCount} gün</p>
+                              </motion.div>
+                              {/* Kalan */}
+                              <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.15, delay: 0.06 }}
+                                className="flex-1 border border-surface-200 rounded-2xl px-4 2xl:px-5 py-4 2xl:py-5 flex flex-col gap-1.5 2xl:gap-2 bg-white"
+                              >
+                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full bg-designstudio-primary-100 flex items-center justify-center mb-1">
+                                  <CalendarClock size={15} className="text-designstudio-primary-500 2xl:hidden" />
+                                  <CalendarClock size={18} className="text-designstudio-primary-500 hidden 2xl:block" />
+                                </div>
+                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                  {remaining * sessionHours}
+                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                </p>
+                                <p className="text-[11px] 2xl:text-[13px] text-text-secondary leading-snug">Kalan Toplam Ders</p>
+                                <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{remaining} gün</p>
+                              </motion.div>
+                            </>
+                          ) : (
+                            <div className="flex-1 border border-surface-200 rounded-2xl px-4 py-4 bg-white">
+                              <p className="text-[13px] 2xl:text-[15px] font-bold text-text-primary">
+                                {selectedWeekDays.length === 0 ? "Esnek Seans" : "Gün bilgisi yok"}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </>
-                  )}
-                  {plannedCount === 0 && selectedWeekDays.length === 0 && (
-                    <div className="flex flex-col gap-1">
-                      <p className="text-[11px] font-semibold text-text-secondary">Seans Tipi</p>
-                      <span className="text-[15px] font-bold text-text-primary leading-none">Esnek Seans</span>
-                      <p className="text-[11px] text-text-secondary">Sabit gün yok</p>
-                    </div>
-                  )}
-                </div>
 
-                {/* Course progress strip */}
-                {(selectedGroup?.startDate || courseTotalHours !== null) && (
-                  <div className="flex items-center gap-5 mt-4 pt-4 border-t border-surface-100 flex-wrap">
+                      {/* ── SAĞ: donut kartı (Recharts + Framer Motion) ── */}
+                      {courseTotalHours !== null && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.94 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="w-[280px] 2xl:w-[320px] shrink-0 border border-surface-200 rounded-2xl px-5 py-5 flex flex-col items-center gap-4 bg-white"
+                        >
+                          {/* Donut chart — custom SVG + Framer Motion arc animasyonu */}
+                          <div key={selectedGroupId ?? "none"} className="relative shrink-0" style={{ width: 164, height: 164 }}>
+                            <svg width="164" height="164" viewBox="0 0 164 164" style={{ display: "block" }}>
+                              <defs>
+                                <linearGradient id="donutArcGrad" x1="0" y1="0" x2="164" y2="164" gradientUnits="userSpaceOnUse">
+                                  <stop offset="0%" stopColor={courseProgressPct === 100 ? "#006B2B" : "#1a4f9e"} />
+                                  <stop offset="100%" stopColor={courseProgressPct === 100 ? "#4FA3A5" : "#92b6e8"} />
+                                </linearGradient>
+                              </defs>
+                              {/* Arka plan ring — düz uçlar, kalın */}
+                              <circle cx="82" cy="82" r="58" fill="none" stroke="#ddeaf8" strokeWidth="24" />
+                              {/* Gradient yay — sıfırda render edilmez, animasyon sadece >0'da */}
+                              {courseProgressPct > 0 && (
+                                <g transform="rotate(-90 82 82)">
+                                  <motion.circle
+                                    cx="82" cy="82" r="58" fill="none"
+                                    stroke="url(#donutArcGrad)"
+                                    strokeWidth="24"
+                                    strokeLinecap="round"
+                                    strokeDasharray={2 * Math.PI * 58}
+                                    initial={{ strokeDashoffset: 2 * Math.PI * 58 }}
+                                    animate={{ strokeDashoffset: 2 * Math.PI * 58 * (1 - courseProgressPct / 100) }}
+                                    transition={{ duration: 0.5, ease: "easeOut" }}
+                                  />
+                                </g>
+                              )}
+                            </svg>
+                            {/* Merkez metin */}
+                            <div
+                              className="pointer-events-none flex flex-col items-center"
+                              style={{ position: "absolute", top: 84, left: 82, transform: "translate(-50%, -50%)", gap: 3 }}
+                            >
+                              <span className="text-[24px] font-bold text-base-primary-700 leading-none" style={{ fontFamily: "Inter, var(--font-main), sans-serif" }}>
+                                <CountUp to={courseDoneHours} duration={0.4} />
+                              </span>
+                              <span className="text-[12px] text-base-primary-700 leading-none">saat</span>
+                            </div>
+                          </div>
+
+                          {/* Legend 2×2 — her hücre: nokta + etiket + değer */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-3 w-full text-[11px] 2xl:text-[12px]">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-base-primary-400 shrink-0" />
+                                <span className="text-text-placeholder">Toplam Ders</span>
+                              </div>
+                              <span className="font-bold text-text-primary pl-3.5">{courseTotalHours} saat</span>
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-status-success-500 shrink-0" />
+                                <span className="text-text-placeholder">Yapılan Ders</span>
+                              </div>
+                              <span className="font-bold text-text-primary pl-3.5">{courseDoneHours} saat</span>
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-designstudio-primary-500 shrink-0" />
+                                <span className="text-text-placeholder">Kalan Ders</span>
+                              </div>
+                              <span className="font-bold text-text-primary pl-3.5">{courseRemainingHours} saat</span>
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-base-secondary-500 shrink-0" />
+                                <span className="text-text-placeholder">İlerleme</span>
+                              </div>
+                              <span className="font-bold text-text-primary pl-3.5">% {courseProgressPct}</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ── Basit: kompakt başlık + mor stats bar ───────────────── */
+                <>
+                  <div className="px-8 py-3 border-b border-surface-100 shrink-0 flex items-center gap-2.5">
+                    <span className="text-[14px] font-bold text-text-primary">{selectedGroup?.code}</span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-base-primary-100 text-[11px] font-bold text-base-primary-500">
+                      <Clock size={10} />
+                      {formatMonthDisplay(selectedMonth)}
+                    </span>
+                  </div>
+                  <div className="px-8 py-2.5 bg-[#5e63c2] shrink-0 flex items-center gap-3 text-[11px] font-medium overflow-x-auto no-scrollbar">
+                    {courseTotalHours !== null && (
+                      <>
+                        <span className="text-white/60 shrink-0">Toplam Ders:</span>
+                        <span className="font-bold text-white shrink-0">{courseTotalHours} saat</span>
+                        <span className="text-white/30 shrink-0">|</span>
+                      </>
+                    )}
+                    <span className="text-white/60 shrink-0">Yapılan Ders:</span>
+                    <span className="font-bold text-white shrink-0">{courseDoneHours} saat</span>
+                    {courseRemainingHours !== null && (
+                      <>
+                        <span className="text-white/30 shrink-0">|</span>
+                        <span className="text-white/60 shrink-0">Kalan Ders:</span>
+                        <span className="font-bold text-white shrink-0">{courseRemainingHours} saat</span>
+                      </>
+                    )}
                     {selectedGroup?.startDate && (
-                      <div className="flex flex-col gap-0.5">
-                        <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Başlangıç</p>
-                        <p className="text-[12px] font-bold text-text-secondary">
+                      <>
+                        <span className="text-white/30 shrink-0">|</span>
+                        <span className="text-white/60 shrink-0">Başlangıç:</span>
+                        <span className="font-bold text-white shrink-0">
                           {new Date(selectedGroup.startDate + "T12:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
-                        </p>
-                      </div>
+                        </span>
+                      </>
                     )}
                     {estimatedEndDate && (
                       <>
-                        <div className="w-px h-8 bg-surface-200 self-center" />
-                        <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Tahmini Bitiş</p>
-                          <p className="text-[12px] font-bold text-text-secondary">
-                            {estimatedEndDate.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                    {courseTotalHours !== null && (
-                      <>
-                        <div className="w-px h-8 bg-surface-200 self-center" />
-                        <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Toplam Kurs</p>
-                          <p className="text-[12px] font-bold text-text-secondary">{courseTotalHours} saat</p>
-                        </div>
-                        <div className="w-px h-8 bg-surface-200 self-center" />
-                        <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Yapılan</p>
-                          <p className="text-[12px] font-bold text-status-success-600">{courseDoneHours} saat</p>
-                        </div>
-                        <div className="w-px h-8 bg-surface-200 self-center" />
-                        <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Kalan</p>
-                          <p className={`text-[12px] font-bold ${courseRemainingHours === 0 ? "text-status-success-600" : "text-base-primary-800"}`}>
-                            {courseRemainingHours} saat
-                          </p>
-                        </div>
-                        <div className="flex-1 min-w-[100px] flex flex-col gap-1.5 self-center">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-semibold text-text-placeholder uppercase tracking-wide">Kurs İlerleme</p>
-                            <span className="text-[11px] font-bold text-text-secondary">%{courseProgressPct}</span>
-                          </div>
-                          <div className="w-full h-2 rounded-full bg-surface-200">
-                            <div className={`h-full rounded-full transition-all ${courseProgressPct === 100 ? "bg-status-success-500" : "bg-base-primary-600"}`}
-                              style={{ width: `${courseProgressPct}%` }} />
-                          </div>
-                        </div>
+                        <span className="text-white/30 shrink-0">|</span>
+                        <span className="text-white/60 shrink-0">Bitim:</span>
+                        <span className="font-bold text-white shrink-0">
+                          {estimatedEndDate.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
                       </>
                     )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
-              {/* Date header */}
-              <div className="px-8 py-4 border-b border-surface-100 flex items-center justify-between gap-4 shrink-0">
+              {/* ── Yoklama kartı: beyaz, yuvarlak köşeli ── */}
+              <div className="flex-1 min-h-0 p-4 2xl:p-5 overflow-hidden">
+                <div className="h-full flex flex-col bg-white rounded-2xl border border-surface-200 overflow-hidden relative">
+
+                  {/* Date header */}
+                  <div className="px-5 py-3 border-b border-surface-100 flex items-center justify-between gap-4 shrink-0">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setSelectedDate(d => shiftDate(d, -1))}
@@ -803,7 +1060,15 @@ export default function AttendancePanel() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center shrink-0">
+                  {/* Temizle: entries sıfırla */}
+                  {filledCount > 0 && (
+                    <button
+                      onClick={handleClear}
+                      className="text-[11px] font-semibold text-text-placeholder hover:text-red-500 transition-colors cursor-pointer mr-8">
+                      Temizle
+                    </button>
+                  )}
                   {/* Exception badge / button */}
                   {exception ? (
                     <button onClick={() => setShowExModal(true)}
@@ -818,128 +1083,194 @@ export default function AttendancePanel() {
                   )}
 
                   {students.length > 0 && (
-                    <span className="text-[12px] font-bold text-text-placeholder">
+                    <span className="text-[12px] font-semibold text-text-placeholder tabular-nums ml-8">
                       {filledCount}/{students.length}
-                      {filledCount === students.length && <CheckCheck size={13} className="inline ml-1 text-status-success-500" />}
+                      {filledCount === students.length && filledCount > 0 && <CheckCheck size={13} className="inline ml-1 text-status-success-500" />}
                     </span>
                   )}
-                  <button onClick={handleSave}
-                    disabled={saving || students.length === 0 || filledCount === 0 || !!exception || !isActiveForDate}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer outline-none
-                      ${saved
-                        ? "bg-status-success-100 text-status-success-700 border border-status-success-300"
-                        : "bg-base-primary-900 text-white hover:bg-base-primary-800 disabled:opacity-40 disabled:cursor-not-allowed"}`}>
-                    {saved ? <><CheckCircle2 size={14} /> Kaydedildi</> : saving ? "Kaydediliyor…" : <><Save size={14} /> Kaydet</>}
-                  </button>
                 </div>
               </div>
 
-              {/* Exception banner */}
-              {exception && (
-                <div className="px-8 py-3 bg-red-50 border-b border-red-100 flex items-center gap-2 text-[12px] font-bold text-red-600 shrink-0">
-                  <AlertCircle size={14} />
-                  Bu gün için istisna tanımlandı: <span className="font-bold">{EXCEPTION_LABELS[exception.reason]}</span>
-                  {exception.note && <span className="font-normal text-red-500">— {exception.note}</span>}
-                  <span className="ml-1 text-[11px] text-red-400">({exception.scope === "system" ? "Sistem geneli" : "Bu grup"})</span>
-                </div>
-              )}
+                  {/* Exception banner */}
+                  {exception && (
+                    <div className="px-5 py-2.5 bg-red-50 border-b border-red-100 flex items-center gap-2 text-[12px] font-bold text-red-600 shrink-0">
+                      <AlertCircle size={14} />
+                      Bu gün için istisna: <span className="font-bold">{EXCEPTION_LABELS[exception.reason]}</span>
+                      {exception.note && <span className="font-normal text-red-500">— {exception.note}</span>}
+                      <span className="ml-1 text-[11px] text-red-400">({exception.scope === "system" ? "Sistem geneli" : "Bu grup"})</span>
+                    </div>
+                  )}
 
-              {/* Quick mark all */}
-              {students.length > 0 && !exception && (
-                <div className="px-8 py-2.5 border-b border-surface-50 flex items-center gap-2 shrink-0 bg-surface-50/50">
-                  <span className="text-[11px] text-text-placeholder font-medium">Toplu:</span>
-                  {[sessionHours, Math.floor(sessionHours / 2), 0].filter((v, i, a) => a.indexOf(v) === i).map(h => (
-                    <button key={h} onClick={() => markAllHours(h)}
-                      className="px-3 py-1 rounded-lg text-[11px] font-bold border bg-white border-surface-200 text-text-placeholder hover:border-surface-300 transition-all cursor-pointer">
-                      Tümü {h} saat
-                    </button>
-                  ))}
-                </div>
-              )}
+                  {/* Sınıf Geneli quick-mark */}
+                  {students.length > 0 && !exception && (
+                    <div className="px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50">
+                      <span className="text-[11px] text-text-placeholder font-medium shrink-0">Sınıf Geneli:</span>
+                      {[sessionHours, 0].map(h => (
+                        <button key={h} onClick={() => { if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
+                          className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer
+                            ${h === sessionHours
+                              ? "bg-status-success-50 border-status-success-200 text-status-success-700 hover:bg-status-success-100"
+                              : "bg-red-50 border-red-200 text-red-600 hover:bg-red-100"}`}>
+                          {h === sessionHours ? `Tümü Tam (${sessionHours}s)` : "Tümü Yok"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-              {/* Student list */}
-              <div className="flex-1 overflow-y-auto">
-                {students.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
-                    <Users size={28} strokeWidth={1.5} />
-                    <p className="text-[13px]">Bu grupta aktif öğrenci yok.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-surface-50">
-                    {students.map((student, idx) => {
-                      const entry   = entries[student.id];
-                      const curHours = entry?.hours ?? 0;
-                      const online  = entry?.online ?? student.isOnlineStudent ?? false;
-                      const hourBtns = Array.from({ length: sessionHours + 1 }, (_, i) => i); // 0,1,2,...,sessionHours
+                  {/* Student list */}
+                  <div className="flex-1 overflow-y-auto pt-6">
+                    {students.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
+                        <Users size={28} strokeWidth={1.5} />
+                        <p className="text-[13px]">Bu grupta aktif öğrenci yok.</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-surface-50">
+                        {students.map((student, idx) => {
+                          const entry    = entries[student.id];
+                          const curHours = entry?.hours ?? 0;
+                          const online   = entry?.online ?? student.isOnlineStudent ?? false;
+                          const isMarked = entry !== undefined;
+                          return (
+                            <div key={student.id}
+                              className={`flex items-center px-5 py-3 transition-colors ${exception ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/50"}`}>
+                              {/* Sıra no */}
+                              <span className="text-[11px] text-text-placeholder w-5 text-right shrink-0 mr-3">{idx + 1}</span>
 
-                      return (
-                        <div key={student.id}
-                          className={`flex items-center gap-4 px-8 py-3 transition-colors ${exception ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/60"}`}>
-                          <span className="text-[12px] text-text-placeholder w-5 text-right shrink-0">{idx + 1}</span>
+                              {/* Avatar (24px) + İsim (8px gap) */}
+                              <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
+                                {student.avatarId && student.gender ? (
+                                  <img
+                                    src={`/avatars/${student.gender}/${student.avatarId}.svg`}
+                                    alt={student.name}
+                                    className="w-6 h-6 rounded-full object-cover shrink-0"
+                                  />
+                                ) : student.photoURL ? (
+                                  <img src={student.photoURL} alt={student.name}
+                                    className="w-6 h-6 rounded-full object-cover shrink-0" />
+                                ) : (
+                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}>
+                                    {(student.name?.[0] ?? "").toUpperCase()}{(student.lastName?.[0] ?? "").toUpperCase()}
+                                  </div>
+                                )}
+                                <p className="flex-1 text-[13px] font-semibold text-text-primary truncate">
+                                  {student.name} {student.lastName ?? ""}
+                                  {student.isOnlineStudent && (
+                                    <span className="ml-1.5 text-[10px] font-bold text-blue-500">(O)</span>
+                                  )}
+                                </p>
+                              </div>
 
-                          <div className="w-8 h-8 rounded-full bg-base-primary-100 flex items-center justify-center shrink-0">
-                            <span className="text-[11px] font-bold text-base-primary-700">
-                              {student.name?.[0]?.toUpperCase() ?? "?"}
-                            </span>
-                          </div>
+                              {/* Saat butonları */}
+                              <div className="flex items-center gap-1.5 shrink-0 mr-2">
+                                {!isMarked ? (
+                                  /* İşaretsiz: 0…sessionHours sayısal butonlar */
+                                  Array.from({ length: sessionHours + 1 }, (_, i) => i).map(h => (
+                                    <button key={h} onClick={() => { if (!lessonStarted) { showHintToast(); return; } setHours(student.id, h); }}
+                                      className="w-8 h-8 flex items-center justify-center rounded-full text-[12px] font-medium border border-surface-200 text-text-placeholder bg-white hover:border-surface-300 transition-all cursor-pointer outline-none">
+                                      {h}
+                                    </button>
+                                  ))
+                                ) : (
+                                  /* İşaretli: slot butonları 1…sessionHours, ✓ veya ✗ */
+                                  Array.from({ length: sessionHours }, (_, i) => i + 1).map(slot => {
+                                    const isChecked = slot <= curHours;
+                                    return (
+                                      <button key={slot}
+                                        onClick={() => { if (!lessonStarted) { showHintToast(); return; } setHours(student.id, isChecked ? slot - 1 : slot); }}
+                                        className={`w-8 h-8 flex items-center justify-center rounded-full font-bold transition-all cursor-pointer outline-none
+                                          ${isChecked
+                                            ? "bg-status-success-500 text-white ring-2 ring-offset-[2px] ring-status-success-300"
+                                            : "bg-surface-100 text-surface-400 ring-2 ring-offset-[2px] ring-surface-300"}`}>
+                                        {isChecked
+                                          ? <Check size={13} strokeWidth={2.5} />
+                                          : <X size={13} strokeWidth={2.5} />}
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
 
-                          <p className="flex-1 text-[14px] font-semibold text-text-primary truncate">
-                            {student.name} {student.lastName ?? ""}
-                            {student.isOnlineStudent && (
-                              <span className="ml-2 text-[10px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-full">Online</span>
-                            )}
-                          </p>
-
-                          {/* Hour buttons */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            {hourBtns.map(h => (
-                              <button key={h} onClick={() => setHours(student.id, h)}
-                                className={`w-8 h-8 flex items-center justify-center rounded-lg text-[12px] font-bold border transition-all cursor-pointer outline-none
-                                  ${curHours === h
-                                    ? h === 0
-                                      ? "bg-red-500 text-white border-red-500"
-                                      : h === sessionHours
-                                        ? "bg-status-success-500 text-white border-status-success-500"
-                                        : "bg-amber-400 text-white border-amber-400"
-                                    : "bg-white text-text-placeholder border-surface-200 hover:border-surface-300"}`}>
-                                {h}
+                              {/* Online toggle */}
+                              <button onClick={() => { if (!lessonStarted) { showHintToast(); return; } toggleOnline(student.id); }}
+                                title="Online katıldı"
+                                className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all cursor-pointer outline-none shrink-0
+                                  ${online
+                                    ? "bg-blue-500 text-white border-blue-500"
+                                    : "bg-white text-text-placeholder border-surface-200 hover:border-blue-200"}`}>
+                                <Wifi size={13} />
                               </button>
-                            ))}
-                          </div>
-
-                          {/* Online toggle */}
-                          <button onClick={() => toggleOnline(student.id)}
-                            title="Online katıldı"
-                            className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all cursor-pointer outline-none shrink-0
-                              ${online
-                                ? "bg-blue-500 text-white border-blue-500"
-                                : "bg-white text-text-placeholder border-surface-200 hover:border-blue-300"}`}>
-                            <Wifi size={13} />
-                          </button>
-                        </div>
-                      );
-                    })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Footer summary */}
-              {filledCount > 0 && !exception && (
-                <div className="px-8 py-3 border-t border-surface-100 flex items-center gap-5 shrink-0 bg-surface-50/40 text-[12px] font-bold">
-                  <span className="text-status-success-600">
-                    Tam: {students.filter(s => (entries[s.id]?.hours ?? 0) === sessionHours).length}
-                  </span>
-                  <span className="text-amber-600">
-                    Kısmi: {students.filter(s => { const h = entries[s.id]?.hours ?? 0; return h > 0 && h < sessionHours; }).length}
-                  </span>
-                  <span className="text-red-500">
-                    Yok: {students.filter(s => (entries[s.id]?.hours ?? 0) === 0 && entries[s.id]).length}
-                  </span>
-                  <span className="text-blue-600">
-                    Online: {students.filter(s => entries[s.id]?.online).length}
-                  </span>
+                  {/* Ders başlamadı hint toast */}
+                  {showStartHint && (
+                    <div className="absolute inset-x-0 bottom-20 flex justify-center z-20 pointer-events-none px-4">
+                      <div className="bg-base-primary-900 text-white text-[12px] font-semibold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2">
+                        <Play size={12} />
+                        Önce "Dersi Başlat" butonuna tıklayın
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Alt buton alanı: istatistik sol, butonlar sağ */}
+                  {students.length > 0 && !exception && (
+                    <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-between shrink-0">
+
+                      {/* Sol: katılım istatistikleri */}
+                      <div className="flex items-center gap-4 text-[11px]">
+                        <span className="text-text-primary text-[11px]">Yüz yüze: <span className="font-bold">{inPersonAttendCount}</span></span>
+                        <span className="text-text-primary text-[11px]">Online: <span className="font-bold">{onlineAttendCount}</span></span>
+                        <span className="text-text-primary text-[11px]">Toplam katılan: <span className="font-bold">{filledCount}</span></span>
+                        <span className="text-text-primary text-[11px]">Katılmayan: <span className="font-bold">{absentCount}</span></span>
+                      </div>
+
+                      {/* Sağ: aksiyon butonları */}
+                      <div className="flex items-center gap-3">
+
+                        {/* Sol buton: Dersi Başlat → Kaydet → Ders Devam Ediyor → Güncelle */}
+                        {!lessonStarted ? (
+                          <button
+                            onClick={() => setLessonStarted(true)}
+                            disabled={!isActiveForDate}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
+                            <Play size={13} /> Dersi Başlat
+                          </button>
+                        ) : saved || filledCount === 0 ? (
+                          <button disabled
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white opacity-60 cursor-default outline-none">
+                            <Play size={13} /> Ders Devam Ediyor
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
+                            {saving ? "Kaydediliyor…"
+                              : existingDoc
+                                ? <><RefreshCw size={13} /> Güncelle</>
+                                : <><CheckCircle2 size={13} /> Kaydet</>}
+                          </button>
+                        )}
+
+                        {/* Dersi Bitir — her zaman ayrı, modal ile onay */}
+                        <button
+                          onClick={() => setShowEndConfirm(true)}
+                          disabled={saving || !lessonStarted || !isActiveForDate}
+                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
+                          <Square size={13} /> Dersi Bitir
+                        </button>
+
+                      </div>
+                    </div>
+                  )}
+
                 </div>
-              )}
+              </div>
             </>
           )}
         </div>
