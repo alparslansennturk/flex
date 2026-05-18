@@ -41,7 +41,7 @@ export default function AttendPage() {
   }
 
   const avatarUrl = `/avatars/${user?.gender ?? "male"}/${user?.avatarId ?? 1}.svg`;
-  const fullName = [user?.name, user?.lastName].filter(Boolean).join(" ");
+  const fullName = [user?.name, user?.surname].filter(Boolean).join(" ");
 
   return (
     <div className="flex flex-col h-screen w-full bg-white overflow-hidden">
