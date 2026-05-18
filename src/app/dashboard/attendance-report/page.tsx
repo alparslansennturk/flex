@@ -322,6 +322,7 @@ function AttendanceReportContent() {
           <AttendancePanel
             preSelectedGroupId={groupId}
             hideSidebar={true}
+            allowEdit={true}
           />
         </div>
       </div>

@@ -44,45 +44,47 @@ export default function AttendPage() {
   const fullName = [user?.name, user?.surname].filter(Boolean).join(" ");
 
   return (
-    <div className="flex flex-col h-screen w-full bg-white overflow-hidden">
+    <div className="flex flex-col min-h-screen w-full bg-white">
 
       {/* ── Mini top bar ─────────────────────────────────────────────────── */}
-      <div className="h-[52px] shrink-0 flex border-b border-surface-100">
+      <div className="h-[64px] shrink-0 border-b border-surface-100 bg-white">
+        <div className="max-w-[1920px] mx-auto h-full flex">
 
-        {/* Sol bölüm — sol panel ile hizalı (260px, nötr gri) */}
-        <div className="w-[260px] shrink-0 flex items-center gap-8 px-4 bg-neutral-50 border-r border-surface-100">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="w-8 h-8 rounded-lg hover:bg-surface-200 flex items-center justify-center text-surface-400 transition-colors cursor-pointer active:scale-95 shrink-0"
-          >
-            <ArrowLeft size={16} />
-          </button>
-          <Link href="/dashboard" className="flex items-center select-none">
-            <span className="text-[15px] font-semibold text-[#FF8D28]">tasarım</span>
-            <span className="text-[15px] font-bold text-base-primary-900">atölyesi</span>
-          </Link>
-        </div>
-
-        {/* Sağ bölüm — sağ panel ile hizalı */}
-        <div className="flex-1 flex items-center justify-end px-8 bg-white">
-          <div className="flex items-center gap-2.5">
-            {fullName && (
-              <span className="text-[12px] font-semibold text-text-secondary">
-                {fullName}
-              </span>
-            )}
-            <img
-              src={avatarUrl}
-              alt=""
-              className="w-8 h-8 rounded-full bg-surface-100 object-cover shrink-0"
-            />
+          {/* Sol bölüm — sol panel ile hizalı (260px, nötr gri) */}
+          <div className="w-[260px] shrink-0 flex items-center gap-4 px-5 bg-neutral-50 border-r border-surface-100">
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="w-10 h-10 rounded-xl hover:bg-surface-200 flex items-center justify-center text-surface-400 transition-colors cursor-pointer active:scale-95 shrink-0"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <Link href="/dashboard" className="flex items-center select-none">
+              <span className="text-[22px] font-semibold text-[#FF8D28]">tasarım</span>
+              <span className="text-[22px] font-bold text-base-primary-900">atölyesi</span>
+            </Link>
           </div>
-        </div>
 
+          {/* Sağ bölüm — sağ panel ile hizalı (max-w eşleşmesi) */}
+          <div className="flex-1 min-w-0 max-w-[1400px] flex items-center justify-end px-8">
+            <div className="flex items-center gap-3">
+              {fullName && (
+                <span className="text-[13px] font-semibold text-text-secondary">
+                  {fullName}
+                </span>
+              )}
+              <img
+                src={avatarUrl}
+                alt=""
+                className="w-9 h-9 rounded-full bg-surface-100 object-cover shrink-0"
+              />
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* ── Panel ────────────────────────────────────────────────────────── */}
-      <main className="flex-1 min-h-0 overflow-hidden">
+      <main className="flex-1">
         <AttendancePanel mode="simple" autoSelectToday />
       </main>
 

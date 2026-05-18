@@ -9,7 +9,7 @@ import {
 import { useUser } from "@/app/context/UserContext";
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
-  CheckCheck, Users, Wifi, Trash2, AlertCircle,
+  CheckCheck, Users, Wifi, Trash2, AlertCircle, CalendarOff,
   Pencil, Check, X, Timer, CalendarClock, Clock, Play, Square, RefreshCw, Lock,
 } from "lucide-react";
 import { DayCalendarPopover } from "./CalendarPopover";
@@ -306,11 +306,14 @@ export default function AttendancePanel({
   autoSelectToday = false,
   preSelectedGroupId,
   hideSidebar = false,
+  allowEdit = false,
 }: {
   mode?: "detailed" | "simple";
   autoSelectToday?: boolean;
   preSelectedGroupId?: string;
   hideSidebar?: boolean;
+  /** Kapatılmış yoklamalarda 3 günlük düzenleme penceresini aktif eder (Yoklama Detay ekranı). */
+  allowEdit?: boolean;
 }) {
   const { user, isAdmin } = useUser();
 
@@ -326,6 +329,7 @@ export default function AttendancePanel({
   const [lessonStarted, setLessonStarted]     = useState(false);
   const [showStartHint, setShowStartHint]     = useState(false);
   const [showEndConfirm, setShowEndConfirm]   = useState(false);
+  const [showReadonlyToast, setShowReadonlyToast] = useState(false);
   const clearingRef                           = useRef(false);
   const [existingDoc, setExistingDoc]         = useState(false);
   const [exception, setException]             = useState<LessonException | null>(null);
@@ -356,9 +360,11 @@ export default function AttendancePanel({
   const doneCount       = selectedGroupId ? (monthlyDone[selectedGroupId] ?? 0) : 0;
   const remaining       = Math.max(0, plannedCount - doneCount);
   const isHolidayDate   = holidayDates.has(dateKey);
-  const isActiveForDate = selectedGroup && !isHolidayDate
-    ? (selectedWeekDays.length === 0 ? true : selectedWeekDays.includes(selectedDate.getDay()))
+  // Tatil gözetmeksizin bugün bu grubun ders günü mü?
+  const hasClassThisDay = selectedGroup
+    ? (selectedWeekDays.length === 0 || selectedWeekDays.includes(selectedDate.getDay()))
     : false;
+  const isActiveForDate = hasClassThisDay && !isHolidayDate;
 
   // totalHours: new groups (denormalized), moduleHours: old standart groups (live lookup), customHours: old özel/kurumsal
   const courseTotalHours     = selectedGroup?.totalHours ?? moduleHours ?? selectedGroup?.customHours ?? null;
@@ -417,6 +423,21 @@ export default function AttendancePanel({
       setSelectedGroupId(preSelectedGroupId);
     }
   }, [preSelectedGroupId, groups]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Yoklama Detay: son ders tarihini otomatik seç ────────────────────────
+  useEffect(() => {
+    if (!preSelectedGroupId || !allowEdit) return;
+    getDocs(query(
+      collection(db, "design_attendance"),
+      where("groupId", "==", preSelectedGroupId),
+    )).then(snap => {
+      if (snap.empty) return;
+      const dates = snap.docs.map(d => d.data().date as string).sort().reverse();
+      const d = new Date(dates[0] + "T12:00:00");
+      setSelectedDate(d);
+      setSelectedMonth(d);
+    }).catch(() => {});
+  }, [preSelectedGroupId, allowEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-select today's group ─────────────────────────────────────────────
   useEffect(() => {
@@ -571,6 +592,11 @@ export default function AttendancePanel({
     setTimeout(() => setShowStartHint(false), 2200);
   };
 
+  const showReadonlyHint = () => {
+    setShowReadonlyToast(true);
+    setTimeout(() => setShowReadonlyToast(false), 2200);
+  };
+
   // ── Start lesson — Firestore'a boş doc yazar, refresh'te hatırlanır ─────────
   const handleStartLesson = async () => {
     if (!selectedGroupId) return;
@@ -592,6 +618,14 @@ export default function AttendancePanel({
     clearingRef.current = true;
     setEntries({});
     setSaved(false);
+
+    // Düzenleme modunda (kapatılmış yoklama): sadece yerel state sıfırlanır.
+    // Firestore'a yazmak için kullanıcı "Güncelle"ye basmalı.
+    if (attendanceClosed) {
+      clearingRef.current = false;
+      return;
+    }
+
     if (existingDoc && selectedGroupId) {
       const docId = `${selectedGroupId}_${dateKey}`;
       try {
@@ -673,30 +707,52 @@ export default function AttendancePanel({
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
+  // Tam etkileşimli UI: bugün ders var VE tatil yok VE kayıt var/yeni
+  const showAttendanceUI = isActiveForDate || existingDoc;
+  // Overlay mesajı: kayıt yokken ders günü değilse veya tatilse
+  const overlayMessage = !showAttendanceUI && !exception
+    ? (isHolidayDate && hasClassThisDay
+        ? "Bugün resmi tatil nedeniyle ders yoktur."
+        : !hasClassThisDay
+        ? "Bu grubun bu gün dersi yoktur."
+        : null)
+    : null;
+
+  // allowEdit=true (Yoklama Detay ekranı): 3 günlük pencerede veya admin ise düzenlemeye izin ver
   const withinEditWindow = closedAt
     ? (Date.now() - closedAt.getTime()) < 3 * 24 * 60 * 60 * 1000
     : false;
-  const canEdit = !attendanceClosed || withinEditWindow || isAdmin();
+  const canEdit = allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
 
   const filledCount         = students.filter(s => (entries[s.id]?.hours ?? 0) > 0).length;
   const onlineAttendCount   = students.filter(s => (entries[s.id]?.hours ?? 0) > 0 && entries[s.id]?.online).length;
   const inPersonAttendCount = filledCount - onlineAttendCount;
   const absentCount         = students.length - filledCount;
-  const pct = plannedCount > 0 ? Math.min(100, Math.round((doneCount / plannedCount) * 100)) : 0;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       {showEndConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-[360px] overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl w-[380px] overflow-hidden">
             <div className="px-6 py-5 border-b border-surface-100">
-              <h3 className="text-[15px] font-bold text-text-primary">Dersi bitir</h3>
+              <h3 className="text-[15px] font-bold text-text-primary">Dersi Bitir</h3>
             </div>
-            <div className="px-6 py-5">
-              <p className="text-[13px] text-text-secondary leading-relaxed">
-                Yoklamayı kaydedip dersi bitirmek istediğine emin misin?
-              </p>
+            <div className="px-6 py-5 space-y-2">
+              {allowEdit ? (
+                <p className="text-[13px] text-text-secondary leading-relaxed">
+                  Yoklamayı kaydediyorsunuz. Emin misiniz?
+                </p>
+              ) : (
+                <>
+                  <p className="text-[14px] font-semibold text-text-primary">
+                    Ders yoklaması tamamlanacak.
+                  </p>
+                  <p className="text-[13px] text-text-secondary leading-relaxed">
+                    3 gün boyunca Yoklama Detay ekranından düzenleme yapabilirsiniz.
+                  </p>
+                </>
+              )}
             </div>
             <div className="px-6 pb-5 flex gap-2 justify-end">
               <button
@@ -705,9 +761,9 @@ export default function AttendancePanel({
                 İptal
               </button>
               <button
-                onClick={() => { setShowEndConfirm(false); handleCloseLesson(); }}
+                onClick={() => { setShowEndConfirm(false); (attendanceClosed && canEdit) ? handleSave() : handleCloseLesson(); }}
                 className="px-4 py-2 rounded-xl text-[13px] font-bold bg-base-primary-900 text-white hover:bg-base-primary-800 cursor-pointer">
-                Evet, Bitir
+                {(attendanceClosed && canEdit) ? "Evet, Kaydet" : "Evet, Bitir"}
               </button>
             </div>
           </div>
@@ -727,10 +783,10 @@ export default function AttendancePanel({
         />
       )}
 
-      <div className="flex h-full w-full max-w-[1920px] mx-auto">
+      <div className="flex min-h-full w-full max-w-[1920px] mx-auto">
 
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
-        <div className={`w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50 self-stretch ${hideSidebar ? "hidden" : ""}`}>
+        <div className={`w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50 ${hideSidebar ? "hidden" : ""}`}>
 
           {/* Month dropdown */}
           <div className="px-4 pt-6 pb-3 border-b border-surface-100">
@@ -1147,7 +1203,7 @@ export default function AttendancePanel({
                       className="text-[11px] font-semibold text-text-placeholder hover:text-base-primary-600 transition-colors cursor-pointer mr-8">
                       İptal
                     </button>
-                  ) : Object.keys(entries).length > 0 && canEdit ? (
+                  ) : Object.keys(entries).length > 0 && (!attendanceClosed || canEdit) ? (
                     <button
                       onClick={handleClear}
                       className="text-[11px] font-semibold text-text-placeholder hover:text-red-500 transition-colors cursor-pointer mr-8">
@@ -1176,20 +1232,13 @@ export default function AttendancePanel({
                 </div>
               </div>
 
-                  {/* Kapatıldı — düzenleme penceresi banner */}
-                  {attendanceClosed && canEdit && withinEditWindow && (
-                    <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2 text-[12px] font-semibold text-amber-700 shrink-0">
-                      <AlertCircle size={13} />
-                      Bu yoklama kapatıldı.{" "}
-                      {Math.ceil((closedAt!.getTime() + 3 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000))} gün içinde düzenleyebilirsiniz.
-                    </div>
-                  )}
-
-                  {/* Kilitlendi banner (3 gün doldu, eğitmen) */}
-                  {attendanceClosed && !canEdit && (
-                    <div className="px-5 py-2.5 bg-surface-100 border-b border-surface-200 flex items-center gap-2 text-[12px] font-semibold text-text-placeholder shrink-0">
+                  {/* Kapatıldı — banner */}
+                  {attendanceClosed && (
+                    <div className="px-5 py-2.5 bg-surface-50 border-b border-surface-100 flex items-center gap-2 text-[12px] font-semibold text-text-placeholder shrink-0">
                       <Lock size={13} />
-                      Bu yoklama kilitlendi. Düzenleme süresi doldu.
+                      {canEdit
+                        ? `Bu yoklama kapatıldı — ${withinEditWindow && closedAt ? Math.ceil((closedAt.getTime() + 3 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000)) + " gün içinde düzenleyebilirsiniz." : "Yalnızca admin düzenleyebilir."}`
+                        : "Bu yoklama kapatıldı — yalnızca görüntüleme modu."}
                     </div>
                   )}
 
@@ -1203,12 +1252,25 @@ export default function AttendancePanel({
                     </div>
                   )}
 
+                  {/* Overlay mesajı (tatil / ders günü değil) */}
+                  {overlayMessage && (
+                    <div className={`mx-5 mt-4 mb-1 px-4 py-3 rounded-xl flex items-center gap-2 text-[13px] font-semibold shrink-0
+                      ${isHolidayDate && hasClassThisDay
+                        ? "bg-amber-50 border border-amber-200 text-amber-700"
+                        : "bg-surface-50 border border-surface-200 text-text-secondary"}`}>
+                      {isHolidayDate && hasClassThisDay
+                        ? <CalendarOff size={14} className="shrink-0" />
+                        : <CalendarCheck size={14} className="shrink-0" />}
+                      {overlayMessage}
+                    </div>
+                  )}
+
                   {/* Sınıf Geneli quick-mark */}
-                  {students.length > 0 && !exception && (
+                  {showAttendanceUI && students.length > 0 && !exception && (
                     <div className="px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50">
                       <span className="text-[11px] text-text-placeholder font-medium shrink-0">Sınıf Geneli:</span>
                       {[sessionHours, 0].map(h => (
-                        <button key={h} onClick={() => { if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
+                        <button key={h} onClick={() => { if (attendanceClosed && !canEdit) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
                           className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer
                             ${h === sessionHours
                               ? "bg-status-success-50 border-status-success-200 text-status-success-700 hover:bg-status-success-100"
@@ -1220,7 +1282,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
-                  <div className="pt-6">
+                  <div className={`pt-6 ${overlayMessage ? "opacity-40 pointer-events-none select-none" : ""}`}>
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
                         <Users size={28} strokeWidth={1.5} />
@@ -1235,7 +1297,7 @@ export default function AttendancePanel({
                           const isMarked = entry !== undefined;
                           return (
                             <div key={student.id}
-                              className={`flex items-center px-5 py-3 xl:py-5 transition-colors ${exception || (!canEdit) ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/50"}`}>
+                              className={`flex items-center px-5 py-3 xl:py-5 transition-colors ${exception ? "opacity-40 pointer-events-none" : (attendanceClosed && !canEdit) ? "cursor-default" : "hover:bg-surface-50/50"}`}>
                               {/* Sıra no */}
                               <span className="text-[13px] font-semibold text-text-secondary w-5 text-right shrink-0 mr-3">{idx + 1}</span>
 
@@ -1268,8 +1330,8 @@ export default function AttendancePanel({
                                 {!isMarked ? (
                                   /* İşaretsiz: 0…sessionHours sayısal butonlar */
                                   Array.from({ length: sessionHours + 1 }, (_, i) => i).map(h => (
-                                    <button key={h} onClick={() => { if (!lessonStarted) { showHintToast(); return; } setHours(student.id, h); }}
-                                      className="w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full text-[11px] xl:text-[13px] font-semibold border border-surface-300 text-text-secondary bg-white hover:border-base-primary-300 hover:text-base-primary-600 transition-all cursor-pointer outline-none">
+                                    <button key={h} onClick={() => { if (attendanceClosed && !canEdit) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, h); }}
+                                      className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full text-[11px] xl:text-[13px] font-semibold border border-surface-300 text-text-secondary bg-white transition-all outline-none ${(attendanceClosed && !canEdit) ? "cursor-default" : "hover:border-base-primary-300 hover:text-base-primary-600 cursor-pointer"}`}>
                                       {h}
                                     </button>
                                   ))
@@ -1279,8 +1341,8 @@ export default function AttendancePanel({
                                     const isChecked = slot <= curHours;
                                     return (
                                       <button key={slot}
-                                        onClick={() => { if (!lessonStarted) { showHintToast(); return; } setHours(student.id, isChecked ? slot - 1 : slot); }}
-                                        className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full font-bold transition-all cursor-pointer outline-none
+                                        onClick={() => { if (attendanceClosed && !canEdit) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, isChecked ? slot - 1 : slot); }}
+                                        className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full font-bold transition-all outline-none ${(attendanceClosed && !canEdit) ? "cursor-default" : "cursor-pointer"}
                                           ${isChecked
                                             ? "bg-status-success-500 text-white"
                                             : "bg-red-100 text-red-400"}`}>
@@ -1294,12 +1356,12 @@ export default function AttendancePanel({
                               </div>
 
                               {/* Online toggle */}
-                              <button onClick={() => { if (!lessonStarted) { showHintToast(); return; } toggleOnline(student.id); }}
+                              <button onClick={() => { if (attendanceClosed && !canEdit) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } toggleOnline(student.id); }}
                                 title="Online katıldı"
-                                className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all cursor-pointer outline-none shrink-0
+                                className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all outline-none shrink-0 ${(attendanceClosed && !canEdit) ? "cursor-default" : "cursor-pointer"}
                                   ${online
                                     ? "bg-blue-500 text-white border-blue-500"
-                                    : "bg-white text-text-placeholder border-surface-200 hover:border-blue-200"}`}>
+                                    : `bg-white text-text-placeholder border-surface-200 ${(attendanceClosed && !canEdit) ? "" : "hover:border-blue-200"}`}`}>
                                 <Wifi size={13} />
                               </button>
                             </div>
@@ -1310,17 +1372,20 @@ export default function AttendancePanel({
                   </div>
 
                   {/* Ders başlamadı hint toast */}
-                  {showStartHint && (
+                  {showAttendanceUI && (showStartHint || showReadonlyToast) && (
                     <div className="absolute inset-x-0 bottom-20 flex justify-center z-20 pointer-events-none px-4">
                       <div className="bg-base-primary-900 text-white text-[12px] font-semibold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2">
-                        <Play size={12} />
-                        Önce "Dersi Başlat" butonuna tıklayın
+                        {showReadonlyToast ? (
+                          <><Lock size={12} /> {allowEdit ? "Düzenleme süresi doldu." : "Düzenleme için Yoklama Detay ekranını kullanın."}</>
+                        ) : (
+                          <><Play size={12} /> Önce "Dersi Başlat" butonuna tıklayın</>
+                        )}
                       </div>
                     </div>
                   )}
 
                   {/* Alt buton alanı: istatistik sol, butonlar sağ */}
-                  {students.length > 0 && !exception && (
+                  {showAttendanceUI && students.length > 0 && !exception && (
                     <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-between shrink-0">
 
                       {/* Sol: katılım istatistikleri */}
@@ -1340,21 +1405,28 @@ export default function AttendancePanel({
                                 <CheckCheck size={13} /> Kaydedildi
                               </button>
                             ) : (
-                              <button onClick={handleSave} disabled={saving}
+                              <button onClick={() => setShowEndConfirm(true)} disabled={saving}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">
-                                <RefreshCw size={13} /> {saving ? "Kaydediliyor…" : "Güncelle"}
+                                <RefreshCw size={13} /> Güncelle
                               </button>
                             )
                           ) : (
-                            <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-text-placeholder cursor-default outline-none">
-                              <Lock size={13} /> Kilitlendi
+                            <button onClick={showReadonlyHint}
+                              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-status-success-100 text-status-success-700 cursor-default outline-none">
+                              <CheckCheck size={13} /> Kaydedildi
                             </button>
                           )
                         ) : !lessonStarted ? (
-                          <button onClick={handleStartLesson} disabled={!isActiveForDate}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
-                            <Play size={13} /> Dersi Başlat
-                          </button>
+                          (!isToday && !allowEdit) ? (
+                            <span className="flex items-center gap-1.5 text-[12px] font-semibold text-text-placeholder">
+                              <CalendarCheck size={13} /> Bu tarih için yoklama kaydı yok
+                            </span>
+                          ) : (
+                            <button onClick={handleStartLesson} disabled={!isActiveForDate}
+                              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
+                              <Play size={13} /> Dersi Başlat
+                            </button>
+                          )
                         ) : !saved ? (
                           <button onClick={handleSave} disabled={saving}
                             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-green-500 text-white hover:bg-green-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">

@@ -591,23 +591,102 @@ Seçili grup her zaman tam opaklıkta. Aktif dersi olmayan gruplar zaten `bg-sur
 
 ---
 
+## Oturum: 2026-05-19 — Dersi Bitir Akışı + Yoklama UX Düzeltmeleri
+
+### 50. Dersi Bitir — Readonly Akış Yeniden Tasarımı
+
+**Modal güncellendi:**
+- `/attend` (normal): "Ders yoklaması tamamlanacak. 3 gün boyunca Yoklama Detay ekranından düzenleme yapabilirsiniz." → "Evet, Bitir"
+- Yoklama Detay (`allowEdit=true`): "Yoklamayı kaydediyorsunuz. Emin misiniz?" → "Evet, Kaydet"
+
+**Readonly state (attendanceClosed=true):**
+- `/attend`: tüm butonlar kilitli, "Kaydedildi" tıklanınca toast → "Düzenleme için Yoklama Detay ekranını kullanın."
+- Öğrenci satırları: hover yok, `cursor-default`, tıklanınca toast
+- Sınıf Geneli butonları: readonly toast
+- Amber "X gün içinde düzenleyebilirsiniz" banner'ı kaldırıldı → sade gri "Bu yoklama kapatıldı — yalnızca görüntüleme modu."
+
+**`allowEdit` prop eklendi (`AttendancePanel`):**
+- `/dashboard/attendance-report` → `allowEdit={true}`: 3 günlük pencerede veya admin ise düzenleme açık
+- `canEdit = allowEdit && (!attendanceClosed || withinEditWindow || isAdmin())`
+- Tüm buton onClick'leri `attendanceClosed && !canEdit` kontrolü kullanır
+
+**"Güncelle" butonu modal açar** (önceden direkt `handleSave` çağırıyordu):
+- Modal onay: `attendanceClosed && canEdit` → `handleSave()`, değilse → `handleCloseLesson()`
+
+### 51. handleClear — Düzenleme Modunda Firestore Silme Engeli
+
+**Bug:** Yoklama Detay'da "Temizle"ye basınca `deleteDoc` çağrılıyordu → kayıt kalıcı silindi.
+
+**Fix:** `attendanceClosed=true` iken `handleClear` sadece yerel `entries` state'ini sıfırlar, Firestore'a dokunmaz. Kullanıcı "Güncelle" → onay modal → kaydet akışını izlemeli.
+
+### 52. Geçmiş Tarih Kısıtlaması
+
+**`/attend` sayfası:** `!isToday && !allowEdit` → "Dersi Başlat" yerine "Bu tarih için yoklama kaydı yok" metni gösterilir. Geçmişe yoklama başlatılamaz.
+
+**Yoklama Detay (`allowEdit=true`):** Geçmiş tarihler için "Dersi Başlat" aktif — silinmiş yoklamaları yeniden girebilir.
+
+### 53. Ders Günü / Tatil Overlay Sistemi
+
+**`hasClassThisDay`** türetilmiş değer eklendi (tatil gözetmeksizin):
+```ts
+const hasClassThisDay = selectedGroup
+  ? (selectedWeekDays.length === 0 || selectedWeekDays.includes(selectedDate.getDay()))
+  : false;
+const isActiveForDate = hasClassThisDay && !isHolidayDate;
+```
+
+**`overlayMessage`** mantığı:
+- `isHolidayDate && hasClassThisDay && !existingDoc` → "Bugün resmi tatil nedeniyle ders yoktur." (amber banner)
+- `!hasClassThisDay && !existingDoc` → "Bu grubun bu gün dersi yoktur." (gri banner)
+- Tatil olsa bile o gün dersi olmayan gruplarda tatil mesajı **gösterilmez**
+
+**`showAttendanceUI`:** `isActiveForDate || existingDoc`
+- `false` → öğrenci listesi `opacity-40 pointer-events-none` (soluk, arka planda görünür)
+- Sınıf Geneli + alt buton alanı gizlenir
+- Kayıt varsa (`existingDoc=true`) her zaman tam UI gösterilir
+
+### 54. Yoklama Detay — Son Ders Tarihini Otomatik Seç
+
+`allowEdit=true` + `preSelectedGroupId` değiştiğinde:
+- `design_attendance` koleksiyonundan o grubun tüm kayıtları çekilir
+- Client-side `sort().reverse()` ile en son tarih bulunur
+- `setSelectedDate` + `setSelectedMonth` bu tarihe ayarlanır
+- İlk açılışta son ders günü otomatik seçili gelir
+
+### 55. `/attend` Sayfa Layout + Topbar
+
+**Scroll fix:** `h-screen overflow-hidden` → `min-h-screen`, `overflow-hidden` kaldırıldı. Sayfa normal scroll yapar.
+
+**Topbar boyutları:**
+- Yükseklik: `52px` → `64px`
+- Logo: `text-[15px]` → `text-[22px]`
+- Geri butonu: `w-8 h-8 ArrowLeft(16)` → `w-10 h-10 rounded-xl ArrowLeft(20)`
+- İçerik `max-w-[1920px] mx-auto` ile kısıtlandı
+
+**Profil hizalaması (2K+ ekran):** Sağ bölüme `max-w-[1400px]` eklendi — AttendancePanel sağ panel genişliğiyle eşleşir, profil içerik alanının sağ kenarıyla hizalı kalır.
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. SONRA — StudentForm: isOnlineStudent
+### 1. YAKINDA — Öğrenci Bazlı Yoklama Raporu (StudentDetailModal)
+- `design_attendance` → `groupId == student.groupId` sorgusu + client-side studentId filtresi
+- Metrikler: toplam katıldığı saat, yüz yüze saat, online saat, devamsızlık, devam oranı %
+- **Yer:** `StudentDetailModal`'a "Devam" sekmesi
+
+### 2. SONRA — StudentForm: isOnlineStudent
 - `students` dökümanına `isOnlineStudent: boolean` eklenecek
-- AttendancePanel zaten bu alanı okuyor
 - **Yapılacak:** StudentForm'a toggle/checkbox ekle
 
-### 2. SONRA — Yoklama Giriş Zaman Kilidi (Test Bittikten Sonra)
+### 3. SONRA — Yoklama Giriş Zaman Kilidi (Test Bittikten Sonra)
 - Ders başlamadan 15dk önce yoklama girişi kilitlenecek
 - Ders bitiminden 30dk sonra yoklama kapanacak
 - Pencere dışında: sadece admin düzenleyebilir
 
-### 3. İLERİDE — Dashboard Hızlı Yoklama Widget
+### 4. İLERİDE — Dashboard Hızlı Yoklama Widget
 - Dashboard'da "Hızlı Yoklama Al" butonu/kartı
 - Tıklayınca `/attend?groupId=xxx` ile doğrudan ilgili grubun yoklama ekranı
-- O günün aktif sınıfı otomatik belirlenir
 
-### 4. BÜYÜK BLOK — Sertifikasyon Modülü
+### 5. BÜYÜK BLOK — Sertifikasyon Modülü
 - Not girişi → sertifikasyon akışı
 - Son büyük blok, altyapı sıfırdan kurulacak
