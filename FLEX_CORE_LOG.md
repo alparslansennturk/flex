@@ -443,26 +443,170 @@ Aşağıdaki 6 dosya local'de değişti ama henüz commit/push edilmedi:
 
 ---
 
+## Oturum: 2026-05-18 (Devam) — Yoklama Akıllı Buton + /attend Sayfası + Detay Mimarisi
+
+### 42. AttendancePanel — `attendanceClosed` Sistemi + Akıllı Tek Buton
+
+**`attendanceClosed` alanı** — iki seviyede kullanılır:
+- Grup düzeyinde (`groups.attendanceClosed`): kurs tamamlandı, ligden çıkar (eski)
+- Yoklama doc düzeyinde (`design_attendance.attendanceClosed`): ders kapandı (yeni)
+
+**AttendanceDoc interface'e eklendi:**
+```ts
+attendanceClosed?: boolean;
+closedAt?: any;       // Firestore Timestamp — eğitmen Dersi Bitir tıkladığında
+autoClosedAt?: any;   // gece 00:01 cron tarafından otomatik kapandığında
+```
+
+**Yeni state'ler:**
+- `attendanceClosed` — doc'tan okunur, Dersi Bitir ile yazılır
+- `closedAt` — `Date` objesi, 3 günlük edit penceresi hesabında kullanılır
+- `hasPersistedEntries` — boş "başlatılmış" doc ile gerçek yoklama doc'u ayırt eder
+
+**Akıllı buton state machine:**
+```
+attendanceClosed=true + canEdit=false → "Kilitlendi" (disabled)
+attendanceClosed=true + canEdit=true  → "Güncelle" / "Kaydedildi"
+!lessonStarted                        → "Dersi Başlat" (isActiveForDate kontrollü)
+lessonStarted + !saved                → "Kaydet" (bg-green-500)
+lessonStarted + saved                 → "Dersi Bitir" (bg-orange-500, confirm modal)
+```
+
+**`handleStartLesson`** — Dersi Başlat tıklayınca Firestore'a boş doc yazar:
+- Refresh/kapanma sonrası `onSnapshot` bu doc'u görür → `lessonStarted = true` restore edilir
+- Doc şeması: `{ groupId, date, month, instructorId, sessionHours, entries: {}, lessonStartedAt }`
+
+**`handleCloseLesson`** — Dersi Bitir onaylanınca:
+- `{ attendanceClosed: true, closedAt: now }` merge write
+- Local state güncellenir, buton "Kaydedildi" moduna girer
+
+**3 günlük edit penceresi:**
+```ts
+const withinEditWindow = closedAt
+  ? (Date.now() - closedAt.getTime()) < 3 * 24 * 60 * 60 * 1000
+  : false;
+const canEdit = !attendanceClosed || withinEditWindow || isAdmin();
+```
+
+**İptal butonu:** `lessonStarted && !hasPersistedEntries` — yanlışlıkla başlatılan dersi geri alır
+
+**monthlyDone sayacı düzeltildi:** Boş doc'lar (sadece `entries: {}`) sayılmaz, sadece gerçek kayıtlar sayılır
+
+**541 grubu fix:** `attendanceClosed` gruplar admin için listeden gizlenmiyordu
+```ts
+.filter(g => !(g as any).attendanceClosed || isAdmin())
+```
+
+### 43. Auto-Close Cron — `/api/cron/auto-close-attendance`
+
+**Yeni dosya:** `src/app/api/cron/auto-close-attendance/route.ts`
+
+- Gece 00:01 TR saatinde (UTC 21:01) çalışır
+- Dünün (`trDateString(-1)`) `design_attendance` kayıtlarını tarar
+- `!attendanceClosed && entries !== {}` olan dökümanları `{ attendanceClosed: true, autoClosedAt: now }` ile kapatır
+- CRON_SECRET header doğrulaması
+
+**`vercel.json`'a eklendi:**
+```json
+{ "path": "/api/cron/auto-close-attendance", "schedule": "1 21 * * *" }
+```
+
+**Not:** Yoklama giriş zaman kilidi (ders öncesi 15dk, ders sonrası 30dk) planlandı ama test aşaması geçildikten sonra implemente edilecek.
+
+### 44. CalendarPopover — Gelecek Ders Günleri Görünür Ama Tıklanamaz
+
+**Değişiklik:** `weekDays` ile eşleşen gelecek günler artık tamamen gizli değil, soluk görünür.
+
+```ts
+const isFuture = maxStr ? dateStr > maxStr : false;
+const isFutureLesson = isFuture && weekDays.length > 0 && weekDays.includes(dow);
+// Stil:
+isFutureLesson → "opacity-50 cursor-not-allowed text-base-primary-500"
+diğer gelecek  → "opacity-20 cursor-not-allowed"
+```
+
+Eğitmen ileri tarihteki ders günlerini görebilir ama seçemez.
+
+### 45. `/attend` — Sidebar'sız Odaklı Yoklama Sayfası
+
+**Yeni sayfa:** `src/app/attend/page.tsx`
+
+- Dashboard sidebar/header yok — tam ekran yoklama odaklı
+- Auth kontrolü: `onAuthStateChanged` + Firestore rol kontrolü
+- `AttendancePanel mode="simple" autoSelectToday`
+- Mini top bar (52px): sol → geri butonu + logo; sağ → eğitmen isim + avatar
+- Layout: `flex flex-col h-screen w-full bg-white overflow-hidden`
+
+**AttendancePanel yeni prop'ları:**
+```ts
+preSelectedGroupId?: string;  // grup otomatik seçilir (attendance-report detay için)
+hideSidebar?: boolean;        // sol grup listesi gizlenir
+```
+
+### 46. AttendancePanel — `autoSelectToday` Geliştirildi
+
+**Önceki:** Bugün dersi olan grup bulunmazsa hiç seçilmezdi (orta panel boş).
+
+**Sonrası:** Fallback eklendi — bugün dersi olan yoksa `groups[0]` seçilir:
+```ts
+const todayMatch = groups.find(g => days.length === 0 || days.includes(todayDay));
+setSelectedGroupId((todayMatch ?? groups[0]).id);
+```
+
+### 47. AttendancePanel — Sol Liste Yoklama Solukluğu
+
+Bu ay hiç yoklaması girilmemiş gruplar hafifçe soluk gösterilir:
+```tsx
+${!active && done === 0 ? "opacity-60" : ""}
+```
+Seçili grup her zaman tam opaklıkta. Aktif dersi olmayan gruplar zaten `bg-surface-300` dot ile ayrışıyor.
+
+### 48. Sidebar — "Yoklama Al" → `/attend`
+
+```tsx
+// Önceki:
+<SidebarLink href="/dashboard/attendance" label="Yoklama Al" ... />
+// Sonrası:
+<SidebarLink href="/attend" label="Yoklama Al" ... />
+```
+
+`/attend` tam ekran olduğundan sidebar orada görünmez. SidebarLink `exact` prop ile `/attend === pathname` kontrolü yapar.
+
+### 49. Yoklama Detay — Grup Detay Görünümü (`/dashboard/attendance-report`)
+
+**`groupId` URL parametresi eklendi:**
+
+- `?groupId=xxx` varsa → `AttendancePanel preSelectedGroupId={groupId} hideSidebar={true}` gösterilir
+- Üstte "← Yoklama Detay" geri butonu
+- `?groupId` yoksa → mevcut istatistik tablosu
+
+**Her grup satırına "Detay" butonu eklendi:**
+```tsx
+<button onClick={() => router.push(`?groupId=${s.group.id}&month=${selectedMonth}`)}>
+  Detay
+</button>
+```
+
+**Geri URL:** `filterInstructorId` varsa onu da korur: `?instructorId=xxx&month=yyy`
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. HEMEN — Figma MCP Bağlantısı + Yoklama Revizesi
-- Claude Code yeniden başlat (yeni `.mcp.json` yüklensin)
-- Figma'da MCP Plugin'i aç → kanal ID paylaş → `join_channel`
-- Kullanıcının Figma'da revize ettiği yoklama ekranını oku
-- **İki ekran yapısı planlandı:**
-  - **Detaylı:** `/dashboard/attendance` — mevcut AttendancePanel, istatistik + grafik ağır
-  - **Basit:** `/yoklama` — bağımsız route, sadece grup seç + yoklama al, minimal UI
-
-### 2. HEMEN — `/yoklama` Bağımsız Route
-- **Auth akışı:** Middleware'e `/yoklama` eklenir, login'e `?redirect=/yoklama` ile yönlendirilir
-- **Login sayfası:** `useSearchParams` zaten var, satır 103: `router.push("/dashboard")` → `router.push(redirect || "/dashboard")`
-- **`/yoklama/page.tsx`:** Dashboard layout dışında, kendi minimal layout'u
-- Dashboard'da "Hızlı Yoklama Al" kart/butonu → `/yoklama` linki
-
-### 3. SONRA — StudentForm: isOnlineStudent
+### 1. SONRA — StudentForm: isOnlineStudent
 - `students` dökümanına `isOnlineStudent: boolean` eklenecek
 - AttendancePanel zaten bu alanı okuyor
 - **Yapılacak:** StudentForm'a toggle/checkbox ekle
+
+### 2. SONRA — Yoklama Giriş Zaman Kilidi (Test Bittikten Sonra)
+- Ders başlamadan 15dk önce yoklama girişi kilitlenecek
+- Ders bitiminden 30dk sonra yoklama kapanacak
+- Pencere dışında: sadece admin düzenleyebilir
+
+### 3. İLERİDE — Dashboard Hızlı Yoklama Widget
+- Dashboard'da "Hızlı Yoklama Al" butonu/kartı
+- Tıklayınca `/attend?groupId=xxx` ile doğrudan ilgili grubun yoklama ekranı
+- O günün aktif sınıfı otomatik belirlenir
 
 ### 4. BÜYÜK BLOK — Sertifikasyon Modülü
 - Not girişi → sertifikasyon akışı

@@ -93,7 +93,7 @@ export default function Sidebar() {
               }}
             >
               <div style={{ overflow: "hidden" }}>
-                <SidebarLink href="/dashboard/attendance" icon={<CalendarCheck size={15} />} label="Yoklama Al" compact={compact} exact sub />
+                <SidebarLink href="/attend" icon={<CalendarCheck size={15} />} label="Yoklama Al" compact={compact} exact sub />
                 <SidebarLink href="/dashboard/attendance-report" icon={<BarChart2 size={15} />} label="Yoklama Detay" compact={compact} sub />
                 {isAdmin && <SidebarLink href="/dashboard/attendance-summary" icon={<TrendingUp size={15} />} label="Yoklama Raporu" compact={compact} sub />}
               </div>

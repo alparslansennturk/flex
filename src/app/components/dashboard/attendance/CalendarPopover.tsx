@@ -145,13 +145,19 @@ export function DayCalendarPopover({
           const isSelected  = dateStr === selectedStr;
           const isToday     = dateStr === todayStr;
           const isHoliday   = holidayDates.has(dateStr);
-          const isNonLesson = weekDays.length > 0 && !weekDays.includes(dow);
-          const isDisabled  = (maxStr ? dateStr > maxStr : false) || (minStr ? dateStr < minStr : false);
+          const isNonLesson   = weekDays.length > 0 && !weekDays.includes(dow);
+          const isFuture      = maxStr ? dateStr > maxStr : false;
+          const isFutureLesson = isFuture && weekDays.length > 0 && weekDays.includes(dow);
+          const isDisabled    = isFuture || (minStr ? dateStr < minStr : false);
 
           let cls = "h-8 w-full flex items-center justify-center rounded-lg text-[12px] font-semibold transition-colors outline-none ";
 
           if (isDisabled) {
-            cls += "opacity-20 cursor-not-allowed ";
+            if (isFutureLesson) {
+              cls += "opacity-50 cursor-not-allowed text-base-primary-500 ";
+            } else {
+              cls += "opacity-20 cursor-not-allowed ";
+            }
           } else if (isSelected) {
             cls += "bg-[#10294C] text-white cursor-pointer ";
           } else if (isNonLesson) {

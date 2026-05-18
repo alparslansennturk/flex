@@ -10,7 +10,7 @@ import { useUser } from "@/app/context/UserContext";
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
   CheckCheck, Users, Wifi, Trash2, AlertCircle,
-  Pencil, Check, X, Timer, CalendarClock, Clock, Play, Square, RefreshCw,
+  Pencil, Check, X, Timer, CalendarClock, Clock, Play, Square, RefreshCw, Lock,
 } from "lucide-react";
 import { DayCalendarPopover } from "./CalendarPopover";
 import { motion } from "framer-motion";
@@ -32,6 +32,9 @@ export interface AttendanceDoc {
   instructorId: string;
   sessionHours: number;  // snapshot of group.sessionHours at time of record
   entries: Record<string, StudentEntry>;
+  attendanceClosed?: boolean;
+  closedAt?: any;
+  autoClosedAt?: any;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -301,9 +304,13 @@ function ExceptionModal({
 export default function AttendancePanel({
   mode = "detailed",
   autoSelectToday = false,
+  preSelectedGroupId,
+  hideSidebar = false,
 }: {
   mode?: "detailed" | "simple";
   autoSelectToday?: boolean;
+  preSelectedGroupId?: string;
+  hideSidebar?: boolean;
 }) {
   const { user, isAdmin } = useUser();
 
@@ -327,6 +334,9 @@ export default function AttendancePanel({
   const [holidayDates, setHolidayDates]       = useState<Set<string>>(new Set());
   const [totalDoneCount, setTotalDoneCount]   = useState(0);
   const [moduleHours, setModuleHours]         = useState<number | null>(null);
+  const [attendanceClosed, setAttendanceClosed]   = useState(false);
+  const [closedAt, setClosedAt]                   = useState<Date | null>(null);
+  const [hasPersistedEntries, setHasPersistedEntries] = useState(false);
 
 
   const dateKey  = toDateKey(selectedDate);
@@ -391,7 +401,7 @@ export default function AttendancePanel({
     return onSnapshot(q, snap => {
       const all = snap.docs
         .map(d => ({ id: d.id, ...d.data() } as Group))
-        .filter(g => !(g as any).attendanceClosed);
+        .filter(g => !(g as any).attendanceClosed || isAdmin());
       if (isAdmin()) {
         setGroups(all);
       } else {
@@ -401,15 +411,22 @@ export default function AttendancePanel({
     });
   }, [user, isAdmin]);
 
-  // ── Auto-select today's group (simple / quick mode) ───────────────────────
+  // ── Pre-select group from prop ────────────────────────────────────────────
+  useEffect(() => {
+    if (preSelectedGroupId && groups.some(g => g.id === preSelectedGroupId)) {
+      setSelectedGroupId(preSelectedGroupId);
+    }
+  }, [preSelectedGroupId, groups]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Auto-select today's group ─────────────────────────────────────────────
   useEffect(() => {
     if (!autoSelectToday || selectedGroupId || groups.length === 0) return;
     const todayDay = new Date().getDay();
-    const match = groups.find(g => {
+    const todayMatch = groups.find(g => {
       const days = getWeekDays(g);
       return days.length === 0 || days.includes(todayDay);
     });
-    if (match) setSelectedGroupId(match.id);
+    setSelectedGroupId((todayMatch ?? groups[0]).id);
   }, [groups, autoSelectToday, selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Monthly done count for all groups ─────────────────────────────────────
@@ -421,7 +438,11 @@ export default function AttendancePanel({
         where("groupId", "==", g.id),
         where("month", "==", monthKey),
       ));
-      return [g.id, snap.size] as [string, number];
+      const counted = snap.docs.filter(d => {
+        const data = d.data();
+        return Object.keys(data.entries ?? {}).length > 0 || (data.attendanceClosed ?? false);
+      }).length;
+      return [g.id, counted] as [string, number];
     })).then(results => setMonthlyDone(Object.fromEntries(results)));
   }, [groups, monthKey]);
 
@@ -458,9 +479,12 @@ export default function AttendancePanel({
 
   // ── Load attendance + exceptions for selected date (real-time) ───────────
   useEffect(() => {
-    if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); setLessonStarted(false); return; }
+    if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); setLessonStarted(false); setAttendanceClosed(false); setClosedAt(null); setHasPersistedEntries(false); return; }
     setSaved(false);
     setLessonStarted(false);
+    setAttendanceClosed(false);
+    setClosedAt(null);
+    setHasPersistedEntries(false);
 
     const docId = `${selectedGroupId}_${dateKey}`;
 
@@ -471,9 +495,15 @@ export default function AttendancePanel({
         setEntries(data.entries ?? {});
         setExistingDoc(true);
         setLessonStarted(true);
+        setAttendanceClosed(data.attendanceClosed ?? false);
+        setClosedAt(data.closedAt?.toDate ? data.closedAt.toDate() : null);
+        setHasPersistedEntries(Object.keys(data.entries ?? {}).length > 0 || (data.attendanceClosed ?? false));
       } else {
         setEntries({});
         setExistingDoc(false);
+        setAttendanceClosed(false);
+        setClosedAt(null);
+        setHasPersistedEntries(false);
       }
     });
 
@@ -541,6 +571,23 @@ export default function AttendancePanel({
     setTimeout(() => setShowStartHint(false), 2200);
   };
 
+  // ── Start lesson — Firestore'a boş doc yazar, refresh'te hatırlanır ─────────
+  const handleStartLesson = async () => {
+    if (!selectedGroupId) return;
+    setLessonStarted(true);
+    const docId = `${selectedGroupId}_${dateKey}`;
+    await setDoc(doc(db, "design_attendance", docId), {
+      groupId: selectedGroupId,
+      date: dateKey,
+      month: monthKey,
+      instructorId: user?.uid ?? "",
+      sessionHours,
+      entries: {},
+      lessonStartedAt: new Date(),
+    });
+    setExistingDoc(true);
+  };
+
   const handleClear = async () => {
     clearingRef.current = true;
     setEntries({});
@@ -550,10 +597,13 @@ export default function AttendancePanel({
       try {
         await deleteDoc(doc(db, "design_attendance", docId));
         setExistingDoc(false);
-        setMonthlyDone(prev => ({
-          ...prev,
-          [selectedGroupId]: Math.max(0, (prev[selectedGroupId] ?? 0) - 1),
-        }));
+        setHasPersistedEntries(false);
+        if (hasPersistedEntries) {
+          setMonthlyDone(prev => ({
+            ...prev,
+            [selectedGroupId]: Math.max(0, (prev[selectedGroupId] ?? 0) - 1),
+          }));
+        }
       } finally {
         clearingRef.current = false;
       }
@@ -579,14 +629,29 @@ export default function AttendancePanel({
         ...(existingDoc ? {} : { createdAt: new Date() }),
       };
       await setDoc(doc(db, "design_attendance", docId), payload, { merge: true });
-      if (!existingDoc) {
+      if (!hasPersistedEntries) {
         setMonthlyDone(prev => ({ ...prev, [selectedGroupId]: (prev[selectedGroupId] ?? 0) + 1 }));
+        setHasPersistedEntries(true);
       }
       setExistingDoc(true);
       setSaved(true);
     } finally {
       setSaving(false);
     }
+  };
+
+  // ── Close lesson (attendanceClosed = true) ────────────────────────────────
+  const handleCloseLesson = async () => {
+    if (!selectedGroupId) return;
+    const now = new Date();
+    const docId = `${selectedGroupId}_${dateKey}`;
+    await setDoc(doc(db, "design_attendance", docId), {
+      attendanceClosed: true,
+      closedAt: now,
+    }, { merge: true });
+    setAttendanceClosed(true);
+    setClosedAt(now);
+    setSaved(true);
   };
 
   // ── Exception save/delete ──────────────────────────────────────────────────
@@ -608,6 +673,11 @@ export default function AttendancePanel({
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
+  const withinEditWindow = closedAt
+    ? (Date.now() - closedAt.getTime()) < 3 * 24 * 60 * 60 * 1000
+    : false;
+  const canEdit = !attendanceClosed || withinEditWindow || isAdmin();
+
   const filledCount         = students.filter(s => (entries[s.id]?.hours ?? 0) > 0).length;
   const onlineAttendCount   = students.filter(s => (entries[s.id]?.hours ?? 0) > 0 && entries[s.id]?.online).length;
   const inPersonAttendCount = filledCount - onlineAttendCount;
@@ -635,7 +705,7 @@ export default function AttendancePanel({
                 İptal
               </button>
               <button
-                onClick={() => { setShowEndConfirm(false); handleSave(); }}
+                onClick={() => { setShowEndConfirm(false); handleCloseLesson(); }}
                 className="px-4 py-2 rounded-xl text-[13px] font-bold bg-base-primary-900 text-white hover:bg-base-primary-800 cursor-pointer">
                 Evet, Bitir
               </button>
@@ -657,10 +727,10 @@ export default function AttendancePanel({
         />
       )}
 
-      <div className="flex px-8 max-w-[1920px] mx-auto w-full">
+      <div className="flex h-full w-full max-w-[1920px] mx-auto">
 
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
-        <div className="w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50">
+        <div className={`w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50 self-stretch ${hideSidebar ? "hidden" : ""}`}>
 
           {/* Month dropdown */}
           <div className="px-4 pt-6 pb-3 border-b border-surface-100">
@@ -707,7 +777,7 @@ export default function AttendancePanel({
             <p className="text-[16px] font-bold text-text-primary">Gruplar</p>
           </div>
 
-          <div>
+          <div className="flex-1">
             {groups.length === 0 && (
               <p className="px-5 py-6 text-[12px] text-text-placeholder text-center">Henüz grubunuz yok.</p>
             )}
@@ -722,10 +792,11 @@ export default function AttendancePanel({
               const flexible  = gDays.length === 0;
               return (
                 <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
-                  className={`w-full flex flex-col text-left border-b border-surface-100 outline-none cursor-pointer transition-colors border-l-[3px]
+                  className={`w-full flex flex-col text-left border-b border-surface-100 outline-none cursor-pointer transition-all border-l-[3px]
                     ${active
                       ? "border-l-designstudio-primary-500 bg-neutral-50"
-                      : "border-l-transparent hover:bg-neutral-50"}`}>
+                      : "border-l-transparent hover:bg-neutral-50"}
+                    ${!active && done === 0 ? "opacity-60" : ""}`}>
                   <div className="flex items-center gap-3 pl-5 pr-4 pt-3.5 pb-2">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${hasClass ? "bg-status-success-500" : "bg-surface-300"}`} />
                     <p className={`text-[14px] font-bold truncate flex-1 ${active ? "text-base-primary-700" : "text-text-primary"}`}>{g.code}</p>
@@ -988,7 +1059,7 @@ export default function AttendancePanel({
                       {formatMonthDisplay(selectedMonth)}
                     </span>
                   </div>
-                  <div className="px-8 py-2.5 bg-[#5e63c2] shrink-0 flex items-center gap-3 text-[11px] font-medium overflow-x-auto no-scrollbar">
+                  <div className="mx-8 h-[48px] bg-base-primary-900 rounded-2xl shrink-0 flex items-center gap-3 px-6 text-[13px] font-medium overflow-x-auto no-scrollbar">
                     {courseTotalHours !== null && (
                       <>
                         <span className="text-white/60 shrink-0">Toplam Ders:</span>
@@ -1070,13 +1141,19 @@ export default function AttendancePanel({
 
                 <div className="flex items-center shrink-0">
                   {/* Temizle: entries sıfırla */}
-                  {filledCount > 0 && (
+                  {lessonStarted && !hasPersistedEntries ? (
+                    <button
+                      onClick={async () => { await handleClear(); setLessonStarted(false); }}
+                      className="text-[11px] font-semibold text-text-placeholder hover:text-base-primary-600 transition-colors cursor-pointer mr-8">
+                      İptal
+                    </button>
+                  ) : Object.keys(entries).length > 0 && canEdit ? (
                     <button
                       onClick={handleClear}
                       className="text-[11px] font-semibold text-text-placeholder hover:text-red-500 transition-colors cursor-pointer mr-8">
                       Temizle
                     </button>
-                  )}
+                  ) : null}
                   {/* Exception badge / button */}
                   {exception ? (
                     <button onClick={() => setShowExModal(true)}
@@ -1098,6 +1175,23 @@ export default function AttendancePanel({
                   )}
                 </div>
               </div>
+
+                  {/* Kapatıldı — düzenleme penceresi banner */}
+                  {attendanceClosed && canEdit && withinEditWindow && (
+                    <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2 text-[12px] font-semibold text-amber-700 shrink-0">
+                      <AlertCircle size={13} />
+                      Bu yoklama kapatıldı.{" "}
+                      {Math.ceil((closedAt!.getTime() + 3 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000))} gün içinde düzenleyebilirsiniz.
+                    </div>
+                  )}
+
+                  {/* Kilitlendi banner (3 gün doldu, eğitmen) */}
+                  {attendanceClosed && !canEdit && (
+                    <div className="px-5 py-2.5 bg-surface-100 border-b border-surface-200 flex items-center gap-2 text-[12px] font-semibold text-text-placeholder shrink-0">
+                      <Lock size={13} />
+                      Bu yoklama kilitlendi. Düzenleme süresi doldu.
+                    </div>
+                  )}
 
                   {/* Exception banner */}
                   {exception && (
@@ -1141,9 +1235,9 @@ export default function AttendancePanel({
                           const isMarked = entry !== undefined;
                           return (
                             <div key={student.id}
-                              className={`flex items-center px-5 py-3 transition-colors ${exception ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/50"}`}>
+                              className={`flex items-center px-5 py-3 xl:py-5 transition-colors ${exception || (!canEdit) ? "opacity-40 pointer-events-none" : "hover:bg-surface-50/50"}`}>
                               {/* Sıra no */}
-                              <span className="text-[11px] text-text-placeholder w-5 text-right shrink-0 mr-3">{idx + 1}</span>
+                              <span className="text-[13px] font-semibold text-text-secondary w-5 text-right shrink-0 mr-3">{idx + 1}</span>
 
                               {/* Avatar (24px) + İsim (8px gap) */}
                               <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
@@ -1151,17 +1245,17 @@ export default function AttendancePanel({
                                   <img
                                     src={`/avatars/${student.gender}/${student.avatarId}.svg`}
                                     alt={student.name}
-                                    className="w-6 h-6 rounded-full object-cover shrink-0"
+                                    className="w-5 h-5 xl:w-8 xl:h-8 rounded-full object-cover shrink-0"
                                   />
                                 ) : student.photoURL ? (
                                   <img src={student.photoURL} alt={student.name}
-                                    className="w-6 h-6 rounded-full object-cover shrink-0" />
+                                    className="w-5 h-5 xl:w-8 xl:h-8 rounded-full object-cover shrink-0" />
                                 ) : (
-                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}>
+                                  <div className={`w-5 h-5 xl:w-8 xl:h-8 rounded-full flex items-center justify-center shrink-0 text-[9px] xl:text-[10px] font-bold ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}>
                                     {(student.name?.[0] ?? "").toUpperCase()}{(student.lastName?.[0] ?? "").toUpperCase()}
                                   </div>
                                 )}
-                                <p className="flex-1 text-[13px] font-semibold text-text-primary truncate">
+                                <p className="flex-1 text-[13px] xl:text-[15px] font-semibold text-text-primary truncate">
                                   {student.name} {student.lastName ?? ""}
                                   {student.isOnlineStudent && (
                                     <span className="ml-1.5 text-[10px] font-bold text-blue-500">(O)</span>
@@ -1170,12 +1264,12 @@ export default function AttendancePanel({
                               </div>
 
                               {/* Saat butonları */}
-                              <div className="flex items-center gap-1.5 shrink-0 mr-2">
+                              <div className="flex items-center gap-2.5 shrink-0 mr-2">
                                 {!isMarked ? (
                                   /* İşaretsiz: 0…sessionHours sayısal butonlar */
                                   Array.from({ length: sessionHours + 1 }, (_, i) => i).map(h => (
                                     <button key={h} onClick={() => { if (!lessonStarted) { showHintToast(); return; } setHours(student.id, h); }}
-                                      className="w-8 h-8 flex items-center justify-center rounded-full text-[12px] font-medium border border-surface-200 text-text-placeholder bg-white hover:border-surface-300 transition-all cursor-pointer outline-none">
+                                      className="w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full text-[11px] xl:text-[13px] font-semibold border border-surface-300 text-text-secondary bg-white hover:border-base-primary-300 hover:text-base-primary-600 transition-all cursor-pointer outline-none">
                                       {h}
                                     </button>
                                   ))
@@ -1186,13 +1280,13 @@ export default function AttendancePanel({
                                     return (
                                       <button key={slot}
                                         onClick={() => { if (!lessonStarted) { showHintToast(); return; } setHours(student.id, isChecked ? slot - 1 : slot); }}
-                                        className={`w-8 h-8 flex items-center justify-center rounded-full font-bold transition-all cursor-pointer outline-none
+                                        className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full font-bold transition-all cursor-pointer outline-none
                                           ${isChecked
-                                            ? "bg-status-success-500 text-white ring-2 ring-offset-[2px] ring-status-success-300"
-                                            : "bg-surface-100 text-surface-400 ring-2 ring-offset-[2px] ring-surface-300"}`}>
+                                            ? "bg-status-success-500 text-white"
+                                            : "bg-red-100 text-red-400"}`}>
                                         {isChecked
-                                          ? <Check size={13} strokeWidth={2.5} />
-                                          : <X size={13} strokeWidth={2.5} />}
+                                          ? <Check size={14} strokeWidth={2.5} />
+                                          : <X size={14} strokeWidth={2.5} />}
                                       </button>
                                     );
                                   })
@@ -1230,49 +1324,48 @@ export default function AttendancePanel({
                     <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-between shrink-0">
 
                       {/* Sol: katılım istatistikleri */}
-                      <div className="flex items-center gap-4 text-[11px]">
-                        <span className="text-text-primary text-[11px]">Yüz yüze: <span className="font-bold">{inPersonAttendCount}</span></span>
-                        <span className="text-text-primary text-[11px]">Online: <span className="font-bold">{onlineAttendCount}</span></span>
-                        <span className="text-text-primary text-[11px]">Toplam katılan: <span className="font-bold">{filledCount}</span></span>
-                        <span className="text-text-primary text-[11px]">Katılmayan: <span className="font-bold">{absentCount}</span></span>
+                      <div className="flex items-center gap-5 text-[13px]">
+                        <span className="text-text-primary">Yüz yüze: <span className="font-bold">{inPersonAttendCount}</span></span>
+                        <span className="text-text-primary">Online: <span className="font-bold">{onlineAttendCount}</span></span>
+                        <span className="text-text-primary">Toplam katılan: <span className="font-bold">{filledCount}</span></span>
+                        <span className="text-text-primary">Katılmayan: <span className="font-bold">{absentCount}</span></span>
                       </div>
 
-                      {/* Sağ: aksiyon butonları */}
-                      <div className="flex items-center gap-3">
-
-                        {/* Sol buton: Dersi Başlat → Kaydet → Ders Devam Ediyor → Güncelle */}
-                        {!lessonStarted ? (
-                          <button
-                            onClick={() => setLessonStarted(true)}
-                            disabled={!isActiveForDate}
+                      {/* Tek akıllı buton */}
+                      <div className="flex items-center">
+                        {attendanceClosed ? (
+                          canEdit ? (
+                            saved ? (
+                              <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-status-success-100 text-status-success-700 opacity-80 cursor-default outline-none">
+                                <CheckCheck size={13} /> Kaydedildi
+                              </button>
+                            ) : (
+                              <button onClick={handleSave} disabled={saving}
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">
+                                <RefreshCw size={13} /> {saving ? "Kaydediliyor…" : "Güncelle"}
+                              </button>
+                            )
+                          ) : (
+                            <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-text-placeholder cursor-default outline-none">
+                              <Lock size={13} /> Kilitlendi
+                            </button>
+                          )
+                        ) : !lessonStarted ? (
+                          <button onClick={handleStartLesson} disabled={!isActiveForDate}
                             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
                             <Play size={13} /> Dersi Başlat
                           </button>
-                        ) : saved || filledCount === 0 ? (
-                          <button disabled
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white opacity-60 cursor-default outline-none">
-                            <Play size={13} /> Ders Devam Ediyor
+                        ) : !saved ? (
+                          <button onClick={handleSave} disabled={saving}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-green-500 text-white hover:bg-green-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">
+                            <CheckCircle2 size={13} /> {saving ? "Kaydediliyor…" : "Kaydet"}
                           </button>
                         ) : (
-                          <button
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
-                            {saving ? "Kaydediliyor…"
-                              : existingDoc
-                                ? <><RefreshCw size={13} /> Güncelle</>
-                                : <><CheckCircle2 size={13} /> Kaydet</>}
+                          <button onClick={() => setShowEndConfirm(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-orange-500 text-white hover:bg-orange-600 transition-colors cursor-pointer outline-none">
+                            <Square size={13} /> Dersi Bitir
                           </button>
                         )}
-
-                        {/* Dersi Bitir — her zaman ayrı, modal ile onay */}
-                        <button
-                          onClick={() => setShowEndConfirm(true)}
-                          disabled={saving || !lessonStarted || !isActiveForDate}
-                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
-                          <Square size={13} /> Dersi Bitir
-                        </button>
-
                       </div>
                     </div>
                   )}
