@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
               senderId:  uid,
               title:     `${studentName} yorum yaptı`,
               preview,
-              actionUrl: `/dashboard/assignment-test/${sGroupId}/${taskId}?student=${studentId}&tab=private`,
+              actionUrl: `/dashboard/assignment/${sGroupId}/${taskId}?student=${studentId}&tab=private`,
               createdAt: FieldValue.serverTimestamp(),
               isRead:    false,
               isArchived: false,

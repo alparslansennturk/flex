@@ -8,8 +8,9 @@ import {
   onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
 import { sendThreadComment } from "@/app/lib/sendThreadComment";
-import { useUser } from "@/app/context/UserContext";
 import { NotificationService } from "@/app/lib/services/NotificationService";
+import SubmissionTimeline from "@/app/components/assignment-test/SubmissionTimeline";
+import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
 import {
@@ -183,7 +184,6 @@ export default function AssignmentDetailPage() {
     if (studentParam) {
       setViewingId(studentParam);
       autoSelectedRef.current = true;
-      if (tabParam === 'private') setActiveTab('private');
     }
   }, []);
 
@@ -540,8 +540,7 @@ export default function AssignmentDetailPage() {
     const text       = commentText.trim();
     const authorName = `${user.name ?? ""} ${user.surname ?? ""}`.trim() || "Eğitmen";
 
-    // Genel yorum (duyuru) — her öğrenciye bildirim de gönder
-    if (activeTab === "general") {
+    if (effectiveTab === "general") {
       setCommentText("");
       addDoc(collection(db, "tasks", assignmentId, "comments"), {
         commentType: "general",
@@ -569,7 +568,6 @@ export default function AssignmentDetailPage() {
       return;
     }
 
-    // Özel yorum — optimistic UI
     if (!viewingId) return;
     const tempId = `opt_${crypto.randomUUID()}`;
     setCommentText("");
@@ -582,13 +580,8 @@ export default function AssignmentDetailPage() {
       text,
       createdAt:  new Date(),
     }]);
-
     sendThreadComment(assignmentId, viewingId, text, authorName).then(result => {
-      if (!result.ok) {
-        setPrivateComments(prev => prev.filter(c => c.id !== tempId));
-        // TODO: toast ile hata göster
-      }
-      // Başarıda onSnapshot real mesajı getirir, tempId otomatik düşer
+      if (!result.ok) setPrivateComments(prev => prev.filter(c => c.id !== tempId));
     });
   }
 
@@ -598,7 +591,9 @@ export default function AssignmentDetailPage() {
   const viewingSub     = viewingId ? getLatestSub(viewingId) : null;
   const viewingAllSubs = viewingId ? getAllSubs(viewingId) : [];
 
-  const visibleComments = activeTab === "general" ? generalComments : privateComments;
+  const isGradingMode   = searchParams.get("mode") === "grading";
+  const effectiveTab    = isGradingMode ? "private" : activeTab;
+  const visibleComments = effectiveTab === "general" ? generalComments : privateComments;
 
   if (authLoading || !user) return null;
 
@@ -621,12 +616,12 @@ export default function AssignmentDetailPage() {
           <div className="flex-1 flex min-h-0 overflow-hidden">
 
             {/* ════════════ Sol Panel ════════════ */}
-            <aside className="w-[360px] shrink-0 border-r border-surface-200 flex flex-col overflow-hidden bg-white">
+            {!isGradingMode && <aside className="w-[360px] shrink-0 border-r border-surface-200 flex flex-col overflow-hidden bg-white">
 
               {/* Başlık */}
               <div className="px-5 pt-5 pb-4 border-b border-surface-100">
                 <button
-                  onClick={() => router.push(`/dashboard/assignment-test/${groupId}`)}
+                  onClick={() => router.push(`/dashboard/assignment/${groupId}`)}
                   className="flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 bg-neutral-200 text-neutral-600 hover:bg-neutral-300 hover:text-neutral-900 hover:border-neutral-400 transition-all mb-6 cursor-pointer"
                   title="Geri"
                 >
@@ -738,7 +733,7 @@ export default function AssignmentDetailPage() {
                   onToggleGroup={toggleGroup}
                 />
               </div>
-            </aside>
+            </aside>}
 
             {/* ════════════ Sağ Panel ════════════ */}
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-surface-50">
@@ -752,10 +747,10 @@ export default function AssignmentDetailPage() {
                   <div className="p-6 space-y-6 shrink-0">
 
                       {/* ── Üst: Öğrenci kartı + Mevcut Durum ── */}
-                      <div className="flex gap-6 items-stretch">
+                      <div className="grid grid-cols-[1fr_300px] gap-6 items-stretch">
 
                         {/* Öğrenci bilgi kartı */}
-                        <div className="flex-1 min-w-0 bg-white border border-surface-200 rounded-2xl p-5 flex flex-col">
+                        <div className="min-w-0 bg-white border border-surface-200 rounded-2xl p-5 flex flex-col">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0">
                               <StudentAvatar gender={viewingStudent.gender} avatarId={viewingStudent.avatarId} size="lg" />
@@ -801,7 +796,7 @@ export default function AssignmentDetailPage() {
 
                         {/* Mevcut Durum kartı */}
                         {viewingSub && (
-                          <div className="shrink-0 bg-white border border-surface-200 rounded-2xl p-5 space-y-3">
+                          <div className="bg-white border border-surface-200 rounded-2xl p-5 space-y-3">
                             <p className="text-[11px] font-bold text-surface-500 uppercase tracking-wider">Mevcut Durum</p>
                             <span className={`inline-flex items-center gap-1.5 text-[12px] font-bold px-3 py-1 rounded-full border ${STATUS_BADGE[viewingSub.status]}`}>
                               {STATUS_LABEL[viewingSub.status]}
@@ -896,7 +891,7 @@ export default function AssignmentDetailPage() {
                           </div>
                           <div className="flex justify-end mt-4">
                             <button
-                              onClick={() => { sessionStorage.setItem(SESSION_KEY, viewingId!); router.push(`/dashboard/assignment-test/${groupId}/${assignmentId}/${viewingSub.id}/preview`); }}
+                              onClick={() => { sessionStorage.setItem(SESSION_KEY, viewingId!); router.push(`/dashboard/assignment/${groupId}/${assignmentId}/${viewingSub.id}/preview`); }}
                               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-status-success-500 text-white text-[13px] font-semibold hover:bg-status-success-700 transition-colors cursor-pointer"
                             >
                               <ExternalLink size={14} /> Detay Gör
@@ -913,8 +908,22 @@ export default function AssignmentDetailPage() {
 
                   </div>
 
+                  {/* ── Aktivite ── */}
+                  {viewingSub && (
+                    <div className="mx-6 mb-4 bg-white border border-surface-200 rounded-2xl p-5">
+                      <h2 className="text-[14px] font-bold text-text-primary mb-4">Aktivite</h2>
+                      <SubmissionTimeline
+                        submissionId={viewingSub.id}
+                        authorNames={{
+                          ...(viewingStudent?.authUid ? { [viewingStudent.authUid]: `${viewingStudent.name} ${viewingStudent.lastName}`.trim() } : {}),
+                          ...(user?.uid ? { [user.uid]: "Eğitmen" } : {}),
+                        }}
+                      />
+                    </div>
+                  )}
+
                   {/* ════ Yorum Paneli ════ */}
-                  <div className="mt-auto mx-6 shrink-0 h-[38vh] min-h-[260px] flex flex-col">
+                  <div className="mt-auto mx-6 shrink-0 h-[30vh] min-h-[220px] flex flex-col">
                     <div className="flex-1 bg-white border border-surface-200 rounded-tl-2xl rounded-tr-2xl flex flex-col overflow-hidden">
 
                     {/* Yorumlar başlık */}
@@ -922,31 +931,39 @@ export default function AssignmentDetailPage() {
                       <h2 className="text-[14px] font-bold text-text-primary">Yorumlar</h2>
                     </div>
 
-                    {/* Tab başlıkları */}
-                    <div className="flex border-b border-surface-100 px-5 shrink-0">
-                      {([
-                        { key: "general", label: "Duyuru",                                                  icon: <Users size={12} /> },
-                        { key: "private", label: viewingStudent ? `${viewingStudent.name} ${viewingStudent.lastName}`.trim() : "Özel", icon: <Lock  size={12} /> },
-                      ] as const).map(({ key, label, icon }) => (
-                        <button
-                          key={key}
-                          onClick={() => setActiveTab(key)}
-                          className={`flex items-center gap-1.5 py-3 px-1 mr-6 text-[12px] font-semibold border-b-2 -mb-px transition-colors
-                            ${activeTab === key
-                              ? "border-base-primary-600 text-base-primary-700"
-                              : "border-transparent text-surface-400 hover:text-surface-600"
-                            }`}
-                        >
-                          {icon} {label}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Tab başlıkları — grading modunda sadece özel */}
+                    {isGradingMode ? (
+                      <div className="px-5 pb-2 shrink-0 border-b border-surface-100">
+                        <span className="flex items-center gap-1.5 py-2 text-[12px] font-semibold text-base-primary-700">
+                          <Lock size={12} /> {viewingStudent ? `${viewingStudent.name} ${viewingStudent.lastName}`.trim() : "Özel"}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex border-b border-surface-100 px-5 shrink-0">
+                        {([
+                          { key: "general", label: "Duyuru", icon: <Users size={12} /> },
+                          { key: "private", label: viewingStudent ? `${viewingStudent.name} ${viewingStudent.lastName}`.trim() : "Özel", icon: <Lock size={12} /> },
+                        ] as const).map(({ key, label, icon }) => (
+                          <button
+                            key={key}
+                            onClick={() => setActiveTab(key)}
+                            className={`flex items-center gap-1.5 py-3 px-1 mr-6 text-[12px] font-semibold border-b-2 -mb-px transition-colors
+                              ${activeTab === key
+                                ? "border-base-primary-600 text-base-primary-700"
+                                : "border-transparent text-surface-400 hover:text-surface-600"
+                              }`}
+                          >
+                            {icon} {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Yorum listesi */}
                     <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4">
                       {visibleComments.length === 0 ? (
                         <p className="text-[12px] text-surface-400 text-center py-4">
-                          {activeTab === "general" ? "Henüz duyuru yok." : "Henüz yorum yok."}
+                          {effectiveTab === "general" ? "Henüz duyuru yok." : "Henüz yorum yok."}
                         </p>
                       ) : (
                         visibleComments.map(c => (
@@ -973,17 +990,13 @@ export default function AssignmentDetailPage() {
                             sendComment();
                           }
                         }}
-                        placeholder={
-                          activeTab === "general"
-                            ? "Tüm sınıfa duyuru yaz..."
-                            : "Öğrenciye özel yorum yaz..."
-                        }
+                        placeholder={effectiveTab === "general" ? "Tüm sınıfa duyuru yaz..." : "Öğrenciye özel yorum yaz..."}
                         rows={2}
                         className="flex-1 resize-none rounded-xl border border-surface-200 px-3 py-2 text-[13px] text-text-primary outline-none focus:border-base-primary-400 transition-colors bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <button
                         onClick={sendComment}
-                        disabled={!commentText.trim() || (activeTab === "private" && !viewingId)}
+                        disabled={!commentText.trim() || (effectiveTab === "private" && !viewingId)}
                         className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
                       >
                         <Send size={14} />
@@ -1134,14 +1147,6 @@ function FileCard({
           {mimeToLabel(sub.file.mimeType)} · v{sub.iteration} · {fmtDateTime(sub.submittedAt)}
         </p>
       </div>
-      <button
-        onClick={() =>
-          onNavigate(`/dashboard/assignment-test/${groupId}/${assignmentId}/${sub.id}/preview`)
-        }
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-base-primary-200 text-base-primary-600 text-[12px] font-semibold hover:bg-base-primary-50 transition-colors cursor-pointer shrink-0"
-      >
-        <ExternalLink size={12} /> Detayı Gör
-      </button>
     </div>
   );
 }

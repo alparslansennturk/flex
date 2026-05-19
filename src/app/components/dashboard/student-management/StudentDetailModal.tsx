@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, GraduationCap, Zap, BookOpen, Star } from "lucide-react";
+import { X, GraduationCap, Zap, BookOpen, Star, CalendarCheck } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, query, where, getDocs, getDoc, doc, onSnapshot, documentId } from "firebase/firestore";
 import { useScoring } from "@/app/context/ScoringContext";
@@ -171,6 +171,43 @@ function GradCard({ label, code, grade, odevPuaniCalc, loading, color }: {
         )}
       </div>
     </div>
+  );
+}
+
+// ─── AttendanceDonut ──────────────────────────────────────────────────────────
+
+function AttendanceDonut({ rate, animate }: { rate: number; animate: boolean }) {
+  const [filled, setFilled] = useState(false);
+
+  useEffect(() => {
+    if (!animate) { setFilled(false); return; }
+    const t = setTimeout(() => setFilled(true), 120);
+    return () => clearTimeout(t);
+  }, [animate]);
+
+  const circ = 2 * Math.PI * 26;
+  const color     = rate >= 70 ? "#22c55e" : rate >= 50 ? "#f97316" : "#ef4444";
+  const textColor = rate >= 70 ? "#15803d" : rate >= 50 ? "#c2410c" : "#b91c1c";
+  const offset    = filled ? circ - (rate / 100) * circ : circ;
+
+  return (
+    <svg width="72" height="72" viewBox="0 0 72 72">
+      <circle cx="36" cy="36" r="26" fill="none" stroke="#f1f5f9" strokeWidth="9" />
+      <circle
+        cx="36" cy="36" r="26"
+        fill="none"
+        stroke={color}
+        strokeWidth="9"
+        strokeLinecap="round"
+        strokeDasharray={String(circ)}
+        strokeDashoffset={offset}
+        transform="rotate(-90 36 36)"
+        style={{ transition: "stroke-dashoffset 0.6s ease-out" }}
+      />
+      <text x="36" y="40" textAnchor="middle" fontSize="12" fontWeight="800" fill={textColor}>
+        {rate}%
+      </text>
+    </svg>
   );
 }
 
@@ -737,57 +774,86 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
           {/* SAĞ */}
           <div className="space-y-4 min-w-0">
 
-            {/* XP Dağılımı */}
-            <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-1.5">
-                  <Zap size={11} className="text-surface-400" />
-                  <p className="text-[10px] font-bold text-surface-400 tracking-tight">Görev XP</p>
+            {/* XP Dağılımı + Devam — 2 ayrı kart */}
+            <div className="grid grid-cols-2 gap-4">
+
+              {/* Sol — XP barları */}
+              <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-1.5">
+                      <Zap size={11} className="text-surface-400" />
+                      <p className="text-[10px] font-bold text-surface-400 tracking-tight">Görev XP</p>
+                    </div>
+                    <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 rounded-full px-2.5 py-1">
+                      <Zap size={10} className="text-amber-500" />
+                      <span className="text-[11px] font-black text-amber-700 tabular-nums">{totalXP} XP</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[11px] font-bold text-base-primary-600">Grafik-1</span>
+                        <span className={`text-[11px] font-bold text-text-primary tabular-nums transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
+                          {g1Stats.xp} XP <span className="text-surface-400 font-normal">({g1Pct}%)</span>
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-surface-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-base-primary-500 rounded-full transition-all duration-700" style={{ width: `${loading ? 0 : g1Pct}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[11px] font-bold text-accent-purple-600">Grafik-2</span>
+                        <span className={`text-[11px] font-bold text-text-primary tabular-nums transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
+                          {g2Stats.xp} XP <span className="text-surface-400 font-normal">({g2Pct}%)</span>
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-surface-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-accent-purple-500 rounded-full transition-all duration-700" style={{ width: `${loading ? 0 : g2Pct}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 pt-1">
+                      <span className="flex items-center gap-1.5 text-[10px] text-surface-400 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-base-primary-500 shrink-0" />Grafik-1
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[10px] text-surface-400 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-accent-purple-500 shrink-0" />Grafik-2
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 rounded-full px-2.5 py-1">
-                  <Zap size={10} className="text-amber-500" />
-                  <span className="text-[11px] font-black text-amber-700 tabular-nums">{totalXP} XP</span>
+
+              {/* Sağ — Devam durumu */}
+              <div className="rounded-16 border border-surface-100 bg-surface-50 p-4 flex flex-col">
+                  <div className="flex items-center gap-1.5 mb-4">
+                    <CalendarCheck size={11} className="text-surface-400" />
+                    <p className="text-[10px] font-bold text-surface-400 tracking-tight">Devam Durumu</p>
+                  </div>
+
+                  <div className="flex flex-1 items-center gap-4">
+                    {/* Metin — üst Ders Sayısı, alt Devamsızlık */}
+                    <div className="flex flex-col justify-between flex-1 self-stretch py-1">
+                      <div>
+                        <p className="text-[9px] font-bold text-surface-400 uppercase tracking-wide mb-0.5">Ders Sayısı</p>
+                        <p className="text-[22px] font-black tabular-nums leading-none text-text-primary">—</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-surface-400 uppercase tracking-wide mb-0.5">Devamsızlık</p>
+                        <p className="text-[22px] font-black tabular-nums leading-none text-red-400">—</p>
+                      </div>
+                    </div>
+
+                    {/* Donut */}
+                    <div className="shrink-0">
+                      <AttendanceDonut rate={75} animate={visible} />
+                    </div>
+                  </div>
                 </div>
+
               </div>
-
-              {/* XP barları her zaman render edilir; yükleme sırasında genişlik 0, değerler soluk */}
-              <div className="space-y-3">
-                {/* G1 bar */}
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-base-primary-600">Grafik-1</span>
-                    <span className={`text-[11px] font-bold text-text-primary tabular-nums transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
-                      {g1Stats.xp} XP <span className="text-surface-400 font-normal">({g1Pct}%)</span>
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-surface-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-base-primary-500 rounded-full transition-all duration-700" style={{ width: `${loading ? 0 : g1Pct}%` }} />
-                  </div>
-                </div>
-
-                {/* G2 bar */}
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-accent-purple-600">Grafik-2</span>
-                    <span className={`text-[11px] font-bold text-text-primary tabular-nums transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
-                      {g2Stats.xp} XP <span className="text-surface-400 font-normal">({g2Pct}%)</span>
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-surface-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent-purple-500 rounded-full transition-all duration-700" style={{ width: `${loading ? 0 : g2Pct}%` }} />
-                  </div>
-                </div>
-
-                <div className="flex gap-4 pt-1">
-                  <span className="flex items-center gap-1.5 text-[10px] text-surface-400 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-base-primary-500 shrink-0" />Grafik-1
-                  </span>
-                  <span className="flex items-center gap-1.5 text-[10px] text-surface-400 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-accent-purple-500 shrink-0" />Grafik-2
-                  </span>
-                </div>
-              </div>
-            </div>
 
             {/* Mezuniyet Notları */}
             <div>

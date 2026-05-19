@@ -54,10 +54,10 @@ function fmtTime(d: Date): string {
 }
 
 const STATUS_MAP: Record<SubmissionStatus, { label: string; cls: string }> = {
-  submitted: { label: "Teslim Edildi", cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
-  reviewing: { label: "İncelemede",   cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
-  revision:  { label: "Revize Durumunda", cls: "bg-blue-50 text-status-info border-blue-100" },
-  completed: { label: "Tamamlandı",   cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
+  submitted: { label: "Teslim Edildi",     cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
+  reviewing: { label: "İncelemede",        cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
+  revision:  { label: "Revize Durumunda",  cls: "bg-blue-50 text-status-info border-blue-100" },
+  completed: { label: "Tamamlandı",        cls: "bg-status-success-100 text-status-success-700 border-status-success-100" },
 };
 
 /* ── Avatar ── */
@@ -84,7 +84,6 @@ export default function SubmissionPreviewPage() {
   const params = useParams<{ groupId: string; assignmentId: string; submissionId: string }>();
   const { groupId, assignmentId, submissionId } = params;
 
-  /* Data */
   const [submission,      setSubmission]      = useState<Submission | null>(null);
   const [studentName,     setStudentName]     = useState("");
   const [studentGender,   setStudentGender]   = useState<string>("male");
@@ -94,11 +93,9 @@ export default function SubmissionPreviewPage() {
   const [activeFileId,    setActiveFileId]    = useState<string | undefined>();
   const [loading,         setLoading]         = useState(true);
 
-  /* Comments — sadece özel thread */
-  const [comments,       setComments]       = useState<CommentItem[]>([]);
-  const [commentText,    setCommentText]    = useState("");
+  const [comments,    setComments]    = useState<CommentItem[]>([]);
+  const [commentText, setCommentText] = useState("");
 
-  /* Actions */
   const [actionLoading, setActionLoading] = useState(false);
   const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
 
@@ -108,7 +105,6 @@ export default function SubmissionPreviewPage() {
   useEffect(() => { if (!authLoading && !user) router.push("/login"); }, [user, authLoading, router]);
   useEffect(() => { if (user) loadData(); }, [user, submissionId]);
 
-  /* Real-time: öğrenci–eğitmen thread */
   useEffect(() => {
     if (!submission?.taskId || !submission?.studentId) return;
     const q = query(
@@ -127,15 +123,11 @@ export default function SubmissionPreviewPage() {
     }, err => { if (err.code !== "permission-denied") console.error("[preview-comments]", err); });
   }, [submission?.taskId, submission?.studentId]);
 
-  /* Yeni yorum gelince en alta kaydır — scrollIntoView yerine parent scrollTop kullanıyoruz,
-     çünkü scrollIntoView bazı tarayıcılarda overflow:hidden dış container'ı da etkiliyor */
   useEffect(() => {
     if (commentsScrollRef.current) {
       commentsScrollRef.current.scrollTop = commentsScrollRef.current.scrollHeight;
     }
   }, [comments]);
-
-  /* ── Data ── */
 
   async function loadData() {
     setLoading(true);
@@ -150,7 +142,7 @@ export default function SubmissionPreviewPage() {
         getDocs(query(
           collection(db, "submissions"),
           where("studentId", "==", sd.studentId),
-          where("taskId", "==", sd.taskId),
+          where("taskId",    "==", sd.taskId),
         )),
       ]);
 
@@ -183,11 +175,9 @@ export default function SubmissionPreviewPage() {
       }
       if (taskSnap.exists()) setTaskName(taskSnap.data().name ?? "");
 
-      // Tüm submission'ları iteration sırasına göre sırala
       const sortedSubs = allSubsSnap.docs
         .sort((a, b) => (a.data().iteration ?? 1) - (b.data().iteration ?? 1));
 
-      // Her submission için dosyaları paralel yükle
       const allFilesSnaps = await Promise.all(
         sortedSubs.map(subDoc =>
           getDocs(query(
@@ -197,12 +187,11 @@ export default function SubmissionPreviewPage() {
         )
       );
 
-      // Tüm dosyaları birleştir
       const allFiles: FileVersion[] = [];
       sortedSubs.forEach((subDoc, i) => {
-        const subData    = subDoc.data();
-        const filesSnap  = allFilesSnaps[i];
-        const iteration  = subData.iteration ?? 1;
+        const subData   = subDoc.data();
+        const filesSnap = allFilesSnaps[i];
+        const iteration = subData.iteration ?? 1;
 
         if (filesSnap.docs.length > 0) {
           filesSnap.docs
@@ -222,7 +211,6 @@ export default function SubmissionPreviewPage() {
             .sort((a, b) => a.versionNo - b.versionNo)
             .forEach(f => allFiles.push(f));
         } else {
-          // submission_files yoksa submission.file'dan fallback
           allFiles.push({
             id:            subDoc.id,
             driveFileId:   subData.file?.driveFileId  ?? "",
@@ -240,7 +228,6 @@ export default function SubmissionPreviewPage() {
       });
 
       setFiles(allFiles);
-      // Aktif dosya: mevcut submissionId'ye ait son dosya ya da listenin sonu
       const currentSubFile =
         allFiles.filter(f => f.iteration === (sd.iteration ?? 1)).at(-1)
         ?? allFiles.at(-1);
@@ -249,8 +236,6 @@ export default function SubmissionPreviewPage() {
       setLoading(false);
     }
   }
-
-  /* ── Actions ── */
 
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok });
@@ -286,32 +271,20 @@ export default function SubmissionPreviewPage() {
 
   function deleteComment(id: string) {
     if (!submission) return;
-    // Optimistic: anında kaldır
     setComments(prev => prev.filter(c => c.id !== id));
     deleteDoc(doc(db, "tasks", submission.taskId, "threads", submission.studentId, "comments", id))
-      .catch((err: unknown) => {
-        console.error("[preview deleteComment]", err);
-        // Silme başarısız — onSnapshot güncel veriyi getirecek
-      });
+      .catch(console.error);
   }
 
   function sendComment() {
     if (!user || !commentText.trim() || !submission) return;
-
     const text       = commentText.trim();
     const authorName = `${user.name ?? ""} ${user.surname ?? ""}`.trim() || "Eğitmen";
     const tempId     = `opt_${crypto.randomUUID()}`;
-
     setCommentText("");
     setComments(prev => [...prev, {
-      id: tempId,
-      authorId:   user.uid,
-      authorType: "teacher",
-      authorName,
-      text,
-      createdAt:  new Date(),
+      id: tempId, authorId: user.uid, authorType: "teacher", authorName, text, createdAt: new Date(),
     }]);
-
     sendThreadComment(submission.taskId, submission.studentId, text, authorName).then(result => {
       if (!result.ok) {
         setComments(prev => prev.filter(c => c.id !== tempId));
@@ -320,8 +293,6 @@ export default function SubmissionPreviewPage() {
     });
   }
 
-  /* ── Derived ── */
-
   const activeFile = files.find(f => f.id === activeFileId) ?? files[0] ?? null;
   const previewUrl = activeFile?.driveViewLink
     ? activeFile.driveViewLink.replace("/view", "/preview")
@@ -329,15 +300,13 @@ export default function SubmissionPreviewPage() {
 
   if (authLoading || !user) return null;
 
-  /* ── Render ── */
-
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white font-inter antialiased text-text-primary">
 
-      {/* ── Top bar ── */}
+      {/* Top bar */}
       <div className="shrink-0 h-[56px] border-b border-surface-200 bg-white flex items-center gap-4 px-5">
         <button
-          onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${assignmentId}`)}
+          onClick={() => router.push(`/dashboard/assignment/${groupId}/${assignmentId}`)}
           className="flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 bg-neutral-200 text-neutral-600 hover:bg-neutral-300 hover:text-neutral-900 hover:border-neutral-400 transition-all cursor-pointer shrink-0"
           title="Geri"
         >
@@ -382,7 +351,7 @@ export default function SubmissionPreviewPage() {
         </div>
       </div>
 
-      {/* ── Main split ── */}
+      {/* Main */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-surface-400">
           <Loader2 size={22} className="animate-spin" />
@@ -394,10 +363,8 @@ export default function SubmissionPreviewPage() {
       ) : (
         <div className="flex-1 flex min-h-0 overflow-hidden">
 
-          {/* ── Sol: Dosya önizleme ── */}
+          {/* Sol: Dosya önizleme */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#1a1a1a]">
-
-            {/* Önizleme */}
             <div className="flex-1 min-h-0 relative">
               {previewUrl ? (
                 <iframe src={previewUrl} className="absolute inset-0 w-full h-full border-0" allow="autoplay" />
@@ -419,33 +386,23 @@ export default function SubmissionPreviewPage() {
             </div>
           </div>
 
-          {/* ── Sağ: Öğrenci–Eğitmen Konuşması ── */}
+          {/* Sağ: Sohbet */}
           <div className="w-[360px] shrink-0 border-l border-surface-200 flex flex-col overflow-hidden bg-white">
 
-            {/* Başlık */}
             <div className="shrink-0 px-5 py-3.5 border-b border-surface-100 flex items-center gap-3">
               <StudentAvatar gender={studentGender} avatarId={studentAvatarId} size={34} />
               <div className="min-w-0">
                 <p className="text-[13px] font-bold text-text-primary leading-tight">{studentName}</p>
                 <p className="text-[11px] text-surface-400">{fmtFull(submission.submittedAt)}</p>
               </div>
-              {submission.note && (
-                <div
-                  title={submission.note}
-                  className="ml-auto w-6 h-6 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 cursor-default shrink-0"
-                >
-                  <span className="text-[11px]">i</span>
-                </div>
-              )}
             </div>
 
-            {/* Gönderilen Dosyalar */}
             {files.length > 0 && (
               <div className="shrink-0 border-b border-surface-100 px-4 py-3">
                 <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider mb-2">
                   Gönderilen Dosyalar
                 </p>
-                <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-0.5">
+                <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
                   {files.map(f => (
                     <button
                       key={f.id}
@@ -474,13 +431,11 @@ export default function SubmissionPreviewPage() {
               </div>
             )}
 
-            {/* Yorumlar başlığı */}
-            <div className="shrink-0 px-5 pt-6 pb-6">
-              <p className="preview-section-heading">Yorumlar</p>
+            <div className="shrink-0 px-5 pt-4 pb-2">
+              <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider">Yorumlar</p>
             </div>
 
-            {/* Thread */}
-            <div ref={commentsScrollRef} className="flex-1 overflow-y-auto px-5 pt-0 pb-4 space-y-5">
+            <div ref={commentsScrollRef} className="flex-1 overflow-y-auto px-5 pb-4 space-y-5">
               {comments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-surface-400">
                   <p className="text-[13px] font-medium">Henüz mesaj yok</p>
@@ -489,12 +444,13 @@ export default function SubmissionPreviewPage() {
                   </p>
                 </div>
               ) : (
-                comments.map(c => <ThreadMessage key={c.id} comment={c} myId={user.uid} onEdit={editComment} onDelete={deleteComment} />)
+                comments.map(c => (
+                  <ThreadMessage key={c.id} comment={c} myId={user.uid} onEdit={editComment} onDelete={deleteComment} />
+                ))
               )}
               <div ref={commentsEndRef} />
             </div>
 
-            {/* Input */}
             <div className="shrink-0 border-t border-surface-100 px-4 pt-3 pb-6 flex items-end gap-2">
               <textarea
                 value={commentText}
@@ -519,7 +475,6 @@ export default function SubmissionPreviewPage() {
         </div>
       )}
 
-      {/* Toast */}
       {toast && (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-3 rounded-2xl text-white text-[13px] font-bold shadow-xl z-50
           ${toast.ok ? "bg-emerald-500" : "bg-red-500"}`}>
@@ -556,7 +511,6 @@ function ThreadMessage({
 
   const isMe      = comment.authorId === myId;
   const isTeacher = comment.authorType === "teacher";
-  const canAct    = isMe;
   const parts     = comment.authorName.trim().split(" ");
   const initials  = ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
 
@@ -579,7 +533,7 @@ function ThreadMessage({
           <span className="text-[11px] font-semibold text-surface-400">
             {isMe ? "Sen" : comment.authorName}
           </span>
-          {canAct && !editing && (
+          {isMe && !editing && (
             <div className="relative" ref={menuRef}>
               <button
                 onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
@@ -588,9 +542,7 @@ function ThreadMessage({
                 <MoreHorizontal size={13} />
               </button>
               {menuOpen && (
-                <div
-                  className={`absolute z-20 top-5 ${isMe ? "right-0" : "left-0"} bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden min-w-[100px]`}
-                >
+                <div className={`absolute z-20 top-5 ${isMe ? "right-0" : "left-0"} bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden min-w-[100px]`}>
                   <button
                     onClick={() => { setEditText(comment.text); setEditing(true); setMenuOpen(false); }}
                     className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"

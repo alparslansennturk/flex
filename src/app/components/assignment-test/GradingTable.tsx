@@ -191,7 +191,7 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
-                        onClick={() => router.push(`/dashboard/assignment-test/${row.groupId}/${row.taskId}/${row.id}`)}
+                        onClick={() => router.push(`/dashboard/assignment/${row.groupId}/${row.taskId}?student=${row.studentId}&mode=grading`)}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-surface-200 text-[11px] font-bold text-surface-600 hover:bg-surface-50 transition-colors cursor-pointer"
                       >
                         <ExternalLink size={11} /> Detay

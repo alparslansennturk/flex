@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
             senderId:  studentId,
             title:     `${studentName} ödev yükledi`,
             preview:   `"${taskName}" için yeni teslim. İncelemek için tıklayın.`,
-            actionUrl: `/dashboard/assignment-test/${groupId}/${taskId}?student=${studentId}&tab=private`,
+            actionUrl: `/dashboard/assignment/${groupId}/${taskId}?student=${studentId}&tab=private`,
             createdAt: FieldValue.serverTimestamp(),
             isRead:    false,
             isArchived: false,

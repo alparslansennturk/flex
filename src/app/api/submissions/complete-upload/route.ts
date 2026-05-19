@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
             senderId:   caller.uid,
             title:      `${studentName} ödev teslim etti`,
             preview,
-            actionUrl:  `/dashboard/assignment-test/${session.groupId}/${session.taskId}?student=${session.studentId}&tab=private`,
+            actionUrl:  `/dashboard/assignment/${session.groupId}/${session.taskId}?student=${session.studentId}&tab=private`,
             createdAt:  FieldValue.serverTimestamp(),
             isRead:     false,
             isArchived: false,

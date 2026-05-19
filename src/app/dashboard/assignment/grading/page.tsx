@@ -418,8 +418,8 @@ export default function GradingPage() {
                             setPendingGrades(prev => ({ ...prev, [id]: val }))
                           }
                           onGradeBlur={handleGradeBlur}
-                          onDetail={() => row.submitted && row.submissionId &&
-                            router.push(`/dashboard/assignment-test/${row.groupId}/${row.taskId}/${row.submissionId}`)
+                          onDetail={() => row.submitted && row.studentId &&
+                            router.push(`/dashboard/assignment/${row.groupId}/${row.taskId}?student=${row.studentId}&mode=grading`)
                           }
                         />
                       ))}

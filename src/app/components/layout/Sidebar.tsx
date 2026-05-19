@@ -29,7 +29,7 @@ export default function Sidebar() {
   const router = useRouter();
   const compact = useCompact();
   const [assignmentTestOpen, setAssignmentTestOpen] = useState(
-    pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive' || pathname.startsWith('/dashboard/tasks')
+    pathname.startsWith('/dashboard/assignment') || pathname === '/dashboard/archive' || pathname.startsWith('/dashboard/tasks')
   );
   const [yoklamaOpen, setYoklamaOpen] = useState(pathname.startsWith('/dashboard/attendance'));
   const [leagueGlobal, setLeagueGlobal] = useState(true);
@@ -108,7 +108,7 @@ export default function Sidebar() {
                 text-white hover:bg-white/5 cursor-pointer outline-none`}
             >
               <span className={`transition-colors duration-200 ${
-                (pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive' || pathname.startsWith('/dashboard/tasks')) ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'
+                (pathname.startsWith('/dashboard/assignment') || pathname === '/dashboard/archive' || pathname.startsWith('/dashboard/tasks')) ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'
               }`}>
                 <ClipboardList size={18} />
               </span>
@@ -128,10 +128,10 @@ export default function Sidebar() {
             >
               <div style={{ overflow: "hidden" }}>
                 <SidebarLink href="/dashboard/tasks"                    icon={<BookOpen size={15} />}          label="Ödev Yönetimi"      compact={compact} sub />
-                <SidebarLink href="/dashboard/assignment-test"          icon={<FileCheck size={15} />}         label="Ödev Teslimi"        compact={compact} exact sub />
-                <SidebarLink href="/dashboard/assignment-test/grading"  icon={<Star size={15} />}              label="Ödev Değerlendirme"  compact={compact} sub />
-                <SidebarLink href="/dashboard/assignment-test/review"   icon={<Eye size={15} />}              label="İncelenecekler"      compact={compact} sub />
-                <SidebarLink href="/dashboard/assignment-test/settings" icon={<SlidersHorizontal size={15} />} label="Ödev Ayarları"       compact={compact} sub />
+                <SidebarLink href="/dashboard/assignment"          icon={<FileCheck size={15} />}         label="Ödev Teslimi"        compact={compact} exact sub />
+                <SidebarLink href="/dashboard/assignment/grading"  icon={<Star size={15} />}              label="Ödev Değerlendirme"  compact={compact} sub />
+                <SidebarLink href="/dashboard/assignment/review"   icon={<Eye size={15} />}              label="İncelenecekler"      compact={compact} sub />
+                <SidebarLink href="/dashboard/assignment/settings" icon={<SlidersHorizontal size={15} />} label="Ödev Ayarları"       compact={compact} sub />
                 <SidebarLink href="/dashboard/archive"                  icon={<Archive size={15} />}           label="Ödev Arşivi"        compact={compact} sub />
               </div>
             </div>

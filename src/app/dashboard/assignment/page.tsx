@@ -167,7 +167,7 @@ export default function AssignmentTestPage() {
                       activeTaskCount={stats[g.id]?.activeTaskCount ?? 0}
                       submissionCount={stats[g.id]?.submissionCount ?? 0}
                       status={g.status}
-                      onClick={() => router.push(`/dashboard/assignment-test/${g.id}`)}
+                      onClick={() => router.push(`/dashboard/assignment/${g.id}`)}
                       onArchive={handleArchive}
                     />
                   ))}

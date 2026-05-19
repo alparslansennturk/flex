@@ -421,7 +421,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
             ) : (
               <>
                 <button
-                  onClick={() => task.groupId && router.push(`/dashboard/assignment-test/${task.groupId}?taskId=${task.id}`)}
+                  onClick={() => task.groupId && router.push(`/dashboard/assignment/${task.groupId}?taskId=${task.id}`)}
                   className="px-3 h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer"
                 >
                   Ödev Detay
@@ -439,7 +439,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
           <div className="relative flex items-center gap-1.5 ml-auto">
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             <button
-              onClick={() => task.groupId && router.push(`/dashboard/assignment-test/${task.groupId}?taskId=${task.id}`)}
+              onClick={() => task.groupId && router.push(`/dashboard/assignment/${task.groupId}?taskId=${task.id}`)}
               className="px-3 h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer"
             >
               Ödev Detay
@@ -972,7 +972,7 @@ export default function DesignParkour({ activeBranch, setActiveBranch }: { activ
                             : "sosyalmedya";
                 router.push(`/dashboard/${route}?taskId=${t.id}`);
               } else if (t.groupId) {
-                router.push(`/dashboard/assignment-test/${t.groupId}?taskId=${t.id}`);
+                router.push(`/dashboard/assignment/${t.groupId}?taskId=${t.id}`);
               }
             }}
           />

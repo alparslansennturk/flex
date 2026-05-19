@@ -459,7 +459,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
       await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
       setFinalized(true);
       const dest = task.groupId
-        ? `/dashboard/assignment-test/${task.groupId}/${task.id}`
+        ? `/dashboard/assignment/${task.groupId}/${task.id}`
         : "/dashboard";
       setTimeout(() => router.push(dest), 1500);
     } finally {

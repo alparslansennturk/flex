@@ -40,7 +40,7 @@ export async function GET() {
         groupId: group.id,
         assignmentId: task.id,
         studentName: `${student.data().name} ${student.data().lastName}`,
-        previewUrl: `/dashboard/assignment-test/${group.id}/${task.id}`,
+        previewUrl: `/dashboard/assignment/${group.id}/${task.id}`,
         studentPortalUrl: `/student/${student.id}`,
       });
     }
@@ -73,8 +73,8 @@ export async function GET() {
       groupId: group.id,
       assignmentId: task.id,
       studentName: `${student.data().name} ${student.data().lastName}`,
-      previewUrl: `/dashboard/assignment-test/${group.id}/${task.id}`,
-      detailUrl:  `/dashboard/assignment-test/${group.id}/${task.id}/${submissionRef.id}/preview`,
+      previewUrl: `/dashboard/assignment/${group.id}/${task.id}`,
+      detailUrl:  `/dashboard/assignment/${group.id}/${task.id}/${submissionRef.id}/preview`,
       studentPortalUrl: `/student/${student.id}`,
     });
   } catch (err: any) {

@@ -176,7 +176,7 @@ export default function GroupDetailPage() {
                 {/* Geri + grup bilgisi */}
                 <div className="flex items-center gap-4 mr-24">
                   <button
-                    onClick={() => router.push("/dashboard/assignment-test")}
+                    onClick={() => router.push("/dashboard/assignment")}
                     className="w-10 h-10 rounded-[13px] bg-surface-200 hover:bg-surface-300 flex items-center justify-center transition-colors cursor-pointer shrink-0"
                   >
                     <ArrowLeft size={18} className="text-surface-700" />
@@ -286,7 +286,7 @@ export default function GroupDetailPage() {
                 {tab === "submissions" && (
                   <SubmissionTable
                     rows={submissions}
-                    basePath={`/dashboard/assignment-test/${groupId}/submissions`}
+                    basePath={`/dashboard/assignment/${groupId}/submissions`}
                   />
                 )}
               </>
@@ -550,7 +550,7 @@ function TaskAccordion({
 
               {/* Teslim Durumu butonu */}
               <button
-                onClick={() => router.push(`/dashboard/assignment-test/${groupId}/${task.id}`)}
+                onClick={() => router.push(`/dashboard/assignment/${groupId}/${task.id}`)}
                 className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[12px] sm:text-[14px] font-semibold text-white cursor-pointer transition-colors"
                 style={{ backgroundColor: "#5E63C2" }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#4D52A6")}

@@ -1,5 +1,5 @@
 # FLEX CORE LORE
-> Proje hafızası — her oturumun başında oku. Son güncelleme: 2026-05-19
+> Proje hafızası — her oturumun başında oku. Son güncelleme: 2026-05-20
 
 ---
 
@@ -173,30 +173,52 @@ Yoklamalar accordion:
 
 ---
 
-## Ödev Modülü
+## Ödev Modülü — (2026-05-20 güncellendi)
 
-### Ödev Detay Sayfası
-`/dashboard/assignment-test/[groupId]/[assignmentId]`
+### Route Yapısı
+`assignment-test` → `assignment` olarak yeniden adlandırıldı.
 
-- Sol: öğrenci listesi (Teslim Edenler / Revize / Teslim Etmeyenler)
-- Sağ: seçili öğrencinin teslimi + yorumlar
-- Alt: "Duyuru" (genel) ve "Özel Chat" (öğrenci bazlı) sekmeleri
-
-**Bildirimden gelince otomatik chat açılır:**
-```tsx
-// URL param: ?student=STUDENT_ID&tab=private
-const studentParam = searchParams.get('student');
-const tabParam     = searchParams.get('tab');
-if (studentParam) {
-  setViewingId(studentParam);
-  if (tabParam === 'private') setActiveTab('private');
-}
+```
+/dashboard/assignment                          → grup listesi
+/dashboard/assignment/[groupId]                → gruptaki ödevler
+/dashboard/assignment/[groupId]/[assignmentId] → ödev detay (ana sayfa)
+/dashboard/assignment/[groupId]/[assignmentId]/[submissionId]/preview → tam ekran önizleme
+/dashboard/assignment/grading                  → not girişi
 ```
 
+### Ödev Detay Sayfası (`[assignmentId]`)
+- Sol: öğrenci listesi (Teslim Edenler / Revize / Teslim Etmeyenler)
+- Sağ: seçili öğrencinin teslimi + Aktivite (timeline) + Yorumlar
+- Yorumlar: **Duyuru** (genel, tüm sınıf) + **Özel Chat** (öğrenci bazlı) sekmeleri
+- Detay Gör butonu (yeşil) → preview sayfasına gider
+
+**`?mode=grading` URL param'ı (Not Girişi'nden gelince):**
+- Sol öğrenci listesi gizlenir
+- Yorumlarda yalnızca Özel Chat gösterilir (Duyuru sekmesi yok)
+- Grading ve GradingTable navigasyonları bu param'ı ekler
+
+**Bildirimden gelince otomatik öğrenci seçilir:**
+```tsx
+// URL param: ?student=STUDENT_ID
+const studentParam = searchParams.get('student');
+if (studentParam) { setViewingId(studentParam); autoSelectedRef.current = true; }
+```
+
+### Preview Sayfası (`[submissionId]/preview`)
+- Tam ekran dosya önizleme (Drive iframe)
+- Sağ panel: öğrenci–eğitmen özel thread (sohbet balonu stili)
+- Gönderilen tüm dosya versiyonları listelenir, aktif dosya değiştirilebilir
+- Revize İste / Onayla butonları top bar'da
+
 ### Bildirim actionUrl'leri
-- Ödev yüklenince: `?student=${studentId}&tab=private` ✅
-- Yorum yapılınca: `?student=${studentId}&tab=private` ✅
+- Ödev yüklenince: `/dashboard/assignment/${groupId}/${taskId}?student=${studentId}&tab=private` ✅
+- Yorum yapılınca: aynı format ✅
 - İlgili dosyalar: `api/submit/route.ts`, `api/submissions/complete-upload/route.ts`, `api/comments/create/route.ts`
+
+### StudentDetailModal — Yoklama Donuts (Placeholder)
+- XP kartı ikiye bölündü: sol XP barları, sağ devam durumu
+- `AttendanceDonut` bileşeni: %70↑ yeşil, %50-70 turuncu, %50↓ kırmızı, 0.6s animasyon
+- Şu an rate=75 hardcoded placeholder — gerçek veri bağlantısı henüz yapılmadı
 
 ---
 
@@ -253,12 +275,23 @@ Sayım: `entries` dolu VEYA `attendanceClosed=true` olan doklar
 
 ## Sıradaki İşler (Öncelik Sırası)
 
-1. **Eğitmen testi** — yoklama modülünü eğitmen hesabıyla test et, bug'ları kapat
-2. **Yoklamayı öğrenciye bağla** — öğrenci kendi devam oranını dashboard'da görsün
-3. **Sertifikasyon akışı** — grading sayfası tamamlanacak
+1. **Kişiye & branşa özel puan toggle** ← SIRADAKI (büyük iş)
+   - Sertifikasyon ayarlarında her puan kategorisi (ödev, devam, proje...) branş bazlı açılıp kapatılabilecek
+   - Öğrenci bazlı override da olabilir (kişiye özel ağırlık)
+   - Hangi field'ların Firestore'a yazılacağı, hangi hesaplama mantığının değişeceği netleştirilecek
+   - Mevcut ilgili dosya: `src/app/components/dashboard/scoring/DesignParkour.tsx`, `dashboard/assignment/grading`
+
+2. **Yoklamayı öğrenciye bağla** — StudentDetailModal donut'u gerçek veriyle doldur
+   - `useStudentAttendance(studentId, groupId)` hook hazır, sadece modal'a bağlanacak
+   - Öğrenci kendi devam oranını dashboard'da görsün
+
+3. **Eğitmen testi** — yoklama + ödev modüllerini eğitmen hesabıyla test et
+
+4. **Sertifikasyon akışı** — grading sayfası tamamlanacak
    - Puan ayarları Ödev Ayarları'ndan Sertifikasyon'a taşınacak ("Sertifika Not Ayarları")
    - Eğitmen not girer → real-time bildirim → Flex-Ops entegrasyonu
-4. **Yoklama giriş kilidi** — ders saatinden 15dk önce kilitli / 30dk sonra kapanır (test bittikten sonra)
+
+5. **Yoklama giriş kilidi** — ders saatinden 15dk önce kilitli / 30dk sonra kapanır (test bittikten sonra)
 
 ---
 
