@@ -105,10 +105,10 @@ export default function AssignmentTestPage() {
                 <div className="w-9 h-9 rounded-xl bg-base-primary-100 flex items-center justify-center">
                   <ClipboardList size={18} className="text-base-primary-600" />
                 </div>
-                <h1 className="text-[22px] font-bold text-base-primary-900">Ödev Test</h1>
+                <h1 className="text-[22px] font-bold text-base-primary-900">Ödev Teslimi</h1>
               </div>
               <p className="text-[14px] text-surface-500 ml-12">
-                Grup bazında ödev takibi, teslim yönetimi ve değerlendirme
+                Grup bazında ödev takibi ve teslim yönetimi
               </p>
             </div>
 

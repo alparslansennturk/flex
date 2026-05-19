@@ -1,13 +1,25 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
 import AttendancePanel from "../../components/dashboard/attendance/AttendancePanel";
+
+function AttendanceContent() {
+  const searchParams = useSearchParams();
+  const groupId = searchParams.get("groupId") ?? undefined;
+
+  return (
+    <AttendancePanel
+      preSelectedGroupId={groupId}
+      allowEdit={true}
+    />
+  );
+}
 
 export default function AttendancePage() {
   const router = useRouter();
@@ -38,9 +50,15 @@ export default function AttendancePage() {
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
-        <Header activeTabLabel="Yoklamalar" />
-        <main className="flex-1 bg-neutral-50">
-          <AttendancePanel />
+        <Header activeTabLabel="Yoklama Detay" />
+        <main className="flex-1 bg-white">
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-24">
+              <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
+            </div>
+          }>
+            <AttendanceContent />
+          </Suspense>
         </main>
         <Footer />
       </div>

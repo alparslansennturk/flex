@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell, BellOff, Megaphone,
-  ClipboardList, AlertCircle, MessageSquare, ChevronRight,
+  ClipboardList, AlertCircle, MessageSquare, ChevronRight, Check,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
@@ -152,7 +152,7 @@ export default function NotificationBell() {
                       {i > 0 && <div className="h-px bg-surface-200 my-3" />}
                       <div
                         onClick={() => handleNotifClick(n)}
-                        className="group flex items-start gap-3 cursor-pointer rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-surface-50"
+                        className={`group flex items-start gap-3 cursor-pointer rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-surface-50 ${n.isRead ? "opacity-50" : ""}`}
                       >
                         <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${bg}`}>
                           <Icon size={20} className={color} />
@@ -174,10 +174,11 @@ export default function NotificationBell() {
                             {n.preview}
                           </p>
                         </div>
-                        <ChevronRight
-                          size={14}
-                          className="shrink-0 mt-1 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity"
-                        />
+                        {n.isRead ? (
+                          <Check size={13} className="shrink-0 mt-1 text-text-tertiary" />
+                        ) : (
+                          <ChevronRight size={14} className="shrink-0 mt-1 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
                       </div>
                     </div>
                   );

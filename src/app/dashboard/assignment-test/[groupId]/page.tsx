@@ -417,6 +417,10 @@ function TaskAccordion({
   const router        = useRouter();
   const [open, setOpen] = useState(defaultOpen);
 
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
+
   // Öğrenci başına en son teslim (iteration en yüksek)
   const latestByStudent = new Map<string, SubmissionRow>();
   for (const s of submissions) {

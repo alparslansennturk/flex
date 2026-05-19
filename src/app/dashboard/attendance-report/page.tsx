@@ -9,7 +9,6 @@ import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
 import { useUser } from "@/app/context/UserContext";
-import AttendancePanel from "../../components/dashboard/attendance/AttendancePanel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Group {
@@ -160,7 +159,6 @@ function AttendanceReportContent() {
   const searchParams = useSearchParams();
   const filterInstructorId = searchParams.get("instructorId");
   const monthParam = searchParams.get("month");
-  const groupId = searchParams.get("groupId");
 
   const [selectedMonth, setSelectedMonth] = useState(() => monthParam || toMonthKey(new Date()));
   const [groups, setGroups] = useState<Group[]>([]);
@@ -301,33 +299,6 @@ function AttendanceReportContent() {
     ? `${instructorName || "Eğitmen"} — Detay`
     : "Yoklama Detay";
 
-  // ── Grup detay görünümü ───────────────────────────────────────────────────
-  if (groupId) {
-    const backUrl = filterInstructorId
-      ? `/dashboard/attendance-report?instructorId=${filterInstructorId}&month=${selectedMonth}`
-      : `/dashboard/attendance-report?month=${selectedMonth}`;
-
-    return (
-      <div className="h-full flex flex-col">
-        <div className="flex items-center gap-3 px-6 py-3 border-b border-surface-100 bg-white shrink-0">
-          <button
-            onClick={() => router.push(backUrl)}
-            className="flex items-center gap-1.5 text-[13px] font-medium text-surface-400 hover:text-base-primary-700 transition-colors cursor-pointer"
-          >
-            <ChevronLeft size={16} />
-            Yoklama Detay
-          </button>
-        </div>
-        <div className="flex-1 min-h-0">
-          <AttendancePanel
-            preSelectedGroupId={groupId}
-            hideSidebar={true}
-            allowEdit={true}
-          />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-5xl mx-auto px-8 py-8 space-y-8">
@@ -494,7 +465,7 @@ function AttendanceReportContent() {
 
                 <div className="w-20 shrink-0 flex justify-end">
                   <button
-                    onClick={() => router.push(`/dashboard/attendance-report?groupId=${s.group.id}&month=${selectedMonth}`)}
+                    onClick={() => router.push(`/dashboard/attendance?groupId=${s.group.id}`)}
                     className="text-[12px] font-bold text-base-primary-600 hover:text-white hover:bg-base-primary-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                   >
                     Detay

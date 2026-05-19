@@ -62,7 +62,7 @@ export default function ManagementPage() {
 
   // BURADAN AŞAĞISI SENİN ORİJİNAL KODUN (HİÇ DOKUNULMADI)
   return (
-    <div className="flex h-screen w-full bg-white font-inter overflow-hidden">
+    <div className="flex h-screen w-full bg-white font-inter overflow-hidden animate-in fade-in duration-200">
       <aside className="hidden lg:block h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-[#10294C]">
         <Sidebar />
       </aside>

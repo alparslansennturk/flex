@@ -1,0 +1,270 @@
+# FLEX CORE LORE
+> Proje hafızası — her oturumun başında oku. Son güncelleme: 2026-05-19
+
+---
+
+## Platform Vizyonu
+
+**Flex**, tasarım eğitim ekosistemi için çok uygulamalı bir platform. Şu an tek Next.js repo içinde yaşıyor; ileride Turborepo monorepo'ya bölünecek.
+
+```
+flex-platform/
+  packages/shared/     → ortak tipler, Firebase config, bildirim tipleri
+  apps/
+    trainer/   ← ŞU AN BURADAYIZ — eğitmen + admin + öğrenci aynı repoda
+    portal/    → yeni öğrenci portalı (ileride)
+    ops/       → Eğitim Operasyon (ileride)
+    crm/       → Satış (ileride)
+    connect/   → Teams benzeri iletişim (ileride)
+```
+
+**Flex-Trainer tamamlanma kriteri:** Yoklama modülü ✅ + Sertifikasyon akışı (devam ediyor)
+
+---
+
+## Firestore Şeması (Kritik Koleksiyonlar)
+
+```
+users/{uid}
+  role: "admin" | "instructor" | "student"   ← eski, tek değer
+  roles: string[]                             ← yeni, tercih edilen
+  branches: string[]                          ← eğitmenin yetkili branşları
+  studentDocId: string                        ← Auth UID → students doc köprüsü
+
+students/{studentDocId}
+  authUid: string                             ← Auth UID ile köprü buradan da kurulur
+  groupId: string
+  status: "active" | "passive"
+  name, lastName, gender, avatarId, photoURL
+  isOnlineStudent: boolean
+
+groups/{groupId}
+  code: string                                ← "Grafik-1 / Pzt-Çrş"
+  discipline: string                          ← branchId
+  session: string                             ← "Pazartesi-Çarşamba 10:00-13:00"
+  sessionHours: number                        ← seans başına saat (ör. 3)
+  startDate: string                           ← "YYYY-MM-DD"
+  totalHours: number                          ← toplam müfredat saati
+  moduleId: string                            ← branches/{id}/modules/{moduleId}
+  status: "active" | "archived"
+
+branches/{branchId}
+  name, slug, sessionHours
+  modules/{moduleId}
+    totalHours, sessionHours, order
+
+design_attendance/{groupId}_{YYYY-MM-DD}
+  groupId, date, month (YYYY-MM)
+  instructorId
+  sessionHours                                ← kayıt anındaki snapshot
+  entries: { [studentId]: { hours, online } }
+  attendanceClosed: boolean
+  closedAt: Timestamp | null
+  createdAt, updatedAt, lessonStartedAt
+
+lesson_exceptions/{groupId}_{date} | system_{date}
+  groupId: string | null   ← null = sistem geneli tatil
+  scope: "group" | "system"
+  reason: "holiday" | "instructor_sick" | "no_students" | "other"
+  note: string
+
+tasks/{taskId}
+  comments/{commentId}                        ← genel duyurular (tüm sınıfa)
+  threads/{studentId}/comments/{commentId}    ← özel öğrenci-eğitmen chat
+
+submissions/{submissionId}
+  taskId, studentId, groupId, status, file, grade...
+
+users/{uid}/notifications/{notifId}
+  type: "message"|"announcement"|"assignment"|"system"
+  isRead: boolean, readAt: Timestamp
+  actionUrl: string
+
+settings/platform
+  leagueGlobalEnabled: boolean
+```
+
+---
+
+## Kimlik Doğrulama ve Yetki Kontrolü
+
+- **Hem eski `role` hem yeni `roles[]` array destekleniyor** (geçiş dönemi)
+- Admin kontrolü: `data.role === "admin" || data.roles?.includes("admin")`
+- `useUser()` hook → `{ user, isAdmin(), hasPermission() }`
+- Auth UID ≠ students doc ID — köprü: `users/{uid}.studentDocId`
+- Öğrenci login: `users` doc'tan `studentDocId` okunur; yoksa `students` koleksiyonunda `authUid == uid` sorgulanır
+
+---
+
+## Yoklama Modülü — Tamamlandı (2026-05-19)
+
+### Dosyalar
+- `src/app/components/dashboard/attendance/AttendancePanel.tsx` — ana bileşen
+- `src/app/dashboard/attendance/page.tsx` — Yoklama Detay sayfası (`allowEdit=true`)
+- `src/app/dashboard/attendance-report/page.tsx` — Yoklama Al / rapor sayfası
+
+### AttendancePanel Props
+```tsx
+mode?: "detailed" | "simple"      // detailed=Yoklama Detay, simple=Yoklama Al
+autoSelectToday?: boolean
+preSelectedGroupId?: string        // URL'den gelen groupId
+hideSidebar?: boolean
+allowEdit?: boolean                // true=Yoklama Detay, false=Yoklama Al
+```
+
+### Kritik Hesaplama Mantığı
+
+```tsx
+// 3 günlük pencere DAIMA ders tarihinden hesaplanır (closedAt'tan değil!)
+const windowBase = existingDoc && dateKey ? new Date(dateKey + "T23:59:59") : null;
+const withinEditWindow = windowBase
+  ? (Date.now() - windowBase.getTime()) < 3 * 24 * 60 * 60 * 1000
+  : false;
+
+// Düzenlenebilir mi? (Yoklama Detay + 3 gün içi)
+const canEdit = allowEdit && (!attendanceClosed || withinEditWindow);
+
+// Salt okunur görünüm: kapatılmış+pencere dolmuş VEYA Yoklama Al'da geçmiş tarih
+const isReadonlyView =
+  (attendanceClosed && !canEdit) ||
+  (!allowEdit && !isToday && existingDoc);
+
+// Kurs bitiş tarihi sonrası yoklama oluşturulamaz
+const isPastCourseEnd = estimatedEndDate !== null &&
+  dateKey > toDateKey(estimatedEndDate) && !existingDoc;
+```
+
+### Banner Durumları (Yoklama Al ekranında)
+| Durum | Renk | Mesaj |
+|---|---|---|
+| `canEdit=true` (Yoklama Detay, 3 gün içi) | Gri | "Bu yoklama kapatıldı — X gün içinde düzenleyebilirsiniz." |
+| `!canEdit && withinEditWindow` (Yoklama Al, 3 gün içi) | **Turuncu** | "Yoklamanızı Yoklama Detay menüsünden düzenleyebilirsiniz." |
+| `!canEdit && !withinEditWindow` (süresi dolmuş) | **Kırmızı** | "Yoklama düzenleme süresi doldu. Yoklamanızı düzenlemek için yöneticinizle iletişime geçiniz." |
+
+### Yoklama Detay Butonu (Yoklama Al'da)
+- Yalnızca `mode="simple" && attendanceClosed && dateKey 3 günden taze` koşulunda görünür
+- 3 gün sonra (herkes için, admin dahil) tamamen gizlenir
+- Admin Yoklama Detay'a menüden manuel girerek düzenleyebilir
+
+### Haftanın Günleri
+- `session` string'inden (`"Pazartesi-Çarşamba 10:00-13:00"`) `parseWeekDays()` ile parse edilir
+- `TR_DAYS` map'i Türkçe kısaltmaları JS `Date.getDay()` değerlerine çevirir
+
+### Takvim Kısıtları
+- `maxDate = min(today, estimatedEndDate)` — kurs bitişi sonrası tarihe geçilemiyor
+- `minDate = group.startDate` — grubun başlangıcından önce geçilemiyor
+- `isPastCourseEnd` → "Eğitim programı tamamlandı" overlay mesajı
+
+### handleStartLesson Güvencesi
+```tsx
+const handleStartLesson = async () => {
+  if (!selectedGroupId || existingDoc) return; // mevcut veriyi asla ezme
+  ...
+};
+```
+
+### Sidebar Menü Sırası
+Ana Sayfa → Sınıflar → Yoklamalar (accordion) → Ödevler (accordion) → Sertifikasyon → Sınıflar Ligi → Profil Ayarları
+
+Yoklamalar accordion:
+- Yoklama Al → `/attend`
+- Yoklama Detay → `/dashboard/attendance-report`
+- Yoklama Raporu → `/dashboard/attendance-summary` (admin only)
+
+---
+
+## Ödev Modülü
+
+### Ödev Detay Sayfası
+`/dashboard/assignment-test/[groupId]/[assignmentId]`
+
+- Sol: öğrenci listesi (Teslim Edenler / Revize / Teslim Etmeyenler)
+- Sağ: seçili öğrencinin teslimi + yorumlar
+- Alt: "Duyuru" (genel) ve "Özel Chat" (öğrenci bazlı) sekmeleri
+
+**Bildirimden gelince otomatik chat açılır:**
+```tsx
+// URL param: ?student=STUDENT_ID&tab=private
+const studentParam = searchParams.get('student');
+const tabParam     = searchParams.get('tab');
+if (studentParam) {
+  setViewingId(studentParam);
+  if (tabParam === 'private') setActiveTab('private');
+}
+```
+
+### Bildirim actionUrl'leri
+- Ödev yüklenince: `?student=${studentId}&tab=private` ✅
+- Yorum yapılınca: `?student=${studentId}&tab=private` ✅
+- İlgili dosyalar: `api/submit/route.ts`, `api/submissions/complete-upload/route.ts`, `api/comments/create/route.ts`
+
+---
+
+## Bildirim Sistemi
+
+### Koleksiyon
+`users/{uid}/notifications/{notifId}`
+
+### useNotifications Hook
+- `notifications` → filtrelenmiş liste (lastClearedAt sonrası)
+- `unreadCount` → `!isRead && !isArchived` sayısı
+- `markAsRead(id)` → optimistik + Firestore güncelle
+- `clearAll()` → `lastClearedAt` timestamp set eder (siler değil, filtreler)
+
+### NotificationBell UI
+**Okunmuş bildirim görünümü (2026-05-19 eklendi):**
+- `opacity-50` (soluk)
+- Sağda `<Check size={13}>` ikonu (sabit görünür)
+
+**Okunmamış:**
+- Tam opaklık
+- Hover'da `<ChevronRight>` (eski davranış)
+
+---
+
+## Öğrenci Portalı
+
+- `/student/*` rotaları — öğrenciye özel layout (StudentSidebar)
+- Auth UID → `users/{uid}.studentDocId` → `students/{studentDocId}`
+- League sayfası login zorunlu (middleware.ts güncellendi)
+- `sidebarReady` state ile auth flash engellendi
+
+---
+
+## Teknik Detaylar
+
+### Grup Haftalık Günleri Parse
+```tsx
+function parseWeekDays(label: string): number[] // 0=Pazar...6=Ctesi
+```
+`session` field'ından çalışır: `"Pazartesi-Çarşamba"` → `[1, 3]`
+
+### Tahmini Bitiş Tarihi
+```tsx
+calcEstimatedEndDate(startDate, totalSessions, weekDays, holidayDates)
+// totalSessions = Math.ceil(totalHours / sessionHours)
+```
+
+### Monthly Done Count
+`design_attendance` sorgusu: `groupId == x && month == YYYY-MM`
+Sayım: `entries` dolu VEYA `attendanceClosed=true` olan doklar
+
+---
+
+## Sıradaki İşler (Öncelik Sırası)
+
+1. **Eğitmen testi** — yoklama modülünü eğitmen hesabıyla test et, bug'ları kapat
+2. **Yoklamayı öğrenciye bağla** — öğrenci kendi devam oranını dashboard'da görsün
+3. **Sertifikasyon akışı** — grading sayfası tamamlanacak
+   - Puan ayarları Ödev Ayarları'ndan Sertifikasyon'a taşınacak ("Sertifika Not Ayarları")
+   - Eğitmen not girer → real-time bildirim → Flex-Ops entegrasyonu
+4. **Yoklama giriş kilidi** — ders saatinden 15dk önce kilitli / 30dk sonra kapanır (test bittikten sonra)
+
+---
+
+## Notlar / Bilinen Debt
+
+- `design_attendance` koleksiyon adı ileride `attendance` olacak (Ops'a taşımadan önce)
+- `designstudio-primary` gibi CSS token isimleri temizlenecek (çalışmayı bozmadan bekliyor)
+- `bumpSeason()` şu an tüm sistemi sıfırlıyor — grup bazlı versiyon yazılacak
+- Başka bir uygulama aynı DB'ye bağlı olarak yoklama için kullanılıyor — stabil değil, Flex-Trainer attendance ile uyumu değerlendirilecek

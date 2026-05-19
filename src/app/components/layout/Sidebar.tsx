@@ -29,7 +29,7 @@ export default function Sidebar() {
   const router = useRouter();
   const compact = useCompact();
   const [assignmentTestOpen, setAssignmentTestOpen] = useState(
-    pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive'
+    pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive' || pathname.startsWith('/dashboard/tasks')
   );
   const [yoklamaOpen, setYoklamaOpen] = useState(pathname.startsWith('/dashboard/attendance'));
   const [leagueGlobal, setLeagueGlobal] = useState(true);
@@ -62,12 +62,9 @@ export default function Sidebar() {
       {/* ANA OPERASYONEL MENÜ — compact'ta üst margin ve item arası biraz azalır */}
       <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-6 space-y-1" : "mt-10 space-y-1.5"}`}>
         <SidebarLink href="/dashboard" icon={<LayoutDashboard size={18} />} label="Ana Sayfa" exact compact={compact} />
-        <SidebarLink href={NAV_CONFIG.GROUPS.path} icon={<Users size={18} />} label="Sınıf Yönetimi" compact={compact} />
+        <SidebarLink href={NAV_CONFIG.GROUPS.path} icon={<Users size={18} />} label="Sınıflar" compact={compact} />
 
-        {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
-          <SidebarLink href="/dashboard/tasks" icon={<BookOpen size={18} />} label="Ödev Yönetimi" compact={compact} />
-        )}
-
+        {/* ── YOKLAMALAR (Accordion) ── */}
         {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
           <div>
             <button
@@ -101,11 +98,7 @@ export default function Sidebar() {
           </div>
         )}
 
-        <SidebarLink href="/dashboard/grading" icon={<GraduationCap size={18} />} label="Sertifikasyon" compact={compact} />
-        {leagueGlobal && <SidebarLink href="/dashboard/league" icon={<Trophy size={18} />} label="Sınıflar Ligi" compact={compact} />}
-        <SidebarLink href="/dashboard/profile" icon={<UserCircle size={18} />} label="Profil Ayarları" compact={compact} />
-
-        {/* ── ÖDEV TEST (Accordion) ── */}
+        {/* ── ÖDEVLER (Accordion) ── */}
         {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
           <div>
             <button
@@ -115,11 +108,11 @@ export default function Sidebar() {
                 text-white hover:bg-white/5 cursor-pointer outline-none`}
             >
               <span className={`transition-colors duration-200 ${
-                (pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive') ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'
+                (pathname.startsWith('/dashboard/assignment-test') || pathname === '/dashboard/archive' || pathname.startsWith('/dashboard/tasks')) ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'
               }`}>
                 <ClipboardList size={18} />
               </span>
-              <span className="text-[15px] font-medium leading-tight flex-1 text-left">Ödev Test</span>
+              <span className="text-[15px] font-medium leading-tight flex-1 text-left">Ödevler</span>
               <ChevronDown
                 size={14}
                 className={`transition-transform duration-200 opacity-60 ${assignmentTestOpen ? 'rotate-180' : ''}`}
@@ -134,15 +127,20 @@ export default function Sidebar() {
               }}
             >
               <div style={{ overflow: "hidden" }}>
-                <SidebarLink href="/dashboard/assignment-test/review"   icon={<Eye size={15} />}              label="İncelenecekler" compact={compact} sub />
-                <SidebarLink href="/dashboard/assignment-test"          icon={<FileCheck size={15} />}         label="Ödevler"        compact={compact} exact sub />
-                <SidebarLink href="/dashboard/assignment-test/grading"  icon={<Star size={15} />}              label="Not Girişi"     compact={compact} sub />
-                <SidebarLink href="/dashboard/assignment-test/settings" icon={<SlidersHorizontal size={15} />} label="Ödev Ayarları"  compact={compact} sub />
-                <SidebarLink href="/dashboard/archive"                  icon={<Archive size={15} />}           label="Ödev Arşivi"   compact={compact} sub />
+                <SidebarLink href="/dashboard/tasks"                    icon={<BookOpen size={15} />}          label="Ödev Yönetimi"      compact={compact} sub />
+                <SidebarLink href="/dashboard/assignment-test"          icon={<FileCheck size={15} />}         label="Ödev Teslimi"        compact={compact} exact sub />
+                <SidebarLink href="/dashboard/assignment-test/grading"  icon={<Star size={15} />}              label="Ödev Değerlendirme"  compact={compact} sub />
+                <SidebarLink href="/dashboard/assignment-test/review"   icon={<Eye size={15} />}              label="İncelenecekler"      compact={compact} sub />
+                <SidebarLink href="/dashboard/assignment-test/settings" icon={<SlidersHorizontal size={15} />} label="Ödev Ayarları"       compact={compact} sub />
+                <SidebarLink href="/dashboard/archive"                  icon={<Archive size={15} />}           label="Ödev Arşivi"        compact={compact} sub />
               </div>
             </div>
           </div>
         )}
+
+        <SidebarLink href="/dashboard/grading" icon={<GraduationCap size={18} />} label="Sertifikasyon" compact={compact} />
+        {leagueGlobal && <SidebarLink href="/dashboard/league" icon={<Trophy size={18} />} label="Sınıflar Ligi" compact={compact} />}
+        <SidebarLink href="/dashboard/profile" icon={<UserCircle size={18} />} label="Profil Ayarları" compact={compact} />
       </nav>
 
       {/* ALT BÖLÜM */}

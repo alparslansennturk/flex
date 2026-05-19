@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
   collection, doc, setDoc, onSnapshot,
@@ -11,6 +12,7 @@ import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
   CheckCheck, Users, Wifi, Trash2, AlertCircle, CalendarOff,
   Pencil, Check, X, Timer, CalendarClock, Clock, Play, Square, RefreshCw, Lock,
+  BarChart2,
 } from "lucide-react";
 import { DayCalendarPopover } from "./CalendarPopover";
 import { motion } from "framer-motion";
@@ -316,6 +318,7 @@ export default function AttendancePanel({
   allowEdit?: boolean;
 }) {
   const { user, isAdmin } = useUser();
+  const router = useRouter();
 
   const [branches, setBranches]               = useState<Branch[]>([]);
   const [groups, setGroups]                   = useState<Group[]>([]);
@@ -599,7 +602,7 @@ export default function AttendancePanel({
 
   // ── Start lesson — Firestore'a boş doc yazar, refresh'te hatırlanır ─────────
   const handleStartLesson = async () => {
-    if (!selectedGroupId) return;
+    if (!selectedGroupId || existingDoc) return;
     setLessonStarted(true);
     const docId = `${selectedGroupId}_${dateKey}`;
     await setDoc(doc(db, "design_attendance", docId), {
@@ -707,10 +710,17 @@ export default function AttendancePanel({
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  // Tam etkileşimli UI: bugün ders var VE tatil yok VE kayıt var/yeni
-  const showAttendanceUI = isActiveForDate || existingDoc;
-  // Overlay mesajı: kayıt yokken ders günü değilse veya tatilse
-  const overlayMessage = !showAttendanceUI && !exception
+  // Grubun bitiş tarihini geçen ve kaydı olmayan günler: kurs tamamlandı
+  const isPastCourseEnd = estimatedEndDate !== null &&
+    dateKey > toDateKey(estimatedEndDate) &&
+    !existingDoc;
+
+  // Tam etkileşimli UI: bugün ders var VE tatil yok VE kayıt var/yeni VE kurs bitmemiş
+  const showAttendanceUI = (isActiveForDate || existingDoc) && !isPastCourseEnd;
+  // Overlay mesajı: kayıt yokken ders günü değilse, tatilse veya kurs bitmişse
+  const overlayMessage: string | null = isPastCourseEnd
+    ? "Bu grubun eğitim programı tamamlandı. Bu tarih için yoklama oluşturulamaz."
+    : !showAttendanceUI && !exception
     ? (isHolidayDate && hasClassThisDay
         ? "Bugün resmi tatil nedeniyle ders yoktur."
         : !hasClassThisDay
@@ -718,11 +728,17 @@ export default function AttendancePanel({
         : null)
     : null;
 
-  // allowEdit=true (Yoklama Detay ekranı): 3 günlük pencerede veya admin ise düzenlemeye izin ver
-  const withinEditWindow = closedAt
-    ? (Date.now() - closedAt.getTime()) < 3 * 24 * 60 * 60 * 1000
+  // 3 günlük pencere her zaman ders tarihinden (dateKey) hesaplanır, closedAt'tan değil
+  const windowBase = existingDoc && dateKey ? new Date(dateKey + "T23:59:59") : null;
+  const withinEditWindow = windowBase
+    ? (Date.now() - windowBase.getTime()) < 3 * 24 * 60 * 60 * 1000
     : false;
-  const canEdit = allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
+  const canEdit = allowEdit && (!attendanceClosed || withinEditWindow);
+
+  // Yoklama Al ekranında geçmiş tarih kaydı VEYA kapatılmış+pencere dolmuş → salt okunur
+  const isReadonlyView =
+    (attendanceClosed && !canEdit) ||
+    (!allowEdit && !isToday && existingDoc);
 
   const filledCount         = students.filter(s => (entries[s.id]?.hours ?? 0) > 0).length;
   const onlineAttendCount   = students.filter(s => (entries[s.id]?.hours ?? 0) > 0 && entries[s.id]?.online).length;
@@ -1168,31 +1184,40 @@ export default function AttendancePanel({
                     <ChevronLeft size={13} />
                   </button>
                   {/* Takvim açılır date picker */}
-                  <DayCalendarPopover
-                    value={selectedDate}
-                    minDate={selectedGroup?.startDate ? new Date(selectedGroup.startDate + "T12:00:00") : undefined}
-                    maxDate={new Date()}
-                    holidayDates={holidayDates}
-                    weekDays={selectedWeekDays}
-                    onChange={d => { setSelectedDate(d); setSelectedMonth(d); }}
-                  >
-                    <div className="flex items-center gap-1.5 group cursor-pointer">
-                      <Calendar size={13} className="text-text-placeholder group-hover:text-base-primary-500 transition-colors shrink-0" />
-                      <span className="text-[13px] font-semibold text-text-primary select-none group-hover:text-base-primary-600 transition-colors">
-                        {formatDateDisplay(selectedDate)}
-                      </span>
-                    </div>
-                  </DayCalendarPopover>
-                  <button onClick={() => setSelectedDate(d => shiftDate(d, 1))} disabled={isToday}
-                    className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
-                    <ChevronRight size={13} />
-                  </button>
-                  {!isToday && (
-                    <button onClick={() => { setSelectedDate(new Date()); setSelectedMonth(new Date()); }}
-                      className="text-[11px] font-bold text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer ml-1">
-                      Bugüne dön
-                    </button>
-                  )}
+                  {(() => {
+                    const today = new Date();
+                    const maxSelectable = estimatedEndDate && estimatedEndDate < today ? estimatedEndDate : today;
+                    const atMax = dateKey >= toDateKey(maxSelectable);
+                    return (
+                      <>
+                        <DayCalendarPopover
+                          value={selectedDate}
+                          minDate={selectedGroup?.startDate ? new Date(selectedGroup.startDate + "T12:00:00") : undefined}
+                          maxDate={maxSelectable}
+                          holidayDates={holidayDates}
+                          weekDays={selectedWeekDays}
+                          onChange={d => { setSelectedDate(d); setSelectedMonth(d); }}
+                        >
+                          <div className="flex items-center gap-1.5 group cursor-pointer">
+                            <Calendar size={13} className="text-text-placeholder group-hover:text-base-primary-500 transition-colors shrink-0" />
+                            <span className="text-[13px] font-semibold text-text-primary select-none group-hover:text-base-primary-600 transition-colors">
+                              {formatDateDisplay(selectedDate)}
+                            </span>
+                          </div>
+                        </DayCalendarPopover>
+                        <button onClick={() => setSelectedDate(d => shiftDate(d, 1))} disabled={atMax}
+                          className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-100 text-text-placeholder cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                          <ChevronRight size={13} />
+                        </button>
+                        {!atMax && (
+                          <button onClick={() => { setSelectedDate(maxSelectable); setSelectedMonth(maxSelectable); }}
+                            className="text-[11px] font-bold text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer ml-1">
+                            {estimatedEndDate && estimatedEndDate < today ? "Son derse git" : "Bugüne dön"}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex items-center shrink-0">
@@ -1203,7 +1228,7 @@ export default function AttendancePanel({
                       className="text-[11px] font-semibold text-text-placeholder hover:text-base-primary-600 transition-colors cursor-pointer mr-8">
                       İptal
                     </button>
-                  ) : Object.keys(entries).length > 0 && (!attendanceClosed || canEdit) ? (
+                  ) : Object.keys(entries).length > 0 && !isReadonlyView ? (
                     <button
                       onClick={handleClear}
                       className="text-[11px] font-semibold text-text-placeholder hover:text-red-500 transition-colors cursor-pointer mr-8">
@@ -1211,14 +1236,26 @@ export default function AttendancePanel({
                     </button>
                   ) : null}
                   {/* Exception badge / button */}
+                  {mode === "simple" && selectedGroupId && attendanceClosed &&
+                    (Date.now() - new Date(dateKey + "T23:59:59").getTime()) < 3 * 24 * 60 * 60 * 1000 && (
+                    <button
+                      onClick={() => router.push(`/dashboard/attendance?groupId=${selectedGroupId}`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-orange-50 border border-orange-200 text-orange-600 cursor-pointer hover:bg-orange-100 transition-colors mr-2">
+                      <BarChart2 size={12} /> Yoklama Detay
+                    </button>
+                  )}
                   {exception ? (
-                    <button onClick={() => setShowExModal(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-red-50 border border-red-200 text-red-600 cursor-pointer hover:bg-red-100 transition-colors">
+                    <button
+                      onClick={() => { if (isReadonlyView) return; setShowExModal(true); }}
+                      disabled={isReadonlyView}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors ${isReadonlyView ? "bg-surface-50 border-surface-200 text-surface-400 cursor-not-allowed opacity-50" : "bg-red-50 border-red-200 text-red-600 cursor-pointer hover:bg-red-100"}`}>
                       <AlertCircle size={12} /> {EXCEPTION_LABELS[exception.reason]}
                     </button>
                   ) : (
-                    <button onClick={() => setShowExModal(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-surface-50 border border-surface-200 text-text-placeholder cursor-pointer hover:bg-surface-100 transition-colors">
+                    <button
+                      onClick={() => { if (isReadonlyView) return; setShowExModal(true); }}
+                      disabled={isReadonlyView}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors ${isReadonlyView ? "bg-surface-50 border-surface-200 text-surface-400 cursor-not-allowed opacity-50" : "bg-surface-50 border-surface-200 text-text-placeholder cursor-pointer hover:bg-surface-100"}`}>
                       <AlertCircle size={12} /> Ders Olmadı
                     </button>
                   )}
@@ -1232,13 +1269,21 @@ export default function AttendancePanel({
                 </div>
               </div>
 
-                  {/* Kapatıldı — banner */}
-                  {attendanceClosed && (
-                    <div className="px-5 py-2.5 bg-surface-50 border-b border-surface-100 flex items-center gap-2 text-[12px] font-semibold text-text-placeholder shrink-0">
+                  {/* Kapatıldı / geçmiş tarih — banner */}
+                  {(attendanceClosed || (!allowEdit && !isToday && existingDoc)) && (
+                    <div className={`px-5 py-2.5 border-b flex items-center gap-2 text-[12px] font-semibold shrink-0 ${
+                      canEdit
+                        ? "bg-surface-50 border-surface-100 text-text-placeholder"
+                        : withinEditWindow
+                        ? "bg-orange-50 border-orange-200 text-orange-600"
+                        : "bg-red-50 border-red-100 text-red-600"
+                    }`}>
                       <Lock size={13} />
                       {canEdit
-                        ? `Bu yoklama kapatıldı — ${withinEditWindow && closedAt ? Math.ceil((closedAt.getTime() + 3 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000)) + " gün içinde düzenleyebilirsiniz." : "Yalnızca admin düzenleyebilir."}`
-                        : "Bu yoklama kapatıldı — yalnızca görüntüleme modu."}
+                        ? `Bu yoklama kapatıldı — ${windowBase ? Math.ceil((windowBase.getTime() + 3 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000)) + " gün içinde düzenleyebilirsiniz." : ""}`
+                        : withinEditWindow
+                        ? "Yoklamanızı Yoklama Detay menüsünden düzenleyebilirsiniz."
+                        : "Yoklama düzenleme süresi doldu. Yoklamanızı düzenlemek için yöneticinizle iletişime geçiniz."}
                     </div>
                   )}
 
@@ -1267,10 +1312,10 @@ export default function AttendancePanel({
 
                   {/* Sınıf Geneli quick-mark */}
                   {showAttendanceUI && students.length > 0 && !exception && (
-                    <div className="px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50">
+                    <div className={`px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50 ${isReadonlyView ? "pointer-events-none opacity-40" : ""}`}>
                       <span className="text-[11px] text-text-placeholder font-medium shrink-0">Sınıf Geneli:</span>
                       {[sessionHours, 0].map(h => (
-                        <button key={h} onClick={() => { if (attendanceClosed && !canEdit) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
+                        <button key={h} onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
                           className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer
                             ${h === sessionHours
                               ? "bg-status-success-50 border-status-success-200 text-status-success-700 hover:bg-status-success-100"
@@ -1282,7 +1327,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
-                  <div className={`pt-6 ${overlayMessage ? "opacity-40 pointer-events-none select-none" : ""}`}>
+                  <div className={`pt-6 ${(overlayMessage || isReadonlyView) ? "opacity-40 pointer-events-none select-none" : ""}`}>
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
                         <Users size={28} strokeWidth={1.5} />
@@ -1297,7 +1342,7 @@ export default function AttendancePanel({
                           const isMarked = entry !== undefined;
                           return (
                             <div key={student.id}
-                              className={`flex items-center px-5 py-3 xl:py-5 transition-colors ${exception ? "opacity-40 pointer-events-none" : (attendanceClosed && !canEdit) ? "cursor-default" : "hover:bg-surface-50/50"}`}>
+                              className={`flex items-center px-5 py-3 xl:py-5 transition-colors ${exception ? "opacity-40 pointer-events-none" : isReadonlyView ? "cursor-default" : "hover:bg-surface-50/50"}`}>
                               {/* Sıra no */}
                               <span className="text-[13px] font-semibold text-text-secondary w-5 text-right shrink-0 mr-3">{idx + 1}</span>
 
@@ -1330,7 +1375,7 @@ export default function AttendancePanel({
                                 {!isMarked ? (
                                   /* İşaretsiz: 0…sessionHours sayısal butonlar */
                                   Array.from({ length: sessionHours + 1 }, (_, i) => i).map(h => (
-                                    <button key={h} onClick={() => { if (attendanceClosed && !canEdit) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, h); }}
+                                    <button key={h} onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, h); }}
                                       className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full text-[11px] xl:text-[13px] font-semibold border border-surface-300 text-text-secondary bg-white transition-all outline-none ${(attendanceClosed && !canEdit) ? "cursor-default" : "hover:border-base-primary-300 hover:text-base-primary-600 cursor-pointer"}`}>
                                       {h}
                                     </button>
@@ -1341,8 +1386,8 @@ export default function AttendancePanel({
                                     const isChecked = slot <= curHours;
                                     return (
                                       <button key={slot}
-                                        onClick={() => { if (attendanceClosed && !canEdit) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, isChecked ? slot - 1 : slot); }}
-                                        className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full font-bold transition-all outline-none ${(attendanceClosed && !canEdit) ? "cursor-default" : "cursor-pointer"}
+                                        onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } setHours(student.id, isChecked ? slot - 1 : slot); }}
+                                        className={`w-7 h-7 xl:w-9 xl:h-9 flex items-center justify-center rounded-full font-bold transition-all outline-none ${isReadonlyView ? "cursor-default" : "cursor-pointer"}
                                           ${isChecked
                                             ? "bg-status-success-500 text-white"
                                             : "bg-red-100 text-red-400"}`}>
@@ -1356,12 +1401,12 @@ export default function AttendancePanel({
                               </div>
 
                               {/* Online toggle */}
-                              <button onClick={() => { if (attendanceClosed && !canEdit) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } toggleOnline(student.id); }}
+                              <button onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } toggleOnline(student.id); }}
                                 title="Online katıldı"
-                                className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all outline-none shrink-0 ${(attendanceClosed && !canEdit) ? "cursor-default" : "cursor-pointer"}
+                                className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all outline-none shrink-0 ${isReadonlyView ? "cursor-default" : "cursor-pointer"}
                                   ${online
                                     ? "bg-blue-500 text-white border-blue-500"
-                                    : `bg-white text-text-placeholder border-surface-200 ${(attendanceClosed && !canEdit) ? "" : "hover:border-blue-200"}`}`}>
+                                    : `bg-white text-text-placeholder border-surface-200 ${isReadonlyView ? "" : "hover:border-blue-200"}`}`}>
                                 <Wifi size={13} />
                               </button>
                             </div>
@@ -1384,6 +1429,16 @@ export default function AttendancePanel({
                     </div>
                   )}
 
+                  {/* Alt buton alanı: tatil/ders günü değil durumunda disabled buton */}
+                  {overlayMessage && (
+                    <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-end shrink-0">
+                      <button disabled
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
+                        <Play size={13} /> Dersi Başlat
+                      </button>
+                    </div>
+                  )}
+
                   {/* Alt buton alanı: istatistik sol, butonlar sağ */}
                   {showAttendanceUI && students.length > 0 && !exception && (
                     <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-between shrink-0">
@@ -1398,7 +1453,12 @@ export default function AttendancePanel({
 
                       {/* Tek akıllı buton */}
                       <div className="flex items-center">
-                        {attendanceClosed ? (
+                        {isReadonlyView ? (
+                          <button disabled
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
+                            <Lock size={13} /> Düzenleme Kapalı
+                          </button>
+                        ) : attendanceClosed ? (
                           canEdit ? (
                             saved ? (
                               <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-status-success-100 text-status-success-700 opacity-80 cursor-default outline-none">
@@ -1410,17 +1470,12 @@ export default function AttendancePanel({
                                 <RefreshCw size={13} /> Güncelle
                               </button>
                             )
-                          ) : (
-                            <button onClick={showReadonlyHint}
-                              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-status-success-100 text-status-success-700 cursor-default outline-none">
-                              <CheckCheck size={13} /> Kaydedildi
-                            </button>
-                          )
+                          ) : null
                         ) : !lessonStarted ? (
                           (!isToday && !allowEdit) ? (
-                            <span className="flex items-center gap-1.5 text-[12px] font-semibold text-text-placeholder">
-                              <CalendarCheck size={13} /> Bu tarih için yoklama kaydı yok
-                            </span>
+                            <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
+                              <CalendarCheck size={13} /> Bu tarih için kayıt yok
+                            </button>
                           ) : (
                             <button onClick={handleStartLesson} disabled={!isActiveForDate}
                               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
