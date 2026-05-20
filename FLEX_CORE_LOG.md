@@ -432,8 +432,8 @@ onClick={(e) => {
 - `page.tsx`: sidebar `sticky top-0 h-screen`, main wrapper `min-h-screen`
 - `AttendancePanel.tsx`: `h-full`, `overflow-hidden`, `overflow-y-auto` kaldırıldı (grup listesi + yoklama listesi + sağ panel)
 
-### 41. Bekleyen — Commit Edilmemiş Local Değişiklikler
-Aşağıdaki 6 dosya local'de değişti ama henüz commit/push edilmedi:
+### 41. ~~Bekleyen Commit~~ — ✅ Tamamlandı
+Aşağıdaki 6 dosya sonraki oturumlarda commit edildi (ab114b9, 0f54f9d):
 - `src/app/dashboard/grading/page.tsx` — Grafik-2 Bitir → `attendanceClosed: true`
 - `src/app/api/league/route.ts` — `attendanceClosed` grupları ligden çıkar
 - `src/app/dashboard/league/page.tsx` — `excludedGroupIds` filtresi
@@ -667,26 +667,39 @@ const isActiveForDate = hasClassThisDay && !isHolidayDate;
 
 ---
 
+## Oturum: 2026-05-20 — StudentDetailModal Devam Durumu Kartı
+
+### 56. StudentDetailModal — Devam Durumu Kartı (Gerçek Veri)
+- `design_attendance` → `where("groupId", "==", groupId)` sorgusu eklendi
+- Fire-and-forget: ana loading chain'ini bloke etmez, paralel çalışır
+- **Metrikler:** Katıldığı saat / Devamsızlık saat / Devam oranı %
+- Hesap: en az 1 entry girilmiş dökümanlar "gerçekleşmiş ders" sayılır; `entries[studentId].hours > 0` → katıldı
+- **AttendanceDonut:** 112px, sayaç animasyonu (0'dan hedefe), renk eşiği > 70 yeşil / 51-70 turuncu / ≤ 50 kırmızı
+- Rate = 0 iken arka halka kırmızı gösterilir (boş donut sorunu giderildi)
+- Bölüm başlıkları: `text-[11px] text-neutral-500` (önceki `text-[10px] text-surface-400`)
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. YAKINDA — Öğrenci Bazlı Yoklama Raporu (StudentDetailModal)
-- `design_attendance` → `groupId == student.groupId` sorgusu + client-side studentId filtresi
-- Metrikler: toplam katıldığı saat, yüz yüze saat, online saat, devamsızlık, devam oranı %
-- **Yer:** `StudentDetailModal`'a "Devam" sekmesi
-
-### 2. SONRA — StudentForm: isOnlineStudent
+### 1. YAKINDA — StudentForm: isOnlineStudent
 - `students` dökümanına `isOnlineStudent: boolean` eklenecek
-- **Yapılacak:** StudentForm'a toggle/checkbox ekle
+- StudentForm'a toggle/checkbox ekle
 
-### 3. SONRA — Yoklama Giriş Zaman Kilidi (Test Bittikten Sonra)
-- Ders başlamadan 15dk önce yoklama girişi kilitlenecek
-- Ders bitiminden 30dk sonra yoklama kapanacak
+### 2. BÜYÜK BLOK — Sertifikasyon Modülü
+- Not girişi → sertifikasyon akışı
+- Grading sayfası altyapısı var, tamamlanacak
+- Puan ayarları → "Sertifika Not Ayarları" sekmesine taşınacak
+- Eğitmen not girişi → bildirim → Flex-Ops sertifika ekranı → baskı + öğrenciye oto mesaj
+
+### 3. TEST SONRASI — Yoklama Giriş Zaman Kilidi
+- Ders başlamadan 15dk önce kilitle, ders bitiminden 30dk sonra kapat
 - Pencere dışında: sadece admin düzenleyebilir
 
 ### 4. İLERİDE — Dashboard Hızlı Yoklama Widget
-- Dashboard'da "Hızlı Yoklama Al" butonu/kartı
-- Tıklayınca `/attend?groupId=xxx` ile doğrudan ilgili grubun yoklama ekranı
+- `/attend?groupId=xxx` shortcut kartı
 
-### 5. BÜYÜK BLOK — Sertifikasyon Modülü
-- Not girişi → sertifikasyon akışı
-- Son büyük blok, altyapı sıfırdan kurulacak
+### ✅ TAMAMLANDI
+- §41 Bekleyen commit → önceki oturumlarda push edildi
+- Sınıf Yükselt (Grafik-1 → Grafik-2) → GroupForm + carryOver zaten çalışıyor
+- Öğrenci bazlı yoklama raporu → StudentDetailModal Devam Durumu kartı (§56)

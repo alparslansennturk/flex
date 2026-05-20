@@ -178,6 +178,7 @@ function GradCard({ label, code, grade, odevPuaniCalc, loading, color }: {
 
 function AttendanceDonut({ rate, animate }: { rate: number; animate: boolean }) {
   const [filled, setFilled] = useState(false);
+  const countedRate = useCountUp(rate, animate);
 
   useEffect(() => {
     if (!animate) { setFilled(false); return; }
@@ -185,27 +186,29 @@ function AttendanceDonut({ rate, animate }: { rate: number; animate: boolean }) 
     return () => clearTimeout(t);
   }, [animate]);
 
-  const circ = 2 * Math.PI * 26;
-  const color     = rate >= 70 ? "#22c55e" : rate >= 50 ? "#f97316" : "#ef4444";
-  const textColor = rate >= 70 ? "#15803d" : rate >= 50 ? "#c2410c" : "#b91c1c";
+  const circ = 2 * Math.PI * 40;
+  const color     = rate > 70 ? "#22c55e" : rate > 50 ? "#f97316" : "#ef4444";
+  const textColor = rate > 70 ? "#15803d" : rate > 50 ? "#c2410c" : "#b91c1c";
   const offset    = filled ? circ - (rate / 100) * circ : circ;
+  const bgStroke  = rate === 0 ? "#ef4444" : "#f1f5f9";
 
   return (
-    <svg width="72" height="72" viewBox="0 0 72 72">
-      <circle cx="36" cy="36" r="26" fill="none" stroke="#f1f5f9" strokeWidth="9" />
+    <svg width="112" height="112" viewBox="0 0 112 112">
+      <circle cx="56" cy="56" r="40" fill="none" stroke={bgStroke} strokeWidth="10" />
       <circle
-        cx="36" cy="36" r="26"
+        cx="56" cy="56" r="40"
         fill="none"
         stroke={color}
-        strokeWidth="9"
+        strokeWidth="10"
         strokeLinecap="round"
         strokeDasharray={String(circ)}
         strokeDashoffset={offset}
-        transform="rotate(-90 36 36)"
+        transform="rotate(-90 56 56)"
         style={{ transition: "stroke-dashoffset 0.6s ease-out" }}
       />
-      <text x="36" y="40" textAnchor="middle" fontSize="12" fontWeight="800" fill={textColor}>
-        {rate}%
+      <text x="58" y="63" textAnchor="middle" fontWeight="800" fill={textColor}>
+        <tspan fontSize="15">{countedRate != null ? Math.round(countedRate) : 0}</tspan>
+        <tspan fontSize="9" dy="-2" dx="1">%</tspan>
       </text>
     </svg>
   );
@@ -234,6 +237,13 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
   const [computedTasks,  setComputedTasks]  = useState<number | null>(null);
   const [carryOver,      setCarryOver]      = useState(0);
 
+  const [attTotal,         setAttTotal]         = useState<number | null>(null);
+  const [attAttended,      setAttAttended]      = useState<number | null>(null);
+  const [attAbsent,        setAttAbsent]        = useState<number | null>(null);
+  const [attRate,          setAttRate]          = useState<number | null>(null);
+  const [attAttendedHours, setAttAttendedHours] = useState<number | null>(null);
+  const [attAbsentHours,   setAttAbsentHours]   = useState<number | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       requestAnimationFrame(() => setVisible(true));
@@ -245,6 +255,8 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       setG1Grade(null); setG2Grade(null);
       setG1Stats(EMPTY_STATS); setG2Stats(EMPTY_STATS);
       setComputedScore(null); setComputedXP(null); setComputedTasks(null); setCarryOver(0);
+      setAttTotal(null); setAttAttended(null); setAttAbsent(null); setAttRate(null);
+      setAttAttendedHours(null); setAttAbsentHours(null);
       setLoading(false);
     }
   }, [isOpen]);
@@ -256,6 +268,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
     setEmail(""); setG1Code(""); setG2Code("");
     setG1Grade(null); setG2Grade(null);
     setG1Stats(EMPTY_STATS); setG2Stats(EMPTY_STATS);
+    setAttTotal(null); setAttAttended(null); setAttAbsent(null); setAttRate(null);
     setLoading(true);
 
     const unsubscribeStudent = onSnapshot(doc(db, "students", student.id), async (sDoc) => {
@@ -297,7 +310,37 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
         return;
       }
 
-      // 2. Grup belgesi, proje notları ve G2 görevleri paralel çek
+      // 2. Yoklama sorgusunu bağımsız başlat — ana loading'i bloke etmez
+      const studentId = student.id;
+      getDocs(query(collection(db, "design_attendance"), where("groupId", "==", groupId)))
+        .then(attSnap => {
+          if (cancelled) return;
+          const lessonDocs = attSnap.docs.filter(d =>
+            Object.keys((d.data() as any).entries ?? {}).length > 0
+          );
+          const calcAttTotal = lessonDocs.length;
+          const attendedDocs = lessonDocs.filter(d =>
+            ((d.data() as any).entries?.[studentId]?.hours ?? 0) > 0
+          );
+          const calcAttAttended     = attendedDocs.length;
+          const calcAttAbsent       = calcAttTotal - calcAttAttended;
+          const calcAttRate         = calcAttTotal > 0
+            ? Math.round((calcAttAttended / calcAttTotal) * 100) : 0;
+          const calcAttAttendedHours = attendedDocs.reduce(
+            (s, d) => s + ((d.data() as any).sessionHours ?? 0), 0
+          );
+          const calcAttAbsentHours  = lessonDocs
+            .filter(d => ((d.data() as any).entries?.[studentId]?.hours ?? 0) === 0)
+            .reduce((s, d) => s + ((d.data() as any).sessionHours ?? 0), 0);
+          setAttTotal(calcAttTotal);
+          setAttAttended(calcAttAttended);
+          setAttAbsent(calcAttAbsent);
+          setAttRate(calcAttRate);
+          setAttAttendedHours(calcAttAttendedHours);
+          setAttAbsentHours(calcAttAbsentHours);
+        });
+
+      // 3. Grup belgesi, proje notları ve G2 görevleri paralel çek
       const [gDoc, g1Doc, g2Doc, tasksSnap] = await Promise.all([
         getDoc(doc(db, "groups", groupId)),
         getDoc(doc(db, "projectGrades", `${student.id}_${groupId}_GRAFIK_1`)),
@@ -712,7 +755,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
 
             {/* Sınıf kodları */}
             <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
-              <p className="text-[10px] font-bold text-surface-400 tracking-tight mb-3">Sınıf</p>
+              <p className="text-[11px] font-bold text-neutral-500 tracking-tight mb-3">Sınıf</p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between bg-base-primary-50 border border-base-primary-100 rounded-12 px-3 py-2.5">
                   <span className="text-[10px] font-bold text-base-primary-400 tracking-tight">Grafik-1</span>
@@ -733,7 +776,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
             <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
               <div className="flex items-center gap-1.5 mb-3">
                 <BookOpen size={11} className="text-surface-400" />
-                <p className="text-[10px] font-bold text-surface-400 tracking-tight">Ödevler</p>
+                <p className="text-[11px] font-bold text-neutral-500 tracking-tight">Ödevler</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <StatBox label="Toplam" value={loading ? "…" : g1Stats.taskCount + g2Stats.taskCount} loading={loading} />
@@ -746,7 +789,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
             <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
               <div className="flex items-center gap-1.5 mb-3">
                 <Star size={11} className="text-surface-400" />
-                <p className="text-[10px] font-bold text-surface-400 tracking-tight">Lig Puanı</p>
+                <p className="text-[11px] font-bold text-neutral-500 tracking-tight">Lig Puanı</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <StatBox label="Toplam"
@@ -782,7 +825,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-1.5">
                       <Zap size={11} className="text-surface-400" />
-                      <p className="text-[10px] font-bold text-surface-400 tracking-tight">Görev XP</p>
+                      <p className="text-[11px] font-bold text-neutral-500 tracking-tight">Görev XP</p>
                     </div>
                     <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 rounded-full px-2.5 py-1">
                       <Zap size={10} className="text-amber-500" />
@@ -830,34 +873,44 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
               <div className="rounded-16 border border-surface-100 bg-surface-50 p-4 flex flex-col">
                   <div className="flex items-center gap-1.5 mb-4">
                     <CalendarCheck size={11} className="text-surface-400" />
-                    <p className="text-[10px] font-bold text-surface-400 tracking-tight">Devam Durumu</p>
+                    <p className="text-[11px] font-bold text-neutral-500 tracking-tight">Devam Durumu</p>
                   </div>
 
-                  <div className="flex flex-1 items-center gap-4">
-                    {/* Metin — üst Ders Sayısı, alt Devamsızlık */}
+                  {attTotal === 0 && attAttendedHours !== null ? (
+                    <div className="flex flex-1 items-center justify-center">
+                      <p className="text-[11px] text-surface-300 font-medium">Yoklama kaydı yok</p>
+                    </div>
+                  ) : (
+                  <div className="flex flex-1 items-center gap-3">
+                    {/* Metin — üst Katıldığı saat, alt Devamsızlık */}
                     <div className="flex flex-col justify-between flex-1 self-stretch py-1">
                       <div>
-                        <p className="text-[9px] font-bold text-surface-400 uppercase tracking-wide mb-0.5">Ders Sayısı</p>
-                        <p className="text-[22px] font-black tabular-nums leading-none text-text-primary">—</p>
+                        <p className="text-[9px] font-bold text-surface-400 tracking-wide mb-0.5">Katıldığı</p>
+                        <p className={`text-[22px] font-black tabular-nums leading-none text-text-primary transition-opacity duration-300 ${attAttendedHours == null ? "opacity-20" : ""}`}>
+                          {attAttendedHours == null ? "—" : `${attAttendedHours} saat`}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-[9px] font-bold text-surface-400 uppercase tracking-wide mb-0.5">Devamsızlık</p>
-                        <p className="text-[22px] font-black tabular-nums leading-none text-red-400">—</p>
+                        <p className="text-[9px] font-bold text-surface-400 tracking-wide mb-0.5">Devamsızlık</p>
+                        <p className={`text-[22px] font-black tabular-nums leading-none transition-opacity duration-300 ${attAbsentHours == null ? "opacity-20" : ""} ${attAbsentHours != null && attAbsentHours > 0 ? "text-red-400" : "text-text-primary"}`}>
+                          {attAbsentHours == null ? "—" : `${attAbsentHours} saat`}
+                        </p>
                       </div>
                     </div>
 
                     {/* Donut */}
                     <div className="shrink-0">
-                      <AttendanceDonut rate={75} animate={visible} />
+                      <AttendanceDonut rate={loading ? 0 : (attRate ?? 0)} animate={visible && !loading} />
                     </div>
                   </div>
+                  )}
                 </div>
 
               </div>
 
             {/* Mezuniyet Notları */}
             <div>
-              <p className="text-[10px] font-bold text-surface-400 tracking-tight mb-3 px-0.5">Mezuniyet Notu</p>
+              <p className="text-[11px] font-bold text-neutral-500 tracking-tight mb-3 px-0.5">Mezuniyet Notu</p>
               <div className="flex gap-3">
                 <GradCard
                   label="Grafik-1"
