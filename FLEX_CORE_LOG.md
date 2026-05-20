@@ -682,24 +682,45 @@ const isActiveForDate = hasClassThisDay && !isHolidayDate;
 
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. YAKINDA — StudentForm: isOnlineStudent
+### 1. SIRADAKI — Grading Sayfası "Not Ayarları" Sekmesi
+
+**Karar (2026-05-20):**
+- Grading sayfasına 3. sekme eklenir: "Not Ayarları"
+- `ScoringSettingsPanel`'daki `certificateWeights` bloğu (stacked bar + WeightRow sliderları) **aynen taşınır**, ScoringSettingsPanel'dan kaldırılır
+- Tek kaynak: grading / Not Ayarları sekmesi
+
+**Veri yapısı:** `users/{uid}.certSettings: { [branchId]: { useAssignment: boolean, projectWeight: number, assignmentWeight: number } }`
+
+**UI:**
+- Branş seçici (birden fazla branşı olan eğitmende görünür)
+- Toggle: "Ödev etkisini kullan" (default: kapalı)
+  - Kapalı → `finalNote = projectScore` (sadece sertifika notu)
+  - Açık → stacked bar + WeightRow sliderları görünür → `finalNote = projectScore × projectWeight + odevPuani`
+- "Tüm branşlara uygula" butonu
+- Kaydet
+
+**Formül değişikliği:** Grading sayfasındaki hardcoded `* 0.7` → `users/{uid}.certSettings[branchId]` okunur
+
+**Bileşen mimarisi:** `SettingCard` + `WeightRow` ayrı dosyaya çıkarılır, hem `ScoringSettingsPanel` hem grading sekmesi kullanır
+
+### 2. YAKINDA — StudentForm: isOnlineStudent
 - `students` dökümanına `isOnlineStudent: boolean` eklenecek
 - StudentForm'a toggle/checkbox ekle
-
-### 2. BÜYÜK BLOK — Sertifikasyon Modülü
-- Not girişi → sertifikasyon akışı
-- Grading sayfası altyapısı var, tamamlanacak
-- Puan ayarları → "Sertifika Not Ayarları" sekmesine taşınacak
-- Eğitmen not girişi → bildirim → Flex-Ops sertifika ekranı → baskı + öğrenciye oto mesaj
 
 ### 3. TEST SONRASI — Yoklama Giriş Zaman Kilidi
 - Ders başlamadan 15dk önce kilitle, ders bitiminden 30dk sonra kapat
 - Pencere dışında: sadece admin düzenleyebilir
 
-### 4. İLERİDE — Dashboard Hızlı Yoklama Widget
+### 4. İLERİDE — Sertifika PDF + Dağıtım
+- Finalize sonrası sertifika belgesi üretilecek
+- Altyapı hazır: `react-pdf` + `send-kitap` pattern'i kullanılabilir
+- Şablon tasarımı kararlaştırılacak — acelesi yok
+
+### 5. İLERİDE — Dashboard Hızlı Yoklama Widget
 - `/attend?groupId=xxx` shortcut kartı
 
 ### ✅ TAMAMLANDI
 - §41 Bekleyen commit → önceki oturumlarda push edildi
 - Sınıf Yükselt (Grafik-1 → Grafik-2) → GroupForm + carryOver zaten çalışıyor
 - Öğrenci bazlı yoklama raporu → StudentDetailModal Devam Durumu kartı (§56)
+- Grading sistemi (not girişi, finalize, 70/30) → çalışıyor
