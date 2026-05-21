@@ -124,8 +124,8 @@ function getMonthOptions() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-function StatCard({ label, value, icon, color }: {
-  label: string; value: string | number; icon: React.ReactNode; color: string;
+function StatCard({ label, value, sub, icon, color }: {
+  label: string; value: string | number; sub?: string; icon: React.ReactNode; color: string;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-surface-100 shadow-sm px-6 py-5 flex items-center gap-4">
@@ -135,6 +135,7 @@ function StatCard({ label, value, icon, color }: {
       <div>
         <p className="text-[12px] font-semibold text-surface-400 mb-0.5">{label}</p>
         <p className="text-[22px] font-bold text-base-primary-900 leading-none">{value}</p>
+        {sub && <p className="text-[11px] text-surface-400 mt-0.5">{sub}</p>}
       </div>
     </div>
   );
