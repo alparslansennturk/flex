@@ -851,6 +851,59 @@ Arşiv/
 
 ---
 
+## Oturum: 2026-05-21 (Devam) — Ders İptal Sebepleri + Yoklama UI
+
+### 69. ExceptionReason Yeniden Tasarım
+
+**Eski sebepler:** `holiday | instructor_sick | no_students | other`
+**Yeni sebepler:** `instructor | student | technical | other`
+
+| Sebep | Label | Ders Sayılır | Devamsızlık |
+|---|---|---|---|
+| `instructor` | Eğitmen Kaynaklı | ❌ | ❌ |
+| `student` | Öğrenci Kaynaklı | ✅ | ✅ tüm öğrenciler |
+| `technical` | Teknik Sebeple | ❌ | ❌ |
+| `other` | Diğer | ❌ | ❌ |
+
+**`LessonException` interface'e eklendi:** `countsAsLesson?: boolean`
+
+**ExceptionModal güncellendi:**
+- 4 yeni sebep butonu
+- Seçilen sebebe göre altta info badge: "Ders sayılır · Devamsızlık yazılır" veya "Ders sayılmaz · Devamsızlık yazılmaz"
+
+**`handleSaveException` — Öğrenci Kaynaklı özel akışı:**
+- `countsAsLesson: true` ile exception kaydedilir
+- Tüm öğrenciler `hours: 0` ile `design_attendance` doc'u otomatik oluşturulur (`attendanceClosed: true, createdByException: true`)
+- Exception silinirse `createdByException` olan attendance doc'u da silinir
+
+**Raporlar güncellendi (`attendance-report` + `attendance-summary`):**
+- `cancelledThisMonth` = sadece `countsAsLesson !== true` exception'lar
+- Öğrenci kaynaklı exception'lar `design_attendance` doc olarak sayılır → zaten `doneThisMonth`'a girer
+
+### 70. AttendancePanel — İptal Edilen Ders Görünümü
+
+**İptal edilen ders (countsAsLesson=false) seçilince:**
+- Öğrenci listesi, sınıf geneli bar, alt butonlar tamamen gizlenir
+- Yerine büyük kırmızı kutu: **"Bugünkü ders iptal edildi — [Sebep]"** + not
+- Overlay/disabled buton da gösterilmez
+
+**Öğrenci kaynaklı (countsAsLesson=true) seçilince:**
+- Amber info banner: "Öğrenci kaynaklı — ders sayılır, tüm öğrenciler devamsız"
+- Öğrenci listesi görünür (readonly, hepsi 0 saat)
+
+### 71. Donut Kartı — "İlerleme" → "İptal Edilen"
+
+- Donut legend'ın 4. hücresi: `% courseProgressPct` → `X ders` (kırmızı)
+- `cancelledCountThisMonth` state eklendi: seçili grup + ay için `onSnapshot` ile `lesson_exceptions` (countsAsLesson=false) dinlenir
+- İptal > 0 ise kırmızı font, aksi halde gri
+
+### 72. Yoklama Detay Tablo Başlıkları
+
+- `uppercase tracking-wide` → `tracking-normal` (attendance-report/page.tsx)
+- Tüm tablo başlıkları normal case
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. TEST SONRASI — Yoklama Giriş Zaman Kilidi

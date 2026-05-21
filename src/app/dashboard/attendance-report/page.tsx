@@ -262,7 +262,8 @@ function AttendanceReportContent() {
         where("groupId", "==", g.id),
         where("month", "==", selectedMonth),
       ));
-      const cancelledThisMonth = exSnap.size;
+      // countsAsLesson=true (öğrenci kaynaklı) olanlar iptal değil, ders sayılır
+      const cancelledThisMonth = exSnap.docs.filter(d => !d.data().countsAsLesson).length;
 
       const remainingThisMonth = Math.max(0, plannedThisMonth - doneThisMonth - cancelledThisMonth);
 
@@ -370,25 +371,25 @@ function AttendanceReportContent() {
       <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
         <div className="flex items-center gap-4 px-6 py-3 bg-surface-50 border-b border-surface-100">
           <div className="w-28 shrink-0">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Grup</span>
+            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Grup</span>
           </div>
           <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Planlanan</span>
+            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Planlanan</span>
           </div>
           <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Verilen</span>
+            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Verilen</span>
           </div>
           <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Kalan</span>
+            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Kalan</span>
           </div>
           <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">İptal</span>
+            <span className="text-[11px] font-bold text-surface-500 tracking-normal">İptal</span>
           </div>
           <div className="flex-1 hidden lg:block">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Bu Ay İlerleme</span>
+            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Bu Ay İlerleme</span>
           </div>
           <div className="flex-1 hidden xl:block">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Kurs İlerleme</span>
+            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Kurs İlerleme</span>
           </div>
           <div className="w-20 shrink-0" />
         </div>

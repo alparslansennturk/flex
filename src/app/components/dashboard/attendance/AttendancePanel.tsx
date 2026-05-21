@@ -21,7 +21,7 @@ import { PieChart, Pie, Cell } from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ExceptionReason = "holiday" | "instructor_sick" | "no_students" | "other";
+export type ExceptionReason = "instructor" | "student" | "technical" | "other";
 
 export interface StudentEntry {
   hours: number;    // 0 – sessionHours
@@ -43,13 +43,15 @@ export interface AttendanceDoc {
 }
 
 export interface LessonException {
-  groupId: string | null;  // null = system-wide (holiday)
+  groupId: string | null;  // null = system-wide
   date: string;
   month: string;
   scope: "system" | "group";
   reason: ExceptionReason;
   note: string;
   instructorId: string;
+  countsAsLesson?: boolean;  // true = öğrenci kaynaklı, ders sayılır
+  createdByException?: boolean;  // attendance doc otomatik oluşturulduysa
   createdAt?: any;
 }
 
@@ -84,10 +86,18 @@ interface Student {
 }
 
 const EXCEPTION_LABELS: Record<ExceptionReason, string> = {
-  holiday: "Resmi / Dini Tatil",
-  instructor_sick: "Eğitmen Hasta",
-  no_students: "Öğrenci Gelmedi",
-  other: "Diğer",
+  instructor: "Eğitmen Kaynaklı",
+  student:    "Öğrenci Kaynaklı",
+  technical:  "Teknik Sebeple",
+  other:      "Diğer",
+};
+
+// Öğrenci kaynaklı → ders sayılır, diğerleri → ders sayılmaz
+const EXCEPTION_COUNTS_AS_LESSON: Record<ExceptionReason, boolean> = {
+  instructor: false,
+  student:    true,
+  technical:  false,
+  other:      false,
 };
 
 const DEFAULT_SESSION_HOURS = 3;
@@ -261,6 +271,15 @@ function ExceptionModal({
                 </button>
               ))}
             </div>
+            <div className={`mt-3 px-3 py-2 rounded-xl text-[11px] font-semibold border ${
+              EXCEPTION_COUNTS_AS_LESSON[reason]
+                ? "bg-amber-50 border-amber-200 text-amber-700"
+                : "bg-surface-50 border-surface-200 text-text-placeholder"
+            }`}>
+              {EXCEPTION_COUNTS_AS_LESSON[reason]
+                ? "Ders sayılır · Tüm öğrencilere devamsızlık yazılır"
+                : "Ders sayılmaz · Devamsızlık yazılmaz"}
+            </div>
           </div>
 
           {isAdmin && (
@@ -292,7 +311,7 @@ function ExceptionModal({
           )}
           <div className="flex gap-2 ml-auto">
             <button onClick={onClose} className="px-4 py-2 rounded-xl text-[13px] font-bold text-text-primary border border-surface-200 hover:bg-surface-50 cursor-pointer">İptal</button>
-            <button onClick={() => onSave({ groupId: scope === "system" ? null : groupId, date, month, scope, reason, note, instructorId })}
+            <button onClick={() => onSave({ groupId: scope === "system" ? null : groupId, date, month, scope, reason, note, instructorId, countsAsLesson: EXCEPTION_COUNTS_AS_LESSON[reason] })}
               className="px-4 py-2 rounded-xl text-[13px] font-bold bg-base-primary-900 text-white hover:bg-base-primary-800 cursor-pointer">
               Kaydet
             </button>
@@ -342,6 +361,7 @@ export default function AttendancePanel({
   const [exception, setException]             = useState<LessonException | null>(null);
   const [showExModal, setShowExModal]         = useState(false);
   const [monthlyDone, setMonthlyDone]         = useState<Record<string, number>>({});
+  const [cancelledCountThisMonth, setCancelledCountThisMonth] = useState(0);
   const [holidayDates, setHolidayDates]       = useState<Set<string>>(new Set());
   const [totalDoneCount, setTotalDoneCount]   = useState(0);
   const [moduleHours, setModuleHours]         = useState<number | null>(null);
@@ -495,6 +515,15 @@ export default function AttendancePanel({
       snap => setTotalDoneCount(snap.size),
     );
   }, [selectedGroupId]);
+
+  // ── Cancelled count this month (for donut legend) ──────────────────────────
+  useEffect(() => {
+    if (!selectedGroupId) { setCancelledCountThisMonth(0); return; }
+    return onSnapshot(
+      query(collection(db, "lesson_exceptions"), where("groupId", "==", selectedGroupId), where("month", "==", monthKey)),
+      snap => setCancelledCountThisMonth(snap.docs.filter(d => !d.data().countsAsLesson).length),
+    );
+  }, [selectedGroupId, monthKey]);
 
   // ── Module totalHours lookup (fallback for old groups without totalHours) ─
   useEffect(() => {
@@ -699,6 +728,26 @@ export default function AttendancePanel({
   const handleSaveException = async (ex: LessonException) => {
     const docId = ex.scope === "system" ? `system_${ex.date}` : `${ex.groupId}_${ex.date}`;
     await setDoc(doc(db, "lesson_exceptions", docId), { ...ex, createdAt: new Date() });
+
+    // Öğrenci Kaynaklı: ders sayılır → tüm öğrenciler devamsız olarak design_attendance'a yaz
+    if (ex.reason === "student" && ex.groupId && !existingDoc) {
+      const attDocId = `${ex.groupId}_${ex.date}`;
+      const attEntries: Record<string, StudentEntry> = {};
+      students.forEach(s => { attEntries[s.id] = { hours: 0, online: false }; });
+      const sessionHoursVal = selectedGroup?.sessionHours ?? DEFAULT_SESSION_HOURS;
+      await setDoc(doc(db, "design_attendance", attDocId), {
+        groupId: ex.groupId,
+        date: ex.date,
+        month: ex.month,
+        instructorId: ex.instructorId,
+        sessionHours: sessionHoursVal,
+        entries: attEntries,
+        attendanceClosed: true,
+        closedAt: new Date(),
+        createdByException: true,
+      });
+    }
+
     setException(ex);
     setShowExModal(false);
   };
@@ -709,6 +758,17 @@ export default function AttendancePanel({
       ? `system_${exception.date}`
       : `${exception.groupId}_${exception.date}`;
     await deleteDoc(doc(db, "lesson_exceptions", docId));
+
+    // Öğrenci Kaynaklı exception silinirse → otomatik oluşturulan attendance doc'u da sil
+    if (exception.reason === "student" && exception.groupId) {
+      const attDocId = `${exception.groupId}_${exception.date}`;
+      const attDocRef = doc(db, "design_attendance", attDocId);
+      const attDoc = await getDoc(attDocRef);
+      if (attDoc.exists() && attDoc.data().createdByException) {
+        await deleteDoc(attDocRef);
+      }
+    }
+
     setException(null);
     setShowExModal(false);
   };
@@ -1114,10 +1174,12 @@ export default function AttendancePanel({
                             </div>
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-base-secondary-500 shrink-0" />
-                                <span className="text-text-placeholder">İlerleme</span>
+                                <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+                                <span className="text-text-placeholder">İptal Edilen</span>
                               </div>
-                              <span className="font-bold text-text-primary pl-3.5">% {courseProgressPct}</span>
+                              <span className={`font-bold pl-3.5 ${cancelledCountThisMonth > 0 ? "text-red-500" : "text-text-primary"}`}>
+                                {cancelledCountThisMonth} ders
+                              </span>
                             </div>
                           </div>
                         </motion.div>
@@ -1292,12 +1354,22 @@ export default function AttendancePanel({
                   )}
 
                   {/* Exception banner */}
-                  {exception && (
-                    <div className="px-5 py-2.5 bg-red-50 border-b border-red-100 flex items-center gap-2 text-[12px] font-bold text-red-600 shrink-0">
+                  {exception && !exception.countsAsLesson && (
+                    <div className="mx-5 mt-5 mb-2 px-5 py-4 bg-red-50 border border-red-200 rounded-2xl flex flex-col gap-1 shrink-0">
+                      <div className="flex items-center gap-2 text-[14px] font-bold text-red-600">
+                        <AlertCircle size={16} className="shrink-0" />
+                        Bugünkü ders iptal edildi — {EXCEPTION_LABELS[exception.reason]}
+                      </div>
+                      {exception.note && (
+                        <p className="text-[12px] text-red-500 pl-6">{exception.note}</p>
+                      )}
+                    </div>
+                  )}
+                  {exception && exception.countsAsLesson && (
+                    <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2 text-[12px] font-bold text-amber-700 shrink-0">
                       <AlertCircle size={14} />
-                      Bu gün için istisna: <span className="font-bold">{EXCEPTION_LABELS[exception.reason]}</span>
-                      {exception.note && <span className="font-normal text-red-500">— {exception.note}</span>}
-                      <span className="ml-1 text-[11px] text-red-400">({exception.scope === "system" ? "Sistem geneli" : "Bu grup"})</span>
+                      Öğrenci kaynaklı — ders sayılır, tüm öğrenciler devamsız
+                      {exception.note && <span className="font-normal text-amber-600">: {exception.note}</span>}
                     </div>
                   )}
 
@@ -1331,6 +1403,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
+                  {exception && !exception.countsAsLesson ? null : (
                   <div className={`pt-6 ${(overlayMessage || isReadonlyView) ? "opacity-40 pointer-events-none select-none" : ""}`}>
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
@@ -1429,6 +1502,7 @@ export default function AttendancePanel({
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Ders başlamadı hint toast */}
                   {showAttendanceUI && (showStartHint || showReadonlyToast) && (
@@ -1444,7 +1518,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Alt buton alanı: tatil/ders günü değil durumunda disabled buton */}
-                  {overlayMessage && (
+                  {overlayMessage && !(exception && !exception.countsAsLesson) && (
                     <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-end shrink-0">
                       <button disabled
                         className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">

@@ -215,8 +215,9 @@ function AttendanceSummaryContent() {
 
       const exceptionsByGroup: Record<string, number> = {};
       exceptionsSnap.docs.forEach(d => {
-        const { groupId } = d.data();
-        if (groupId) exceptionsByGroup[groupId] = (exceptionsByGroup[groupId] ?? 0) + 1;
+        const { groupId, countsAsLesson } = d.data();
+        // countsAsLesson=true (öğrenci kaynaklı) olanlar iptal değil, ders sayılır
+        if (groupId && !countsAsLesson) exceptionsByGroup[groupId] = (exceptionsByGroup[groupId] ?? 0) + 1;
       });
 
       const map: Record<string, InstructorRow> = {};
