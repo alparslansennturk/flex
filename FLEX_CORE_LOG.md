@@ -904,6 +904,29 @@ Arşiv/
 
 ---
 
+## Oturum: 2026-05-21 (Devam 2) — İptal Edilen Ders UI Düzeltmeleri
+
+### 73. AttendancePanel — İptal Edilen Ders Görünümü Yeniden Düzenlendi
+
+**Değişiklikler (§70'in üzerine):**
+
+- **"Yoklama Detay" butonu:** `!exception` koşulu eklendi — ders iptal edilmişse `/attend`'deki orange buton görünmez
+- **`attendanceClosed` banner:** `!exception` koşulu eklendi — "Yoklamanızı Yoklama Detay menüsünden düzenleyebilirsiniz" mesajı iptal edilmiş derste gösterilmez
+- **İki exception banner → tek banner:** kırmızı + amber ayrımı kaldırıldı; tüm iptal türleri aynı kırmızı kutuyu gösterir
+- **İptal/Temizle butonları:** `!(exception && !exception.countsAsLesson)` koşulu eklendi — iptal edilmiş derste header'daki bu butonlar gizlenir
+- **Öğrenci listesi:** `exception ? null :` yerine `opacity-60 pointer-events-none select-none` — silik ama görünür
+- **Alt buton ("Dersi Başlat"):** exception varken `opacity-60` ile silik ve disabled olarak gösterilir
+
+**Exception banner format:**
+```tsx
+<span className="text-[13px] xl:text-[14px] font-bold text-red-700">Ders iptal edildi:</span>
+<span className="text-[12px] xl:text-[13px] font-normal text-red-500">{exception.note || EXCEPTION_LABELS[exception.reason]}</span>
+```
+- Not girilmişse notu, girilmemişse sebep etiketini gösterir
+- Responsive: küçük ekranda 13px/12px, xl üstünde 14px/13px
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. TEST SONRASI — Yoklama Giriş Zaman Kilidi

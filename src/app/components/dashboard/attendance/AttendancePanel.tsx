@@ -1288,13 +1288,13 @@ export default function AttendancePanel({
 
                 <div className="flex items-center shrink-0">
                   {/* Temizle: entries sıfırla */}
-                  {lessonStarted && !hasPersistedEntries ? (
+                  {!(exception && !exception.countsAsLesson) && lessonStarted && !hasPersistedEntries ? (
                     <button
                       onClick={async () => { await handleClear(); setLessonStarted(false); }}
                       className="text-[11px] font-semibold text-text-placeholder hover:text-base-primary-600 transition-colors cursor-pointer mr-8">
                       İptal
                     </button>
-                  ) : Object.keys(entries).length > 0 && !isReadonlyView ? (
+                  ) : !(exception && !exception.countsAsLesson) && Object.keys(entries).length > 0 && !isReadonlyView ? (
                     <button
                       onClick={handleClear}
                       className="text-[11px] font-semibold text-text-placeholder hover:text-red-500 transition-colors cursor-pointer mr-8">
@@ -1302,7 +1302,7 @@ export default function AttendancePanel({
                     </button>
                   ) : null}
                   {/* Exception badge / button */}
-                  {mode === "simple" && selectedGroupId && attendanceClosed &&
+                  {mode === "simple" && selectedGroupId && attendanceClosed && !exception &&
                     (Date.now() - new Date(dateKey + "T23:59:59").getTime()) < 3 * 24 * 60 * 60 * 1000 && (
                     <button
                       onClick={() => router.push(`/dashboard/attendance?groupId=${selectedGroupId}`)}
@@ -1336,7 +1336,7 @@ export default function AttendancePanel({
               </div>
 
                   {/* Kapatıldı / geçmiş tarih — banner */}
-                  {(attendanceClosed || (!allowEdit && !isToday && existingDoc)) && (
+                  {!exception && (attendanceClosed || (!allowEdit && !isToday && existingDoc)) && (
                     <div className={`px-5 py-2.5 border-b flex items-center gap-2 text-[12px] font-semibold shrink-0 ${
                       canEdit
                         ? "bg-surface-50 border-surface-100 text-text-placeholder"
@@ -1354,22 +1354,11 @@ export default function AttendancePanel({
                   )}
 
                   {/* Exception banner */}
-                  {exception && !exception.countsAsLesson && (
-                    <div className="mx-5 mt-5 mb-2 px-5 py-4 bg-red-50 border border-red-200 rounded-2xl flex flex-col gap-1 shrink-0">
-                      <div className="flex items-center gap-2 text-[14px] font-bold text-red-600">
-                        <AlertCircle size={16} className="shrink-0" />
-                        Bugünkü ders iptal edildi — {EXCEPTION_LABELS[exception.reason]}
-                      </div>
-                      {exception.note && (
-                        <p className="text-[12px] text-red-500 pl-6">{exception.note}</p>
-                      )}
-                    </div>
-                  )}
-                  {exception && exception.countsAsLesson && (
-                    <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2 text-[12px] font-bold text-amber-700 shrink-0">
-                      <AlertCircle size={14} />
-                      Öğrenci kaynaklı — ders sayılır, tüm öğrenciler devamsız
-                      {exception.note && <span className="font-normal text-amber-600">: {exception.note}</span>}
+                  {exception && (
+                    <div className="mx-5 mt-5 mb-2 px-5 py-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2.5 shrink-0">
+                      <AlertCircle size={16} className="shrink-0 text-red-500" />
+                      <span className="text-[13px] xl:text-[14px] font-bold text-red-700">Ders iptal edildi:</span>
+                      <span className="text-[12px] xl:text-[13px] font-normal text-red-500">{exception.note || EXCEPTION_LABELS[exception.reason]}</span>
                     </div>
                   )}
 
@@ -1403,8 +1392,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
-                  {exception && !exception.countsAsLesson ? null : (
-                  <div className={`pt-6 ${(overlayMessage || isReadonlyView) ? "opacity-40 pointer-events-none select-none" : ""}`}>
+                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView) ? "opacity-60 pointer-events-none select-none" : ""}`}>
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
                         <Users size={28} strokeWidth={1.5} />
@@ -1419,7 +1407,7 @@ export default function AttendancePanel({
                           const isMarked = entry !== undefined;
                           return (
                             <div key={student.id}
-                              className={`flex items-center px-5 py-3 xl:py-5 transition-colors ${exception ? "opacity-40 pointer-events-none" : isReadonlyView ? "cursor-default" : "hover:bg-surface-50/50"}`}>
+                              className={`flex items-center px-5 py-3 xl:py-5 transition-colors ${isReadonlyView ? "cursor-default" : "hover:bg-surface-50/50"}`}>
                               {/* Sıra no */}
                               <span className="text-[13px] font-semibold text-text-secondary w-5 text-right shrink-0 mr-3">{idx + 1}</span>
 
@@ -1502,7 +1490,6 @@ export default function AttendancePanel({
                       </div>
                     )}
                   </div>
-                  )}
 
                   {/* Ders başlamadı hint toast */}
                   {showAttendanceUI && (showStartHint || showReadonlyToast) && (
@@ -1517,9 +1504,9 @@ export default function AttendancePanel({
                     </div>
                   )}
 
-                  {/* Alt buton alanı: tatil/ders günü değil durumunda disabled buton */}
-                  {overlayMessage && !(exception && !exception.countsAsLesson) && (
-                    <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-end shrink-0">
+                  {/* Alt buton alanı: tatil/ders günü değil veya iptal durumunda disabled buton */}
+                  {(exception || overlayMessage) && !(showAttendanceUI && students.length > 0 && !exception) && (
+                    <div className={`px-5 py-4 border-t border-surface-100 flex items-center justify-end shrink-0 ${exception ? "opacity-60" : ""}`}>
                       <button disabled
                         className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
                         <Play size={13} /> Dersi Başlat
