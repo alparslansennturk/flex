@@ -156,6 +156,17 @@ function FinalOverlay({
       });
       if (!res.ok) throw new Error("Mail gönderilemedi.");
       setMailSent(true);
+      // Drive URL'ini Firestore'a kaydet (eğitmen arşivde indirebilsin)
+      const data = await res.json().catch(() => ({})) as { driveUrl?: string; driveFileName?: string };
+      if (data.driveUrl && task.id) {
+        try {
+          const { doc: fsDoc, updateDoc } = await import("firebase/firestore");
+          const { db } = await import("@/app/lib/firebase");
+          await updateDoc(fsDoc(db, "tasks", task.id), {
+            [`kolajDriveFiles.${student.id}`]: { url: data.driveUrl, fileName: data.driveFileName ?? "" },
+          });
+        } catch { /* non-fatal */ }
+      }
     } finally {
       setSendingMail(false);
     }

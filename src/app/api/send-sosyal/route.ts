@@ -1,22 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMail } from "@/app/lib/email";
 import { saveMailLog } from "@/app/services/emailService";
+import { createFolderStructure } from "@/app/lib/googledrive-folder";
+import { uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
 
 interface SosyalMailRequest {
   to: string;
   studentName: string;
   brandName: string;
   pdfBase64: string;
+  groupName?: string;
+  instructorName?: string;
+  taskName?: string;
+  studentId?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: SosyalMailRequest = await req.json();
-    const { to, studentName, brandName, pdfBase64 } = body;
+    const { to, studentName, brandName, pdfBase64, groupName, instructorName, taskName, studentId } = body;
 
     if (!to || !pdfBase64) {
       return NextResponse.json({ error: "Eksik parametre." }, { status: 400 });
     }
+
+    // Dosya adı: "Aylin Dümen-Sosyal Medya Reklam Tasarımı.pdf"
+    const fileName = `${studentName}-${taskName ?? "Sosyal Medya"}.pdf`;
 
     const html = `
       <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:40px 32px;color:#111">
@@ -31,15 +40,13 @@ export async function POST(req: NextRequest) {
         </p>
       </div>`;
 
-    const safeName = studentName.replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ\s]/g, "").replace(/\s+/g, "_");
-
     const result = await sendMail({
       to,
       subject: `Sosyal Medya Ödevin — ${brandName}`,
       html,
       attachments: [
         {
-          filename: `${safeName}_${brandName}_SM.pdf`,
+          filename: fileName,
           content: pdfBase64,
           encoding: "base64",
           contentType: "application/pdf",
@@ -53,13 +60,33 @@ export async function POST(req: NextRequest) {
       type: "sosyal-assignment",
       result,
       name: studentName,
+      groupCode: groupName ?? undefined,
     });
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    // Drive'a kaydet: Gruplar/{group}/Eğitmen/{instructor}/{taskName}/{ad-soyad-taskName}.pdf
+    let driveUrl: string | undefined;
+    if (pdfBase64 && groupName?.trim() && instructorName?.trim() && taskName?.trim()) {
+      try {
+        const { folderId } = await createFolderStructure(
+          groupName.trim(),
+          instructorName.trim(),
+          "instructor",
+          taskName.trim(),
+        );
+        const pdfBuffer = Buffer.from(pdfBase64, "base64");
+        const { fileId, webViewLink } = await uploadBufferToFolder(pdfBuffer, fileName, "application/pdf", folderId);
+        await setPublicReadPermission(fileId);
+        driveUrl = webViewLink;
+      } catch (driveErr) {
+        console.warn("[send-sosyal] Drive upload atlandı:", driveErr);
+      }
+    }
+
+    return NextResponse.json({ success: true, driveUrl, fileName, studentId });
   } catch (err) {
     console.error("[send-sosyal] Hata:", err);
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });

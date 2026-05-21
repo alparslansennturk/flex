@@ -615,11 +615,12 @@ function AttachmentManager({ taskId, initialUrl, initialName, initialType, group
     try {
       const fd = new FormData();
       fd.append("file", file);
-      // Klasör hiyerarşisi: gruplar / [grup] / [eğitmen] / [ödev adı]
-      const segments = ["gruplar"];
-      if (groupName)     segments.push(groupName);
+      // Klasör hiyerarşisi: Gruplar / [grup] / Eğitmen / [eğitmen adı] / [ödev adı]
+      const segments = ["Gruplar"];
+      if (groupName)      segments.push(groupName);
+      segments.push("Eğitmen");
       if (instructorName) segments.push(instructorName);
-      if (taskName)      segments.push(taskName);
+      if (taskName)       segments.push(taskName);
       fd.append("folderPath", JSON.stringify(segments));
       const res  = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };

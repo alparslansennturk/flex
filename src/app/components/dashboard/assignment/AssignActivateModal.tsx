@@ -113,7 +113,8 @@ export function AssignActivateModal({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("folderPath", JSON.stringify(["odevler", taskName]));
+      const instructorName = user ? `${user.name} ${user.surname ?? ""}`.trim() : "Eğitmen";
+      fd.append("folderPath", JSON.stringify(["Ödev Şablonları", instructorName, taskName]));
       const res  = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Yükleme başarısız");

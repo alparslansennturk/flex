@@ -83,6 +83,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Mail gönderildi — Drive'a da kaydet (non-fatal, hata olsa da mail gönderildi sayılır)
+    let driveUrl: string | undefined;
+    let driveFileName: string | undefined;
     if (pdfBase64 && groupName?.trim() && studentName && studentLastName && taskName) {
       try {
         const studentFullName = `${studentName} ${studentLastName}`.trim();
@@ -90,15 +92,17 @@ export async function POST(req: NextRequest) {
           groupName.trim(), studentFullName, "student", taskName,
         );
         const pdfBuffer = Buffer.from(pdfBase64, "base64");
-        const fileName  = `kolaj-${studentFullName}.pdf`;
-        const { fileId } = await uploadBufferToFolder(pdfBuffer, fileName, "application/pdf", folderId);
+        const fileName  = `${studentFullName}-${taskName}.pdf`;
+        const { fileId, webViewLink } = await uploadBufferToFolder(pdfBuffer, fileName, "application/pdf", folderId);
         await setPublicReadPermission(fileId);
+        driveUrl = webViewLink;
+        driveFileName = fileName;
       } catch (driveErr) {
         console.warn("[send-kolaj] Drive upload atlandı:", driveErr);
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, driveUrl, driveFileName });
   } catch (err) {
     console.error("[send-kolaj] Hata:", err);
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });

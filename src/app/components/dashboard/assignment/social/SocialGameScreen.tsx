@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@/app/context/UserContext";
 import {
   doc, getDoc, setDoc, addDoc, collection,
   getDocs, query, where, updateDoc, serverTimestamp,
@@ -47,6 +48,7 @@ function pickRandom<T>(arr: T[]): T | undefined {
 
 export default function SocialGameScreen({ task, students }: { task: TaskData; students: Student[] }) {
   const router = useRouter();
+  const { user } = useUser();
 
   const [poolData,          setPoolData]          = useState<SocialMediaPool | null>(null);
   const [draws,             setDraws]             = useState<FullSMDraw[]>([]);
@@ -361,16 +363,33 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                to:          student.email,
-                studentName: `${student.name} ${student.lastName}`,
-                brandName:   draw.marka,
+                to:             student.email,
+                studentName:    `${student.name} ${student.lastName}`,
+                brandName:      draw.marka,
                 pdfBase64,
+                groupName:      task.classId ?? "",
+                instructorName: user ? `${user.name} ${user.surname ?? ""}`.trim() : "",
+                taskName:       task.name,
+                studentId:      student.id,
               }),
             })
           )
-          .then(res => {
-            setMailStatus(res.ok ? "sent" : "error");
-            if (res.ok) setAutoMailSentFor(prev => new Set([...prev, sid]));
+          .then(async res => {
+            if (res.ok) {
+              setMailStatus("sent");
+              setAutoMailSentFor(prev => new Set([...prev, sid]));
+              // Drive URL'ini Firestore'a kaydet
+              try {
+                const data = await res.json() as { driveUrl?: string; fileName?: string };
+                if (data.driveUrl && task.id) {
+                  await updateDoc(doc(db, "tasks", task.id), {
+                    [`sosyalDriveFiles.${student.id}`]: { url: data.driveUrl, fileName: data.fileName ?? "" },
+                  });
+                }
+              } catch { /* non-fatal */ }
+            } else {
+              setMailStatus("error");
+            }
           })
           .catch(() => setMailStatus("error"));
       }

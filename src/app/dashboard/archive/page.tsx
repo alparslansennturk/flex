@@ -2,18 +2,19 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, orderBy, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, deleteDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
-import { Archive, ChevronDown, Users, Trash2, BookOpen, Layers, Smartphone } from "lucide-react";
+import { Archive, ChevronDown, Users, Trash2, BookOpen, Layers, Smartphone, Download, ExternalLink } from "lucide-react";
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 
 interface DrawResult { category: string; item: { name: string; emoji?: string } }
 interface StudentDraw { studentId: string; draws: DrawResult[] }
 interface Student { id: string; name: string; lastName: string }
+interface KitapDriveFile { url: string; fileName: string }
 interface ArchiveEntry {
   id: string;
   allIds: string[];
@@ -25,6 +26,11 @@ interface ArchiveEntry {
   completedAt: { seconds: number };
   draws: StudentDraw[];
   students: Student[];
+  attachmentUrl?: string;
+  attachmentName?: string;
+  kitapDriveFiles?: Record<string, KitapDriveFile>;
+  kolajDriveFiles?: Record<string, KitapDriveFile>;
+  sosyalDriveFiles?: Record<string, KitapDriveFile>;
 }
 interface Group { id: string; code: string; branch?: string; session?: string; status?: string }
 
@@ -49,6 +55,7 @@ function AssignmentAccordion({
   deletingId: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   const date = entry.completedAt
     ? new Date(entry.completedAt.seconds * 1000).toLocaleDateString("tr-TR", {
@@ -77,7 +84,30 @@ function AssignmentAccordion({
           <p className="text-[12px] text-slate-400 mt-0.5">{date} · {entry.students.length} katılımcı</p>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+          {/* Detay butonu — her zaman */}
+          <button
+            onClick={() => router.push(`/dashboard/assignment/${entry.groupId}?taskId=${entry.taskId}`)}
+            className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-[12px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <ExternalLink size={12} />
+            Detay
+          </button>
+
+          {/* İndir butonu — sadece dosya varsa */}
+          {entry.attachmentUrl && (
+            <a
+              href={entry.attachmentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={entry.attachmentName ?? "Dosyayı İndir"}
+              className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-[12px] font-semibold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+            >
+              <Download size={12} />
+              İndir
+            </a>
+          )}
+
           <button
             onClick={e => { e.stopPropagation(); onDelete(entry); }}
             disabled={deletingId === entry.taskId}
@@ -99,34 +129,59 @@ function AssignmentAccordion({
         className="overflow-hidden transition-all duration-300 ease-in-out"
         style={{ maxHeight: open ? "1200px" : "0px", opacity: open ? 1 : 0 }}
       >
-        <div className="border-t border-surface-100 overflow-x-auto">
-          <table className="w-full text-[13px]">
+        <div className="border-t border-surface-100 overflow-x-auto pb-4">
+          <table className="w-full text-[12px]">
             <thead>
               <tr className="bg-slate-50">
-                <th className="text-left px-6 py-3 font-semibold text-slate-500">Öğrenci</th>
+                <th className="text-left pl-8 pr-3 py-2.5 font-semibold text-slate-500">Öğrenci</th>
                 {cats.map(cat => (
-                  <th key={cat} className="text-left px-4 py-3 font-semibold text-slate-500">{cat}</th>
+                  <th key={cat} className="text-left px-3 py-2.5 font-semibold text-slate-500 whitespace-nowrap">{cat}</th>
                 ))}
+                {["kitap", "kolaj", "sosyal-medya"].includes(entry.type) && (
+                  <th className="text-right pl-3 pr-8 py-2.5 font-semibold text-slate-500 whitespace-nowrap">PDF</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {entry.students.map((student, i) => {
                 const draw = entry.draws.find(d => d.studentId === student.id);
+                const kitapFile  = entry.kitapDriveFiles?.[student.id];
+                const kolajFile  = entry.kolajDriveFiles?.[student.id];
+                const sosyalFile = entry.sosyalDriveFiles?.[student.id];
+                const driveFile  = kitapFile ?? kolajFile ?? sosyalFile;
                 return (
                   <tr key={student.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
-                    <td className="px-6 py-3 font-semibold text-slate-700">
+                    <td className="pl-8 pr-3 py-2 font-semibold text-slate-700 whitespace-nowrap">
                       {student.name} {student.lastName}
                     </td>
                     {cats.map(cat => {
                       const item = draw?.draws.find(d => d.category === cat);
                       return (
-                        <td key={cat} className="px-4 py-3 text-slate-600">
+                        <td key={cat} className="px-3 py-2 text-slate-600 whitespace-nowrap">
                           {item
                             ? `${item.item.emoji ?? ""} ${item.item.name}`
                             : <span className="text-slate-300">—</span>}
                         </td>
                       );
                     })}
+                    {["kitap", "kolaj", "sosyal-medya"].includes(entry.type) && (
+                      <td className="pl-3 pr-8 py-2 text-right">
+                        {driveFile ? (
+                          <a
+                            href={driveFile.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={driveFile.fileName}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap"
+                          >
+                            <Download size={10} />
+                            İndir
+                          </a>
+                        ) : (
+                          <span className="text-slate-300 text-[11px]">—</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -176,7 +231,26 @@ function GroupAccordion({ group }: { group: Group }) {
       }
     }
 
-    setEntries(Array.from(mergedMap.values()));
+    const merged = Array.from(mergedMap.values());
+
+    // Task dokümanlarından attachmentUrl + kitapDriveFiles çek (parallel)
+    await Promise.all(
+      merged.map(async entry => {
+        try {
+          const taskSnap = await getDoc(doc(db, "tasks", entry.taskId));
+          if (taskSnap.exists()) {
+            const data = taskSnap.data();
+            if (data.attachmentUrl)     entry.attachmentUrl = data.attachmentUrl;
+            if (data.attachmentName)    entry.attachmentName = data.attachmentName;
+            if (data.kitapDriveFiles)   entry.kitapDriveFiles = data.kitapDriveFiles;
+            if (data.kolajDriveFiles)   entry.kolajDriveFiles = data.kolajDriveFiles;
+            if (data.sosyalDriveFiles)  entry.sosyalDriveFiles = data.sosyalDriveFiles;
+          }
+        } catch { /* non-fatal */ }
+      })
+    );
+
+    setEntries(merged);
     setLoadState("done");
   }, [group.id, loadState]);
 

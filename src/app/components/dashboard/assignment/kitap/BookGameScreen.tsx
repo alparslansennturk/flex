@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@/app/context/UserContext";
 import { ArrowLeft, Mail, FileDown, Check, ChevronRight } from "lucide-react";
 import { generateKitapPdf } from "./generateKitapPdf";
 import {
@@ -315,7 +316,7 @@ function BookCarousel({
 // ─── BookResultModal ──────────────────────────────────────────────────────────
 
 function BookResultModal({
-  student, book, task, onAdvance, onClose, isPastView, noMoreStudents,
+  student, book, task, onAdvance, onClose, isPastView, noMoreStudents, groupName, instructorName,
 }: {
   student: Student;
   book: BookItem;
@@ -324,6 +325,8 @@ function BookResultModal({
   onClose: () => void;
   isPastView?: boolean;
   noMoreStudents?: boolean;
+  groupName?: string;
+  instructorName?: string;
 }) {
   const [visible,     setVisible]     = useState(false);
   const [sendingMail, setSendingMail] = useState(false);
@@ -426,10 +429,22 @@ function BookResultModal({
           studentLastName: student.lastName,
           pdfBase64,
           bookTitle: book.title,
+          groupName: groupName ?? task.classId ?? "",
+          instructorName: instructorName ?? "",
+          taskName: task.name,
         }),
       });
       if (res.ok) {
         setMailSent(true);
+        // Drive URL'ini Firestore'a kaydet (eğitmen arşivde indirebilsin)
+        const data = await res.json().catch(() => ({})) as { driveUrl?: string; fileName?: string };
+        if (data.driveUrl && task.id) {
+          try {
+            await updateDoc(doc(db, "tasks", task.id), {
+              [`kitapDriveFiles.${student.id}`]: { url: data.driveUrl, fileName: data.fileName ?? "" },
+            });
+          } catch { /* non-fatal */ }
+        }
       } else {
         const err = await res.json().catch(() => ({}));
         console.error("[handleMail] API hatası:", res.status, err);
@@ -665,6 +680,7 @@ function BookResultModal({
 
 export default function BookGameScreen({ task, students }: { task: TaskData; students: Student[] }) {
   const router = useRouter();
+  const { user } = useUser();
   const sz = useCarouselSize();
 
   const [pool,        setPool]        = useState<BookPool | null>(null);
@@ -1230,6 +1246,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         task={task}
         onAdvance={handleNewPick}
         onClose={handleClose}
+        groupName={task.classId}
+        instructorName={user ? `${user.name} ${user.surname ?? ""}`.trim() : ""}
         noMoreStudents={remainingStudents.length === 0}
       />
     )}
@@ -1242,6 +1260,8 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
         task={task}
         onAdvance={() => {}}
         onClose={() => setPreviewDraw(null)}
+        groupName={task.classId}
+        instructorName={user ? `${user.name} ${user.surname ?? ""}`.trim() : ""}
         isPastView
       />
     )}

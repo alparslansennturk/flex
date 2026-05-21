@@ -680,6 +680,80 @@ const isActiveForDate = hasClassThisDay && !isHolidayDate;
 
 ---
 
+## Oturum: 2026-05-21 — Drive Yapısı + Ödev Arşivi + PDF Akışı
+
+### 57. Google Drive Klasör Yapısı Tespiti & Düzeltme
+
+**Sorun:** `assignment/[groupId]/page.tsx` eğitmen ödev dosyasını `["gruplar", grup, eğitmen, ödev]` → "Eğitmen" ara klasörü eksikti, küçük harf "gruplar" Drive'da ayrı klasör açıyordu.
+
+**Düzeltme:**
+- `assignment/[groupId]/page.tsx:619` → `["Gruplar", grup, "Eğitmen", eğitmen, ödev]`
+- `AssignActivateModal.tsx:116` → `["Ödev Şablonları", eğitmenAdı, taskName]`
+
+**Drive temizliği (script ile):**
+- Root'taki `gruplar` (küçük harf) ve `Ödev Dosyaları` klasörleri silindi
+- Tüm gruplarda `Alparslan Şentürk` → `Eğitmen/Alparslan Şentürk` altına taşındı (Grup 550 manuel, 598+541 zaten doğruydu)
+
+**Doğru Drive yapısı:**
+```
+Gruplar/
+  {grupKodu}/
+    Eğitmen/
+      {eğitmenAdı}/
+        {ödevAdı}/
+          {Ad Soyad}-{ödevAdı}.pdf
+    Öğrenciler/
+      {öğrenciAdı}/
+        {ödevAdı}/
+          dosya
+Arşiv/
+  {grupKodu}/   ← arşivlenen gruplar buraya taşınır
+```
+
+**Admin araçları (yeni):**
+- `src/app/api/admin/drive-cleanup/route.ts` — yanlış root klasörleri listeler/siler
+- `src/app/api/admin/drive-list/route.ts` — Drive klasör ağacını listeler
+
+---
+
+### 58. send-kitap — Drive Upload + Dosya Adı
+
+- **Drive yolu:** `Gruplar/{grup}/Eğitmen/{eğitmen}/{ödevAdı}/`
+- **Dosya adı:** `{Ad Soyad}-{Kitap Adı}.pdf` (ör. `Aylin Dümen-Kitap Dünyası.pdf`)
+- `groupName`, `instructorName`, `taskName` parametreleri eklendi
+- Response'da `driveUrl` + `fileName` döner
+- `BookGameScreen` → `useUser()` ile eğitmen adı alınır → başarılı mailden sonra `tasks/{taskId}.kitapDriveFiles.{studentId}: { url, fileName }` Firestore'a yazılır
+
+### 59. send-kolaj — Dosya Adı Standardize
+
+- **Eski:** `kolaj-{Ad Soyad}.pdf`
+- **Yeni:** `{Ad Soyad}-{ödevAdı}.pdf` (ör. `Aylin Dümen-Kolaj Bahçesi.pdf`)
+- Response'da `driveUrl` + `driveFileName` döner
+- `GameScreen` → `tasks/{taskId}.kolajDriveFiles.{studentId}` Firestore'a yazılır
+
+### 60. send-sosyal — Drive Upload + Dosya Adı
+
+- **Drive yolu:** `Gruplar/{grup}/Eğitmen/{eğitmen}/{ödevAdı}/` (kitap ile aynı pattern)
+- **Dosya adı:** `{Ad Soyad}-{ödevAdı}.pdf`
+- `SocialGameScreen` → `tasks/{taskId}.sosyalDriveFiles.{studentId}` Firestore'a yazılır
+
+### 61. Ödev Arşivi (/dashboard/archive) — Büyük Güncelleme
+
+**Detay butonu:** Her ödev satırında → `/dashboard/assignment/{groupId}?taskId={taskId}` → task otomatik açılır (mevcut `defaultOpenTaskId` mekanizması)
+
+**Per-student PDF sütunu (kitap, kolaj, sosyal-medya):**
+- Tablo açılınca `getDoc(db, "tasks", taskId)` → `kitapDriveFiles / kolajDriveFiles / sosyalDriveFiles` okunur
+- Her öğrenci satırında sağda "İndir" linki (Drive webViewLink)
+- Dosya gönderilmemişse `—`
+
+**Tablo layout:**
+- `text-[12px]`, `px-3/px-4 py-2` (kompakt)
+- Öğrenci ve PDF sütunları: `pl-8 pr-8` (kenardan 16px içeride)
+- Alt padding: `pb-4`
+- Container: `max-w-4xl` (büyük ekranda yayılmaz), tablo `overflow-x-auto`
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. SIRADAKI — Grading Sayfası "Not Ayarları" Sekmesi

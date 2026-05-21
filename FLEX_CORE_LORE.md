@@ -1,5 +1,5 @@
 # FLEX CORE LORE
-> Proje hafızası — her oturumun başında oku. Son güncelleme: 2026-05-20
+> Proje hafızası — her oturumun başında oku. Son güncelleme: 2026-05-21
 
 ---
 
@@ -71,6 +71,11 @@ lesson_exceptions/{groupId}_{date} | system_{date}
 tasks/{taskId}
   comments/{commentId}                        ← genel duyurular (tüm sınıfa)
   threads/{studentId}/comments/{commentId}    ← özel öğrenci-eğitmen chat
+  attachmentUrl?: string                      ← eğitmenin yüklediği şablon dosyası (Drive)
+  attachmentName?: string
+  kitapDriveFiles?: { [studentId]: { url, fileName } }   ← öğrenci kitap PDF'leri
+  kolajDriveFiles?: { [studentId]: { url, fileName } }   ← öğrenci kolaj PDF'leri
+  sosyalDriveFiles?: { [studentId]: { url, fileName } }  ← öğrenci sosyal medya PDF'leri
 
 submissions/{submissionId}
   taskId, studentId, groupId, status, file, grade...
@@ -173,7 +178,7 @@ Yoklamalar accordion:
 
 ---
 
-## Ödev Modülü — (2026-05-20 güncellendi)
+## Ödev Modülü — (2026-05-21 güncellendi)
 
 ### Route Yapısı
 `assignment-test` → `assignment` olarak yeniden adlandırıldı.
@@ -184,6 +189,7 @@ Yoklamalar accordion:
 /dashboard/assignment/[groupId]/[assignmentId] → ödev detay (ana sayfa)
 /dashboard/assignment/[groupId]/[assignmentId]/[submissionId]/preview → tam ekran önizleme
 /dashboard/assignment/grading                  → not girişi
+/dashboard/archive                             → ödev arşivi (tüm gruplar)
 ```
 
 ### Ödev Detay Sayfası (`[assignmentId]`)
@@ -214,6 +220,36 @@ if (studentParam) { setViewingId(studentParam); autoSelectedRef.current = true; 
 - Ödev yüklenince: `/dashboard/assignment/${groupId}/${taskId}?student=${studentId}&tab=private` ✅
 - Yorum yapılınca: aynı format ✅
 - İlgili dosyalar: `api/submit/route.ts`, `api/submissions/complete-upload/route.ts`, `api/comments/create/route.ts`
+
+### Ödev Arşivi (`/dashboard/archive`)
+- Arşivlenmiş grupların tüm ödevleri listelenir (grup accordion → ödev accordion → öğrenci tablosu)
+- **Detay** butonu: her ödev için → `router.push(/dashboard/assignment/${groupId}?taskId=${taskId})`
+- **İndir** butonu (yeşil): yalnızca eğitmen şablon dosyası varsa (attachmentUrl) görünür
+- **PDF sütunu** (kitap/kolaj/sosyal-medya türlerinde): her öğrenci satırında o öğrenciye giden PDF — `İndir` butonu + dosya adı
+- Drive URL'leri: `tasks/{taskId}.{kitap|kolaj|sosyal}DriveFiles.{studentId}` → arşiv sayfası açıldığında paralel `getDoc` ile çekilir
+- Tablo stili: `text-[12px]`, `whitespace-nowrap`, `max-w-4xl`, ilk/son sütun `pl-8`/`pr-8`, hücre altı `pb-4`
+
+### Google Drive Klasör Yapısı
+```
+Gruplar/
+  {groupName}/
+    Eğitmen/
+      {instructorName}/
+        {taskName}/
+          {studentName}-{bookTitle|taskName}.pdf   ← kitap/kolaj/sosyal
+    Öğrenciler/
+      {studentName}/
+        {taskName}/
+          ...
+Ödev Şablonları/
+  {instructorName}/
+    {taskName}/
+      {templateFile}
+```
+- `createFolderStructure(groupName, userName, "instructor"|"student", taskName)` → `googledrive-folder.ts`
+- `uploadBufferToFolder` + `setPublicReadPermission` → `googledrive.ts`
+- send-kitap / send-kolaj / send-sosyal API'leri Drive'a yükleyip `driveUrl` döner
+- Frontend bu URL'yi `tasks/{taskId}.{type}DriveFiles.{studentId}` olarak Firestore'a yazar
 
 ### StudentDetailModal — Yoklama Donuts (Placeholder)
 - XP kartı ikiye bölündü: sol XP barları, sağ devam durumu
@@ -281,17 +317,21 @@ Sayım: `entries` dolu VEYA `attendanceClosed=true` olan doklar
    - Hangi field'ların Firestore'a yazılacağı, hangi hesaplama mantığının değişeceği netleştirilecek
    - Mevcut ilgili dosya: `src/app/components/dashboard/scoring/DesignParkour.tsx`, `dashboard/assignment/grading`
 
-2. **Yoklamayı öğrenciye bağla** — StudentDetailModal donut'u gerçek veriyle doldur
+2. **StudentForm: isOnlineStudent toggle** — öğrenci ekleme/düzenleme formuna eklenecek
+
+3. **Yoklamayı öğrenciye bağla** — StudentDetailModal donut'u gerçek veriyle doldur
    - `useStudentAttendance(studentId, groupId)` hook hazır, sadece modal'a bağlanacak
    - Öğrenci kendi devam oranını dashboard'da görsün
 
-3. **Eğitmen testi** — yoklama + ödev modüllerini eğitmen hesabıyla test et
+4. **Eğitmen testi** — yoklama + ödev modüllerini eğitmen hesabıyla test et
 
-4. **Sertifikasyon akışı** — grading sayfası tamamlanacak
+5. **Sertifikasyon akışı** — grading sayfası tamamlanacak
    - Puan ayarları Ödev Ayarları'ndan Sertifikasyon'a taşınacak ("Sertifika Not Ayarları")
    - Eğitmen not girer → real-time bildirim → Flex-Ops entegrasyonu
 
-5. **Yoklama giriş kilidi** — ders saatinden 15dk önce kilitli / 30dk sonra kapanır (test bittikten sonra)
+6. **Yoklama giriş kilidi** — ders saatinden 15dk önce kilitli / 30dk sonra kapanır (test bittikten sonra)
+
+7. **Sertifika PDF + Dağıtım** — sertifika üretimi ve öğrenciye gönderim akışı
 
 ---
 
