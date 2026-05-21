@@ -33,8 +33,10 @@ interface GroupStats {
   group: Group;
   sessionHours: number;
   plannedThisMonth: number;
-  doneThisMonth: number;
-  cancelledThisMonth: number;
+  actualDoneThisMonth: number;        // createdByException olmayan gerçek ders
+  cancelledThisMonth: number;         // tüm iptaller → İptal sütunu
+  studentCancelledThisMonth: number;  // sadece öğrenci kaynaklı → Toplam'a eklenir
+  toplamThisMonth: number;            // actualDone + studentCancelled → eğitmen hakkı
   remainingThisMonth: number;
   totalDoneAllTime: number;
   totalSessions: number | null;
@@ -255,17 +257,21 @@ function AttendanceReportContent() {
         where("groupId", "==", g.id),
         where("month", "==", selectedMonth),
       ));
-      const doneThisMonth = doneSnap.size;
+      // createdByException=true → öğrenci gelmedi auto-doc, gerçek ders sayılmaz
+      const actualDoneThisMonth = doneSnap.docs.filter(d => !d.data().createdByException).length;
 
       const exSnap = await getDocs(query(
         collection(db, "lesson_exceptions"),
         where("groupId", "==", g.id),
         where("month", "==", selectedMonth),
       ));
-      // countsAsLesson=true (öğrenci kaynaklı) olanlar iptal değil, ders sayılır
-      const cancelledThisMonth = exSnap.docs.filter(d => !d.data().countsAsLesson).length;
+      // tüm iptaller İptal sütununda görünür
+      const cancelledThisMonth = exSnap.docs.length;
+      // sadece öğrenci kaynaklı (countsAsLesson=true) Toplam'a eklenir (eğitmen oradaydı)
+      const studentCancelledThisMonth = exSnap.docs.filter(d => d.data().countsAsLesson === true).length;
+      const toplamThisMonth = actualDoneThisMonth + studentCancelledThisMonth;
 
-      const remainingThisMonth = Math.max(0, plannedThisMonth - doneThisMonth - cancelledThisMonth);
+      const remainingThisMonth = Math.max(0, plannedThisMonth - actualDoneThisMonth - cancelledThisMonth);
 
       const allTimeSnap = await getDocs(query(
         collection(db, "design_attendance"),
@@ -277,8 +283,10 @@ function AttendanceReportContent() {
         group: g,
         sessionHours,
         plannedThisMonth,
-        doneThisMonth,
+        actualDoneThisMonth,
         cancelledThisMonth,
+        studentCancelledThisMonth,
+        toplamThisMonth,
         remainingThisMonth,
         totalDoneAllTime,
         totalSessions,
@@ -290,10 +298,13 @@ function AttendanceReportContent() {
     });
   }, [groups, branches, selectedMonth, holidayDates]);
 
-  const totalPlanned   = stats.reduce((s, g) => s + g.plannedThisMonth, 0);
-  const totalDone      = stats.reduce((s, g) => s + g.doneThisMonth, 0);
-  const totalCancelled = stats.reduce((s, g) => s + g.cancelledThisMonth, 0);
-  const totalRemaining = stats.reduce((s, g) => s + g.remainingThisMonth, 0);
+  const totalPlanned          = stats.reduce((s, g) => s + g.plannedThisMonth, 0);
+  const totalActualDone       = stats.reduce((s, g) => s + g.actualDoneThisMonth, 0);
+  const totalCancelled        = stats.reduce((s, g) => s + g.cancelledThisMonth, 0);
+  const totalStudentCancelled = stats.reduce((s, g) => s + g.studentCancelledThisMonth, 0);
+  const totalToplam           = stats.reduce((s, g) => s + g.toplamThisMonth, 0);
+  const totalRemaining        = stats.reduce((s, g) => s + g.remainingThisMonth, 0);
+  const baseHours             = stats[0]?.sessionHours ?? 3;
 
   const selectedMonthLabel = monthOptions.find(m => m.key === selectedMonth)?.label ?? selectedMonth;
   const pageTitle = filterInstructorId
@@ -340,30 +351,31 @@ function AttendanceReportContent() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Planlanan Ders"
-          value={`${totalPlanned * (stats[0]?.sessionHours ?? 3)} saat`}
+          value={`${totalPlanned * baseHours} saat`}
           sub={`(${totalPlanned} ders)`}
           color="bg-base-primary-50 text-base-primary-600"
           icon={<CalendarDays size={20} />}
         />
         <StatCard
           label="Verilen Ders"
-          value={`${totalDone * (stats[0]?.sessionHours ?? 3)} saat`}
-          sub={`(${totalDone} ders)`}
+          value={`${totalActualDone * baseHours} saat`}
+          sub={`(${totalActualDone} ders)`}
           color="bg-status-success-50 text-status-success-600"
           icon={<CheckCircle2 size={20} />}
         />
         <StatCard
-          label="Kalan Ders"
-          value={`${totalRemaining * (stats[0]?.sessionHours ?? 3)} saat`}
-          sub={`(${totalRemaining} ders)`}
-          color="bg-amber-50 text-amber-600"
-          icon={<Clock size={20} />}
-        />
-        <StatCard
-          label="İptal Edilen"
-          value={totalCancelled}
+          label="İptal"
+          value={`${totalCancelled} ders`}
+          sub={totalStudentCancelled > 0 ? `(${totalStudentCancelled} öğrenci kaynaklı)` : undefined}
           color="bg-red-50 text-red-500"
           icon={<XCircle size={20} />}
+        />
+        <StatCard
+          label="Toplam Ders"
+          value={`${totalToplam * baseHours} saat`}
+          sub={`(${totalToplam} ders)`}
+          color="bg-indigo-50 text-indigo-600"
+          icon={<TrendingUp size={20} />}
         />
       </div>
 
@@ -377,13 +389,13 @@ function AttendanceReportContent() {
             <span className="text-[11px] font-bold text-surface-500 tracking-normal">Planlanan</span>
           </div>
           <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Verilen</span>
-          </div>
-          <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Kalan</span>
+            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Verdi</span>
           </div>
           <div className="w-20 shrink-0 text-center">
             <span className="text-[11px] font-bold text-surface-500 tracking-normal">İptal</span>
+          </div>
+          <div className="w-20 shrink-0 text-center">
+            <span className="text-[11px] font-bold text-indigo-500 tracking-normal">Toplam Ders</span>
           </div>
           <div className="flex-1 hidden lg:block">
             <span className="text-[11px] font-bold text-surface-500 tracking-normal">Bu Ay İlerleme</span>
@@ -406,7 +418,7 @@ function AttendanceReportContent() {
         ) : (
           stats.map(s => {
             const monthPct = s.plannedThisMonth > 0
-              ? Math.min(100, Math.round((s.doneThisMonth / s.plannedThisMonth) * 100))
+              ? Math.min(100, Math.round((s.actualDoneThisMonth / s.plannedThisMonth) * 100))
               : 0;
             const coursePct = s.totalSessions
               ? Math.min(100, Math.round((s.totalDoneAllTime / s.totalSessions) * 100))
@@ -425,29 +437,30 @@ function AttendanceReportContent() {
                 </div>
 
                 <div className="w-20 shrink-0 text-center">
-                  <span className="text-[16px] font-bold text-status-success-600">{s.doneThisMonth * s.sessionHours} saat</span>
-                  <p className="text-[10px] text-surface-400">({s.doneThisMonth} ders)</p>
+                  <span className="text-[16px] font-bold text-status-success-600">{s.actualDoneThisMonth * s.sessionHours} saat</span>
+                  <p className="text-[10px] text-surface-400">({s.actualDoneThisMonth} ders)</p>
                 </div>
 
                 <div className="w-20 shrink-0 text-center">
-                  <span className={`text-[16px] font-bold ${s.remainingThisMonth === 0 ? "text-status-success-600" : "text-amber-600"}`}>
-                    {s.remainingThisMonth * s.sessionHours} saat
+                  <span className={`text-[16px] font-bold ${s.cancelledThisMonth > 0 ? "text-red-500" : "text-surface-300"}`}>
+                    {s.cancelledThisMonth > 0 ? `${s.cancelledThisMonth * s.sessionHours} saat` : "—"}
                   </span>
-                  <p className="text-[10px] text-surface-400">({s.remainingThisMonth} ders)</p>
+                  {s.cancelledThisMonth > 0 && (
+                    <p className="text-[10px] text-surface-400">({s.cancelledThisMonth} ders)</p>
+                  )}
                 </div>
 
                 <div className="w-20 shrink-0 text-center">
-                  <span className={`text-[20px] font-bold ${s.cancelledThisMonth > 0 ? "text-red-500" : "text-surface-300"}`}>
-                    {s.cancelledThisMonth}
-                  </span>
+                  <span className="text-[16px] font-bold text-indigo-600">{s.toplamThisMonth * s.sessionHours} saat</span>
+                  <p className="text-[10px] text-surface-400">({s.toplamThisMonth} ders)</p>
                 </div>
 
                 <div className="flex-1 hidden lg:block space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-surface-400">{s.doneThisMonth}/{s.plannedThisMonth} ders</span>
+                    <span className="text-[11px] text-surface-400">{s.actualDoneThisMonth}/{s.plannedThisMonth} ders</span>
                     <span className="text-[11px] font-bold text-surface-500">%{monthPct}</span>
                   </div>
-                  <ProgressBar value={s.doneThisMonth} max={s.plannedThisMonth} />
+                  <ProgressBar value={s.actualDoneThisMonth} max={s.plannedThisMonth} />
                 </div>
 
                 <div className="flex-1 hidden xl:block">
@@ -483,12 +496,16 @@ function AttendanceReportContent() {
         <div className="bg-base-primary-50 border border-base-primary-100 rounded-2xl px-6 py-4 flex items-center gap-3">
           <TrendingUp size={18} className="text-base-primary-500 shrink-0" />
           <p className="text-[13px] text-base-primary-700 font-medium">
-            Bu ay toplam{" "}
-            <span className="font-bold">{totalDone * (stats[0]?.sessionHours ?? 3)} saat</span>{" "}
-            ders verildi,{" "}
-            <span className="font-bold">{totalRemaining * (stats[0]?.sessionHours ?? 3)} saat</span>{" "}
-            kaldı
-            {totalCancelled > 0 && <>, <span className="font-bold text-red-600">{totalCancelled} ders iptal edildi</span></>}.
+            Bu ay eğitmen{" "}
+            <span className="font-bold">{totalActualDone * baseHours} saat</span>{" "}
+            ders verdi
+            {totalCancelled > 0 && (
+              <>, <span className="font-bold text-red-600">{totalCancelled} ders iptal</span>
+              {totalStudentCancelled > 0 && <span className="text-red-400"> ({totalStudentCancelled} öğrenci kaynaklı)</span>}</>
+            )}
+            {" "}— toplam hak edilen:{" "}
+            <span className="font-bold text-indigo-700">{totalToplam * baseHours} saat</span>
+            {totalRemaining > 0 && <>, <span className="font-bold text-amber-700">{totalRemaining * baseHours} saat kaldı</span></>}.
           </p>
         </div>
       )}

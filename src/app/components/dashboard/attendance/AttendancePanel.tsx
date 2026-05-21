@@ -520,8 +520,8 @@ export default function AttendancePanel({
   useEffect(() => {
     if (!selectedGroupId) { setCancelledCountThisMonth(0); return; }
     return onSnapshot(
-      query(collection(db, "lesson_exceptions"), where("groupId", "==", selectedGroupId), where("month", "==", monthKey)),
-      snap => setCancelledCountThisMonth(snap.docs.filter(d => !d.data().countsAsLesson).length),
+      query(collection(db, "lesson_exceptions"), where("groupId", "==", selectedGroupId)),
+      snap => setCancelledCountThisMonth(snap.docs.filter(d => d.data().month === monthKey).length),
     );
   }, [selectedGroupId, monthKey]);
 
@@ -1140,7 +1140,7 @@ export default function AttendancePanel({
                             {/* Merkez metin */}
                             <div
                               className="pointer-events-none flex flex-col items-center"
-                              style={{ position: "absolute", top: 65, left: 65, transform: "translate(-50%, -50%)", gap: 3 }}
+                              style={{ position: "absolute", top: 68, left: 65, transform: "translate(-50%, -50%)", gap: 3 }}
                             >
                               <span className="text-[24px] font-bold text-base-primary-700 leading-none" style={{ fontFamily: "Inter, var(--font-main), sans-serif" }}>
                                 <CountUp to={courseDoneHours} duration={0.4} />
@@ -1178,7 +1178,7 @@ export default function AttendancePanel({
                                 <span className="text-text-placeholder">İptal Edilen</span>
                               </div>
                               <span className={`font-bold pl-3.5 ${cancelledCountThisMonth > 0 ? "text-red-500" : "text-text-primary"}`}>
-                                {cancelledCountThisMonth} ders
+                                {cancelledCountThisMonth * (selectedGroup?.sessionHours ?? DEFAULT_SESSION_HOURS)} saat
                               </span>
                             </div>
                           </div>

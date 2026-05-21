@@ -927,6 +927,62 @@ Arşiv/
 
 ---
 
+## Oturum: 2026-05-21 (Devam 3) — Yoklama Raporu Verdi/İptal/Toplam Yeniden Tasarımı
+
+### 73. Yoklama Raporu & Detay — Sütun Mantığı Yeniden Tasarlandı
+
+**Eski mantık:** `cancelledThisMonth` = sadece eğitmen/teknik/diğer; öğrenci kaynaklı Yapılan'a giriyordu → yanlış gösterim
+
+**Yeni sütun yapısı:**
+
+| Sütun | Hesap |
+|---|---|
+| **Verdi** | `design_attendance` doc'ları — `createdByException: true` hariç (gerçek ders) |
+| **İptal** | TÜM exception'lar (eğitmen + öğrenci + teknik + diğer) |
+| **Toplam Ders** | Verdi + sadece öğrenci kaynaklı exception (`countsAsLesson=true`) → eğitmen hakkı |
+
+**Mantık:** Öğrenci gelmedi → eğitmen oradaydı → Toplam'a eklenir. Eğitmen iptal → kimse yoktu → Toplam'a eklenMEZ.
+
+**`attendance-report/page.tsx` değişiklikleri:**
+- `GroupStats` interface: `actualDoneThisMonth`, `cancelledThisMonth`, `studentCancelledThisMonth`, `toplamThisMonth`
+- `actualDoneThisMonth` = `!createdByException` attendance doc'ları
+- `cancelledThisMonth` = `exSnap.docs.length` (tümü)
+- `studentCancelledThisMonth` = `countsAsLesson === true` exception'lar
+- `toplamThisMonth` = `actualDone + studentCancelled`
+- Stat kartları: Planlanan | Verdi | İptal | **Toplam Ders**
+- İptal stat kartı: `X ders` (altında `Y öğrenci kaynaklı`)
+- Tablo İptal sütunu: `X*sessionHours saat` + `(X ders)`
+- Altta özet metin dinamik hale getirildi
+
+**`attendance-summary/page.tsx` değişiklikleri:**
+- `InstructorRow` interface: `actualDone`, `cancelled`, `cancelledHours`, `studentCancelled`, `toplam`, `actualDoneHours`, `toplamHours`
+- Stat kartları 3→4: Toplam Planlanan | Toplam Verilen | İptal (saat) | Toplam Ders (saat)
+- Tablo: Verdi | İptal (`cancelledHours` saat) | Toplam Ders
+- Alt açıklama satırı: `X saat verdi · Y saat hak etti`
+
+### 74. AttendancePanel — Donut Düzeltmeleri
+
+**İptal donut legend:**
+- `countsAsLesson` filtresi kaldırıldı → `snap.docs.filter(d => d.data().month === monthKey).length` (tüm iptaller)
+- Composite index sorunu: `groupId + month` sorgusu yerine sadece `groupId` ile sorgu, month JS'de filtrele
+- Değer: `cancelledCountThisMonth * sessionHours` **saat** (eski: `X ders`)
+
+**Yapılan Ders donut legend:**
+- `totalDoneCount = snap.size` (gerçek + öğrenci kaynaklı `createdByException` doc'lar)
+- Diğer iptaller attendance doc oluşturmuyor → otomatik hariç kalıyor
+
+**Merkez metin pozisyonu:** `top: 68` (ince ayar)
+
+### 75. Firestore Indexes
+
+**`firestore.indexes.json`'a eklendi:**
+- `lesson_exceptions`: `(groupId ASC, month ASC)`
+- `design_attendance`: `(groupId ASC, month ASC)`
+
+**Deploy komutu:** `firebase deploy --only firestore:indexes`
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. TEST SONRASI — Yoklama Giriş Zaman Kilidi

@@ -1,6 +1,22 @@
 {
   "indexes": [
     {
+      "collectionGroup": "lesson_exceptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "groupId", "order": "ASCENDING" },
+        { "fieldPath": "month",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "design_attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "groupId", "order": "ASCENDING" },
+        { "fieldPath": "month",   "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "submissions",
       "queryScope": "COLLECTION",
       "fields": [

@@ -32,11 +32,15 @@ interface InstructorRow {
   name: string;
   groupCount: number;
   planned: number;
-  done: number;
+  actualDone: number;        // gerçek ders (createdByException hariç)
+  cancelled: number;         // tüm iptaller → İptal sütunu
+  cancelledHours: number;    // tüm iptaller saat
+  studentCancelled: number;  // sadece öğrenci kaynaklı → Toplam'a eklenir
+  toplam: number;            // actualDone + studentCancelled → eğitmen hakkı
   remaining: number;
-  cancelled: number;
   plannedHours: number;
-  doneHours: number;
+  actualDoneHours: number;
+  toplamHours: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -207,17 +211,24 @@ function AttendanceSummaryContent() {
           : (data.name || d.id);
       });
 
+      // createdByException=true → öğrenci gelmedi auto-doc, gerçek ders değil
       const attendanceByGroup: Record<string, number> = {};
       attendanceSnap.docs.forEach(d => {
-        const { groupId } = d.data();
-        if (groupId) attendanceByGroup[groupId] = (attendanceByGroup[groupId] ?? 0) + 1;
+        const { groupId, createdByException } = d.data();
+        if (groupId && !createdByException) attendanceByGroup[groupId] = (attendanceByGroup[groupId] ?? 0) + 1;
       });
 
-      const exceptionsByGroup: Record<string, number> = {};
+      // tüm iptaller İptal sütununda görünür
+      const cancelledByGroup: Record<string, number> = {};
+      // sadece öğrenci kaynaklı (countsAsLesson=true) Toplam'a eklenir
+      const studentCancelledByGroup: Record<string, number> = {};
       exceptionsSnap.docs.forEach(d => {
         const { groupId, countsAsLesson } = d.data();
-        // countsAsLesson=true (öğrenci kaynaklı) olanlar iptal değil, ders sayılır
-        if (groupId && !countsAsLesson) exceptionsByGroup[groupId] = (exceptionsByGroup[groupId] ?? 0) + 1;
+        if (!groupId) return;
+        cancelledByGroup[groupId] = (cancelledByGroup[groupId] ?? 0) + 1;
+        if (countsAsLesson === true) {
+          studentCancelledByGroup[groupId] = (studentCancelledByGroup[groupId] ?? 0) + 1;
+        }
       });
 
       const map: Record<string, InstructorRow> = {};
@@ -229,8 +240,8 @@ function AttendanceSummaryContent() {
             instructorId: iid,
             name: usersMap[iid] ?? "Bilinmeyen",
             groupCount: 0,
-            planned: 0, done: 0, remaining: 0, cancelled: 0,
-            plannedHours: 0, doneHours: 0,
+            planned: 0, actualDone: 0, cancelled: 0, cancelledHours: 0, studentCancelled: 0, toplam: 0, remaining: 0,
+            plannedHours: 0, actualDoneHours: 0, toplamHours: 0,
           };
         }
         const branch = branches.find(b => b.id === g.discipline);
@@ -240,28 +251,37 @@ function AttendanceSummaryContent() {
         const estimatedEndDate = g.attendanceClosed && g.startDate && totalSessions
           ? calcEstimatedEndDate(g.startDate, totalSessions, weekDays, holidayDates)
           : null;
-        const planned = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate, estimatedEndDate ?? undefined);
-        const done = attendanceByGroup[g.id] ?? 0;
-        const cancelled = exceptionsByGroup[g.id] ?? 0;
-        const remaining = Math.max(0, planned - done - cancelled);
+        const planned          = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate, estimatedEndDate ?? undefined);
+        const actualDone       = attendanceByGroup[g.id] ?? 0;
+        const cancelled        = cancelledByGroup[g.id] ?? 0;
+        const studentCancelled = studentCancelledByGroup[g.id] ?? 0;
+        const toplam           = actualDone + studentCancelled;
+        const remaining        = Math.max(0, planned - actualDone - cancelled);
 
         map[iid].groupCount++;
-        map[iid].planned   += planned;
-        map[iid].done      += done;
-        map[iid].remaining += remaining;
-        map[iid].cancelled += cancelled;
-        map[iid].plannedHours += planned * sessionHours;
-        map[iid].doneHours    += done * sessionHours;
+        map[iid].planned          += planned;
+        map[iid].actualDone       += actualDone;
+        map[iid].cancelled        += cancelled;
+        map[iid].cancelledHours   += cancelled * sessionHours;
+        map[iid].studentCancelled += studentCancelled;
+        map[iid].toplam           += toplam;
+        map[iid].remaining        += remaining;
+        map[iid].plannedHours     += planned * sessionHours;
+        map[iid].actualDoneHours  += actualDone * sessionHours;
+        map[iid].toplamHours      += toplam * sessionHours;
       });
 
-      setRows(Object.values(map).filter(r => r.groupCount > 0).sort((a, b) => b.done - a.done));
+      setRows(Object.values(map).filter(r => r.groupCount > 0).sort((a, b) => b.actualDone - a.actualDone));
       setLoading(false);
     });
   }, [selectedMonth, branches, holidayDates]);
 
-  const totalPlannedHours = rows.reduce((s, r) => s + r.plannedHours, 0);
-  const totalDoneHours    = rows.reduce((s, r) => s + r.doneHours, 0);
-  const totalCancelled    = rows.reduce((s, r) => s + r.cancelled, 0);
+  const totalPlannedHours     = rows.reduce((s, r) => s + r.plannedHours, 0);
+  const totalActualDoneHours  = rows.reduce((s, r) => s + r.actualDoneHours, 0);
+  const totalCancelled        = rows.reduce((s, r) => s + r.cancelled, 0);
+  const totalCancelledHours   = rows.reduce((s, r) => s + r.cancelledHours, 0);
+  const totalStudentCancelled = rows.reduce((s, r) => s + r.studentCancelled, 0);
+  const totalToplamHours      = rows.reduce((s, r) => s + r.toplamHours, 0);
 
   return (
     <div className="max-w-5xl mx-auto px-8 py-8 space-y-8">
@@ -290,7 +310,7 @@ function AttendanceSummaryContent() {
       </div>
 
       {/* Özet kartlar */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Toplam Planlanan"
           value={`${totalPlannedHours} saat`}
@@ -299,15 +319,22 @@ function AttendanceSummaryContent() {
         />
         <StatCard
           label="Toplam Verilen"
-          value={`${totalDoneHours} saat`}
+          value={`${totalActualDoneHours} saat`}
           icon={<CheckCircle2 size={20} />}
           color="bg-status-success-50 text-status-success-600"
         />
         <StatCard
-          label="Toplam İptal"
-          value={totalCancelled}
+          label="İptal"
+          value={`${totalCancelledHours} saat`}
+          sub={`(${totalCancelled} ders)`}
           icon={<XCircle size={20} />}
           color="bg-red-50 text-red-500"
+        />
+        <StatCard
+          label="Toplam Ders"
+          value={`${totalToplamHours} saat`}
+          icon={<TrendingUp size={20} />}
+          color="bg-indigo-50 text-indigo-600"
         />
       </div>
 
@@ -324,13 +351,13 @@ function AttendanceSummaryContent() {
             <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Planlanan</span>
           </div>
           <div className="w-24 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Verilen</span>
-          </div>
-          <div className="w-24 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Kalan</span>
+            <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Verdi</span>
           </div>
           <div className="w-20 shrink-0 text-center">
             <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">İptal</span>
+          </div>
+          <div className="w-24 shrink-0 text-center">
+            <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wide">Toplam Ders</span>
           </div>
           <div className="w-36 shrink-0 hidden lg:block">
             <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Tamamlama</span>
@@ -355,7 +382,7 @@ function AttendanceSummaryContent() {
             >
               <div className="flex-1 min-w-0">
                 <p className="text-[14px] font-bold text-base-primary-900 truncate">{ins.name}</p>
-                <p className="text-[11px] text-surface-400">{ins.doneHours} saat verildi</p>
+                <p className="text-[11px] text-surface-400">{ins.actualDoneHours} saat verdi · {ins.toplamHours} saat hak etti</p>
               </div>
 
               <div className="w-14 shrink-0 text-center">
@@ -368,24 +395,26 @@ function AttendanceSummaryContent() {
               </div>
 
               <div className="w-24 shrink-0 text-center">
-                <span className="text-[16px] font-bold text-status-success-600">{ins.doneHours} saat</span>
-                <p className="text-[10px] text-surface-400">({ins.done} ders)</p>
-              </div>
-
-              <div className="w-24 shrink-0 text-center">
-                <span className={`text-[18px] font-bold ${ins.remaining === 0 ? "text-status-success-600" : "text-amber-600"}`}>
-                  {ins.remaining}
-                </span>
+                <span className="text-[16px] font-bold text-status-success-600">{ins.actualDoneHours} saat</span>
+                <p className="text-[10px] text-surface-400">({ins.actualDone} ders)</p>
               </div>
 
               <div className="w-20 shrink-0 text-center">
-                <span className={`text-[18px] font-bold ${ins.cancelled > 0 ? "text-red-500" : "text-surface-300"}`}>
-                  {ins.cancelled}
+                <span className={`text-[16px] font-bold ${ins.cancelled > 0 ? "text-red-500" : "text-surface-300"}`}>
+                  {ins.cancelled > 0 ? `${ins.cancelledHours} saat` : "—"}
                 </span>
+                {ins.cancelled > 0 && (
+                  <p className="text-[10px] text-surface-400">({ins.cancelled} ders)</p>
+                )}
+              </div>
+
+              <div className="w-24 shrink-0 text-center">
+                <span className="text-[16px] font-bold text-indigo-600">{ins.toplamHours} saat</span>
+                <p className="text-[10px] text-surface-400">({ins.toplam} ders)</p>
               </div>
 
               <div className="w-36 shrink-0 hidden lg:block space-y-1">
-                <ProgressBar value={ins.done} max={ins.planned} />
+                <ProgressBar value={ins.actualDone} max={ins.planned} />
               </div>
 
               <div className="w-16 shrink-0 flex justify-end">
