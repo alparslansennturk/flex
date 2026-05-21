@@ -12,7 +12,7 @@ import {
   ArrowLeft, CheckCircle2, Users, Zap, CalendarDays, AlertTriangle,
   ClipboardList, Award, Sparkles, ChevronRight, BookOpen, Archive,
   ChevronDown, ChevronUp, Trash2, Clock, RotateCcw, Eye, EyeOff,
-  GraduationCap, MoreVertical,
+  GraduationCap, MoreVertical, Settings,
 } from "lucide-react";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
@@ -33,7 +33,10 @@ interface GradeEntry { submitted: boolean; weeksLate: number; xp: number; }
 type GradesMap = Record<string, GradeEntry>;
 type ListTab = "pending" | "done";
 type CertTab = "GRAFIK_1" | "GRAFIK_2";
-interface Group { id: string; code: string; status?: "active" | "archived"; originalCode?: string; currentModule?: "GRAFIK_1" | "GRAFIK_2"; codeAtGrafik2?: string; }
+interface Group { id: string; code: string; status?: "active" | "archived"; originalCode?: string; currentModule?: "GRAFIK_1" | "GRAFIK_2"; codeAtGrafik2?: string; discipline?: string; }
+interface BranchCertSetting { useAssignment: boolean; projectWeight: number; assignmentWeight: number; }
+type CertSettingsMap = Record<string, BranchCertSetting>;
+const DEFAULT_CERT_SETTING: BranchCertSetting = { useAssignment: false, projectWeight: 0.7, assignmentWeight: 0.3 };
 
 // ─── Yardımcılar ──────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -1245,6 +1248,17 @@ function CertModuleTab({ module }: { module: CertTab }) {
   const [finalizing,      setFinalizing]      = useState(false);
   const [finalized,       setFinalized]       = useState(false);
   const [detailStudent,   setDetailStudent]   = useState<ModalStudent | null>(null);
+  const [certSettings,    setCertSettings]    = useState<CertSettingsMap>({});
+
+  // certSettings — realtime (Not Ayarları sekmesinde değişince anında yansır)
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid) return;
+    const unsub = onSnapshot(doc(db, "users", uid), snap => {
+      if (snap.exists()) setCertSettings((snap.data() as any).certSettings ?? {});
+    });
+    return () => unsub();
+  }, [user?.uid]);
 
   // Grupları çek (tek seferlik)
   useEffect(() => {
@@ -1263,6 +1277,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
         originalCode: (d.data() as any)[`codeAt_${module}`] as string | undefined,
         currentModule: (d.data() as any).module as "GRAFIK_1" | "GRAFIK_2" | undefined,
         codeAtGrafik2: (d.data() as any).codeAt_GRAFIK_2 as string | undefined,
+        discipline: (d.data() as any).discipline as string | undefined,
       }));
 
       // Eski veriler için fallback: projectGrades'deki groupCode alanından orijinal kodu çek
@@ -1451,6 +1466,13 @@ function CertModuleTab({ module }: { module: CertTab }) {
     return () => unsub();
   }, [selectedGroupId, module, groups]);
 
+  // Cert ağırlıkları — render'da türetilir, handler'lar closure ile kullanır
+  const selectedGroup    = groups.find(g => g.id === selectedGroupId);
+  const moduleLabel      = module === "GRAFIK_1" ? "Grafik 1" : "Grafik 2";
+  const _branchSetting   = certSettings[selectedGroup?.discipline ?? ""] ?? DEFAULT_CERT_SETTING;
+  const projectWeight    = _branchSetting.useAssignment ? _branchSetting.projectWeight    : 1.0;
+  const maxOdevPuani     = Math.round((_branchSetting.useAssignment ? _branchSetting.assignmentWeight : 0.0) * 100);
+
   // Proje notlarını kaydet
   const handleSave = async () => {
     if (!selectedGroupId) return;
@@ -1463,9 +1485,9 @@ function CertModuleTab({ module }: { module: CertTab }) {
         const ps        = scores[s.id];
         // finalNote ve odevPuani her zaman güncel hesaplanır —
         // finalize sonrası not değişirse de doğru değer Firestore'a yazılır
-        const odevPuani = Math.round(maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * 30 : 0);
+        const odevPuani = Math.round(maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * maxOdevPuani : 0);
         const finalNote = ps !== "" && ps != null
-          ? Math.round(Number(ps) * 0.7 + odevPuani)
+          ? Math.round(Number(ps) * projectWeight + odevPuani)
           : null;
         return setDoc(doc(db, "projectGrades", docId), {
           studentId:    s.id,
@@ -1490,10 +1512,10 @@ function CertModuleTab({ module }: { module: CertTab }) {
     setFinalizing(true);
     try {
       await Promise.all(students.map(s => {
-        const odevPuani = Math.round(maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * 30 : 0);
+        const odevPuani = Math.round(maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * maxOdevPuani : 0);
         const ps        = scores[s.id];
         const finalNote = ps !== "" && ps != null
-          ? Math.round(Number(ps) * 0.7 + odevPuani)
+          ? Math.round(Number(ps) * projectWeight + odevPuani)
           : null;
         const docId = `${s.id}_${selectedGroupId}_${module}`;
         return setDoc(doc(db, "projectGrades", docId), {
@@ -1522,19 +1544,16 @@ function CertModuleTab({ module }: { module: CertTab }) {
     } finally { setFinalizing(false); }
   };
 
-  const selectedGroup = groups.find(g => g.id === selectedGroupId);
-  const moduleLabel   = module === "GRAFIK_1" ? "Grafik 1" : "Grafik 2";
-
   const getOdevPuani = (studentId: string) => {
     // Finalize edilmişse ve kayıtlı değer varsa onu kullan (task silinse de etkilenmez)
     if (finalized && savedOdevPuanis[studentId] != null) return Math.round(savedOdevPuanis[studentId]);
-    return Math.round(maxXP > 0 ? (studentXPs[studentId] ?? 0) / maxXP * 30 : 0);
+    return Math.round(maxXP > 0 ? (studentXPs[studentId] ?? 0) / maxXP * maxOdevPuani : 0);
   };
 
   const getFinalNot = (studentId: string): number | null => {
     const ps = scores[studentId];
     if (ps === "" || ps == null) return null;
-    return Math.round(Number(ps) * 0.7 + getOdevPuani(studentId));
+    return Math.round(Number(ps) * projectWeight + getOdevPuani(studentId));
   };
 
   return (
@@ -1593,11 +1612,11 @@ function CertModuleTab({ module }: { module: CertTab }) {
                 </div>
                 <div className="w-36 shrink-0 text-center">
                   <span className="text-[13px] font-bold text-surface-600">Proje Notu</span>
-                  <span className="block text-[11px] text-surface-400 font-medium">× 0.70</span>
+                  <span className="block text-[11px] text-surface-400 font-medium">× {(projectWeight * 100).toFixed(0)}%</span>
                 </div>
                 <div className="w-28 shrink-0 text-center">
                   <span className="text-[13px] font-bold text-surface-600">Ödev Puanı</span>
-                  <span className="block text-[11px] text-surface-400 font-medium">/ 30</span>
+                  <span className="block text-[11px] text-surface-400 font-medium">{maxOdevPuani > 0 ? `/ ${maxOdevPuani}` : "—"}</span>
                 </div>
                 <div className="w-28 shrink-0 text-center">
                   <span className="text-[13px] font-bold text-surface-600">Toplam Not</span>
@@ -1611,9 +1630,9 @@ function CertModuleTab({ module }: { module: CertTab }) {
                 const finalNot     = getFinalNot(s.id);
                 const rawOdevPuani = (finalized && savedOdevPuanis[s.id] != null)
                   ? savedOdevPuanis[s.id]
-                  : (maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * 30 : 0);
+                  : (maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * maxOdevPuani : 0);
                 const rawFinalNot  = scores[s.id] !== "" && scores[s.id] != null
-                  ? Number(scores[s.id]) * 0.7 + rawOdevPuani
+                  ? Number(scores[s.id]) * projectWeight + rawOdevPuani
                   : null;
                 return (
                   <div key={s.id} className="flex items-center gap-4 px-6 py-3.5 border-b border-surface-100 last:border-0 hover:bg-base-primary-50/40 transition-colors cursor-pointer" onClick={() => setDetailStudent({ id: s.id, name: s.name, lastName: s.lastName, rank: 0, score: 0, groupCode: s.groupCode, gender: s.gender, avatarId: s.avatarId })}>
@@ -1862,6 +1881,241 @@ function CertificationPanel() {
   );
 }
 
+// ─── NOT AYARLARI PANELİ ─────────────────────────────────────────────────────
+function NotAyarlariPanel() {
+  const { user } = useUser();
+  const [branches,       setBranches]       = useState<{ id: string; name: string }[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>("");
+  const [certSettings,   setCertSettings]   = useState<CertSettingsMap>({});
+  const [localSetting,   setLocalSetting]   = useState<BranchCertSetting>(DEFAULT_CERT_SETTING);
+  const [loading,        setLoading]        = useState(true);
+  const [saving,         setSaving]         = useState(false);
+  const [saved,          setSaved]          = useState(false);
+  const [error,          setError]          = useState("");
+
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid) return;
+    const branchIds = (user as any)?.branches as string[] | undefined ?? [];
+
+    const load = async () => {
+      const userSnap = await getDoc(doc(db, "users", uid));
+      const saved: CertSettingsMap = userSnap.exists() ? ((userSnap.data() as any).certSettings ?? {}) : {};
+      setCertSettings(saved);
+
+      if (branchIds.length === 0) {
+        setLocalSetting(saved[""] ?? DEFAULT_CERT_SETTING);
+        setSelectedBranch("");
+        setLoading(false);
+        return;
+      }
+
+      const branchSnap = await getDocs(query(collection(db, "branches"), where("__name__", "in", branchIds)));
+      const loaded = branchSnap.docs.map(d => ({ id: d.id, name: (d.data() as any).name ?? d.id }));
+      setBranches(loaded);
+      const first = loaded[0]?.id ?? "";
+      setSelectedBranch(first);
+      setLocalSetting(saved[first] ?? DEFAULT_CERT_SETTING);
+      setLoading(false);
+    };
+
+    load();
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setLocalSetting(certSettings[selectedBranch] ?? DEFAULT_CERT_SETTING);
+  }, [selectedBranch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const weightValid = !localSetting.useAssignment ||
+    Math.abs(localSetting.projectWeight + localSetting.assignmentWeight - 1.0) < 0.001;
+
+  const handleSaveSettings = async (applyToAll = false) => {
+    if (!user?.uid || !weightValid) return;
+    setSaving(true); setError("");
+    try {
+      const branchIds = applyToAll
+        ? (branches.length > 0 ? branches.map(b => b.id) : [""])
+        : [selectedBranch];
+      const updates: CertSettingsMap = { ...certSettings };
+      branchIds.forEach(bid => { updates[bid] = localSetting; });
+      await updateDoc(doc(db, "users", user.uid), { certSettings: updates });
+      setCertSettings(updates);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError("Kayıt sırasında hata oluştu.");
+    } finally { setSaving(false); }
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full max-w-[1920px] mx-auto px-8 py-16 flex justify-center">
+        <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-[1920px] mx-auto px-8 py-8">
+      <div className="max-w-xl space-y-5">
+
+        {/* Branş seçici (birden fazla branş varsa) */}
+        {branches.length > 1 && (
+          <div className="bg-white rounded-2xl border border-surface-100 shadow-sm px-6 py-5">
+            <label className="text-[12px] font-bold text-surface-500 uppercase tracking-wide block mb-3">Branş</label>
+            <div className="flex gap-2 flex-wrap">
+              {branches.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setSelectedBranch(b.id)}
+                  className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer border ${
+                    selectedBranch === b.id
+                      ? "bg-base-primary-900 text-white border-base-primary-900"
+                      : "bg-surface-50 text-surface-500 border-surface-200 hover:border-surface-400"
+                  }`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Ayar kartı */}
+        <div className="bg-white rounded-2xl border border-surface-100 shadow-sm px-6 py-5 space-y-5">
+          <div>
+            <h3 className="text-[15px] font-bold text-base-primary-900">Not Hesaplama</h3>
+            <p className="text-[12px] text-surface-400 mt-0.5">Sertifika notunun nasıl hesaplanacağını belirle</p>
+          </div>
+
+          {/* Toggle */}
+          <button
+            type="button"
+            onClick={() => setLocalSetting(p => ({ ...p, useAssignment: !p.useAssignment }))}
+            className="flex items-center gap-3 w-full cursor-pointer"
+          >
+            <div className={`w-10 h-6 rounded-full transition-colors relative shrink-0 ${localSetting.useAssignment ? "bg-base-primary-900" : "bg-surface-200"}`}>
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${localSetting.useAssignment ? "left-5" : "left-1"}`} />
+            </div>
+            <div className="text-left">
+              <p className="text-[13px] font-bold text-base-primary-900">Ödev etkisini kullan</p>
+              <p className="text-[11px] text-surface-400">
+                {localSetting.useAssignment
+                  ? "Toplam not = Proje × ağırlık + Ödev puanı"
+                  : "Toplam not = Proje notu (ödev dahil edilmez)"}
+              </p>
+            </div>
+          </button>
+
+          {/* Ağırlık slider'ları (sadece useAssignment=true iken) */}
+          {localSetting.useAssignment && (
+            <div className="space-y-4 pt-3 border-t border-surface-50">
+              <div>
+                <div className="h-3 rounded-full overflow-hidden flex gap-0.5 bg-surface-100">
+                  <div
+                    className="bg-designstudio-secondary-500 rounded-full transition-all duration-300"
+                    style={{ width: `${localSetting.projectWeight * 100}%` }}
+                  />
+                  <div className="bg-designstudio-primary-500 rounded-full flex-1 transition-all duration-300" />
+                </div>
+                <div className="flex items-center gap-4 mt-1.5 text-[11px] text-surface-400 font-medium">
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-designstudio-secondary-500 inline-block" />Proje</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-designstudio-primary-500 inline-block" />Ödev</span>
+                </div>
+              </div>
+
+              {([
+                { key: "projectWeight" as const,    label: "Proje", otherKey: "assignmentWeight" as const, color: "#6F74D8" },
+                { key: "assignmentWeight" as const, label: "Ödev",  otherKey: "projectWeight" as const,    color: "#10294c" },
+              ]).map(({ key, label, otherKey, color }) => (
+                <div key={key} className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-[12px] font-bold text-surface-600 w-12 shrink-0">{label}</span>
+                  <input
+                    type="range" min={0} max={1} step={0.05}
+                    value={localSetting[key]}
+                    onChange={e => {
+                      const v = parseFloat(e.target.value);
+                      setLocalSetting(p => ({ ...p, [key]: v, [otherKey]: parseFloat((1 - v).toFixed(2)) }));
+                    }}
+                    className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-surface-100
+                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md
+                      [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white"
+                    style={{ background: `linear-gradient(to right, ${color} ${localSetting[key] * 100}%, #EEF0F3 ${localSetting[key] * 100}%)` }}
+                  />
+                  <span className="text-[13px] font-bold text-base-primary-900 w-10 text-right">
+                    {(localSetting[key] * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+
+              <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border ${
+                weightValid
+                  ? "bg-status-success-50/60 border-status-success-200"
+                  : "bg-status-danger-50 border-status-danger-200"
+              }`}>
+                <span className="text-[12px] font-bold text-surface-600">Toplam</span>
+                <div className="flex items-center gap-2">
+                  {weightValid
+                    ? <CheckCircle2 size={14} className="text-status-success-500" />
+                    : <AlertTriangle size={14} className="text-status-danger-500" />}
+                  <span className={`text-[14px] font-bold ${weightValid ? "text-status-success-500" : "text-status-danger-500"}`}>
+                    {(localSetting.projectWeight + localSetting.assignmentWeight).toFixed(2)} / 1.00
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Açıklama */}
+        <div className="bg-base-primary-50 rounded-2xl border border-base-primary-100 px-5 py-4">
+          <p className="text-[12px] text-base-primary-600 leading-relaxed">
+            {localSetting.useAssignment
+              ? <>Toplam not: <strong>Proje × {(localSetting.projectWeight * 100).toFixed(0)}%</strong> + ödev puanı (maks. {(localSetting.assignmentWeight * 100).toFixed(0)} puan)</>
+              : <>Toplam not, doğrudan <strong>proje notuna</strong> eşit olur. Ödev puanı tabloda referans olarak gösterilir.</>
+            }
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between">
+          <div className="min-h-[20px]">
+            {error
+              ? <span className="text-[13px] text-status-danger-500 font-medium">{error}</span>
+              : saved
+                ? <div className="flex items-center gap-2"><CheckCircle2 size={14} className="text-status-success-500" /><span className="text-[13px] font-bold text-status-success-500">Kaydedildi.</span></div>
+                : null
+            }
+          </div>
+          <div className="flex items-center gap-3">
+            {branches.length > 1 && (
+              <button
+                onClick={() => handleSaveSettings(true)}
+                disabled={saving || !weightValid}
+                className="h-10 px-5 rounded-xl border border-surface-200 text-[12px] font-bold text-surface-600 hover:border-surface-400 transition-all cursor-pointer disabled:opacity-40"
+              >
+                Tüm Branşlara Uygula
+              </button>
+            )}
+            <button
+              onClick={() => handleSaveSettings(false)}
+              disabled={saving || !weightValid}
+              className="flex items-center gap-2 h-10 px-6 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-sm"
+            >
+              {saving
+                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Kaydediliyor…</>
+                : "Kaydet"
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Router + Sayfa kabuğu ────────────────────────────────────────────────────
 function GradingRouter() {
   const searchParams = useSearchParams();
@@ -1883,6 +2137,7 @@ function GradingRouter() {
           {([
             { id: null,            label: "Not Girişi",    icon: <ClipboardList size={13} /> },
             { id: "certification", label: "Sertifikasyon", icon: <GraduationCap size={13} /> },
+            { id: "settings",      label: "Not Ayarları",  icon: <Settings size={13} /> },
           ] as const).map(t => {
             const isActive = t.id === null ? !section : section === t.id;
             return (
@@ -1904,7 +2159,9 @@ function GradingRouter() {
 
       {section === "certification"
         ? <CertificationPanel />
-        : <GradingTabs initialTab={tabParam === "done" ? "done" : "pending"} />
+        : section === "settings"
+          ? <NotAyarlariPanel />
+          : <GradingTabs initialTab={tabParam === "done" ? "done" : "pending"} />
       }
     </>
   );

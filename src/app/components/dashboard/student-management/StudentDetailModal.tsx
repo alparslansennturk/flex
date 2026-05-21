@@ -216,10 +216,11 @@ function AttendanceDonut({ rate, animate }: { rate: number; animate: boolean }) 
 
 // ─── Ana Bileşen ──────────────────────────────────────────────────────────────
 
-export default function StudentDetailModal({ student, isOpen, onClose }: {
+export default function StudentDetailModal({ student, isOpen, onClose, prefetchStudentId }: {
   student: ModalStudent | null;
   isOpen: boolean;
   onClose: () => void;
+  prefetchStudentId?: string | null;
 }) {
   const { settings, activeSeasonId } = useScoring();
 
@@ -244,25 +245,31 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
   const [attAttendedHours, setAttAttendedHours] = useState<number | null>(null);
   const [attAbsentHours,   setAttAbsentHours]   = useState<number | null>(null);
 
+  // Hover'dan gelen ID yoksa student.id, ikisi de yoksa null
+  const fetchId = student?.id ?? prefetchStudentId ?? null;
+
+  // Visibility — sadece isOpen değişince
   useEffect(() => {
     if (isOpen) {
       requestAnimationFrame(() => setVisible(true));
     } else {
       setVisible(false);
-      // Modal kapanınca state'i sıfırla — tekrar açılınca eski veri/bar görünmesin
-      setEmail("");
-      setG1Code(""); setG2Code("");
+    }
+  }, [isOpen]);
+
+  // Fetch — fetchId değişince başlar (hover veya click)
+  // fetchId null olunca state sıfırlanır
+  useEffect(() => {
+    if (!fetchId) {
+      setEmail(""); setG1Code(""); setG2Code("");
       setG1Grade(null); setG2Grade(null);
       setG1Stats(EMPTY_STATS); setG2Stats(EMPTY_STATS);
       setComputedScore(null); setComputedXP(null); setComputedTasks(null); setCarryOver(0);
       setAttTotal(null); setAttAttended(null); setAttAbsent(null); setAttRate(null);
       setAttAttendedHours(null); setAttAbsentHours(null);
       setLoading(false);
+      return;
     }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || !student) return;
     let cancelled = false;
 
     setEmail(""); setG1Code(""); setG2Code("");
@@ -271,7 +278,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
     setAttTotal(null); setAttAttended(null); setAttAbsent(null); setAttRate(null);
     setLoading(true);
 
-    const unsubscribeStudent = onSnapshot(doc(db, "students", student.id), async (sDoc) => {
+    const unsubscribeStudent = onSnapshot(doc(db, "students", fetchId), async (sDoc) => {
       if (cancelled) return;
       const sData = sDoc.exists() ? (sDoc.data() as any) : {};
       const studentEmail = sData.email ?? "";
@@ -311,7 +318,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       }
 
       // 2. Yoklama sorgusunu bağımsız başlat — ana loading'i bloke etmez
-      const studentId = student.id;
+      const studentId = fetchId;
       getDocs(query(collection(db, "design_attendance"), where("groupId", "==", groupId)))
         .then(attSnap => {
           if (cancelled) return;
@@ -343,8 +350,8 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       // 3. Grup belgesi, proje notları ve G2 görevleri paralel çek
       const [gDoc, g1Doc, g2Doc, tasksSnap] = await Promise.all([
         getDoc(doc(db, "groups", groupId)),
-        getDoc(doc(db, "projectGrades", `${student.id}_${groupId}_GRAFIK_1`)),
-        getDoc(doc(db, "projectGrades", `${student.id}_${groupId}_GRAFIK_2`)),
+        getDoc(doc(db, "projectGrades", `${fetchId}_${groupId}_GRAFIK_1`)),
+        getDoc(doc(db, "projectGrades", `${fetchId}_${groupId}_GRAFIK_2`)),
         getDocs(query(collection(db, "tasks"), where("classId", "==", groupCode))),
       ]);
 
@@ -489,7 +496,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
       }
       const computedFinalScore = isFinite(cumulativeMonthlyScore) && !isNaN(cumulativeMonthlyScore)
         ? cumulativeMonthlyScore : 0;
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === "development" && student) {
         console.log(`[StudentModal] ${student.name} ${student.lastName}`, { computedFinalScore, g2Bonus, g2ClassEntries: g2ClassEntries.length, months: Object.keys(byMonthEntries) });
       }
 
@@ -532,7 +539,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
             countedTaskIds.add(t.id);
           } else {
             // Fallback: eski transfer gradedTasks'ı sildiyse task.grades map'ine bak
-            const g = (t.grades ?? {})[student.id];
+            const g = (t.grades ?? {})[fetchId];
             if (g?.submitted === true) {
               taskCount++;
               studentXP += (g.xp ?? 0);
@@ -606,7 +613,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
             where("classId", "==", code)
           ));
           for (const td of tSnap.docs) {
-            const g = ((td.data() as any).grades ?? {})[student.id];
+            const g = ((td.data() as any).grades ?? {})[fetchId];
             if (g?.submitted === true) return code;
           }
         }
@@ -656,7 +663,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
     });
 
     return () => { cancelled = true; unsubscribeStudent(); };
-  }, [isOpen, student?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen || !student) return null;
 
@@ -673,6 +680,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
   // Arzu Alan 300/300 XP aldıysa → %100 gösterilmeli
   const g1Pct = g1Stats.maxXP > 0 ? Math.round((g1Stats.xp / g1Stats.maxXP) * 100) : 0;
   const g2Pct = g2Stats.maxXP > 0 ? Math.round((g2Stats.xp / g2Stats.maxXP) * 100) : 0;
+
+  // Tüm animasyonlar için tek sinyal: hem ana veri hem attendance hazır olunca
+  const dataReady = !loading && attRate !== null;
 
   const handleClose = () => setVisible(false);
 
@@ -779,9 +789,9 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                 <p className="text-[11px] font-bold text-neutral-500 tracking-tight">Ödevler</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatBox label="Toplam" value={loading ? "…" : g1Stats.taskCount + g2Stats.taskCount} loading={loading} />
-                <StatBox label="Grafik-1"     value={loading ? "…" : g1Stats.taskCount} colorClass="text-base-primary-700" loading={loading} />
-                <StatBox label="Grafik-2"     value={loading ? "…" : g2Stats.taskCount} colorClass="text-accent-purple-700" loading={loading} />
+                <StatBox label="Toplam" value={dataReady ? g1Stats.taskCount + g2Stats.taskCount : "…"} loading={!dataReady} />
+                <StatBox label="Grafik-1"     value={dataReady ? g1Stats.taskCount : "…"} colorClass="text-base-primary-700" loading={!dataReady} />
+                <StatBox label="Grafik-2"     value={dataReady ? g2Stats.taskCount : "…"} colorClass="text-accent-purple-700" loading={!dataReady} />
               </div>
             </div>
 
@@ -793,22 +803,22 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <StatBox label="Toplam"
-                  value={loading ? "…" : (
+                  value={dataReady ? (
                     g2Code
                       ? Math.round(g1Stats.score + (student.generalScore ?? computedScore ?? g2Stats.score + carryOver))
                       : Math.round(student.generalScore ?? g1Stats.score)
-                  )}
-                  loading={loading}
+                  ) : "…"}
+                  loading={!dataReady}
                 />
-                <StatBox label="Grafik-1" value={loading ? "…" : Math.round(g1Stats.score)} colorClass="text-base-primary-700" loading={loading} />
+                <StatBox label="Grafik-1" value={dataReady ? Math.round(g1Stats.score) : "…"} colorClass="text-base-primary-700" loading={!dataReady} />
                 <StatBox label="Grafik-2"
-                  value={loading ? "…" : (
+                  value={dataReady ? (
                     g2Code
                       ? Math.round(student.generalScore ?? computedScore ?? g2Stats.score + carryOver)
                       : "—"
-                  )}
+                  ) : "…"}
                   colorClass="text-accent-purple-700"
-                  loading={loading}
+                  loading={!dataReady}
                 />
               </div>
             </div>
@@ -837,24 +847,24 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                     <div className="space-y-1">
                       <div className="flex justify-between items-center">
                         <span className="text-[11px] font-bold text-base-primary-600">Grafik-1</span>
-                        <span className={`text-[11px] font-bold text-text-primary tabular-nums transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
+                        <span className={`text-[11px] font-bold text-text-primary tabular-nums transition-opacity duration-300 ${dataReady ? "opacity-100" : "opacity-20"}`}>
                           {g1Stats.xp} XP <span className="text-surface-400 font-normal">({g1Pct}%)</span>
                         </span>
                       </div>
                       <div className="w-full h-2 bg-surface-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-base-primary-500 rounded-full transition-all duration-700" style={{ width: `${loading ? 0 : g1Pct}%` }} />
+                        <div className="h-full bg-base-primary-500 rounded-full transition-all duration-700" style={{ width: `${dataReady ? g1Pct : 0}%` }} />
                       </div>
                     </div>
 
                     <div className="space-y-1">
                       <div className="flex justify-between items-center">
                         <span className="text-[11px] font-bold text-accent-purple-600">Grafik-2</span>
-                        <span className={`text-[11px] font-bold text-text-primary tabular-nums transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
+                        <span className={`text-[11px] font-bold text-text-primary tabular-nums transition-opacity duration-300 ${dataReady ? "opacity-100" : "opacity-20"}`}>
                           {g2Stats.xp} XP <span className="text-surface-400 font-normal">({g2Pct}%)</span>
                         </span>
                       </div>
                       <div className="w-full h-2 bg-surface-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-accent-purple-500 rounded-full transition-all duration-700" style={{ width: `${loading ? 0 : g2Pct}%` }} />
+                        <div className="h-full bg-accent-purple-500 rounded-full transition-all duration-700" style={{ width: `${dataReady ? g2Pct : 0}%` }} />
                       </div>
                     </div>
 
@@ -876,7 +886,12 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                     <p className="text-[11px] font-bold text-neutral-500 tracking-tight">Devam Durumu</p>
                   </div>
 
-                  {attTotal === 0 && attAttendedHours !== null ? (
+                  {attRate === null ? (
+                    /* Attendance verisi henüz gelmedi — spinner */
+                    <div className="flex flex-1 items-center justify-center">
+                      <div className="w-5 h-5 rounded-full border-2 border-surface-200 border-t-base-primary-400 animate-spin" />
+                    </div>
+                  ) : attTotal === 0 ? (
                     <div className="flex flex-1 items-center justify-center">
                       <p className="text-[11px] text-surface-300 font-medium">Yoklama kaydı yok</p>
                     </div>
@@ -886,21 +901,21 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                     <div className="flex flex-col justify-between flex-1 self-stretch py-1">
                       <div>
                         <p className="text-[9px] font-bold text-surface-400 tracking-wide mb-0.5">Katıldığı</p>
-                        <p className={`text-[22px] font-black tabular-nums leading-none text-text-primary transition-opacity duration-300 ${attAttendedHours == null ? "opacity-20" : ""}`}>
-                          {attAttendedHours == null ? "—" : `${attAttendedHours} saat`}
+                        <p className="text-[22px] font-black tabular-nums leading-none text-text-primary">
+                          {attAttendedHours ?? "—"}{attAttendedHours != null ? " saat" : ""}
                         </p>
                       </div>
                       <div>
                         <p className="text-[9px] font-bold text-surface-400 tracking-wide mb-0.5">Devamsızlık</p>
-                        <p className={`text-[22px] font-black tabular-nums leading-none transition-opacity duration-300 ${attAbsentHours == null ? "opacity-20" : ""} ${attAbsentHours != null && attAbsentHours > 0 ? "text-red-400" : "text-text-primary"}`}>
-                          {attAbsentHours == null ? "—" : `${attAbsentHours} saat`}
+                        <p className={`text-[22px] font-black tabular-nums leading-none ${attAbsentHours != null && attAbsentHours > 0 ? "text-red-400" : "text-text-primary"}`}>
+                          {attAbsentHours ?? "—"}{attAbsentHours != null ? " saat" : ""}
                         </p>
                       </div>
                     </div>
 
-                    {/* Donut */}
+                    {/* Donut — attRate gelince render edilir, animate hemen başlar */}
                     <div className="shrink-0">
-                      <AttendanceDonut rate={loading ? 0 : (attRate ?? 0)} animate={visible && !loading} />
+                      <AttendanceDonut rate={attRate} animate={visible} />
                     </div>
                   </div>
                   )}
@@ -917,7 +932,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                   code={g1Code}
                   grade={g1Grade}
                   odevPuaniCalc={g1Stats.odevPuani}
-                  loading={loading}
+                  loading={!dataReady}
                   color="blue"
                 />
                 <GradCard
@@ -925,7 +940,7 @@ export default function StudentDetailModal({ student, isOpen, onClose }: {
                   code={g2Code || "—"}
                   grade={g2Grade}
                   odevPuaniCalc={g2Stats.odevPuani}
-                  loading={loading}
+                  loading={!dataReady}
                   color="purple"
                 />
               </div>

@@ -679,6 +679,7 @@ const note=passedData?.note||studentNote;
 const groupId=passedData?.groupId||selectedGroupIdForStudent;
 const branch=passedData?.branch||studentBranch;
 const gender=passedData?.gender||studentGender||"";
+const isOnlineStudent=passedData?.isOnlineStudent ?? false;
 const avatarIdValue = passedData?.avatarId !== undefined ? passedData.avatarId : (avatarId || null);
 if(!name?.trim()||!lastName?.trim()||!groupId){
 return;
@@ -694,6 +695,7 @@ groupCode:targetGroup?.code||"Tanımsız",
 discipline:targetGroup?.discipline||null,
 branch:branch,
 gender:gender,
+isOnlineStudent:isOnlineStudent,
 avatarId: avatarIdValue,
 status:'active',
 updatedAt:new Date(),

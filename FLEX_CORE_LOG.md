@@ -754,47 +754,122 @@ Arşiv/
 
 ---
 
+## Oturum: 2026-05-21 — Tatil Düzenleme, Modal İyileştirmeleri, Not Ayarları
+
+### 62. GroupBranchPanel — Tatil Düzenleme
+
+- Tatil listesine **Düzenle (Pencil)** butonu eklendi
+- Inline edit formu: isim, başlangıç ve bitiş tarihi alanları
+- `handleStartEditHoliday(h)` → form state'i doldurur
+- `handleUpdateHoliday()` → `updateDoc(holidays/{id})` çağırır
+- DayCalendarPopover ile aynı tarih seçici kullanılır
+
+### 63. CalendarPopover — Tatil & Ders Günü Görsel Kuralları
+
+**Ders günleri (mavi):**
+- `isLessonDay` → `text-base-primary-500 hover:bg-base-primary-50`
+- Bugün + ders günü → ring efekti + mavi font
+
+**Tatil günleri (tüm tatiller):**
+- Altında turuncu nokta (`bg-orange-400`) — `isHoliday && !isSelected` koşuluyla, disabled/enabled fark etmeksizin
+- Üzeri çizili (`line-through`)
+- `isHolidayLesson` (ders var ama tatil) → `text-base-primary-400 line-through hover:bg-base-primary-50`
+- Tatil + ders değil → `text-surface-300 line-through hover:bg-surface-50`
+
+**Gelecek ders günleri:** Disabled ama görünür (`opacity-50 cursor-not-allowed text-base-primary-500`)
+
+### 64. StudentForm — isOnlineStudent Toggle
+
+- Katılım Türü alanı eklendi (col-span-2, grid'in altında)
+- 2 butonlu seçici: **Yüz Yüze** (Users ikonu) / **Online** (Monitor ikonu)
+- Seçili olan turuncu border + turuncu bg (`border-orange-500 bg-orange-50`)
+- `isOnlineStudent: boolean` olarak Firestore'a yazılıyor
+- `useManagement.handleAddStudent` güncellendi: `passedData?.isOnlineStudent ?? false`
+
+### 65. AttendancePanel — StudentDetailModal Entegrasyonu
+
+- Öğrenci adı `<p>` elemanı tıklanabilir hale getirildi (sınıf butonu değil, sadece ad)
+- `onClick` → `setDetailStudent({ id, name, lastName, groupCode... })`
+- `e.stopPropagation()` ile üst buton tetiklenmez
+- Hover stil: `hover:text-base-primary-600 hover:underline cursor-pointer`
+- `StudentDetailModal` panelin sonuna eklendi
+
+### 66. Hover Prefetch — Modal Veri Gecikmesi İyileştirmesi
+
+- `prefetchStudentId` state + 100ms `hoverTimerRef` debounce
+- Öğrenci adına 100ms hover → `setPrefetchStudentId(student.id)` → Firestore fetch başlar
+- Tıklandığında data zaten yarı yüklü gelir
+- `StudentDetailModal`'a `prefetchStudentId` prop eklendi
+- `fetchId = student?.id ?? prefetchStudentId ?? null` — hover veya click hangisi önce
+- `useEffect([fetchId])` — tek effect, fetchId değişince yeniden çalışır
+
+### 67. StudentDetailModal — Animasyon Senkronizasyonu
+
+**Donut kırmızı flash sorunu:**
+- `attRate === null` iken spinner gösterilir, donut render edilmez
+- Veri gelince `attRate !== null` → donut anında doğru renkte açılır
+
+**`dataReady` unified sinyal:**
+- `const dataReady = !loading && attRate !== null`
+- StatBox: `loading={!dataReady}`, değerler `dataReady ? value : "…"`
+- XP bar genişliği: `dataReady ? g1Pct : 0` (transition-all duration-700)
+- XP metin opaklığı: `dataReady ? "opacity-100" : "opacity-20"`
+- GradCard: `loading={!dataReady}` (iki grafik için de)
+- Sonuç: donut bittikten sonra diğer animasyonlar sıralı çalışır, karışmaz
+
+### 68. Grading — "Not Ayarları" Sekmesi
+
+**Yeni sekme:** `?section=settings` → `<NotAyarlariPanel />`
+
+**`NotAyarlariPanel` bileşeni:**
+- `users/{uid}.certSettings: { [branchId]: { useAssignment, projectWeight, assignmentWeight } }` okunur/yazılır
+- Branş seçici (sadece `user.branches.length > 1` ise görünür)
+- Toggle: "Ödev etkisini kullan"
+  - Kapalı → `finalNote = projectScore × 100%`
+  - Açık → stacked bar + slider'lar (Proje / Ödev ağırlığı)
+- Toplam göstergesi (1.00 doğrulama)
+- "Tüm Branşlara Uygula" butonu
+- Default: `{ useAssignment: false, projectWeight: 0.7, assignmentWeight: 0.3 }`
+
+**`CertModuleTab` formül güncellemesi:**
+- `certSettings` → `onSnapshot` ile realtime dinlenir (Not Ayarları'nda değişince anında yansır)
+- `groups` yüklenmesine `discipline` alanı eklendi
+- Türetilen değerler (render scope, handler'lar closure kullanır):
+  ```ts
+  const _branchSetting = certSettings[selectedGroup?.discipline ?? ""] ?? DEFAULT_CERT_SETTING;
+  const projectWeight  = _branchSetting.useAssignment ? _branchSetting.projectWeight : 1.0;
+  const maxOdevPuani   = Math.round((...assignmentWeight : 0.0) * 100);
+  ```
+- `handleSave`, `handleFinalize`, `getOdevPuani`, `getFinalNot` → `0.7` / `30` hardcode kaldırıldı
+- Tablo başlığı: `× ${(projectWeight * 100).toFixed(0)}%` ve `/ ${maxOdevPuani || '—'}`
+
+**`ScoringSettingsPanel` temizliği:**
+- "Sertifika Ağırlıkları" SettingCard kaldırıldı
+- `weightSum`, `weightValid`, `WeightRow` fonksiyonu silindi
+- Header badge'den "Proje Ağırlığı" kaldırıldı
+- `handleSave` weight doğrulama kontrolü kaldırıldı
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. SIRADAKI — Grading Sayfası "Not Ayarları" Sekmesi
-
-**Karar (2026-05-20):**
-- Grading sayfasına 3. sekme eklenir: "Not Ayarları"
-- `ScoringSettingsPanel`'daki `certificateWeights` bloğu (stacked bar + WeightRow sliderları) **aynen taşınır**, ScoringSettingsPanel'dan kaldırılır
-- Tek kaynak: grading / Not Ayarları sekmesi
-
-**Veri yapısı:** `users/{uid}.certSettings: { [branchId]: { useAssignment: boolean, projectWeight: number, assignmentWeight: number } }`
-
-**UI:**
-- Branş seçici (birden fazla branşı olan eğitmende görünür)
-- Toggle: "Ödev etkisini kullan" (default: kapalı)
-  - Kapalı → `finalNote = projectScore` (sadece sertifika notu)
-  - Açık → stacked bar + WeightRow sliderları görünür → `finalNote = projectScore × projectWeight + odevPuani`
-- "Tüm branşlara uygula" butonu
-- Kaydet
-
-**Formül değişikliği:** Grading sayfasındaki hardcoded `* 0.7` → `users/{uid}.certSettings[branchId]` okunur
-
-**Bileşen mimarisi:** `SettingCard` + `WeightRow` ayrı dosyaya çıkarılır, hem `ScoringSettingsPanel` hem grading sekmesi kullanır
-
-### 2. YAKINDA — StudentForm: isOnlineStudent
-- `students` dökümanına `isOnlineStudent: boolean` eklenecek
-- StudentForm'a toggle/checkbox ekle
-
-### 3. TEST SONRASI — Yoklama Giriş Zaman Kilidi
+### 1. TEST SONRASI — Yoklama Giriş Zaman Kilidi
 - Ders başlamadan 15dk önce kilitle, ders bitiminden 30dk sonra kapat
 - Pencere dışında: sadece admin düzenleyebilir
 
-### 4. İLERİDE — Sertifika PDF + Dağıtım
+### 2. İLERİDE — Sertifika PDF + Dağıtım
 - Finalize sonrası sertifika belgesi üretilecek
 - Altyapı hazır: `react-pdf` + `send-kitap` pattern'i kullanılabilir
 - Şablon tasarımı kararlaştırılacak — acelesi yok
 
-### 5. İLERİDE — Dashboard Hızlı Yoklama Widget
+### 3. İLERİDE — Dashboard Hızlı Yoklama Widget
 - `/attend?groupId=xxx` shortcut kartı
 
 ### ✅ TAMAMLANDI
 - §41 Bekleyen commit → önceki oturumlarda push edildi
 - Sınıf Yükselt (Grafik-1 → Grafik-2) → GroupForm + carryOver zaten çalışıyor
 - Öğrenci bazlı yoklama raporu → StudentDetailModal Devam Durumu kartı (§56)
-- Grading sistemi (not girişi, finalize, 70/30) → çalışıyor
+- Grading sistemi (not girişi, finalize, 70/30) → §68'de dinamik hale getirildi
+- StudentForm isOnlineStudent toggle → §64
+- AttendancePanel StudentDetailModal → §65–§67
+- Grading "Not Ayarları" sekmesi → §68

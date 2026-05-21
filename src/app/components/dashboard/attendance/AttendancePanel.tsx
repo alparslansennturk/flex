@@ -15,6 +15,7 @@ import {
   BarChart2,
 } from "lucide-react";
 import { DayCalendarPopover } from "./CalendarPopover";
+import StudentDetailModal, { ModalStudent } from "@/app/components/dashboard/student-management/StudentDetailModal";
 import { motion } from "framer-motion";
 import { PieChart, Pie, Cell } from "recharts";
 
@@ -324,6 +325,9 @@ export default function AttendancePanel({
   const [groups, setGroups]                   = useState<Group[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [students, setStudents]               = useState<Student[]>([]);
+  const [detailStudent, setDetailStudent]     = useState<ModalStudent | null>(null);
+  const [prefetchStudentId, setPrefetchStudentId] = useState<string | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedDate, setSelectedDate]       = useState<Date>(new Date());
   const [selectedMonth, setSelectedMonth]     = useState<Date>(new Date());
   const [entries, setEntries]                 = useState<Record<string, StudentEntry>>({});
@@ -1346,7 +1350,7 @@ export default function AttendancePanel({
                               {/* Sıra no */}
                               <span className="text-[13px] font-semibold text-text-secondary w-5 text-right shrink-0 mr-3">{idx + 1}</span>
 
-                              {/* Avatar (24px) + İsim (8px gap) */}
+                              {/* Avatar + İsim */}
                               <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
                                 {student.avatarId && student.gender ? (
                                   <img
@@ -1362,10 +1366,20 @@ export default function AttendancePanel({
                                     {(student.name?.[0] ?? "").toUpperCase()}{(student.lastName?.[0] ?? "").toUpperCase()}
                                   </div>
                                 )}
-                                <p className="flex-1 text-[13px] xl:text-[15px] font-semibold text-text-primary truncate">
+                                <p
+                                  onMouseEnter={() => {
+                                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                                    hoverTimerRef.current = setTimeout(() => setPrefetchStudentId(student.id), 100);
+                                  }}
+                                  onMouseLeave={() => {
+                                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                                  }}
+                                  onClick={e => { e.stopPropagation(); setDetailStudent({ id: student.id, name: student.name, lastName: student.lastName ?? "", rank: 0, score: 0, gender: student.gender, avatarId: student.avatarId, groupCode: selectedGroup?.code }); }}
+                                  className="flex-1 text-[13px] xl:text-[15px] font-semibold text-text-primary truncate hover:text-base-primary-600 hover:underline underline-offset-2 transition-colors cursor-pointer"
+                                >
                                   {student.name} {student.lastName ?? ""}
                                   {student.isOnlineStudent && (
-                                    <span className="ml-1.5 text-[10px] font-bold text-blue-500">(O)</span>
+                                    <span className="ml-1.5 text-[10px] font-bold text-blue-500 no-underline">(O)</span>
                                   )}
                                 </p>
                               </div>
@@ -1503,6 +1517,13 @@ export default function AttendancePanel({
           )}
         </div>
       </div>
+
+      <StudentDetailModal
+        student={detailStudent}
+        isOpen={!!detailStudent}
+        onClose={() => setDetailStudent(null)}
+        prefetchStudentId={!detailStudent ? prefetchStudentId : null}
+      />
     </>
   );
 }

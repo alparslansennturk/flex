@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import {
   Plus, Trash2, GitBranch, Clock, BookOpen, Building2,
   ChevronUp, ChevronDown, CalendarDays, CalendarOff, Layers, GraduationCap,
-  AlertCircle, ToggleLeft, ToggleRight, FolderOpen, Calendar,
+  AlertCircle, ToggleLeft, ToggleRight, FolderOpen, Calendar, Pencil, Check, X,
 } from "lucide-react";
 import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
 import { db } from "@/app/lib/firebase";
@@ -76,6 +76,16 @@ export default function GroupBranchPanel() {
   const [holidayEndDisplay, setHolidayEndDisplay] = useState("");
   const [holidayLoading, setHolidayLoading] = useState(false);
   const [holidayError, setHolidayError]   = useState("");
+
+  // Holiday edit
+  const [editingHolidayId, setEditingHolidayId]         = useState<string | null>(null);
+  const [editHolidayName, setEditHolidayName]           = useState("");
+  const [editHolidayStart, setEditHolidayStart]         = useState("");
+  const [editHolidayEnd, setEditHolidayEnd]             = useState("");
+  const [editHolidayStartDisplay, setEditHolidayStartDisplay] = useState("");
+  const [editHolidayEndDisplay, setEditHolidayEndDisplay]     = useState("");
+  const [editHolidayLoading, setEditHolidayLoading]     = useState(false);
+  const [editHolidayError, setEditHolidayError]         = useState("");
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -303,6 +313,32 @@ export default function GroupBranchPanel() {
 
   const handleDeleteHoliday = async (id: string) => {
     await deleteDoc(doc(db, "holidays", id));
+  };
+
+  const handleStartEditHoliday = (h: Holiday) => {
+    setEditingHolidayId(h.id);
+    setEditHolidayName(h.name);
+    setEditHolidayStart(h.startDate);
+    setEditHolidayEnd(h.endDate);
+    const [sy, sm, sd] = h.startDate.split("-");
+    setEditHolidayStartDisplay(`${sd}/${sm}/${sy}`);
+    const [ey, em, ed] = h.endDate.split("-");
+    setEditHolidayEndDisplay(`${ed}/${em}/${ey}`);
+    setEditHolidayError("");
+  };
+
+  const handleUpdateHoliday = async () => {
+    if (!editingHolidayId) return;
+    const name = editHolidayName.trim();
+    if (!name || !editHolidayStart) { setEditHolidayError("Tatil adı ve başlangıç tarihi zorunludur."); return; }
+    const end = editHolidayEnd || editHolidayStart;
+    if (end < editHolidayStart) { setEditHolidayError("Bitiş tarihi başlangıçtan önce olamaz."); return; }
+    setEditHolidayLoading(true);
+    try {
+      await updateDoc(doc(db, "holidays", editingHolidayId), { name, startDate: editHolidayStart, endDate: end });
+      setEditingHolidayId(null);
+      setEditHolidayError("");
+    } finally { setEditHolidayLoading(false); }
   };
 
   const holidayDayCount = (h: Holiday) => {
@@ -818,30 +854,127 @@ export default function GroupBranchPanel() {
                 const isPast    = h.endDate < todayStr;
                 const isActive  = h.startDate <= todayStr && h.endDate >= todayStr;
                 return (
-                  <div key={h.id} className={`flex items-center gap-4 px-5 py-4 group ${i < arr.length - 1 ? "border-b border-surface-100" : ""}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPast ? "bg-surface-100" : "bg-designstudio-primary-50"}`}>
-                      <CalendarOff size={16} className={isPast ? "text-text-placeholder" : "text-designstudio-primary-500"} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-[13px] xl:text-[14px] font-bold ${isPast ? "text-text-secondary" : "text-text-primary"}`}>{h.name}</p>
-                      <p className={`text-[11px] mt-0.5 ${isPast ? "text-text-placeholder" : "text-text-tertiary"}`}>
-                        {formatHolidayDate(h.startDate)}
-                        {h.startDate !== h.endDate && <> — {formatHolidayDate(h.endDate)}</>}
-                        <span className={`ml-2 font-bold ${isPast ? "text-text-placeholder" : "text-text-secondary"}`}>{days} gün</span>
-                      </p>
-                    </div>
-                    {isActive && (
-                      <span className="text-[10px] font-bold text-designstudio-primary-600 bg-designstudio-primary-50 px-2 py-0.5 rounded-full shrink-0">Aktif</span>
+                  <div key={h.id} className={`px-5 py-4 ${i < arr.length - 1 ? "border-b border-surface-100" : ""}`}>
+                    {editingHolidayId === h.id ? (
+                      /* ── Düzenleme modu ── */
+                      <div className="space-y-3">
+                        <div className="flex gap-3 flex-wrap items-end">
+                          <div className="flex-1 min-w-[160px] space-y-1">
+                            <label className="text-[11px] font-bold text-text-secondary ml-1">Tatil Adı</label>
+                            <input
+                              value={editHolidayName}
+                              onChange={e => { setEditHolidayName(e.target.value); setEditHolidayError(""); }}
+                              onKeyDown={e => e.key === "Enter" && handleUpdateHoliday()}
+                              className="w-full h-9 border border-base-primary-300 bg-white rounded-lg px-3 outline-none focus:border-base-primary-400 text-[13px] font-bold text-text-primary"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-text-secondary ml-1">Başlangıç</label>
+                            <DayCalendarPopover
+                              value={editHolidayStart ? new Date(editHolidayStart + "T12:00:00") : new Date()}
+                              onChange={d => {
+                                const iso = d.toISOString().slice(0, 10);
+                                setEditHolidayStart(iso);
+                                const [y, m, dd] = iso.split("-");
+                                setEditHolidayStartDisplay(`${dd}/${m}/${y}`);
+                                setEditHolidayError("");
+                              }}
+                            >
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={editHolidayStartDisplay}
+                                  onChange={e => makeDateInputHandler(setEditHolidayStartDisplay, v => { setEditHolidayStart(v); setEditHolidayError(""); })(e.target.value)}
+                                  onClick={e => e.stopPropagation()}
+                                  placeholder="gg/aa/yyyy"
+                                  maxLength={10}
+                                  className="h-9 w-36 border border-base-primary-300 bg-white rounded-lg pl-3 pr-9 outline-none focus:border-base-primary-400 text-[13px] font-bold text-text-primary placeholder:font-normal placeholder:text-text-tertiary"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary cursor-pointer">
+                                  <Calendar size={13} />
+                                </span>
+                              </div>
+                            </DayCalendarPopover>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-text-secondary ml-1">Bitiş</label>
+                            <DayCalendarPopover
+                              value={editHolidayEnd ? new Date(editHolidayEnd + "T12:00:00") : (editHolidayStart ? new Date(editHolidayStart + "T12:00:00") : new Date())}
+                              onChange={d => {
+                                const iso = d.toISOString().slice(0, 10);
+                                setEditHolidayEnd(iso);
+                                const [y, m, dd] = iso.split("-");
+                                setEditHolidayEndDisplay(`${dd}/${m}/${y}`);
+                              }}
+                            >
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={editHolidayEndDisplay}
+                                  onChange={e => makeDateInputHandler(setEditHolidayEndDisplay, setEditHolidayEnd)(e.target.value)}
+                                  onClick={e => e.stopPropagation()}
+                                  placeholder="gg/aa/yyyy"
+                                  maxLength={10}
+                                  className="h-9 w-36 border border-base-primary-300 bg-white rounded-lg pl-3 pr-9 outline-none focus:border-base-primary-400 text-[13px] font-bold text-text-primary placeholder:font-normal placeholder:text-text-tertiary"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary cursor-pointer">
+                                  <Calendar size={13} />
+                                </span>
+                              </div>
+                            </DayCalendarPopover>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleUpdateHoliday}
+                              disabled={editHolidayLoading}
+                              className="h-9 px-4 bg-base-primary-600 text-white rounded-lg font-bold text-[13px] flex items-center gap-1.5 hover:bg-base-primary-700 transition-all active:scale-95 disabled:opacity-40 cursor-pointer"
+                            >
+                              <Check size={14} /> Kaydet
+                            </button>
+                            <button
+                              onClick={() => { setEditingHolidayId(null); setEditHolidayError(""); }}
+                              className="h-9 px-3 border border-surface-300 text-text-secondary rounded-lg text-[13px] flex items-center gap-1.5 hover:bg-neutral-50 transition-all cursor-pointer"
+                            >
+                              <X size={14} /> İptal
+                            </button>
+                          </div>
+                        </div>
+                        {editHolidayError && <p className="text-[12px] font-bold text-red-500">{editHolidayError}</p>}
+                      </div>
+                    ) : (
+                      /* ── Normal görünüm ── */
+                      <div className="flex items-center gap-4 group">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPast ? "bg-surface-100" : "bg-designstudio-primary-50"}`}>
+                          <CalendarOff size={16} className={isPast ? "text-text-placeholder" : "text-designstudio-primary-500"} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] xl:text-[14px] font-bold ${isPast ? "text-text-secondary" : "text-text-primary"}`}>{h.name}</p>
+                          <p className={`text-[11px] mt-0.5 ${isPast ? "text-text-placeholder" : "text-text-tertiary"}`}>
+                            {formatHolidayDate(h.startDate)}
+                            {h.startDate !== h.endDate && <> — {formatHolidayDate(h.endDate)}</>}
+                            <span className={`ml-2 font-bold ${isPast ? "text-text-placeholder" : "text-text-secondary"}`}>{days} gün</span>
+                          </p>
+                        </div>
+                        {isActive && (
+                          <span className="text-[10px] font-bold text-designstudio-primary-600 bg-designstudio-primary-50 px-2 py-0.5 rounded-full shrink-0">Aktif</span>
+                        )}
+                        {isPast && !isActive && (
+                          <span className="text-[10px] font-bold text-text-placeholder bg-surface-100 px-2 py-0.5 rounded-full shrink-0">Geçmiş</span>
+                        )}
+                        <button
+                          onClick={() => handleStartEditHoliday(h)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-text-placeholder hover:text-base-primary-600 hover:bg-base-primary-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteHoliday(h.id)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-text-placeholder hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     )}
-                    {isPast && !isActive && (
-                      <span className="text-[10px] font-bold text-text-placeholder bg-surface-100 px-2 py-0.5 rounded-full shrink-0">Geçmiş</span>
-                    )}
-                    <button
-                      onClick={() => handleDeleteHoliday(h.id)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-text-placeholder hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
-                    >
-                      <Trash2 size={13} />
-                    </button>
                   </div>
                 );
               })}

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
-import { X, Check, GraduationCap, ChevronDown } from "lucide-react";
+import { X, Check, GraduationCap, ChevronDown, Users, Monitor } from "lucide-react";
 import { getFlexMessage } from "@/app/lib/messages";
 
 // Tüm aktif öğrenciler arasında kullanılmayan bir avatar ID seçer
@@ -86,6 +86,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   const [localErrors, setLocalErrors] = useState<Record<string, boolean>>({});
   const [localShake, setLocalShake] = useState(false);
   const [emailErrorMsg, setEmailErrorMsg] = useState("");
+  const [isOnlineStudent, setIsOnlineStudent] = useState(false);
   const [isGenderDropOpen, setIsGenderDropOpen] = useState(false);
   const [genderDropPos, setGenderDropPos]       = useState({ top: 0, left: 0, width: 0 });
   const [isBranchDropOpen, setIsBranchDropOpen] = useState(false);
@@ -114,6 +115,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
         setStudentNote(editingStudent.note || "");
         setSelectedGroupIdForStudent(editingStudent.groupId || "");
         setStudentGender(editingStudent.gender || "");
+        setIsOnlineStudent(editingStudent.isOnlineStudent ?? false);
         const id = editingStudent.avatarId;
         if (id !== undefined && id !== null && id !== 0) {
           setAvatarId(Number(id));
@@ -140,6 +142,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
       setStudentNote("");
       setSelectedGroupIdForStudent("");
       setStudentGender("");
+      setIsOnlineStudent(false);
       setAvatarId(null);
       setIsGenderDropOpen(false);
       setIsBranchDropOpen(false);
@@ -157,7 +160,8 @@ export const StudentForm: React.FC<StudentFormProps> = ({
       branch: studentBranch,
       groupId: selectedGroupIdForStudent,
       note: studentNote,
-      gender: studentGender
+      gender: studentGender,
+      isOnlineStudent,
     };
 
     // VALIDATION
@@ -308,6 +312,33 @@ export const StudentForm: React.FC<StudentFormProps> = ({
                 <div onClick={(e) => { if (!isGroupDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setGroupDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsGroupDropOpen(!isGroupDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${localErrors.groupId ? 'border-red-500 bg-red-50' : isGroupDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
                   <span className={`text-[14px] truncate ${selectedGroupIdForStudent ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{(() => { if (!selectedGroupIdForStudent) return 'Bir grup seçin...'; const g = groups.find(x => x.id === selectedGroupIdForStudent); return g ? `${g.code}${g.branch ? ` (${g.branch})` : ''}` : 'Bir grup seçin...'; })()}</span>
                   <ChevronDown size={18} className={`shrink-0 transition-transform duration-300 ${isGroupDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
+                </div>
+              </div>
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-[14px] font-semibold text-neutral-500 ml-1">Katılım Türü</label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsOnlineStudent(false)}
+                    className={`flex-1 h-12 rounded-[12px] border-2 flex items-center justify-center gap-2 font-bold text-[14px] transition-all cursor-pointer ${
+                      !isOnlineStudent
+                        ? "border-orange-500 bg-orange-50 text-orange-600"
+                        : "border-neutral-100 bg-neutral-50 text-neutral-400 hover:border-neutral-200"
+                    }`}
+                  >
+                    <Users size={16} /> Yüz Yüze
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsOnlineStudent(true)}
+                    className={`flex-1 h-12 rounded-[12px] border-2 flex items-center justify-center gap-2 font-bold text-[14px] transition-all cursor-pointer ${
+                      isOnlineStudent
+                        ? "border-orange-500 bg-orange-50 text-orange-600"
+                        : "border-neutral-100 bg-neutral-50 text-neutral-400 hover:border-neutral-200"
+                    }`}
+                  >
+                    <Monitor size={16} /> Online
+                  </button>
                 </div>
               </div>
             </div>

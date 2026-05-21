@@ -145,25 +145,36 @@ export function DayCalendarPopover({
           const isSelected  = dateStr === selectedStr;
           const isToday     = dateStr === todayStr;
           const isHoliday   = holidayDates.has(dateStr);
+          const isLessonDay   = weekDays.length > 0 && weekDays.includes(dow);
           const isNonLesson   = weekDays.length > 0 && !weekDays.includes(dow);
+          const isHolidayLesson = isLessonDay && isHoliday; // ders var ama tatil
           const isFuture      = maxStr ? dateStr > maxStr : false;
-          const isFutureLesson = isFuture && weekDays.length > 0 && weekDays.includes(dow);
           const isDisabled    = isFuture || (minStr ? dateStr < minStr : false);
 
-          let cls = "h-8 w-full flex items-center justify-center rounded-lg text-[12px] font-semibold transition-colors outline-none ";
+          let cls = "h-8 w-full flex items-center justify-center rounded-lg text-[12px] font-semibold transition-colors outline-none relative ";
 
           if (isDisabled) {
-            if (isFutureLesson) {
+            if (isHolidayLesson) {
+              cls += "opacity-40 cursor-not-allowed text-base-primary-400 line-through ";
+            } else if (isHoliday) {
+              cls += "opacity-20 cursor-not-allowed line-through ";
+            } else if (isLessonDay) {
               cls += "opacity-50 cursor-not-allowed text-base-primary-500 ";
             } else {
               cls += "opacity-20 cursor-not-allowed ";
             }
           } else if (isSelected) {
             cls += "bg-[#10294C] text-white cursor-pointer ";
-          } else if (isNonLesson) {
+          } else if (isNonLesson && !isHoliday) {
             cls += "text-surface-300 hover:bg-surface-50 cursor-pointer ";
-          } else if (isHoliday) {
-            cls += "bg-red-50 text-red-500 hover:bg-red-100 cursor-pointer ";
+          } else if (isHoliday && !isLessonDay) {
+            cls += "text-surface-300 line-through hover:bg-surface-50 cursor-pointer ";
+          } else if (isHolidayLesson) {
+            cls += "text-base-primary-400 line-through hover:bg-base-primary-50 cursor-pointer ";
+          } else if (isLessonDay && isToday) {
+            cls += "ring-2 ring-base-primary-300 text-base-primary-600 font-bold hover:bg-base-primary-50 cursor-pointer ";
+          } else if (isLessonDay) {
+            cls += "text-base-primary-500 hover:bg-base-primary-50 cursor-pointer ";
           } else if (isToday) {
             cls += "ring-2 ring-[#10294C]/30 text-[#10294C] font-bold hover:bg-base-primary-50 cursor-pointer ";
           } else if (isWeekend) {
@@ -181,7 +192,7 @@ export function DayCalendarPopover({
             >
               {day}
               {isHoliday && !isSelected && (
-                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-red-400" />
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-orange-400" />
               )}
             </button>
           );

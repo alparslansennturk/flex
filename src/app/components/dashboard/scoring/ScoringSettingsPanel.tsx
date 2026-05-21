@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  Settings, Trophy, Award, Clock, Zap,
+  Settings, Trophy, Clock, Zap,
   AlertTriangle, CheckCircle2, RefreshCw, Save,
   TrendingUp, Sparkles,
 } from "lucide-react";
@@ -23,8 +23,6 @@ export default function ScoringSettingsPanel() {
 
   useEffect(() => { setLocal(settings); }, [settings]);
 
-  const weightSum   = parseFloat((local.certificateWeights.project + local.certificateWeights.assignment).toFixed(4));
-  const weightValid = Math.abs(weightSum - 1.0) < 0.001;
   const isDirty     = JSON.stringify(local) !== JSON.stringify(settings);
 
   const previewXP  = calculateXP(previewLevel, previewWeeksLate, local);
@@ -32,7 +30,6 @@ export default function ScoringSettingsPanel() {
   const penaltyMul = getLatePenalty(previewWeeksLate, local);
 
   const handleSave = async () => {
-    if (!weightValid) { setError("Sertifika ağırlıkları toplamı tam olarak 1.00 olmalıdır."); return; }
     setSaving(true); setError("");
     try {
       await saveSettings(local);
@@ -73,10 +70,9 @@ export default function ScoringSettingsPanel() {
           {/* Sağ: kompakt stat rozetleri */}
           <div className="flex items-center gap-2">
             {([
-              { label: "Min. Bölücü",    value: String(local.leaderboard.minTaskDivisor),                           Icon: TrendingUp, bg: "bg-base-primary-50 border-base-primary-100",                       iconCls: "text-base-primary-400",            valCls: "text-base-primary-900"           },
-              { label: "Proje Ağırlığı", value: `${(local.certificateWeights.project * 100).toFixed(0)}%`,          Icon: Award,      bg: "bg-designstudio-secondary-50 border-designstudio-secondary-100",   iconCls: "text-designstudio-secondary-500",  valCls: "text-designstudio-secondary-700" },
-              { label: "Maks XP",        value: String(local.difficultyXP.level4),                                   Icon: Zap,        bg: "bg-designstudio-primary-50 border-designstudio-primary-100",       iconCls: "text-designstudio-primary-500",    valCls: "text-designstudio-primary-700"   },
-              { label: "Geç Ceza Min.",  value: `${(local.latePenalty.week3plus * 100).toFixed(0)}%`,               Icon: Clock,      bg: "bg-[#FFF9EB] border-[#FFE8A0]",                                    iconCls: "text-[#FFB020]",                   valCls: "text-[#C98A00]"                  },
+              { label: "Min. Bölücü",   value: String(local.leaderboard.minTaskDivisor),             Icon: TrendingUp, bg: "bg-base-primary-50 border-base-primary-100",                 iconCls: "text-base-primary-400",          valCls: "text-base-primary-900"         },
+              { label: "Maks XP",       value: String(local.difficultyXP.level4),                   Icon: Zap,        bg: "bg-designstudio-primary-50 border-designstudio-primary-100", iconCls: "text-designstudio-primary-500",  valCls: "text-designstudio-primary-700" },
+              { label: "Geç Ceza Min.", value: `${(local.latePenalty.week3plus * 100).toFixed(0)}%`, Icon: Clock,      bg: "bg-[#FFF9EB] border-[#FFE8A0]",                               iconCls: "text-[#FFB020]",                 valCls: "text-[#C98A00]"                },
             ] as const).map(({ label, value, Icon, bg, iconCls, valCls }) => (
               <div key={label} className={`${bg} border rounded-2xl px-4 py-2.5 min-w-[90px]`}>
                 <div className="flex items-center gap-1.5 mb-1">
@@ -192,59 +188,7 @@ export default function ScoringSettingsPanel() {
           </div>
         </SettingCard>
 
-        {/* 2. Sertifika Ağırlıkları */}
-        <SettingCard
-          Icon={Award} iconBg="bg-designstudio-secondary-50" iconColor="text-designstudio-secondary-500"
-          title="Sertifika Ağırlıkları"
-          description="Proje ve ödev puanlarının toplam skora katkı oranı"
-        >
-          <div className="space-y-4">
-            {/* Stacked progress bar */}
-            <div className="h-3 rounded-full overflow-hidden flex gap-0.5 bg-surface-100">
-              <div
-                className="bg-designstudio-secondary-500 rounded-full transition-all duration-300"
-                style={{ width: `${local.certificateWeights.project * 100}%` }}
-              />
-              <div
-                className="bg-designstudio-primary-500 rounded-full flex-1 transition-all duration-300"
-              />
-            </div>
-            <div className="flex items-center gap-3 text-[11px] text-surface-400 font-medium">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-designstudio-secondary-500 inline-block" />Proje</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-designstudio-primary-500 inline-block" />Ödev</span>
-            </div>
-
-            <WeightRow
-              label="Proje" color="bg-designstudio-secondary-500"
-              value={local.certificateWeights.project}
-              onChange={v => setLocal(p => ({ ...p, certificateWeights: { project: v, assignment: parseFloat((1 - v).toFixed(2)) } }))}
-            />
-            <WeightRow
-              label="Ödev" color="bg-designstudio-primary-500"
-              value={local.certificateWeights.assignment}
-              onChange={v => setLocal(p => ({ ...p, certificateWeights: { assignment: v, project: parseFloat((1 - v).toFixed(2)) } }))}
-            />
-
-            {/* Toplam göstergesi */}
-            <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border transition-colors ${
-              weightValid
-                ? "bg-status-success-100 border-status-success-500/20"
-                : "bg-status-danger-50 border-status-danger-500/20"
-            }`}>
-              <span className="text-[12px] font-bold text-surface-600">Toplam</span>
-              <div className="flex items-center gap-2">
-                {weightValid
-                  ? <CheckCircle2 size={14} className="text-status-success-500" />
-                  : <AlertTriangle size={14} className="text-status-danger-500" />}
-                <span className={`text-[14px] font-bold ${weightValid ? "text-status-success-500" : "text-status-danger-500"}`}>
-                  {weightSum.toFixed(2)} / 1.00
-                </span>
-              </div>
-            </div>
-          </div>
-        </SettingCard>
-
-        {/* 3. Geç Teslim Cezası */}
+        {/* 2. Geç Teslim Cezası */}
         <SettingCard
           Icon={Clock} iconBg="bg-[#FFF9EB]" iconColor="text-[#FFB020]"
           title="Geç Teslim Cezası"
@@ -284,7 +228,7 @@ export default function ScoringSettingsPanel() {
           </div>
         </SettingCard>
 
-        {/* 4. Zorluk XP Değerleri */}
+        {/* 3. Zorluk XP Değerleri */}
         <SettingCard
           Icon={Zap} iconBg="bg-base-primary-50" iconColor="text-base-primary-500"
           title="Zorluk XP Değerleri"
@@ -420,7 +364,7 @@ export default function ScoringSettingsPanel() {
 
         <button
           onClick={handleSave}
-          disabled={saving || !weightValid || !isDirty}
+          disabled={saving || !isDirty}
           className="flex items-center gap-2.5 h-11 px-8 rounded-xl bg-designstudio-primary-500 text-white text-[13px] font-bold
             hover:bg-designstudio-primary-600 active:scale-95 transition-all cursor-pointer
             disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-designstudio-primary-500/25"
@@ -460,27 +404,3 @@ function SettingCard({
   );
 }
 
-function WeightRow({
-  label, color, value, onChange,
-}: {
-  label: string; color: string; value: number; onChange: (v: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className={`w-2 h-2 rounded-full ${color} shrink-0`} />
-      <span className="text-[12px] font-bold text-surface-600 w-12 shrink-0">{label}</span>
-      <input
-        type="number" min={0} max={1} step={0.05}
-        value={value}
-        onChange={e => {
-          const v = parseFloat(e.target.value);
-          if (!isNaN(v) && v >= 0 && v <= 1) onChange(v);
-        }}
-        className="w-20 h-9 px-2 rounded-xl border border-surface-200 bg-surface-50 text-[13px] font-bold text-base-primary-900 outline-none focus:border-base-primary-500 focus:bg-white transition-all text-center"
-      />
-      <span className="text-[12px] font-bold text-base-primary-900 w-10 text-right">
-        {(value * 100).toFixed(0)}%
-      </span>
-    </div>
-  );
-}
