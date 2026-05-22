@@ -1164,6 +1164,61 @@ await fetch("/api/welcome", {
 
 ---
 
+---
+
+## Oturum: 2026-05-22 (Devam) — Sentry + Yoklama Zaman Kilidi
+
+### 86. Sentry Entegrasyonu
+
+- `@sentry/nextjs` kuruldu (`npx @sentry/wizard@latest -i nextjs`)
+- Seçimler: Tracing ✅ | Session Replay ❌ | Logs ✅ | Tunnel ❌ | Claude Code MCP ✅
+- Oluşturulan dosyalar: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation.ts`, `src/instrumentation-client.ts`, `src/app/global-error.tsx`
+- `tracesSampleRate: 1`, `enableLogs: true`, `sendDefaultPii: true`
+- `next.config.ts` → `withSentryConfig` wrapper eklendi; gereksiz yorumlar temizlendi
+- **CSP güncellendi:** `connect-src`'e `https://*.sentry.io` ve `https://*.ingest.sentry.io` eklendi (browser direkt Sentry'e gönderiyor)
+- Sentry MCP: `.mcp.json` güncellendi — Claude Code Sentry hata raporlarını okuyabilir
+- Güvenlik skoru: 8.8 → **~9.2 / 10**
+
+### 87. Yoklama Giriş Zaman Kilidi
+
+**Kural:** Ders başlamadan 30 dk önce açılır, ders bitiminden 3 saat sonra kapanır.
+
+**Dosya:** `src/app/components/dashboard/attendance/AttendancePanel.tsx`
+
+**Yeni yardımcı fonksiyonlar:**
+- `parseSessionTime(session)` — `"Pts - Çar | 19.00 - 21.30"` string'inden `{ start, end }` (dakika) döner
+- `fmtMins(mins)` — dakikayı `"HH:MM"` formatına çevirir
+- `WINDOW_BEFORE_MIN = 30`, `WINDOW_AFTER_MIN = 180` sabitleri
+
+**`isWithinTimeWindow` derived değeri:**
+- Admin, `allowEdit` (Yoklama Detay), zaten başlatılmış ders (`existingDoc`) → her zaman `true`
+- Session string'inde saat yoksa (esnek gruplar) → `true` (kısıtlama yok)
+- Aksi halde: `nowMins >= start - 30 && nowMins <= end + 180`
+
+**UI değişiklikleri:**
+- Pencere dışındaysa info banner gösterilir:
+  - Henüz açılmadıysa: `"Yoklama 19:30'dan itibaren alınabilir."`
+  - Kapandıysa: `"Yoklama alma süresi sona erdi (00:30'da kapandı)."`
+- "Dersi Başlat" butonu `disabled` + kilit ikonu
+- Öğrenci listesi `opacity-60 pointer-events-none`
+
+### 88. Auto-Close Cron — Bug Düzeltmesi
+
+**Dosya:** `src/app/api/cron/auto-close-attendance/route.ts`
+
+**Sorun:** Eski filtre sadece `Object.keys(entries).length > 0` koşulunu kontrol ediyordu. "Dersi Başlat" basılıp öğrenciler işaretlenmiş ama **"Kaydet" tıklanmamışsa** entries Firestore'da `{}` kalır → cron bu doc'u atlıyor, gece yarısı kapanmıyordu.
+
+**Fix:**
+```ts
+const hasEntries = data.entries && Object.keys(data.entries).length > 0;
+const wasStarted = !!data.lessonStartedAt;
+return hasEntries || wasStarted;
+```
+
+`lessonStartedAt` olan tüm kapatılmamış doc'lar (boş olsun ya da dolu) gece 00:01'de otomatik kapanır.
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. GÜVENLİK — Sentry Hata Takibi (Önerilen)
@@ -1176,16 +1231,12 @@ await fetch("/api/welcome", {
 - Upstash Redis ile gerçek dağıtık rate limiting
 - 50 eğitmen + 500 öğrenci yükünde gerekli hale gelebilir
 
-### 3. TEST SONRASI — Yoklama Giriş Zaman Kilidi
-- Ders başlamadan 15dk önce kilitle, ders bitiminden 30dk sonra kapat
-- Pencere dışında: sadece admin düzenleyebilir
-
-### 4. İLERİDE — Sertifika PDF + Dağıtım
+### 3. İLERİDE — Sertifika PDF + Dağıtım
 - Finalize sonrası sertifika belgesi üretilecek
 - Altyapı hazır: `react-pdf` + `send-kitap` pattern'i kullanılabilir
 - Şablon tasarımı kararlaştırılacak — acelesi yok
 
-### 5. İLERİDE — Dashboard Hızlı Yoklama Widget
+### 4. İLERİDE — Dashboard Hızlı Yoklama Widget
 - `/attend?groupId=xxx` shortcut kartı
 
 ### ✅ TAMAMLANDI
@@ -1202,3 +1253,6 @@ await fetch("/api/welcome", {
 - Bug fix: Tab navigasyonu → §81
 - Bug fix: aktivasyon maili Authorization header → §82
 - Ödev branş filtresi (şablon ↔ grup eşleştirmesi) → §83–§85
+- Sentry entegrasyonu (tracing + logs + MCP) → §86
+- Yoklama giriş zaman kilidi (30dk önce / 3 saat sonra) → §87
+- Auto-close cron bug fix (lessonStartedAt kontrolü) → §88

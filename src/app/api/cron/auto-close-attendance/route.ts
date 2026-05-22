@@ -24,7 +24,11 @@ export async function GET(req: NextRequest) {
 
   const toClose = snap.docs.filter(d => {
     const data = d.data();
-    return !data.attendanceClosed && data.entries && Object.keys(data.entries).length > 0;
+    if (data.attendanceClosed) return false;
+    // Kayıt girilmişse veya "Dersi Başlat" basılmışsa kapat (entries boş kalsa bile)
+    const hasEntries = data.entries && Object.keys(data.entries).length > 0;
+    const wasStarted = !!data.lessonStartedAt;
+    return hasEntries || wasStarted;
   });
 
   if (toClose.length === 0) {
