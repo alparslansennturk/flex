@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import { Check, Users, Paperclip, Upload, X, ExternalLink, Link2, Loader2 } from "lucide-react";
@@ -29,6 +29,7 @@ interface Group {
   instructorId?: string;
   status?: string;
   module?: "GRAFIK_1" | "GRAFIK_2";
+  discipline?: string;
 }
 
 export function AssignActivateModal({
@@ -37,14 +38,16 @@ export function AssignActivateModal({
   templateLevel,
   templateScope,
   templateSubtitle,
+  templateDiscipline,
   onConfirm,
   onCancel,
 }: {
   taskName: string;
   templateId?: string;
-  templateLevel?: string;   // şablonda belirlendiyse seçim disabled gelir
-  templateScope?: string;   // "personal" ise busy kontrolü atlanır
-  templateSubtitle?: string; // şablonun mevcut açıklaması (pre-fill için)
+  templateLevel?: string;
+  templateScope?: string;
+  templateSubtitle?: string;
+  templateDiscipline?: string | null; // null = tüm branşlar, değer varsa filtrele
   onConfirm: (selections: AssignSelection[]) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -80,7 +83,13 @@ export function AssignActivateModal({
     const q = query(collection(db, "groups"), where("instructorId", "==", uid));
     const unsub = onSnapshot(q, async snap => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Group));
-      setGroups(all.filter(g => g.status === "active"));
+      const active = all.filter(g => g.status === "active");
+      // templateDiscipline varsa sadece eşleşen branş grubunu göster
+      setGroups(
+        templateDiscipline
+          ? active.filter(g => g.discipline === templateDiscipline)
+          : active
+      );
 
       // Kişisel şablonlar serbest tekrar kullanım için busy kontrolü atlanır
       if (templateScope === "personal") {
@@ -115,7 +124,8 @@ export function AssignActivateModal({
       fd.append("file", file);
       const instructorName = user ? `${user.name} ${user.surname ?? ""}`.trim() : "Eğitmen";
       fd.append("folderPath", JSON.stringify(["Ödev Şablonları", instructorName, taskName]));
-      const res  = await fetch("/api/upload", { method: "POST", body: fd });
+      const uploadToken = await auth.currentUser?.getIdToken();
+      const res  = await fetch("/api/upload", { method: "POST", body: fd, headers: { Authorization: `Bearer ${uploadToken ?? ""}` } });
       const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Yükleme başarısız");
       setAttachment({ url: data.webViewLink!, name: data.fileName ?? file.name, type: "upload" });
@@ -211,9 +221,16 @@ export function AssignActivateModal({
           <div className="flex flex-col">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[12px] font-bold text-surface-500 uppercase tracking-wide">Grup Seçimi</p>
-              {selectedGroupIds.length > 1 && (
-                <span className="text-[11px] text-base-primary-500 font-semibold">{selectedGroupIds.length} seçildi</span>
-              )}
+              <div className="flex items-center gap-2">
+                {templateDiscipline && (
+                  <span className="text-[10px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
+                    {templateDiscipline} branşı
+                  </span>
+                )}
+                {selectedGroupIds.length > 1 && (
+                  <span className="text-[11px] text-base-primary-500 font-semibold">{selectedGroupIds.length} seçildi</span>
+                )}
+              </div>
             </div>
             {groupsLoading ? (
               <div className="flex items-center justify-center flex-1 min-h-[120px] bg-surface-50 rounded-12 border border-surface-100">

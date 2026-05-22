@@ -4,8 +4,19 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendMail } from "@/app/lib/email";
 import { generateActivationCode } from "@/app/lib/user-validation";
+import { verifyRequestToken } from "@/app/lib/submission-validation";
+import { isRateLimited } from "@/app/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const caller = await verifyRequestToken(req);
+  if (!caller || caller.role !== "admin") {
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+  }
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  if (isRateLimited(`welcome:${ip}`, 30, 60 * 60 * 1000))
+    return NextResponse.json({ error: "Çok fazla istek. Lütfen bekleyin." }, { status: 429 });
+
   try {
     const { email, name, groupCode, groupId, studentDocId } = await req.json();
 
@@ -26,15 +37,18 @@ export async function POST(req: NextRequest) {
           authUser = await auth.getUserByEmail(email.trim());
           uid = authUser.uid;
 
-          // Bu UID zaten başka bir öğrenciye bağlıysa blokla
+          // Bu UID başka bir öğrenciye bağlıysa kontrol et
           const existingStudents = await adminDb.collection("students")
             .where("authUid", "==", uid)
             .limit(1)
             .get();
           if (!existingStudents.empty && existingStudents.docs[0].id !== studentDocId) {
-            return NextResponse.json({
-              error: `Bu e-posta adresi başka bir öğrenciye (${existingStudents.docs[0].id}) zaten tanımlı. Her öğrenci için farklı bir e-posta kullanılmalıdır.`
-            }, { status: 409 });
+            const oldDoc = existingStudents.docs[0];
+            // Admin yeni öğrenciye bu maili atıyor — eski bağlantıyı temizle, devam et
+            await adminDb.collection("students").doc(oldDoc.id).update({
+              authUid: FieldValue.delete(),
+            });
+            console.log(`[welcome] Eski authUid bağlantısı temizlendi: ${oldDoc.id}`);
           }
         } catch {
           // Yoksa oluştur

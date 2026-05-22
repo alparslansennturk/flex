@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
+import { isRateLimited } from "@/app/lib/rate-limit";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendMail } from "@/app/lib/email";
@@ -18,6 +19,10 @@ export async function POST(req: NextRequest) {
     if (callerRole !== "admin" && callerRole !== "instructor" && !decoded.admin) {
       return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
     }
+
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+    if (isRateLimited(`resend:${ip}`, 10, 15 * 60 * 1000))
+      return NextResponse.json({ error: "Çok fazla istek. 15 dakika bekleyin." }, { status: 429 });
 
     const body = await req.json() as { studentDocId?: unknown };
     const { studentDocId } = body;

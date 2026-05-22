@@ -3,6 +3,8 @@ import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function GET() {
+  if (process.env.NODE_ENV === "production")
+    return NextResponse.json({ error: "Bu endpoint production'da devre dışıdır." }, { status: 403 });
   try {
     // 1. İlk grubu bul
     const groupsSnap = await adminDb.collection("groups").limit(1).get();
@@ -84,6 +86,8 @@ export async function GET() {
 
 // Silmek için DELETE
 export async function DELETE() {
+  if (process.env.NODE_ENV === "production")
+    return NextResponse.json({ error: "Bu endpoint production'da devre dışıdır." }, { status: 403 });
   try {
     const snap = await adminDb
       .collection("submissions")

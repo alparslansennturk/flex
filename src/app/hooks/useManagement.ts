@@ -5,7 +5,7 @@ import { MASTER_ID } from "@/app/lib/constants";
 import { getFlexMessage } from "@/app/lib/messages";
 import { calcScore, computeStudentStats } from "@/app/lib/scoring";
 import {
-  collection, onSnapshot, addDoc, doc,
+  collection, onSnapshot, addDoc, doc, getDoc,
   updateDoc, deleteDoc, increment, serverTimestamp, writeBatch,
   getDocs, query, where, deleteField, orderBy,
 } from "firebase/firestore";
@@ -708,7 +708,15 @@ if(email?.trim()){
   const conflict=emailSnap.docs.find(d=>d.id!==editingStudentId);
   if(conflict){
     const cd=conflict.data();
-    throw Object.assign(new Error(`Bu e-posta "${cd.name} ${cd.lastName}" adlı öğrenciye tanımlı (${cd.groupCode||"farklı grup"}).`),{code:"DUPLICATE_EMAIL"});
+    const conflictGroupId=cd.groupId as string|undefined;
+    let groupStillExists=true;
+    if(conflictGroupId){
+      const groupSnap=await getDoc(doc(db,"groups",conflictGroupId));
+      groupStillExists=groupSnap.exists();
+    }
+    if(groupStillExists){
+      throw Object.assign(new Error(`Bu e-posta "${cd.name} ${cd.lastName}" adlı öğrenciye tanımlı (${cd.groupCode||"farklı grup"}).`),{code:"DUPLICATE_EMAIL"});
+    }
   }
 }
 if(editingStudentId){
@@ -748,7 +756,8 @@ const newStudentRef = await addDoc(collection(db,"students"),{...studentData,poi
 await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
 if(email?.trim()){
   try {
-    const mailRes = await fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),name:`${name.trim()} ${lastName.trim()}`,groupCode:studentData.groupCode??"",groupId,studentDocId:newStudentRef.id})});
+    const welcomeToken = await auth.currentUser?.getIdToken();
+    const mailRes = await fetch("/api/welcome",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${welcomeToken??""}`},body:JSON.stringify({email:email.trim(),name:`${name.trim()} ${lastName.trim()}`,groupCode:studentData.groupCode??"",groupId,studentDocId:newStudentRef.id})});
     if(!mailRes.ok){
       const mailErr = await mailRes.json().catch(()=>({}));
       showNotification(`Öğrenci eklendi fakat mail gönderilemedi: ${mailErr.error ?? mailRes.status}`);
@@ -862,6 +871,8 @@ throw error;
     setStudentNote("");
     setStudentError("");
     setErrors({});
+    setStudentGender("");
+    setAvatarId(null);
   };
 
   const handleEditStudent = (student: any) => {

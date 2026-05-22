@@ -3,6 +3,8 @@ import { sendMail } from "@/app/lib/email";
 import { saveMailLog } from "@/app/services/emailService";
 import { createFolderStructure } from "@/app/lib/googledrive-folder";
 import { uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
+import { verifyRequestToken } from "@/app/lib/submission-validation";
+import { isRateLimited } from "@/app/lib/rate-limit";
 
 interface DrawResult {
   category: string;
@@ -21,6 +23,14 @@ interface KolajMailRequest {
 }
 
 export async function POST(req: NextRequest) {
+  const caller = await verifyRequestToken(req);
+  if (!caller) {
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+  }
+
+  if (isRateLimited(`send-kolaj:${caller.uid}`, 20, 60 * 60 * 1000))
+    return NextResponse.json({ error: "Çok fazla istek. Lütfen bekleyin." }, { status: 429 });
+
   try {
     const body: KolajMailRequest = await req.json();
     const { to, studentName, studentLastName, taskName, draws, deadline, pdfBase64, groupName } = body;

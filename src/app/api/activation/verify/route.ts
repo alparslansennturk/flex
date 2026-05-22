@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
+import { isRateLimited } from "@/app/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  if (isRateLimited(`activation:${ip}`, 10, 15 * 60 * 1000))
+    return NextResponse.json({ error: "Çok fazla deneme. 15 dakika bekleyin." }, { status: 429 });
+
   try {
     const body = await req.json() as { email?: unknown; code?: unknown; password?: unknown };
     const { email, code, password } = body;

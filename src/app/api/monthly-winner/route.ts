@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
+import { verifyRequestToken } from "@/app/lib/submission-validation";
 import { calcStudentFinalScore, DEFAULT_SCORING, ScoringSettings } from "@/app/lib/scoring";
 
 // Bir önceki ayın başı ve sonu (UTC+3 tabanlı yerel zaman)
@@ -29,7 +30,11 @@ function effectiveDate(
   return endDate ?? completedAt ?? null;
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const caller = await verifyRequestToken(req);
+  if (!caller || caller.role !== "admin")
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+
   try {
     const { start, end, label } = getPrevMonthRange();
 

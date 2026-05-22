@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { sendMail } from "@/app/lib/email";
+import { verifyRequestToken } from "@/app/lib/submission-validation";
 
 // Görsel 1200×1200, email genişliği 560px → ölçek: 560/1200 = 0.467
 // Glass card orijinal konumu: left:510 top:280 w:585 h:595
@@ -13,7 +14,11 @@ import { sendMail } from "@/app/lib/email";
 const IMAGE_URL =
   "https://flex-one-iota.vercel.app/assets/illustrations/monthly-winner/winner-01.jpg";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const caller = await verifyRequestToken(req);
+  if (!caller || caller.role !== "admin")
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+
   const now = new Date(Date.now() + 3 * 60 * 60 * 1000); // UTC+3
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const monthLabel = prevMonth.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });

@@ -9,7 +9,7 @@ import {
   doc, getDoc, setDoc, addDoc, collection, serverTimestamp,
   getDocs, query, where, updateDoc,
 } from "firebase/firestore";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import type { BookPool, BookItem } from "../pool/poolTypes";
 import type { Student, TaskData, StudentDraw } from "../shared/types";
 import StudentPanel from "../shared/StudentPanel";
@@ -420,9 +420,10 @@ function BookResultModal({
     setSendingMail(true);
     try {
       const pdfBase64 = await generateKitapPdf({ book, deadline, paperWeight, paperThickness });
+      const mailToken = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/send-kitap", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${mailToken ?? ""}` },
         body: JSON.stringify({
           to: student.email,
           studentName: student.name,

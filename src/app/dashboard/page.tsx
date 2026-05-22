@@ -20,7 +20,6 @@ export default function DashboardPage() {
   const router = useRouter(); // router'ı burada tanımladık
   const [activeTab, setActiveTab] = useState<'dashboard' | 'management'>('dashboard');
   const [viewMode, setViewMode] = useState<'Sınıflarım' | 'Şubem' | 'Tümü'>('Tümü');
-  const [activeBranch, setActiveBranch] = useState("all");
   const handleScroll = (dir: 'left' | 'right') => {
     if (scrollRef.current) {
       const amt = scrollRef.current.offsetWidth / 4.3;
@@ -68,11 +67,11 @@ export default function DashboardPage() {
                   <LeaderboardWidget viewMode={viewMode} setViewMode={setViewMode} />
                 </div>
 
-                <DesignParkour activeBranch={activeBranch} setActiveBranch={setActiveBranch} />
+                <DesignParkour />
 
                 {/* 🛡️ KÜTÜPHANE GÖRÜNÜMÜ: Adminler yönetir, Eğitmenler (instructor) kullanır/görür. */}
                 {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
-                  <AssignmentLibrary scrollRef={scrollRef} handleScroll={handleScroll} activeBranch={activeBranch} />
+                  <AssignmentLibrary scrollRef={scrollRef} handleScroll={handleScroll} />
                 )}
               </div>
             ) : (

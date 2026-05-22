@@ -21,8 +21,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { uploadToDrive, validateDriveFile, isDriveError, ensureFolderPath, uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
+import { verifyRequestToken } from "@/app/lib/submission-validation";
 
 export async function POST(req: NextRequest) {
+  const caller = await verifyRequestToken(req);
+  if (!caller) {
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+  }
+
   // ── 1. FormData parse ──────────────────────────────────────────────────────
   let formData: FormData;
   try {

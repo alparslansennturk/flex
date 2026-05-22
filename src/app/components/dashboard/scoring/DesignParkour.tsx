@@ -684,7 +684,7 @@ function TaskEditModal({ task, onSave, onCancel }: {
 }
 
 // ---- ANA BİLEŞEN ----
-export default function DesignParkour({ activeBranch, setActiveBranch }: { activeBranch: string; setActiveBranch: (v: string) => void }) {
+export default function DesignParkour() {
   const router = useRouter();
   // Tüm task'ları state'e al — filter render'da yapılır (closure sorunu önlenir)
   const [allTasks,      setAllTasks]      = useState<Task[]>([]);
@@ -893,10 +893,8 @@ export default function DesignParkour({ activeBranch, setActiveBranch }: { activ
     return bT - aT;
   });
 
-  // Branş filtresi uygulanmış görevler
-  const filteredActiveTasks = activeBranch === "all"
-    ? sortedActiveTasks
-    : sortedActiveTasks.filter(t => t.groupId && groupDisciplineMap[t.groupId] === activeBranch);
+  // Tüm branşlar her zaman gösterilir
+  const filteredActiveTasks = sortedActiveTasks;
 
   // Ghost slot: henüz başlatılmamış şablonlar (rastgele seçilir)
   const myActiveTemplateIds = new Set(
@@ -906,8 +904,6 @@ export default function DesignParkour({ activeBranch, setActiveBranch }: { activ
   const availableGhosts = templates.filter(t => {
     if (myActiveTemplateIds.has(t.id) || t.isHidden) return false;
     if (!isGrafik && t.scope === "gamified") return false;
-    // Branch seçiliyse: discipline eşleşmeli; "all"da filtresiz
-    if (activeBranch !== "all" && t.discipline !== activeBranch) return false;
     return true;
   });
   // Şablon listesi değiştiğinde bir kez karıştır (her render'da değişmemesi için id'ye göre sabit sıralama)
@@ -927,21 +923,6 @@ export default function DesignParkour({ activeBranch, setActiveBranch }: { activ
         <div className="flex items-center gap-3 text-[#10294C]">
           <Route size={22} className="text-[#FF8D28]" />
           <h3 className="text-[22px] font-bold cursor-default">Ödev Parkuru</h3>
-          {branchOptions.length >= 2 && (
-            <div className="relative ml-8">
-              <select
-                value={activeBranch}
-                onChange={e => setActiveBranch(e.target.value)}
-                className="h-9 pl-4 pr-9 rounded-[12px] border border-surface-200 bg-white text-[13px] font-medium text-text-primary outline-none focus:border-base-primary-400 cursor-pointer appearance-none"
-              >
-                <option value="all">Tüm Branşlar</option>
-                {branchOptions.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-            </div>
-          )}
         </div>
         {canManage && (
           <button

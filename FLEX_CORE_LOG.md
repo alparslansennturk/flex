@@ -983,18 +983,209 @@ Arşiv/
 
 ---
 
+---
+
+## Oturum: 2026-05-22 — Güvenlik Sertleştirme + Bug Düzeltmeleri + Ödev Branş Filtresi
+
+### 76. Güvenlik — Korumasız Route'lar Kapatıldı
+
+**Blok A (önceki oturumlarda tamamlandı):** 14 API route'a `verifyRequestToken()` eklendi.
+
+**Bu oturumda eklenen son korumasız route'lar:**
+- `src/app/api/admin/send-winner-preview/route.ts` → `verifyRequestToken` + admin-only kontrol
+- `src/app/api/monthly-winner/route.ts` → `verifyRequestToken` + admin-only kontrol
+
+**dev-seed production guard:**
+- `src/app/api/dev-seed/route.ts` → GET ve DELETE her ikisine `NODE_ENV === "production"` kontrolü eklendi
+- Production'da `{ error: "Bu endpoint production'da devre dışıdır." }` + 403 döner
+
+### 77. Rate Limiting — Tüm Hassas Route'lara Eklendi
+
+**Yeni dosya:** `src/app/lib/rate-limit.ts`
+- In-memory `Map<key, { count, resetAt }>` — Vercel serverless için per-instance
+- `isRateLimited(key, limit, windowMs): boolean`
+
+**Uygulanan route'lar ve limitler:**
+
+| Route | Limit | Pencere | Key |
+|---|---|---|---|
+| `/api/otp` | 5 istek | 10 dakika | IP |
+| `/api/activation/verify` | 10 istek | 15 dakika | IP |
+| `/api/resend-activation` | 10 istek | 15 dakika | IP |
+| `/api/welcome` | 30 istek | 1 saat | IP |
+| `/api/send` | 30 istek | 1 saat | IP |
+| `/api/send-kitap` | 20 istek | 1 saat | uid |
+| `/api/send-kolaj` | 20 istek | 1 saat | uid |
+| `/api/send-sosyal` | 20 istek | 1 saat | uid |
+| `/api/delete-user` | 20 istek | 1 saat | IP |
+
+**Not:** Üretim ortamında Vercel birden fazla instance çalıştırabilir → in-memory rate limiting her instance için ayrıdır. Gerçek dağıtık rate limiting için ileride Upstash Redis eklenebilir. Şu an için bu yeterli (+2.0 puan katkı).
+
+### 78. HTTP Güvenlik Başlıkları (CSP + HSTS)
+
+**`next.config.ts` headers() güncellendi:**
+
+```
+Content-Security-Policy:
+  default-src 'self'
+  script-src 'self' 'unsafe-inline' https://vercel.live
+  style-src 'self' 'unsafe-inline'
+  img-src 'self' data: blob: https://*.googleusercontent.com https://drive.google.com ...
+  connect-src 'self' https://*.googleapis.com https://*.firebase.com ...
+  frame-src 'self' https://drive.google.com https://accounts.google.com
+  worker-src 'self' blob:
+  object-src 'none'
+  base-uri 'self'
+  form-action 'self'
+
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+X-Frame-Options: SAMEORIGIN
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+```
+
+**Kapsam:** `/` → tüm route'lara uygulanır.
+
+**Güvenlik Skoru Özeti:**
+- Blok A tamamlandı (önceki oturumlar): +2.5
+- Kalan route'lar + dev-seed: +0.5
+- Rate limiting: +2.0
+- HTTP headers/CSP/HSTS: +0.3
+- **Toplam: 5.5 → 8.8 / 10**
+
+---
+
+### 79. Bug Fix — E-posta Çakışması (Silinen Grup)
+
+**Sorun:** Bir öğrenci silinip aynı e-posta ile yeni öğrenci eklenince "Bu e-posta başka öğrenciye tanımlı" hatası veriyordu. Silinen öğrencinin grubu da silinmişti ama kontrol edilmiyordu.
+
+**Dosya:** `src/app/hooks/useManagement.ts`
+
+**Fix:** E-posta çakışması bulunca çakışan öğrencinin `groupId`'si alınır, o grup hâlâ Firestore'da var mı `getDoc` ile kontrol edilir. Grup silinmişse çakışma görmezden gelinir.
+
+```ts
+const conflictGroupId = cd.groupId as string | undefined;
+let groupStillExists = true;
+if (conflictGroupId) {
+  const groupSnap = await getDoc(doc(db, "groups", conflictGroupId));
+  groupStillExists = groupSnap.exists();
+}
+if (groupStillExists) throw new Error(...DUPLICATE_EMAIL);
+```
+
+---
+
+### 80. Bug Fix — Önceki Öğrencinin Avatar/Cinsiyet Kalıntısı
+
+**Sorun:** Öğrenci silinip yeni öğrenci ekleme formuna geçilince avatar ve cinsiyet bir önceki öğrenciden kalmış gibi görünüyordu. Sayfayı yenilemeden düzelmiyordu.
+
+**Dosya:** `src/app/hooks/useManagement.ts` → `resetStudentForm`
+
+**Fix:** `setStudentGender("")` ve `setAvatarId(null)` reset fonksiyonuna eklendi.
+
+---
+
+### 81. Bug Fix — StudentForm Tab Navigasyonu
+
+**Sorun:** E-posta alanından Tab'a basınca cinsiyet dropdown'u odak almıyor, sıradaki native elemana atlıyordu.
+
+**Dosya:** `src/app/components/dashboard/student-management/StudentForm.tsx`
+
+**Fix:** Cinsiyet, şube ve grup özel dropdown'larına `tabIndex={0}` eklendi. `onKeyDown` ile Enter/Space açma desteği eklendi. `outline-none focus:ring-2 focus:ring-orange-300` odak görsel göstergesi eklendi.
+
+---
+
+### 82. Bug Fix — Aktivasyon Maili Gönderilmiyordu
+
+**Sorun:** Öğrenci aktive edilirken `/api/welcome` çağrısına `Authorization` header geçirilmiyordu. Blok A ile route güvenlik altına alındıktan sonra mail gönderimi 401 ile başarısız oluyordu.
+
+**Dosya:** `src/app/hooks/useManagement.ts` → `handleAddStudent`
+
+**Fix:**
+```ts
+const welcomeToken = await auth.currentUser?.getIdToken();
+await fetch("/api/welcome", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${welcomeToken ?? ""}`,
+  },
+  body: JSON.stringify({ ... }),
+});
+```
+
+---
+
+### 83. Ödev Branş Filtresi — Şablon ↔ Grup Eşleştirmesi
+
+**Sorun:** Bir ödev şablonu "Grafik Tasarım" branşına ait olsa bile tüm gruplar atama modalında listeleniyordu.
+
+**Çözüm:** Şablona `discipline` alanı eklendi. Atama modalı bu alanı okuyarak sadece eşleşen branştaki grupları listeler.
+
+**`AssignActivateModal.tsx`:**
+- `Group` interface'e `discipline?: string` eklendi
+- `templateDiscipline?: string | null` prop eklendi
+- Grup listesi: `templateDiscipline ? active.filter(g => g.discipline === templateDiscipline) : active`
+- Header'da filtreli branş orange badge olarak gösterilir
+
+**`AssignmentLibrary.tsx`:**
+- `assignModalTask` açılırken `templateDiscipline={assignModalTask.discipline ?? null}` geçirilir
+
+**`TaskForm.tsx`:**
+- Branch dropdown artık **yeni oluşturma** ve **mevcut şablonu düzenleme** her ikisinde de gösterilir (önceden sadece yenide açılıyordu)
+- Branş zorunlu validasyon her iki modda da çalışır
+- Admin dahil tüm kullanıcılar kendi branşlarını görür (global tüm branşlar yerine)
+
+---
+
+### 84. AssignmentLibrary — Branş Filtresi Taşındı
+
+**Önceki:** `activeBranch` state `dashboard/page.tsx`'te yönetiliyordu, hem DesignParkour hem AssignmentLibrary'e prop geçiliyordu.
+
+**Yeni:**
+- `AssignmentLibrary` kendi `activeBranch` + `branchOptions` state'ini yönetir
+- Kullanıcının branşları Firestore'dan yüklenir; tek branş varsa dropdown gösterilmez, otomatik seçilir
+- `dashboard/page.tsx`'ten `activeBranch` + `setActiveBranch` state kaldırıldı
+- Her iki bileşene geçilen bu prop'lar kaldırıldı
+
+**DesignParkour:**
+- Branş filtresi tamamen kaldırıldı — tüm branşlar her zaman gösterilir
+- Bir eğitmen 4-5 sınıfına ait tüm aktif ödev kartlarını yan yana görebilir
+
+---
+
+### 85. TaskManagementPanel — Branş Filtre Dropdown
+
+**Şablon yönetim paneline** sağ üste branş filtresi eklendi:
+- Tüm branşlar Firestore'dan yüklenir
+- "Tüm Branşlar" + her branş seçeneği
+- `visibleTemplates` hem `activeTab` hem `branchFilter` ile filtrelenir
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. TEST SONRASI — Yoklama Giriş Zaman Kilidi
+### 1. GÜVENLİK — Sentry Hata Takibi (Önerilen)
+- `npx @sentry/wizard@latest -i nextjs` ile kurulum (~10 dk)
+- Ücretsiz plan: 5.000 hata/ay — yeterli
+- Güvenlik + gözlemlenebilirlik skoru: 8.8 → 9.2
+
+### 2. GÜVENLİK — Upstash Redis Rate Limiting (İleride)
+- Şu an in-memory (per-instance) — Vercel serverless'ta her instance ayrı sayar
+- Upstash Redis ile gerçek dağıtık rate limiting
+- 50 eğitmen + 500 öğrenci yükünde gerekli hale gelebilir
+
+### 3. TEST SONRASI — Yoklama Giriş Zaman Kilidi
 - Ders başlamadan 15dk önce kilitle, ders bitiminden 30dk sonra kapat
 - Pencere dışında: sadece admin düzenleyebilir
 
-### 2. İLERİDE — Sertifika PDF + Dağıtım
+### 4. İLERİDE — Sertifika PDF + Dağıtım
 - Finalize sonrası sertifika belgesi üretilecek
 - Altyapı hazır: `react-pdf` + `send-kitap` pattern'i kullanılabilir
 - Şablon tasarımı kararlaştırılacak — acelesi yok
 
-### 3. İLERİDE — Dashboard Hızlı Yoklama Widget
+### 5. İLERİDE — Dashboard Hızlı Yoklama Widget
 - `/attend?groupId=xxx` shortcut kartı
 
 ### ✅ TAMAMLANDI
@@ -1005,3 +1196,9 @@ Arşiv/
 - StudentForm isOnlineStudent toggle → §64
 - AttendancePanel StudentDetailModal → §65–§67
 - Grading "Not Ayarları" sekmesi → §68
+- Güvenlik sertleştirme (Blok A + rate limiting + CSP/HSTS) → §76–§78
+- Bug fix: silinen grup / e-posta çakışması → §79
+- Bug fix: avatar/cinsiyet form reset → §80
+- Bug fix: Tab navigasyonu → §81
+- Bug fix: aktivasyon maili Authorization header → §82
+- Ödev branş filtresi (şablon ↔ grup eşleştirmesi) → §83–§85

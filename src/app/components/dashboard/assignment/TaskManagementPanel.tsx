@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import {
   Plus, Edit2, Trash2, MoreHorizontal, X, CheckCircle2,
-  CalendarDays, AlertTriangle, Check,
+  CalendarDays, AlertTriangle, Check, ChevronDown,
 } from "lucide-react";
 import ScoringSettingsPanel from "../scoring/ScoringSettingsPanel";
 import { Task } from "./taskTypes";
@@ -387,6 +387,8 @@ export default function TaskManagementPanel() {
   // Templates
   const [templates, setTemplates] = useState<Task[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [allBranches, setAllBranches] = useState<{ id: string; name: string }[]>([]);
 
   // Tasks
   const [activeTasks, setActiveTasks] = useState<Task[]>([]);
@@ -435,6 +437,12 @@ export default function TaskManagementPanel() {
       setTemplatesLoading(false);
     });
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    getDocs(collection(db, "branches"))
+      .then(snap => setAllBranches(snap.docs.map(d => ({ id: d.id, name: d.data().name as string }))))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -632,9 +640,10 @@ export default function TaskManagementPanel() {
   const innerTabs = allTabs.filter(t => isAdmin() || !t.adminOnly);
 
   // Şablonlar: eğitmen sadece kendi kişisel şablonlarını görür
-  const visibleTemplates = isAdmin()
+  const visibleTemplates = (isAdmin()
     ? templates
-    : templates.filter(t => t.scope === "personal" && t.createdBy === user?.uid);
+    : templates.filter(t => t.scope === "personal" && t.createdBy === user?.uid)
+  ).filter(t => branchFilter === "all" || t.discipline === branchFilter);
 
   const enrichedActive   = activeTasks.map(enrichTask);
   const enrichedArchived = archivedTasks.map(enrichTask);
@@ -689,12 +698,29 @@ export default function TaskManagementPanel() {
                   : "Kişisel ödev şablonlarını oluştur ve yönet."}
               </p>
             </div>
-            <button
-              onClick={openTemplateCreate}
-              className="flex items-center gap-2 px-5 py-3 bg-base-primary-900 text-white rounded-2xl text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer shadow-sm"
-            >
-              <Plus size={15} /> Yeni Şablon Oluştur
-            </button>
+            <div className="flex items-center gap-3">
+              {allBranches.length > 0 && (
+                <div className="relative">
+                  <select
+                    value={branchFilter}
+                    onChange={e => setBranchFilter(e.target.value)}
+                    className="h-10 pl-4 pr-9 rounded-xl border border-surface-200 bg-surface-50 text-[13px] font-semibold text-surface-700 outline-none focus:border-base-primary-400 cursor-pointer appearance-none"
+                  >
+                    <option value="all">Tüm Branşlar</option>
+                    {allBranches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+                </div>
+              )}
+              <button
+                onClick={openTemplateCreate}
+                className="flex items-center gap-2 px-5 py-3 bg-base-primary-900 text-white rounded-2xl text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer shadow-sm"
+              >
+                <Plus size={15} /> Yeni Şablon Oluştur
+              </button>
+            </div>
           </div>
 
           {/* Şablon listesi */}

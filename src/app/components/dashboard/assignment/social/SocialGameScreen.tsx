@@ -8,7 +8,7 @@ import {
   getDocs, query, where, updateDoc, serverTimestamp,
 } from "firebase/firestore";
 import { ArrowLeft, Smartphone, Check, Mail, ChevronRight } from "lucide-react";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import type { Student, TaskData, StudentDraw } from "../shared/types";
 import SharedStudentPanel from "../shared/StudentPanel";
 import { SlotReel } from "./SlotReel";
@@ -358,10 +358,11 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
           date:          todayTR(),
         };
         generateSocialPdf(pdfData)
-          .then(pdfBase64 =>
-            fetch("/api/send-sosyal", {
+          .then(async pdfBase64 => {
+            const mailToken = await auth.currentUser?.getIdToken();
+            return fetch("/api/send-sosyal", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${mailToken ?? ""}` },
               body: JSON.stringify({
                 to:             student.email,
                 studentName:    `${student.name} ${student.lastName}`,
@@ -372,8 +373,8 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                 taskName:       task.name,
                 studentId:      student.id,
               }),
-            })
-          )
+            });
+          })
           .then(async res => {
             if (res.ok) {
               setMailStatus("sent");

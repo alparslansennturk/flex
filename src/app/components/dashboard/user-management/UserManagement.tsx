@@ -212,11 +212,13 @@ export default function UserManagement() {
             await deleteApp(secondaryApp);
 
             // Hoş geldiniz maili — geçici şifre sadece mail ile iletilir, DB'ye yazılmaz
-            fetch("/api/welcome", {
+            auth.currentUser?.getIdToken().then(token =>
+              fetch("/api/welcome", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ email: data.email, name: data.name, tempPass }),
-            }).catch((err) => console.error("[UserManagement] Mail gönderilemedi:", err));
+              })
+            ).catch((err) => console.error("[UserManagement] Mail gönderilemedi:", err));
         }
 
         setIsSuccess(true);
@@ -318,10 +320,25 @@ export default function UserManagement() {
                     setLoading(true);
                     try {
                         if (modalConfig.isStudent) {
+                            // authUid'yi al — Firebase Auth + users doc temizliği için
+                            const studentSnap = await import("firebase/firestore").then(m =>
+                              m.getDoc(doc(db, "students", modalConfig.userId))
+                            );
+                            const authUid = studentSnap.data()?.authUid as string | undefined;
                             await deleteDoc(doc(db, "students", modalConfig.userId));
+                            if (authUid) {
+                              const delToken = await auth.currentUser?.getIdToken();
+                              await fetch("/api/delete-user", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${delToken ?? ""}` },
+                                body: JSON.stringify({ uid: authUid }),
+                              }).catch(() => {}); // Auth kaydı yoksa sessizce geç
+                              await deleteDoc(doc(db, "users", authUid)).catch(() => {});
+                            }
                             setStudents(prev => prev.filter(s => s.id !== modalConfig.userId));
                         } else {
-                            await fetch('/api/delete-user', { method: 'POST', body: JSON.stringify({ uid: modalConfig.userId }), headers: { 'Content-Type': 'application/json' } });
+                            const delToken = await auth.currentUser?.getIdToken();
+                            await fetch('/api/delete-user', { method: 'POST', body: JSON.stringify({ uid: modalConfig.userId }), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${delToken ?? ""}` } });
                             await deleteDoc(doc(db, "users", modalConfig.userId));
                             setUsers(prev => prev.filter(u => u.id !== modalConfig.userId));
                         }

@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
+import { verifyRequestToken } from "@/app/lib/submission-validation";
 
 export async function GET(req: NextRequest) {
+  const caller = await verifyRequestToken(req);
+  if (!caller || caller.role !== "admin") {
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type"); // "mail" | "score"
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendOTPEmail } from "@/app/services/emailService";
+import { isRateLimited } from "@/app/lib/rate-limit";
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -8,6 +9,15 @@ function generateOTP(): string {
 // TODO: İleride 2FA akışı kurulursa buraya Firestore yazma + PATCH doğrulama geri eklenecek.
 
 export async function POST(req: NextRequest) {
+  const secret = req.headers.get("x-internal-secret");
+  if (secret !== process.env.ADMIN_SECRET) {
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+  }
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  if (isRateLimited(`otp:${ip}`, 5, 10 * 60 * 1000))
+    return NextResponse.json({ error: "Çok fazla OTP isteği. 10 dakika bekleyin." }, { status: 429 });
+
   try {
     const { email, name } = await req.json();
 

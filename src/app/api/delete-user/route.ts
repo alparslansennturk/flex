@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import * as admin from 'firebase-admin';
+import { verifyRequestToken } from '@/app/lib/submission-validation';
+import { isRateLimited } from '@/app/lib/rate-limit';
 
 // --- BU KISIM KUTSALDIR, DOKUNULMADI ---
 const initializeAdmin = () => {
@@ -30,7 +32,16 @@ const initializeAdmin = () => {
 };
 
 // --- GÜNCELLENMİŞ POST FONKSİYONU ---
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+    const caller = await verifyRequestToken(request);
+    if (!caller || caller.role !== "admin") {
+        return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+    }
+
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+    if (isRateLimited(`delete-user:${ip}`, 20, 60 * 60 * 1000))
+        return NextResponse.json({ error: "Çok fazla istek. Lütfen bekleyin." }, { status: 429 });
+
     initializeAdmin();
 
     if (!admin.apps.length) {

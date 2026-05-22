@@ -62,17 +62,13 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
     return () => clearTimeout(t);
   }, [shake]);
 
-  // Branş listesini yükle — yeni şablon oluşturulurken (admin: tüm branşlar, eğitmen: kendi branşları)
+  // Branş listesini yükle — şablon oluştururken veya düzenlerken
   useEffect(() => {
-    if (targetCollection !== "templates" || editingTask || sourceTemplateId) return;
+    if (targetCollection !== "templates" || sourceTemplateId) return;
     getDocs(collection(db, "branches")).then(snap => {
       const all = snap.docs.map(d => ({ id: d.id, name: d.data().name as string }));
-      if (isAdmin()) {
-        setBranchList(all);
-      } else {
-        const userBranchIds = user?.branches ?? (user?.branch ? [user.branch] : []);
-        setBranchList(all.filter(b => userBranchIds.includes(b.id)));
-      }
+      const userBranchIds: string[] = (user as any)?.branches ?? ((user as any)?.branch ? [(user as any).branch] : []);
+      setBranchList(userBranchIds.length > 0 ? all.filter(b => userBranchIds.includes(b.id)) : all);
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -95,7 +91,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
     const newErrors: Record<string, boolean> = {};
     if (!name.trim()) newErrors.name = true;
     if (targetCollection === "templates" && !sourceTemplateId && isGrafikDiscipline && !module) newErrors.module = true;
-    if (targetCollection === "templates" && !editingTask && !sourceTemplateId && !templateDiscipline) newErrors.discipline = true;
+    if (targetCollection === "templates" && !sourceTemplateId && !templateDiscipline) newErrors.discipline = true;
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setShake(true);
@@ -219,8 +215,8 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
                 />
               </div>
 
-              {/* Branş seçimi — Kart adından hemen sonra, yeni şablon için her zaman görünür */}
-              {!editingTask && branchList.length > 0 && (
+              {/* Branş seçimi — yeni ve mevcut şablonlarda görünür */}
+              {branchList.length > 0 && (
                 <div className="col-span-2 space-y-1.5">
                   <label className={`${labelCls} ${errors.discipline ? "text-red-500" : ""}`}>
                     Branş <span className="font-normal text-red-400">*</span>

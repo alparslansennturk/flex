@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import { collection, getDocs, doc, getDoc, query, where, updateDoc } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
@@ -622,7 +622,8 @@ function AttachmentManager({ taskId, initialUrl, initialName, initialType, group
       if (instructorName) segments.push(instructorName);
       if (taskName)       segments.push(taskName);
       fd.append("folderPath", JSON.stringify(segments));
-      const res  = await fetch("/api/upload", { method: "POST", body: fd });
+      const uploadToken = await auth.currentUser?.getIdToken();
+      const res  = await fetch("/api/upload", { method: "POST", body: fd, headers: { Authorization: `Bearer ${uploadToken ?? ""}` } });
       const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Yükleme başarısız");
       await save("upload", data.webViewLink!, data.fileName ?? file.name);

@@ -7,7 +7,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { doc, onSnapshot, setDoc, getDoc, addDoc, collection, serverTimestamp, getDocs, query, where, updateDoc } from "firebase/firestore";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS } from "@/app/lib/constants";
 import type { CollagePool, CollageItem } from "../pool/poolTypes";
@@ -140,9 +140,10 @@ function FinalOverlay({
         draws:           draw.draws,
         deadline,
       });
+      const mailToken = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/send-kolaj", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${mailToken ?? ""}` },
         body: JSON.stringify({
           to:              student.email,
           studentName:     student.name,
@@ -548,10 +549,11 @@ export default function GameScreen({
           taskName:        task.name,
           draws:           completedDraw.draws,
           deadline,
-        }).then(pdfBase64 =>
-          fetch("/api/send-kolaj", {
+        }).then(async pdfBase64 => {
+          const kolajToken = await auth.currentUser?.getIdToken();
+          return fetch("/api/send-kolaj", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${kolajToken ?? ""}` },
             body: JSON.stringify({
               to:              selectedStudent.email,
               studentName:     selectedStudent.name,
@@ -562,8 +564,8 @@ export default function GameScreen({
               pdfBase64,
               groupName:       groupCode,
             }),
-          })
-        ).then(() => setAutoMailSentFor(prev => new Set([...prev, sid])))
+          });
+        }).then(() => setAutoMailSentFor(prev => new Set([...prev, sid])))
           .catch(console.error);
       }
 

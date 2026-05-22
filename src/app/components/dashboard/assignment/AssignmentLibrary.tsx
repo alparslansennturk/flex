@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { LibraryBig, ChevronLeft, ChevronRight, PlusCircle, MoreHorizontal, User, Globe, Sparkles } from "lucide-react";
+import { LibraryBig, ChevronLeft, ChevronRight, PlusCircle, MoreHorizontal, User, Globe, Sparkles, ChevronDown } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where } from "firebase/firestore";
 import { auth } from "@/app/lib/firebase";
@@ -93,18 +93,33 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
 }
 
 // ---- ANA BİLEŞEN ----
-export default function AssignmentLibrary({ scrollRef, handleScroll, activeBranch = "all" }: any) {
+export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
   const [templates, setTemplates]             = useState<Task[]>([]);
   const [activeTab, setActiveTab]             = useState<LibraryTab>("personal");
   const [hasOverflow, setHasOverflow]         = useState(false);
   const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
-  const { user } = useUser();
+  const [activeBranch, setActiveBranch]       = useState("all");
+  const [branchOptions, setBranchOptions]     = useState<{ id: string; name: string }[]>([]);
+  const { user, isAdmin } = useUser();
 
   useEffect(() => {
     return onSnapshot(collection(db, "templates"), snap => {
       setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
     });
   }, []);
+
+  // Branş listesini yükle — şablon filtrelemesi için
+  useEffect(() => {
+    if (!user) return;
+    getDocs(collection(db, "branches")).then(snap => {
+      const all = snap.docs.map(d => ({ id: d.id, name: d.data().name as string }));
+      const userBranchIds: string[] = (user as any).branches ?? ((user as any).branch ? [(user as any).branch] : []);
+      const options = userBranchIds.length > 0 ? all.filter(b => userBranchIds.includes(b.id)) : all;
+      setBranchOptions(options);
+      // Otomatik seç: tek branş varsa direkt, birden fazlaysa ilkini varsayılan yap
+      if (options.length >= 1) setActiveBranch(options[0].id);
+    }).catch(() => {});
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const el = scrollRef?.current;
@@ -142,21 +157,39 @@ export default function AssignmentLibrary({ scrollRef, handleScroll, activeBranc
           <LibraryBig size={22} />
           <h3 className="text-[22px] font-bold text-[#5C6370] cursor-default">Ödev kütüphanesi</h3>
         </div>
-        <div className="flex items-center bg-[#F7F8FA] p-1 rounded-xl border border-[#EEF0F3] gap-0.5">
-          {TAB_CONFIG.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[10px] text-[12px] font-bold transition-all cursor-pointer outline-none select-none ${
-                activeTab === tab.key
-                  ? "bg-white text-[#10294C] shadow-sm border border-[#EEF0F3]"
-                  : "text-[#8E95A3] hover:text-[#10294C]"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          {/* Branş filtresi — birden fazla branş varsa göster */}
+          {branchOptions.length > 1 && (
+            <div className="relative">
+              <select
+                value={activeBranch}
+                onChange={e => setActiveBranch(e.target.value)}
+                className="h-9 pl-4 pr-9 rounded-[12px] border border-[#EEF0F3] bg-[#F7F8FA] text-[13px] font-semibold text-[#5C6370] outline-none focus:border-orange-400 cursor-pointer appearance-none"
+              >
+                <option value="all">Tüm Branşlar</option>
+                {branchOptions.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E95A3] pointer-events-none" />
+            </div>
+          )}
+          <div className="flex items-center bg-[#F7F8FA] p-1 rounded-xl border border-[#EEF0F3] gap-0.5">
+            {TAB_CONFIG.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[10px] text-[12px] font-bold transition-all cursor-pointer outline-none select-none ${
+                  activeTab === tab.key
+                    ? "bg-white text-[#10294C] shadow-sm border border-[#EEF0F3]"
+                    : "text-[#8E95A3] hover:text-[#10294C]"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -193,6 +226,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll, activeBranc
           templateLevel={assignModalTask.level}
           templateScope={assignModalTask.scope}
           templateSubtitle={assignModalTask.description || assignModalTask.subtitle || ""}
+          templateDiscipline={assignModalTask.discipline ?? null}
           onConfirm={async (selections: AssignSelection[]) => {
             const t = assignModalTask;
             for (const { classId, groupId, groupBranch, groupModule, level, endDate, customSubtitle, attachmentUrl, attachmentName, attachmentType } of selections) {

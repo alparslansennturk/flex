@@ -74,7 +74,10 @@ function MailLogsTab() {
     setLoading(true);
     setSelected(new Set());
     try {
-      const res = await fetch("/api/admin/logs?type=mail");
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/logs?type=mail", {
+        headers: { Authorization: `Bearer ${token ?? ""}` },
+      });
       const data = await res.json();
       const fetched: MailLog[] = data.logs ?? [];
       setLogs(fetched);
@@ -133,10 +136,11 @@ function MailLogsTab() {
     if (selected.size === 0) return;
     setDeletingMany(true);
     try {
+      const token = await auth.currentUser?.getIdToken();
       const ids = Array.from(selected);
       await fetch("/api/admin/logs/delete-many", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({ ids, type: "mail" }),
       });
       setLogs(prev => prev.filter(l => !selected.has(l.id)));
@@ -289,7 +293,10 @@ function ScoreLogsTab() {
     setLoading(true);
     setSelected(new Set());
     try {
-      const res = await fetch("/api/admin/logs?type=score");
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/logs?type=score", {
+        headers: { Authorization: `Bearer ${token ?? ""}` },
+      });
       const data = await res.json();
       setLogs(data.logs ?? []);
     } catch {
@@ -320,9 +327,10 @@ function ScoreLogsTab() {
   const handleDeleteOne = async (id: string) => {
     setDeleting(id);
     try {
+      const token = await auth.currentUser?.getIdToken();
       await fetch("/api/admin/logs/delete-one", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({ id, type: "score" }),
       });
       setLogs(prev => prev.filter(l => l.id !== id));
@@ -336,10 +344,11 @@ function ScoreLogsTab() {
     if (selected.size === 0) return;
     setDeletingMany(true);
     try {
+      const token = await auth.currentUser?.getIdToken();
       const ids = Array.from(selected);
       await fetch("/api/admin/logs/delete-many", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({ ids, type: "score" }),
       });
       setLogs(prev => prev.filter(l => !selected.has(l.id)));
