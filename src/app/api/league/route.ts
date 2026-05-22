@@ -25,7 +25,7 @@ export async function GET() {
     const students = studentsSnap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
-    }));
+    })) as Array<{ id: string; groupId?: string } & Record<string, unknown>>;
 
     const tasks = tasksSnap.docs.map((d) => {
       const data = d.data();
