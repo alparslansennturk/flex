@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-    if (isRateLimited(`delete-user:${ip}`, 20, 60 * 60 * 1000))
+    if (await isRateLimited(`delete-user:${ip}`, 20, 60 * 60 * 1000))
         return NextResponse.json({ error: "Çok fazla istek. Lütfen bekleyin." }, { status: 429 });
 
     initializeAdmin();
@@ -73,8 +73,9 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ message: 'Başarıyla silindi' });
 
-    } catch (error: any) {
-        console.error("❌ API Hatası:", error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("❌ API Hatası:", message);
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

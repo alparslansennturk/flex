@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  if (isRateLimited(`otp:${ip}`, 5, 10 * 60 * 1000))
+  if (await isRateLimited(`otp:${ip}`, 5, 10 * 60 * 1000))
     return NextResponse.json({ error: "Çok fazla OTP isteği. 10 dakika bekleyin." }, { status: 429 });
 
   try {

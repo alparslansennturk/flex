@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  if (isRateLimited(`welcome:${ip}`, 30, 60 * 60 * 1000))
+  if (await isRateLimited(`welcome:${ip}`, 30, 60 * 60 * 1000))
     return NextResponse.json({ error: "Çok fazla istek. Lütfen bekleyin." }, { status: 429 });
 
   try {

@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
   }
 
-  if (isRateLimited(`send-kolaj:${caller.uid}`, 20, 60 * 60 * 1000))
+  if (await isRateLimited(`send-kolaj:${caller.uid}`, 20, 60 * 60 * 1000))
     return NextResponse.json({ error: "Çok fazla istek. Lütfen bekleyin." }, { status: 429 });
 
   try {

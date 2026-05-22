@@ -6,7 +6,7 @@ import { isRateLimited } from "@/app/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  if (isRateLimited(`activation:${ip}`, 10, 15 * 60 * 1000))
+  if (await isRateLimited(`activation:${ip}`, 10, 15 * 60 * 1000))
     return NextResponse.json({ error: "Çok fazla deneme. 15 dakika bekleyin." }, { status: 429 });
 
   try {

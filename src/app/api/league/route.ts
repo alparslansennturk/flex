@@ -13,7 +13,7 @@ export async function GET() {
       adminDb.collection("settings").doc("scoring").get(),
     ]);
 
-    const sd = scoringSnap.exists ? (scoringSnap.data() as Record<string, any>) : null;
+    const sd = scoringSnap.exists ? scoringSnap.data() : null;
     const scoringSettings = {
       leaderboard:        { ...DEFAULT_SCORING.leaderboard,        ...(sd?.leaderboard        ?? {}) },
       certificateWeights: { ...DEFAULT_SCORING.certificateWeights, ...(sd?.certificateWeights ?? {}) },
@@ -63,7 +63,7 @@ export async function GET() {
     });
 
     const filteredStudents = excludedGroupIds.size > 0
-      ? students.filter((s: any) => !excludedGroupIds.has(s.groupId))
+      ? students.filter((s) => !excludedGroupIds.has(s.groupId))
       : students;
 
     return NextResponse.json({ students: filteredStudents, tasks, groups, scoringSettings, activeSeasonId });

@@ -79,8 +79,9 @@ export async function GET() {
       detailUrl:  `/dashboard/assignment/${group.id}/${task.id}/${submissionRef.id}/preview`,
       studentPortalUrl: `/student/${student.id}`,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -99,7 +100,8 @@ export async function DELETE() {
     await batch.commit();
 
     return NextResponse.json({ message: `${snap.size} test submission silindi.` });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

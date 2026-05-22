@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-    if (isRateLimited(`resend:${ip}`, 10, 15 * 60 * 1000))
+    if (await isRateLimited(`resend:${ip}`, 10, 15 * 60 * 1000))
       return NextResponse.json({ error: "Çok fazla istek. 15 dakika bekleyin." }, { status: 429 });
 
     const body = await req.json() as { studentDocId?: unknown };
