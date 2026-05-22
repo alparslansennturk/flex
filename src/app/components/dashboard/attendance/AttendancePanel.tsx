@@ -181,6 +181,26 @@ function formatMonthDisplay(d: Date) {
 function shiftDate(d: Date, delta: number)  { const n = new Date(d); n.setDate(n.getDate() + delta); return n; }
 function shiftMonth(d: Date, delta: number) { const n = new Date(d); n.setDate(1); n.setMonth(n.getMonth() + delta); return n; }
 
+// Session string'inden saat aralığını parse eder: "Pts - Çar | 19.00 - 21.30" → { start: 1140, end: 1290 } (dakika cinsinden)
+function parseSessionTime(session: string): { start: number; end: number } | null {
+  const match = session.match(/(\d{1,2})[.:](\d{2})\s*[-–]\s*(\d{1,2})[.:](\d{2})/);
+  if (!match) return null;
+  return {
+    start: parseInt(match[1]) * 60 + parseInt(match[2]),
+    end:   parseInt(match[3]) * 60 + parseInt(match[4]),
+  };
+}
+
+// Pencere sabitleri
+const WINDOW_BEFORE_MIN = 30;   // ders başlamadan kaç dk önce açılır
+const WINDOW_AFTER_MIN  = 180;  // ders bittikten kaç dk sonraya kadar açık kalır
+
+function fmtMins(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 // ── Avatar color palette ──────────────────────────────────────────────────────
 const AVATAR_COLORS = [
   "bg-base-primary-100 text-base-primary-700",
@@ -799,6 +819,22 @@ export default function AttendancePanel({
     : false;
   const canEdit = allowEdit && (!attendanceClosed || withinEditWindow);
 
+  // Giriş zaman kilidi: ders başlamadan WINDOW_BEFORE_MIN dk önce açılır, bittikten WINDOW_AFTER_MIN dk sonra kapanır.
+  // Sadece bugün için geçerli; admin, allowEdit veya zaten başlatılmış ders için devre dışı.
+  const sessionTimeRange = selectedGroup?.session ? parseSessionTime(selectedGroup.session) : null;
+  const isWithinTimeWindow: boolean = (() => {
+    if (isAdmin() || allowEdit || !isToday || !sessionTimeRange || existingDoc) return true;
+    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+    return nowMins >= sessionTimeRange.start - WINDOW_BEFORE_MIN &&
+           nowMins <= sessionTimeRange.end   + WINDOW_AFTER_MIN;
+  })();
+  // Banner için: açılma saati ve kapanma saati
+  const windowOpenStr  = sessionTimeRange ? fmtMins(sessionTimeRange.start - WINDOW_BEFORE_MIN) : null;
+  const windowCloseStr = sessionTimeRange ? fmtMins(sessionTimeRange.end   + WINDOW_AFTER_MIN)  : null;
+  const isBeforeWindow = sessionTimeRange
+    ? (new Date().getHours() * 60 + new Date().getMinutes()) < sessionTimeRange.start - WINDOW_BEFORE_MIN
+    : false;
+
   // Yoklama Al ekranında geçmiş tarih kaydı VEYA kapatılmış+pencere dolmuş → salt okunur
   const isReadonlyView =
     (attendanceClosed && !canEdit) ||
@@ -1375,6 +1411,18 @@ export default function AttendancePanel({
                     </div>
                   )}
 
+                  {/* Zaman kilidi banner'ı — ders saati penceresinin dışında, yeni kayıt yok */}
+                  {!isWithinTimeWindow && isToday && !existingDoc && !exception && showAttendanceUI && !isAdmin() && (
+                    <div className="mx-5 mt-4 mb-1 px-4 py-3 rounded-xl flex items-center gap-2 text-[13px] font-semibold bg-surface-50 border border-surface-200 text-text-secondary shrink-0">
+                      <Clock size={14} className="shrink-0 text-text-placeholder" />
+                      {isBeforeWindow && windowOpenStr
+                        ? `Yoklama ${windowOpenStr}'den itibaren alınabilir.`
+                        : windowCloseStr
+                        ? `Yoklama alma süresi sona erdi (${windowCloseStr}'de kapandı).`
+                        : "Yoklama için ders saati bekleniyor."}
+                    </div>
+                  )}
+
                   {/* Sınıf Geneli quick-mark */}
                   {showAttendanceUI && students.length > 0 && !exception && (
                     <div className={`px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50 ${isReadonlyView ? "pointer-events-none opacity-40" : ""}`}>
@@ -1392,7 +1440,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
-                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView) ? "opacity-60 pointer-events-none select-none" : ""}`}>
+                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView || (!isWithinTimeWindow && !existingDoc)) ? "opacity-60 pointer-events-none select-none" : ""}`}>
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
                         <Users size={28} strokeWidth={1.5} />
@@ -1552,9 +1600,9 @@ export default function AttendancePanel({
                               <CalendarCheck size={13} /> Bu tarih için kayıt yok
                             </button>
                           ) : (
-                            <button onClick={handleStartLesson} disabled={!isActiveForDate}
+                            <button onClick={handleStartLesson} disabled={!isActiveForDate || !isWithinTimeWindow}
                               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
-                              <Play size={13} /> Dersi Başlat
+                              {!isWithinTimeWindow ? <Lock size={13} /> : <Play size={13} />} Dersi Başlat
                             </button>
                           )
                         ) : !saved ? (
