@@ -5,6 +5,9 @@
       "args": [
         "cursor-talk-to-figma-mcp@latest"
       ]
+    },
+    "Sentry": {
+      "url": "https://mcp.sentry.dev/mcp/flexos-hn/javascript-nextjs"
     }
   }
 }

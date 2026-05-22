@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const ContentSecurityPolicy = [
@@ -23,6 +24,8 @@ const ContentSecurityPolicy = [
     "wss://*.vercel.com",
     "https://vercel.live",
     "wss://vercel.live",
+    "https://*.sentry.io",
+    "https://*.ingest.sentry.io",
   ].join(" "),
   // Google Drive iframe önizleme
   "frame-src 'self' https://drive.google.com https://docs.google.com https://accounts.google.com",
@@ -83,4 +86,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: "flexos-hn",
+  project: "javascript-nextjs",
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  webpack: {
+    automaticVercelMonitors: true,
+    treeshake: { removeDebugLogging: true },
+  },
+});
