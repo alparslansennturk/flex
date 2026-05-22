@@ -63,7 +63,7 @@ export async function GET() {
     });
 
     const filteredStudents = excludedGroupIds.size > 0
-      ? students.filter((s) => !excludedGroupIds.has(s.groupId))
+      ? students.filter((s) => !excludedGroupIds.has(s.groupId ?? ""))
       : students;
 
     return NextResponse.json({ students: filteredStudents, tasks, groups, scoringSettings, activeSeasonId });
