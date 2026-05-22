@@ -1219,24 +1219,49 @@ return hasEntries || wasStarted;
 
 ---
 
+## Oturum: 2026-05-22 (Devam 2) — Upstash Redis + TypeScript Temizliği
+
+### 89. Upstash Redis — Dağıtık Rate Limiting
+
+- `@upstash/redis` + `@upstash/ratelimit` kuruldu
+- `src/app/lib/rate-limit.ts` tamamen yeniden yazıldı:
+  - Upstash `slidingWindow` algoritması
+  - `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` env var'ları ile çalışır
+  - Env var yoksa (local dev) in-memory fallback devreye girer — eski davranış korunur
+  - Ratelimit instance'ları `(limit, windowMs)` kombinasyonuna göre cache'lenir
+- 9 API route'a `await` eklendi (`isRateLimited` artık async)
+- Upstash console → Metrics'te komutların sayıldığı doğrulandı
+- Vercel env var'larına `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` eklendi
+- **Güvenlik skoru: 9.2 → 9.5 / 10**
+
+**Upstash DB:** `flexos` — AWS eu-west-1 (Frankfurt), Free tier (10.000 cmd/gün)
+
+### 90. TypeScript `any` Temizliği — API Route'lar
+
+- `catch (error: any)` / `catch (err: any)` → `catch (error: unknown)` pattern:
+  ```ts
+  const message = err instanceof Error ? err.message : String(err);
+  ```
+- `(s: any)` gereksiz tip annotation kaldırıldı (tip inference yeterli)
+- `scoringSnap.data() as Record<string, any>` → cast kaldırıldı (Firestore `DocumentData` zaten doğru tip)
+- **Etkilenen dosyalar:** `delete-user/route.ts`, `dev-seed/route.ts`, `league/route.ts`
+- **Sonraki oturumda:** `.tsx` dosyalarındaki 198 `any` kullanımı parça parça temizlenecek (önce hooks, sonra componentler)
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. GÜVENLİK — Sentry Hata Takibi (Önerilen)
-- `npx @sentry/wizard@latest -i nextjs` ile kurulum (~10 dk)
-- Ücretsiz plan: 5.000 hata/ay — yeterli
-- Güvenlik + gözlemlenebilirlik skoru: 8.8 → 9.2
+### 1. TypeScript `any` Temizliği — `.tsx` Dosyaları (Devam)
+- API route'lar temizlendi (§90)
+- **Kalan:** 46 dosyada 198 kullanım — önce hooks (`useManagement.ts` vb.), sonra componentler
+- Pattern: `catch (e: unknown)`, Firestore verisi için `unknown` + type guard
 
-### 2. GÜVENLİK — Upstash Redis Rate Limiting (İleride)
-- Şu an in-memory (per-instance) — Vercel serverless'ta her instance ayrı sayar
-- Upstash Redis ile gerçek dağıtık rate limiting
-- 50 eğitmen + 500 öğrenci yükünde gerekli hale gelebilir
-
-### 3. İLERİDE — Sertifika PDF + Dağıtım
+### 2. İLERİDE — Sertifika PDF + Dağıtım
 - Finalize sonrası sertifika belgesi üretilecek
 - Altyapı hazır: `react-pdf` + `send-kitap` pattern'i kullanılabilir
 - Şablon tasarımı kararlaştırılacak — acelesi yok
 
-### 4. İLERİDE — Dashboard Hızlı Yoklama Widget
+### 3. İLERİDE — Dashboard Hızlı Yoklama Widget
 - `/attend?groupId=xxx` shortcut kartı
 
 ### ✅ TAMAMLANDI
@@ -1256,3 +1281,5 @@ return hasEntries || wasStarted;
 - Sentry entegrasyonu (tracing + logs + MCP) → §86
 - Yoklama giriş zaman kilidi (30dk önce / 3 saat sonra) → §87
 - Auto-close cron bug fix (lessonStartedAt kontrolü) → §88
+- Upstash Redis dağıtık rate limiting → §89
+- TypeScript any temizliği (API route'lar) → §90
