@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
   collection, doc, setDoc, onSnapshot,
-  query, where, getDocs, deleteDoc, getDoc,
+  query, where, getDocs, deleteDoc, getDoc, Timestamp,
 } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
 import {
@@ -36,10 +36,10 @@ export interface AttendanceDoc {
   sessionHours: number;  // snapshot of group.sessionHours at time of record
   entries: Record<string, StudentEntry>;
   attendanceClosed?: boolean;
-  closedAt?: any;
-  autoClosedAt?: any;
-  createdAt?: any;
-  updatedAt?: any;
+  closedAt?: Timestamp;
+  autoClosedAt?: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface LessonException {
@@ -52,7 +52,7 @@ export interface LessonException {
   instructorId: string;
   countsAsLesson?: boolean;  // true = öğrenci kaynaklı, ders sayılır
   createdByException?: boolean;  // attendance doc otomatik oluşturulduysa
-  createdAt?: any;
+  createdAt?: Timestamp;
 }
 
 interface Branch {
@@ -72,6 +72,7 @@ interface Group {
   totalHours?: number;
   moduleId?: string;
   customHours?: number;
+  attendanceClosed?: boolean;
 }
 
 interface Student {
@@ -454,11 +455,11 @@ export default function AttendancePanel({
     return onSnapshot(q, snap => {
       const all = snap.docs
         .map(d => ({ id: d.id, ...d.data() } as Group))
-        .filter(g => !(g as any).attendanceClosed || isAdmin());
+        .filter(g => !g.attendanceClosed || isAdmin());
       if (isAdmin()) {
         setGroups(all);
       } else {
-        const branchIds: string[] = (user as any)?.branches ?? ((user as any)?.branch ? [(user as any).branch] : []);
+        const branchIds: string[] = user?.branches ?? (user?.branch ? [user.branch] : []);
         setGroups(branchIds.length > 0 ? all.filter(g => g.discipline && branchIds.includes(g.discipline)) : all);
       }
     });
@@ -715,8 +716,8 @@ export default function AttendancePanel({
         instructorId: user?.uid ?? "",
         sessionHours,
         entries,
-        updatedAt: new Date(),
-        ...(existingDoc ? {} : { createdAt: new Date() }),
+        updatedAt: Timestamp.fromDate(new Date()),
+        ...(existingDoc ? {} : { createdAt: Timestamp.fromDate(new Date()) }),
       };
       await setDoc(doc(db, "design_attendance", docId), payload, { merge: true });
       if (!hasPersistedEntries) {
