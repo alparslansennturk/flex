@@ -1249,11 +1249,31 @@ return hasEntries || wasStarted;
 
 ---
 
+---
+
+## Oturum: 2026-05-23 — League Route Güvenlik Düzeltmesi
+
+### 91. `/api/league` — Auth Koruması Eklendi
+
+**Sorun:** `league/route.ts` hiç kimlik doğrulama içermiyordu. Öğrenci login sistemi olmadan tasarlanmıştı; artık öğrenciler login olduğu için herkesin erişimine açık olmamalı.
+
+**Etkilenen dosyalar:**
+- `src/app/api/league/route.ts` → `verifyRequestToken` eklendi, token yoksa 401
+- `src/app/league/page.tsx` → `auth.authStateReady()` bekleyip token alınıyor
+- `src/app/components/student/StudentLeagueWidget.tsx` → aynı pattern, `auth` import eklendi
+
+**`authStateReady()` neden gerekli:** Firebase auth state'i sayfa yüklenince ilk anda `null` olabilir (session IndexedDB'den restore edilirken). `authStateReady()` bu geçici null'ı atlatır; token garantili doğru alınır.
+
+**Güvenlik skoru: 9.5 → 9.7 / 10**
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. TypeScript `any` Temizliği — `.tsx` Dosyaları (Devam)
 - API route'lar temizlendi (§90)
-- **Kalan:** 46 dosyada 198 kullanım — önce hooks (`useManagement.ts` vb.), sonra componentler
+- **Kalan:** 224 kullanım (106 `: any` + 118 `as any`) — önce hooks (`useManagement.ts` vb.), sonra componentler
+- En ağır dosyalar: `grading/page.tsx` (32), `StudentDetailModal.tsx` (24), `useManagement.ts` (24)
 - Pattern: `catch (e: unknown)`, Firestore verisi için `unknown` + type guard
 
 ### 2. İLERİDE — Sertifika PDF + Dağıtım

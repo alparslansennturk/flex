@@ -622,11 +622,13 @@ function LeagueContent() {
   const settings       = apiSettings  ?? ctxSettings;
   const activeSeasonId = apiSeasonId  ?? ctxSeasonId;
 
-  // ── Veri çek (API route — Admin SDK, auth gerektirmez) ────────────────────
+  // ── Veri çek ─────────────────────────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch("/api/league")
+    auth.authStateReady()
+      .then(() => auth.currentUser?.getIdToken() ?? "")
+      .then(token => fetch("/api/league", { headers: { Authorization: `Bearer ${token}` } }))
       .then(res => {
         if (!res.ok) throw new Error();
         return res.json();

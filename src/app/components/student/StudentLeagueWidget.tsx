@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import { calcStudentFinalScore, DEFAULT_SCORING, type ScoringSettings } from "@/app/lib/scoring";
+import { auth } from "@/app/lib/firebase";
 
 interface StudentEntry {
   id: string;
@@ -112,7 +113,9 @@ export default function StudentLeagueWidget({
     console.log("[LeagueWidget] groupCode:", groupCode);
     if (!groupCode) { setLoading(false); return; }
     setLoading(true);
-    fetch("/api/league")
+    auth.authStateReady()
+      .then(() => auth.currentUser?.getIdToken() ?? "")
+      .then(token => fetch("/api/league", { headers: { Authorization: `Bearer ${token}` } }))
       .then(res => res.ok ? res.json() : Promise.reject())
       .then((data: { students: any[]; tasks: any[]; scoringSettings?: ScoringSettings }) => {
         const settings = data.scoringSettings ?? DEFAULT_SCORING;

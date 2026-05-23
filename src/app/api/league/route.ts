@@ -1,10 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { DEFAULT_SCORING } from "@/app/lib/scoring";
+import { verifyRequestToken } from "@/app/lib/submission-validation";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await verifyRequestToken(req);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const [studentsSnap, tasksSnap, groupsSnap, scoringSnap] = await Promise.all([
       adminDb.collection("students").where("status", "==", "active").get(),
