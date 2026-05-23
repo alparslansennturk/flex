@@ -42,6 +42,7 @@ interface UserData {
   email: string;
   phone: string;
   branch: string;
+  branches?: string[];
   gender: 'male' | 'female' | '';
   title: string;
   avatarId: number;
@@ -51,17 +52,41 @@ interface UserData {
   birthDate?: string;
 }
 
+interface StudentUser {
+  id: string;
+  status?: string;
+  graduatedBy?: string;
+  groupCode?: string;
+  authUid?: string;
+  accountStatus?: string;
+}
+
+interface BranchDoc {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+type ModalType = "archive" | "delete" | "restore" | "student-delete" | "bulk-delete" | null;
+
+interface ModalConfig {
+  isOpen: boolean;
+  type: ModalType;
+  userId: string;
+  isStudent: boolean;
+}
+
 export default function UserManagement() {
     const [activeTab, setActiveTab] = useState<'users' | 'students'>(() =>
         (sessionStorage.getItem("usermgmt_active_tab") as 'users' | 'students') ?? 'users'
     );
     const [isFormOpen, setIsUserFormOpen] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [users, setUsers] = useState<any[]>([]);
-    const [students, setStudents] = useState<any[]>([]);
-    const [branches, setBranches] = useState<any[]>([]);
+    const [users, setUsers] = useState<UserData[]>([]);
+    const [students, setStudents] = useState<StudentUser[]>([]);
+    const [branches, setBranches] = useState<BranchDoc[]>([]);
     const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
-    const [editingStudent, setEditingStudent] = useState<any | null>(null);
+    const [editingStudent, setEditingStudent] = useState<StudentUser | null>(null);
     const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
     const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
     const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean>>({});
@@ -69,7 +94,7 @@ export default function UserManagement() {
     const [errors, setErrors] = useState<Record<string, boolean>>({});
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
-    const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: null, userId: "", isStudent: false });
+    const [modalConfig, setModalConfig] = useState<ModalConfig>({ isOpen: false, type: null, userId: "", isStudent: false });
     const [avatarId, setAvatarId] = useState<number>(1);
     const [shake, setShake] = useState(false);
     const [formKey, setFormKey] = useState(0);
@@ -77,23 +102,23 @@ export default function UserManagement() {
     useEffect(() => {
         const q = query(collection(db, "users"));
         return onSnapshot(q, (snapshot) => {
-            const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setUsers(allUsers.filter((u: any) => u.id !== MASTER_ID));
+            const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserData));
+            setUsers(allUsers.filter(u => u.id !== MASTER_ID));
         }, (error) => console.error("Firebase Hatası:", error));
     }, []);
 
     useEffect(() => {
         const q = query(collection(db, "branches"));
         return onSnapshot(q, (snapshot) => {
-            setBranches(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+            setBranches(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as BranchDoc)));
         }, (error) => console.error("Firebase Hatası:", error));
     }, []);
 
     useEffect(() => {
         const q = query(collection(db, "students"));
         return onSnapshot(q, (snapshot) => {
-            const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            setStudents(all.filter((s: any) =>
+            const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentUser));
+            setStudents(all.filter(s =>
                 s.status !== 'passive' &&
                 !s.graduatedBy &&
                 !(typeof s.groupCode === 'string' && s.groupCode.startsWith('Mezun'))
@@ -101,7 +126,7 @@ export default function UserManagement() {
         }, (error) => console.error("Firebase Hatası:", error));
     }, []);
 
-    const handleStudentToggle = async (student: any) => {
+    const handleStudentToggle = async (student: StudentUser) => {
         if (!student.authUid) return;
         const action = student.accountStatus === "disabled" ? "enable" : "disable";
         try {
@@ -115,12 +140,12 @@ export default function UserManagement() {
         } catch (err) { console.error(err); }
     };
 
-    const handleStudentEditClick = (student: any) => {
+    const handleStudentEditClick = (student: StudentUser) => {
         setEditingStudent(student);
         setIsStudentFormOpen(true);
     };
 
-    const handleResendActivation = async (student: any) => {
+    const handleResendActivation = async (student: StudentUser) => {
         try {
             const token = await auth.currentUser?.getIdToken();
             const res = await fetch("/api/resend-activation", {
@@ -136,7 +161,7 @@ export default function UserManagement() {
     setEditingUser(user);
     setSelectedRoles(user.roles || []);
     setPermissionOverrides(user.permissionOverrides || {});
-    setSelectedBranches((user as any).branches || []);
+    setSelectedBranches(user.branches || []);
     const savedAvatarId = typeof user.avatarId === 'number' ? user.avatarId : Number(user.avatarId || 1);
     setAvatarId(savedAvatarId);
     setIsUserFormOpen(true);
@@ -177,7 +202,7 @@ export default function UserManagement() {
     const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); setErrors({});
     const formData = new FormData(e.currentTarget);
-    const data: any = Object.fromEntries(formData.entries());
+    const data = Object.fromEntries(formData.entries()) as Record<string, string>;
 
     let newErrors: Record<string, boolean> = {};
     if (!data.name) newErrors.name = true; if (!data.surname) newErrors.surname = true;
@@ -223,12 +248,12 @@ export default function UserManagement() {
 
         setIsSuccess(true);
         setTimeout(() => { setIsUserFormOpen(false); setEditingUser(null); setErrors({}); setPermissionOverrides({}); setSelectedRoles([]); setSelectedBranches([]); setIsSuccess(false); }, 1000);
-    } catch (err: any) { console.error("Hata:", err); setErrors({ firebaseError: true }); } finally { setLoading(false); }
+    } catch (err: unknown) { console.error("Hata:", err); setErrors({ firebaseError: true }); } finally { setLoading(false); }
 };
 
     const roleDropdownRef = useRef<HTMLDivElement>(null);
 
-    const staffUsers = users.filter((u: any) => !u.roles?.includes('student'));
+    const staffUsers = users.filter(u => !u.roles?.includes('student'));
 
     return (
         <div className="max-w-[1920px] mx-auto px-8 mt-[48px] animate-in fade-in duration-700">
@@ -276,7 +301,7 @@ export default function UserManagement() {
                     students={students.map(s => {
                         if (!s.authUid) return s;
                         if (s.accountStatus) return s; // zaten set edilmişse dokunma
-                        const userDoc = users.find((u: any) => u.id === s.authUid);
+                        const userDoc = users.find(u => u.id === s.authUid);
                         if (!userDoc) return s;
                         return { ...s, accountStatus: userDoc.isActivated ? "active" : "pending" };
                     })}
