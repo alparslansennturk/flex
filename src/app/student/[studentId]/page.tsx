@@ -26,12 +26,14 @@ interface Student {
   groupCode?: string;
 }
 
+type FirestoreDate = { toDate?: () => Date } | Date | string | number | null | undefined;
+
 interface TaskRow {
   id: string;
   name: string;
   points: number;
-  endDate?: any;
-  createdAt?: any;
+  endDate?: FirestoreDate;
+  createdAt?: FirestoreDate;
   subtitle?: string;
   description?: string;
   createdByName?: string;
@@ -75,20 +77,21 @@ function isImageFile(name: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
 }
 
-function parseDate(val: any): Date | null {
+function parseDate(val: FirestoreDate): Date | null {
   if (!val) return null;
-  if (val?.toDate) return val.toDate();
+  if (val instanceof Date) return val;
   if (typeof val === "string" || typeof val === "number") return new Date(val);
+  if (typeof val === "object" && val.toDate) return val.toDate();
   return null;
 }
 
-function fmtEndDate(val: any): string {
+function fmtEndDate(val: FirestoreDate): string {
   const d = parseDate(val);
   if (!d || isNaN(d.getTime())) return "";
   return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric", weekday: "short" });
 }
 
-function fmtCreatedAt(val: any): string {
+function fmtCreatedAt(val: FirestoreDate): string {
   const d = parseDate(val);
   if (!d) return "";
   const day     = String(d.getDate()).padStart(2, "0");
@@ -225,8 +228,8 @@ export default function StudentDashboard() {
           }
         });
         setSubMap(map);
-      } catch (subErr: any) {
-        console.warn("[StudentDashboard] Submissions yüklenemedi:", subErr.code);
+      } catch (subErr: unknown) {
+        console.warn("[StudentDashboard] Submissions yüklenemedi:", (subErr as { code?: string }).code);
       }
     } finally {
       setLoading(false);
