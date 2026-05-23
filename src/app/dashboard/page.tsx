@@ -82,7 +82,7 @@ export default function DashboardPage() {
           </div>
         </main>
 
-        <Footer setActiveTab={setActiveTab as (tab: string) => void} />
+        <Footer />
       </div>
 
       <style jsx global>{`

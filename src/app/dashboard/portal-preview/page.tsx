@@ -286,7 +286,7 @@ export default function PortalPreviewPage() {
           </div>
         </main>
 
-        <Footer setActiveTab={() => {}} />
+        <Footer />
       </div>
     </div>
   );

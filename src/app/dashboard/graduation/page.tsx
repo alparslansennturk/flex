@@ -646,7 +646,7 @@ export default function GraduationPage() {
             </div>
           </main>
 
-          <Footer setActiveTab={setFooterTab} />
+          <Footer />
         </div>
       </div>
 

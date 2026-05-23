@@ -1548,7 +1548,7 @@ export default function LeaguePage() {
           </div>
         </main>
 
-        <Footer setActiveTab={setActiveTab} />
+        <Footer />
       </div>
 
       <StudentDetailModal
