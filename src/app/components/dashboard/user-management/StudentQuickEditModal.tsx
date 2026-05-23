@@ -4,9 +4,19 @@ import { X, Check, GraduationCap, ChevronDown } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
+interface QuickStudent {
+  id: string;
+  name?: string;
+  lastName?: string;
+  email?: string;
+  branch?: string;
+  gender?: string;
+  avatarId?: number;
+}
+
 interface Props {
   isOpen: boolean;
-  student: any | null;
+  student: QuickStudent | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -42,7 +52,7 @@ export const StudentQuickEditModal: React.FC<Props> = ({ isOpen, student, onClos
     e.preventDefault();
     if (!student) return;
     const formData = new FormData(e.currentTarget);
-    const data: any = Object.fromEntries(formData.entries());
+    const data = Object.fromEntries(formData.entries()) as Record<string, string>;
 
     const newErrors: Record<string, boolean> = {};
     if (!data.name) newErrors.name = true;

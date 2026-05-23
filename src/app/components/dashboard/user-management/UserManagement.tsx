@@ -58,7 +58,7 @@ interface StudentUser {
   graduatedBy?: string;
   groupCode?: string;
   authUid?: string;
-  accountStatus?: string;
+  accountStatus?: 'pending' | 'active' | 'disabled';
 }
 
 interface BranchDoc {

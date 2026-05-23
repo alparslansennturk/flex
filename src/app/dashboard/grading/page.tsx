@@ -392,9 +392,8 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
           );
 
         mine.sort((a, b) => {
-          const aT = a.createdAt?.toMillis?.() ?? 0;
-          const bT = b.createdAt?.toMillis?.() ?? 0;
-          return bT - aT;
+          const toMs = (v: GradingTask['createdAt']) => (v && typeof v === 'object' ? v.toMillis?.() ?? 0 : 0);
+          return toMs(b.createdAt) - toMs(a.createdAt);
         });
         setTasks(mine);
       } catch (e) {

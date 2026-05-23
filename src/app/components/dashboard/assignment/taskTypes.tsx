@@ -19,7 +19,7 @@ export interface Task {
   icon?: IconKey;
   startDate?: string;
   endDate?: string;
-  createdAt: any;
+  createdAt: { toDate?: () => Date; toMillis?: () => number } | string | null;
   createdBy?: string;
   createdByName?: string;
   branch?: string;
@@ -96,7 +96,7 @@ export function getIcon(iconKey: IconKey | undefined, type: TaskType, size: numb
   const key = LEGACY_KEY_MAP[rawKey] ?? rawKey; // lowercase → PascalCase fallback
 
   // 1. Dinamik Lucide lookup (forwardRef ikonlar "object" tipinde gelir)
-  const DynIcon = (LucideIcons as any)[key];
+  const DynIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }> | undefined>)[key];
   if (DynIcon != null && (typeof DynIcon === "function" || typeof DynIcon === "object")) {
     const Icon = DynIcon as React.ComponentType<{ size?: number }>;
     return <Icon size={size} />;

@@ -4,6 +4,19 @@ import { PenLine, Trash2, RefreshCw, Check, Loader2, X, Mail } from "lucide-reac
 
 type AccountStatus = "pending" | "active" | "disabled" | undefined;
 
+interface StudentUser {
+  id: string;
+  name?: string;
+  lastName?: string;
+  email?: string;
+  branch?: string;
+  groupCode?: string;
+  gender?: string;
+  avatarId?: number;
+  authUid?: string;
+  accountStatus?: AccountStatus;
+}
+
 function getStatusConfig(accountStatus: AccountStatus, hasAccount: boolean) {
   if (!hasAccount) return null;
 
@@ -43,7 +56,7 @@ function ResendConfirmModal({
   onConfirm,
   onClose,
 }: {
-  student: any;
+  student: StudentUser;
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -129,8 +142,16 @@ function ResendConfirmModal({
   );
 }
 
-export const StudentUserTable = ({ students, onEdit, onDelete, onToggle, onResend }: any) => {
-  const [resendTarget, setResendTarget] = useState<any | null>(null);
+interface StudentUserTableProps {
+  students: StudentUser[];
+  onEdit: (student: StudentUser) => void;
+  onDelete: (id: string) => void;
+  onToggle: (student: StudentUser) => void;
+  onResend: (student: StudentUser) => Promise<void>;
+}
+
+export const StudentUserTable = ({ students, onEdit, onDelete, onToggle, onResend }: StudentUserTableProps) => {
+  const [resendTarget, setResendTarget] = useState<StudentUser | null>(null);
 
   return (
     <>
@@ -157,7 +178,7 @@ export const StudentUserTable = ({ students, onEdit, onDelete, onToggle, onResen
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-50">
-            {students.map((student: any) => {
+            {students.map((student) => {
               const hasAccount = !!student.authUid;
               const accountStatus: AccountStatus = student.accountStatus;
               const cfg = getStatusConfig(accountStatus, hasAccount);

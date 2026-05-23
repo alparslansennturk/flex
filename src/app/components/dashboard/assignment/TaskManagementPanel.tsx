@@ -252,7 +252,7 @@ function TaskRow({
   };
 
   const isInGrading   = task.status === "completed";
-  const isCompleted   = isInGrading && !!(task as any).isGraded;
+  const isCompleted   = isInGrading && !!task.isGraded;
 
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-50 transition-colors border-b border-surface-100 last:border-0 group">
@@ -530,7 +530,7 @@ export default function TaskManagementPanel() {
       return;
     }
     const taskSnap = await getDoc(taskRef);
-    const data = taskSnap.exists() ? (taskSnap.data() as any) : {};
+    const data = taskSnap.exists() ? (taskSnap.data() as { grades?: Record<string, { submitted?: boolean }> }) : {};
     const grades: Record<string, { submitted?: boolean }> = data.grades ?? {};
     const batch = writeBatch(db);
     Object.entries(grades).forEach(([sid, g]) => {

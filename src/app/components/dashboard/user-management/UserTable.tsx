@@ -16,11 +16,19 @@ interface UserData {
   title: string;
   avatarId: number;
   roles: string[];
+  permissionOverrides: Record<string, boolean>;
   isActivated: boolean;
 }
-export const UserTable = ({ users, branches = [], onEdit, onDelete }: any) => {
+interface UserTableProps {
+  users: UserData[];
+  branches?: { id: string; name: string }[];
+  onEdit: (user: UserData) => void;
+  onDelete: (id: string) => void;
+}
+
+export const UserTable = ({ users, branches = [], onEdit, onDelete }: UserTableProps) => {
   const getBranchNames = (branchIds: string[]) =>
-    (branchIds || []).map((id: string) => branches.find((b: any) => b.id === id)?.name).filter(Boolean);
+    (branchIds || []).map((id: string) => branches.find(b => b.id === id)?.name).filter(Boolean);
   return (
     <div className="bg-white rounded-[24px] border border-neutral-100 overflow-hidden shadow-sm mt-6">
       <div>
@@ -71,7 +79,7 @@ export const UserTable = ({ users, branches = [], onEdit, onDelete }: any) => {
         <td className="p-3 xl:p-5 w-40 xl:w-48 text-left">
           <div className="flex flex-wrap gap-1 max-w-[160px]">
             {getBranchNames(user.branches || []).length > 0
-              ? getBranchNames(user.branches || []).map((name: string) => (
+              ? (getBranchNames(user.branches || []) as string[]).map((name) => (
                   <span key={name} className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 whitespace-nowrap">
                     {name}
                   </span>
