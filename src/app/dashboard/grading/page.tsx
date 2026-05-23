@@ -33,6 +33,36 @@ interface GradeEntry { submitted: boolean; weeksLate: number; xp: number; }
 type GradesMap = Record<string, GradeEntry>;
 type ListTab = "pending" | "done";
 type CertTab = "GRAFIK_1" | "GRAFIK_2";
+
+interface GradingTask extends Task {
+  grades?: GradesMap;
+  xpMultiplier?: number;
+  groupModule?: string;
+  isCancelled?: boolean;
+}
+
+interface GroupDoc {
+  code?: string;
+  status?: "active" | "archived";
+  module?: "GRAFIK_1" | "GRAFIK_2";
+  discipline?: string;
+  codeAt_GRAFIK_1?: string;
+  codeAt_GRAFIK_2?: string;
+  instructorId?: string;
+}
+
+interface GradeDocData {
+  module?: string;
+  isFinalized?: boolean;
+  groupId?: string;
+  groupCode?: string;
+  studentId?: string;
+  studentName?: string;
+  gender?: string;
+  avatarId?: number;
+  projectScore?: number | null;
+  odevPuani?: number;
+}
 interface Group { id: string; code: string; status?: "active" | "archived"; originalCode?: string; currentModule?: "GRAFIK_1" | "GRAFIK_2"; codeAtGrafik2?: string; discipline?: string; }
 interface BranchCertSetting { useAssignment: boolean; projectWeight: number; assignmentWeight: number; }
 type CertSettingsMap = Record<string, BranchCertSetting>;
@@ -154,18 +184,19 @@ function ResetPointsModal({
 
       setDone(true);
       setTimeout(() => { setVisible(false); setTimeout(onSuccess, 280); }, 1500);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[ResetPointsModal] hata:", e);
-      const code = e?.code ?? "";
+      const err = e as { code?: string; message?: string };
+      const code = err?.code ?? "";
       if (
         code === "auth/wrong-password" ||
         code === "auth/invalid-credential" ||
         code === "auth/invalid-login-credentials"
       ) {
         setError("Şifre yanlış.");
-      } else if (e?.message === "no-user") {
+      } else if (err?.message === "no-user") {
         setError("Oturum bilgisi alınamadı. Lütfen sayfayı yenileyip tekrar deneyin.");
-      } else if (e?.message === "no-email") {
+      } else if (err?.message === "no-email") {
         setError("Bu işlem için email ile giriş yapmalısınız.");
       } else {
         setError("Şifre yanlış veya işlem sırasında hata oluştu.");
@@ -288,7 +319,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
   const { user } = useUser();
 
   const [tab,          setTab]          = useState<ListTab>(initialTab);
-  const [tasks,        setTasks]        = useState<Task[]>([]);
+  const [tasks,        setTasks]        = useState<GradingTask[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [expandedId,   setExpandedId]   = useState<string | null>(null);
   const [detailMap,    setDetailMap]    = useState<Record<string, Student[]>>({});
@@ -314,7 +345,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
       where("instructorId", "==", uid),
       where("status", "==", "active"),
     )).then(snap => {
-      setMyGroupCodes(snap.docs.map(d => (d.data() as any).code).filter(Boolean));
+      setMyGroupCodes(snap.docs.map(d => (d.data() as { code?: string }).code).filter(Boolean) as string[]);
     });
   }, [user?.uid]);
 
@@ -353,7 +384,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
           return true;
         });
 
-        const mine = allDocs.map(d => ({ id: d.id, ...d.data() } as Task))
+        const mine = allDocs.map(d => ({ id: d.id, ...d.data() } as GradingTask))
           .filter(t =>
             t.status === "completed" ||
             ((t.status === "active" || t.status === "published") && !!t.endDate &&
@@ -361,8 +392,8 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
           );
 
         mine.sort((a, b) => {
-          const aT = (a as any).createdAt?.toMillis?.() ?? 0;
-          const bT = (b as any).createdAt?.toMillis?.() ?? 0;
+          const aT = a.createdAt?.toMillis?.() ?? 0;
+          const bT = b.createdAt?.toMillis?.() ?? 0;
           return bT - aT;
         });
         setTasks(mine);
@@ -519,7 +550,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
                 </div>
                 <div className="bg-white rounded-16 border border-surface-100 shadow-sm overflow-hidden">
                   {classTasks.map(task => {
-                    const grades     = (task as any).grades as GradesMap | undefined;
+                    const grades     = (task as { grades?: GradesMap }).grades;
                     const isExpanded = expandedId === task.id;
                     const students   = detailMap[task.id] ?? [];
                     const submittedCount = grades ? Object.values(grades).filter(g => g.submitted).length : 0;
@@ -789,7 +820,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
   const { settings, activeSeasonId } = useScoring();
   const { user }     = useUser();
 
-  const [task,             setTask]             = useState<Task | null>(null);
+  const [task,             setTask]             = useState<GradingTask | null>(null);
   const [students,         setStudents]         = useState<Student[]>([]);
   const [grades,           setGrades]           = useState<GradesMap>({});
   const [loading,          setLoading]          = useState(true);
@@ -808,16 +839,16 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
       try {
         const taskSnap = await getDoc(doc(db, "tasks", taskId));
         if (!taskSnap.exists()) { setLoading(false); return; }
-        const taskData = { id: taskSnap.id, ...taskSnap.data() } as Task;
+        const taskData = { id: taskSnap.id, ...taskSnap.data() } as GradingTask;
         setTask(taskData);
 
         // Görevi açtığımızda zaten notlandırılmış mı?
         if (taskData.isGraded) setWasAlreadyGraded(true);
 
         // Grubun modülünü çek (xpMultiplier fallback için)
-        if ((taskData as any).groupId) {
-          const groupSnap = await getDoc(doc(db, "groups", (taskData as any).groupId));
-          if (groupSnap.exists()) setGroupModule((groupSnap.data() as any).module ?? null);
+        if (taskData.groupId) {
+          const groupSnap = await getDoc(doc(db, "groups", taskData.groupId));
+          if (groupSnap.exists()) setGroupModule((groupSnap.data() as GroupDoc).module ?? null);
         }
 
         if (taskData.classId) {
@@ -827,7 +858,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
           list.sort((a, b) => `${a.name} ${a.lastName}`.localeCompare(`${b.name} ${b.lastName}`, "tr"));
           setStudents(list);
 
-          const existing = (taskData as any).grades ?? {};
+          const existing = taskData.grades ?? {};
           const init: GradesMap = {};
           list.forEach(s => { init[s.id] = existing[s.id] ?? { submitted: false, weeksLate: 0, xp: 0 }; });
           setGrades(init);
@@ -852,10 +883,10 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
   }, [settings, task]);
 
   // xpMultiplier: önce task'a kayıtlı değeri kullan, yoksa grup modülünden türet
-  const storedMultiplier = (task as any)?.xpMultiplier;
+  const storedMultiplier = task?.xpMultiplier;
   const xpMultiplier = storedMultiplier != null
     ? storedMultiplier
-    : ((task as any)?.module === "GRAFIK_2" && groupModule === "GRAFIK_1" ? 0.5 : 1);
+    : (task?.module === "GRAFIK_2" && groupModule === "GRAFIK_1" ? 0.5 : 1);
 
   const updateGrade = (id: string, patch: Partial<GradeEntry>) => {
     setGrades(prev => {
@@ -886,7 +917,7 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
       // 1. Tüm aktif öğrencileri gradedTasks haritasıyla çek
       const allSnap = await getDocs(query(collection(db, "students"), where("status", "==", "active")));
       const allStudents = allSnap.docs.map(d => {
-        const data = d.data() as any;
+        const data = d.data() as { gradedTasks?: Record<string, GradedTaskEntry>; isScoreHidden?: boolean };
         const gradedTasks: Record<string, GradedTaskEntry> = data.gradedTasks ?? {};
         const isScoreHidden: boolean = data.isScoreHidden ?? false;
         const { totalXP, completedTasks, latePenaltyTotal } = computeStudentStats(gradedTasks, isScoreHidden, activeSeasonId);
@@ -1255,7 +1286,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
     const uid = user?.uid;
     if (!uid) return;
     const unsub = onSnapshot(doc(db, "users", uid), snap => {
-      if (snap.exists()) setCertSettings((snap.data() as any).certSettings ?? {});
+      if (snap.exists()) setCertSettings((snap.data() as { certSettings?: CertSettingsMap }).certSettings ?? {});
     });
     return () => unsub();
   }, [user?.uid]);
@@ -1269,16 +1300,19 @@ function CertModuleTab({ module }: { module: CertTab }) {
       where("instructorId", "==", uid),
       where("status", "in", ["active", "archived"]),
     )).then(async snap => {
-      const rawGroups = snap.docs.map(d => ({
-        id: d.id,
-        code: (d.data() as any).code ?? d.id,
-        status: (d.data() as any).status as "active" | "archived" | undefined,
-        // codeAt_GRAFIK_1 / codeAt_GRAFIK_2: finalize sırasında group doc'a yazılır
-        originalCode: (d.data() as any)[`codeAt_${module}`] as string | undefined,
-        currentModule: (d.data() as any).module as "GRAFIK_1" | "GRAFIK_2" | undefined,
-        codeAtGrafik2: (d.data() as any).codeAt_GRAFIK_2 as string | undefined,
-        discipline: (d.data() as any).discipline as string | undefined,
-      }));
+      const rawGroups = snap.docs.map(d => {
+        const gd = d.data() as GroupDoc;
+        return {
+          id: d.id,
+          code: gd.code ?? d.id,
+          status: gd.status,
+          // codeAt_GRAFIK_1 / codeAt_GRAFIK_2: finalize sırasında group doc'a yazılır
+          originalCode: (gd as Record<string, string | undefined>)[`codeAt_${module}`],
+          currentModule: gd.module,
+          codeAtGrafik2: gd.codeAt_GRAFIK_2,
+          discipline: gd.discipline,
+        };
+      });
 
       // Eski veriler için fallback: projectGrades'deki groupCode alanından orijinal kodu çek
       const gradeSnap = await getDocs(query(
@@ -1287,7 +1321,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
       ));
       const codeFromGrades: Record<string, string> = {};
       gradeSnap.docs.forEach(d => {
-        const data = d.data() as any;
+        const data = d.data() as GradeDocData;
         if (data.module === module && data.groupId && data.groupCode) {
           codeFromGrades[data.groupId] = data.groupCode;
         }
@@ -1328,7 +1362,7 @@ function CertModuleTab({ module }: { module: CertTab }) {
       where("groupId", "==", selectedGroupId),
     )).then(gradeSnap => {
       const moduleGrades = gradeSnap.docs
-        .map(d => ({ docId: d.id, ...d.data() } as any))
+        .map(d => ({ docId: d.id, ...d.data() } as GradeDocData & { docId: string }))
         .filter(d => d.module === module);
 
       const isAlreadyFinalized = moduleGrades.some(d => d.isFinalized === true);
@@ -1415,27 +1449,27 @@ function CertModuleTab({ module }: { module: CertTab }) {
     const q = query(collection(db, "tasks"), where("classId", "==", group.originalCode ?? group.code));
     const unsub = onSnapshot(q, snap => {
       const moduleTasks = snap.docs
-        .map(d => ({ id: d.id, ...d.data() } as Task))
+        .map(d => ({ id: d.id, ...d.data() } as GradingTask))
         .filter(t => {
           // groupModule: task verilirken grubun modülü (en güvenilir)
           // module: şablon modülü (fallback — eski kayıtlar için)
           // İkisi de null/undefined ise classId zaten doğru grubu gösteriyor → dahil et
-          const gm = (t as any).groupModule as string | undefined;
+          const gm = t.groupModule;
           // groupModule varsa ona güven; yoksa classId sorgusu zaten doğru grubu kısıtlıyor
           // (tm = şablon modülü, grup modülü değil — eski görevlerde yanlış sonuç verir)
           const moduleMatch = gm != null ? gm === module : true;
-          return moduleMatch && (t as any).isGraded === true && !(t as any).isCancelled;
+          return moduleMatch && t.isGraded === true && !t.isCancelled;
         });
 
       // maxXP: her görev için ulaşılabilir max XP (xpMultiplier dahil)
       // eslint-disable-next-line react-hooks/exhaustive-deps
       const mx = moduleTasks.reduce((sum, t) =>
-        sum + getLevelXP(t.level, settings) * ((t as any).xpMultiplier ?? 1), 0);
+        sum + getLevelXP(t.level, settings) * (t.xpMultiplier ?? 1), 0);
 
       // Her öğrencinin aldığı XP (task.grades içinden)
       const xpMap: Record<string, number> = {};
       moduleTasks.forEach(t => {
-        const grades = (t as any).grades as Record<string, any> | undefined;
+        const grades = t.grades;
         if (!grades) return;
         Object.entries(grades).forEach(([sid, g]) => {
           xpMap[sid] = (xpMap[sid] ?? 0) + (g?.xp ?? 0);
@@ -1447,14 +1481,15 @@ function CertModuleTab({ module }: { module: CertTab }) {
       const classCode = group.originalCode ?? group.code;
       const deletedTaskMaxXP: Record<string, number> = {}; // taskId → maxXp (task başına bir kez)
       studentsRef.current.forEach(s => {
-        const gt = (s as any).gradedTasks as Record<string, any> | undefined;
+        const sWithTasks = s as Student & { gradedTasks?: Record<string, { classId?: string; xp?: number; maxXp?: number }> };
+        const gt = sWithTasks.gradedTasks;
         if (!gt) return;
         Object.entries(gt).forEach(([taskId, entry]) => {
           if (existingTaskIds.has(taskId)) return; // task hâlâ mevcut, zaten sayıldı
-          if ((entry as any)?.classId !== classCode) return; // farklı sınıf
-          xpMap[s.id] = (xpMap[s.id] ?? 0) + ((entry as any)?.xp ?? 0);
+          if (entry?.classId !== classCode) return; // farklı sınıf
+          xpMap[s.id] = (xpMap[s.id] ?? 0) + (entry?.xp ?? 0);
           if (!(taskId in deletedTaskMaxXP)) {
-            deletedTaskMaxXP[taskId] = (entry as any)?.maxXp ?? (entry as any)?.xp ?? 0;
+            deletedTaskMaxXP[taskId] = entry?.maxXp ?? entry?.xp ?? 0;
           }
         });
       });
@@ -1896,11 +1931,11 @@ function NotAyarlariPanel() {
   useEffect(() => {
     const uid = user?.uid;
     if (!uid) return;
-    const branchIds = (user as any)?.branches as string[] | undefined ?? [];
+    const branchIds = (user as { branches?: string[] })?.branches ?? [];
 
     const load = async () => {
       const userSnap = await getDoc(doc(db, "users", uid));
-      const saved: CertSettingsMap = userSnap.exists() ? ((userSnap.data() as any).certSettings ?? {}) : {};
+      const saved: CertSettingsMap = userSnap.exists() ? ((userSnap.data() as { certSettings?: CertSettingsMap }).certSettings ?? {}) : {};
       setCertSettings(saved);
 
       if (branchIds.length === 0) {
@@ -1911,7 +1946,7 @@ function NotAyarlariPanel() {
       }
 
       const branchSnap = await getDocs(query(collection(db, "branches"), where("__name__", "in", branchIds)));
-      const loaded = branchSnap.docs.map(d => ({ id: d.id, name: (d.data() as any).name ?? d.id }));
+      const loaded = branchSnap.docs.map(d => ({ id: d.id, name: (d.data() as { name?: string }).name ?? d.id }));
       setBranches(loaded);
       const first = loaded[0]?.id ?? "";
       setSelectedBranch(first);
