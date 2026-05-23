@@ -93,7 +93,7 @@ function TaskLibraryCard({ task, onStartAssignment, onRemove }: {
 }
 
 // ---- ANA BİLEŞEN ----
-export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
+export default function AssignmentLibrary({ scrollRef, handleScroll }: { scrollRef?: React.RefObject<HTMLDivElement | null>; handleScroll?: (dir: 'left' | 'right') => void }) {
   const [templates, setTemplates]             = useState<Task[]>([]);
   const [activeTab, setActiveTab]             = useState<LibraryTab>("personal");
   const [hasOverflow, setHasOverflow]         = useState(false);
@@ -113,7 +113,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
     if (!user) return;
     getDocs(collection(db, "branches")).then(snap => {
       const all = snap.docs.map(d => ({ id: d.id, name: d.data().name as string }));
-      const userBranchIds: string[] = (user as any).branches ?? ((user as any).branch ? [(user as any).branch] : []);
+      const userBranchIds: string[] = user?.branches ?? (user?.branch ? [user.branch] : []);
       const options = userBranchIds.length > 0 ? all.filter(b => userBranchIds.includes(b.id)) : all;
       setBranchOptions(options);
       // Otomatik seç: tek branş varsa direkt, birden fazlaysa ilkini varsayılan yap
@@ -202,8 +202,8 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: any) {
         <div className="relative overflow-visible">
           {hasOverflow && (
             <>
-              <button onClick={() => handleScroll('left')}  className="absolute -left-5  top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft  size={24} /></button>
-              <button onClick={() => handleScroll('right')} className="absolute -right-5 top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
+              <button onClick={() => handleScroll?.('left')}  className="absolute -left-5  top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft  size={24} /></button>
+              <button onClick={() => handleScroll?.('right')} className="absolute -right-5 top-[140px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
             </>
           )}
           <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">

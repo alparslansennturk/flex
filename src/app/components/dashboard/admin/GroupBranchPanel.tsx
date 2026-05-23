@@ -33,7 +33,7 @@ interface Holiday {
   name: string;
   startDate: string;  // YYYY-MM-DD
   endDate: string;    // YYYY-MM-DD
-  createdAt?: any;
+  createdAt?: { toDate?: () => Date } | string | null;
 }
 
 export default function GroupBranchPanel() {

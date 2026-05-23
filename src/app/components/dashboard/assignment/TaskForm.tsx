@@ -67,7 +67,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
     if (targetCollection !== "templates" || sourceTemplateId) return;
     getDocs(collection(db, "branches")).then(snap => {
       const all = snap.docs.map(d => ({ id: d.id, name: d.data().name as string }));
-      const userBranchIds: string[] = (user as any)?.branches ?? ((user as any)?.branch ? [(user as any).branch] : []);
+      const userBranchIds: string[] = user?.branches ?? (user?.branch ? [user.branch] : []);
       setBranchList(userBranchIds.length > 0 ? all.filter(b => userBranchIds.includes(b.id)) : all);
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

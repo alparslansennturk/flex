@@ -708,7 +708,7 @@ export default function DesignParkour() {
     const uid = user?.uid ?? auth.currentUser?.uid;
     if (!uid) return;
 
-    const branchIds: string[] = (user as any)?.branches ?? [];
+    const branchIds: string[] = user?.branches ?? [];
 
     // isGrafik: admin her zaman true; diğerleri branches'a göre
     if (isAdmin()) {
@@ -793,7 +793,7 @@ export default function DesignParkour() {
     const taskRef = doc(db, "tasks", task.id);
     const taskSnap = await getDoc(taskRef);
     if (taskSnap.exists()) {
-      const grades: Record<string, { submitted?: boolean; xp?: number }> = (taskSnap.data() as any).grades ?? {};
+      const grades: Record<string, { submitted?: boolean; xp?: number }> = (taskSnap.data() as { grades?: Record<string, { submitted?: boolean; xp?: number }> }).grades ?? {};
       const toClean = Object.entries(grades)
         .filter(([, g]) => g?.submitted && (g?.xp ?? 0) > 0)
         .map(([sid]) => sid);
@@ -888,8 +888,9 @@ export default function DesignParkour() {
     const gb = groupOf(b);
     if (ga !== gb) return ga - gb;
     // Grup içi: en yeni solda — createdAt'a göre azalan
-    const aT = (a as any).createdAt?.toMillis?.() ?? 0;
-    const bT = (b as any).createdAt?.toMillis?.() ?? 0;
+    const toMs = (v: Task['createdAt']) => (v && typeof v === 'object' ? v.toMillis?.() ?? 0 : 0);
+    const aT = toMs(a.createdAt);
+    const bT = toMs(b.createdAt);
     return bT - aT;
   });
 

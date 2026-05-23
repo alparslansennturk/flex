@@ -184,7 +184,7 @@ const RAW_ICON_LIST = [
 // Kurulu Lucide versiyonunda gerçekten var olanları filtrele
 // forwardRef ikonlar "object" tipinde gelir, "function" değil — ikisini de kabul et
 const ICON_LIST = RAW_ICON_LIST.filter(({ key }) => {
-  const c = (LucideIcons as any)[key];
+  const c = (LucideIcons as unknown as Record<string, unknown>)[key];
   return c != null && (typeof c === "function" || typeof c === "object");
 });
 
@@ -261,7 +261,7 @@ export default function IconPicker({ value, onChange, type }: IconPickerProps) {
   const currentLabel = ICON_LIST.find(i => i.key === value)?.label ?? value;
 
   const renderIcon = (key: string, size: number) => {
-    const Comp = (LucideIcons as any)[key] as React.ComponentType<{ size?: number }>;
+    const Comp = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }> | undefined>)[key];
     if (!Comp) return null;
     return <Comp size={size} />;
   };
