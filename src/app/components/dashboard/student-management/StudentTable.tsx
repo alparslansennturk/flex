@@ -1,7 +1,29 @@
 import React from "react";
 import { Trash2, PencilLine, RotateCcw, Users, GraduationCap } from "lucide-react";
 
-function getDotColor(student: any, usersMap: Map<string, boolean>): string {
+interface Student {
+  id: string;
+  name: string;
+  lastName: string;
+  email: string;
+  note: string;
+  groupCode: string;
+  groupId: string;
+  branch: string;
+  points: number;
+  gender?: string;
+  avatarId?: number;
+  authUid?: string;
+  accountStatus?: 'pending' | 'active' | 'disabled';
+  status?: 'active' | 'passive';
+}
+
+interface Group {
+  id: string;
+  instructor?: string;
+}
+
+function getDotColor(student: Student, usersMap: Map<string, boolean>): string {
   if (!student.authUid) return "bg-red-400";           // kod gönderilmemiş
   if (student.accountStatus === "disabled") return "bg-red-400"; // devre dışı
   if (student.accountStatus === "active")  return "bg-emerald-400"; // aktif
@@ -13,20 +35,20 @@ function getDotColor(student: any, usersMap: Map<string, boolean>): string {
 }
 
 interface StudentTableProps {
-  students: any[];
+  students: Student[];
   selectedStudentIds: string[];
   viewMode: string;
-  groups: any[];
+  groups: Group[];
   studentPanel: 'active' | 'passive';
   isAdmin: boolean;
   studentUsersMap: Map<string, boolean>;
   toggleStudentSelection: (id: string) => void;
   handleSelectAll: () => void;
-  handleEditStudent: (student: any) => void;
+  handleEditStudent: (student: Student) => void;
   handleRestoreStudent: (id: string) => void;
   handleGraduateStudent: (id: string) => void;
   setDeleteModal: (config: { isOpen: boolean; studentId: string; deleteType: 'active' | 'graduated' | 'graduate' }) => void;
-  onStudentClick?: (student: any) => void;
+  onStudentClick?: (student: Student) => void;
 }
 
 export const StudentTable: React.FC<StudentTableProps> = ({
@@ -90,7 +112,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                     </button>
                   </div>
                   <button
-                    onClick={() => toggleStudentSelection('clear-all' as any)}
+                    onClick={() => toggleStudentSelection('clear-all')}
                     className="text-[11px] font-bold text-white/50 hover:text-white transition-colors cursor-pointer underline underline-offset-4"
                   >
                     Temizle

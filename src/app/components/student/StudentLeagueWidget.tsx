@@ -30,9 +30,19 @@ function Avatar({ gender, avatarId }: { gender?: string; avatarId?: number }) {
   );
 }
 
+interface RawStudent {
+  id: string;
+  name?: string;
+  lastName?: string;
+  gender?: string;
+  avatarId?: number;
+  groupCode?: string;
+  gradedTasks?: Record<string, { xp?: number; penalty?: number; classId?: string; endDate?: string; completedAt?: string }>;
+}
+
 // Aylık skor hesaplama — league/page.tsx ile aynı mantık
 function calcGroupScores(
-  students: any[],
+  students: RawStudent[],
   tasksMap: Record<string, { endDate?: string; classId?: string; status?: string }>,
   settings: ScoringSettings,
   groupCode: string,
@@ -58,7 +68,7 @@ function calcGroupScores(
     .filter(s => s.groupCode === groupCode)
     .map(s => {
       // Sadece mevcut gruba (groupCode) ait görevler — G1 carry-over karışmasın
-      const classEntries = Object.entries(s.gradedTasks ?? {}).filter(([tid, entry]: any) => {
+      const classEntries = Object.entries(s.gradedTasks ?? {}).filter(([tid, entry]) => {
         const storedClassId = entry.classId;
         if (storedClassId) return storedClassId === s.groupCode;
         const mapClassId = tasksMap[tid]?.classId;
@@ -66,19 +76,19 @@ function calcGroupScores(
         return mapClassId === s.groupCode;
       });
 
-      const byMonth: Record<string, any[]> = {};
+      const byMonth: Record<string, [string, typeof classEntries[0][1]][]> = {};
       for (const [tid, entry] of classEntries) {
-        const m = effectiveMonthKey((entry as any).completedAt, (entry as any).endDate ?? tasksMap[tid]?.endDate);
+        const m = effectiveMonthKey(entry.completedAt, entry.endDate ?? tasksMap[tid]?.endDate);
         if (!m) continue;
         if (!byMonth[m]) byMonth[m] = [];
         byMonth[m].push([tid, entry]);
       }
 
       const monthlyEntries   = byMonth[currentMonthKey] ?? [];
-      const monthlyXP        = monthlyEntries.reduce((sum: number, [, e]: any) => sum + (e.xp ?? 0), 0);
+      const monthlyXP        = monthlyEntries.reduce((sum, [, e]) => sum + (e.xp ?? 0), 0);
       const monthlyCompleted = monthlyEntries.length;
       // Sadece mevcut grup için atanan görev sayısı
-      const monthlyAssigned  = assignedInMonth(monthStart, todayStr, s.groupCode);
+      const monthlyAssigned  = assignedInMonth(monthStart, todayStr, s.groupCode ?? "");
 
       const { finalScore } = calcStudentFinalScore(monthlyXP, monthlyCompleted, settings, monthlyAssigned, 0, 0);
 
@@ -117,10 +127,10 @@ export default function StudentLeagueWidget({
       .then(() => auth.currentUser?.getIdToken() ?? "")
       .then(token => fetch("/api/league", { headers: { Authorization: `Bearer ${token}` } }))
       .then(res => res.ok ? res.json() : Promise.reject())
-      .then((data: { students: any[]; tasks: any[]; scoringSettings?: ScoringSettings }) => {
+      .then((data: { students: RawStudent[]; tasks: { id: string; endDate?: string; classId?: string; status?: string }[]; scoringSettings?: ScoringSettings }) => {
         const settings = data.scoringSettings ?? DEFAULT_SCORING;
         const tasksMap: Record<string, { endDate?: string; classId?: string; status?: string }> = {};
-        data.tasks.forEach((t: any) => {
+        data.tasks.forEach((t) => {
           tasksMap[t.id] = { endDate: t.endDate ?? undefined, classId: t.classId ?? undefined, status: t.status ?? undefined };
         });
         setStudents(calcGroupScores(data.students, tasksMap, settings, groupCode));

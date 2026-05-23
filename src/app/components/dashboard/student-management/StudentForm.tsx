@@ -5,11 +5,43 @@ import { createPortal } from "react-dom";
 import { X, Check, GraduationCap, ChevronDown, Users, Monitor } from "lucide-react";
 import { getFlexMessage } from "@/app/lib/messages";
 
+interface Student {
+  id?: string;
+  name?: string;
+  lastName?: string;
+  email?: string;
+  note?: string;
+  branch?: string;
+  groupId?: string;
+  gender?: string;
+  avatarId?: number | null;
+  isOnlineStudent?: boolean;
+  status?: string;
+}
+
+interface Group {
+  id: string;
+  code?: string;
+  name?: string;
+  branch?: string;
+}
+
+interface StudentFormData {
+  name: string;
+  lastName: string;
+  email: string;
+  branch: string;
+  groupId: string;
+  note: string;
+  gender: string;
+  isOnlineStudent: boolean;
+}
+
 // Tüm aktif öğrenciler arasında kullanılmayan bir avatar ID seçer
 function getUnusedAvatar(
   gender: string,
-  students: any[],
-  excludeId: string | null,
+  students: Student[],
+  excludeId: string | number | null,
   total: number
 ): number {
   const usedIds = new Set(
@@ -27,10 +59,10 @@ function getUnusedAvatar(
 interface StudentFormProps {
   isStudentFormOpen: boolean;
   setIsStudentFormOpen: (val: boolean) => void;
-  handleAddStudent: (e?: any) => void;
-  groups: any[];
-  students: any[];
-  editingStudent?: any;
+  handleAddStudent: (data?: StudentFormData) => void | Promise<void>;
+  groups: Group[];
+  students: Student[];
+  editingStudent?: Student | null;
   avatarId: number | null;
   setAvatarId: (val: number | null) => void;
   studentName: string;
@@ -120,7 +152,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
         if (id !== undefined && id !== null && id !== 0) {
           setAvatarId(Number(id));
         } else {
-          setAvatarId((Math.abs(editingStudent.id || 0) % TOTAL_AVATARS) + 1);
+          setAvatarId(Math.floor(Math.random() * TOTAL_AVATARS) + 1);
         }
       } else {
         if (avatarId === null) {
@@ -193,10 +225,11 @@ export const StudentForm: React.FC<StudentFormProps> = ({
         // Eğer resetStudentForm proplardan gelmiyorsa yerelde tanımlı olmalı
         if (typeof resetStudentForm === 'function') resetStudentForm();
       }, 1500);
-    } catch (err: any) {
-      if (err?.code === "DUPLICATE_EMAIL") {
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      if (e?.code === "DUPLICATE_EMAIL") {
         setLocalErrors({ email: true });
-        setEmailErrorMsg(err.message);
+        setEmailErrorMsg(e.message ?? "");
       } else {
         console.error("Kayıt hatası:", err);
       }
