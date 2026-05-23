@@ -135,7 +135,11 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: { scrollR
 
   const visibleTemplates = templates.filter(t => {
     if (t.isHidden) return false;
-    if (activeTab === "personal") return t.scope === "personal" && t.createdBy === uid;
+    if (activeTab === "personal") {
+      if (!(t.scope === "personal" && t.createdBy === uid)) return false;
+      if (activeBranch !== "all") return t.discipline === activeBranch;
+      return true;
+    }
     // global: standart + gamified birlikte; scope yazılmamış eski şablonlar da buraya düşer
     if (!(t.scope === "global" || t.scope === "gamified" || !t.scope)) return false;
     // Branch seçiliyse: discipline kesin eşleşmeli; "all"da filtresiz

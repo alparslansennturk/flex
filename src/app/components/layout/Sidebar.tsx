@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
-import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive, ClipboardList, ChevronDown, FileCheck, Star, SlidersHorizontal, Eye, CalendarCheck, BarChart2, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive, ClipboardList, ChevronDown, FileCheck, Star, Eye, CalendarCheck, BarChart2, TrendingUp } from "lucide-react";
 import { auth, db } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -68,7 +68,7 @@ export default function Sidebar() {
         {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
           <div>
             <button
-              onClick={() => setYoklamaOpen(o => !o)}
+              onClick={() => { setYoklamaOpen(o => !o); setAssignmentTestOpen(false); }}
               className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
                 ${compact ? "py-3.25" : "py-3.5"}
                 text-white hover:bg-white/5 cursor-pointer outline-none`}
@@ -102,7 +102,7 @@ export default function Sidebar() {
         {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes('instructor')) && (
           <div>
             <button
-              onClick={() => setAssignmentTestOpen(o => !o)}
+              onClick={() => { setAssignmentTestOpen(o => !o); setYoklamaOpen(false); }}
               className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
                 ${compact ? "py-3.25" : "py-3.5"}
                 text-white hover:bg-white/5 cursor-pointer outline-none`}
@@ -131,7 +131,7 @@ export default function Sidebar() {
                 <SidebarLink href="/dashboard/assignment"          icon={<FileCheck size={15} />}         label="Ödev Teslimi"        compact={compact} exact sub />
                 <SidebarLink href="/dashboard/assignment/grading"  icon={<Star size={15} />}              label="Ödev Değerlendirme"  compact={compact} sub />
                 <SidebarLink href="/dashboard/assignment/review"   icon={<Eye size={15} />}              label="İncelenecekler"      compact={compact} sub />
-                <SidebarLink href="/dashboard/assignment/settings" icon={<SlidersHorizontal size={15} />} label="Ödev Ayarları"       compact={compact} sub />
+
                 <SidebarLink href="/dashboard/archive"                  icon={<Archive size={15} />}           label="Ödev Arşivi"        compact={compact} sub />
               </div>
             </div>

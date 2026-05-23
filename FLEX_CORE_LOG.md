@@ -1268,13 +1268,47 @@ return hasEntries || wasStarted;
 
 ---
 
+### 92. Bug Fix — AssignmentLibrary Kişisel Sekmede Branş Filtresi Çalışmıyordu
+
+**Sorun:** `visibleTemplates` filtresinde `activeTab === "personal"` dalı `activeBranch`'i tamamen görmezden geliyordu. Grafik Tasarım seçiliyken Web branşına ait kişisel şablonlar görünüyordu.
+
+**Dosya:** `src/app/components/dashboard/assignment/AssignmentLibrary.tsx`
+
+**Fix:** Personal dal global dal ile aynı branş filtresi mantığını kullanır:
+```ts
+if (activeTab === "personal") {
+  if (!(t.scope === "personal" && t.createdBy === uid)) return false;
+  if (activeBranch !== "all") return t.discipline === activeBranch;
+  return true;
+}
+```
+
+---
+
+### 93. Sidebar — Accordion Karşılıklı Kapanma + Ödev Ayarları Kaldırıldı
+
+**Dosya:** `src/app/components/layout/Sidebar.tsx`
+
+**1. Accordion birbirini kapatır:**
+- Yoklamalar butonuna tıklanınca `setAssignmentTestOpen(false)` çağrılır
+- Ödevler butonuna tıklanınca `setYoklamaOpen(false)` çağrılır
+- Önceden her iki accordion aynı anda açık kalabiliyordu
+
+**2. "Ödev Ayarları" linki kaldırıldı:**
+- `/dashboard/assignment/settings` — Ödev Yönetimi ile işlev çakışması vardı
+- `SlidersHorizontal` import da temizlendi
+
+**3. Yedek dosyalar silindi:**
+- `src/app/login/activation/page-yedek.tsx`
+- `src/app/components/dashboard/student-management/StudentForm-yedek.tsx`
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. TypeScript `any` Temizliği — `.tsx` Dosyaları (Devam)
-- API route'lar temizlendi (§90)
-- **Kalan:** 224 kullanım (106 `: any` + 118 `as any`) — önce hooks (`useManagement.ts` vb.), sonra componentler
-- En ağır dosyalar: `grading/page.tsx` (32), `StudentDetailModal.tsx` (24), `useManagement.ts` (24)
-- Pattern: `catch (e: unknown)`, Firestore verisi için `unknown` + type guard
+### 1. TypeScript `any` Temizliği — ✅ TAMAMLANDI
+- Tüm aktif kaynak dosyalarında sıfır `any` kullanımı (doğrulandı 2026-05-23)
+- Sadece silinen yedek dosyalarda vardı, onlar da kaldırıldı
 
 ### 2. İLERİDE — Sertifika PDF + Dağıtım
 - Finalize sonrası sertifika belgesi üretilecek
@@ -1302,4 +1336,6 @@ return hasEntries || wasStarted;
 - Yoklama giriş zaman kilidi (30dk önce / 3 saat sonra) → §87
 - Auto-close cron bug fix (lessonStartedAt kontrolü) → §88
 - Upstash Redis dağıtık rate limiting → §89
-- TypeScript any temizliği (API route'lar) → §90
+- TypeScript any temizliği (tüm dosyalar) → §90 + §93
+- AssignmentLibrary kişisel branş filtresi → §92
+- Sidebar accordion karşılıklı kapanma + Ödev Ayarları kaldırıldı → §93
