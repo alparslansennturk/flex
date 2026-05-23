@@ -37,7 +37,7 @@ interface UserFormProps {
     handleRoleToggle: (roleId: string) => void;
     roleDropdownRef: React.RefObject<HTMLDivElement | null>;
     formatPhoneNumber: (val: string) => string;
-    permissionsList: any[];
+    permissionsList: { id: string; icon: string; label: string; description: string }[];
     getPermissionStatus: (id: string) => { isEnabled: boolean; roleDefault: boolean };
     handlePermissionChange: (id: string, checked: boolean) => void;
     loading: boolean;
@@ -182,7 +182,7 @@ export const UserForm: React.FC<UserFormProps> = ({
             <div className="space-y-1 relative" ref={roleDropdownRef}>
                 <label className="text-[12px] font-bold text-neutral-500 ml-1">Rol</label>
                 <div onClick={(e) => { if (!isRoleDropdownOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setRoleDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsRoleDropdownOpen(!isRoleDropdownOpen); }} className={`h-12 w-full border-2 rounded-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.roles ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : isRoleDropdownOpen ? 'border-orange-500 bg-white' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <span className={`text-[13px] truncate ${selectedRoles.length > 0 ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>{selectedRoles.length > 0 ? selectedRoles.map((r: any) => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Rol Seçiniz...'}</span>
+                    <span className={`text-[13px] truncate ${selectedRoles.length > 0 ? 'font-bold text-[#10294C]' : 'font-semibold text-neutral-400'}`}>{selectedRoles.length > 0 ? selectedRoles.map((r) => r === 'admin' ? 'Admin' : 'Eğitmen').join(', ') : 'Rol Seçiniz...'}</span>
                     <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isRoleDropdownOpen ? "rotate-180 text-orange-500" : "text-neutral-400"}`} />
                 </div>
             </div>
@@ -240,7 +240,7 @@ export const UserForm: React.FC<UserFormProps> = ({
             {/* Doğum Tarihi */}
             <div className="space-y-1">
                 <label className="text-[12px] font-bold text-neutral-500 ml-1">Doğum Tarihi</label>
-                <input name="birthDate" defaultValue={editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: any) => { let v = e.target.value.replace(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); e.target.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
+                <input name="birthDate" defaultValue={editingUser?.birthDate} placeholder="gg.aa.yyyy" type="text" maxLength={10} onInput={(e: React.FormEvent<HTMLInputElement>) => { const t = e.target as HTMLInputElement; let v = t.value.replace(/\D/g, ''); if (v.length > 2) v = v.slice(0, 2) + '.' + v.slice(2); if (v.length > 5) v = v.slice(0, 5) + '.' + v.slice(5, 9); t.value = v; }} className={`h-12 w-full border rounded-xl px-4 font-bold text-[#10294C] placeholder:text-neutral-500 placeholder:font-normal outline-none transition-all ${errors.birthDate ? `border-red-500 bg-red-50 ${shake ? 'error-shake' : ''}` : 'border-neutral-200 bg-neutral-50 focus:border-orange-500'}`} />
             </div>
 
         </div>
@@ -260,7 +260,7 @@ export const UserForm: React.FC<UserFormProps> = ({
                 )}
             </div>
             <div className="flex flex-col gap-3">
-                {permissionsList.map((perm: any) => {
+                {permissionsList.map((perm) => {
                     const { isEnabled, roleDefault } = getPermissionStatus(perm.id);
                     const isLocked = selectedRoles.includes('admin');
                     const IconComponent = perm.icon === 'assignment' ? ClipboardList : perm.icon === 'class' ? Users : LayoutDashboard;

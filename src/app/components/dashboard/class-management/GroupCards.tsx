@@ -1,14 +1,34 @@
 import React, { useState } from "react";
 import { MoreVertical, Edit2, Archive, Layout, Plus, MapPin, User, RotateCcw, Trash2, PencilLine, Pencil } from "lucide-react";
 
+interface Group {
+  id: string;
+  code: string;
+  session: string;
+  branch: string;
+  instructor: string;
+  instructorId?: string;
+  students: number;
+  status: string;
+  discipline?: string;
+  module?: "GRAFIK_1" | "GRAFIK_2";
+  type?: "standart" | "özel_ders" | "kurumsal";
+  startDate?: string;
+  moduleId?: string;
+  customHours?: number;
+  companyName?: string;
+  sessionHours?: number;
+  createdAt?: { seconds: number; nanoseconds?: number };
+}
+
 interface GroupCardsProps {
   currentView: string;
-  filteredGroups: any[];
+  filteredGroups: Group[];
   selectedGroupId: string | null;
   setSelectedGroupId: (id: string) => void;
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
-  handleEdit: (group: any) => void;
+  handleEdit: (group: Group) => void;
   requestModal: (id: string, type: 'archive' | 'delete' | 'restore') => void;
   onBulkDeleteArchive?: (ids: string[]) => void;
   handleOpenForm: () => void;

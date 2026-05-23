@@ -26,7 +26,7 @@ interface GroupFormProps {
   companyName: string;
   setCompanyName: (val: string) => void;
   branchModules: { id: string; name: string; totalHours: number; sessionHours?: number }[];
-  instructors: any[];
+  instructors: { id: string; displayName: string; branches?: string[] }[];
   selectedInstructorId: string;
   setSelectedInstructorId: (val: string) => void;
   lessonHours: string;
@@ -34,7 +34,7 @@ interface GroupFormProps {
   groupStartDate: string;
   setGroupStartDate: (val: string) => void;
   errors: { code?: string; schedule?: string; instructor?: string; duplicate?: string };
-  setErrors: (val: any) => void;
+  setErrors: (val: { code?: string; schedule?: string; instructor?: string; duplicate?: string }) => void;
   selectedSchedule: string;
   setSelectedSchedule: (val: string) => void;
   isScheduleOpen?: boolean;
