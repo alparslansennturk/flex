@@ -9,6 +9,27 @@ import { useScoring } from "@/app/context/ScoringContext";
 import { calcStudentFinalScore } from "@/app/lib/scoring";
 import Link from "next/link";
 
+interface GradedTaskEntry {
+  xp:           number;
+  penalty:      number;
+  classId?:     string;
+  endDate?:     string;
+  completedAt?: string;
+}
+
+interface GroupDoc {
+  code?:               string;
+  groupId?:            string;
+  attendanceClosed?:   boolean;
+  attendanceClosedAt?: { toDate(): Date };
+}
+
+interface TaskDoc {
+  classId?: string;
+  status?:  string;
+  endDate?: string;
+}
+
 interface StudentRank {
   id: string;
   name: string;
@@ -16,7 +37,7 @@ interface StudentRank {
   gender?: string;
   groupCode: string;
   branch: string;
-  gradedTasks?: Record<string, { xp: number; penalty: number }>;
+  gradedTasks?: Record<string, GradedTaskEntry>;
   isScoreHidden?: boolean;
   avatarId?: number;
   rankChange?: number;
@@ -119,7 +140,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
       where("status", "==", "active")
     );
     return onSnapshot(q, snap => {
-      setMyGroupCodes(snap.docs.map(d => (d.data() as any).code).filter(Boolean));
+      setMyGroupCodes(snap.docs.map(d => (d.data() as GroupDoc).code).filter((c): c is string => Boolean(c)));
     });
   }, [user?.uid]);
 
@@ -133,13 +154,13 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
     ]).then(([taskSnap, groupSnap]) => {
       const map: Record<string, { classId?: string; status?: string; endDate?: string }> = {};
       taskSnap.docs.forEach(d => {
-        const data = d.data() as any;
+        const data = d.data() as TaskDoc;
         map[d.id] = { classId: data.classId ?? undefined, status: data.status ?? undefined, endDate: data.endDate ?? undefined };
       });
       setTasksMap(map);
       const excluded = new Set<string>();
       groupSnap.docs.forEach(d => {
-        const data = d.data() as any;
+        const data = d.data() as GroupDoc;
         if (!data.attendanceClosed || !data.attendanceClosedAt) return;
         const closedDate: Date = data.attendanceClosedAt.toDate();
         const closedYearMonth = closedDate.getFullYear() * 100 + (closedDate.getMonth() + 1);
@@ -194,16 +215,16 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         ).length || undefined;
 
       const filteredDocs = excludedGroupIds.size > 0
-        ? snap.docs.filter(d => !excludedGroupIds.has((d.data() as any).groupId))
+        ? snap.docs.filter(d => !excludedGroupIds.has((d.data() as GroupDoc).groupId ?? ""))
         : snap.docs;
       const all = filteredDocs.map(d => {
         const data  = { id: d.id, ...d.data() } as StudentRank & { g2StartXP?: number };
         if (data.isScoreHidden) return { ...data, points: 0, completedTasks: 0, latePenaltyTotal: 0 };
 
-        const allGT = (data as any).gradedTasks ?? {};
+        const allGT = data.gradedTasks ?? {};
 
         // G2 (mevcut grup) entry'leri
-        const classEntries = Object.entries(allGT).filter(([tid, e]: any) => {
+        const classEntries = Object.entries(allGT).filter(([tid, e]) => {
           const cid = e?.classId;
           if (cid) return cid === data.groupCode;
           const mapCid = tasksMap[tid]?.classId;
@@ -212,7 +233,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         });
 
         // G1 (eski grup) entry'leri — g2Bonus hesabı için
-        const g1Entries = Object.entries(allGT).filter(([tid, e]: any) => {
+        const g1Entries = Object.entries(allGT).filter(([tid, e]) => {
           const cid = e?.classId;
           if (cid) return cid !== data.groupCode;
           const mapCid = tasksMap[tid]?.classId;
@@ -220,18 +241,18 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         });
 
         // G1 ay-ay skor → g2Bonus (%10)
-        const g1ByMonth: Record<string, any[]> = {};
+        const g1ByMonth: Record<string, [string, GradedTaskEntry][]> = {};
         for (const [tid, e] of g1Entries) {
-          const m = effectiveMonthKey((e as any).completedAt, (e as any).endDate ?? tasksMap[tid]?.endDate);
+          const m = effectiveMonthKey(e.completedAt, e.endDate ?? tasksMap[tid]?.endDate);
           if (!m) continue;
           if (!g1ByMonth[m]) g1ByMonth[m] = [];
           g1ByMonth[m].push([tid, e]);
         }
-        const g1Codes = [...new Set(g1Entries.map(([tid, e]: any) => (e?.classId ?? tasksMap[tid]?.classId)).filter(Boolean))] as string[];
+        const g1Codes = [...new Set(g1Entries.map(([tid, e]) => (e?.classId ?? tasksMap[tid]?.classId)).filter((c): c is string => Boolean(c)))];
 
         let g1TotalScore = 0;
         for (const [month, entries] of Object.entries(g1ByMonth)) {
-          const mXP      = entries.reduce((s: number, [, e]: any) => s + (e.xp ?? 0), 0);
+          const mXP      = entries.reduce((s, [, e]) => s + (e.xp ?? 0), 0);
           const mComp    = entries.length;
           const [y, mo]  = month.split("-");
           const mStart   = `${y}-${mo}-01`;
@@ -244,9 +265,9 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
         const g2Bonus = Math.round(g1TotalScore * 0.10);
 
         // G2 ay-ay kümülatif skor
-        const byMonth: Record<string, any[]> = {};
+        const byMonth: Record<string, [string, GradedTaskEntry][]> = {};
         for (const [tid, e] of classEntries) {
-          const m = effectiveMonthKey((e as any).completedAt, (e as any).endDate ?? tasksMap[tid]?.endDate);
+          const m = effectiveMonthKey(e.completedAt, e.endDate ?? tasksMap[tid]?.endDate);
           if (!m) continue;
           if (!byMonth[m]) byMonth[m] = [];
           byMonth[m].push([tid, e]);
@@ -254,7 +275,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
 
         let cumulativeScore = g2Bonus;
         for (const [month, entries] of Object.entries(byMonth)) {
-          const mXP      = entries.reduce((s: number, [, e]: any) => s + (e.xp ?? 0), 0);
+          const mXP      = entries.reduce((s, [, e]) => s + (e.xp ?? 0), 0);
           const mComp    = entries.length;
           const [y, mo]  = month.split("-");
           const mStart   = `${y}-${mo}-01`;
@@ -268,7 +289,7 @@ export default function LeaderboardWidget({ viewMode, setViewMode }: {
 
         const score          = isFinite(cumulativeScore) && !isNaN(cumulativeScore) ? cumulativeScore : 0;
         const totalCompleted = classEntries.length;
-        const totalPenalty   = classEntries.reduce((s: number, [, e]: any) => s + (e.penalty ?? 0), 0);
+        const totalPenalty   = classEntries.reduce((s, [, e]) => s + (e.penalty ?? 0), 0);
 
         return { ...data, points: score, completedTasks: totalCompleted, latePenaltyTotal: totalPenalty };
       });
