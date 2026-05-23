@@ -11,6 +11,49 @@ import {
 } from "firebase/firestore";
 
 // --- INTERFACES ---
+
+interface GradedTaskEntry {
+  xp:           number;
+  penalty:      number;
+  classId?:     string;
+  endDate?:     string;
+  completedAt?: string;
+}
+
+interface Instructor {
+  id:           string;
+  displayName:  string;
+  name?:        string;
+  surname?:     string;
+  email?:       string;
+  uid?:         string;
+  branches?:    string[];
+  branch?:      string;
+  role?:        string;
+  roles?:       string[];
+  isInstructor?: boolean;
+}
+
+interface UserDoc {
+  id:           string;
+  email?:       string;
+  name?:        string;
+  surname?:     string;
+  role?:        string;
+  roles?:       string[];
+  isInstructor?: boolean;
+  isActivated?:  boolean;
+}
+
+interface BranchModule {
+  id:           string;
+  name:         string;
+  totalHours:   number;
+  sessionHours?: number;
+  isActive?:    boolean;
+  order?:       number;
+}
+
 interface Group {
   id: string;
   code: string;
@@ -20,10 +63,15 @@ interface Group {
   session: string;
   students: number;
   status: string;
-  createdAt?: any;
+  createdAt?: { seconds: number; nanoseconds?: number };
   module?: "GRAFIK_1" | "GRAFIK_2";
   discipline?: string;
   startDate?: string;
+  type?: "standart" | "özel_ders" | "kurumsal";
+  moduleId?: string;
+  customHours?: number;
+  companyName?: string;
+  sessionHours?: number;
 }
 
 interface Student {
@@ -43,7 +91,9 @@ interface Student {
   lastGroupCode?: string;
   lastGroupId?: string;
   hiddenFromInstructors?: string[];
-  updatedAt?: any;
+  updatedAt?: unknown;
+  isCarryOverApplied?: boolean;
+  gradedTasks?: Record<string, GradedTaskEntry>;
 }
 const FALLBACK_SCHEDULES = [
   "Pts - Çar | 19.00 - 21.30", "Sal - Per | 19.00 - 21.30", "Cts - Paz | 09.00 - 12.00",
@@ -62,7 +112,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   userRef.current = user;
   const [avatarId, setAvatarId] = useState<number | null>(null);
 
-  const [instructors, setInstructors] = useState<any[]>([]);
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState("");
   const [groupBranch, setGroupBranch] = useState("Kadıköy");
   const [groupDiscipline, setGroupDiscipline] = useState("");
@@ -92,7 +142,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
   const [selectedModuleId, setSelectedModuleId] = useState("");
   const [customHours, setCustomHours] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [branchModules, setBranchModules] = useState<{ id: string; name: string; totalHours: number; sessionHours?: number }[]>([]);
+  const [branchModules, setBranchModules] = useState<BranchModule[]>([]);
   const [firestoreSessions, setFirestoreSessions] = useState<string[]>([]);
   const [moduleBlockModal, setModuleBlockModal] = useState<{ isOpen: boolean; currentModule: string } | null>(null);
   const [lessonHours, setLessonHours]   = useState("");
@@ -201,7 +251,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     }, () => {});
     const unsubSessions = onSnapshot(
       query(collection(db, "sessions"), where("isActive", "==", true), orderBy("order", "asc")),
-      snap => setFirestoreSessions(snap.docs.map(d => (d.data() as any).label as string)),
+      snap => setFirestoreSessions(snap.docs.map(d => (d.data() as { label: string }).label)),
       () => {}
     );
     return () => { unsubGroups(); unsubStudents(); unsubSessions(); };
@@ -213,8 +263,8 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       query(collection(db, "branches", groupDiscipline, "modules"), orderBy("order", "asc")),
       snap => setBranchModules(
         snap.docs
-          .map(d => ({ id: d.id, ...d.data() } as any))
-          .filter((m: any) => m.isActive !== false)
+          .map(d => ({ id: d.id, ...d.data() } as BranchModule))
+          .filter(m => m.isActive !== false)
       ),
       (err) => console.error("[branchModules]", err)
     );
@@ -228,14 +278,14 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         setInstructors([{
           ...user,
           id: user.uid,
-          displayName: user.name ? `${user.name} ${(user as any).surname || ""}` : ((user as any).email || user.uid)
+          displayName: user.name ? `${user.name} ${user.surname || ""}` : (user.email || user.uid)
         }]);
       }
       return;
     }
 
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-      const allDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const allDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserDoc));
 
       // ── DEBUG: Bozuk kayıtları logla ──────────────────────────────────────
       const broken = allDocs.filter(u =>
@@ -267,7 +317,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         )
         .map(u => ({
           ...u,
-          displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || u.uid)
+          displayName: u.name ? `${u.name} ${u.surname || ""}` : (u.email || u.id)
         }));
 
       setInstructors(insList);
@@ -417,7 +467,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
             where("groupId", "==", editingGroupId),
           ));
           const isFinalized = gradesSnap.docs.some(d => {
-            const data = d.data() as any;
+            const data = d.data() as { module?: string; isFinalized?: boolean };
             return data.module === currentModule && data.isFinalized === true;
           });
           if (!isFinalized) {
@@ -459,7 +509,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           if (!studentsSnap.empty) {
             const batch = writeBatch(db);
             studentsSnap.docs.forEach(d => {
-              const sData = d.data() as any;
+              const sData = d.data() as { isCarryOverApplied?: boolean; gradedTasks?: Record<string, GradedTaskEntry> };
               const updates: Record<string, unknown> = {};
 
               if (isCodeChange) updates.groupCode = formattedCode;
@@ -468,10 +518,10 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
               if (isModuleUpgrade && !sData.isCarryOverApplied) {
                 const allGradedTasks = sData.gradedTasks ?? {};
                 const classGradedTasks = Object.fromEntries(
-                  Object.entries(allGradedTasks).filter(([, e]: any) =>
+                  Object.entries(allGradedTasks).filter(([, e]) =>
                     e?.classId === (oldCode || editingGroup?.code)
                   )
-                ) as Record<string, any>;
+                ) as Record<string, GradedTaskEntry>;
                 const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
                 updates.g2StartXP          = Math.round(calcScore(xp, tasks) * 0.10);
                 updates.isCarryOverApplied = true;
@@ -533,14 +583,14 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setEditingGroupId(group.id);
     setGroupCode(group.code.replace("Grup ", ""));
     setGroupBranch(group.branch);
-    setGroupDiscipline((group as any).discipline || "");
+    setGroupDiscipline(group.discipline || "");
     setGroupModule(group.module ?? "");
-    setGroupType((group as any).type ?? "standart");
-    setSelectedModuleId((group as any).moduleId ?? "");
-    setCustomHours((group as any).customHours?.toString() ?? "");
-    setCompanyName((group as any).companyName ?? "");
+    setGroupType(group.type ?? "standart");
+    setSelectedModuleId(group.moduleId ?? "");
+    setCustomHours(group.customHours?.toString() ?? "");
+    setCompanyName(group.companyName ?? "");
     setSelectedInstructorId(group.instructorId || "");
-    setLessonHours((group as any).sessionHours?.toString() ?? "");
+    setLessonHours(group.sessionHours?.toString() ?? "");
     setGroupStartDate(group.startDate ?? "");
     if (schedules.includes(group.session)) {
       setSelectedSchedule(group.session);
@@ -610,12 +660,12 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         const groupCode = targetGroup?.code || "";
         affectedStudents.forEach(student => {
           // Carry-over: öğrencinin bu sınıftaki puanının %30'u sonraki dönem başlangıç puanı olur
-          const allGradedTasks = (student as any).gradedTasks ?? {};
+          const allGradedTasks = student.gradedTasks ?? {};
           const classGradedTasks = Object.fromEntries(
-            Object.entries(allGradedTasks).filter(([, e]: any) =>
+            Object.entries(allGradedTasks).filter(([, e]) =>
               groupCode ? e?.classId === groupCode : true
             )
-          ) as Record<string, any>;
+          ) as Record<string, GradedTaskEntry>;
           const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
           const carryOverScore = Math.round(calcScore(xp, tasks) * 0.10);
 
@@ -685,7 +735,7 @@ if(!name?.trim()||!lastName?.trim()||!groupId){
 return;
 }
 const targetGroup=groups.find((g)=>g.id===groupId);
-const studentData:any={
+const studentData: Record<string, unknown> = {
 name:name.trim(),
 lastName:lastName.trim(),
 email:email.trim(),
@@ -736,12 +786,12 @@ if (oldGroup?.module === "GRAFIK_1") {
 }
 // G1 → G2 geçişi: carry-over henüz uygulanmamışsa hesapla
 // (archive üzerinden geçilmişse isCarryOverApplied=true — double-application engellenir)
-const isCarryOverApplied = (oldStudent as any).isCarryOverApplied === true;
+const isCarryOverApplied = oldStudent.isCarryOverApplied === true;
 if (!isCarryOverApplied && oldGroup?.module === "GRAFIK_1" && targetGroup?.module === "GRAFIK_2") {
-  const allGradedTasks = (oldStudent as any).gradedTasks ?? {};
+  const allGradedTasks = oldStudent.gradedTasks ?? {};
   const classGradedTasks = Object.fromEntries(
-    Object.entries(allGradedTasks).filter(([, e]: any) => e?.classId === oldGroup.code)
-  ) as Record<string, any>;
+    Object.entries(allGradedTasks).filter(([, e]) => e?.classId === oldGroup.code)
+  ) as Record<string, GradedTaskEntry>;
   const { totalXP: xp, completedTasks: tasks } = computeStudentStats(classGradedTasks);
   studentData.g2StartXP = Math.round(calcScore(xp, tasks) * 0.10);
   studentData.isCarryOverApplied = true;
@@ -765,8 +815,8 @@ if(email?.trim()){
   } catch(e){ console.error("[welcome mail]",e); }
 }
 }
-}catch(error: any){
-if(error?.code !== "DUPLICATE_EMAIL") console.error("HATA:",error);
+}catch(error: unknown){
+if((error as {code?: string})?.code !== "DUPLICATE_EMAIL") console.error("HATA:",error);
 throw error;
 }
 };
@@ -811,8 +861,8 @@ throw error;
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
       showNotification(action === 'disable' ? 'Hesap devre dışı bırakıldı.' : 'Hesap tekrar aktifleştirildi.');
-    } catch (e: any) {
-      showNotification(e?.message ?? 'Hata oluştu.');
+    } catch (e: unknown) {
+      showNotification((e instanceof Error ? e.message : null) ?? 'Hata oluştu.');
     }
   };
 
@@ -875,7 +925,7 @@ throw error;
     setAvatarId(null);
   };
 
-  const handleEditStudent = (student: any) => {
+  const handleEditStudent = (student: Student) => {
     setEditingStudentId(student.id);
     setSelectedGroupIdForStudent(student.groupId);
     setStudentName(student.name);
