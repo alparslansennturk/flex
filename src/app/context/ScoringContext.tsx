@@ -13,6 +13,31 @@ import {
 
 const SCORING_DOC = () => doc(db, "settings", "scoring");
 
+interface ScoringDocData {
+  leaderboard?:        Partial<ScoringSettings["leaderboard"]>;
+  certificateWeights?: Partial<ScoringSettings["certificateWeights"]>;
+  latePenalty?:        Partial<ScoringSettings["latePenalty"]>;
+  difficultyXP?:       Partial<ScoringSettings["difficultyXP"]>;
+  activeSeasonId?:     string;
+  seasonCounter?:      number;
+}
+
+interface GradedTaskEntry {
+  xp:           number;
+  penalty:      number;
+  maxXp:        number;
+  classId?:     string;
+  endDate?:     string;
+  completedAt?: string;
+  seasonId?:    string;
+}
+
+interface TaskDocData {
+  isGraded?: boolean;
+  level?:    string;
+  grades?:   Record<string, { submitted: boolean; weeksLate: number }>;
+}
+
 interface ScoringContextType {
   settings:       ScoringSettings;
   activeSeasonId: string;
@@ -41,7 +66,7 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsub = onSnapshot(SCORING_DOC(), snap => {
       if (snap.exists()) {
-        const data = snap.data() as any;
+        const data = snap.data() as ScoringDocData;
         // Firestore belgesi eksik alan içerebilir (ör. sadece seasonCounter varsa)
         // — her zaman DEFAULT_SCORING ile iç içe merge et
         setSettings({
@@ -64,7 +89,7 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
    */
   const bumpSeason = useCallback(async (): Promise<string> => {
     const snap = await getDoc(SCORING_DOC());
-    const current: number = snap.exists() ? ((snap.data() as any).seasonCounter ?? 1) : 1;
+    const current: number = snap.exists() ? ((snap.data() as ScoringDocData).seasonCounter ?? 1) : 1;
     const next = current + 1;
     const newSeasonId = `season_${next}`;
     await setDoc(SCORING_DOC(), { seasonCounter: next, activeSeasonId: newSeasonId }, { merge: true });
@@ -77,7 +102,7 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
    */
   const revertSeason = useCallback(async (): Promise<void> => {
     const snap = await getDoc(SCORING_DOC());
-    const current: number = snap.exists() ? ((snap.data() as any).seasonCounter ?? 1) : 1;
+    const current: number = snap.exists() ? ((snap.data() as ScoringDocData).seasonCounter ?? 1) : 1;
     if (current <= 1) return; // zaten ilk sezondayız, geri alınacak bir şey yok
     const prev = current - 1;
     await setDoc(SCORING_DOC(), { seasonCounter: prev, activeSeasonId: `season_${prev}` }, { merge: true });
@@ -94,16 +119,16 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
     ]);
 
     // Mevcut seasonId'leri koru
-    const studentGradedTasks: Record<string, Record<string, any>> = {};
+    const studentGradedTasks: Record<string, Record<string, GradedTaskEntry>> = {};
     studentsSnap.docs.forEach(d => {
-      studentGradedTasks[d.id] = (d.data() as any).gradedTasks ?? {};
+      studentGradedTasks[d.id] = (d.data().gradedTasks as Record<string, GradedTaskEntry>) ?? {};
     });
 
     // Görevlerden yeni XP değerlerini hesapla
-    const newEntries: Record<string, Record<string, any>> = {};
+    const newEntries: Record<string, Record<string, GradedTaskEntry>> = {};
 
     tasksSnap.docs.forEach(d => {
-      const task = d.data() as any;
+      const task = d.data() as TaskDocData;
       if (!task.isGraded || !task.grades) return;
       const baseXP = getLevelXP(task.level, newSettings);
 
@@ -130,7 +155,7 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
     for (let i = 0; i < sids.length; i += 500) {
       const batch = writeBatch(db);
       sids.slice(i, i + 500).forEach(sid => {
-        const updates: Record<string, any> = {};
+        const updates: Record<string, GradedTaskEntry> = {};
         Object.entries(newEntries[sid]).forEach(([taskId, entry]) => {
           updates[`gradedTasks.${taskId}`] = entry;
         });
@@ -145,9 +170,11 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
   const saveSettings = useCallback(async (newSettings: ScoringSettings) => {
     // activeSeasonId ve seasonCounter alanlarını koruyarak kaydet
     const snap = await getDoc(SCORING_DOC());
-    const extra = snap.exists()
-      ? { activeSeasonId: (snap.data() as any).activeSeasonId ?? "season_1", seasonCounter: (snap.data() as any).seasonCounter ?? 1 }
-      : { activeSeasonId: "season_1", seasonCounter: 1 };
+    const docData = snap.exists() ? (snap.data() as ScoringDocData) : null;
+    const extra = {
+      activeSeasonId: docData?.activeSeasonId ?? "season_1",
+      seasonCounter:  docData?.seasonCounter  ?? 1,
+    };
     await setDoc(SCORING_DOC(), { ...newSettings, ...extra, updatedAt: serverTimestamp() });
     await recalculateAll(newSettings);
   }, [recalculateAll]);
