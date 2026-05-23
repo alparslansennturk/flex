@@ -52,7 +52,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
 
   useEffect(() => {
     return onSnapshot(query(collection(db, "branches")), snap => {
-      setBranches(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)));
+      setBranches(snap.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; name: string; slug: string })));
     });
   }, []);
 
@@ -76,20 +76,20 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const disciplineGroupIds = new Set(
     activeStudentDiscipline === "all"
       ? []
-      : groups.filter((g: any) => g.discipline === activeStudentDiscipline).map((g: any) => g.id)
+      : groups.filter(g => g.discipline === activeStudentDiscipline).map(g => g.id)
   );
 
   // Admin'in seçili discipline'de kendi grubu var mı?
   const hasOwnGroupsInDiscipline = activeStudentDiscipline === "all"
-    || myGroupCards.some((g: any) => g.discipline === activeStudentDiscipline);
+    || myGroupCards.some(g => g.discipline === activeStudentDiscipline);
 
   const disciplineFilteredStudents = activeStudentDiscipline === "all"
     ? filteredStudents
-    : filteredStudents.filter((s: any) => disciplineGroupIds.has(s.groupId));
+    : filteredStudents.filter(s => disciplineGroupIds.has(s.groupId));
 
   const disciplinePagedStudents = activeStudentDiscipline === "all"
     ? pagedStudents
-    : pagedStudents.filter((s: any) => disciplineGroupIds.has(s.groupId));
+    : pagedStudents.filter(s => disciplineGroupIds.has(s.groupId));
 
   useEffect(() => {
     if (!isFormOpen || !editingGroupId) return;
@@ -282,7 +282,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             currentView={currentView}
             filteredGroups={(() => {
               const base = currentView === "Arşiv" ? filteredArchiveGroups : currentView === "Tüm Sınıflar" ? filteredGroups : myGroupCards;
-              return activeDiscipline === "all" ? base : base.filter((g: any) => g.discipline === activeDiscipline);
+              return activeDiscipline === "all" ? base : base.filter(g => g.discipline === activeDiscipline);
             })()}
             selectedGroupId={selectedGroupId}
             setSelectedGroupId={setSelectedGroupId}
@@ -517,7 +517,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
       />
 
       {/* MODALLAR */}
-      <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type as any} count={modalConfig.groupIds?.length} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />
+      <GlobalConfirmationModal isOpen={modalConfig.isOpen} type={modalConfig.type} count={modalConfig.groupIds?.length} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} onConfirm={confirmModalAction} />
       <StudentDeleteModal
         isOpen={deleteModal.isOpen}
         type={deleteModal.deleteType === 'graduate' ? 'graduate' : 'delete'}
