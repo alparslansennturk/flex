@@ -33,6 +33,7 @@ interface StudentData {
   lastName: string;
   gender?: string;
   groupCode: string;
+  groupId?: string;
   branch: string;
   gradedTasks?: Record<string, { xp: number; penalty: number; classId?: string; endDate?: string; completedAt?: string }>;
   isScoreHidden?: boolean;
@@ -69,6 +70,16 @@ interface RankedGroup {
   /** İkincil bilgi: gruptaki tüm öğrencilerin toplam XP'si */
   totalXP: number;
   branch: string;
+}
+
+type TaskMapEntry = { endDate?: string; createdAt?: { toDate?: () => Date } | null; classId?: string; status?: string };
+
+interface GroupFirestoreDoc {
+  code?: string;
+  instructor?: string;
+  branch?: string;
+  attendanceClosed?: boolean;
+  attendanceClosedAt?: { toDate: () => Date };
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -793,7 +804,7 @@ export default function LeaguePage() {
   const [viewMode,        setViewMode]        = useState<ViewMode>("students");
   const [rawStudents,     setRawStudents]     = useState<StudentData[]>([]);
   const [excludedGroupIds, setExcludedGroupIds] = useState<Set<string>>(new Set());
-  const [tasksMap,        setTasksMap]        = useState<Record<string, { endDate?: string; createdAt?: any; classId?: string; status?: string }>>({});
+  const [tasksMap,        setTasksMap]        = useState<Record<string, TaskMapEntry>>({});
   const [groupsMap,       setGroupsMap]       = useState<Record<string, string>>({}); // groupCode → instructor name
   const [groupBranches,   setGroupBranches]   = useState<string[]>([]); // şube listesi groups'tan
   const [myGroupCodes,    setMyGroupCodes]    = useState<string[] | null>(null);
@@ -823,7 +834,7 @@ export default function LeaguePage() {
       where("status", "==", "active"),
     );
     return onSnapshot(q, (snap) => {
-      setMyGroupCodes(snap.docs.map((d) => (d.data() as any).code).filter(Boolean));
+      setMyGroupCodes(snap.docs.map((d) => (d.data() as { code?: string }).code).filter(Boolean) as string[]);
     });
   }, [user?.uid]);
 
@@ -836,7 +847,7 @@ export default function LeaguePage() {
       const thisYearMonth = now.getFullYear() * 100 + (now.getMonth() + 1);
       const excluded = new Set<string>();
       snap.docs.forEach((d) => {
-        const data = d.data() as any;
+        const data = d.data() as GroupFirestoreDoc;
         if (data.code) map[data.code] = data.instructor || "";
         if (data.branch) branches.add(data.branch);
         if (data.attendanceClosed && data.attendanceClosedAt) {
@@ -854,9 +865,9 @@ export default function LeaguePage() {
   // ── Görevleri çek (gerçek zamanlı) ───────────────────────────────────────
   useEffect(() => {
     return onSnapshot(collection(db, "tasks"), (snap) => {
-      const map: Record<string, { endDate?: string; createdAt?: any; classId?: string; status?: string }> = {};
+      const map: Record<string, TaskMapEntry> = {};
       snap.docs.forEach((d) => {
-        const data = d.data() as any;
+        const data = d.data() as TaskMapEntry;
         map[d.id] = { endDate: data.endDate ?? undefined, createdAt: data.createdAt ?? undefined, classId: data.classId ?? undefined, status: data.status ?? undefined };
       });
       setTasksMap(map);
@@ -891,7 +902,7 @@ export default function LeaguePage() {
   // ── Puan hesaplama ────────────────────────────────────────────────────────
   const activeStudents = useMemo(() =>
     excludedGroupIds.size > 0
-      ? rawStudents.filter(s => !excludedGroupIds.has((s as any).groupId))
+      ? rawStudents.filter(s => !excludedGroupIds.has(s.groupId ?? ""))
       : rawStudents,
   [rawStudents, excludedGroupIds]);
 
@@ -939,7 +950,7 @@ export default function LeaguePage() {
       // grafik1Code alanına güvenmek yerine gradedTasks'taki gerçek classId'leri kullanıyoruz.
       // Bu sayede grafik1Code retroaktif set edilmemiş eski geçişler de kapsamaya alınır.
       const taskClassIds = new Set<string>([s.groupCode]);
-      Object.values(s.gradedTasks ?? {}).forEach((entry: any) => {
+      Object.values(s.gradedTasks ?? {}).forEach((entry) => {
         if (entry.classId) taskClassIds.add(entry.classId);
       });
       const matchCodes = Array.from(taskClassIds);
@@ -1233,8 +1244,7 @@ export default function LeaguePage() {
 
   const handleStudentClick = (student: RankedStudent) => {
     const formattedStudent = { ...student, avatarId: Number(student.avatarId) || 0 };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setSelectedStudent(formattedStudent as any);
+    setSelectedStudent(formattedStudent as ModalStudent);
     setModalOpen(true);
   };
 
