@@ -61,11 +61,10 @@ export default function SubmissionTable({ rows, basePath, onBulkRevision, onBulk
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      let va: any = a[sortKey as keyof Row];
-      let vb: any = b[sortKey as keyof Row];
-      if (sortKey === "submittedAt") { va = new Date(va).getTime(); vb = new Date(vb).getTime(); }
-      if (typeof va === "string") va = va.toLowerCase();
-      if (typeof vb === "string") vb = vb.toLowerCase();
+      const rawA = a[sortKey as keyof Row];
+      const rawB = b[sortKey as keyof Row];
+      let va: string | number = sortKey === "submittedAt" ? new Date(rawA as string | number | Date).getTime() : typeof rawA === "string" ? rawA.toLowerCase() : (rawA as number) ?? 0;
+      let vb: string | number = sortKey === "submittedAt" ? new Date(rawB as string | number | Date).getTime() : typeof rawB === "string" ? rawB.toLowerCase() : (rawB as number) ?? 0;
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
       return 0;
@@ -94,7 +93,7 @@ export default function SubmissionTable({ rows, basePath, onBulkRevision, onBulk
           {STATUS_FILTER_OPTIONS.map(opt => (
             <button
               key={opt.value}
-              onClick={() => setStatusFilter(opt.value as any)}
+              onClick={() => setStatusFilter(opt.value)}
               className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all cursor-pointer ${
                 statusFilter === opt.value
                   ? "bg-white text-base-primary-700 shadow-sm"

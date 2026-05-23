@@ -52,6 +52,7 @@ interface SubmissionRow {
   daysLate?: number;
   feedback?: string;
   note?: string;
+  grade?: number;
 }
 
 interface CommentItem {
@@ -441,7 +442,7 @@ export default function StudentTaskDetailPage() {
   const latestSub        = submissions[0] ?? null;
   const dl               = deadlineMeta(task?.endDate);
   const isDueDatePassed  = dl?.danger === true;
-  const hasTeacherGrade  = !!latestSub?.feedback || (latestSub as any)?.grade !== undefined;
+  const hasTeacherGrade  = !!latestSub?.feedback || latestSub?.grade !== undefined;
   const uploadLimit      = latestSub?.status === "revision" ? 7 : 5;
   const uploadUsed       = submissions.length;
   const canUpload        = uploadUsed < uploadLimit && latestSub?.status !== "completed";

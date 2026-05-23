@@ -674,7 +674,7 @@ function GradingTabs({ initialTab = "pending" }: { initialTab?: ListTab }) {
                         </div>
 
                         {classTasks.map(task => {
-                          const grades         = (task as any).grades as GradesMap | undefined;
+                          const grades         = (task as { grades?: GradesMap }).grades;
                           const submittedCount = grades ? Object.values(grades).filter(g => g.submitted).length : 0;
                           const totalStudents  = grades ? Object.keys(grades).length : 0;
                           const totalXP        = grades ? Object.values(grades).reduce((s, g) => s + g.xp, 0) : 0;

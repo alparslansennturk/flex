@@ -101,9 +101,10 @@ function LoginForm() {
       }
 
       router.push("/dashboard");
-    } catch (error: any) {
-      console.error("Giriş Hatası:", error.code);
-      const msg = error.code === 'auth/user-disabled'
+    } catch (error: unknown) {
+      const e = error as { code?: string };
+      console.error("Giriş Hatası:", e.code);
+      const msg = e.code === 'auth/user-disabled'
         ? getFlexMessage('auth/user-disabled').text
         : getFlexMessage('auth/invalid-credential').text;
       setErrors({ general: msg });

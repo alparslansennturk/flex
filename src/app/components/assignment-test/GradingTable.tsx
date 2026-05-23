@@ -90,7 +90,7 @@ export default function GradingTable({ rows, onGradeUpdate, onBulkApprove, onExp
           {STATUS_OPTIONS.map(opt => (
             <button
               key={opt.value}
-              onClick={() => setStatusFilter(opt.value as any)}
+              onClick={() => setStatusFilter(opt.value)}
               className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all cursor-pointer ${
                 statusFilter === opt.value
                   ? "bg-white text-base-primary-700 shadow-sm"

@@ -6,7 +6,7 @@ import { collection, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from "
 
 interface Branch { id: string; name: string; slug: string; sessionHours?: number; }
 
-export const BranchManagement = ({ branches, users }: { branches: Branch[]; users: any[] }) => {
+export const BranchManagement = ({ branches, users }: { branches: Branch[]; users: { branches?: string[] }[] }) => {
     const [name, setName] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");

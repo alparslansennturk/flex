@@ -66,7 +66,7 @@ function ActivationContent() {
         router.push("/login");
       }, 3500);
 
-    } catch (err: any) {
+    } catch {
       setIsLoading(false);
       setShouldShake(true);
       setError("Bağlantı geçersiz veya süresi dolmuş.");

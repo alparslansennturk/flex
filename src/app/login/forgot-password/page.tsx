@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
       setIsLoading(false);
       setIsSent(true);
       setError("");
-    } catch (err: any) {
+    } catch {
       setIsLoading(false);
       setShouldShake(true);
       setError(getFlexMessage('auth/user-not-found').text);

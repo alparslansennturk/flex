@@ -1,6 +1,6 @@
 "use client";
 
-export default function Footer({ setActiveTab }: any) {
+export default function Footer({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
   const socialIcons = [
     { name: 'linkedin', src: '/icons/linkedin.svg' },
     { name: 'facebook', src: '/icons/facebook.svg' },
@@ -18,7 +18,7 @@ export default function Footer({ setActiveTab }: any) {
         {/* LOGO BÖLÜMÜ */}
         <div 
           className="flex items-center gap-1 select-none cursor-pointer" 
-          onClick={() => setActiveTab('dashboard')}
+          onClick={() => setActiveTab?.('dashboard')}
         >
           <span className="text-[20px] font-semibold text-[#FF8D28] tracking-tight">tasarım</span>
           <span className="text-[20px] font-bold text-white tracking-tight">atölyesi</span>

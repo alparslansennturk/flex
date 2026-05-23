@@ -365,8 +365,9 @@ export default function GraduationPage() {
   useEffect(() => {
     if (!isAdmin) return;
     return onSnapshot(collection(db, "users"), (snap) => {
+      type RawUser = { id: string; roles?: string[]; role?: string; isInstructor?: boolean; name?: string; surname?: string; email?: string };
       const list: Instructor[] = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as any))
+        .map((d) => ({ id: d.id, ...d.data() } as RawUser))
         .filter(
           (u) =>
             u.roles?.includes("instructor") ||

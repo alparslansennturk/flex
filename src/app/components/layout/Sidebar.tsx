@@ -169,7 +169,7 @@ export default function Sidebar() {
 }
 
 function SidebarLink({ href, icon, label, exact = false, compact = false, sub = false }: {
-  href: string; icon: any; label: string; exact?: boolean; compact?: boolean; sub?: boolean;
+  href: string; icon: React.ReactNode; label: string; exact?: boolean; compact?: boolean; sub?: boolean;
 }) {
   const pathname = usePathname();
   const active = exact ? pathname === href : (pathname === href || pathname.startsWith(href + '/'));

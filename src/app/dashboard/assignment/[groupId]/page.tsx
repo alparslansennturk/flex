@@ -38,14 +38,17 @@ interface SubmissionRow extends Submission {
   studentName: string;
 }
 
-function parseDate(val: any): Date | null {
+type FirestoreDate = { toDate?: () => Date } | Date | string | number | null | undefined;
+
+function parseDate(val: FirestoreDate): Date | null {
   if (!val) return null;
-  if (val?.toDate) return val.toDate();           // Firestore Timestamp
+  if (val instanceof Date) return val;
   if (typeof val === "string" || typeof val === "number") return new Date(val);
+  if (typeof val === "object" && val.toDate) return val.toDate();
   return null;
 }
 
-function formatEndDate(dateVal: any) {
+function formatEndDate(dateVal: FirestoreDate) {
   const d = parseDate(dateVal);
   if (!d || isNaN(d.getTime())) return "";
   const datePart = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
@@ -53,9 +56,9 @@ function formatEndDate(dateVal: any) {
   return `${datePart} ${weekday}.`;
 }
 
-function formatCreatedAt(createdAt: any): string {
+function formatCreatedAt(createdAt: FirestoreDate): string {
   if (!createdAt) return "";
-  const d: Date = createdAt?.toDate?.() ?? new Date(createdAt);
+  const d: Date = parseDate(createdAt) ?? new Date();
   const day     = String(d.getDate()).padStart(2, "0");
   const month   = String(d.getMonth() + 1).padStart(2, "0");
   const year    = d.getFullYear();

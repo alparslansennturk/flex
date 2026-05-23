@@ -47,9 +47,9 @@ interface CommentItem {
 
 /* ── Helpers ── */
 
-function fmtDateTime(val: any): string {
+function fmtDateTime(val: { toDate?: () => Date } | Date | string | number | null | undefined): string {
   if (!val) return "—";
-  const d: Date = val?.toDate ? val.toDate() : val instanceof Date ? val : new Date(val);
+  const d: Date = typeof val === "object" && !(val instanceof Date) && val.toDate ? val.toDate() : val instanceof Date ? val : new Date(val as string | number);
   const date = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric", weekday: "short" });
   const time = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
   return `${date} ${time}`;

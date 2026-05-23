@@ -13,7 +13,7 @@ export default function ManagementPanel() {
         {['gruplar', 'öğrenciler', 'ayarlar'].map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveSubTab(tab as any)}
+            onClick={() => setActiveSubTab(tab as 'gruplar' | 'öğrenciler' | 'ayarlar')}
             className={`pb-5 text-[15px] font-semibold transition-all relative whitespace-nowrap ${
               activeSubTab === tab ? 'text-[#3A7BD5]' : 'text-text-tertiary hover:text-text-primary'
             }`}

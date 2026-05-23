@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Users, ClipboardList, UsersRound, Zap } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { calcScore, computeStudentStats } from "@/app/lib/scoring";
+import { calcScore, computeStudentStats, GradedTaskEntry } from "@/app/lib/scoring";
 import { useScoring } from "@/app/context/ScoringContext";
 
 function StatBox({ label, value, icon }: { label: string; value: string | number; icon: React.ReactNode }) {
@@ -39,7 +39,7 @@ export default function WorkshopAnalysis() {
       let total = 0;
       let count = 0;
       snap.docs.forEach(d => {
-        const data = d.data() as any;
+        const data = d.data() as { gradedTasks?: Record<string, GradedTaskEntry>; isScoreHidden?: boolean };
         const { totalXP, completedTasks } = computeStudentStats(
           data.gradedTasks,
           data.isScoreHidden,

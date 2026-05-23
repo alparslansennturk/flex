@@ -694,7 +694,7 @@ function LeagueContent() {
       // grafik1Code alanına güvenmek yerine gradedTasks'taki gerçek classId'leri kullanıyoruz.
       // Bu sayede grafik1Code retroaktif set edilmemiş eski geçişler de kapsamaya alınır.
       const taskClassIds = new Set<string>([s.groupCode]);
-      Object.values(s.gradedTasks ?? {}).forEach((entry: any) => {
+      Object.values(s.gradedTasks ?? {}).forEach((entry: { classId?: string }) => {
         if (entry.classId) taskClassIds.add(entry.classId);
       });
       const matchCodes = Array.from(taskClassIds);

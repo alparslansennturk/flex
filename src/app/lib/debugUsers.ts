@@ -28,7 +28,7 @@ export async function runUserAudit() {
   console.group('🔍 USER AUDIT BAŞLIYOR');
 
   const snapshot = await getDocs(collection(db, 'users'));
-  const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+  const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
 
   console.log(`Toplam kullanıcı: ${docs.length}`);
 
@@ -46,7 +46,7 @@ export async function runUserAudit() {
         issues.push(`❌ Eksik field: "${field}"`);
       } else if (actualType !== expectedType) {
         issues.push(`⚠️  "${field}" tipi yanlış: beklenen=${expectedType}, gelen=${actualType} (değer: ${JSON.stringify(val)})`);
-      } else if (actualType === 'string' && val.trim() === '') {
+      } else if (actualType === 'string' && typeof val === 'string' && val.trim() === '') {
         issues.push(`⚠️  "${field}" boş string`);
       }
     });
@@ -74,7 +74,7 @@ export async function runUserAudit() {
     });
 
     if (issues.length > 0) {
-      problems.push({ id: u.id, email: u.email ?? '(email yok)', issues });
+      problems.push({ id: String(u.id ?? ''), email: String(u.email ?? '(email yok)'), issues });
     }
   });
 

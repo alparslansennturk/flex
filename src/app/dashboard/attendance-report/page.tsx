@@ -217,7 +217,7 @@ function AttendanceReportContent() {
       if (isAdmin()) {
         setGroups(filterInstructorId ? all.filter(g => g.instructorId === filterInstructorId) : all);
       } else {
-        const branchIds: string[] = (user as any)?.branches ?? ((user as any)?.branch ? [(user as any).branch] : []);
+        const branchIds: string[] = user?.branches ?? (user?.branch ? [user.branch] : []);
         setGroups(branchIds.length > 0 ? all.filter(g => g.discipline && branchIds.includes(g.discipline)) : all);
       }
     });

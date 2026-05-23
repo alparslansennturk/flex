@@ -44,8 +44,8 @@ export default function NotificationsPage() {
       setTitle("");
       setPreview("");
       setActionUrl("/");
-    } catch (err: any) {
-      setResult({ type: "error", msg: err.message ?? "Bir hata oluştu." });
+    } catch (err: unknown) {
+      setResult({ type: "error", msg: (err as { message?: string }).message ?? "Bir hata oluştu." });
     } finally {
       setLoading(false);
     }

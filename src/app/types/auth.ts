@@ -18,5 +18,5 @@ export interface UserProfile {
   // İşte hatayı çözen anahtar satır burası: 
   // [key: string] diyerek herhangi bir string ile indexlenebileceğini söylüyoruz.
   overrides?: Record<string, boolean>; 
-  createdAt?: any;
+  createdAt?: { toDate?: () => Date } | string | null;
 }

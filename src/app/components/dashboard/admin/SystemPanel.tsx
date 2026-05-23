@@ -14,6 +14,14 @@ import {
   AlertTriangle, Eye, EyeOff, Trash2, Plus,
 } from "lucide-react";
 
+interface Backup {
+  id: string;
+  createdAt?: { toDate?: () => Date } | null;
+  studentCount?: number;
+  seasonId?: string;
+  counts?: { groups?: number; students?: number; tasks?: number };
+}
+
 // ─── Yardımcı ────────────────────────────────────────────────────────────────
 async function deleteCollection(colName: string) {
   const snap = await getDocs(collection(db, colName));
@@ -130,7 +138,7 @@ function HardResetModal({ onCancel, onSuccess, seasonId }: {
 
 // ─── Modal: Puan Yedeği Geri Yükle ───────────────────────────────────────────
 function RestoreModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
-  const [backups, setBackups] = useState<any[]>([]);
+  const [backups, setBackups] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -250,7 +258,7 @@ function UnhideModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess:
 const BACKUP_COLS = ["groups", "students", "tasks", "lottery_results", "assignment_archive"] as const;
 
 function RestoreSystemModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
-  const [backups,   setBackups]   = useState<any[]>([]);
+  const [backups,   setBackups]   = useState<Backup[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [applying,  setApplying]  = useState<string | null>(null);
   const [progress,  setProgress]  = useState("");
@@ -508,7 +516,7 @@ export default function SystemPanel() {
 
   const [backingUp,      setBackingUp]      = useState(false);
   const [backupDone,     setBackupDone]      = useState(false);
-  const [backups,        setBackups]         = useState<any[]>([]);
+  const [backups,        setBackups]         = useState<Backup[]>([]);
   const [loadingBackups, setLoadingBackups]  = useState(true);
   const [deletingBackup, setDeletingBackup]  = useState<string | null>(null);
 
