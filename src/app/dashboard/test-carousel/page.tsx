@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-function cn(...inputs: any[]) {
+function cn(...inputs: (string | undefined | null | false)[]) {
     return inputs.filter(Boolean).join(" ");
 }
 
