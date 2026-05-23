@@ -24,7 +24,7 @@ async function deleteCollection(colName: string) {
   }
 }
 
-function fmt(ts: any) {
+function fmt(ts: { toDate?: () => Date } | null | undefined) {
   if (!ts?.toDate) return "—";
   return ts.toDate().toLocaleString("tr-TR", {
     day: "2-digit", month: "long", year: "numeric",
@@ -61,7 +61,7 @@ function HardResetModal({ onCancel, onSuccess, seasonId }: {
       for (let i = 0; i < allSnap.docs.length; i += 500) {
         const batch = writeBatch(db);
         allSnap.docs.slice(i, i + 500).forEach(d => {
-          const data = d.data() as any;
+          const data = d.data() as { gradedTasks?: Record<string, unknown>; isScoreHidden?: boolean; studentId?: string };
           batch.set(doc(collection(db, "scores_backup_entries")), {
             backupId: backupRef.id, studentId: d.id,
             gradedTasks: data.gradedTasks ?? {}, isScoreHidden: data.isScoreHidden ?? false,
@@ -86,11 +86,12 @@ function HardResetModal({ onCancel, onSuccess, seasonId }: {
       }
       setDone(true);
       setTimeout(() => { setVisible(false); setTimeout(onSuccess, 280); }, 2000);
-    } catch (e: any) {
-      const code = e?.code ?? "";
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string };
+      const code = err?.code ?? "";
       if (code.includes("wrong-password") || code.includes("invalid-credential") || code.includes("invalid-login"))
         setError("Şifre hatalı.");
-      else if (e?.message === "no-user") setError("Oturum bilgisi bulunamadı.");
+      else if (err?.message === "no-user") setError("Oturum bilgisi bulunamadı.");
       else setError("Hata oluştu.");
     } finally { setLoading(false); }
   };
@@ -151,7 +152,8 @@ function RestoreModal({ onCancel, onSuccess }: { onCancel: () => void; onSuccess
       for (let i = 0; i < snap.docs.length; i += 500) {
         const batch = writeBatch(db);
         snap.docs.slice(i, i + 500).forEach(d => {
-          const data = d.data() as any;
+          const data = d.data() as { gradedTasks?: Record<string, unknown>; isScoreHidden?: boolean; studentId?: string };
+          if (!data.studentId) return;
           batch.update(doc(db, "students", data.studentId), {
             gradedTasks: data.gradedTasks ?? {}, isScoreHidden: data.isScoreHidden ?? false, rankChange: 0,
           });
@@ -412,7 +414,9 @@ function SystemResetModal({ onCancel, onSuccess }: { onCancel: () => void; onSuc
 }
 
 // ─── Ortak UI parçaları ───────────────────────────────────────────────────────
-function Modal({ children, visible, onClose, overlayColor = "bg-base-primary-900/30" }: any) {
+function Modal({ children, visible, onClose, overlayColor = "bg-base-primary-900/30" }: {
+  children: React.ReactNode; visible: boolean; onClose: () => void; overlayColor?: string;
+}) {
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
       <div className={`absolute inset-0 ${overlayColor} backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
@@ -423,7 +427,9 @@ function Modal({ children, visible, onClose, overlayColor = "bg-base-primary-900
   );
 }
 
-function ModalHeader({ icon, iconBg, title, sub }: any) {
+function ModalHeader({ icon, iconBg, title, sub }: {
+  icon: React.ReactNode; iconBg: string; title: string; sub: React.ReactNode;
+}) {
   return (
     <div className="flex items-center gap-3">
       <div className={`w-10 h-10 rounded-2xl ${iconBg} flex items-center justify-center shrink-0`}>{icon}</div>
@@ -432,7 +438,10 @@ function ModalHeader({ icon, iconBg, title, sub }: any) {
   );
 }
 
-function ModalActions({ onCancel, onConfirm, confirmLabel, danger, confirmBg, disabled, loading }: any) {
+function ModalActions({ onCancel, onConfirm, confirmLabel, danger, confirmBg, disabled, loading }: {
+  onCancel: () => void; onConfirm: () => void; confirmLabel: React.ReactNode;
+  danger?: boolean; confirmBg?: string; disabled?: boolean; loading?: boolean;
+}) {
   const bg = confirmBg ?? (danger ? "bg-status-danger-500 hover:bg-status-danger-600" : "bg-base-primary-500 hover:bg-base-primary-600");
   return (
     <div className="flex gap-3">
@@ -467,7 +476,10 @@ function ErrorBanner({ text }: { text: string }) {
 }
 
 // ─── Section Wrapper ──────────────────────────────────────────────────────────
-function Section({ title, description, icon, iconBg, iconColor, border, children }: any) {
+function Section({ title, description, icon, iconBg, iconColor, border, children }: {
+  title: string; description: string; icon: React.ReactElement<{ size?: number; className?: string }>;
+  iconBg: string; iconColor: string; border?: string; children: React.ReactNode;
+}) {
   return (
     <div className={`bg-white rounded-2xl border ${border ?? "border-surface-200"} shadow-sm overflow-hidden`}>
       <div className="px-8 py-6 border-b border-surface-100 flex items-center gap-4">
@@ -519,7 +531,7 @@ export default function SystemPanel() {
       for (let i = 0; i < allSnap.docs.length; i += 500) {
         const batch = writeBatch(db);
         allSnap.docs.slice(i, i + 500).forEach(d => {
-          const data = d.data() as any;
+          const data = d.data() as { gradedTasks?: Record<string, unknown>; isScoreHidden?: boolean; studentId?: string };
           batch.set(doc(collection(db, "scores_backup_entries")), {
             backupId: backupRef.id, studentId: d.id,
             gradedTasks: data.gradedTasks ?? {}, isScoreHidden: data.isScoreHidden ?? false,
