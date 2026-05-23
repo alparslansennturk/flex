@@ -43,6 +43,57 @@ interface ModuleStats {
   odevPuani: number;
 }
 
+interface GradedTaskEntry {
+  xp: number;
+  penalty: number;
+  classId?: string;
+  endDate?: string;
+  completedAt?: string;
+  maxXp?: number;
+}
+
+interface StudentDoc {
+  email?: string;
+  groupCode?: string;
+  groupId?: string;
+  gradedTasks?: Record<string, GradedTaskEntry>;
+  isScoreHidden?: boolean;
+  grafik1Code?: string;
+  grafik2Code?: string;
+}
+
+interface AttendanceDoc {
+  entries?: Record<string, { hours: number }>;
+  sessionHours?: number;
+}
+
+interface TaskDoc {
+  classId?: string;
+  endDate?: string;
+  status?: string;
+  isGraded?: boolean;
+  isCancelled?: boolean;
+  level?: string;
+  xpMultiplier?: number;
+  grades?: Record<string, { submitted: boolean; xp?: number }>;
+}
+
+interface TaskWithId extends TaskDoc { id: string; }
+
+interface GroupDocData {
+  code?: string;
+  module?: string;
+  instructorId?: string;
+  codeAt_GRAFIK_1?: string;
+  codeAt_GRAFIK_2?: string;
+}
+
+interface ProjectGradeDoc {
+  projectScore?: number | null;
+  odevPuani?: number;
+  isFinalized?: boolean;
+}
+
 const MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const EMPTY_STATS: ModuleStats = { taskCount: 0, xp: 0, score: 0, maxXP: 0, odevPuani: 0 };
 
@@ -280,18 +331,18 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
     const unsubscribeStudent = onSnapshot(doc(db, "students", fetchId), async (sDoc) => {
       if (cancelled) return;
-      const sData = sDoc.exists() ? (sDoc.data() as any) : {};
+      const sData = sDoc.exists() ? (sDoc.data() as StudentDoc) : {} as StudentDoc;
       const studentEmail = sData.email ?? "";
 
-      const groupCode = (sData.groupCode  ?? "") as string;
+      const groupCode = sData.groupCode ?? "";
 
       // Lig puanını Firestore'dan gelen gerçek gradedTasks ile hesapla
       // (prop'taki score=0 veya eski değere bağımlı olmadan)
       // KRİTİK: lig sayfasıyla aynı filtre — sadece mevcut gruba ait görevler
-      const allGradedTasks = (sData.gradedTasks ?? {}) as Record<string, any>;
+      const allGradedTasks = sData.gradedTasks ?? {};
       const filteredForScore = groupCode
         ? Object.fromEntries(
-            Object.entries(allGradedTasks).filter(([, e]: any) => {
+            Object.entries(allGradedTasks).filter(([, e]) => {
               const cid = e?.classId;
               if (!cid) return true;       // classId yoksa dahil et (eski kayıtlar)
               return cid === groupCode;
@@ -304,7 +355,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         activeSeasonId,
       );
 
-      const groupId = sData.groupId as string | undefined;
+      const groupId = sData.groupId;
       if (!groupId) {
         if (!cancelled) {
           const { finalScore: fs } = calcStudentFinalScore(cXP, cTasks, settings, undefined, 0, 0);
@@ -323,22 +374,22 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         .then(attSnap => {
           if (cancelled) return;
           const lessonDocs = attSnap.docs.filter(d =>
-            Object.keys((d.data() as any).entries ?? {}).length > 0
+            Object.keys((d.data() as AttendanceDoc).entries ?? {}).length > 0
           );
           const calcAttTotal = lessonDocs.length;
           const attendedDocs = lessonDocs.filter(d =>
-            ((d.data() as any).entries?.[studentId]?.hours ?? 0) > 0
+            ((d.data() as AttendanceDoc).entries?.[studentId]?.hours ?? 0) > 0
           );
           const calcAttAttended     = attendedDocs.length;
           const calcAttAbsent       = calcAttTotal - calcAttAttended;
           const calcAttRate         = calcAttTotal > 0
             ? Math.round((calcAttAttended / calcAttTotal) * 100) : 0;
           const calcAttAttendedHours = attendedDocs.reduce(
-            (s, d) => s + ((d.data() as any).sessionHours ?? 0), 0
+            (s, d) => s + ((d.data() as AttendanceDoc).sessionHours ?? 0), 0
           );
           const calcAttAbsentHours  = lessonDocs
-            .filter(d => ((d.data() as any).entries?.[studentId]?.hours ?? 0) === 0)
-            .reduce((s, d) => s + ((d.data() as any).sessionHours ?? 0), 0);
+            .filter(d => ((d.data() as AttendanceDoc).entries?.[studentId]?.hours ?? 0) === 0)
+            .reduce((s, d) => s + ((d.data() as AttendanceDoc).sessionHours ?? 0), 0);
           setAttTotal(calcAttTotal);
           setAttAttended(calcAttAttended);
           setAttAbsent(calcAttAbsent);
@@ -358,7 +409,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       // Birleşik task haritası: önce G2 task'larını ekle
       const combinedTasksMap: Record<string, { endDate?: string; classId?: string; status?: string }> = {};
       tasksSnap.docs.forEach(d => {
-        const data = d.data() as any;
+        const data = d.data() as TaskDoc;
         combinedTasksMap[d.id] = { endDate: data.endDate, classId: data.classId, status: data.status };
       });
 
@@ -373,7 +424,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
           chunks.map(ids => getDocs(query(collection(db, "tasks"), where(documentId(), "in", ids))))
         );
         extraSnaps.forEach(snap => snap.docs.forEach(d => {
-          const data = d.data() as any;
+          const data = d.data() as TaskDoc;
           combinedTasksMap[d.id] = { endDate: data.endDate, classId: data.classId, status: data.status };
         }));
       }
@@ -381,7 +432,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       // G1 classId'leri: lig ile aynı — sadece entry'lerde açıkça yazılı classId'ler
       const g1ClassIds = [...new Set(
         Object.values(allGradedTasks)
-          .map((e: any) => e?.classId as string | undefined)
+          .map(e => e?.classId)
           .filter((c): c is string => !!c && c !== groupCode)
       )];
 
@@ -395,7 +446,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
           g1Chunks.map(ids => getDocs(query(collection(db, "tasks"), where("classId", "in", ids))))
         );
         g1Snaps.forEach(snap => snap.docs.forEach(d => {
-          const data = d.data() as any;
+          const data = d.data() as TaskDoc;
           g1AllTasks.push({ endDate: data.endDate, classId: data.classId, status: data.status });
         }));
       }
@@ -411,9 +462,9 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       // G2 için aylık atanan görev sayısı (sadece G2 task'ları — tasksSnap)
       const countAssignedInMonth = (mStart: string, mEnd: string): number | undefined => {
         const n = tasksSnap.docs.filter(d => {
-          const data = d.data() as any;
-          const st = data.status as string | undefined;
-          const ed = data.endDate as string | undefined;
+          const data = d.data() as TaskDoc;
+          const st = data.status;
+          const ed = data.endDate;
           return (st === "active" || st === "published" || st === "completed" || !st) &&
                  ed && ed >= mStart && ed <= mEnd;
         }).length;
@@ -434,21 +485,21 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       let g2Bonus = 0;
       if (g1ClassIds.length > 0) {
         const g1Entries = Object.entries(allGradedTasks).filter(([tid, e]) => {
-          const cid = (e as any)?.classId as string | undefined;
+          const cid = e?.classId;
           if (cid) return g1ClassIds.includes(cid);
           const mapCid = combinedTasksMap[tid]?.classId;
           return mapCid ? g1ClassIds.includes(mapCid) : false;
         });
-        const g1ByMonth: Record<string, Array<[string, any]>> = {};
+        const g1ByMonth: Record<string, Array<[string, GradedTaskEntry]>> = {};
         for (const [tid, e] of g1Entries) {
-          const m = effectiveMonth((e as any).completedAt, (e as any).endDate ?? combinedTasksMap[tid]?.endDate);
+          const m = effectiveMonth(e.completedAt, e.endDate ?? combinedTasksMap[tid]?.endDate);
           if (!m) continue;
           if (!g1ByMonth[m]) g1ByMonth[m] = [];
           g1ByMonth[m].push([tid, e]);
         }
         let g1TotalScore = 0;
         for (const [month, entries] of Object.entries(g1ByMonth)) {
-          const mXP   = entries.reduce((s, [, e]) => s + ((e as any).xp ?? 0), 0);
+          const mXP   = entries.reduce((s, [, e]) => s + (e.xp ?? 0), 0);
           const mComp = entries.length;
           const [y, mo] = month.split("-");
           const mStart   = `${y}-${mo}-01`;
@@ -464,7 +515,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
       // G2 classEntries — lig ile aynı filtre (combinedTasksMap ile classId-siz entry'ler çözülür)
       const g2ClassEntries = Object.entries(allGradedTasks).filter(([tid, e]) => {
-        const cid = (e as any)?.classId as string | undefined;
+        const cid = e?.classId;
         if (cid) return cid === groupCode;
         const mapCid = combinedTasksMap[tid]?.classId;
         if (!mapCid) return true; // task silinmiş → G2 kabul (lig ile aynı)
@@ -472,12 +523,12 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       });
 
       // G2 entry'lerini aya göre grupla
-      const byMonthEntries: Record<string, Array<[string, { xp: number; penalty: number }]>> = {};
+      const byMonthEntries: Record<string, Array<[string, GradedTaskEntry]>> = {};
       for (const [tid, e] of g2ClassEntries) {
-        const m = effectiveMonth((e as any).completedAt, (e as any).endDate ?? combinedTasksMap[tid]?.endDate);
+        const m = effectiveMonth(e.completedAt, e.endDate ?? combinedTasksMap[tid]?.endDate);
         if (!m) continue;
         if (!byMonthEntries[m]) byMonthEntries[m] = [];
-        byMonthEntries[m].push([tid, e as { xp: number; penalty: number }]);
+        byMonthEntries[m].push([tid, e]);
       }
 
       // Kümülatif skor: g2Bonus + Σ aylık skor
@@ -500,24 +551,24 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         console.log(`[StudentModal] ${student.name} ${student.lastName}`, { computedFinalScore, g2Bonus, g2ClassEntries: g2ClassEntries.length, months: Object.keys(byMonthEntries) });
       }
 
-      const gData = gDoc.exists()  ? (gDoc.data()  as any) : {};
-      const g1Raw = g1Doc.exists() ? (g1Doc.data() as any) : null;
-      const g2Raw = g2Doc.exists() ? (g2Doc.data() as any) : null;
+      const gData = gDoc.exists()  ? (gDoc.data()  as GroupDocData) : {} as GroupDocData;
+      const g1Raw = g1Doc.exists() ? (g1Doc.data() as ProjectGradeDoc) : null;
+      const g2Raw = g2Doc.exists() ? (g2Doc.data() as ProjectGradeDoc) : null;
 
       // codeAt_GRAFIK_1/2: finalizasyon sırasında gruba yazılan orijinal kodlar
       // grafik1Code/grafik2Code: öğrenci transferinde student doc'a kaydedilen eski modül kodları
-      const codeG1 = (sData.grafik1Code as string | undefined)
-        ?? (gData.codeAt_GRAFIK_1 as string | undefined)
-        ?? (gData.module === "GRAFIK_1" ? (gData.code as string) : "")
+      const codeG1 = sData.grafik1Code
+        ?? gData.codeAt_GRAFIK_1
+        ?? (gData.module === "GRAFIK_1" ? (gData.code ?? "") : "")
         ?? "";
-      const codeG2 = (sData.grafik2Code as string | undefined)
-        ?? (gData.codeAt_GRAFIK_2 as string | undefined)
-        ?? (gData.module === "GRAFIK_2" ? (gData.code as string) : "")
+      const codeG2 = sData.grafik2Code
+        ?? gData.codeAt_GRAFIK_2
+        ?? (gData.module === "GRAFIK_2" ? (gData.code ?? "") : "")
         ?? "";
 
       // 3. Modül bazlı görev istatistikleri
       // Firestore student doc'tan gelen gradedTasks (prop boş gelebilir)
-      const fsGradedTasks = (sData.gradedTasks ?? {}) as Record<string, { xp: number; penalty: number }>;
+      const fsGradedTasks = sData.gradedTasks ?? {};
       const gradedIds = new Set(Object.keys(fsGradedTasks));
 
       // Tek bir classId için tüm graded task'ları çek, öğrencinin tamamladıklarını say
@@ -526,7 +577,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         // Sadece classId filtresi — isGraded+classId composite index gerektirmez
         const snap = await getDocs(query(collection(db, "tasks"), where("classId", "==", classId)));
         const validTasks = snap.docs
-          .map(d => ({ id: d.id, ...d.data() } as any))
+          .map(d => ({ id: d.id, ...d.data() } as TaskWithId))
           .filter(t => t.isGraded === true && !t.isCancelled);
 
         let taskCount = 0, studentXP = 0;
@@ -553,10 +604,10 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         let deletedTaskCount = 0;
         Object.entries(fsGradedTasks).forEach(([taskId, entry]) => {
           if (countedTaskIds.has(taskId)) return; // zaten sayıldı
-          if ((entry as any).classId !== classId) return; // farklı sınıf
+          if (entry.classId !== classId) return; // farklı sınıf
           taskCount++;
           studentXP += (entry.xp ?? 0);
-          deletedMaxXP += ((entry as any).maxXp ?? entry.xp); // maxXp yoksa xp'yi alt sınır olarak kullan
+          deletedMaxXP += (entry.maxXp ?? entry.xp); // maxXp yoksa xp'yi alt sınır olarak kullan
           deletedTaskCount++;
         });
 
@@ -570,7 +621,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
       // codeG1/codeG2 bilinmiyorsa doğru classId'yi bul:
       // 1. gradedTasks classId'lerinden → 2. instructor'ın grup taramasından (task.grades fallback)
-      const instructorId = gData.instructorId as string | undefined;
+      const instructorId = gData.instructorId;
 
       const resolveCode = async (
         knownCode: string,
@@ -581,7 +632,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         // Yol 1: gradedTasks'taki classId'lere ait grupları sorgula
         const classIdsInGT = [...new Set(
           Object.values(sData.gradedTasks ?? {})
-            .map((e: any) => e?.classId)
+            .map(e => e?.classId)
             .filter((c): c is string => !!c)
         )];
         if (classIdsInGT.length > 0) {
@@ -591,8 +642,8 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
               where("code", "in", classIdsInGT.slice(i, i + 10))
             ));
             for (const gd of gSnap.docs) {
-              const d = gd.data() as any;
-              if (d.module === module) return d.code as string;
+              const d = gd.data() as GroupDocData;
+              if (d.module === module) return d.code ?? "";
             }
           }
         }
@@ -606,14 +657,14 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
           where("module", "==", module)
         ));
         for (const gd of gSnap.docs) {
-          const code = (gd.data() as any).code as string;
+          const code = (gd.data() as GroupDocData).code;
           if (!code) continue;
           const tSnap = await getDocs(query(
             collection(db, "tasks"),
             where("classId", "==", code)
           ));
           for (const td of tSnap.docs) {
-            const g = ((td.data() as any).grades ?? {})[fetchId];
+            const g = ((td.data() as TaskDoc).grades ?? {})[fetchId];
             if (g?.submitted === true) return code;
           }
         }
@@ -634,12 +685,12 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
       // 4. finalNote'u Firestore'daki eski/hatalı değerden değil,
       //    mevcut projectScore ve hesaplanan odevPuani'den yeniden hesapla
-      const makeGrade = (raw: any | null, stats: ModuleStats): GradeData | null => {
+      const makeGrade = (raw: ProjectGradeDoc | null, stats: ModuleStats): GradeData | null => {
         if (!raw && stats.taskCount === 0) return null;
         const projectScore: number | null = raw?.projectScore ?? null;
         // Finalize edilmişse snapshot'taki odevPuani'yi kullan (yeni task eklense bile değişmez)
         const odevPuani = (raw?.isFinalized && raw?.odevPuani != null)
-          ? (raw.odevPuani as number)
+          ? raw.odevPuani
           : stats.odevPuani;
         const finalNote = projectScore != null
           ? Math.round(projectScore * 0.7 + odevPuani)
