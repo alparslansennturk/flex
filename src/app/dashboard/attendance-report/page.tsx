@@ -520,17 +520,15 @@ function AttendanceSummaryContent() {
                 </button>
               )}
             </div>
-            <input type="date" value={pendingFrom} onChange={e => setPendingFrom(e.target.value)}
+            <input type="date" value={pendingFrom}
+              onChange={e => setPendingFrom(e.target.value)}
+              onBlur={() => setSearchFrom(pendingFrom)}
               className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 outline-none bg-white hover:border-surface-300 transition-colors shadow-sm text-base-primary-900 cursor-pointer" />
             <span className="text-[12px] text-surface-400 shrink-0 hidden sm:block">—</span>
-            <input type="date" value={pendingTo} onChange={e => setPendingTo(e.target.value)}
+            <input type="date" value={pendingTo}
+              onChange={e => setPendingTo(e.target.value)}
+              onBlur={() => setSearchTo(pendingTo)}
               className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 outline-none bg-white hover:border-surface-300 transition-colors shadow-sm text-base-primary-900 cursor-pointer" />
-            <button
-              onClick={() => { setSearchFrom(pendingFrom); setSearchTo(pendingTo); }}
-              className="shrink-0 px-4 py-2.5 text-[13px] font-semibold bg-base-primary-700 hover:bg-base-primary-800 text-white rounded-xl transition-colors shadow-sm cursor-pointer"
-            >
-              Uygula
-            </button>
           </div>
         </div>
       </div>
