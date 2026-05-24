@@ -1432,6 +1432,153 @@ Her iki sütun artık 2 satırlık yüksekliğe sahip → `items-center` ile üs
 
 ---
 
+---
+
+## Oturum: 2026-05-24 — Yoklama Raporu Tarih Aralığı + UI + Bug Düzeltmeleri
+
+### 101. Yoklama Raporu — Tarih Aralığı Ana Tabloyu Kontrol Eder
+
+**Dosya:** `src/app/dashboard/attendance-report/page.tsx`
+
+**Önceki:** `searchFrom`/`searchTo` sadece arama modunda (grup kodu eşleşince) çalışıyordu. Ana eğitmen özet tablosu her zaman tek ay gösteriyordu.
+
+**Yeni:** Tarih aralığı tüm tablo için geçerli — çok aylı aggregation.
+
+**`getMonthsInRange(from, to)`** helper eklendi:
+```ts
+function getMonthsInRange(from: string, to: string): string[] {
+  const months: string[] = [];
+  const cur = new Date(from.slice(0, 7) + "-01T12:00:00");
+  const end = new Date(to.slice(0, 7) + "-01T12:00:00");
+  while (cur <= end && months.length < 24) {
+    months.push(toMonthKey(cur));
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return months.length > 0 ? months : [toMonthKey(new Date())];
+}
+```
+
+**State değişiklikleri:**
+- `selectedMonth` state kaldırıldı
+- `searchFrom` (varsayılan: ayın 1'i) + `searchTo` (varsayılan: bugün) eklendi
+- `activeMonths = useMemo(() => getMonthsInRange(searchFrom, searchTo), [searchFrom, searchTo])`
+
+**Firestore sorguları güncellendi:**
+- `design_attendance` + `lesson_exceptions`: `where("month", "in", activeMonths)`
+- Kısmi ay için gün bazlı filtre: `if (date < searchFrom || date > searchTo) return;`
+- Planlanan ders sayısı: her ay için `effectiveStart`/`effectiveEnd` sıkıştırması
+
+**Başlık:** Ay dropdown kaldırıldı; subtitle `searchFrom`–`searchTo` dd-mm-yyyy formatında
+
+### 102. Yoklama Raporu — DayCalendarPopover Tarih Seçici
+
+**Sorun:** Native `<input type="date">` ay/gün/yıl segment oklarına basınca da `onChange` tetikleniyordu → rakama tıklamadan arama yapılıyordu.
+
+**Çözüm:** `DayCalendarPopover` kullanıldı — sadece takvim rakamına tıklanınca `onChange` çağrılır, ay navigasyonu (`< >`) sadece görünümü değiştirir.
+
+**Date picker buton görünümü:**
+- `CalendarDays` (lucide) ikonu solda, renk `text-neutral-400`
+- Format: dd-mm-yyyy (`searchFrom.split("-").reverse().join("-")`)
+- `flex-1 min-w-[130px] lg:w-36` — mobilde esnek, masaüstünde sabit genişlik
+- Hover: `hover:border-base-primary-400 transition-colors`
+
+### 103. Yoklama Raporu — Filtre Seçici İkonları + Renk Standartları
+
+**FilterSelect bileşenine `icon?: React.ReactNode` prop eklendi:**
+- Seçici tetikleyicisinin solunda, `text-neutral-400` renk
+- İkon varken trigger `pl-8` (ikon için boşluk)
+- ChevronDown da `text-neutral-400`
+
+**Kullanılan ikonlar:**
+| Filtre | İkon |
+|---|---|
+| Tüm Branşlar | `Layers` (lucide) |
+| Tüm Gruplar | `Users` (lucide) |
+| Tüm Eğitmenler | `GraduationCap` (lucide) |
+
+**Arama alanı:**
+- Arama ikonu: `text-neutral-500` (önceki çok soluktu)
+- Placeholder `text-neutral-400`
+- Placeholder metni: `"Grup, eğitmen ara"` (eğitmen küçük harf)
+
+---
+
+### 104. Yoklama Detay — İptal StatCard Saat Düzeltmesi
+
+**Dosya:** `src/app/dashboard/attendance-detail/page.tsx`
+
+**Sorun:** İptal StatCard'da `"X ders"` yazıyordu; gerçekte `X * sessionHours` saat gösterilmeli.
+
+**Eklenen hesaplama:**
+```ts
+const totalCancelledHours = stats.reduce((s, g) => s + g.cancelledThisMonth * g.sessionHours, 0);
+```
+
+**StatCard:**
+```tsx
+<StatCard label="İptal" value={`${totalCancelledHours} saat`}
+  sub={`(${totalCancelled} ders)`} ... />
+```
+
+**Footer da güncellendi:** `${totalCancelledHours} saat iptal (${totalCancelled} ders, ${totalStudentCancelled} öğrenci kaynaklı)`
+
+---
+
+### 105. Yoklama Detay — Başlık Düzeltmesi
+
+**Dosya:** `src/app/dashboard/attendance-detail/page.tsx`
+
+**`pageTitle` useMemo güncellendi:** Tüm case'lerde "Yoklama Raporu" → "Yoklama Detay":
+- Eğitmen seçili: `"Ad — Detay"` (önceki "Ad — Detay" aynı kalır)
+- Branş seçili: `"BranşAdı — Detay"` (önceki "BranşAdı — Rapor" düzeltildi)
+- Varsayılan: `"Yoklama Detay"` (önceki "Yoklama Raporu" düzeltildi)
+
+---
+
+### 106. AttendancePanel — Grup Değişince Tarih Sıfırlanmıyor (Bug Fix)
+
+**Dosya:** `src/app/components/dashboard/attendance/AttendancePanel.tsx`
+
+**Sorun:** Grup 541'de 10 Mayıs seçiliyken Grup 550'ye geçilince tarih 10 Mayıs'ta kalıyordu. Yeni grubun son yoklama tarihi otomatik seçilmiyordu.
+
+**Neden:** Auto-date-select effect `[preSelectedGroupId, allowEdit]` bağımlılığını dinliyordu. `preSelectedGroupId` URL'den geliyor, manuel sol panel tıklamalarında değişmiyordu.
+
+**Fix:** Bağımlılık `[selectedGroupId]` olarak değiştirildi — hem URL param hem de manuel panel seçimi için tetiklenir:
+```tsx
+useEffect(() => {
+  if (!selectedGroupId) return;
+  // bu ay + geçen ay yoklamalarını çek, en son tarihi seç
+  getDocs(query(..., where("month", "in", [m0, m1]))).then(snap => {
+    const dates = snap.docs.map(d => d.data().date as string).sort().reverse();
+    const d = new Date(dates[0] + "T12:00:00");
+    setSelectedDate(d); setSelectedMonth(d);
+  });
+}, [selectedGroupId]);
+```
+
+---
+
+### 107. AttendancePanel — Tarih Değişince Eski Exception Kalıyor (Bug Fix)
+
+**Dosya:** `src/app/components/dashboard/attendance/AttendancePanel.tsx`
+
+**Sorun:** Grup 550'de 21 Mayıs "öğrenci gelmediği için iptal edildi" seçiliyken 19 Mayıs'a geçince aynı banner görünmeye devam etti. Refresh'e kadar düzelmiyordu.
+
+**Neden:** `[selectedGroupId, dateKey]` effect'i `setException(null)` çağırmıyordu. `unsubGroupEx` listener yeni tarih için belge yoksa hiçbir şey yapmıyor (`// fall through`) ve `unsubSystemEx` listener da `prev?.scope === "group"` ise `prev`'i koruyordu.
+
+**Fix 1 — Effect başında temizle:**
+```ts
+setException(null); // tarih veya grup değişince anında temizle
+```
+
+**Fix 2 — unsubGroupEx listener belge yoksa temizler:**
+```ts
+const unsubGroupEx = onSnapshot(..., d => {
+  if (d.exists()) { setException(d.data() as LessonException); return; }
+  setException(prev => prev?.scope === "group" ? null : prev);
+});
+```
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. İLERİDE — Sertifika PDF + Dağıtım

@@ -494,16 +494,16 @@ export default function AttendancePanel({
     }
   }, [preSelectedGroupId, groups]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Yoklama Detay: son ders tarihini otomatik seç ────────────────────────
+  // ── Grup değişince son yoklama tarihine git ───────────────────────────────
   useEffect(() => {
-    if (!preSelectedGroupId || !allowEdit) return;
+    if (!selectedGroupId) return;
     const now = new Date();
     const m0 = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const m1 = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
     getDocs(query(
       collection(db, "design_attendance"),
-      where("groupId", "==", preSelectedGroupId),
+      where("groupId", "==", selectedGroupId),
       where("month", "in", [m0, m1]),
     )).then(snap => {
       if (snap.empty) return;
@@ -512,7 +512,7 @@ export default function AttendancePanel({
       setSelectedDate(d);
       setSelectedMonth(d);
     }).catch(() => {});
-  }, [preSelectedGroupId, allowEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-select today's group ─────────────────────────────────────────────
   useEffect(() => {
@@ -594,6 +594,7 @@ export default function AttendancePanel({
     setAttendanceClosed(false);
     setClosedAt(null);
     setHasPersistedEntries(false);
+    setException(null);
 
     const docId = `${selectedGroupId}_${dateKey}`;
 
@@ -618,7 +619,7 @@ export default function AttendancePanel({
 
     const unsubGroupEx  = onSnapshot(doc(db, "lesson_exceptions", `${selectedGroupId}_${dateKey}`), d => {
       if (d.exists()) { setException(d.data() as LessonException); return; }
-      // fall through — check system exception below via combined state
+      setException(prev => prev?.scope === "group" ? null : prev);
     });
     const unsubSystemEx = onSnapshot(doc(db, "lesson_exceptions", `system_${dateKey}`), d => {
       setException(prev => {

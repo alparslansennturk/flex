@@ -219,13 +219,13 @@ function AttendanceReportContent() {
   const pageTitle = useMemo(() => {
     if (selectedInstructor) {
       const name = instructors.find(i => i.id === selectedInstructor)?.name;
-      return name ? `${name} — Detay` : "Yoklama Raporu";
+      return name ? `${name} — Detay` : "Yoklama Detay";
     }
     if (selectedBranch) {
       const name = branches.find(b => b.id === selectedBranch)?.name;
-      return name ? `${name} — Rapor` : "Yoklama Raporu";
+      return name ? `${name} — Detay` : "Yoklama Detay";
     }
-    return "Yoklama Raporu";
+    return "Yoklama Detay";
   }, [selectedInstructor, selectedBranch, instructors, branches]);
 
   // Branches
@@ -384,6 +384,7 @@ function AttendanceReportContent() {
   const totalPlanned          = stats.reduce((s, g) => s + g.plannedThisMonth, 0);
   const totalActualDone       = stats.reduce((s, g) => s + g.actualDoneThisMonth, 0);
   const totalCancelled        = stats.reduce((s, g) => s + g.cancelledThisMonth, 0);
+  const totalCancelledHours   = stats.reduce((s, g) => s + g.cancelledThisMonth * g.sessionHours, 0);
   const totalStudentCancelled = stats.reduce((s, g) => s + g.studentCancelledThisMonth, 0);
   const totalToplam           = stats.reduce((s, g) => s + g.toplamThisMonth, 0);
   const totalRemaining        = stats.reduce((s, g) => s + g.remainingThisMonth, 0);
@@ -495,8 +496,8 @@ function AttendanceReportContent() {
               color="bg-base-primary-50 text-base-primary-600" icon={<CalendarDays size={20} />} />
             <StatCard label="Verilen Ders" value={`${totalActualDone * baseHours} saat`} sub={`(${totalActualDone} ders)`}
               color="bg-status-success-50 text-status-success-600" icon={<CheckCircle2 size={20} />} />
-            <StatCard label="İptal" value={`${totalCancelled} ders`}
-              sub={totalStudentCancelled > 0 ? `(${totalStudentCancelled} öğrenci kaynaklı)` : undefined}
+            <StatCard label="İptal" value={`${totalCancelledHours} saat`}
+              sub={`(${totalCancelled} ders)`}
               color="bg-red-50 text-red-500" icon={<XCircle size={20} />} />
             <StatCard label="Toplam Ders" value={`${totalToplam * baseHours} saat`} sub={`(${totalToplam} ders)`}
               color="bg-indigo-50 text-indigo-600" icon={<TrendingUp size={20} />} />
@@ -617,8 +618,8 @@ function AttendanceReportContent() {
                 <span className="font-bold">{totalActualDone * baseHours} saat</span>{" "}
                 ders verildi
                 {totalCancelled > 0 && (
-                  <>, <span className="font-bold text-red-600">{totalCancelled} ders iptal</span>
-                  {totalStudentCancelled > 0 && <span className="text-red-400"> ({totalStudentCancelled} öğrenci kaynaklı)</span>}</>
+                  <>, <span className="font-bold text-red-600">{totalCancelledHours} saat iptal</span>
+                  <span className="text-red-400"> ({totalCancelled} ders{totalStudentCancelled > 0 ? `, ${totalStudentCancelled} öğrenci kaynaklı` : ""})</span></>
                 )}
                 {" "}— toplam hak edilen:{" "}
                 <span className="font-bold text-indigo-700">{totalToplam * baseHours} saat</span>

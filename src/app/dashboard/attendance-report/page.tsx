@@ -5,10 +5,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
-import { TrendingUp, ChevronDown, CheckCircle2, Clock, XCircle, ChevronRight, Users, Search, X } from "lucide-react";
+import { TrendingUp, ChevronDown, CheckCircle2, Clock, XCircle, ChevronRight, Users, Search, X, CalendarDays, Layers, GraduationCap } from "lucide-react";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
+import { DayCalendarPopover } from "../../components/dashboard/attendance/CalendarPopover";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Group {
@@ -149,21 +150,26 @@ function StatCard({ label, value, sub, icon, color }: {
   );
 }
 
-function FilterSelect({ value, onChange, placeholder, children, className = "" }: {
+function FilterSelect({ value, onChange, placeholder, children, className = "", icon }: {
   value: string; onChange: (v: string) => void; placeholder: string;
-  children: React.ReactNode; className?: string;
+  children: React.ReactNode; className?: string; icon?: React.ReactNode;
 }) {
   return (
     <div className={`relative ${className}`}>
+      {icon && (
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+          {icon}
+        </span>
+      )}
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full appearance-none text-[13px] font-medium bg-white border border-surface-200 rounded-xl pl-3 pr-8 py-2.5 outline-none cursor-pointer hover:border-surface-300 transition-colors shadow-sm text-base-primary-900"
+        className={`w-full appearance-none text-[13px] font-medium bg-white border border-surface-200 rounded-xl ${icon ? "pl-8" : "pl-3"} pr-8 py-2.5 outline-none cursor-pointer hover:border-surface-300 transition-colors shadow-sm text-base-primary-900`}
       >
         <option value="">{placeholder}</option>
         {children}
       </select>
-      <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-surface-400" />
+      <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400" />
     </div>
   );
 }
@@ -457,7 +463,7 @@ function AttendanceSummaryContent() {
               ? (branches.find(b => b.id === selectedBranch)?.name ?? "Yoklama Raporu") + " — Rapor"
               : "Yoklama Raporu"}
           </h1>
-          <p className="text-[13px] text-surface-400">{searchFrom} – {searchTo}</p>
+          <p className="text-[13px] text-surface-400">{searchFrom.split("-").reverse().join("-")} – {searchTo.split("-").reverse().join("-")}</p>
         </div>
       </div>
 
@@ -472,6 +478,7 @@ function AttendanceSummaryContent() {
               onChange={v => { setSelectedBranch(v); setSelectedGroupFilter(""); }}
               placeholder="Tüm Branşlar"
               className="flex-1 min-w-[130px]"
+              icon={<Layers size={13} />}
             >
               {branches.map(b => <option key={b.id} value={b.id}>{b.name ?? b.id}</option>)}
             </FilterSelect>
@@ -481,6 +488,7 @@ function AttendanceSummaryContent() {
               onChange={setSelectedGroupFilter}
               placeholder="Tüm Gruplar"
               className="flex-1 min-w-[130px]"
+              icon={<Users size={13} />}
             >
               {dropdownGroups.map(g => <option key={g.id} value={g.id}>{g.code}</option>)}
             </FilterSelect>
@@ -490,6 +498,7 @@ function AttendanceSummaryContent() {
               onChange={v => { setSelectedInstructor(v); setSelectedGroupFilter(""); }}
               placeholder="Tüm Eğitmenler"
               className="flex-1 min-w-[150px]"
+              icon={<GraduationCap size={13} />}
             >
               {instructorOptions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </FilterSelect>
@@ -502,13 +511,13 @@ function AttendanceSummaryContent() {
           {/* Sağ: Arama */}
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[150px] lg:flex-none lg:w-44">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Eğitmen veya grup ara..."
+                placeholder="Grup, eğitmen ara"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-7 py-2.5 text-[13px] border border-surface-200 rounded-xl outline-none bg-white hover:border-surface-300 focus:border-base-primary-400 transition-colors shadow-sm text-base-primary-900 placeholder:text-surface-400"
+                className="w-full pl-8 pr-7 py-2.5 text-[13px] border border-surface-200 rounded-xl outline-none bg-white hover:border-surface-300 focus:border-base-primary-400 transition-colors shadow-sm text-base-primary-900 placeholder:text-neutral-400"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery("")}
@@ -517,13 +526,28 @@ function AttendanceSummaryContent() {
                 </button>
               )}
             </div>
-            <input type="date" value={searchFrom}
-              onChange={e => setSearchFrom(e.target.value)}
-              className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 outline-none bg-white hover:border-surface-300 transition-colors shadow-sm text-base-primary-900 cursor-pointer" />
-            <span className="text-[12px] text-surface-400 shrink-0 hidden sm:block">—</span>
-            <input type="date" value={searchTo}
-              onChange={e => setSearchTo(e.target.value)}
-              className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 outline-none bg-white hover:border-surface-300 transition-colors shadow-sm text-base-primary-900 cursor-pointer" />
+            <DayCalendarPopover
+              value={new Date(searchFrom + "T12:00:00")}
+              onChange={d => setSearchFrom(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)}
+              maxDate={new Date(searchTo + "T12:00:00")}
+            >
+              <button className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 bg-white hover:border-base-primary-400 transition-colors shadow-sm text-base-primary-900 cursor-pointer flex items-center gap-2">
+                <CalendarDays size={13} className="text-neutral-400 shrink-0" />
+                {searchFrom.split("-").reverse().join("-")}
+              </button>
+            </DayCalendarPopover>
+            <span className="text-[12px] text-neutral-400 shrink-0 hidden sm:block">—</span>
+            <DayCalendarPopover
+              value={new Date(searchTo + "T12:00:00")}
+              onChange={d => setSearchTo(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)}
+              minDate={new Date(searchFrom + "T12:00:00")}
+              maxDate={new Date()}
+            >
+              <button className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 bg-white hover:border-base-primary-400 transition-colors shadow-sm text-base-primary-900 cursor-pointer flex items-center gap-2">
+                <CalendarDays size={13} className="text-neutral-400 shrink-0" />
+                {searchTo.split("-").reverse().join("-")}
+              </button>
+            </DayCalendarPopover>
           </div>
         </div>
       </div>
@@ -537,7 +561,7 @@ function AttendanceSummaryContent() {
               <span className="text-[15px] font-bold text-base-primary-900">Arama Sonuçları</span>
               {searchResults && !searchLoading && (
                 <span className="text-[12px] text-surface-400 truncate">
-                  &quot;{searchQuery}&quot; · {searchResults.length} kayıt · {searchFrom} – {searchTo}
+                  &quot;{searchQuery}&quot; · {searchResults.length} kayıt · {searchFrom.split("-").reverse().join("-")} – {searchTo.split("-").reverse().join("-")}
                 </span>
               )}
             </div>
