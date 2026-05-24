@@ -568,8 +568,8 @@ function LeaderTable({
             <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">Sınıf</th>
             <th className="text-left text-[14px] font-bold text-text-secondary px-6 py-4 hidden lg:table-cell">Eğitmen</th>
             <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4">Puan</th>
-            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">Toplam XP</th>
-            <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Görev</th>
+            <th className="text-center text-[14px] font-bold text-text-secondary px-6 py-4 hidden md:table-cell">Toplam XP</th>
+            <th className="text-center text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Görev</th>
             <th className="text-right text-[14px] font-bold text-text-secondary px-6 py-4 hidden xl:table-cell">Ceza</th>
             <th className="text-center text-[14px] font-bold text-text-secondary px-6 py-4">Trend</th>
             <th className="px-8 py-4 w-20" />
@@ -629,21 +629,19 @@ function LeaderTable({
                   </span>
                 </td>
 
-                <td className="px-6 py-3 text-right hidden md:table-cell">
-                  <div className="flex flex-col items-end">
-                    <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
-                      {(student.points ?? 0).toLocaleString("tr-TR")} XP
+                <td className="px-6 py-3 text-center hidden md:table-cell">
+                  <span className="text-[13px] font-semibold text-text-tertiary tabular-nums">
+                    {(student.points ?? 0).toLocaleString("tr-TR")} XP
+                  </span>
+                  {showBonus && student.g2Bonus > 0 && (
+                    <span className="block text-[12px] font-medium italic text-text-tertiary/70 tabular-nums">
+                      (+{student.g2Bonus} bonus)
                     </span>
-                    {showBonus && student.g2Bonus > 0 && (
-                      <span className="text-[12px] font-medium italic text-text-tertiary/70 tabular-nums">
-                        (+{student.g2Bonus} bonus)
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </td>
 
-                <td className="px-6 py-3 hidden xl:table-cell">
-                  <div className="flex items-center gap-1">
+                <td className="px-6 py-3 text-center hidden xl:table-cell">
+                  <div className="flex items-center gap-1 justify-center">
                     <span className="text-[13px] font-semibold tabular-nums">
                       {student.totalAssignedDisplay > 0 ? (
                         <>

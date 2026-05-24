@@ -95,6 +95,19 @@ interface Student {
   isCarryOverApplied?: boolean;
   gradedTasks?: Record<string, GradedTaskEntry>;
 }
+
+interface AddStudentData {
+  name?: string;
+  lastName?: string;
+  email?: string;
+  note?: string;
+  groupId?: string;
+  branch?: string;
+  gender?: string;
+  isOnlineStudent?: boolean;
+  avatarId?: number | null;
+}
+
 const FALLBACK_SCHEDULES = [
   "Pts - Çar | 19.00 - 21.30", "Sal - Per | 19.00 - 21.30", "Cts - Paz | 09.00 - 12.00",
   "Cts - Paz | 12.00 - 15.00", "Cts - Paz | 15.00 - 18.00", "Özel Grup Tanımla",
@@ -721,7 +734,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     setModalConfig({ isOpen: false, type: null, groupId: null });
   };
 
-const handleAddStudent=async(passedData?:any)=>{
+const handleAddStudent=async(passedData?:AddStudentData)=>{
 const name=passedData?.name||studentName;
 const lastName=passedData?.lastName||studentLastName;
 const email=passedData?.email||studentEmail;

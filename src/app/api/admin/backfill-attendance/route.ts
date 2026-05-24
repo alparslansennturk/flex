@@ -8,6 +8,17 @@ import { Timestamp } from "firebase-admin/firestore";
 //         Header: x-admin-secret: <ADMIN_SECRET>
 //         Body (opsiyonel): { groupId: "...", dryRun: true }
 
+interface GroupRow {
+  id: string;
+  code: string;
+  session?: string;
+  startDate?: string;
+  sessionHours?: number;
+  discipline?: string;
+  instructorId?: string;
+  status?: string;
+}
+
 const TR_DAYS: Record<string, number> = {
   pts: 1, pzt: 1, pazartesi: 1,
   sal: 2, sali: 2,
@@ -61,7 +72,7 @@ export async function POST(req: NextRequest) {
   const groupsSnap = await adminDb.collection("groups").get();
   let groups = groupsSnap.docs
     .filter(d => d.data().status !== "archived")
-    .map(d => ({ id: d.id, ...d.data() } as Record<string, any>));
+    .map(d => ({ id: d.id, ...d.data() } as GroupRow));
 
   if (filterGroupId) groups = groups.filter(g => g.id === filterGroupId);
   else if (filterGroupCode) groups = groups.filter(g => g.code === filterGroupCode);
@@ -71,7 +82,7 @@ export async function POST(req: NextRequest) {
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-  const results: Record<string, any>[] = [];
+  const results: Record<string, unknown>[] = [];
 
   for (const group of groups) {
     const { session, startDate, sessionHours: groupSessionHours, discipline, instructorId } = group;
