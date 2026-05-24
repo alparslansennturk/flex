@@ -205,9 +205,6 @@ function AttendanceSummaryContent() {
     const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10);
   });
   const [searchTo, setSearchTo] = useState(() => new Date().toISOString().slice(0, 10));
-  // Kullanıcı inputları — Uygula'ya basılana kadar veri yüklenmez
-  const [pendingFrom, setPendingFrom] = useState(searchFrom);
-  const [pendingTo, setPendingTo] = useState(searchTo);
   const [searchResults, setSearchResults] = useState<SearchRecord[] | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
 
@@ -520,14 +517,12 @@ function AttendanceSummaryContent() {
                 </button>
               )}
             </div>
-            <input type="date" value={pendingFrom}
-              onChange={e => setPendingFrom(e.target.value)}
-              onBlur={() => setSearchFrom(pendingFrom)}
+            <input type="date" value={searchFrom}
+              onChange={e => setSearchFrom(e.target.value)}
               className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 outline-none bg-white hover:border-surface-300 transition-colors shadow-sm text-base-primary-900 cursor-pointer" />
             <span className="text-[12px] text-surface-400 shrink-0 hidden sm:block">—</span>
-            <input type="date" value={pendingTo}
-              onChange={e => setPendingTo(e.target.value)}
-              onBlur={() => setSearchTo(pendingTo)}
+            <input type="date" value={searchTo}
+              onChange={e => setSearchTo(e.target.value)}
               className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 outline-none bg-white hover:border-surface-300 transition-colors shadow-sm text-base-primary-900 cursor-pointer" />
           </div>
         </div>
