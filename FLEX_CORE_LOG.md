@@ -1304,18 +1304,142 @@ if (activeTab === "personal") {
 
 ---
 
+---
+
+## Oturum: 2026-05-23 (Devam) — Yoklama Raporu Filtreleme + Navigasyon Kısaltma
+
+### 94. Route Yeniden Adlandırma
+
+Yoklama sayfalarının isimleri netleştirildi:
+
+| Eski Route | Yeni Route | Açıklama |
+|---|---|---|
+| `/dashboard/attendance-report` | `/dashboard/attendance-detail` | Eğitmenin kendi aylık grup detayı |
+| `/dashboard/attendance-summary` | `/dashboard/attendance-report` | Admin — tüm eğitmenler özet raporu |
+
+**Sidebar güncellendi:**
+- "Yoklama Detay" → `/dashboard/attendance-detail`
+- "Yoklama Raporu" → `/dashboard/attendance-report` (sadece admin görür)
+
+---
+
+### 95. Yoklama Raporu — Tam Filtre Çubuğu
+
+**Dosya:** `src/app/dashboard/attendance-report/page.tsx`
+
+**Eklenen filtreler (attendance-detail ile birebir aynı görsel yapı):**
+- **Branş dropdown** — cascade: branş seçince grup + eğitmen dropdown'ları daralır
+- **Grup dropdown** — branş + eğitmen cascade ile senkron
+- **Eğitmen dropdown** — `rows` state'inden türetilir, ekstra Firestore fetch yok
+- **Tek arama alanı** — `searchQuery`: grup kodu eşleşiyorsa → search mode (attendance kayıtları), eşleşmiyorsa → eğitmen adı filtresi
+- **Tarih aralığı** — `searchFrom / searchTo` (search mode'da geçerli)
+- `isSearchMode` useMemo: `q.length >= 2 && groups.some(g => code.includes(q))`
+- Ayırıcı: `hidden lg:block w-px h-8 bg-surface-100 shrink-0`
+
+**Başlık dinamik:** Eğitmen seçiliyse `"Ad — Rapor"`, branş seçiliyse `"BranşAdı — Rapor"`, aksi halde `"Yoklama Raporu"`
+
+---
+
+### 96. Yoklama Detay — Filtre Çubuğu Kaldırıldı
+
+**Dosya:** `src/app/dashboard/attendance-detail/page.tsx`
+
+Eğitmenin kendi sayfası — filtre gerekmez, sadece kendi gruplarını görür.
+
+- Header, ay seçici, stat kartlar, grup tablosu, footer korundu
+- Filtre JSX'i (branş/grup/eğitmen dropdown + arama + tarih aralığı) tamamen kaldırıldı
+- State ve logic kod içinde kaldı (gelecekte gerekirse kullanılabilir)
+- Back butonu: `filterInstructorId` param varsa `"← Rapor"` → `/dashboard/attendance-report`
+
+---
+
+### 97. Yoklama Düzenleme — Admin Zaman Sınırı Bypass
+
+**Dosya:** `src/app/components/dashboard/attendance/AttendancePanel.tsx` (satır 853)
+
+**Kural:**
+- Eğitmen: kapatılmış yoklamayı sadece **3 gün içinde** düzenleyebilir
+- Admin / Yönetici: süre sınırı yok, her zaman düzenleyebilir
+
+**Değişiklik:**
+```ts
+// Önceki:
+const canEdit = allowEdit && (!attendanceClosed || withinEditWindow);
+
+// Sonrası:
+const canEdit = allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
+```
+
+---
+
+### 98. Yoklama Raporu — Accordion Navigasyon (3 Sayfa → 2 Sayfa)
+
+**Dosya:** `src/app/dashboard/attendance-report/page.tsx`
+
+**Sorun:** Rapor → Detay → Yoklama Al = 3 sayfa navigasyon.
+
+**Çözüm:** "Detay" butonu artık ayrı sayfaya yönlendirmiyor; eğitmen satırının altında inline accordion açıyor.
+
+**Değişiklikler:**
+- `expandedInstructorId: string | null` state eklendi
+- "Detay" butonu → accordion toggle (ChevronDown rotate animasyonu ile)
+- Her eğitmen satırı artık `<div>` wrapper içinde; altında `AnimatePresence + motion.div` accordion
+
+**Accordion içeriği:**
+- Eğitmenin grupları `groups` state'inden `instructorId` ile filtrelenir
+- Her grup: tıklanabilir kart → `router.push('/dashboard/attendance?groupId=...')`
+- Sağ üstte "Tam rapor →" linki → `/dashboard/attendance-detail?instructorId=...&month=...`
+
+**Framer Motion animasyon:**
+```ts
+initial={{ height: 0, opacity: 0 }}
+animate={{ height: "auto", opacity: 1 }}
+exit={{ height: 0, opacity: 0 }}
+transition={{ duration: 0.22, ease: "easeInOut" }}
+```
+
+ChevronDown ikonu `motion.span` ile 0° → 180° döner.
+
+---
+
+### 99. Sentry — ReferenceError Düzeltmesi + .next Temizliği
+
+**Hata:** `ReferenceError: searchCode is not defined at AttendanceSummaryContent`
+
+**Neden:** Önceki oturumda `attendance-report`'ta `searchCode` → `searchQuery` olarak yeniden adlandırıldı. Ancak `.next` Turbopack cache'inde eski chunk (`src_app_7d72f26a._.js`) kalmıştı; dev server eski kodu sunuyordu.
+
+**Fix:** `.next` klasörü silindi → dev server yeniden başlatılınca fresh build yapıldı.
+
+**Sentry'de:** Issue "Resolve" ile kapatıldı. Hata tekrarlanmadı.
+
+---
+
+### 100. Tablo Hizalama — Grup Sayısı
+
+**Dosya:** `src/app/dashboard/attendance-report/page.tsx`
+
+**Sorun:** "Grup" sütunundaki tek satır sayı (`4`) ile yanındaki iki satırlı değerlerin (`48 saat` + `(48 ders)`) üst satırı `items-center` nedeniyle farklı yükseklikte görünüyordu.
+
+**Fix:** Grup hücresine `invisible` sub-line eklendi:
+```tsx
+<div className="w-14 shrink-0 text-center">
+  <span className="text-[16px] font-bold text-base-primary-800">{ins.groupCount}</span>
+  <p className="text-[10px] invisible">-</p>
+</div>
+```
+
+Her iki sütun artık 2 satırlık yüksekliğe sahip → `items-center` ile üst satırlar hizalanıyor.
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
-### 1. TypeScript `any` Temizliği — ✅ TAMAMLANDI
-- Tüm aktif kaynak dosyalarında sıfır `any` kullanımı (doğrulandı 2026-05-23)
-- Sadece silinen yedek dosyalarda vardı, onlar da kaldırıldı
-
-### 2. İLERİDE — Sertifika PDF + Dağıtım
+### 1. İLERİDE — Sertifika PDF + Dağıtım
 - Finalize sonrası sertifika belgesi üretilecek
 - Altyapı hazır: `react-pdf` + `send-kitap` pattern'i kullanılabilir
 - Şablon tasarımı kararlaştırılacak — acelesi yok
 
-### 3. İLERİDE — Dashboard Hızlı Yoklama Widget
+### 2. İLERİDE — Dashboard Hızlı Yoklama Widget
 - `/attend?groupId=xxx` shortcut kartı
 
 ### ✅ TAMAMLANDI
@@ -1339,3 +1463,10 @@ if (activeTab === "personal") {
 - TypeScript any temizliği (tüm dosyalar) → §90 + §93
 - AssignmentLibrary kişisel branş filtresi → §92
 - Sidebar accordion karşılıklı kapanma + Ödev Ayarları kaldırıldı → §93
+- Route yeniden adlandırma (summary→report, report→detail) → §94
+- Yoklama Raporu tam filtre çubuğu → §95
+- Yoklama Detay filtre çubuğu kaldırıldı → §96
+- Admin yoklama düzenleme zaman sınırı bypass → §97
+- Accordion navigasyon + Framer Motion → §98
+- Sentry ReferenceError + .next cache fix → §99
+- Tablo hizalama (Grup sayısı) → §100

@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useState, useEffect, useMemo } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
-import { BarChart2, ChevronDown, CalendarDays, CheckCircle2, Clock, XCircle, TrendingUp, ChevronLeft } from "lucide-react";
+import { TrendingUp, ChevronDown, CheckCircle2, Clock, XCircle, ChevronRight, Users, Search, X } from "lucide-react";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
-import { useUser } from "@/app/context/UserContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Group {
@@ -19,28 +19,37 @@ interface Group {
   sessionHours?: number;
   startDate?: string;
   totalHours?: number;
-  moduleId?: string;
   instructorId?: string;
   attendanceClosed?: boolean;
+  status?: string;
+}
+
+interface SearchRecord {
+  date: string; groupCode: string; sessionHours: number;
+  entryCount: number; attendanceClosed: boolean;
 }
 
 interface Branch {
   id: string;
+  name?: string;
   sessionHours?: number;
 }
 
-interface GroupStats {
-  group: Group;
-  sessionHours: number;
-  plannedThisMonth: number;
-  actualDoneThisMonth: number;        // createdByException olmayan gerçek ders
-  cancelledThisMonth: number;         // tüm iptaller → İptal sütunu
-  studentCancelledThisMonth: number;  // sadece öğrenci kaynaklı → Toplam'a eklenir
-  toplamThisMonth: number;            // actualDone + studentCancelled → eğitmen hakkı
-  remainingThisMonth: number;
-  totalDoneAllTime: number;
-  totalSessions: number | null;
-  totalHours: number | null;
+interface InstructorRow {
+  instructorId: string;
+  name: string;
+  branchIds: string[];
+  groupCount: number;
+  planned: number;
+  actualDone: number;        // gerçek ders (createdByException hariç)
+  cancelled: number;         // tüm iptaller → İptal sütunu
+  cancelledHours: number;    // tüm iptaller saat
+  studentCancelled: number;  // sadece öğrenci kaynaklı → Toplam'a eklenir
+  toplam: number;            // actualDone + studentCancelled → eğitmen hakkı
+  remaining: number;
+  plannedHours: number;
+  actualDoneHours: number;
+  toplamHours: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -56,7 +65,9 @@ const TR_DAYS: Record<string, number> = {
 
 function parseWeekDays(label: string): number[] {
   if (!label) return [];
-  const lower = label.toLowerCase().replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ö/g, "o");
+  const lower = label.toLowerCase()
+    .replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g")
+    .replace(/ü/g, "u").replace(/ö/g, "o");
   const found: number[] = [];
   for (const [key, day] of Object.entries(TR_DAYS)) {
     if (lower.includes(key) && !found.includes(day)) found.push(day);
@@ -121,10 +132,9 @@ function getMonthOptions() {
   return options;
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-function StatCard({ label, value, sub, color, icon }: {
-  label: string; value: number | string; sub?: string;
-  color: string; icon: React.ReactNode;
+// ── Sub-components ────────────────────────────────────────────────────────────
+function StatCard({ label, value, sub, icon, color }: {
+  label: string; value: string | number; sub?: string; icon: React.ReactNode; color: string;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-surface-100 shadow-sm px-4 py-4 flex items-center gap-3 min-w-0">
@@ -140,14 +150,34 @@ function StatCard({ label, value, sub, color, icon }: {
   );
 }
 
-// ── Progress bar ──────────────────────────────────────────────────────────────
-function ProgressBar({ value, max, color = "bg-base-primary-600" }: { value: number; max: number; color?: string }) {
+function FilterSelect({ value, onChange, placeholder, children, className = "" }: {
+  value: string; onChange: (v: string) => void; placeholder: string;
+  children: React.ReactNode; className?: string;
+}) {
+  return (
+    <div className={`relative ${className}`}>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full appearance-none text-[13px] font-medium bg-white border border-surface-200 rounded-xl pl-3 pr-8 py-2.5 outline-none cursor-pointer hover:border-surface-300 transition-colors shadow-sm text-base-primary-900"
+      >
+        <option value="">{placeholder}</option>
+        {children}
+      </select>
+      <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-surface-400" />
+    </div>
+  );
+}
+
+function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 rounded-full bg-surface-100">
-        <div className={`h-full rounded-full transition-all ${pct === 100 ? "bg-status-success-500" : color}`}
-          style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full rounded-full transition-all ${pct === 100 ? "bg-status-success-500" : "bg-base-primary-600"}`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
       <span className="text-[11px] font-bold text-surface-400 w-8 text-right">%{pct}</span>
     </div>
@@ -155,44 +185,42 @@ function ProgressBar({ value, max, color = "bg-base-primary-600" }: { value: num
 }
 
 // ── Ana bileşen ───────────────────────────────────────────────────────────────
-function AttendanceReportContent() {
-  const { user, isAdmin } = useUser();
+function AttendanceSummaryContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const filterInstructorId = searchParams.get("instructorId");
-  const monthParam = searchParams.get("month");
-
-  const [selectedMonth, setSelectedMonth] = useState(() => monthParam || toMonthKey(new Date()));
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [stats, setStats] = useState<GroupStats[]>([]);
-  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+  const [selectedMonth, setSelectedMonth] = useState(() => toMonthKey(new Date()));
+  const [rows, setRows] = useState<InstructorRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [instructorName, setInstructorName] = useState<string>("");
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchesLoaded, setBranchesLoaded] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [expandedInstructorId, setExpandedInstructorId] = useState<string | null>(null);
+
+  // Filtreler
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState("");
+  const [selectedInstructor, setSelectedInstructor] = useState("");
+
+  // Tek arama alanı (grup kodu veya eğitmen adı)
+  const defaultFrom = useMemo(() => {
+    const d = new Date(); d.setFullYear(d.getFullYear() - 2); return d.toISOString().slice(0, 10);
+  }, []);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFrom, setSearchFrom] = useState(defaultFrom);
+  const [searchTo, setSearchTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [searchResults, setSearchResults] = useState<SearchRecord[] | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const monthOptions = getMonthOptions();
+  const selectedMonthLabel = monthOptions.find(m => m.key === selectedMonth)?.label ?? selectedMonth;
 
-  // Eğitmen adını yükle (admin belirli bir eğitmene bakıyorsa)
-  useEffect(() => {
-    if (!filterInstructorId) return;
-    getDoc(doc(db, "users", filterInstructorId)).then(d => {
-      if (d.exists()) {
-        const data = d.data();
-        setInstructorName(
-          data.name && data.surname ? `${data.name} ${data.surname}` : (data.name || "Eğitmen")
-        );
-      }
-    });
-  }, [filterInstructorId]);
-
-  // Load branches
   useEffect(() => {
     return onSnapshot(collection(db, "branches"), snap => {
       setBranches(snap.docs.map(d => ({ id: d.id, ...d.data() } as Branch)));
+      setBranchesLoaded(true);
     });
   }, []);
 
-  // Load holidays
   useEffect(() => {
     return onSnapshot(collection(db, "holidays"), snap => {
       const dates = new Set<string>();
@@ -209,312 +237,560 @@ function AttendanceReportContent() {
     });
   }, []);
 
-  // Load groups
+  // Grupları çek (dropdown + arama için)
   useEffect(() => {
-    const q = query(collection(db, "groups"), where("status", "!=", "archived"));
-    return onSnapshot(q, snap => {
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Group));
-      if (isAdmin()) {
-        setGroups(filterInstructorId ? all.filter(g => g.instructorId === filterInstructorId) : all);
-      } else {
-        const branchIds: string[] = user?.branches ?? (user?.branch ? [user.branch] : []);
-        setGroups(branchIds.length > 0 ? all.filter(g => g.discipline && branchIds.includes(g.discipline)) : all);
-      }
-    });
-  }, [user, isAdmin, filterInstructorId]);
+    getDocs(collection(db, "groups")).then(snap => {
+      setGroups(snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Group))
+        .filter(g => g.status !== "archived")
+        .sort((a, b) => (a.code ?? "").localeCompare(b.code ?? "", "tr")));
+    }).catch(() => {});
+  }, []);
 
-  // Load stats for selected month
   useEffect(() => {
-    if (branches.length === 0) return;
-    if (groups.length === 0) { setLoading(false); return; }
+    if (!branchesLoaded) return;
     setLoading(true);
 
     const [yearStr, monthStr] = selectedMonth.split("-");
     const year  = parseInt(yearStr);
     const month = parseInt(monthStr) - 1;
 
-    Promise.all(groups.map(async (g): Promise<GroupStats> => {
-      const branch = branches.find(b => b.id === g.discipline);
-      const sessionHours = g.sessionHours ?? branch?.sessionHours ?? 3;
+    Promise.all([
+      getDocs(collection(db, "groups")),
+      getDocs(query(collection(db, "design_attendance"), where("month", "==", selectedMonth))),
+      getDocs(query(collection(db, "lesson_exceptions"),  where("month", "==", selectedMonth))),
+    ]).then(async ([groupsSnap, attendanceSnap, exceptionsSnap]) => {
 
-      let totalHours = g.totalHours ?? null;
-      if (!totalHours && g.moduleId && g.discipline) {
+      // Grupları client-side filtrele (status != archived)
+      const allGroups = groupsSnap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Group))
+        .filter(g => g.status !== "archived");
+
+      // Eğitmen ID'lerini çıkar → sadece bunları fetch et
+      const instructorIds = [...new Set(allGroups.map(g => g.instructorId).filter(Boolean) as string[])];
+      const usersMap: Record<string, string> = {};
+      await Promise.all(instructorIds.map(async uid => {
         try {
-          const md = await getDoc(doc(db, "branches", g.discipline, "modules", g.moduleId));
-          if (md.exists()) totalHours = md.data()?.totalHours ?? null;
-        } catch { /* ignore */ }
-      }
+          const d = await getDoc(doc(db, "users", uid));
+          if (d.exists()) {
+            const data = d.data();
+            usersMap[uid] = (data.name && data.surname) ? `${data.name} ${data.surname}` : (data.name || uid);
+          }
+        } catch { /* izin yoksa atla */ }
+      }));
 
-      const weekDays = parseWeekDays(g.session ?? "");
-      const totalSessions = totalHours && sessionHours ? Math.ceil(totalHours / sessionHours) : null;
-      const estimatedEndDate = g.attendanceClosed && g.startDate && totalSessions
-        ? calcEstimatedEndDate(g.startDate, totalSessions, weekDays, holidayDates)
-        : null;
-      const plannedThisMonth = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate, estimatedEndDate ?? undefined);
+      // Ay bazlı yoklama map'i
+      const attendanceByGroup: Record<string, number> = {};
+      attendanceSnap.docs.forEach(d => {
+        const { groupId, createdByException } = d.data() as { groupId: string; createdByException?: boolean };
+        if (groupId && !createdByException) attendanceByGroup[groupId] = (attendanceByGroup[groupId] ?? 0) + 1;
+      });
 
-      const doneSnap = await getDocs(query(
-        collection(db, "design_attendance"),
-        where("groupId", "==", g.id),
-        where("month", "==", selectedMonth),
-      ));
-      // createdByException=true → öğrenci gelmedi auto-doc, gerçek ders sayılmaz
-      const actualDoneThisMonth = doneSnap.docs.filter(d => !d.data().createdByException).length;
+      const cancelledByGroup: Record<string, number> = {};
+      const studentCancelledByGroup: Record<string, number> = {};
+      exceptionsSnap.docs.forEach(d => {
+        const { groupId, countsAsLesson } = d.data() as { groupId: string; countsAsLesson?: boolean };
+        if (!groupId) return;
+        cancelledByGroup[groupId] = (cancelledByGroup[groupId] ?? 0) + 1;
+        if (countsAsLesson === true) studentCancelledByGroup[groupId] = (studentCancelledByGroup[groupId] ?? 0) + 1;
+      });
 
-      const exSnap = await getDocs(query(
-        collection(db, "lesson_exceptions"),
-        where("groupId", "==", g.id),
-        where("month", "==", selectedMonth),
-      ));
-      // tüm iptaller İptal sütununda görünür
-      const cancelledThisMonth = exSnap.docs.length;
-      // sadece öğrenci kaynaklı (countsAsLesson=true) Toplam'a eklenir (eğitmen oradaydı)
-      const studentCancelledThisMonth = exSnap.docs.filter(d => d.data().countsAsLesson === true).length;
-      const toplamThisMonth = actualDoneThisMonth + studentCancelledThisMonth;
+      const map: Record<string, InstructorRow> = {};
+      allGroups.forEach(g => {
+        const iid = g.instructorId ?? "unknown";
+        if (!map[iid]) {
+          map[iid] = {
+            instructorId: iid,
+            name: usersMap[iid] ?? "Bilinmeyen",
+            branchIds: [],
+            groupCount: 0,
+            planned: 0, actualDone: 0, cancelled: 0, cancelledHours: 0,
+            studentCancelled: 0, toplam: 0, remaining: 0,
+            plannedHours: 0, actualDoneHours: 0, toplamHours: 0,
+          };
+        }
+        if (g.discipline && !map[iid].branchIds.includes(g.discipline)) {
+          map[iid].branchIds.push(g.discipline);
+        }
+        const branch = branches.find(b => b.id === g.discipline);
+        const sessionHours = g.sessionHours ?? branch?.sessionHours ?? 3;
+        const weekDays = parseWeekDays(g.session ?? "");
+        const totalSessions = g.totalHours && sessionHours ? Math.ceil(g.totalHours / sessionHours) : null;
+        const estimatedEndDate = g.attendanceClosed && g.startDate && totalSessions
+          ? calcEstimatedEndDate(g.startDate, totalSessions, weekDays, holidayDates) : null;
+        const planned          = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate, estimatedEndDate ?? undefined);
+        const actualDone       = attendanceByGroup[g.id] ?? 0;
+        const cancelled        = cancelledByGroup[g.id] ?? 0;
+        const studentCancelled = studentCancelledByGroup[g.id] ?? 0;
+        const toplam           = actualDone + studentCancelled;
+        const remaining        = Math.max(0, planned - actualDone - cancelled);
 
-      const remainingThisMonth = Math.max(0, plannedThisMonth - actualDoneThisMonth - cancelledThisMonth);
+        map[iid].groupCount++;
+        map[iid].planned          += planned;
+        map[iid].actualDone       += actualDone;
+        map[iid].cancelled        += cancelled;
+        map[iid].cancelledHours   += cancelled * sessionHours;
+        map[iid].studentCancelled += studentCancelled;
+        map[iid].toplam           += toplam;
+        map[iid].remaining        += remaining;
+        map[iid].plannedHours     += planned * sessionHours;
+        map[iid].actualDoneHours  += actualDone * sessionHours;
+        map[iid].toplamHours      += toplam * sessionHours;
+      });
 
-      const allTimeSnap = await getDocs(query(
-        collection(db, "design_attendance"),
-        where("groupId", "==", g.id),
-      ));
-      const totalDoneAllTime = allTimeSnap.size;
-
-      return {
-        group: g,
-        sessionHours,
-        plannedThisMonth,
-        actualDoneThisMonth,
-        cancelledThisMonth,
-        studentCancelledThisMonth,
-        toplamThisMonth,
-        remainingThisMonth,
-        totalDoneAllTime,
-        totalSessions,
-        totalHours,
-      };
-    })).then(result => {
-      setStats(result);
+      setRows(Object.values(map).filter(r => r.groupCount > 0).sort((a, b) => b.actualDone - a.actualDone));
       setLoading(false);
-    });
-  }, [groups, branches, selectedMonth, holidayDates]);
+    }).catch(() => { setRows([]); setLoading(false); });
+  }, [selectedMonth, branches, holidayDates, branchesLoaded]);
 
-  const totalPlanned          = stats.reduce((s, g) => s + g.plannedThisMonth, 0);
-  const totalActualDone       = stats.reduce((s, g) => s + g.actualDoneThisMonth, 0);
-  const totalCancelled        = stats.reduce((s, g) => s + g.cancelledThisMonth, 0);
-  const totalStudentCancelled = stats.reduce((s, g) => s + g.studentCancelledThisMonth, 0);
-  const totalToplam           = stats.reduce((s, g) => s + g.toplamThisMonth, 0);
-  const totalRemaining        = stats.reduce((s, g) => s + g.remainingThisMonth, 0);
-  const baseHours             = stats[0]?.sessionHours ?? 3;
+  // Eğitmen dropdown seçenekleri (rows'dan türetilir, ekstra fetch yok)
+  const instructorOptions = useMemo(() =>
+    rows.map(r => ({ id: r.instructorId, name: r.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "tr")),
+  [rows]);
 
-  const selectedMonthLabel = monthOptions.find(m => m.key === selectedMonth)?.label ?? selectedMonth;
-  const pageTitle = filterInstructorId
-    ? `${instructorName || "Eğitmen"} — Detay`
-    : "Yoklama Detay";
+  // Grup dropdown — branş + eğitmen cascade
+  const dropdownGroups = useMemo(() => {
+    let g = groups;
+    if (selectedBranch) g = g.filter(x => x.discipline === selectedBranch);
+    if (selectedInstructor) g = g.filter(x => x.instructorId === selectedInstructor);
+    return g;
+  }, [groups, selectedBranch, selectedInstructor]);
 
+  // Seçili grup artık listede yoksa sıfırla
+  useEffect(() => {
+    if (selectedGroupFilter && !dropdownGroups.find(g => g.id === selectedGroupFilter)) {
+      setSelectedGroupFilter("");
+    }
+  }, [dropdownGroups, selectedGroupFilter]);
+
+  // Grup kodu eşleşiyorsa search mode, değilse eğitmen adı filtresi
+  const isSearchMode = useMemo(() => {
+    const q = searchQuery.trim().toUpperCase();
+    return q.length >= 2 && groups.some(g => (g.code ?? "").toUpperCase().includes(q));
+  }, [searchQuery, groups]);
+
+  // Filtreli eğitmen satırları (search mode'da eğitmen adı filtresi kapalı)
+  const filteredRows = useMemo(() => rows.filter(r => {
+    if (selectedBranch && !r.branchIds.includes(selectedBranch)) return false;
+    if (selectedInstructor && r.instructorId !== selectedInstructor) return false;
+    if (selectedGroupFilter) {
+      const grp = groups.find(g => g.id === selectedGroupFilter);
+      if (grp && grp.instructorId !== r.instructorId) return false;
+    }
+    if (!isSearchMode && searchQuery.trim()) {
+      if (!r.name.toLowerCase().includes(searchQuery.trim().toLowerCase())) return false;
+    }
+    return true;
+  }), [rows, selectedBranch, selectedInstructor, selectedGroupFilter, groups, searchQuery, isSearchMode]);
+
+  // Grup kodu arama (search mode)
+  useEffect(() => {
+    if (!isSearchMode) { setSearchResults(null); return; }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const q = searchQuery.trim().toUpperCase();
+        const matched = groups.filter(g => (g.code ?? "").toUpperCase().includes(q)).slice(0, 5);
+        if (matched.length === 0) { setSearchResults([]); setSearchLoading(false); return; }
+        const results: SearchRecord[] = [];
+        for (const g of matched) {
+          const sessionHours = g.sessionHours ?? (branches.find(b => b.id === g.discipline)?.sessionHours ?? 3);
+          const snap = await getDocs(query(collection(db, "design_attendance"), where("groupId", "==", g.id)));
+          snap.docs.forEach(d => {
+            const data = d.data();
+            const date = data.date as string;
+            if (date >= searchFrom && date <= searchTo) {
+              results.push({
+                date, groupCode: g.code, sessionHours,
+                entryCount: Object.keys((data.entries as Record<string, unknown>) ?? {}).length,
+                attendanceClosed: !!data.attendanceClosed,
+              });
+            }
+          });
+        }
+        setSearchResults(results.sort((a, b) => b.date.localeCompare(a.date)));
+      } catch { setSearchResults([]); }
+      finally { setSearchLoading(false); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchFrom, searchTo, groups, branches, isSearchMode]);
+
+  const groupedSearch = useMemo(() => {
+    if (!searchResults) return {} as Record<string, SearchRecord[]>;
+    return searchResults.reduce((acc, r) => {
+      (acc[r.groupCode] ??= []).push(r);
+      return acc;
+    }, {} as Record<string, SearchRecord[]>);
+  }, [searchResults]);
+
+  const totalPlannedHours     = filteredRows.reduce((s, r) => s + r.plannedHours, 0);
+  const totalActualDoneHours  = filteredRows.reduce((s, r) => s + r.actualDoneHours, 0);
+  const totalCancelled        = filteredRows.reduce((s, r) => s + r.cancelled, 0);
+  const totalCancelledHours   = filteredRows.reduce((s, r) => s + r.cancelledHours, 0);
+  const totalStudentCancelled = filteredRows.reduce((s, r) => s + r.studentCancelled, 0);
+  const totalToplamHours      = filteredRows.reduce((s, r) => s + r.toplamHours, 0);
 
   return (
-    <div className="max-w-5xl mx-auto px-8 py-8 space-y-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
 
-      {/* Başlık + ay seçici */}
-      <div className="flex items-center justify-between">
+      {/* ── Başlık ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          {filterInstructorId && (
-            <button
-              onClick={() => router.push("/dashboard/attendance-summary")}
-              className="flex items-center gap-1 text-[13px] text-surface-400 hover:text-base-primary-700 transition-colors mr-1"
-            >
-              <ChevronLeft size={16} />
-              Rapor
-            </button>
-          )}
-          <BarChart2 size={22} className="text-surface-400" />
+          <TrendingUp size={22} className="text-surface-400" />
           <div>
-            <h1 className="text-[22px] font-bold text-base-primary-900">{pageTitle}</h1>
+            <h1 className="text-[22px] font-bold text-base-primary-900">
+              {selectedInstructor
+                ? (instructorOptions.find(i => i.id === selectedInstructor)?.name ?? "Yoklama Raporu") + " — Rapor"
+                : selectedBranch
+                ? (branches.find(b => b.id === selectedBranch)?.name ?? "Yoklama Raporu") + " — Rapor"
+                : "Yoklama Raporu"}
+            </h1>
             <p className="text-[13px] text-surface-400 capitalize">{selectedMonthLabel}</p>
           </div>
         </div>
-        <div className="relative flex items-center">
+        <div className="relative self-start sm:self-auto shrink-0">
           <select
             value={selectedMonth}
             onChange={e => setSelectedMonth(e.target.value)}
             className="appearance-none text-[13px] font-bold text-base-primary-900 bg-white border border-surface-200 rounded-xl pl-4 pr-9 py-2.5 outline-none cursor-pointer hover:border-surface-300 transition-colors shadow-sm capitalize"
           >
-            {monthOptions.map(m => (
-              <option key={m.key} value={m.key}>{m.label}</option>
-            ))}
+            {monthOptions.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
           </select>
-          <ChevronDown size={14} className="absolute right-3 pointer-events-none text-surface-400" />
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-surface-400" />
         </div>
       </div>
 
+      {/* ── Filtre Çubuğu ── */}
+      <div className="bg-white border border-surface-100 rounded-2xl shadow-sm px-4 py-3">
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+
+          {/* Sol: Dropdown filtreler */}
+          <div className="flex flex-wrap gap-2 flex-1 min-w-0">
+            <FilterSelect
+              value={selectedBranch}
+              onChange={v => { setSelectedBranch(v); setSelectedGroupFilter(""); }}
+              placeholder="Tüm Branşlar"
+              className="flex-1 min-w-[130px]"
+            >
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name ?? b.id}</option>)}
+            </FilterSelect>
+
+            <FilterSelect
+              value={selectedGroupFilter}
+              onChange={setSelectedGroupFilter}
+              placeholder="Tüm Gruplar"
+              className="flex-1 min-w-[130px]"
+            >
+              {dropdownGroups.map(g => <option key={g.id} value={g.id}>{g.code}</option>)}
+            </FilterSelect>
+
+            <FilterSelect
+              value={selectedInstructor}
+              onChange={v => { setSelectedInstructor(v); setSelectedGroupFilter(""); }}
+              placeholder="Tüm Eğitmenler"
+              className="flex-1 min-w-[150px]"
+            >
+              {instructorOptions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </FilterSelect>
+          </div>
+
+          {/* Ayırıcı */}
+          <div className="hidden lg:block w-px h-8 bg-surface-100 shrink-0" />
+          <div className="lg:hidden border-t border-surface-100" />
+
+          {/* Sağ: Arama */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[150px] lg:flex-none lg:w-44">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Eğitmen veya grup ara..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-7 py-2.5 text-[13px] border border-surface-200 rounded-xl outline-none bg-white hover:border-surface-300 focus:border-base-primary-400 transition-colors shadow-sm text-base-primary-900 placeholder:text-surface-400"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 transition-colors">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            <input type="date" value={searchFrom} onChange={e => setSearchFrom(e.target.value)}
+              className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 outline-none bg-white hover:border-surface-300 transition-colors shadow-sm text-base-primary-900 cursor-pointer" />
+            <span className="text-[12px] text-surface-400 shrink-0 hidden sm:block">—</span>
+            <input type="date" value={searchTo} onChange={e => setSearchTo(e.target.value)}
+              className="flex-1 min-w-[130px] lg:flex-none lg:w-36 text-[13px] border border-surface-200 rounded-xl px-3 py-2.5 outline-none bg-white hover:border-surface-300 transition-colors shadow-sm text-base-primary-900 cursor-pointer" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Arama Modu ── */}
+      {isSearchMode ? (
+        <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
+            <div className="flex items-center gap-2 min-w-0">
+              <Search size={16} className="text-surface-400 shrink-0" />
+              <span className="text-[15px] font-bold text-base-primary-900">Arama Sonuçları</span>
+              {searchResults && !searchLoading && (
+                <span className="text-[12px] text-surface-400 truncate">
+                  &quot;{searchQuery}&quot; · {searchResults.length} kayıt · {searchFrom} – {searchTo}
+                </span>
+              )}
+            </div>
+            <button onClick={() => setSearchQuery("")}
+              className="text-[12px] font-medium text-surface-400 hover:text-base-primary-600 transition-colors shrink-0 ml-3">
+              Temizle
+            </button>
+          </div>
+          {searchLoading ? (
+            <div className="flex items-center justify-center py-14">
+              <div className="w-6 h-6 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
+            </div>
+          ) : !searchResults || searchResults.length === 0 ? (
+            <div className="flex flex-col items-center py-14 text-surface-300">
+              <Search size={30} className="mb-2 opacity-40" />
+              <p className="text-[14px]">Sonuç bulunamadı</p>
+              <p className="text-[12px] mt-1 text-surface-300">Grup kodunu veya tarih aralığını kontrol edin</p>
+            </div>
+          ) : (
+            Object.entries(groupedSearch).map(([code, records]) => (
+              <div key={code}>
+                <div className="flex items-center gap-3 px-6 py-2.5 bg-surface-50 border-b border-surface-100">
+                  <span className="text-[13px] font-bold text-base-primary-800">{code}</span>
+                  <span className="text-[11px] text-surface-400">
+                    {records.length} yoklama · {records.reduce((s, r) => s + r.entryCount * r.sessionHours, 0)} saat
+                  </span>
+                </div>
+                {records.map(r => (
+                  <div key={r.date}
+                    className="flex items-center gap-3 sm:gap-4 px-6 py-3 border-b border-surface-50 last:border-0 hover:bg-surface-50/50 transition-colors">
+                    <span className="text-[13px] font-semibold text-base-primary-800 w-24 sm:w-28 shrink-0">{r.date}</span>
+                    <span className="text-[13px] text-surface-500 shrink-0">{r.entryCount} öğrenci</span>
+                    <span className="text-[13px] font-medium text-base-primary-700 shrink-0">{r.entryCount * r.sessionHours} saat</span>
+                    <span className={`ml-auto text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0 ${
+                      r.attendanceClosed ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"
+                    }`}>
+                      {r.attendanceClosed ? "Kapatıldı" : "Devam Ediyor"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+      <>
       {/* Özet kartlar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
-          label="Planlanan Ders"
-          value={`${totalPlanned * baseHours} saat`}
-          sub={`(${totalPlanned} ders)`}
+          label="Toplam Planlanan"
+          value={`${totalPlannedHours} saat`}
+          icon={<Clock size={20} />}
           color="bg-base-primary-50 text-base-primary-600"
-          icon={<CalendarDays size={20} />}
         />
         <StatCard
-          label="Verilen Ders"
-          value={`${totalActualDone * baseHours} saat`}
-          sub={`(${totalActualDone} ders)`}
-          color="bg-status-success-50 text-status-success-600"
+          label="Toplam Verilen"
+          value={`${totalActualDoneHours} saat`}
           icon={<CheckCircle2 size={20} />}
+          color="bg-status-success-50 text-status-success-600"
         />
         <StatCard
           label="İptal"
-          value={`${totalCancelled} ders`}
-          sub={totalStudentCancelled > 0 ? `(${totalStudentCancelled} öğrenci kaynaklı)` : undefined}
-          color="bg-red-50 text-red-500"
+          value={`${totalCancelledHours} saat`}
+          sub={`(${totalCancelled} ders)`}
           icon={<XCircle size={20} />}
+          color="bg-red-50 text-red-500"
         />
         <StatCard
           label="Toplam Ders"
-          value={`${totalToplam * baseHours} saat`}
-          sub={`(${totalToplam} ders)`}
-          color="bg-indigo-50 text-indigo-600"
+          value={`${totalToplamHours} saat`}
           icon={<TrendingUp size={20} />}
+          color="bg-indigo-50 text-indigo-600"
         />
       </div>
 
-      {/* Grup tablosu */}
+      {/* Eğitmen tablosu */}
       <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-4 px-6 py-3 bg-surface-50 border-b border-surface-100">
-          <div className="w-28 shrink-0">
-            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Grup</span>
+        <div className="overflow-x-auto">
+          <div className="flex items-center gap-4 px-6 py-3 bg-surface-50 border-b border-surface-100 min-w-[720px]">
+            <div className="flex-1 min-w-0">
+              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Eğitmen</span>
+            </div>
+            <div className="w-14 shrink-0 text-center">
+              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Grup</span>
+            </div>
+            <div className="w-24 shrink-0 text-center">
+              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Planlanan</span>
+            </div>
+            <div className="w-24 shrink-0 text-center">
+              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Verdi</span>
+            </div>
+            <div className="w-20 shrink-0 text-center">
+              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">İptal</span>
+            </div>
+            <div className="w-24 shrink-0 text-center">
+              <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wide">Toplam Ders</span>
+            </div>
+            <div className="w-36 shrink-0 hidden lg:block">
+              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Tamamlama</span>
+            </div>
+            <div className="w-16 shrink-0" />
           </div>
-          <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Planlanan</span>
-          </div>
-          <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Verdi</span>
-          </div>
-          <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-surface-500 tracking-normal">İptal</span>
-          </div>
-          <div className="w-20 shrink-0 text-center">
-            <span className="text-[11px] font-bold text-indigo-500 tracking-normal">Toplam Ders</span>
-          </div>
-          <div className="flex-1 hidden lg:block">
-            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Bu Ay İlerleme</span>
-          </div>
-          <div className="flex-1 hidden xl:block">
-            <span className="text-[11px] font-bold text-surface-500 tracking-normal">Kurs İlerleme</span>
-          </div>
-          <div className="w-20 shrink-0" />
-        </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
-          </div>
-        ) : stats.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-surface-300">
-            <BarChart2 size={32} className="mb-3 opacity-40" />
-            <p className="text-[14px] font-medium">Bu ay için veri bulunamadı.</p>
-          </div>
-        ) : (
-          stats.map(s => {
-            const monthPct = s.plannedThisMonth > 0
-              ? Math.min(100, Math.round((s.actualDoneThisMonth / s.plannedThisMonth) * 100))
-              : 0;
-            const coursePct = s.totalSessions
-              ? Math.min(100, Math.round((s.totalDoneAllTime / s.totalSessions) * 100))
-              : null;
-
-            return (
-              <div key={s.group.id} className="flex items-center gap-4 px-6 py-4 border-b border-surface-50 last:border-0 hover:bg-surface-50/50 transition-colors">
-                <div className="w-28 shrink-0">
-                  <p className="text-[14px] font-bold text-base-primary-900">{s.group.code}</p>
-                  <p className="text-[11px] text-surface-400">{s.sessionHours} saat/ders</p>
-                </div>
-
-                <div className="w-20 shrink-0 text-center">
-                  <span className="text-[16px] font-bold text-base-primary-800">{s.plannedThisMonth * s.sessionHours} saat</span>
-                  <p className="text-[10px] text-surface-400">({s.plannedThisMonth} ders)</p>
-                </div>
-
-                <div className="w-20 shrink-0 text-center">
-                  <span className="text-[16px] font-bold text-status-success-600">{s.actualDoneThisMonth * s.sessionHours} saat</span>
-                  <p className="text-[10px] text-surface-400">({s.actualDoneThisMonth} ders)</p>
-                </div>
-
-                <div className="w-20 shrink-0 text-center">
-                  <span className={`text-[16px] font-bold ${s.cancelledThisMonth > 0 ? "text-red-500" : "text-surface-300"}`}>
-                    {s.cancelledThisMonth > 0 ? `${s.cancelledThisMonth * s.sessionHours} saat` : "—"}
-                  </span>
-                  {s.cancelledThisMonth > 0 && (
-                    <p className="text-[10px] text-surface-400">({s.cancelledThisMonth} ders)</p>
-                  )}
-                </div>
-
-                <div className="w-20 shrink-0 text-center">
-                  <span className="text-[16px] font-bold text-indigo-600">{s.toplamThisMonth * s.sessionHours} saat</span>
-                  <p className="text-[10px] text-surface-400">({s.toplamThisMonth} ders)</p>
-                </div>
-
-                <div className="flex-1 hidden lg:block space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-surface-400">{s.actualDoneThisMonth}/{s.plannedThisMonth} ders</span>
-                    <span className="text-[11px] font-bold text-surface-500">%{monthPct}</span>
-                  </div>
-                  <ProgressBar value={s.actualDoneThisMonth} max={s.plannedThisMonth} />
-                </div>
-
-                <div className="flex-1 hidden xl:block">
-                  {coursePct !== null && s.totalSessions ? (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-surface-400">{s.totalDoneAllTime}/{s.totalSessions} ders</span>
-                        <span className="text-[11px] font-bold text-surface-500">%{coursePct}</span>
-                      </div>
-                      <ProgressBar value={s.totalDoneAllTime} max={s.totalSessions} color="bg-designstudio-primary-500" />
-                    </div>
-                  ) : (
-                    <span className="text-[12px] text-surface-300 italic">—</span>
-                  )}
-                </div>
-
-                <div className="w-20 shrink-0 flex justify-end">
-                  <button
-                    onClick={() => router.push(`/dashboard/attendance?groupId=${s.group.id}`)}
-                    className="text-[12px] font-bold text-base-primary-600 hover:text-white hover:bg-base-primary-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-surface-300">
+              <Users size={32} className="mb-3 opacity-40" />
+              <p className="text-[14px] font-medium">Bu ay için veri bulunamadı.</p>
+            </div>
+          ) : (
+            filteredRows.map((ins, idx) => {
+              const isExpanded = expandedInstructorId === ins.instructorId;
+              const instructorGroups = groups.filter(g => g.instructorId === ins.instructorId);
+              const isLast = idx === filteredRows.length - 1;
+              return (
+                <div key={ins.instructorId}>
+                  <div
+                    className={`flex items-center gap-4 px-6 py-4 hover:bg-surface-50/50 transition-colors min-w-[720px] ${
+                      isExpanded ? "bg-surface-50/30" : ""
+                    } ${(!isExpanded || isLast) ? "border-b border-surface-50" : ""}`}
                   >
-                    Detay
-                  </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] font-bold text-base-primary-900 truncate">{ins.name}</p>
+                      <p className="text-[11px] text-surface-400">{ins.actualDoneHours} saat verdi · {ins.toplamHours} saat hak etti</p>
+                    </div>
+
+                    <div className="w-14 shrink-0 text-center">
+                      <span className="text-[16px] font-bold text-base-primary-800">{ins.groupCount}</span>
+                      <p className="text-[10px] invisible">-</p>
+                    </div>
+
+                    <div className="w-24 shrink-0 text-center">
+                      <span className="text-[16px] font-bold text-base-primary-800">{ins.plannedHours} saat</span>
+                      <p className="text-[10px] text-surface-400">({ins.planned} ders)</p>
+                    </div>
+
+                    <div className="w-24 shrink-0 text-center">
+                      <span className="text-[16px] font-bold text-status-success-600">{ins.actualDoneHours} saat</span>
+                      <p className="text-[10px] text-surface-400">({ins.actualDone} ders)</p>
+                    </div>
+
+                    <div className="w-20 shrink-0 text-center">
+                      <span className={`text-[16px] font-bold ${ins.cancelled > 0 ? "text-red-500" : "text-surface-300"}`}>
+                        {ins.cancelled > 0 ? `${ins.cancelledHours} saat` : "—"}
+                      </span>
+                      {ins.cancelled > 0 && (
+                        <p className="text-[10px] text-surface-400">({ins.cancelled} ders)</p>
+                      )}
+                    </div>
+
+                    <div className="w-24 shrink-0 text-center">
+                      <span className="text-[16px] font-bold text-indigo-600">{ins.toplamHours} saat</span>
+                      <p className="text-[10px] text-surface-400">({ins.toplam} ders)</p>
+                    </div>
+
+                    <div className="w-36 shrink-0 hidden lg:block space-y-1">
+                      <ProgressBar value={ins.actualDone} max={ins.planned} />
+                    </div>
+
+                    <div className="w-16 shrink-0 flex justify-end">
+                      <button
+                        onClick={() => setExpandedInstructorId(p => p === ins.instructorId ? null : ins.instructorId)}
+                        className="flex items-center gap-0.5 text-[12px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer"
+                      >
+                        Detay
+                        <motion.span
+                          animate={{ rotate: isExpanded ? 180 : 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          style={{ display: "flex" }}
+                        >
+                          <ChevronDown size={13} />
+                        </motion.span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── Accordion: eğitmenin grupları ── */}
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        key={ins.instructorId}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22, ease: "easeInOut" }}
+                        style={{ overflow: "hidden" }}
+                        className="border-b border-surface-100 min-w-[720px]"
+                      >
+                        <div className="bg-surface-50/40 px-8 py-4">
+                          <div className="flex items-center justify-between gap-3 mb-3">
+                            <p className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">
+                              {ins.name} — Gruplar ({instructorGroups.length})
+                            </p>
+                            <button
+                              onClick={() => router.push(`/dashboard/attendance-detail?instructorId=${ins.instructorId}&month=${selectedMonth}`)}
+                              className="text-[11px] font-semibold text-base-primary-500 hover:text-base-primary-700 transition-colors flex items-center gap-0.5 cursor-pointer"
+                            >
+                              Tam rapor <ChevronRight size={12} />
+                            </button>
+                          </div>
+                          {instructorGroups.length === 0 ? (
+                            <p className="text-[13px] text-surface-400 italic">Grup bulunamadı.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {instructorGroups.map(g => (
+                                <button
+                                  key={g.id}
+                                  onClick={() => router.push(`/dashboard/attendance?groupId=${g.id}`)}
+                                  className="flex items-center gap-2 bg-white border border-surface-200 hover:border-base-primary-400 hover:bg-base-primary-50 rounded-xl px-3.5 py-2.5 transition-all group cursor-pointer"
+                                >
+                                  <span className="text-[13px] font-bold text-base-primary-900 group-hover:text-base-primary-700">{g.code}</span>
+                                  <span className="text-[11px] text-surface-400 group-hover:text-base-primary-500">Yoklamaya git →</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </div>
-            );
-          })
-        )}
+              );
+            })
+          )}
+        </div>
       </div>
 
-      {/* Toplam saat özeti */}
-      {!loading && stats.length > 0 && (
-        <div className="bg-base-primary-50 border border-base-primary-100 rounded-2xl px-6 py-4 flex items-center gap-3">
-          <TrendingUp size={18} className="text-base-primary-500 shrink-0" />
+      {/* Özet Footer */}
+      {!loading && filteredRows.length > 0 && (
+        <div className="bg-base-primary-50 border border-base-primary-100 rounded-2xl px-6 py-4 flex items-start gap-3">
+          <TrendingUp size={18} className="text-base-primary-500 shrink-0 mt-0.5" />
           <p className="text-[13px] text-base-primary-700 font-medium">
-            Bu ay eğitmen{" "}
-            <span className="font-bold">{totalActualDone * baseHours} saat</span>{" "}
-            ders verdi
+            Bu ay{" "}
+            <span className="font-bold">{totalActualDoneHours} saat</span>{" "}
+            ders verildi
             {totalCancelled > 0 && (
               <>, <span className="font-bold text-red-600">{totalCancelled} ders iptal</span>
               {totalStudentCancelled > 0 && <span className="text-red-400"> ({totalStudentCancelled} öğrenci kaynaklı)</span>}</>
             )}
             {" "}— toplam hak edilen:{" "}
-            <span className="font-bold text-indigo-700">{totalToplam * baseHours} saat</span>
-            {totalRemaining > 0 && <>, <span className="font-bold text-amber-700">{totalRemaining * baseHours} saat kaldı</span></>}.
+            <span className="font-bold text-indigo-700">{totalToplamHours} saat</span>.
           </p>
         </div>
+      )}
+      </>
       )}
     </div>
   );
 }
 
 // ── Sayfa ─────────────────────────────────────────────────────────────────────
-export default function AttendanceReportPage() {
+export default function AttendanceSummaryPage() {
   const router = useRouter();
 
   useEffect(() => {
@@ -524,11 +800,11 @@ export default function AttendanceReportPage() {
       try {
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         const data = userDoc.exists() ? userDoc.data() : null;
-        const hasAccess = data && (
-          data.role === "admin" || data.role === "instructor" ||
-          (data.roles && (data.roles.includes("admin") || data.roles.includes("instructor")))
+        const isAdmin = data && (
+          data.role === "admin" ||
+          (data.roles && data.roles.includes("admin"))
         );
-        if (!hasAccess) router.push("/dashboard");
+        if (!isAdmin) router.push("/dashboard");
       } catch { router.push("/dashboard"); }
     };
     checkAccess();
@@ -540,15 +816,9 @@ export default function AttendanceReportPage() {
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header activeTabLabel="Yoklama Detay" />
+        <Header activeTabLabel="Yoklama Raporu" />
         <main className="flex-1 min-h-0 bg-white overflow-y-auto [scrollbar-gutter:stable]">
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-full">
-              <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
-            </div>
-          }>
-            <AttendanceReportContent />
-          </Suspense>
+          <AttendanceSummaryContent />
         </main>
         <Footer />
       </div>

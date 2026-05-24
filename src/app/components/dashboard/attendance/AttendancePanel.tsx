@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import {
@@ -73,6 +73,8 @@ interface Group {
   moduleId?: string;
   customHours?: number;
   attendanceClosed?: boolean;
+  status?: string;
+  instructorId?: string;
 }
 
 interface Student {
@@ -363,6 +365,7 @@ export default function AttendancePanel({
 
   const [branches, setBranches]               = useState<Branch[]>([]);
   const [groups, setGroups]                   = useState<Group[]>([]);
+  const [branchFilter, setBranchFilter]       = useState<string>("");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [students, setStudents]               = useState<Student[]>([]);
   const [detailStudent, setDetailStudent]     = useState<ModalStudent | null>(null);
@@ -397,6 +400,18 @@ export default function AttendancePanel({
   const isToday  = dateKey === todayKey;
 
   const getWeekDays = (g: Group): number[] => parseWeekDays(g.session ?? "");
+
+  // Eğitmenin sahip olduğu branşlar (branch filter dropdown için)
+  const myBranches = useMemo(() =>
+    branches.filter(b => groups.some(g => g.discipline === b.id)),
+    [branches, groups],
+  );
+
+  // Branş filtresi uygulanmış grup listesi (sadece sol panel gösterimi için)
+  const visibleGroups = useMemo(() =>
+    branchFilter ? groups.filter(g => g.discipline === branchFilter) : groups,
+    [groups, branchFilter],
+  );
 
   const selectedGroup   = groups.find(g => g.id === selectedGroupId);
   const selectedBranch  = branches.find(b => b.id === selectedGroup?.discipline);
@@ -451,17 +466,24 @@ export default function AttendancePanel({
 
   // ── Load groups ────────────────────────────────────────────────────────────
   useEffect(() => {
-    const q = query(collection(db, "groups"), where("status", "!=", "archived"));
+    if (!user) return;
+    if (isAdmin()) {
+      const q = query(collection(db, "groups"), where("status", "!=", "archived"));
+      return onSnapshot(q, snap => {
+        setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() } as Group)));
+      });
+    }
+    // Eğitmen: sadece kendi grupları
+    const q = query(
+      collection(db, "groups"),
+      where("instructorId", "==", user.uid),
+    );
     return onSnapshot(q, snap => {
-      const all = snap.docs
-        .map(d => ({ id: d.id, ...d.data() } as Group))
-        .filter(g => !g.attendanceClosed || isAdmin());
-      if (isAdmin()) {
-        setGroups(all);
-      } else {
-        const branchIds: string[] = user?.branches ?? (user?.branch ? [user.branch] : []);
-        setGroups(branchIds.length > 0 ? all.filter(g => g.discipline && branchIds.includes(g.discipline)) : all);
-      }
+      setGroups(
+        snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Group))
+          .filter(g => g.status !== "archived"),
+      );
     });
   }, [user, isAdmin]);
 
@@ -475,9 +497,14 @@ export default function AttendancePanel({
   // ── Yoklama Detay: son ders tarihini otomatik seç ────────────────────────
   useEffect(() => {
     if (!preSelectedGroupId || !allowEdit) return;
+    const now = new Date();
+    const m0 = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const m1 = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
     getDocs(query(
       collection(db, "design_attendance"),
       where("groupId", "==", preSelectedGroupId),
+      where("month", "in", [m0, m1]),
     )).then(snap => {
       if (snap.empty) return;
       const dates = snap.docs.map(d => d.data().date as string).sort().reverse();
@@ -541,8 +568,12 @@ export default function AttendancePanel({
   useEffect(() => {
     if (!selectedGroupId) { setCancelledCountThisMonth(0); return; }
     return onSnapshot(
-      query(collection(db, "lesson_exceptions"), where("groupId", "==", selectedGroupId)),
-      snap => setCancelledCountThisMonth(snap.docs.filter(d => d.data().month === monthKey).length),
+      query(
+        collection(db, "lesson_exceptions"),
+        where("groupId", "==", selectedGroupId),
+        where("month", "==", monthKey),
+      ),
+      snap => setCancelledCountThisMonth(snap.size),
     );
   }, [selectedGroupId, monthKey]);
 
@@ -818,7 +849,8 @@ export default function AttendancePanel({
   const withinEditWindow = windowBase
     ? (Date.now() - windowBase.getTime()) < 3 * 24 * 60 * 60 * 1000
     : false;
-  const canEdit = allowEdit && (!attendanceClosed || withinEditWindow);
+  // Admin: süre sınırı yok — her zaman düzenleyebilir. Eğitmen: sadece 3 gün içinde.
+  const canEdit = allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
 
   // Giriş zaman kilidi: ders başlamadan WINDOW_BEFORE_MIN dk önce açılır, bittikten WINDOW_AFTER_MIN dk sonra kapanır.
   // Sadece bugün için geçerli; admin, allowEdit veya zaten başlatılmış ders için devre dışı.
@@ -946,15 +978,30 @@ export default function AttendancePanel({
             </div>
           </div>
 
-          <div className="pl-6 pr-4 pt-5 pb-3 border-b border-surface-100">
+          <div className="pl-6 pr-4 pt-5 pb-2 border-b border-surface-100 space-y-2">
             <p className="text-[16px] font-bold text-text-primary">Gruplar</p>
+            {myBranches.length > 1 && (
+              <div className="relative">
+                <select
+                  value={branchFilter}
+                  onChange={e => setBranchFilter(e.target.value)}
+                  className="w-full appearance-none text-[11px] font-medium text-text-primary bg-white border border-surface-200 rounded-lg pl-2.5 pr-7 py-1.5 outline-none cursor-pointer hover:border-surface-300 transition-colors"
+                >
+                  <option value="">Tüm branşlar</option>
+                  {myBranches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name ?? b.id}</option>
+                  ))}
+                </select>
+                <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-text-placeholder" />
+              </div>
+            )}
           </div>
 
           <div className="flex-1">
-            {groups.length === 0 && (
+            {visibleGroups.length === 0 && (
               <p className="px-5 py-6 text-[12px] text-text-placeholder text-center">Henüz grubunuz yok.</p>
             )}
-            {groups.map(g => {
+            {visibleGroups.map(g => {
               const gDays     = getWeekDays(g);
               const done      = monthlyDone[g.id] ?? 0;
               const planned   = countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), gDays, holidayDates, g.startDate);
