@@ -119,17 +119,16 @@ function toMonthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function getMonthOptions() {
-  const now = new Date();
-  const options: { key: string; label: string }[] = [];
-  for (let i = 23; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    options.push({
-      key: toMonthKey(d),
-      label: d.toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
-    });
+function getMonthsInRange(from: string, to: string): string[] {
+  if (!from || !to || from > to) return [toMonthKey(new Date())];
+  const months: string[] = [];
+  const cur = new Date(from.slice(0, 7) + "-01T12:00:00");
+  const end = new Date(to.slice(0, 7) + "-01T12:00:00");
+  while (cur <= end && months.length < 24) {
+    months.push(toMonthKey(cur));
+    cur.setMonth(cur.getMonth() + 1);
   }
-  return options;
+  return months.length > 0 ? months : [toMonthKey(new Date())];
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -187,7 +186,6 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 // ── Ana bileşen ───────────────────────────────────────────────────────────────
 function AttendanceSummaryContent() {
   const router = useRouter();
-  const [selectedMonth, setSelectedMonth] = useState(() => toMonthKey(new Date()));
   const [rows, setRows] = useState<InstructorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
@@ -201,18 +199,16 @@ function AttendanceSummaryContent() {
   const [selectedGroupFilter, setSelectedGroupFilter] = useState("");
   const [selectedInstructor, setSelectedInstructor] = useState("");
 
-  // Tek arama alanı (grup kodu veya eğitmen adı)
-  const defaultFrom = useMemo(() => {
-    const d = new Date(); d.setFullYear(d.getFullYear() - 2); return d.toISOString().slice(0, 10);
-  }, []);
+  // Tarih aralığı + arama
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchFrom, setSearchFrom] = useState(defaultFrom);
+  const [searchFrom, setSearchFrom] = useState(() => {
+    const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10);
+  });
   const [searchTo, setSearchTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [searchResults, setSearchResults] = useState<SearchRecord[] | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  const monthOptions = getMonthOptions();
-  const selectedMonthLabel = monthOptions.find(m => m.key === selectedMonth)?.label ?? selectedMonth;
+  const activeMonths = useMemo(() => getMonthsInRange(searchFrom, searchTo), [searchFrom, searchTo]);
 
   useEffect(() => {
     return onSnapshot(collection(db, "branches"), snap => {
@@ -248,17 +244,13 @@ function AttendanceSummaryContent() {
   }, []);
 
   useEffect(() => {
-    if (!branchesLoaded) return;
+    if (!branchesLoaded || activeMonths.length === 0) return;
     setLoading(true);
-
-    const [yearStr, monthStr] = selectedMonth.split("-");
-    const year  = parseInt(yearStr);
-    const month = parseInt(monthStr) - 1;
 
     Promise.all([
       getDocs(collection(db, "groups")),
-      getDocs(query(collection(db, "design_attendance"), where("month", "==", selectedMonth))),
-      getDocs(query(collection(db, "lesson_exceptions"),  where("month", "==", selectedMonth))),
+      getDocs(query(collection(db, "design_attendance"), where("month", "in", activeMonths))),
+      getDocs(query(collection(db, "lesson_exceptions"),  where("month", "in", activeMonths))),
     ]).then(async ([groupsSnap, attendanceSnap, exceptionsSnap]) => {
 
       // Grupları client-side filtrele (status != archived)
@@ -279,17 +271,19 @@ function AttendanceSummaryContent() {
         } catch { /* izin yoksa atla */ }
       }));
 
-      // Ay bazlı yoklama map'i
+      // Tarih aralığına göre yoklama map'i
       const attendanceByGroup: Record<string, number> = {};
       attendanceSnap.docs.forEach(d => {
-        const { groupId, createdByException } = d.data() as { groupId: string; createdByException?: boolean };
+        const { groupId, createdByException, date } = d.data() as { groupId: string; createdByException?: boolean; date?: string };
+        if (date && (date < searchFrom || date > searchTo)) return;
         if (groupId && !createdByException) attendanceByGroup[groupId] = (attendanceByGroup[groupId] ?? 0) + 1;
       });
 
       const cancelledByGroup: Record<string, number> = {};
       const studentCancelledByGroup: Record<string, number> = {};
       exceptionsSnap.docs.forEach(d => {
-        const { groupId, countsAsLesson } = d.data() as { groupId: string; countsAsLesson?: boolean };
+        const { groupId, countsAsLesson, date } = d.data() as { groupId: string; countsAsLesson?: boolean; date?: string };
+        if (date && (date < searchFrom || date > searchTo)) return;
         if (!groupId) return;
         cancelledByGroup[groupId] = (cancelledByGroup[groupId] ?? 0) + 1;
         if (countsAsLesson === true) studentCancelledByGroup[groupId] = (studentCancelledByGroup[groupId] ?? 0) + 1;
@@ -318,7 +312,25 @@ function AttendanceSummaryContent() {
         const totalSessions = g.totalHours && sessionHours ? Math.ceil(g.totalHours / sessionHours) : null;
         const estimatedEndDate = g.attendanceClosed && g.startDate && totalSessions
           ? calcEstimatedEndDate(g.startDate, totalSessions, weekDays, holidayDates) : null;
-        const planned          = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate, estimatedEndDate ?? undefined);
+
+        // Seçili tarih aralığındaki tüm aylarda planlanmış dersleri topla
+        const planned = activeMonths.reduce((total, mk) => {
+          const [yStr, mStr] = mk.split("-");
+          const y = parseInt(yStr);
+          const m = parseInt(mStr); // 1-indexed
+          const daysInMonth = new Date(y, m, 0).getDate();
+          const monthStart = `${mk}-01`;
+          const monthEnd = `${mk}-${String(daysInMonth).padStart(2, "0")}`;
+          const effectiveStart = ([monthStart, searchFrom, g.startDate] as (string | undefined)[])
+            .filter((x): x is string => Boolean(x))
+            .reduce((a, b) => a > b ? a : b);
+          const effectiveEnd = ([monthEnd, searchTo, estimatedEndDate] as (string | null | undefined)[])
+            .filter((x): x is string => Boolean(x))
+            .reduce((a, b) => a < b ? a : b);
+          if (effectiveStart > effectiveEnd) return total;
+          return total + countWeekdaysInMonth(y, m - 1, weekDays, holidayDates, effectiveStart, effectiveEnd);
+        }, 0);
+
         const actualDone       = attendanceByGroup[g.id] ?? 0;
         const cancelled        = cancelledByGroup[g.id] ?? 0;
         const studentCancelled = studentCancelledByGroup[g.id] ?? 0;
@@ -341,7 +353,7 @@ function AttendanceSummaryContent() {
       setRows(Object.values(map).filter(r => r.groupCount > 0).sort((a, b) => b.actualDone - a.actualDone));
       setLoading(false);
     }).catch(() => { setRows([]); setLoading(false); });
-  }, [selectedMonth, branches, holidayDates, branchesLoaded]);
+  }, [activeMonths, searchFrom, searchTo, branches, holidayDates, branchesLoaded]);
 
   // Eğitmen dropdown seçenekleri (rows'dan türetilir, ekstra fetch yok)
   const instructorOptions = useMemo(() =>
@@ -435,29 +447,17 @@ function AttendanceSummaryContent() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
 
       {/* ── Başlık ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <TrendingUp size={22} className="text-surface-400" />
-          <div>
-            <h1 className="text-[22px] font-bold text-base-primary-900">
-              {selectedInstructor
-                ? (instructorOptions.find(i => i.id === selectedInstructor)?.name ?? "Yoklama Raporu") + " — Rapor"
-                : selectedBranch
-                ? (branches.find(b => b.id === selectedBranch)?.name ?? "Yoklama Raporu") + " — Rapor"
-                : "Yoklama Raporu"}
-            </h1>
-            <p className="text-[13px] text-surface-400 capitalize">{selectedMonthLabel}</p>
-          </div>
-        </div>
-        <div className="relative self-start sm:self-auto shrink-0">
-          <select
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-            className="appearance-none text-[13px] font-bold text-base-primary-900 bg-white border border-surface-200 rounded-xl pl-4 pr-9 py-2.5 outline-none cursor-pointer hover:border-surface-300 transition-colors shadow-sm capitalize"
-          >
-            {monthOptions.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-surface-400" />
+      <div className="flex items-center gap-3">
+        <TrendingUp size={22} className="text-surface-400" />
+        <div>
+          <h1 className="text-[22px] font-bold text-base-primary-900">
+            {selectedInstructor
+              ? (instructorOptions.find(i => i.id === selectedInstructor)?.name ?? "Yoklama Raporu") + " — Rapor"
+              : selectedBranch
+              ? (branches.find(b => b.id === selectedBranch)?.name ?? "Yoklama Raporu") + " — Rapor"
+              : "Yoklama Raporu"}
+          </h1>
+          <p className="text-[13px] text-surface-400">{searchFrom} – {searchTo}</p>
         </div>
       </div>
 
@@ -733,7 +733,7 @@ function AttendanceSummaryContent() {
                               {ins.name} — Gruplar ({instructorGroups.length})
                             </p>
                             <button
-                              onClick={() => router.push(`/dashboard/attendance-detail?instructorId=${ins.instructorId}&month=${selectedMonth}`)}
+                              onClick={() => router.push(`/dashboard/attendance-detail?instructorId=${ins.instructorId}&month=${activeMonths[activeMonths.length - 1]}`)}
                               className="text-[11px] font-semibold text-base-primary-500 hover:text-base-primary-700 transition-colors flex items-center gap-0.5 cursor-pointer"
                             >
                               Tam rapor <ChevronRight size={12} />
@@ -771,7 +771,7 @@ function AttendanceSummaryContent() {
         <div className="bg-base-primary-50 border border-base-primary-100 rounded-2xl px-6 py-4 flex items-start gap-3">
           <TrendingUp size={18} className="text-base-primary-500 shrink-0 mt-0.5" />
           <p className="text-[13px] text-base-primary-700 font-medium">
-            Bu ay{" "}
+            Seçili dönemde{" "}
             <span className="font-bold">{totalActualDoneHours} saat</span>{" "}
             ders verildi
             {totalCancelled > 0 && (
