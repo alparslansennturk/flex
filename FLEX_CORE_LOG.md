@@ -1659,6 +1659,98 @@ ${pathname === "/attend" ? "bg-white/10 text-white shadow-sm" : "text-white hove
 
 ---
 
+### 110. Attend Sayfası Yeni Sekmede Login Bug Fix
+
+**Dosya:** `src/app/attend/page.tsx`
+
+**Sorun:** Yoklama alırken başka sekmede sekme açılınca `/login` ekranı geliyordu.
+
+**Kök neden:** `attend/page.tsx` kendi `onAuthStateChanged` listener'ını kuruyordu. `UserContext` de aynı listener'ı kuruyor. Race condition: context henüz yüklenmeden attend'in listener'ı tetiklenip `/login`'e yönlendiriyordu.
+
+**Çözüm:** `attend/page.tsx`'ten `onAuthStateChanged`, `auth`, `db`, `doc`, `getDoc` kaldırıldı. Yetki kontrolü `useUser()` hook'una devredildi:
+```tsx
+const { user, loading } = useUser();
+useEffect(() => {
+  if (loading) return;
+  if (!user) { router.push("/login"); return; }
+  const isAuthorized = user.roles?.includes("admin") || user.roles?.includes("instructor");
+  if (!isAuthorized) { router.push("/dashboard"); return; }
+  setReady(true);
+}, [loading, user, router]);
+```
+
+---
+
+### 111. AttendancePanel "Dersi Bitir" → "Kaydet" Yanlış Gösterme Fix
+
+**Dosya:** `src/app/components/dashboard/attendance/AttendancePanel.tsx`
+
+**Sorun:** Grup/gün değiştirince devam eden yoklamada buton "Kaydet" oluyor, "Dersi Bitir" olması gerekiyor.
+
+**Kök neden:** `onSnapshot` callback'i `saved` state'ini restore etmiyordu. Firestore'da kayıt varsa `saved=true` olmalıydı ama set edilmiyordu.
+
+**Çözüm:** `onSnapshot` içindeki `d.exists()` branch'ine `setSaved(true)` eklendi:
+```tsx
+if (d.exists()) {
+  const data = d.data() as AttendanceDoc;
+  setEntries(data.entries ?? {});
+  setExistingDoc(true);
+  setLessonStarted(true);
+  setSaved(true); // ← eklendi
+  setAttendanceClosed(data.attendanceClosed ?? false);
+  // ...
+}
+```
+
+---
+
+### 112. AttendFlowTransition Animasyon Denemeleri → Kaldırıldı
+
+**Dosya:** `src/app/components/layout/AttendFlowTransition.tsx`, `src/app/layout.tsx`
+
+**Süreç:**
+1. Çeşitli `AnimatePresence` + `motion.div` kombinasyonları denendi (mode: sync, wait, popLayout)
+2. Sheet overlay pattern (attend z:2, dashboard z:1) — geri dönüşte lacivert sidebar "patlama" sorunu
+3. `key="dashboard"` tüm dashboard rotaları için sabit key — sidebar titreme giderildi ama attend geçişi hâlâ sorunlu
+4. `dashboard/layout.tsx` oluşturma + 19 sayfa refactor — sayfa tasarımı bozuldu, GERİ ALINDI (`git checkout .` + yeni dosya silindi)
+5. **Final karar:** Animasyondan vazgeçildi
+
+**Sonuç:** `layout.tsx`'ten `AttendFlowTransition` tamamen kaldırıldı, `{children}` doğrudan render ediliyor. Yoklama Al'a basınca attend sayfası normal Next.js yüklenmesiyle açılıyor (attend/page.tsx'teki spinner görünür).
+
+```tsx
+// layout.tsx — artık sadece:
+<ScoringProvider>
+  {children}
+</ScoringProvider>
+```
+
+**AttendFlowTransition.tsx** dosyası yerinde duruyor ama layout'a import edilmiyor. Silinebilir.
+
+---
+
+### 113. Sidebar Yoklama Accordion sessionStorage Kalıcılığı
+
+**Dosya:** `src/app/components/layout/Sidebar.tsx`
+
+**Sorun:** `/attend` sayfasından dashboard'a dönünce yoklama accordion'u kapanıyordu (Sidebar unmount/remount).
+
+**Çözüm:** `yoklamaOpen` state'i `sessionStorage`'a yazılıp okunuyor:
+```tsx
+const [yoklamaOpen, setYoklamaOpen] = useState(() => {
+  if (typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem('yoklamaOpen');
+    if (stored !== null) return stored === 'true';
+  }
+  return pathname.startsWith('/dashboard/attendance');
+});
+
+useEffect(() => {
+  sessionStorage.setItem('yoklamaOpen', String(yoklamaOpen));
+}, [yoklamaOpen]);
+```
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. İLERİDE — Sertifika PDF + Dağıtım
@@ -1698,3 +1790,7 @@ ${pathname === "/attend" ? "bg-white/10 text-white shadow-sm" : "text-white hove
 - Sentry ReferenceError + .next cache fix → §99
 - Tablo hizalama (Grup sayısı) → §100
 - Yoklama modülü move animasyonu + AttendFlowTransition → §108–§109
+- Attend sayfası yeni sekmede login bug fix → §110
+- AttendancePanel "Dersi Bitir" yanlış gösterme fix → §111
+- AttendFlowTransition animasyon denemeleri → vazgeçildi, kaldırıldı → §112
+- Sidebar yoklama accordion sessionStorage kalıcılığı → §113

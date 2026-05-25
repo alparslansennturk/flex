@@ -31,7 +31,13 @@ export default function Sidebar() {
   const [assignmentTestOpen, setAssignmentTestOpen] = useState(
     pathname.startsWith('/dashboard/assignment') || pathname === '/dashboard/archive' || pathname.startsWith('/dashboard/tasks')
   );
-  const [yoklamaOpen, setYoklamaOpen] = useState(pathname.startsWith('/dashboard/attendance'));
+  const [yoklamaOpen, setYoklamaOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('yoklamaOpen');
+      if (stored !== null) return stored === 'true';
+    }
+    return pathname.startsWith('/dashboard/attendance');
+  });
   const [leagueGlobal, setLeagueGlobal] = useState(true);
 
   useEffect(() => {
@@ -39,6 +45,10 @@ export default function Sidebar() {
       setLeagueGlobal(snap.data()?.leagueGlobalEnabled !== false);
     });
   }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('yoklamaOpen', String(yoklamaOpen));
+  }, [yoklamaOpen]);
 
   const handleLogout = async () => {
     try {

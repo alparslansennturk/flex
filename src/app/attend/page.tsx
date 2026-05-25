@@ -3,9 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { auth, db } from "../lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
 import { ArrowLeft } from "lucide-react";
 import AttendancePanel from "../components/dashboard/attendance/AttendancePanel";
 import { useUser } from "../context/UserContext";
@@ -13,33 +10,24 @@ import { motion } from "framer-motion";
 
 const T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
-// Panel'e derinlik veren sol gölge
 const PANEL_SHADOW = { boxShadow: "-8px 0 24px rgba(0,0,0,0.08)" };
 
 export default function AttendPage() {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, loading } = useUser();
   const [ready, setReady]               = useState(false);
   const [showDetail, setShowDetail]     = useState(false);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
-  // Dashboard yönü için cover state'leri
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) { router.push("/login"); return; }
-      try {
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        const data = userDoc.exists() ? userDoc.data() : null;
-        const hasAccess = data && (
-          data.role === "admin" || data.role === "instructor" ||
-          (data.roles && (data.roles.includes("admin") || data.roles.includes("instructor")))
-        );
-        if (!hasAccess) { router.push("/dashboard"); return; }
-      } catch { router.push("/dashboard"); return; }
-      setReady(true);
-    });
-    return () => unsub();
-  }, [router]);
+    if (loading) return;
+    if (!user) { router.push("/login"); return; }
+    const isAuthorized =
+      user.roles?.includes("admin") ||
+      user.roles?.includes("instructor");
+    if (!isAuthorized) { router.push("/dashboard"); return; }
+    setReady(true);
+  }, [loading, user, router]);
 
   if (!ready) {
     return (
