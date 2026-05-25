@@ -185,6 +185,7 @@ export default function AssignmentDetailPage() {
       setViewingId(studentParam);
       autoSelectedRef.current = true;
     }
+    if (tabParam === 'private') setActiveTab('private');
   }, []);
 
   useEffect(() => { if (!authLoading && !user) router.push("/login"); }, [user, authLoading, router]);
@@ -795,40 +796,48 @@ export default function AssignmentDetailPage() {
                         </div>
 
                         {/* Mevcut Durum kartı */}
-                        {viewingSub && (
-                          <div className="bg-white border border-surface-200 rounded-2xl p-5 space-y-3">
-                            <p className="text-[11px] font-bold text-surface-500 uppercase tracking-wider">Mevcut Durum</p>
+                        <div className="bg-white border border-surface-200 rounded-2xl p-5 space-y-3">
+                          <p className="text-[11px] font-bold text-surface-500 uppercase tracking-wider">Mevcut Durum</p>
+                          {viewingSub ? (
                             <span className={`inline-flex items-center gap-1.5 text-[12px] font-bold px-3 py-1 rounded-full border ${STATUS_BADGE[viewingSub.status]}`}>
                               {STATUS_LABEL[viewingSub.status]}
                             </span>
-                            <div>
-                              <div className="flex items-center gap-1.5 text-[11px] text-surface-500">
-                                <Calendar size={11} /> Teslim Tarihi
-                              </div>
-                              <p className="text-[13px] font-semibold text-text-primary mt-0.5">{fmtDateTime(viewingSub.submittedAt)}</p>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-[12px] font-bold px-3 py-1 rounded-full border bg-surface-100 text-surface-500 border-surface-200">
+                              Teslim Etmedi
+                            </span>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-surface-500">
+                              <Calendar size={11} /> Teslim Tarihi
                             </div>
-                            <div className="flex items-baseline gap-1.5">
-                              <span className="text-[12px] text-surface-500">Revize:</span>
-                              <span className="text-[15px] font-bold text-text-primary">{viewingAllSubs.filter(s => s.status === "revision").length}</span>
-                            </div>
-                            <div className="space-y-2 pt-2 border-t border-surface-100">
-                              <button
-                                onClick={() => handleSingleStatus(viewingSub.id, "revision")}
-                                disabled={actionLoading || viewingSub.status === "completed" || viewingSub.status === "revision"}
-                                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-designstudio-primary-200 bg-designstudio-primary-50 text-designstudio-primary-600 text-[12px] font-bold hover:bg-designstudio-primary-100 transition-colors cursor-pointer disabled:opacity-40"
-                              >
-                                <RotateCcw size={12} /> Revize İste
-                              </button>
-                              <button
-                                onClick={() => handleSingleStatus(viewingSub.id, "completed")}
-                                disabled={actionLoading || viewingSub.status === "completed"}
-                                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-status-success-500 text-white text-[12px] font-bold hover:bg-status-success-700 transition-colors cursor-pointer disabled:opacity-40"
-                              >
-                                <CheckCircle2 size={12} /> Onayla
-                              </button>
-                            </div>
+                            <p className="text-[13px] font-semibold text-text-primary mt-0.5">
+                              {viewingSub ? fmtDateTime(viewingSub.submittedAt) : "—"}
+                            </p>
                           </div>
-                        )}
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-[12px] text-surface-500">Revize:</span>
+                            <span className="text-[15px] font-bold text-text-primary">
+                              {viewingAllSubs.filter(s => s.status === "revision").length}
+                            </span>
+                          </div>
+                          <div className="space-y-2 pt-2 border-t border-surface-100">
+                            <button
+                              onClick={() => viewingSub && handleSingleStatus(viewingSub.id, "revision")}
+                              disabled={!viewingSub || actionLoading || viewingSub.status === "completed" || viewingSub.status === "revision"}
+                              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-designstudio-primary-200 bg-designstudio-primary-50 text-designstudio-primary-600 text-[12px] font-bold hover:bg-designstudio-primary-100 transition-colors cursor-pointer disabled:opacity-40"
+                            >
+                              <RotateCcw size={12} /> Revize İste
+                            </button>
+                            <button
+                              onClick={() => viewingSub && handleSingleStatus(viewingSub.id, "completed")}
+                              disabled={!viewingSub || actionLoading || viewingSub.status === "completed"}
+                              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-status-success-500 text-white text-[12px] font-bold hover:bg-status-success-700 transition-colors cursor-pointer disabled:opacity-40"
+                            >
+                              <CheckCircle2 size={12} /> Onayla
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* ── Dosya ── */}
@@ -909,9 +918,9 @@ export default function AssignmentDetailPage() {
                   </div>
 
                   {/* ── Aktivite ── */}
-                  {viewingSub && (
-                    <div className="mx-6 mb-4 bg-white border border-surface-200 rounded-2xl p-5">
-                      <h2 className="text-[14px] font-bold text-text-primary mb-4">Aktivite</h2>
+                  <div className="mx-6 mb-4 bg-white border border-surface-200 rounded-2xl p-5">
+                    <h2 className="text-[14px] font-bold text-text-primary mb-4">Aktivite</h2>
+                    {viewingSub ? (
                       <SubmissionTimeline
                         submissionId={viewingSub.id}
                         authorNames={{
@@ -919,8 +928,10 @@ export default function AssignmentDetailPage() {
                           ...(user?.uid ? { [user.uid]: "Eğitmen" } : {}),
                         }}
                       />
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-[13px] text-surface-400 text-center py-2">Henüz aktivite yok.</p>
+                    )}
+                  </div>
 
                   {/* ════ Yorum Paneli ════ */}
                   <div className="mt-auto mx-6 shrink-0 h-[30vh] min-h-[220px] flex flex-col">
