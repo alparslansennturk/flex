@@ -11,8 +11,9 @@ import SubmissionTable from "@/app/components/assignment-test/SubmissionTable";
 import {
   ArrowLeft, Loader2, BookOpen, ClipboardList, MoreVertical,
   Search, Users, ChevronDown, Smile, Meh, RefreshCw, ArrowRight,
-  Upload, ExternalLink, X,
+  Upload, ExternalLink, X, Plus, FileText,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { Submission } from "@/app/types/submission";
 import type { Task } from "@/app/components/dashboard/assignment/taskTypes";
 
@@ -312,7 +313,8 @@ function AssignmentsTab({
   groupId: string;
   defaultOpenTaskId?: string;
 }) {
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter,             setFilter]             = useState<Filter>("all");
+  const [activeUploadTaskId, setActiveUploadTaskId] = useState<string | null>(null);
 
   const today          = new Date(); today.setHours(0, 0, 0, 0);
   // Aktif: deadline yakın olan en üstte
@@ -369,6 +371,8 @@ function AssignmentsTab({
                 groupId={groupId}
                 isActiveSection={true}
                 defaultOpen={task.id === defaultOpenTaskId}
+                activeUploadTaskId={activeUploadTaskId}
+                setActiveUploadTaskId={setActiveUploadTaskId}
               />
             ))}
           </div>
@@ -389,6 +393,8 @@ function AssignmentsTab({
                 groupId={groupId}
                 isActiveSection={false}
                 defaultOpen={task.id === defaultOpenTaskId}
+                activeUploadTaskId={activeUploadTaskId}
+                setActiveUploadTaskId={setActiveUploadTaskId}
               />
             ))}
           </div>
@@ -409,6 +415,7 @@ function AssignmentsTab({
 
 function TaskAccordion({
   task, submissions, totalStudents, groupId, isActiveSection, defaultOpen = false,
+  activeUploadTaskId, setActiveUploadTaskId,
 }: {
   task: Task;
   submissions: SubmissionRow[];
@@ -416,8 +423,10 @@ function TaskAccordion({
   groupId: string;
   isActiveSection: boolean;
   defaultOpen?: boolean;
+  activeUploadTaskId: string | null;
+  setActiveUploadTaskId: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
-  const router        = useRouter();
+  const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
 
   useEffect(() => {
@@ -440,13 +449,66 @@ function TaskAccordion({
   const descHeading = task.subtitle || null;
   const descBody    = task.description || null;
 
+  const uploadActive   = activeUploadTaskId === task.id;
+  const dropHandlerRef = useRef<((files: FileList) => void) | null>(null);
+  const wrapperRef     = useRef<HTMLDivElement>(null);
+  const innerRef       = useRef<HTMLDivElement>(null);
+
+  const setDragStyle = (on: boolean) => {
+    if (!wrapperRef.current || !innerRef.current) return;
+    wrapperRef.current.style.boxShadow = on
+      ? "0 0 0 3px #6366f1, 0 0 0 6px rgba(99,102,241,0.15)"
+      : "";
+    innerRef.current.style.borderColor = on ? "#6366f1" : "";
+  };
+
+  // uploadActive false olunca DOM glowu temizle (başka accordion açıldığında)
+  useEffect(() => {
+    if (!uploadActive) setDragStyle(false);
+  }, [uploadActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
+    <div
+      ref={wrapperRef}
+      className="rounded-2xl"
+      onDragEnter={(e) => {
+        if (!uploadActive) return;  // Panel kapalıysa tamamen yok say
+        e.preventDefault();
+        setDragStyle(true);
+      }}
+      onDragOver={(e) => {
+        if (!uploadActive) return;
+        e.preventDefault();
+      }}
+      onDragLeave={(e) => {
+        if (!uploadActive) return;
+        if (e.clientX === 0 && e.clientY === 0) return;
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const inside =
+          e.clientX > rect.left && e.clientX < rect.right &&
+          e.clientY > rect.top  && e.clientY < rect.bottom;
+        if (!inside) setDragStyle(false);
+      }}
+      onDrop={(e) => {
+        if (!uploadActive) return;
+        e.preventDefault();
+        setDragStyle(false);
+        if (e.dataTransfer.files.length) dropHandlerRef.current?.(e.dataTransfer.files);
+      }}
+    >
+    <div ref={innerRef} className="bg-white border border-surface-200 rounded-2xl overflow-hidden transition-colors duration-150">
 
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 cursor-pointer select-none hover:bg-surface-50/60 transition-colors"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (!next) {
+            setDragStyle(false);
+            setActiveUploadTaskId(prev => prev === task.id ? null : prev);
+          }
+        }}
       >
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 ${isActiveSection ? "bg-designstudio-primary-500" : "bg-designstudio-secondary-500"}`}>
@@ -539,16 +601,27 @@ function TaskAccordion({
             )}
 
             {/* Satır 4: Dosya alanı (sol) + Ödev Detay butonu (sağ) */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mt-5 sm:mt-8">
+            <div className="flex flex-wrap items-end justify-between gap-3 mt-5 sm:mt-8">
               {/* Dosya yönetimi */}
               <AttachmentManager
                 taskId={task.id}
+                initialAttachments={task.attachments}
                 initialUrl={task.attachmentUrl}
                 initialName={task.attachmentName}
                 initialType={task.attachmentType}
                 groupName={task.classId}
                 instructorName={task.createdByName}
                 taskName={task.name}
+                dropHandlerRef={dropHandlerRef}
+                onExpandChange={(open) => {
+                  if (open) {
+                    setActiveUploadTaskId(task.id);
+                  } else {
+                    setDragStyle(false);
+                    setActiveUploadTaskId(prev => prev === task.id ? null : prev);
+                  }
+                }}
+                isUploadActive={uploadActive}
               />
 
               {/* Teslim Durumu butonu */}
@@ -564,9 +637,17 @@ function TaskAccordion({
                 <ArrowRight size={15} strokeWidth={2.5} className="hidden sm:block" />
               </button>
             </div>
+
+            {/* Hint */}
+            <p className="mt-3 text-[11px] text-surface-400 select-none">
+              Dosya eklemek için{" "}
+              <span className="font-semibold text-surface-500">Dosya Yükle</span>
+              {" "}butonuna bas veya kartın üzerine sürükle bırak.
+            </p>
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }
@@ -584,52 +665,91 @@ function StatBlock({ icon, iconLg, label, count }: { icon: React.ReactNode; icon
 
 /* ── Attachment Manager (eğitmen ödev dosyası yönetimi) ──────── */
 
-function AttachmentManager({ taskId, initialUrl, initialName, initialType, groupName, instructorName, taskName }: {
+type AttachmentItem = { url: string; name: string; type: "upload" | "drive" };
+
+function AttachmentManager({
+  taskId, initialAttachments, initialUrl, initialName, initialType,
+  groupName, instructorName, taskName, dropHandlerRef, onExpandChange, isUploadActive,
+}: {
   taskId: string;
+  initialAttachments?: AttachmentItem[];
   initialUrl?: string;
   initialName?: string;
   initialType?: string;
   groupName?: string;
   instructorName?: string;
   taskName?: string;
+  dropHandlerRef?: React.MutableRefObject<((files: FileList) => void) | null>;
+  onExpandChange?: (open: boolean) => void;
+  isUploadActive?: boolean;
 }) {
-  const [attachment, setAttachment] = useState<{ url: string; name: string; type: string } | null>(
-    initialUrl ? { url: initialUrl, name: initialName ?? "Ödev Dosyası", type: initialType ?? "upload" } : null
-  );
-  const [mode,      setMode]      = useState<"idle" | "choosing" | "drive">("idle");
-  const [driveLink, setDriveLink] = useState<string>("");
-  const [driveName, setDriveName] = useState<string>("");
-  const [uploading, setUploading] = useState(false);
-  const [error,     setError]     = useState<string>("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const initItems: AttachmentItem[] = initialAttachments?.length
+    ? initialAttachments
+    : initialUrl
+      ? [{ url: initialUrl, name: initialName ?? "Ödev Dosyası", type: (initialType ?? "upload") as "upload" | "drive" }]
+      : [];
 
-  const save = async (type: string, url: string, name: string) => {
-    await updateDoc(doc(db, "tasks", taskId), { attachmentType: type, attachmentUrl: url, attachmentName: name });
-    setAttachment({ url, name, type });
+  const [items,      setItems]      = useState<AttachmentItem[]>(initItems);
+  const [expanding,  setExpanding]  = useState(false);
+  const [driveMode,  setDriveMode]  = useState(false);
+  const [dragOver,   setDragOver]   = useState(false);
+  const [uploading,  setUploading]  = useState(false);
+  const [driveLink,  setDriveLink]  = useState("");
+  const [driveName,  setDriveName]  = useState("");
+  const [error,      setError]      = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasFiles = items.length > 0;
+
+  // Accordion-level drag handler'ı her render'da güncelle (stale closure yok)
+  useEffect(() => {
+    if (dropHandlerRef) dropHandlerRef.current = (files) => void handleFiles(files);
+  });
+
+  // Başka accordion aktif olunca paneli kapat
+  useEffect(() => {
+    if (!isUploadActive && expanding) {
+      setExpanding(false);
+      setDriveMode(false);
+      setError("");
+    }
+  }, [isUploadActive]);
+
+  const saveAll = async (next: AttachmentItem[]) => {
+    await updateDoc(doc(db, "tasks", taskId), {
+      attachments: next,
+      attachmentType: null, attachmentUrl: null, attachmentName: null,
+    });
+    setItems(next);
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-    setMode("idle");
+  const uploadOne = async (file: File): Promise<AttachmentItem> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const segments = ["Gruplar"];
+    if (groupName)      segments.push(groupName);
+    segments.push("Eğitmen");
+    if (instructorName) segments.push(instructorName);
+    if (taskName)       segments.push(taskName);
+    fd.append("folderPath", JSON.stringify(segments));
+    const token = await auth.currentUser?.getIdToken();
+    const res  = await fetch("/api/upload", { method: "POST", body: fd, headers: { Authorization: `Bearer ${token ?? ""}` } });
+    const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };
+    if (!res.ok) throw new Error(data.error ?? "Yükleme başarısız");
+    return { url: data.webViewLink!, name: data.fileName ?? file.name, type: "upload" };
+  };
+
+  const handleFiles = async (fileList: FileList | File[]) => {
+    const arr = Array.from(fileList);
+    if (!arr.length) return;
     setUploading(true);
     setError("");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      // Klasör hiyerarşisi: Gruplar / [grup] / Eğitmen / [eğitmen adı] / [ödev adı]
-      const segments = ["Gruplar"];
-      if (groupName)      segments.push(groupName);
-      segments.push("Eğitmen");
-      if (instructorName) segments.push(instructorName);
-      if (taskName)       segments.push(taskName);
-      fd.append("folderPath", JSON.stringify(segments));
-      const uploadToken = await auth.currentUser?.getIdToken();
-      const res  = await fetch("/api/upload", { method: "POST", body: fd, headers: { Authorization: `Bearer ${uploadToken ?? ""}` } });
-      const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Yükleme başarısız");
-      await save("upload", data.webViewLink!, data.fileName ?? file.name);
+      // Sıralı yükleme — race condition önleme (ensureFolderPath thread-safe değil)
+      const newItems: AttachmentItem[] = [];
+      for (const file of arr) newItems.push(await uploadOne(file));
+      await saveAll([...items, ...newItems]);
+      setExpanding(false);
+      setDriveMode(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Yükleme başarısız");
     } finally {
@@ -637,117 +757,174 @@ function AttachmentManager({ taskId, initialUrl, initialName, initialType, group
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    e.target.value = "";
+    void handleFiles(files);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    void handleFiles(e.dataTransfer.files);
+  };
+
   const handleDriveSave = async () => {
     const url = driveLink.trim();
     if (!url) return;
-    const name = driveName.trim() || "Google Drive Dosyası";
-    await save("drive", url, name);
-    setMode("idle");
+    await saveAll([...items, { url, name: driveName.trim() || "Google Drive Dosyası", type: "drive" }]);
+    setExpanding(false);
+    setDriveMode(false);
     setDriveLink("");
     setDriveName("");
   };
 
-  const handleRemove = async () => {
-    await updateDoc(doc(db, "tasks", taskId), { attachmentType: null, attachmentUrl: null, attachmentName: null });
-    setAttachment(null);
+  const handleRemove = (idx: number) => void saveAll(items.filter((_, i) => i !== idx));
+
+  const toggleExpand = () => {
+    const next = !expanding;
+    setExpanding(next);
+    onExpandChange?.(next);
+    if (!next) { setDriveMode(false); setError(""); }
   };
 
-  /* Tek return — erken return yapma, React DOM reconciliation sorununu önler */
   return (
-    <div>
-      {/* Gizli dosya input — her zaman aynı pozisyonda */}
-      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+    <div className="flex items-center flex-wrap gap-2">
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
 
-      {/* Var olan dosya kartı */}
-      {attachment && (
-        <div className="flex items-center bg-white border border-surface-200 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 gap-2.5">
-          <div>
-            <p className="text-[12px] sm:text-[13px] font-bold text-text-primary leading-tight truncate max-w-[160px]">
-              {attachment.name}
-            </p>
-            <p className="text-[10px] sm:text-[11px] text-surface-500 mt-0.5">Ödev Dosyası</p>
-          </div>
-          <div className="w-px self-stretch bg-surface-200 mx-2" />
-          <a href={attachment.url} target="_blank" rel="noopener noreferrer"
-            className="text-surface-400 hover:text-base-primary-600 transition-colors p-1">
-            <ExternalLink size={16} />
+      {/* ── Buton + panel + chip'ler — tek satırda, flex-wrap ile doğal kırılma ── */}
+
+      {/* Tetikleyici buton */}
+      <button
+        onClick={toggleExpand}
+        disabled={uploading}
+        style={hasFiles ? {
+          height: 44, width: 44, flexShrink: 0,
+          borderRadius: 12,
+          border: `1px solid ${expanding ? "#6366f1" : "#a5b4fc"}`,
+          backgroundColor: expanding ? "#6366f1" : "#eef2ff",
+          color: expanding ? "#ffffff" : "#4f46e5",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "background-color 150ms, border-color 150ms, color 150ms",
+          cursor: "pointer",
+        } : { height: 44, flexShrink: 0 }}
+        className={`transition-colors duration-150 cursor-pointer disabled:opacity-50
+          ${!hasFiles
+            ? `flex items-center gap-2 px-4 rounded-xl border border-dashed
+               ${expanding
+                 ? "border-base-primary-400 bg-base-primary-50 text-base-primary-600"
+                 : "border-surface-300 bg-white text-surface-400 hover:border-base-primary-300 hover:text-base-primary-500"
+               }`
+            : ""
+          }`}
+      >
+        <motion.span
+          animate={{ rotate: expanding ? 45 : 0 }}
+          transition={{ type: "tween", duration: 0.18, ease: "easeInOut" }}
+          className="flex items-center justify-center"
+        >
+          <Plus size={14} strokeWidth={2.5} />
+        </motion.span>
+        {!hasFiles && (
+          <span className="text-[13px] font-semibold leading-none">Dosya Yükle</span>
+        )}
+      </button>
+
+      {/* Sağa kayan panel — tween, overshoot yok */}
+      <AnimatePresence>
+        {expanding && (
+          <motion.div
+            key="upload-panel"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 290, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: "tween", duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+            style={{ height: 44, overflow: "hidden", flexShrink: 0 }}
+          >
+            {uploading ? (
+              <div style={{ height: 44 }} className="flex items-center gap-2 px-4 border border-surface-200 rounded-xl bg-white text-surface-400 whitespace-nowrap">
+                <Loader2 size={13} className="animate-spin shrink-0" />
+                <span className="text-[12px] font-semibold">Yükleniyor...</span>
+              </div>
+            ) : driveMode ? (
+              <div style={{ height: 44 }} className="flex items-center gap-2 w-full">
+                <input
+                  value={driveLink}
+                  onChange={e => setDriveLink(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") void handleDriveSave(); }}
+                  placeholder="Google Drive linki..."
+                  autoFocus
+                  style={{ height: 44 }}
+                  className="flex-1 min-w-0 px-3 rounded-xl border border-surface-200 text-[12px] outline-none focus:border-base-primary-400 transition-colors bg-white"
+                />
+                <button
+                  onClick={() => void handleDriveSave()}
+                  disabled={!driveLink.trim()}
+                  style={{ height: 44, flexShrink: 0 }}
+                  className="px-3 bg-base-primary-700 text-white text-[12px] font-bold rounded-xl disabled:opacity-40 cursor-pointer hover:bg-base-primary-800 transition-colors whitespace-nowrap"
+                >
+                  Ekle
+                </button>
+                <button
+                  onClick={() => { setDriveMode(false); setDriveLink(""); setDriveName(""); }}
+                  style={{ height: 44, width: 44, flexShrink: 0 }}
+                  className="flex items-center justify-center bg-surface-100 text-surface-500 rounded-xl cursor-pointer hover:bg-surface-200 transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+                onDrop={handleDrop}
+                style={{ height: 44 }}
+                className={`w-full flex items-center gap-1 px-2 border border-dashed rounded-xl transition-colors whitespace-nowrap
+                  ${dragOver ? "border-base-primary-400 bg-base-primary-50" : "border-surface-300 bg-white"}`}
+              >
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-full flex items-center gap-2 px-3 rounded-lg text-[12px] font-semibold text-text-secondary hover:bg-surface-100 transition-colors cursor-pointer"
+                >
+                  <Upload size={13} className="text-surface-400 shrink-0" />
+                  {dragOver ? "Bırakın..." : "Bilgisayardan Yükle"}
+                </button>
+                <div className="w-px h-5 bg-surface-200 shrink-0" />
+                <button
+                  onClick={() => setDriveMode(true)}
+                  className="h-full flex items-center gap-2 px-3 rounded-lg text-[12px] font-semibold text-text-secondary hover:bg-surface-100 transition-colors cursor-pointer"
+                >
+                  <img src="/icons/google-drive.svg" width={13} height={13} alt="" className="shrink-0" />
+                  Google Drive
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {items.map((a, idx) => (
+        <div key={idx} style={{ height: 44 }} className="flex items-center gap-2 bg-white border border-surface-200 rounded-xl px-3 max-w-[240px]">
+          {a.type === "drive"
+            ? <img src="/icons/google-drive.svg" width={13} height={13} alt="" className="shrink-0" />
+            : <FileText size={13} className="text-surface-400 shrink-0" />
+          }
+          <span className="text-[12px] font-semibold text-text-primary truncate">{a.name}</span>
+          <a href={a.url} target="_blank" rel="noopener noreferrer"
+            className="p-0.5 text-surface-300 hover:text-base-primary-600 transition-colors shrink-0 ml-auto">
+            <ExternalLink size={12} />
           </a>
-          <button onClick={handleRemove}
-            className="text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer p-1">
-            <X size={14} />
+          <button onClick={() => handleRemove(idx)}
+            className="p-0.5 text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer shrink-0">
+            <X size={12} />
           </button>
         </div>
-      )}
+      ))}
 
-      {/* Yükleniyor */}
-      {!attachment && uploading && (
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-surface-200 rounded-xl text-surface-400">
-          <Loader2 size={14} className="animate-spin" />
-          <span className="text-[12px] font-medium">Yükleniyor...</span>
-        </div>
-      )}
-
-      {/* Drive link girişi */}
-      {!attachment && !uploading && mode === "drive" && (
-        <div className="flex flex-col gap-2 bg-white border border-surface-200 rounded-xl p-3 min-w-[300px]">
-          <input
-            value={driveName}
-            onChange={e => setDriveName(e.target.value)}
-            placeholder="Dosya adı (isteğe bağlı)"
-            className="w-full h-8 px-3 rounded-lg border border-surface-200 text-[12px] outline-none focus:border-base-primary-400 transition-colors"
-          />
-          <div className="flex gap-2">
-            <input
-              value={driveLink}
-              onChange={e => setDriveLink(e.target.value)}
-              placeholder="Google Drive linki..."
-              className="flex-1 h-8 px-3 rounded-lg border border-surface-200 text-[12px] outline-none focus:border-base-primary-400 transition-colors"
-            />
-            <button onClick={handleDriveSave} disabled={!driveLink.trim()}
-              className="px-3 h-8 bg-base-primary-700 text-white text-[11px] font-bold rounded-lg disabled:opacity-40 cursor-pointer hover:bg-base-primary-800 transition-colors shrink-0">
-              Ekle
-            </button>
-            <button onClick={() => setMode("idle")}
-              className="px-2 h-8 bg-surface-100 text-surface-600 rounded-lg cursor-pointer hover:bg-surface-200 transition-colors shrink-0">
-              <X size={14} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* İki seçenek */}
-      {!attachment && !uploading && mode === "choosing" && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-surface-200 rounded-xl text-[12px] font-semibold text-text-secondary hover:border-base-primary-300 hover:text-base-primary-600 transition-colors cursor-pointer">
-            <Upload size={13} /> Bilgisayardan Yükle
-          </button>
-          <button onClick={() => setMode("drive")}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-surface-200 rounded-xl text-[12px] font-semibold text-text-secondary hover:border-base-primary-300 hover:text-base-primary-600 transition-colors cursor-pointer">
-            <img src="/icons/google-drive.svg" width={14} height={14} alt="" /> Google Drive
-          </button>
-          <button onClick={() => setMode("idle")}
-            className="text-surface-400 hover:text-surface-600 transition-colors cursor-pointer p-1">
-            <X size={15} />
-          </button>
-          {error && <p className="w-full text-[11px] text-status-danger-500">{error}</p>}
-        </div>
-      )}
-
-      {/* Boş — ekle butonu */}
-      {!attachment && !uploading && mode === "idle" && (
-        <div className="flex flex-col gap-1">
-          <button onClick={() => setMode("choosing")}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-dashed border-surface-300 rounded-xl text-[11px] sm:text-[12px] font-semibold text-surface-400 hover:border-base-primary-300 hover:text-base-primary-500 transition-colors cursor-pointer">
-            <Upload size={13} /> Ödev Dosyası Ekle
-          </button>
-          {error && <p className="text-[11px] text-status-danger-500">{error}</p>}
-        </div>
-      )}
+      {/* Hata mesajı */}
+      {error && <p className="w-full text-[11px] text-status-danger-500">{error}</p>}
     </div>
   );
-}
-
-function GoogleDriveIcon() {
-  return <img src="/icons/google-drive.svg" width={32} height={32} alt="Google Drive" />;
 }

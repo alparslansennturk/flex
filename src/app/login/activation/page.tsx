@@ -3,7 +3,7 @@
 import React, { useState, Suspense, useEffect } from "react";
 import { Eye, EyeOff, Loader2, ShieldCheck, Check, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { auth, db } from "../../lib/firebase"; 
+import { auth, db } from "../../lib/firebase";
 import { updatePassword, signOut, confirmPasswordReset } from "firebase/auth";
 import { doc, updateDoc } from "firebase/firestore";
 import { getFlexMessage } from "../../lib/messages";
@@ -17,7 +17,7 @@ function ActivationContent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false); 
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [shouldShake, setShouldShake] = useState(false);
 
@@ -75,7 +75,7 @@ function ActivationContent() {
 
   return (
     <div className={`w-full max-w-[614px] bg-surface-white pt-[56px] px-[56px] pb-[64px] radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center min-[1440px]:scale-105 2xl:scale-110 ${shouldShake ? "error-shake" : ""}`}>
-      
+
       <div className="flex justify-between items-center mb-10">
         <div className="flex items-center gap-2">
           <ShieldCheck size={24} style={{ color: 'var(--color-neutral-900)' }} />
@@ -90,7 +90,7 @@ function ActivationContent() {
       </div>
 
       <form onSubmit={handleActivate} noValidate className="w-full flex flex-col font-inter">
-        
+
         {/* TUZAK KATI - Mac buraya odaklansın */}
         <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
           <input type="text" name={`field1_${randomName}`} tabIndex={-1} />
@@ -122,18 +122,18 @@ function ActivationContent() {
                 onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
                 placeholder="••••••••••••"
                 className="w-full h-12 pl-4 pr-12 border radius-8 text-[14px] outline-none transition-all duration-200"
-                style={{ 
+                style={{
                   borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                   backgroundColor: error ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
                   color: 'var(--color-text-primary)'
                 }}
                 required
               />
-              <button 
-                type="button" 
+              <button
+                type="button"
                 tabIndex={-1}
-                onClick={() => setShowPassword(!showPassword)} 
-                className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer transition-colors" 
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer transition-colors"
                 style={{ color: error ? 'var(--color-status-danger-500)' : 'var(--color-text-placeholder)' }}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -170,7 +170,7 @@ function ActivationContent() {
               onKeyDown={(e) => { if (e.key === "Enter") handleActivate(); }}
               placeholder="••••••••••••"
               className="w-full h-12 px-4 border radius-8 text-[14px] outline-none transition-all duration-200"
-              style={{ 
+              style={{
                 borderColor: error ? 'var(--color-status-danger-500)' : 'var(--color-surface-200)',
                 backgroundColor: error ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface-50)',
                 color: 'var(--color-text-primary)'
@@ -180,14 +180,14 @@ function ActivationContent() {
           </div>
 
           <div className="relative flex flex-col items-start pt-2">
-            <button 
-              type="submit" 
-              disabled={isLoading || isSuccess} 
+            <button
+              type="submit"
+              disabled={isLoading || isSuccess}
               className="w-full h-12 radius-8 font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-100 shadow-lg"
-              style={{ 
-                backgroundColor: isSuccess ? 'var(--color-status-success-500)' : 'var(--color-designstudio-primary-500)', 
+              style={{
+                backgroundColor: isSuccess ? 'var(--color-status-success-500)' : 'var(--color-designstudio-primary-500)',
                 color: 'var(--color-text-inverse)',
-                boxShadow: '0 10px 15px -3px var(--color-designstudio-primary-500-20)' 
+                boxShadow: '0 10px 15px -3px var(--color-designstudio-primary-500-20)'
               }}
             >
               {isLoading ? (

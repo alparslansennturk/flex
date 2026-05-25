@@ -90,7 +90,17 @@ export default function Sidebar() {
               }}
             >
               <div style={{ overflow: "hidden" }}>
-                <SidebarLink href="/attend" icon={<CalendarCheck size={15} />} label="Yoklama Al" compact={compact} exact sub />
+                <button
+                  onClick={() => router.push("/attend")}
+                  className={`w-full flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
+                    ${compact ? "py-2" : "py-2.5"}
+                    ${pathname === "/attend" ? "bg-white/10 text-white shadow-sm" : "text-white hover:bg-white/5"}`}
+                >
+                  <span className={`transition-colors duration-200 ${pathname === "/attend" ? "text-[#FF8D28]" : "group-hover:text-[#FF8D28]"}`}>
+                    <CalendarCheck size={15} />
+                  </span>
+                  <span className="text-[14px] font-normal leading-tight">Yoklama Al</span>
+                </button>
                 <SidebarLink href="/dashboard/attendance-detail" icon={<BarChart2 size={15} />} label="Yoklama Detay" compact={compact} sub />
                 {isAdmin && <SidebarLink href="/dashboard/attendance-report" icon={<TrendingUp size={15} />} label="Yoklama Raporu" compact={compact} sub />}
               </div>

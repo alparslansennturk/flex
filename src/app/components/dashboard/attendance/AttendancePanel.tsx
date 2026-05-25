@@ -12,7 +12,7 @@ import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
   CheckCheck, Users, Wifi, Trash2, AlertCircle, CalendarOff,
   Pencil, Check, X, Timer, CalendarClock, Clock, Play, Square, RefreshCw, Lock,
-  BarChart2,
+  BarChart2, ArrowLeft,
 } from "lucide-react";
 import { DayCalendarPopover } from "./CalendarPopover";
 import StudentDetailModal, { ModalStudent } from "@/app/components/dashboard/student-management/StudentDetailModal";
@@ -195,7 +195,7 @@ function parseSessionTime(session: string): { start: number; end: number } | nul
 }
 
 // Pencere sabitleri
-const WINDOW_BEFORE_MIN = 30;   // ders başlamadan kaç dk önce açılır
+const WINDOW_BEFORE_MIN = 15;   // ders başlamadan kaç dk önce açılır
 const WINDOW_AFTER_MIN  = 180;  // ders bittikten kaç dk sonraya kadar açık kalır
 
 function fmtMins(mins: number) {
@@ -352,13 +352,22 @@ export default function AttendancePanel({
   preSelectedGroupId,
   hideSidebar = false,
   allowEdit = false,
+  enforceTimeWindow = false,
+  onViewDetail,
+  onBack,
 }: {
   mode?: "detailed" | "simple";
   autoSelectToday?: boolean;
   preSelectedGroupId?: string;
   hideSidebar?: boolean;
-  /** Kapatılmış yoklamalarda 3 günlük düzenleme penceresini aktif eder (Yoklama Detay ekranı). */
+  /** Kapatılmış yoklamalarda düzenleme penceresini aktif eder (Yoklama Detay ekranı). */
   allowEdit?: boolean;
+  /** true ise ders saati penceresi admin dahil herkese uygulanır (Yoklama Al ekranı). */
+  enforceTimeWindow?: boolean;
+  /** Overlay açmak için dışarıdan verilir. groupId + monthKey döner. */
+  onViewDetail?: (groupId: string, month: string) => void;
+  /** Sol sidebar'ın üstüne geri dön butonu ekler. */
+  onBack?: () => void;
 }) {
   const { user, isAdmin } = useUser();
   const router = useRouter();
@@ -494,25 +503,13 @@ export default function AttendancePanel({
     }
   }, [preSelectedGroupId, groups]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Grup değişince son yoklama tarihine git ───────────────────────────────
+  // ── Grup değişince bugüne git ─────────────────────────────────────────────
   useEffect(() => {
     if (!selectedGroupId) return;
-    const now = new Date();
-    const m0 = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const m1 = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
-    getDocs(query(
-      collection(db, "design_attendance"),
-      where("groupId", "==", selectedGroupId),
-      where("month", "in", [m0, m1]),
-    )).then(snap => {
-      if (snap.empty) return;
-      const dates = snap.docs.map(d => d.data().date as string).sort().reverse();
-      const d = new Date(dates[0] + "T12:00:00");
-      setSelectedDate(d);
-      setSelectedMonth(d);
-    }).catch(() => {});
-  }, [selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
+    const today = new Date();
+    setSelectedDate(today);
+    setSelectedMonth(today);
+  }, [selectedGroupId]);
 
   // ── Auto-select today's group ─────────────────────────────────────────────
   useEffect(() => {
@@ -853,11 +850,11 @@ export default function AttendancePanel({
   // Admin: süre sınırı yok — her zaman düzenleyebilir. Eğitmen: sadece 3 gün içinde.
   const canEdit = allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
 
-  // Giriş zaman kilidi: ders başlamadan WINDOW_BEFORE_MIN dk önce açılır, bittikten WINDOW_AFTER_MIN dk sonra kapanır.
-  // Sadece bugün için geçerli; admin, allowEdit veya zaten başlatılmış ders için devre dışı.
+  // Giriş zaman kilidi: enforceTimeWindow=true ise admin dahil herkes için geçerli.
+  // Yoklama Detay (allowEdit) ekranında veya zaten başlatılmış derste kısıt yok.
   const sessionTimeRange = selectedGroup?.session ? parseSessionTime(selectedGroup.session) : null;
   const isWithinTimeWindow: boolean = (() => {
-    if (isAdmin() || allowEdit || !isToday || !sessionTimeRange || existingDoc) return true;
+    if (!enforceTimeWindow || !isToday || !sessionTimeRange || existingDoc) return true;
     const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
     return nowMins >= sessionTimeRange.start - WINDOW_BEFORE_MIN &&
            nowMins <= sessionTimeRange.end   + WINDOW_AFTER_MIN;
@@ -937,6 +934,18 @@ export default function AttendancePanel({
 
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
         <div className={`w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50 ${hideSidebar ? "hidden" : ""}`}>
+
+          {/* Geri dön butonu */}
+          {onBack && (
+            <div className="px-4 pt-6 pb-0">
+              <button
+                onClick={onBack}
+                className="w-10 h-10 rounded-[13px] bg-surface-200 hover:bg-surface-300 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <ArrowLeft size={18} className="text-surface-700" />
+              </button>
+            </div>
+          )}
 
           {/* Month dropdown */}
           <div className="px-4 pt-6 pb-3 border-b border-surface-100">
@@ -1281,6 +1290,20 @@ export default function AttendancePanel({
                       <Clock size={10} />
                       {formatMonthDisplay(selectedMonth)}
                     </span>
+                    {selectedGroupId && (
+                      <button
+                        onClick={() => {
+                          if (onViewDetail) {
+                            onViewDetail(selectedGroupId, toMonthKey(selectedMonth));
+                          } else {
+                            router.push(`/dashboard/attendance?groupId=${selectedGroupId}&ref=attend`);
+                          }
+                        }}
+                        className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer"
+                      >
+                        Yoklama Detay <ChevronRight size={12} />
+                      </button>
+                    )}
                   </div>
                   <div className="mx-8 h-[48px] bg-base-primary-900 rounded-2xl shrink-0 flex items-center gap-3 px-6 text-[13px] font-medium overflow-x-auto no-scrollbar">
                     {courseTotalHours !== null && (
@@ -1461,7 +1484,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Zaman kilidi banner'ı — ders saati penceresinin dışında, yeni kayıt yok */}
-                  {!isWithinTimeWindow && isToday && !existingDoc && !exception && showAttendanceUI && !isAdmin() && (
+                  {!isWithinTimeWindow && isToday && !existingDoc && !exception && showAttendanceUI && (
                     <div className="mx-5 mt-4 mb-1 px-4 py-3 rounded-xl flex items-center gap-2 text-[13px] font-semibold bg-surface-50 border border-surface-200 text-text-secondary shrink-0">
                       <Clock size={14} className="shrink-0 text-text-placeholder" />
                       {isBeforeWindow && windowOpenStr

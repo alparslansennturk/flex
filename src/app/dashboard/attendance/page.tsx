@@ -8,16 +8,35 @@ import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
 import AttendancePanel from "../../components/dashboard/attendance/AttendancePanel";
+import { ChevronLeft } from "lucide-react";
 
 function AttendanceContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId") ?? undefined;
+  const ref = searchParams.get("ref");
 
   return (
-    <AttendancePanel
-      preSelectedGroupId={groupId}
-      allowEdit={true}
-    />
+    <>
+      {ref === "attend" && (
+        <div className="px-6 pt-4 pb-0">
+          <button
+            onClick={() => router.push("/attend")}
+            className="flex items-center gap-1 text-[13px] text-surface-400 hover:text-base-primary-700 transition-colors"
+          >
+            <ChevronLeft size={16} /> Yoklama Al
+          </button>
+        </div>
+      )}
+      <AttendancePanel
+        preSelectedGroupId={groupId}
+        allowEdit={true}
+        enforceTimeWindow={true}
+        onViewDetail={(gid, month) =>
+          router.push(`/dashboard/attendance-detail?groupId=${gid}&month=${month}&ref=attendance`)
+        }
+      />
+    </>
   );
 }
 
@@ -50,7 +69,7 @@ export default function AttendancePage() {
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
-        <Header activeTabLabel="Yoklama Detay" />
+        <Header activeTabLabel="Yoklama Al" />
         <main className="flex-1 bg-white">
           <Suspense fallback={
             <div className="flex items-center justify-center py-24">

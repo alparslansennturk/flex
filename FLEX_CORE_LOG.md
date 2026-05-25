@@ -1579,6 +1579,86 @@ const unsubGroupEx = onSnapshot(..., d => {
 });
 ```
 
+---
+
+### 108. Yoklama Modülü Move Animasyonu + AttendFlowTransition
+
+**Dosyalar:**
+- `src/app/components/layout/AttendFlowTransition.tsx` ← YENİ
+- `src/app/layout.tsx`
+- `src/app/components/layout/Sidebar.tsx`
+- `src/app/attend/page.tsx`
+- `src/app/components/dashboard/attendance/AttendancePanel.tsx`
+- `src/app/dashboard/attendance/page.tsx`
+- `src/app/dashboard/attendance-detail/page.tsx`
+- `src/app/context/PageTransitionContext.tsx` ← YENİ (oluşturuldu, yerini AttendFlowTransition aldı)
+- `src/app/components/dashboard/attendance/AttendanceDetailContent.tsx` ← YENİ (extracted shared component)
+
+**Hedef:** Dashboard → Attend arası gerçek "move" animasyonu — iki sayfa aynı anda DOM'da kalarak birlikte kayar.
+
+**Temel Sorun:** Farklı Next.js sayfaları native olarak aynı anda animate edilemez. Beyaz overlay yaklaşımı dashboard içeriğini hareket ettirmiyordu.
+
+**Çözüm — AttendFlowTransition:**
+```tsx
+// AnimatePresence mode="popLayout" + key={pathname}
+// Eski sayfa exit yaparken yeni sayfa enter eder → gerçek eş zamanlı hareket
+<AnimatePresence mode="popLayout" initial={false}>
+  <motion.div
+    key={pathname}
+    initial={{ x: isAttend ? "100%" : 0 }}
+    animate={{ x: 0 }}
+    exit={{ x: isDashboard ? "-100%" : "100%" }}
+    transition={active ? T : { duration: 0 }}
+    style={active ? { position: "fixed", inset: 0, overflowY: "auto" } : undefined}
+  >
+    {children}
+  </motion.div>
+</AnimatePresence>
+```
+- Dashboard exit: `x: "-100%"` (sola kayar)
+- Attend enter: `x: "100%"` (sağdan gelir)
+- Attend exit: `x: "100%"` (sağa gider)
+- Diğer sayfalar: `duration: 0` (animasyon yok)
+
+**layout.tsx:** `AttendFlowTransition` ile `{children}` sarıldı.
+
+**Sidebar:** "Yoklama Al" item `<Link>` → `<button onClick={() => router.push("/attend")}>` olarak değiştirildi. Overlay + `PageTransitionContext` kaldırıldı.
+
+**attend/page.tsx:** `exiting` state kaldırıldı. Attend paneli geri ok → `router.push("/dashboard")` (doğrudan, state yok). `AttendFlowTransition` exit animasyonunu üstlenir.
+
+**attend/page.tsx iç animasyonlar (panel ↔ detay):**
+- `showDetail` state ile iki panel yan yana kayar
+- Attend panel: `animate={{ x: showDetail ? "-100%" : 0 }}`
+- Detail panel: `animate={{ x: showDetail ? 0 : "100%" }}`
+- `initial={false}` — detay panel ilk render'da görunmez
+
+**AttendancePanel yeni props:**
+- `onBack?: () => void` — sol sidebar'da geri dön butonu (logo altı, takvim listesi 24px üstü)
+- `onViewDetail` yokken → `router.push('/dashboard/attendance?groupId=X&ref=attend')` navigasyonu
+
+**attendance-detail/page.tsx:** `ref` param ile geri yön belirlenir:
+```tsx
+const backUrl = ref === "attendance"
+  ? `/dashboard/attendance?groupId=${filterGroupId}`
+  : filterInstructorId ? "/dashboard/attendance-report" : null;
+```
+
+**Beyaz flash root nedeni:** Önceki yaklaşımda beyaz overlay dashboard'un üstünü kapatıyordu → içerik hareket etmiyordu. `AttendFlowTransition` çözümünde gerçek DOM elementi transform ediliyor.
+
+---
+
+### 109. Sidebar "Yoklama Al" Aktif Durumu
+
+**Dosya:** `src/app/components/layout/Sidebar.tsx`
+
+**Değişiklik:** `/attend` pathname'ine göre `bg-white/10` aktif stil uygulanır:
+```tsx
+${pathname === "/attend" ? "bg-white/10 text-white shadow-sm" : "text-white hover:bg-white/5"}
+```
+İkon rengi de `pathname === "/attend"` kontrolüyle `text-[#FF8D28]` olur.
+
+---
+
 ## Sonraki Adımlar (Öncelik Sırasıyla)
 
 ### 1. İLERİDE — Sertifika PDF + Dağıtım
@@ -1617,3 +1697,4 @@ const unsubGroupEx = onSnapshot(..., d => {
 - Accordion navigasyon + Framer Motion → §98
 - Sentry ReferenceError + .next cache fix → §99
 - Tablo hizalama (Grup sayısı) → §100
+- Yoklama modülü move animasyonu + AttendFlowTransition → §108–§109

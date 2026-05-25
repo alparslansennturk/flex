@@ -36,9 +36,10 @@ export interface Task {
   status?: 'active' | 'archived' | 'completed' | 'published'; // published: kura seçimi bitti, not girişi aşaması
   isGraded?: boolean;       // Not girişi yapıldıysa true
   assignmentType?: "kolaj" | "kitap" | "sosyal_medya"; // Ödev tipi yönlendirmesi için
-  attachmentType?: "upload" | "drive";  // Yüklenen dosyanın kaynağı
-  attachmentUrl?:  string;              // Google Drive webViewLink veya Drive linki
-  attachmentName?: string;              // Görüntülenecek dosya adı
+  attachmentType?: "upload" | "drive";  // Yüklenen dosyanın kaynağı (tekli, eski)
+  attachmentUrl?:  string;              // Google Drive webViewLink veya Drive linki (tekli, eski)
+  attachmentName?: string;              // Görüntülenecek dosya adı (tekli, eski)
+  attachments?: { url: string; name: string; type: "upload" | "drive" }[]; // Çoklu dosya (yeni)
   scope?: "personal" | "global" | "gamified";
   discipline?: string | null;             // Branş ID — global/gamified şablonlar için; null = tüm branşlar
 }

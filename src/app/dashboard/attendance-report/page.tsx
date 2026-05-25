@@ -116,6 +116,12 @@ function calcEstimatedEndDate(
   return null;
 }
 
+/** toISOString() UTC döner — Türkiye UTC+3'te gece yarısı bir önceki gün yazabilir.
+ *  Bu yardımcı her zaman lokal tarihi döndürür. */
+function toLocalDateStr(d: Date = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function toMonthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -198,6 +204,7 @@ function AttendanceSummaryContent() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchesLoaded, setBranchesLoaded] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [expandedInstructorId, setExpandedInstructorId] = useState<string | null>(null);
 
   // Filtreler
@@ -208,9 +215,9 @@ function AttendanceSummaryContent() {
   // Tarih aralığı + arama
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFrom, setSearchFrom] = useState(() => {
-    const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(1); return toLocalDateStr(d);
   });
-  const [searchTo, setSearchTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [searchTo, setSearchTo] = useState(() => toLocalDateStr());
   const [searchResults, setSearchResults] = useState<SearchRecord[] | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
 
@@ -239,30 +246,28 @@ function AttendanceSummaryContent() {
     });
   }, []);
 
-  // Grupları çek (dropdown + arama için)
+  // Grupları real-time dinle (ders ekleme/değişikliklerini anında yansıt)
   useEffect(() => {
-    getDocs(collection(db, "groups")).then(snap => {
+    return onSnapshot(collection(db, "groups"), snap => {
       setGroups(snap.docs
         .map(d => ({ id: d.id, ...d.data() } as Group))
         .filter(g => g.status !== "archived")
         .sort((a, b) => (a.code ?? "").localeCompare(b.code ?? "", "tr")));
-    }).catch(() => {});
+      setGroupsLoaded(true);
+    });
   }, []);
 
   useEffect(() => {
-    if (!branchesLoaded || activeMonths.length === 0) return;
+    if (!branchesLoaded || !groupsLoaded || activeMonths.length === 0) return;
     setLoading(true);
 
     Promise.all([
-      getDocs(collection(db, "groups")),
       getDocs(query(collection(db, "design_attendance"), where("month", "in", activeMonths))),
       getDocs(query(collection(db, "lesson_exceptions"),  where("month", "in", activeMonths))),
-    ]).then(async ([groupsSnap, attendanceSnap, exceptionsSnap]) => {
+    ]).then(async ([attendanceSnap, exceptionsSnap]) => {
 
-      // Grupları client-side filtrele (status != archived)
-      const allGroups = groupsSnap.docs
-        .map(d => ({ id: d.id, ...d.data() } as Group))
-        .filter(g => g.status !== "archived");
+      // groups state'i zaten filtrelenmiş ve real-time güncel
+      const allGroups = groups;
 
       // Eğitmen ID'lerini çıkar → sadece bunları fetch et
       const instructorIds = [...new Set(allGroups.map(g => g.instructorId).filter(Boolean) as string[])];
@@ -359,7 +364,7 @@ function AttendanceSummaryContent() {
       setRows(Object.values(map).filter(r => r.groupCount > 0).sort((a, b) => b.actualDone - a.actualDone));
       setLoading(false);
     }).catch(() => { setRows([]); setLoading(false); });
-  }, [activeMonths, searchFrom, searchTo, branches, holidayDates, branchesLoaded]);
+  }, [activeMonths, searchFrom, searchTo, branches, holidayDates, branchesLoaded, groups, groupsLoaded]);
 
   // Eğitmen dropdown seçenekleri (rows'dan türetilir, ekstra fetch yok)
   const instructorOptions = useMemo(() =>

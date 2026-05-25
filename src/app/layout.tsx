@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/app/context/UserContext";
 import { ScoringProvider } from "@/app/context/ScoringContext";
+import AttendFlowTransition from "@/app/components/layout/AttendFlowTransition";
 import VercelToolbarWrapper from "@/app/components/VercelToolbarWrapper";
 import NotificationToastListener from "@/app/components/notifications/NotificationToastListener";
 import { Toaster } from "sonner";
@@ -37,7 +38,9 @@ export default function RootLayout({
         <Toaster position="bottom-right" richColors />
         <UserProvider>
           <ScoringProvider>
-            {children}
+            <AttendFlowTransition>
+              {children}
+            </AttendFlowTransition>
           </ScoringProvider>
           <NotificationToastListener />
           <VercelToolbarWrapper />
