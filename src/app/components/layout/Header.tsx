@@ -5,7 +5,7 @@ import NotificationBell from "@/app/components/notifications/NotificationBell";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 
-export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
+export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClassName }: { activeTabLabel?: string; innerClassName?: string }) {
   const pathname = usePathname();
   const { user } = useUser();
   const [selectedBranch, setSelectedBranch] = useState("Tüm Şubeler");
@@ -68,7 +68,7 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi" }) {
 
   return (
     <header className="w-full bg-white border-b border-surface-200 font-inter shrink-0">
-      <div className="max-w-[1920px] mx-auto h-20 flex items-center justify-between px-8">
+      <div className={`mx-auto h-20 flex items-center justify-between ${innerClassName ?? "max-w-[1920px] px-8"}`}>
 
         {/* SOL TARAF: Karşılama ve Başlık */}
         <div className="flex items-center gap-4 truncate pr-4">

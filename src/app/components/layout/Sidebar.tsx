@@ -22,7 +22,7 @@ function useCompact() {
   return compact;
 }
 
-export default function Sidebar() {
+export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
   const pathname = usePathname();
   const { hasPermission, user } = useUser();
   const isAdmin = user?.roles?.includes('admin') || false;
@@ -63,10 +63,14 @@ export default function Sidebar() {
     <div className="flex flex-col h-full w-[280px] 2xl:w-[320px] bg-[#10294C] text-white transition-all duration-500">
       {/* Logo */}
       <div className={`select-none transition-all duration-300 ${compact ? "p-[20px_40px_0_40px]" : "p-[40px_40px_0_40px]"}`}>
-        <Link href="/dashboard" className="flex items-center gap-1">
-          <span className="text-[24px] font-semibold text-[#FF8D28]">tasarım</span>
-          <span className="text-[24px] font-bold text-white">atölyesi</span>
-        </Link>
+        {logo ? (
+          <Link href="/dashboard">{logo}</Link>
+        ) : (
+          <Link href="/dashboard" className="flex items-center gap-1">
+            <span className="text-[24px] font-semibold text-[#FF8D28]">tasarım</span>
+            <span className="text-[24px] font-bold text-white">atölyesi</span>
+          </Link>
+        )}
       </div>
 
       {/* ANA OPERASYONEL MENÜ — compact'ta üst margin ve item arası biraz azalır */}
