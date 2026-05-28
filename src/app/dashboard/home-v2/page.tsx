@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useUser } from "@/app/context/UserContext";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, CalendarCheck, ClipboardList, Award, Activity, BookOpen, Star, UserPlus, CheckCircle2, Clock, Users, UsersRound } from "lucide-react";
@@ -12,6 +12,37 @@ import AssignmentLibrary from "@/app/components/dashboard/assignment/AssignmentL
 import { PERMISSIONS } from "@/app/lib/constants";
 import { db } from "@/app/lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
+
+// ── Yoklama zaman penceresi yardımcıları (AttendancePanel ile aynı mantık) ────
+const TR_DAYS: Record<string, number> = {
+  pts: 1, pzt: 1, pazartesi: 1,
+  sal: 2, sali: 2,
+  çar: 3, car: 3, çarşamba: 3, carsamba: 3,
+  per: 4, perşembe: 4, persembe: 4,
+  cum: 5, cuma: 5,
+  cts: 6, cmt: 6, cumartesi: 6,
+  paz: 0, pazar: 0,
+};
+function parseWeekDaysHome(label: string): number[] {
+  if (!label) return [];
+  const lower = label.toLowerCase()
+    .replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g")
+    .replace(/ü/g, "u").replace(/ö/g, "o");
+  const found: number[] = [];
+  for (const [key, day] of Object.entries(TR_DAYS))
+    if (lower.includes(key) && !found.includes(day)) found.push(day);
+  return found;
+}
+function parseSessionTimeHome(session: string): { start: number; end: number } | null {
+  const match = session.match(/(\d{1,2})[.:](\d{2})\s*[-–]\s*(\d{1,2})[.:](\d{2})/);
+  if (!match) return null;
+  return {
+    start: parseInt(match[1]) * 60 + parseInt(match[2]),
+    end:   parseInt(match[3]) * 60 + parseInt(match[4]),
+  };
+}
+const ATTEND_BEFORE_MIN = 15;
+const ATTEND_AFTER_MIN  = 180;
 
 // ─── İstatistik Banner ───────────────────────────────────────────────────────
 function StatBox({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
@@ -79,22 +110,30 @@ const ACTIVITY_CONFIG: Record<ActivityType, { icon: React.ReactNode; bg: string;
 };
 
 const MOCK_ACTIVITIES: ActivityItem[] = [
-  { id: 1, type: "odev",       title: "Yeni ödev teslimi",  desc: "Elif Yıldız — Kolaj Bahçesi",       time: "2 dk önce"  },
-  { id: 2, type: "yoklama",    title: "Yoklama alındı",      desc: "Grup 541 — 18/20 öğrenci",          time: "14 dk önce" },
-  { id: 3, type: "not",        title: "Not girildi",         desc: "Ahmet Demir — Kurumsal Kimlik 87p", time: "32 dk önce" },
-  { id: 4, type: "ogrenci",    title: "Yeni öğrenci kaydı", desc: "Zeynep Kara — Grup 201",            time: "1 sa önce"  },
-  { id: 5, type: "tamamlandi", title: "Ödev tamamlandı",    desc: "Kitap Dünyası — Grup 102",          time: "2 sa önce"  },
-  { id: 6, type: "odev",       title: "Yeni ödev teslimi",  desc: "Can Öztürk — Sosyal Medya",         time: "3 sa önce"  },
-  { id: 7, type: "yoklama",    title: "Yoklama alındı",      desc: "Grup 303 — 14/16 öğrenci",          time: "5 sa önce"  },
+  { id:  1, type: "odev",       title: "Yeni ödev teslimi",  desc: "Elif Yıldız — Kolaj Bahçesi",        time: "2 dk önce"  },
+  { id:  2, type: "yoklama",    title: "Yoklama alındı",      desc: "Grup 541 — 18/20 öğrenci",           time: "14 dk önce" },
+  { id:  3, type: "not",        title: "Not girildi",         desc: "Ahmet Demir — Kurumsal Kimlik 87p",  time: "32 dk önce" },
+  { id:  4, type: "ogrenci",    title: "Yeni öğrenci kaydı", desc: "Zeynep Kara — Grup 201",             time: "1 sa önce"  },
+  { id:  5, type: "tamamlandi", title: "Ödev tamamlandı",    desc: "Kitap Dünyası — Grup 102",           time: "2 sa önce"  },
+  { id:  6, type: "odev",       title: "Yeni ödev teslimi",  desc: "Can Öztürk — Sosyal Medya",          time: "3 sa önce"  },
+  { id:  7, type: "yoklama",    title: "Yoklama alındı",      desc: "Grup 303 — 14/16 öğrenci",           time: "5 sa önce"  },
+  { id:  8, type: "not",        title: "Not girildi",         desc: "Selin Aydın — Logo Tasarım 92p",     time: "6 sa önce"  },
+  { id:  9, type: "odev",       title: "Yeni ödev teslimi",  desc: "Mert Yılmaz — Tipografi",            time: "7 sa önce"  },
+  { id: 10, type: "ogrenci",    title: "Yeni öğrenci kaydı", desc: "Deniz Şahin — Grup 404",             time: "8 sa önce"  },
+  { id: 11, type: "tamamlandi", title: "Ödev tamamlandı",    desc: "Sosyal Medya — Grup 201",            time: "9 sa önce"  },
+  { id: 12, type: "yoklama",    title: "Yoklama alındı",      desc: "Grup 102 — 12/14 öğrenci",           time: "10 sa önce" },
+  { id: 13, type: "odev",       title: "Yeni ödev teslimi",  desc: "Ayşe Kılıç — Renk Teorisi",          time: "11 sa önce" },
+  { id: 14, type: "not",        title: "Not girildi",         desc: "Berk Arslan — Ambalaj Tasarım 78p",  time: "12 sa önce" },
+  { id: 15, type: "ogrenci",    title: "Yeni öğrenci kaydı", desc: "Canan Yıldız — Grup 550",            time: "13 sa önce" },
 ];
 
 // ─── En Son Aktiviteler Paneli ───────────────────────────────────────────────
 function ActivityFeed() {
   return (
-    <div className="bg-white rounded-2xl border border-surface-200 flex flex-col h-full overflow-hidden">
+    <div className="bg-white rounded-2xl border border-surface-200 flex flex-col h-full">
 
       {/* Başlık */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-surface-200 shrink-0">
+      <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-surface-200">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-base-primary-900 flex items-center justify-center shrink-0">
             <Activity size={16} className="text-white" strokeWidth={2} />
@@ -104,19 +143,26 @@ function ActivityFeed() {
             <p className="text-[11px] text-text-tertiary mt-0.5 leading-none">Atölyendeki son hareketler</p>
           </div>
         </div>
-        <button className="text-[11px] font-semibold text-base-primary-500 hover:text-base-primary-700 transition-colors cursor-pointer flex items-center gap-1">
-          Tümü <ArrowUpRight size={11} strokeWidth={2.5} />
-        </button>
       </div>
 
       {/* Liste */}
-      <div className="flex-1 overflow-y-auto no-scrollbar">
+      <div
+        className="overflow-y-auto activity-scroll [scrollbar-gutter:stable]"
+        style={{
+          maxHeight: "calc((7 * 56px) + 24px)",
+          paddingTop: "12px",
+          paddingBottom: "24px",
+          paddingLeft: "16px",
+          paddingRight: "16px",
+          boxSizing: "border-box",
+        }}
+      >
         {MOCK_ACTIVITIES.map((item, i) => {
           const cfg = ACTIVITY_CONFIG[item.type];
           return (
             <div
               key={item.id}
-              className={`flex items-start gap-3 px-5 py-2.5 hover:bg-surface-50 transition-colors cursor-default
+              className={`h-[56px] shrink-0 flex items-center gap-3 w-full hover:bg-surface-50 transition-colors cursor-default
                           ${i < MOCK_ACTIVITIES.length - 1 ? "border-b border-surface-100" : ""}`}
             >
               {/* İkon */}
@@ -140,13 +186,6 @@ function ActivityFeed() {
         })}
       </div>
 
-      {/* Footer */}
-      <div className="px-5 py-3.5 border-t border-surface-100 shrink-0">
-        <button className="w-full h-9 rounded-xl border border-surface-200 text-[12px] font-bold text-text-secondary
-                           hover:bg-surface-50 hover:border-surface-300 transition-all cursor-pointer">
-          Tüm Aktiviteleri Gör
-        </button>
-      </div>
     </div>
   );
 }
@@ -162,6 +201,8 @@ function QuickActionCard({
   iconBg = "bg-[#F7F8FA]",
   iconColor = "text-[#8E95A3]",
   badge = false,
+  pulse = false,
+  onBeforeNavigate,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -172,11 +213,13 @@ function QuickActionCard({
   iconBg?: string;
   iconColor?: string;
   badge?: boolean;
+  pulse?: boolean;
+  onBeforeNavigate?: () => void;
 }) {
   const router = useRouter();
   return (
     <div
-      onClick={() => router.push(href)}
+      onClick={() => { onBeforeNavigate?.(); router.push(href); }}
       className="bg-white rounded-2xl border border-[#E2E5EA] p-6 flex flex-col justify-between cursor-pointer min-h-[160px]
                  hover:shadow-[0_8px_30px_-8px_rgba(16,41,76,0.12)] hover:-translate-y-0.5 transition-all duration-200 select-none"
     >
@@ -191,12 +234,19 @@ function QuickActionCard({
           <ArrowUpRight size={15} strokeWidth={2} />
         </div>
       </div>
-      <div className="pl-[44px] flex items-center justify-between">
-        {meta && <span className="text-[12px] text-[#8E95A3]">{meta}</span>}
+      <div className="flex items-center justify-between gap-2">
+        {meta && <span className="text-[12px] text-[#8E95A3] min-w-0 truncate">{meta}</span>}
         {statusText && (
           badge
-            ? <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${statusColor} ml-auto`}>{statusText}</span>
-            : <span className={`text-[13px] font-bold ${statusColor} ${meta ? "ml-auto" : ""}`}>{statusText}</span>
+            ? (
+              <div className="relative ml-auto shrink-0">
+                {pulse && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
+                )}
+                <span className={`text-[12px] font-bold px-4 py-1.5 rounded-full ${statusColor} whitespace-nowrap block`}>{statusText}</span>
+              </div>
+            )
+            : <span className={`text-[13px] font-bold ${statusColor} ${meta ? "ml-auto" : ""} whitespace-nowrap shrink-0`}>{statusText}</span>
         )}
       </div>
     </div>
@@ -225,6 +275,111 @@ export default function HomeV2Page() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { hasPermission, user, loading } = useUser();
   const router = useRouter();
+
+  const [activeTaskCount,   setActiveTaskCount]   = useState<number | null>(null);
+  const [attendMetaText,    setAttendMetaText]    = useState("");          // "" → tarihi göster
+  const [attendancePulse,   setAttendancePulse]   = useState(false);
+  const [odevPulse,         setOdevPulse]         = useState(false);
+
+  // Refs — snapshot callback'lerinde güncel kalır
+  const activeGroupsRef  = useRef<Array<{ id: string; code: string; session: string }>>([]);
+  const todayAttendedRef = useRef<Set<string>>(new Set());   // bugün doc'u olan groupId'ler
+  const holidayDatesRef  = useRef<Set<string>>(new Set());
+  const todayKeyRef      = useRef<string>("");
+
+  // Yoklama pulse'ı hesapla (holiday + time window + localStorage dismiss)
+  const computeAttendPulse = useCallback(() => {
+    const key = todayKeyRef.current;
+
+    // Tatil günü → kesinlikle sönük
+    if (holidayDatesRef.current.has(key)) {
+      setAttendMetaText(""); setAttendancePulse(false); return;
+    }
+
+    // Kullanıcı daha önce incelediyse (attend sayfasına gittiyse) → sönük
+    if (typeof window !== "undefined" && localStorage.getItem(`attend_dismissed_${key}`)) {
+      setAttendMetaText(""); setAttendancePulse(false); return;
+    }
+
+    const now     = new Date();
+    const todayDay = now.getDay();
+    const nowMins  = now.getHours() * 60 + now.getMinutes();
+
+    const pendingCodes: string[] = [];
+    for (const g of activeGroupsRef.current) {
+      if (todayAttendedRef.current.has(g.id)) continue;   // doc mevcut = başlatıldı
+      if (!parseWeekDaysHome(g.session).includes(todayDay)) continue;
+      const tr = parseSessionTimeHome(g.session);
+      if (!tr) continue;
+      if (nowMins < tr.start - ATTEND_BEFORE_MIN || nowMins > tr.end + ATTEND_AFTER_MIN) continue;
+      pendingCodes.push(g.code);
+    }
+
+    if (pendingCodes.length === 0) {
+      setAttendMetaText(""); setAttendancePulse(false);
+    } else if (pendingCodes.length === 1) {
+      setAttendMetaText(pendingCodes[0]); setAttendancePulse(true);
+    } else {
+      setAttendMetaText(`${pendingCodes.length} grup`); setAttendancePulse(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const d   = new Date();
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    todayKeyRef.current = key;
+
+    // Tatilleri dinle
+    const unsubHolidays = onSnapshot(collection(db, "holidays"), snap => {
+      const dates = new Set<string>();
+      snap.docs.forEach(doc => {
+        const { startDate, endDate } = doc.data() as { startDate: string; endDate: string };
+        const cur = new Date(startDate + "T12:00:00");
+        const end = new Date(endDate   + "T12:00:00");
+        while (cur <= end) { dates.add(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+      });
+      holidayDatesRef.current = dates;
+      computeAttendPulse();
+    });
+
+    // Aktif grupları dinle
+    const unsubGroups = onSnapshot(
+      query(collection(db, "groups"), where("status", "==", "active")),
+      snap => {
+        activeGroupsRef.current = snap.docs.map(doc => ({
+          id:      doc.id,
+          code:    (doc.data().code    ?? "") as string,
+          session: (doc.data().session ?? "") as string,
+        }));
+        computeAttendPulse();
+      }
+    );
+
+    // Bugünkü yoklama dokümanları (var mı = başlatıldı)
+    const unsubAttend = onSnapshot(
+      query(collection(db, "design_attendance"), where("date", "==", key)),
+      snap => {
+        todayAttendedRef.current = new Set(snap.docs.map(doc => doc.data().groupId as string));
+        computeAttendPulse();
+      }
+    );
+
+    // Aktif görev sayısı
+    const unsubTasks = onSnapshot(
+      query(collection(db, "tasks"), where("isActive", "==", true)),
+      snap => {
+        const count = snap.size;
+        setActiveTaskCount(count);
+        const dismissed = typeof window !== "undefined" && localStorage.getItem(`assignment_dismissed_${key}`);
+        setOdevPulse(count > 0 && !dismissed);
+      }
+    );
+
+    // Her dakika yeniden hesapla (zaman penceresi değişebilir)
+    const interval = setInterval(computeAttendPulse, 60_000);
+
+    return () => { unsubHolidays(); unsubGroups(); unsubAttend(); unsubTasks(); clearInterval(interval); };
+  }, [computeAttendPulse]);
 
   const handleScroll = (dir: "left" | "right") => {
     if (scrollRef.current) {
@@ -278,18 +433,24 @@ export default function HomeV2Page() {
                       icon={<CalendarCheck size={18} />}
                       label="Hızlı Yoklama"
                       href="/attend"
-                      meta={todayFormatted}
+                      meta={attendMetaText || todayFormatted}
                       statusText="Derse Git"
                       statusColor="bg-[#009F3E] text-white"
                       iconBg="bg-[#EEF4FD]"
                       iconColor="text-[#3A7BD5]"
                       badge
+                      pulse={attendancePulse}
+                      onBeforeNavigate={() => {
+                        localStorage.setItem(`attend_dismissed_${todayKeyRef.current}`, "1");
+                        setAttendancePulse(false);
+                        setAttendMetaText("");
+                      }}
                     />
                     <QuickActionCard
                       icon={<ClipboardList size={18} />}
                       label="Ödev Teslimi"
                       href="/dashboard/assignment"
-                      meta="3 aktif ödev"
+                      meta={activeTaskCount !== null ? `${activeTaskCount} aktif ödev` : "—"}
                       statusText="İncele"
                       statusColor="bg-[#FF8D28] text-white"
                       iconBg="bg-[#FFF4EB]"
@@ -310,8 +471,8 @@ export default function HomeV2Page() {
                   </div>
                 </div>
 
-                {/* Sağ sütun: aktiviteler alta yaslanır, kartlarla aynı bitiş */}
-                <div className="w-full xl:w-[380px] shrink-0 flex flex-col justify-end">
+                {/* Sağ sütun: banner'dan kartların bitimine kadar uzanır */}
+                <div className="w-full xl:w-[380px] shrink-0 flex flex-col">
                   <ActivityFeed />
                 </div>
               </div>
@@ -333,6 +494,22 @@ export default function HomeV2Page() {
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .activity-scroll::-webkit-scrollbar { width: 4px; }
+        .activity-scroll::-webkit-scrollbar-track { background: transparent; margin: 4px 0; }
+        .activity-scroll::-webkit-scrollbar-thumb {
+          background: #CBD5E1;
+          border-radius: 999px;
+        }
+        .activity-scroll::-webkit-scrollbar-thumb:hover {
+          background: #10294C;
+        }
+        .activity-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #CBD5E1 transparent;
+          box-sizing: border-box;
+          scrollbar-gutter: stable;
+        }
       `}</style>
     </div>
   );

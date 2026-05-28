@@ -37,6 +37,13 @@ export default function AssignmentTestPage() {
     if (!authLoading && !user) router.push("/login");
   }, [user, authLoading, router]);
 
+  // Home-v2 ödev pulse'ını söndür
+  useEffect(() => {
+    const d = new Date();
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    localStorage.setItem(`assignment_dismissed_${key}`, "1");
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     loadData();

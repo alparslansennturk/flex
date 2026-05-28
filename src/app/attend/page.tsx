@@ -26,6 +26,10 @@ export default function AttendPage() {
       user.roles?.includes("admin") ||
       user.roles?.includes("instructor");
     if (!isAuthorized) { router.push("/dashboard"); return; }
+    // Home-v2 yoklama pulse'ını söndür
+    const d = new Date();
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    localStorage.setItem(`attend_dismissed_${key}`, "1");
     setReady(true);
   }, [loading, user, router]);
 

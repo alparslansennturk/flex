@@ -32,16 +32,17 @@
 | Framer Motion accordion navigasyon | §98 | `Sidebar.tsx` |
 | AttendFlowTransition move animasyonu → KALDIRILDI | §108–112 | `layout.tsx` |
 | Sidebar accordion sessionStorage kalıcılığı | §113 | `Sidebar.tsx` |
+| ActivityFeed scroll sistemi (15 item, 7 görünür) | §132 | `home-v2/page.tsx` |
 
 ---
 
-## Son Durum (2026-05-26)
+## Son Durum (2026-05-29)
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **AttendFlowTransition:** Animasyon vazgeçildi, `layout.tsx`'ten kaldırıldı
 - **Notification:** Backend ✅, Frontend ⏸ (Figma bekleniyor)
 - **Platform Genişlemesi:** Aşama 1+2 bitti, Aşama 3 beklemede (leagueEnabled toggle)
-- **Home V2:** `/dashboard/home-v2` test sayfası oluşturuldu (~%75 tamamlandı)
+- **Home V2:** ActivityFeed scroll sistemi tamamlandı (§132)
 
 ---
 
@@ -53,24 +54,34 @@
 - `src/app/dashboard/home-v2/page.tsx` oluşturuldu
 - **HomeBanner:** Lacivert (#10294C), 3 gerçek Firestore istatistik (Sınıf/Öğrenci/Ödev), `onSnapshot` canlı veri
 - **3 Hızlı Eylem Kartı:** Hızlı Yoklama (mavi), Ödev Teslimi (turuncu), Sertifikasyon (mor) — renkli ikon alanları + pill badge butonları
-- **ActivityFeed:** 7 aktivite, tip renkleri, başlık baskın, `justify-end` ile Sertifikasyon kartına hizalı
+- **ActivityFeed:** 15 mock aktivite, tip renkleri — scroll sistemi tamamlandı (§132)
 - **FooterV2:** `h-14`, `flex-logo-white.svg` 70px
 - **Sidebar:** `logo` prop eklendi → `flex-logo-title-white.svg` 165px
 - **Header:** `innerClassName` prop eklendi → container hizalaması
 - **FlexLogo bileşeni:** `src/app/components/ui/FlexLogo.tsx` — variant prop, Rubik font
 - **Rubik font:** `layout.tsx`'e eklendi, CSS var `--font-rubik`
 - **Container:** `max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]` — header + content + footer eşit
+- **Küçük ekran fix:** QuickActionCard alt kısmı `pl-[44px]` kaldırıldı, badge `whitespace-nowrap shrink-0`
+- **Ödev Teslimi:** `tasks` koleksiyonu `isActive==true` sayısı Firestore'dan gerçek zamanlı
+- **Hızlı Yoklama akıllı pulse (§131):**
+  - `holidays` koleksiyonu dinleniyor → tatil günü animasyon yok
+  - `groups` (active) + `design_attendance` (bugün) dinleniyor
+  - Her dakika: ders günü mü? `[sessionStart-15dk, sessionEnd+3sa]` penceresinde mi? Doc yok mu? → `animate-ping`
+  - Meta: 1 grup → grup kodu (ör. "Grup 550"), 2+ → "3 grup", değilse tarih
+  - Auto-dismiss: kart tıklanınca, `/attend` açılınca, `/dashboard/assignment` açılınca localStorage'a yazar → söner
+  - Gün değişince otomatik sıfırlanır
+
+### ActivityFeed Scroll Sistemi (§132) — TAMAMLANDI
+- 15 mock aktivite, tümü render edilir (slice yok)
+- Container: `max-height: calc((7 * 56px) + 24px)`, `overflow-y: auto`
+- Her satır: `h-[56px] shrink-0 flex items-center`
+- Padding: top 12px, bottom 24px, left/right 16px, `box-sizing: border-box`
+- Custom scrollbar: 4px, `#CBD5E1` → hover `#10294C`, `scrollbar-gutter: stable`
+- Panel `h-full` — banner'ın üstünden kartların altına kadar uzanır
 
 ### Eksikler / Sonraki Oturum
-- [ ] **ActivityFeed Firestore bağlantısı:** Şu an mock data (hardcoded array). Gerçek `activity_log` koleksiyonu gerekiyor
-- [ ] **ActivityFeed UI iyileştirmeleri (kararlaştırıldı):**
-  - Her satır kart gibi — `bg-surface-50` veya `border` ile ayrılsın
-  - Sol kenarda tip rengi şeridi (`border-l-3`) — ödev=turuncu, yoklama=mavi, not=mor
-  - Zaman bilgisi sağ köşeye hizalı
-  - Başlık alanında canlı yeşil nokta `●` + "Canlı" yazısı
+- [ ] **ActivityFeed Firestore bağlantısı:** Şu an mock data. Gerçek `activity_log` koleksiyonu gerekiyor
 - [ ] Sol üst geniş alan (HomeBanner altı) — WorkshopAnalysis benzeri bir widget gelecek
-- [ ] Hızlı Yoklama kartı "meta" alanı — gerçek tarih ve grup sayısı bağlanacak
-- [ ] Ödev Teslimi "3 aktif ödev" — hardcoded, Firestore'dan çekilecek
 
 ---
 
