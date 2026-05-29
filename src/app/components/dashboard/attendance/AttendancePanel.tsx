@@ -75,7 +75,7 @@ interface Group {
   attendanceClosed?: boolean;
   status?: string;
   instructorId?: string;
-  groupType?: "standart" | "özel_ders" | "kurumsal";
+  type?: "standart" | "özel_ders" | "kurumsal";
 }
 
 interface Student {
@@ -434,7 +434,7 @@ export default function AttendancePanel({
   const remaining       = Math.max(0, plannedCount - doneCount);
   const isHolidayDate   = holidayDates.has(dateKey);
   // Standart gruplar için Cuma kurumsal tatil
-  const isFridayBlock   = selectedGroup?.groupType === "standart" && selectedDate.getDay() === 5;
+  const isFridayBlock   = selectedGroup?.type === "standart" && selectedDate.getDay() === 5;
   // Tatil gözetmeksizin bugün bu grubun ders günü mü?
   const hasClassThisDay = selectedGroup
     ? (selectedWeekDays.length === 0 || selectedWeekDays.includes(selectedDate.getDay()))
@@ -479,10 +479,13 @@ export default function AttendancePanel({
   // ── Load groups ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
+    const isActiveGroup = (g: Group) =>
+      g.status !== "archived" && !g.attendanceClosed;
+
     if (isAdmin()) {
       const q = query(collection(db, "groups"), where("status", "!=", "archived"));
       return onSnapshot(q, snap => {
-        setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() } as Group)));
+        setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() } as Group)).filter(isActiveGroup));
       });
     }
     // Eğitmen: sadece kendi grupları
@@ -494,7 +497,7 @@ export default function AttendancePanel({
       setGroups(
         snap.docs
           .map(d => ({ id: d.id, ...d.data() } as Group))
-          .filter(g => g.status !== "archived"),
+          .filter(isActiveGroup),
       );
     });
   }, [user, isAdmin]);
@@ -520,12 +523,29 @@ export default function AttendancePanel({
     const todayDay = new Date().getDay();
     const isFriday = todayDay === 5;
     const todayMatch = groups.find(g => {
-      // Standart gruplar Cuma'da tatil — otomatik seçime dahil etme
-      if (isFriday && g.groupType === "standart") return false;
+      // Standart gruplar (ve type belirsiz olanlar) Cuma'da tatil — otomatik seçime dahil etme
+      if (isFriday && g.type !== "özel_ders" && g.type !== "kurumsal") return false;
       const days = getWeekDays(g);
       return days.length === 0 || days.includes(todayDay);
     });
-    setSelectedGroupId((todayMatch ?? groups[0]).id);
+    if (todayMatch) {
+      setSelectedGroupId(todayMatch.id);
+      return;
+    }
+    // Bugün dersi olan grup yok → en yakın ders günü olan grubu seç
+    const daysUntilNext = (g: Group): number => {
+      const days = getWeekDays(g);
+      if (days.length === 0) return 1; // esnek grup: yarın
+      for (let offset = 1; offset <= 7; offset++) {
+        if (days.includes((todayDay + offset) % 7)) return offset;
+      }
+      return 8;
+    };
+    const nearest = groups.reduce<Group | null>((best, g) => {
+      if (!best) return g;
+      return daysUntilNext(g) < daysUntilNext(best) ? g : best;
+    }, null);
+    if (nearest) setSelectedGroupId(nearest.id);
   }, [groups, autoSelectToday, selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Monthly done count for all groups ─────────────────────────────────────
@@ -1026,7 +1046,7 @@ export default function AttendancePanel({
               const p         = planned > 0 ? Math.min(100, Math.round((done / planned) * 100)) : 0;
               const active    = selectedGroupId === g.id;
               const isHoliday    = holidayDates.has(toDateKey(selectedDate));
-              const isFridayItem = g.groupType === "standart" && selectedDate.getDay() === 5;
+              const isFridayItem = g.type === "standart" && selectedDate.getDay() === 5;
               const hasClass     = !isHoliday && !isFridayItem && (gDays.length === 0 ? true : gDays.includes(selectedDate.getDay()));
               const flexible  = gDays.length === 0;
               return (

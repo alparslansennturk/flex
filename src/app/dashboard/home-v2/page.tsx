@@ -282,7 +282,7 @@ export default function HomeV2Page() {
   const [odevPulse,         setOdevPulse]         = useState(false);
 
   // Refs — snapshot callback'lerinde güncel kalır
-  const activeGroupsRef  = useRef<Array<{ id: string; code: string; session: string; groupType: string }>>([]);
+  const activeGroupsRef  = useRef<Array<{ id: string; code: string; session: string; type: string }>>([]);
   const todayAttendedRef = useRef<Set<string>>(new Set());   // bugün doc'u olan groupId'ler
   const holidayDatesRef  = useRef<Set<string>>(new Set());
   const todayKeyRef      = useRef<string>("");
@@ -309,7 +309,7 @@ export default function HomeV2Page() {
     for (const g of activeGroupsRef.current) {
       if (todayAttendedRef.current.has(g.id)) continue;   // doc mevcut = başlatıldı
       // Standart gruplar Cuma'da tatil — pulse atla
-      if (g.groupType === "standart" && todayDay === 5) continue;
+      if (g.type === "standart" && todayDay === 5) continue;
       if (!parseWeekDaysHome(g.session).includes(todayDay)) continue;
       const tr = parseSessionTimeHome(g.session);
       if (!tr) continue;
@@ -352,7 +352,7 @@ export default function HomeV2Page() {
           id:        doc.id,
           code:      (doc.data().code      ?? "") as string,
           session:   (doc.data().session   ?? "") as string,
-          groupType: (doc.data().groupType ?? "") as string,
+          type: (doc.data().type ?? "") as string,
         }));
         computeAttendPulse();
       }

@@ -34,13 +34,18 @@
 | Sidebar accordion sessionStorage kalıcılığı | §113 | `Sidebar.tsx` |
 | ActivityFeed scroll sistemi (15 item, 7 görünür) | §132 | `home-v2/page.tsx` |
 | Cuma tatili — standart gruplar için kurumsal tatil | §133 | `AttendancePanel.tsx`, `home-v2/page.tsx` |
+| Cuma tatili field mismatch fix (`groupType`→`type`) | §134 | `AttendancePanel.tsx`, `home-v2/page.tsx` |
+| Tamamlanan grup yoklama listesinden gizleme | §135 | `AttendancePanel.tsx` |
+| Auto-select en yakın ders günü + attendanceClosed filtre | §136 | `AttendancePanel.tsx` |
 
 ---
 
 ## Son Durum (2026-05-29)
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
-- **Cuma tatili (§133):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar
+- **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
+- **Tamamlanan grup gizleme (§135):** `grading` sayfasında "Modülü Bitir" → grup doc'a `attendanceClosed: true` yazılıyor. `AttendancePanel` bu grupları listeden çıkarıyor.
+- **Auto-select (§136):** Bugün dersi olan grup yoksa (Cuma, tatil vb.) en yakın ders günü olan grubu seçiyor. `type` alanı olmayan eski gruplar da Cuma'da doğru filtreleniyor.
 - **AttendFlowTransition:** Animasyon vazgeçildi, `layout.tsx`'ten kaldırıldı
 - **Notification:** Backend ✅, Frontend ⏸ (Figma bekleniyor)
 - **Platform Genişlemesi:** Aşama 1+2 bitti, Aşama 3 beklemede (leagueEnabled toggle)
@@ -90,6 +95,24 @@
 - Grup listesi `hasClass`: Cuma bloku hesaba katılıyor
 - Home-v2 pulse: Cuma'da standart gruplar için pulse yanmıyor
 - `"özel_ders"` ve `"kurumsal"` gruplar etkilenmiyor
+
+### Cuma Tatili Field Mismatch Fix (§134) — TAMAMLANDI
+- **Kök neden:** Firestore'da alan adı `type` (useManagement → `type: groupType`), ama `AttendancePanel` `groupType` okuyordu → `undefined` → `isFridayBlock` hiç tetiklenmiyordu
+- `AttendancePanel.tsx`: `Group` interface `groupType?` → `type?`, 3 ayrı `g.groupType` → `g.type`
+- `home-v2/page.tsx`: ref tipi, Firestore okuma ve pulse kontrolü → `type`
+- **Ek fix:** Eski gruplar `type` alanı olmayabilir → Cuma kontrolü `type === "standart"` yerine `type !== "özel_ders" && type !== "kurumsal"` olarak tersine çevrildi
+
+### Tamamlanan Grup Yoklama Listesinden Gizleme (§135) — TAMAMLANDI
+- `grading/page.tsx` → "Modülü Bitir" (GRAFIK_2 finalize) → grup doc'a `attendanceClosed: true` + `attendanceClosedAt` yazıyor
+- `AttendancePanel.tsx`: grup yüklenirken `isActiveGroup = status !== "archived" && !attendanceClosed` filtresi eklendi
+- Admin ve eğitmen sorguları her ikisi de bu filtreyi kullanıyor
+- Sonuç: GRAFIK_2 bitirilen gruplar yoklama listesinden otomatik düşüyor
+
+### Auto-Select En Yakın Ders Günü (§136) — TAMAMLANDI
+- **Eski:** `todayMatch` bulamazsa `groups[0]` — dersi bitmiş/yanlış grup seçiliyordu
+- **Yeni:** `todayMatch` yoksa her grup için "kaç gün sonra ders var?" hesaplanır, en küçük offset'li grup seçilir
+- Cuma + type'sız eski gruplar da doğru filtreleniyor (`type !== "özel_ders" && type !== "kurumsal"`)
+- Örnek: Cuma günü → Pazartesi dersi olan Grup 598 otomatik seçilir
 
 ### Eksikler / Sonraki Oturum
 - [ ] **ActivityFeed Firestore bağlantısı:** Şu an mock data. Gerçek `activity_log` koleksiyonu gerekiyor
