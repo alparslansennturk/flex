@@ -75,6 +75,7 @@ interface Group {
   attendanceClosed?: boolean;
   status?: string;
   instructorId?: string;
+  groupType?: "standart" | "özel_ders" | "kurumsal";
 }
 
 interface Student {
@@ -432,11 +433,13 @@ export default function AttendancePanel({
   const doneCount       = selectedGroupId ? (monthlyDone[selectedGroupId] ?? 0) : 0;
   const remaining       = Math.max(0, plannedCount - doneCount);
   const isHolidayDate   = holidayDates.has(dateKey);
+  // Standart gruplar için Cuma kurumsal tatil
+  const isFridayBlock   = selectedGroup?.groupType === "standart" && selectedDate.getDay() === 5;
   // Tatil gözetmeksizin bugün bu grubun ders günü mü?
   const hasClassThisDay = selectedGroup
     ? (selectedWeekDays.length === 0 || selectedWeekDays.includes(selectedDate.getDay()))
     : false;
-  const isActiveForDate = hasClassThisDay && !isHolidayDate;
+  const isActiveForDate = hasClassThisDay && !isHolidayDate && !isFridayBlock;
 
   // totalHours: new groups (denormalized), moduleHours: old standart groups (live lookup), customHours: old özel/kurumsal
   const courseTotalHours     = selectedGroup?.totalHours ?? moduleHours ?? selectedGroup?.customHours ?? null;
@@ -515,7 +518,10 @@ export default function AttendancePanel({
   useEffect(() => {
     if (!autoSelectToday || selectedGroupId || groups.length === 0) return;
     const todayDay = new Date().getDay();
+    const isFriday = todayDay === 5;
     const todayMatch = groups.find(g => {
+      // Standart gruplar Cuma'da tatil — otomatik seçime dahil etme
+      if (isFriday && g.groupType === "standart") return false;
       const days = getWeekDays(g);
       return days.length === 0 || days.includes(todayDay);
     });
@@ -835,7 +841,9 @@ export default function AttendancePanel({
   const overlayMessage: string | null = isPastCourseEnd
     ? "Bu grubun eğitim programı tamamlandı. Bu tarih için yoklama oluşturulamaz."
     : !showAttendanceUI && !exception
-    ? (isHolidayDate && hasClassThisDay
+    ? (isFridayBlock
+        ? "Cuma günleri grup dersleri yoktur."
+        : isHolidayDate && hasClassThisDay
         ? "Bugün resmi tatil nedeniyle ders yoktur."
         : !hasClassThisDay
         ? "Bu grubun bu gün dersi yoktur."
@@ -1017,8 +1025,9 @@ export default function AttendancePanel({
               const planned   = countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), gDays, holidayDates, g.startDate);
               const p         = planned > 0 ? Math.min(100, Math.round((done / planned) * 100)) : 0;
               const active    = selectedGroupId === g.id;
-              const isHoliday = holidayDates.has(toDateKey(selectedDate));
-              const hasClass  = !isHoliday && (gDays.length === 0 ? true : gDays.includes(selectedDate.getDay()));
+              const isHoliday    = holidayDates.has(toDateKey(selectedDate));
+              const isFridayItem = g.groupType === "standart" && selectedDate.getDay() === 5;
+              const hasClass     = !isHoliday && !isFridayItem && (gDays.length === 0 ? true : gDays.includes(selectedDate.getDay()));
               const flexible  = gDays.length === 0;
               return (
                 <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
@@ -1473,10 +1482,10 @@ export default function AttendancePanel({
                   {/* Overlay mesajı (tatil / ders günü değil) */}
                   {overlayMessage && (
                     <div className={`mx-5 mt-4 mb-1 px-4 py-3 rounded-xl flex items-center gap-2 text-[13px] font-semibold shrink-0
-                      ${isHolidayDate && hasClassThisDay
+                      ${(isHolidayDate && hasClassThisDay) || isFridayBlock
                         ? "bg-amber-50 border border-amber-200 text-amber-700"
                         : "bg-surface-50 border border-surface-200 text-text-secondary"}`}>
-                      {isHolidayDate && hasClassThisDay
+                      {(isHolidayDate && hasClassThisDay) || isFridayBlock
                         ? <CalendarOff size={14} className="shrink-0" />
                         : <CalendarCheck size={14} className="shrink-0" />}
                       {overlayMessage}
