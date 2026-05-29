@@ -33,12 +33,14 @@
 | AttendFlowTransition move animasyonu → KALDIRILDI | §108–112 | `layout.tsx` |
 | Sidebar accordion sessionStorage kalıcılığı | §113 | `Sidebar.tsx` |
 | ActivityFeed scroll sistemi (15 item, 7 görünür) | §132 | `home-v2/page.tsx` |
+| Cuma tatili — standart gruplar için kurumsal tatil | §133 | `AttendancePanel.tsx`, `home-v2/page.tsx` |
 
 ---
 
 ## Son Durum (2026-05-29)
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
+- **Cuma tatili (§133):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar
 - **AttendFlowTransition:** Animasyon vazgeçildi, `layout.tsx`'ten kaldırıldı
 - **Notification:** Backend ✅, Frontend ⏸ (Figma bekleniyor)
 - **Platform Genişlemesi:** Aşama 1+2 bitti, Aşama 3 beklemede (leagueEnabled toggle)
@@ -78,6 +80,16 @@
 - Padding: top 12px, bottom 24px, left/right 16px, `box-sizing: border-box`
 - Custom scrollbar: 4px, `#CBD5E1` → hover `#10294C`, `scrollbar-gutter: stable`
 - Panel `h-full` — banner'ın üstünden kartların altına kadar uzanır
+
+### Cuma Tatili — Standart Gruplar (§133) — TAMAMLANDI
+- `Group` interface'e `groupType` eklendi (`"standart"` | `"özel_ders"` | `"kurumsal"`)
+- `isFridayBlock = groupType === "standart" && getDay() === 5` türetildi
+- `isActiveForDate` artık `isFridayBlock` da kontrol ediyor
+- `overlayMessage`: "Cuma günleri grup dersleri yoktur." — amber renk + CalendarOff ikonu (tatil gibi)
+- `autoSelectToday`: Cuma'da standart grupları otomatik seçmiyor
+- Grup listesi `hasClass`: Cuma bloku hesaba katılıyor
+- Home-v2 pulse: Cuma'da standart gruplar için pulse yanmıyor
+- `"özel_ders"` ve `"kurumsal"` gruplar etkilenmiyor
 
 ### Eksikler / Sonraki Oturum
 - [ ] **ActivityFeed Firestore bağlantısı:** Şu an mock data. Gerçek `activity_log` koleksiyonu gerekiyor
