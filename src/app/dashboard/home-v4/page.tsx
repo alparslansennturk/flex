@@ -60,7 +60,7 @@ function StatBox({ label, value, icon }: { label: string; value: number; icon: R
   );
 }
 
-function HomeBannerV3() {
+function HomeBannerV4() {
   const [groupCount,   setGroupCount]   = useState(0);
   const [studentCount, setStudentCount] = useState(0);
   const [taskCount,    setTaskCount]    = useState(0);
@@ -247,12 +247,12 @@ function QuickActionCard({
 }
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
-function FooterV3() {
+function FooterV4() {
   const router = useRouter();
   return (
     <footer className="w-full bg-[#10294C] border-t border-white/5 mt-auto font-inter shrink-0">
       <div className="w-[94%] mx-auto h-14 flex items-center justify-between max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]">
-        <div className="cursor-pointer" onClick={() => router.push("/dashboard/home-v3")}>
+        <div className="cursor-pointer" onClick={() => router.push("/dashboard/home-v4")}>
           <img src="/assets/flex-logo-white.svg" width={70} alt="flex" />
         </div>
         <p className="text-[11px] font-normal text-white/60 tracking-wide">
@@ -264,7 +264,7 @@ function FooterV3() {
 }
 
 // ─── Sayfa ────────────────────────────────────────────────────────────────────
-export default function HomeV3Page() {
+export default function HomeV4Page() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { hasPermission, user, loading } = useUser();
   const router = useRouter();
@@ -404,7 +404,7 @@ export default function HomeV3Page() {
 
                 {/* Sol: banner + kartlar */}
                 <div className="flex-1 min-w-0 flex flex-col gap-5">
-                  <HomeBannerV3 />
+                  <HomeBannerV4 />
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <QuickActionCard
                       icon={<CalendarCheck size={20} />}
@@ -415,7 +415,7 @@ export default function HomeV3Page() {
                       statusColor="bg-[#009F3E] text-white"
                       iconBg="bg-[#EEF4FD]"
                       iconColor="text-[#3A7BD5]"
-                      cardTint="bg-[#DBEAFE]"
+                      cardTint="bg-white"
                       accentColor=""
                       pulse={attendancePulse}
                       onBeforeNavigate={() => {
@@ -433,7 +433,7 @@ export default function HomeV3Page() {
                       statusColor="bg-[#FF8D28] text-white"
                       iconBg="bg-[#FFF4EB]"
                       iconColor="text-[#FF8D28]"
-                      cardTint="bg-[#FED7AA]"
+                      cardTint="bg-white"
                       accentColor=""
                     />
                     <QuickActionCard
@@ -445,7 +445,7 @@ export default function HomeV3Page() {
                       statusColor="bg-[#6F74D8] text-white"
                       iconBg="bg-[#F1F2FD]"
                       iconColor="text-[#6F74D8]"
-                      cardTint="bg-[#DDD6FE]"
+                      cardTint="bg-white"
                       accentColor=""
                     />
                   </div>
@@ -457,8 +457,8 @@ export default function HomeV3Page() {
                 </div>
               </div>
 
-              {/* ── Ödev Parkuru ── */}
-              <DesignParkour />
+              {/* ── Ödev Parkuru — 4 kart yan yana, compact yükseklik ── */}
+              <DesignParkour gridClassName="grid-cols-2 sm:grid-cols-4" compact={true} maxSlots={4} />
 
               {/* ── Ödev Kütüphanesi ── */}
               {(hasPermission(PERMISSIONS.ASSIGNMENT_MANAGE) || user?.roles?.includes("instructor")) && (
@@ -469,7 +469,7 @@ export default function HomeV3Page() {
           </div>
         </main>
 
-        <FooterV3 />
+        <FooterV4 />
       </div>
 
       <style jsx global>{`

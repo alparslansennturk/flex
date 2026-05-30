@@ -118,19 +118,26 @@ const PARKOUR_STYLE: Record<TaskType, { gradient: string; tagBg: string; tagText
 };
 
 // ---- PLACEHOLDER KART ----
-function PlaceholderParkourCard() {
+function PlaceholderParkourCard({ compact = false }: { compact?: boolean }) {
+  const p = compact ? "p-4" : "p-7";
+  const mb1 = compact ? "mb-3" : "mb-5";
+  const mb2 = compact ? "mb-3" : "mb-5";
+  const mb3 = compact ? "mb-3" : "mb-6";
+  const pt = compact ? "pt-3" : "pt-5";
+  const iconSize = compact ? "w-9 h-9" : "w-12 h-12";
+  const btnH = compact ? "h-8 text-[11px] px-3" : "h-10 text-[13px] px-5";
   return (
-    <div className="bg-white/50 p-7 rounded-24 border border-dashed border-[#E2E5EA] flex flex-col justify-between h-full cursor-default opacity-40">
-      <div className="flex justify-between items-start mb-5">
-        <div className="w-12 h-12 bg-[#F7F8FA] radius-12 shrink-0" />
+    <div className={`bg-white/50 ${p} rounded-24 border border-dashed border-[#E2E5EA] flex flex-col justify-between h-full cursor-default opacity-40`}>
+      <div className={`flex justify-between items-start ${mb1}`}>
+        <div className={`${iconSize} bg-[#F7F8FA] radius-12 shrink-0`} />
         <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-[#F7F8FA] text-[#AEB4C0]">—</span>
       </div>
-      <div className="mb-5">
+      <div className={mb2}>
         <div className="h-5 w-36 bg-[#F7F8FA] rounded-lg mb-2" />
         <div className="h-3 w-full bg-[#F7F8FA] rounded mb-1.5" />
         <div className="h-3 w-3/4 bg-[#F7F8FA] rounded" />
       </div>
-      <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-6 border border-[#EEF0F3]">
+      <div className={`bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between ${mb3} border border-[#EEF0F3]`}>
         <div className="flex flex-col gap-1.5">
           <div className="h-2.5 w-8 bg-[#E2E5EA] rounded" />
           <div className="h-3 w-12 bg-[#E2E5EA] rounded" />
@@ -140,10 +147,10 @@ function PlaceholderParkourCard() {
           <div className="h-3 w-10 bg-[#E2E5EA] rounded" />
         </div>
       </div>
-      <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-5">
+      <div className={`flex items-center justify-between border-t border-[#F7F8FA] ${pt}`}>
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Tasarım atölyesi</span>
-        <button disabled className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed">
-          Ödev ver <ChevronRight size={16} />
+        <button disabled className={`${btnH} flex items-center gap-2 rounded-xl font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
+          Ödev ver <ChevronRight size={compact ? 13 : 16} />
         </button>
       </div>
     </div>
@@ -151,10 +158,11 @@ function PlaceholderParkourCard() {
 }
 
 // ---- GHOST KART (templates koleksiyonu — 3-dot menüden başlatılır) ----
-function GhostParkourCard({ task, canManage, onActivate }: {
+function GhostParkourCard({ task, canManage, onActivate, compact = false }: {
   task: Task;
   canManage: boolean;
   onActivate: (task: Task) => void;
+  compact?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -169,12 +177,20 @@ function GhostParkourCard({ task, canManage, onActivate }: {
   }, [menuOpen]);
 
   const style    = PARKOUR_STYLE[task.type] ?? PARKOUR_STYLE.odev;
-  const iconNode = getIcon(task.icon, task.type, 22);
+  const iconNode = getIcon(task.icon, task.type, compact ? 16 : 22);
+  const p = compact ? "p-4" : "p-7";
+  const mb1 = compact ? "mb-3" : "mb-5";
+  const mb2 = compact ? "mb-3" : "mb-5";
+  const mb3 = compact ? "mb-3" : "mb-6";
+  const pt = compact ? "pt-3" : "pt-5";
+  const iconSize = compact ? "w-9 h-9" : "w-12 h-12";
+  const titleSize = compact ? "text-[17px]" : "text-[20px]";
+  const btnH = compact ? "h-8 text-[11px] px-3" : "h-10 text-[13px] px-5";
 
   return (
-    <div className="bg-white p-7 rounded-24 border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full cursor-default opacity-90">
-      <div className="flex justify-between items-start mb-5">
-        <div className={`w-12 h-12 ${style.gradient} radius-12 flex items-center justify-center text-white shadow-lg shrink-0`}>
+    <div className={`bg-white ${p} rounded-24 border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full cursor-default opacity-90`}>
+      <div className={`flex justify-between items-start ${mb1}`}>
+        <div className={`${iconSize} ${style.gradient} radius-12 flex items-center justify-center text-white shadow-lg shrink-0`}>
           {iconNode}
         </div>
         <div className="flex items-center gap-2">
@@ -201,20 +217,20 @@ function GhostParkourCard({ task, canManage, onActivate }: {
           )}
         </div>
       </div>
-      <div className="mb-5">
-        <h4 className="text-[20px] text-[#10294C] font-bold mb-1.5 leading-tight">{task.name}</h4>
+      <div className={mb2}>
+        <h4 className={`${titleSize} text-[#10294C] font-bold mb-1.5 leading-tight`}>{task.name}</h4>
         {task.subtitle && (
           <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{task.subtitle}</p>
         )}
       </div>
-      <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-6 border border-[#EEF0F3]">
+      <div className={`bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between ${mb3} border border-[#EEF0F3]`}>
         <div className="flex flex-col"><span className="text-[11px] text-[#8E95A3]">Durum</span><span className="text-[13px] font-bold mt-0.5 text-[#AEB4C0]">Pasif</span></div>
         <div className="flex flex-col items-end"><span className="text-[11px] text-[#8E95A3]">Teslim süresi</span><span className="text-[13px] font-bold text-[#AEB4C0] mt-0.5">—</span></div>
       </div>
-      <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-5">
+      <div className={`flex items-center justify-between border-t border-[#F7F8FA] ${pt}`}>
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Tasarım atölyesi</span>
-        <button disabled className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed">
-          Ödev ver <ChevronRight size={16} />
+        <button disabled className={`${btnH} flex items-center gap-2 rounded-xl font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
+          Ödev ver <ChevronRight size={compact ? 13 : 16} />
         </button>
       </div>
     </div>
@@ -222,7 +238,7 @@ function GhostParkourCard({ task, canManage, onActivate }: {
 }
 
 // ---- TASK KARTI (aktif) ----
-function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrowed, onEdit, onComplete, onCancel, onDetail }: {
+function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrowed, onEdit, onComplete, onCancel, onDetail, compact = false }: {
   task: Task;
   canManage: boolean;
   isBorrowed?: boolean;
@@ -231,6 +247,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
   onComplete: (task: Task) => void;
   onCancel: (task: Task) => void;
   onDetail: (task: Task) => void;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -275,10 +292,17 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
 
   // Notlandırma tamamlandıysa kart şablon (ghost) pozisyonuna döner
   if (isFullyDone) {
-    return <GhostParkourCard task={task} canManage={canManage} onActivate={onActivateBorrowed} />;
+    return <GhostParkourCard task={task} canManage={canManage} onActivate={onActivateBorrowed} compact={compact} />;
   }
   const style       = PARKOUR_STYLE[task.type] ?? PARKOUR_STYLE.odev;
-  const iconNode    = getIcon(task.icon, task.type, 22);
+  const iconNode    = getIcon(task.icon, task.type, compact ? 16 : 22);
+  const p = compact ? "p-4" : "p-7";
+  const mb1 = compact ? "mb-3" : "mb-5";
+  const mb2 = compact ? "mb-3" : "mb-5";
+  const mb3 = compact ? "mb-3" : "mb-6";
+  const pt = compact ? "pt-3" : "pt-5";
+  const iconSize = compact ? "w-9 h-9" : "w-12 h-12";
+  const titleSize = compact ? "text-[17px]" : "text-[20px]";
 
   const statusText = isCompleted
     ? "Tamamlandı"
@@ -297,9 +321,9 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
       : "text-[#AEB4C0]";
 
   return (
-    <div className="bg-white p-7 rounded-24 border border-[#CDD2DA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group">
-      <div className="flex justify-between items-start mb-5">
-        <div className={`w-12 h-12 ${style.gradient} radius-12 flex items-center justify-center text-white shadow-lg shrink-0`}>
+    <div className={`bg-white ${p} rounded-24 border border-[#CDD2DA] flex flex-col justify-between transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1 h-full cursor-default group`}>
+      <div className={`flex justify-between items-start ${mb1}`}>
+        <div className={`${iconSize} ${style.gradient} radius-12 flex items-center justify-center text-white shadow-lg shrink-0`}>
           {iconNode}
         </div>
         <div className="flex items-center gap-2">
@@ -356,21 +380,19 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
         </div>
       </div>
 
-      <div className="mb-5">
-        <h4 className="text-[20px] text-[#10294C] font-bold mb-1.5 leading-tight">
-          {task.name}
-          {(task.classId || task.level) && (
-            <span className="text-[14px] font-semibold text-[#8E95A3] ml-1.5">
-              ({[task.classId, task.level].filter(Boolean).join(" | ")})
-            </span>
-          )}
-        </h4>
+      <div className={mb2}>
+        <h4 className={`${titleSize} text-[#10294C] font-bold leading-tight`}>{task.name}</h4>
+        {(task.classId || task.level) && (
+          <p className="text-[13px] font-semibold text-[#8E95A3] mt-0.5 mb-1">
+            {[task.classId, task.level].filter(Boolean).join(" · ")}
+          </p>
+        )}
         {task.subtitle && (
           <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{task.subtitle}</p>
         )}
       </div>
 
-      <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-6 border border-[#EEF0F3]">
+      <div className={`bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between ${mb3} border border-[#EEF0F3]`}>
         <div className="flex flex-col">
           <span className="text-[11px] text-[#8E95A3]">Durum</span>
           <span className={`text-[13px] font-bold mt-0.5 ${statusColor}`}>{statusText}</span>
@@ -404,8 +426,8 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-y-2 border-t border-[#F7F8FA] pt-5">
-        <span className="text-[10px] text-[#AEB4C0] italic font-semibold opacity-60 tracking-tight">Tasarım atölyesi</span>
+      <div className={`relative flex items-center border-t border-[#F7F8FA] ${pt}`}>
+        <span className="absolute left-0 text-[10px] text-[#AEB4C0] italic font-semibold opacity-60 tracking-tight pointer-events-none select-none">Tasarım atölyesi</span>
         {isCompleted ? (
           <div className="relative flex items-center gap-1.5 ml-auto">
             {needsGrading && (
@@ -422,15 +444,15 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
               <>
                 <button
                   onClick={() => task.groupId && router.push(`/dashboard/assignment/${task.groupId}?taskId=${task.id}`)}
-                  className="px-3 h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer"
+                  className={`${compact ? "px-2" : "px-3"} h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer`}
                 >
-                  Ödev Detay
+                  {compact ? "Detay" : "Ödev Detay"}
                 </button>
                 <button
                   onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
                   className="px-3 h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
                 >
-                  Not Girişi Yap <ChevronRight size={14} />
+                  {compact ? "Not Ver" : <>Not Girişi Yap <ChevronRight size={14} /></>}
                 </button>
               </>
             )}
@@ -440,23 +462,23 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             <button
               onClick={() => task.groupId && router.push(`/dashboard/assignment/${task.groupId}?taskId=${task.id}`)}
-              className="px-3 h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer"
+              className={`${compact ? "px-2" : "px-3"} h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer`}
             >
-              Ödev Detay
+              {compact ? "Detay" : "Ödev Detay"}
             </button>
             <button
               onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
               className="px-3 h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
             >
-              Not Ver <ChevronRight size={14} />
+              Not Ver {!compact && <ChevronRight size={14} />}
             </button>
           </div>
         ) : (
           <button
             onClick={() => onDetail(task)}
-            className="px-5 h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer ml-auto"
+            className={`${compact ? "px-3" : "px-5"} h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer ml-auto`}
           >
-            {isLottery && !isSelectionDone ? "Seçimi Başlat" : "Ödev Detay"} <ChevronRight size={16} />
+            {isLottery && !isSelectionDone ? "Seçimi Başlat" : (compact ? "Detay" : "Ödev Detay")} <ChevronRight size={compact ? 13 : 16} />
           </button>
         )}
       </div>
@@ -684,7 +706,15 @@ function TaskEditModal({ task, onSave, onCancel }: {
 }
 
 // ---- ANA BİLEŞEN ----
-export default function DesignParkour() {
+export default function DesignParkour({
+  gridClassName = "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
+  compact = false,
+  maxSlots = 3,
+}: {
+  gridClassName?: string;
+  compact?: boolean;
+  maxSlots?: number;
+}) {
   const router = useRouter();
   // Tüm task'ları state'e al — filter render'da yapılır (closure sorunu önlenir)
   const [allTasks,      setAllTasks]      = useState<Task[]>([]);
@@ -728,6 +758,7 @@ export default function DesignParkour() {
     return onSnapshot(
       query(collection(db, "groups"), where("instructorId", "==", uid), where("status", "==", "active")),
       snap => {
+
         const groups = snap.docs.map(d => ({ id: d.id, discipline: d.data().discipline as string | undefined }));
         setMyGroups(groups);
 
@@ -739,22 +770,27 @@ export default function DesignParkour() {
         getDocs(query(collection(db, "branches"), where(documentId(), "in", activeBranchIds)))
           .then(branchSnap => setBranchOptions(branchSnap.docs.map(d => ({ id: d.id, name: d.data().name as string }))))
           .catch(() => setBranchOptions([]));
-      }
+      },
+      () => {}
     );
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // tasks koleksiyonu — closure sorunu yok: filter render'da yapılıyor
   useEffect(() => {
-    return onSnapshot(collection(db, "tasks"), snap => {
-      setAllTasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
-    });
+    return onSnapshot(
+      collection(db, "tasks"),
+      snap => setAllTasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task))),
+      () => {}
+    );
   }, []);
 
   // templates koleksiyonu
   useEffect(() => {
-    return onSnapshot(collection(db, "templates"), snap => {
-      setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
-    });
+    return onSnapshot(
+      collection(db, "templates"),
+      snap => setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task))),
+      () => {}
+    );
   }, []);
 
   // Render'da filtrele — uid için hem context hem auth kullan
@@ -901,7 +937,7 @@ export default function DesignParkour() {
   const myActiveTemplateIds = new Set(
     activeTasks.filter(t => t.templateId).map(t => t.templateId!)
   );
-  const ghostCount = Math.max(0, 3 - filteredActiveTasks.length);
+  const ghostCount = Math.max(0, maxSlots - filteredActiveTasks.length);
   const availableGhosts = templates.filter(t => {
     if (myActiveTemplateIds.has(t.id) || t.isHidden) return false;
     if (!isGrafik && t.scope === "gamified") return false;
@@ -935,12 +971,13 @@ export default function DesignParkour() {
           </button>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className={`grid ${gridClassName} gap-6`}>
         {filteredActiveTasks.map(task => (
           <TaskParkourCard
             key={task.id}
             task={task}
             canManage={canManage}
+            compact={compact}
             onActivateBorrowed={() => {}}
             onEdit={setEditTask}
             onComplete={setCompleteConfirmTask}
@@ -964,11 +1001,12 @@ export default function DesignParkour() {
             key={`ghost-${task.id}`}
             task={task}
             canManage={canManage}
+            compact={compact}
             onActivate={setGhostModalTask}
           />
         ))}
         {Array.from({ length: placeholderCount }).map((_, i) => (
-          <PlaceholderParkourCard key={`ph-${i}`} />
+          <PlaceholderParkourCard key={`ph-${i}`} compact={compact} />
         ))}
       </div>
 

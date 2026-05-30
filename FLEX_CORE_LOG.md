@@ -37,10 +37,11 @@
 | Cuma tatili field mismatch fix (`groupType`→`type`) | §134 | `AttendancePanel.tsx`, `home-v2/page.tsx` |
 | Tamamlanan grup yoklama listesinden gizleme | §135 | `AttendancePanel.tsx` |
 | Auto-select en yakın ders günü + attendanceClosed filtre | §136 | `AttendancePanel.tsx` |
+| Home V4 — 4'lü kompakt ödev parkuru + onSnapshot hata yönetimi | §137–138 | `home-v4/page.tsx`, `DesignParkour.tsx` |
 
 ---
 
-## Son Durum (2026-05-29)
+## Son Durum (2026-05-30)
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
@@ -50,6 +51,7 @@
 - **Notification:** Backend ✅, Frontend ⏸ (Figma bekleniyor)
 - **Platform Genişlemesi:** Aşama 1+2 bitti, Aşama 3 beklemede (leagueEnabled toggle)
 - **Home V2:** ActivityFeed scroll sistemi tamamlandı (§132)
+- **Home V4 (§137–138):** `dashboard/home-v4` oluşturuldu — 4'lü kompakt ödev parkuru, beyaz hızlı eylem kartları, `onSnapshot` permission-denied hataları susturuldu
 
 ---
 
@@ -117,6 +119,28 @@
 ### Eksikler / Sonraki Oturum
 - [ ] **ActivityFeed Firestore bağlantısı:** Şu an mock data. Gerçek `activity_log` koleksiyonu gerekiyor
 - [ ] Sol üst geniş alan (HomeBanner altı) — WorkshopAnalysis benzeri bir widget gelecek
+
+---
+
+## Home V4 — `/dashboard/home-v4` (§137–138)
+
+### Home V4 Oluşturma (§137) — TAMAMLANDI
+- `src/app/dashboard/home-v4/page.tsx` oluşturuldu — `home-v3` baz alındı
+- 3 hızlı eylem kartı `bg-white` yapıldı (v3'te renkli tint vardı)
+- `DesignParkour` çağrısı: `gridClassName="grid-cols-2 sm:grid-cols-4"`, `compact={true}`, `maxSlots={4}`
+
+### DesignParkour compact + maxSlots prop'ları (§137) — TAMAMLANDI
+- `gridClassName`, `compact`, `maxSlots` prop'ları eklendi (default'lar v3'ü etkilemez)
+- `compact=true`: padding `p-7`→`p-4`, ikon `w-12`→`w-9`, başlık `text-[17px]`, buton padding azaldı
+- `maxSlots=4`: ghost + placeholder ile her zaman 4 slot dolu
+- Grup ismi başlık altına taşındı (`text-[13px]`, ayrı `<p>` elemanı, `·` ayırıcı)
+- Aktif kart mor buton compact modda: `px-5`→`px-3`, metin `"Ödev Detay"`→`"Detay"`
+- Expired/completed "Detay" butonu compact modda: `px-3`→`px-2`
+- Footer'da "Tasarım atölyesi" yazısı `absolute` konuma alındı → butonlar üzerine serbestçe geliyor
+
+### onSnapshot Permission-Denied Hata Yönetimi (§138) — TAMAMLANDI
+- `home-v3`, `home-v4`, `DesignParkour` içindeki tüm `onSnapshot` çağrılarına `() => {}` error callback eklendi
+- Yetkisiz kullanıcıda Firebase `permission-denied` sessizce yutulur, konsola hata fırlatılmaz
 
 ---
 
