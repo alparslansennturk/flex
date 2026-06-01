@@ -277,19 +277,19 @@ function QuickActionCard({
   return (
     <div
       onClick={() => { onBeforeNavigate?.(); router.push(href); }}
-      className={`${cardTint || "bg-white"} rounded-2xl border border-transparent flex flex-col cursor-pointer min-h-[155px] overflow-hidden
+      className={`${cardTint || "bg-white"} rounded-2xl border border-transparent flex flex-col cursor-pointer min-h-[155px] xl:min-h-[194px] overflow-hidden
                  hover:shadow-[0_16px_48px_-12px_rgba(16,41,76,0.16)] hover:-translate-y-1
                  transition-all duration-200 select-none group`}
     >
 {/* İçerik */}
       <div className="p-5 flex flex-col flex-1">
       {/* Üst: ikon + etiket */}
-      <div className="flex items-start gap-3 mb-auto">
+      <div className="flex items-center gap-3 mb-auto">
         <div className={`w-11 h-11 rounded-xl ${iconBg} ${iconColor} flex items-center justify-center shrink-0
                          group-hover:scale-110 transition-transform duration-200`}>
           {icon}
         </div>
-        <p className="text-[15px] font-bold text-[#10294C] leading-snug mt-0.5">{label}</p>
+        <p className="text-[15px] xl:text-[19px] font-bold text-[#10294C] leading-snug">{label}</p>
       </div>
 
       {/* Alt: meta + badge */}
@@ -302,7 +302,7 @@ function QuickActionCard({
             {pulse && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             )}
-            <span className={`text-[12px] font-bold px-4 py-1.5 rounded-full ${statusColor} whitespace-nowrap block`}>
+            <span className={`text-[12px] xl:text-[15px] font-semibold px-4 xl:px-5 py-1.5 xl:py-2 rounded-full ${statusColor} whitespace-nowrap block`}>
               {statusText}
             </span>
           </div>

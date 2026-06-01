@@ -24,13 +24,14 @@ interface DayCalendarProps {
   onChange: (d: Date) => void;
   minDate?: Date;
   maxDate?: Date;
+  courseEndDate?: string; // YYYY-MM-DD — bu tarihten sonraki ders günleri mavi gösterilmez
   holidayDates?: Set<string>;
   weekDays?: number[]; // 0=Sun,1=Mon,...,6=Sat — if set and non-empty, only these days are selectable
   children: React.ReactNode;
 }
 
 export function DayCalendarPopover({
-  value, onChange, minDate, maxDate, holidayDates = new Set(), weekDays = [], children,
+  value, onChange, minDate, maxDate, courseEndDate, holidayDates = new Set(), weekDays = [], children,
 }: DayCalendarProps) {
   const [open, setOpen]           = useState(false);
   const [viewMonth, setViewMonth] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
@@ -145,11 +146,12 @@ export function DayCalendarPopover({
           const isSelected  = dateStr === selectedStr;
           const isToday     = dateStr === todayStr;
           const isHoliday   = holidayDates.has(dateStr);
-          const isLessonDay   = weekDays.length > 0 && weekDays.includes(dow);
-          const isNonLesson   = weekDays.length > 0 && !weekDays.includes(dow);
-          const isHolidayLesson = isLessonDay && isHoliday; // ders var ama tatil
-          const isFuture      = maxStr ? dateStr > maxStr : false;
-          const isDisabled    = isFuture || (minStr ? dateStr < minStr : false);
+          const isLessonDay     = weekDays.length > 0 && weekDays.includes(dow);
+          const isNonLesson     = weekDays.length > 0 && !weekDays.includes(dow);
+          const isHolidayLesson = isLessonDay && isHoliday;
+          const isFuture        = maxStr ? dateStr > maxStr : false;
+          const isAfterCourseEnd = courseEndDate ? dateStr > courseEndDate : false;
+          const isDisabled      = isFuture || (minStr ? dateStr < minStr : false);
 
           let cls = "h-8 w-full flex items-center justify-center rounded-lg text-[12px] font-semibold transition-colors outline-none relative ";
 
@@ -158,7 +160,7 @@ export function DayCalendarPopover({
               cls += "opacity-40 cursor-not-allowed text-base-primary-400 line-through ";
             } else if (isHoliday) {
               cls += "opacity-20 cursor-not-allowed line-through ";
-            } else if (isLessonDay) {
+            } else if (isLessonDay && !isAfterCourseEnd) {
               cls += "opacity-50 cursor-not-allowed text-base-primary-500 ";
             } else {
               cls += "opacity-20 cursor-not-allowed ";

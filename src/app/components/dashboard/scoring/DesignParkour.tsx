@@ -126,7 +126,7 @@ function PlaceholderParkourCard({ compact = false }: { compact?: boolean }) {
   const mb3 = compact ? "mb-3" : "mb-6";
   const pt = compact ? "pt-3" : "pt-5";
   const iconSize = compact ? "w-9 h-9" : "w-12 h-12";
-  const btnH = compact ? "h-8 text-[11px] px-3" : "h-10 text-[13px] px-5";
+  const btnH = compact ? "h-8 text-[11px] px-4" : "h-10 text-[13px] px-5";
   return (
     <div className={`bg-white/50 ${p} rounded-24 border border-dashed border-[#E2E5EA] flex flex-col justify-between h-full cursor-default opacity-40`}>
       <div className={`flex justify-between items-start ${mb1}`}>
@@ -149,10 +149,10 @@ function PlaceholderParkourCard({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
       <div className={`flex items-center justify-between border-t border-[#F7F8FA] ${pt}`}>
-        <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Tasarım atölyesi</span>
-        <button disabled className={`${btnH} flex items-center gap-2 rounded-xl font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
+        <span className="text-[11px] text-[#AEB4C0] italic font-semibold opacity-60">Ödev Atölyesi</span>
+        <button disabled className={`${btnH} flex items-center gap-1 rounded-full font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
           Ödev ver <ChevronRight size={compact ? 13 : 16} />
-        </button>
+</button>
       </div>
     </div>
   );
@@ -186,7 +186,7 @@ function GhostParkourCard({ task, canManage, onActivate, compact = false }: {
   const pt = compact ? "pt-3" : "pt-5";
   const iconSize = compact ? "w-9 h-9" : "w-12 h-12";
   const titleSize = compact ? "text-[17px]" : "text-[20px]";
-  const btnH = compact ? "h-8 text-[11px] px-3" : "h-10 text-[13px] px-5";
+  const btnH = compact ? "h-8 text-[11px] px-4" : "h-10 text-[13px] px-5";
 
   return (
     <div className={`bg-white ${p} rounded-24 border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full cursor-default opacity-90`}>
@@ -229,10 +229,10 @@ function GhostParkourCard({ task, canManage, onActivate, compact = false }: {
         <div className="flex flex-col items-end"><span className="text-[11px] text-[#8E95A3]">Teslim süresi</span><span className="text-[13px] font-bold text-[#AEB4C0] mt-0.5">—</span></div>
       </div>
       <div className={`flex items-center justify-between border-t border-[#F7F8FA] ${pt}`}>
-        <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Tasarım atölyesi</span>
-        <button disabled className={`${btnH} flex items-center gap-2 rounded-xl font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
+        <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Ödev Atölyesi</span>
+        <button disabled className={`${btnH} flex items-center gap-1 rounded-full font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}>
           Ödev ver <ChevronRight size={compact ? 13 : 16} />
-        </button>
+</button>
       </div>
     </div>
   );
@@ -428,7 +428,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
       </div>
 
       <div className={`relative flex items-center border-t border-[#F7F8FA] ${pt}`}>
-        <span className="absolute left-0 text-[10px] text-[#AEB4C0] italic font-semibold opacity-60 tracking-tight pointer-events-none select-none">Tasarım atölyesi</span>
+        <span className="absolute left-0 text-[11px] text-[#AEB4C0] italic font-semibold pointer-events-none select-none">Ödev Atölyesi</span>
         {isCompleted ? (
           <div className="relative flex items-center gap-1.5 ml-auto">
             {needsGrading && (
@@ -437,7 +437,7 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
             {task.isGraded ? (
               <button
                 disabled
-                className="px-4 h-9 flex items-center gap-2 rounded-xl text-[12px] font-bold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed"
+                className={`px-4 ${compact ? "h-8" : "h-9"} flex items-center gap-2 rounded-full text-[12px] font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed`}
               >
                 Tamamlandı
               </button>
@@ -445,13 +445,13 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
               <>
                 <button
                   onClick={() => task.groupId && router.push(`/dashboard/assignment/${task.groupId}?taskId=${task.id}`)}
-                  className={`${compact ? "px-2" : "px-3"} h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer`}
+                  className={`${compact ? "px-4 h-8" : "px-3 h-9"} flex items-center gap-1 rounded-full text-[12px] font-semibold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer`}
                 >
-                  {compact ? "Detay" : "Ödev Detay"}
+                  {compact ? "Detay" : "Ödev Detay"} <ChevronRight size={compact ? 13 : 16} />
                 </button>
                 <button
                   onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
-                  className="px-3 h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
+                  className={`${compact ? "px-4 h-8" : "px-3 h-9"} flex items-center gap-1 rounded-full text-[12px] font-semibold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer`}
                 >
                   {compact ? "Not Ver" : <>Not Girişi Yap <ChevronRight size={14} /></>}
                 </button>
@@ -463,24 +463,25 @@ function TaskParkourCard({ task, canManage, isBorrowed = false, onActivateBorrow
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             <button
               onClick={() => task.groupId && router.push(`/dashboard/assignment/${task.groupId}?taskId=${task.id}`)}
-              className={`${compact ? "px-2" : "px-3"} h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer`}
+              className={`${compact ? "px-4 h-8" : "px-3 h-9"} flex items-center gap-1 rounded-full text-[12px] font-semibold transition-all active:scale-95 border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] cursor-pointer`}
             >
-              {compact ? "Detay" : "Ödev Detay"}
+              {compact ? "Detay" : "Ödev Detay"} <ChevronRight size={compact ? 13 : 16} />
             </button>
             <button
               onClick={() => router.push(`/dashboard/grading?taskId=${task.id}`)}
-              className="px-3 h-9 flex items-center gap-1.5 rounded-xl text-[12px] font-bold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer"
+              className={`${compact ? "px-4 h-8" : "px-3 h-9"} flex items-center gap-1 rounded-full text-[12px] font-semibold transition-all active:scale-95 bg-[#009F3E] text-white hover:bg-[#007F32] cursor-pointer`}
             >
               Not Ver {!compact && <ChevronRight size={14} />}
-            </button>
+</button>
           </div>
         ) : (
           <button
             onClick={() => onDetail(task)}
-            className={`${compact ? "px-3" : "px-5"} h-10 flex items-center gap-2 rounded-xl text-[13px] font-bold transition-all active:scale-95 bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer ml-auto`}
+            className={`${compact ? "pl-4 pr-3 h-8" : "px-5 h-10"} flex items-center gap-1 rounded-full text-[13px] font-semibold transition-all active:scale-95 bg-[#6F74D8] text-white hover:bg-[#5E63C2] cursor-pointer ml-auto`}
           >
-            {isLottery && !isSelectionDone ? "Seçimi Başlat" : (compact ? "Detay" : "Ödev Detay")} <ChevronRight size={compact ? 13 : 16} />
-          </button>
+            <span className="leading-none">{isLottery && !isSelectionDone ? "Seçimi Başlat" : (compact ? "Detay" : "Ödev Detay")}</span>
+            <ChevronRight size={compact ? 13 : 16} className="shrink-0" />
+</button>
         )}
       </div>
     </div>
@@ -966,7 +967,7 @@ export default function DesignParkour({
         {canManage && (
           <button
             onClick={() => setQuickAssignOpen(true)}
-            className="flex items-center gap-2 h-10 px-5 rounded-xl bg-designstudio-secondary-500 text-white text-[13px] font-bold hover:bg-designstudio-secondary-600 active:scale-95 transition-all cursor-pointer shadow-md shadow-designstudio-secondary-500/20"
+            className="flex items-center gap-1 h-10 px-5 rounded-xl bg-designstudio-secondary-500 text-white text-[13px] font-semibold hover:bg-designstudio-secondary-600 active:scale-95 transition-all cursor-pointer shadow-md shadow-designstudio-secondary-500/20"
           >
             <Plus size={15} strokeWidth={2.5} />
             Ödev Ver

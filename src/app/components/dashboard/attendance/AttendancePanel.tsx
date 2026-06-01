@@ -161,14 +161,18 @@ function calcEstimatedEndDate(
 function countWeekdaysInMonth(
   year: number, month: number, weekDays: number[],
   holidayDates: Set<string> = new Set(),
-  startDate?: string,  // YYYY-MM-DD — başlangıç tarihinden önceki günler sayılmaz
+  startDate?: string,
+  endDate?: string,
 ): number {
   if (!weekDays || weekDays.length === 0) return 0;
-  const d = new Date(year, month, 1, 12, 0, 0); // noon → UTC offset sorunu yok
+  const d = new Date(year, month, 1, 12, 0, 0);
   let count = 0;
   while (d.getMonth() === month) {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key) && (!startDate || key >= startDate)) count++;
+    if (
+      weekDays.includes(d.getDay()) && !holidayDates.has(key) &&
+      (!startDate || key >= startDate) && (!endDate || key <= endDate)
+    ) count++;
     d.setDate(d.getDate() + 1);
   }
   return count;
@@ -426,10 +430,17 @@ export default function AttendancePanel({
 
   const selectedGroup   = groups.find(g => g.id === selectedGroupId);
   const selectedBranch  = branches.find(b => b.id === selectedGroup?.discipline);
-  const sessionHours    = selectedGroup?.sessionHours ?? selectedBranch?.sessionHours ?? DEFAULT_SESSION_HOURS;
+  const sessionHours     = selectedGroup?.sessionHours ?? selectedBranch?.sessionHours ?? DEFAULT_SESSION_HOURS;
   const selectedWeekDays = selectedGroup ? getWeekDays(selectedGroup) : [];
+  // totalHours: new groups (denormalized), moduleHours: old standart groups (live lookup), customHours: old özel/kurumsal
+  const courseTotalHours     = selectedGroup?.totalHours ?? moduleHours ?? selectedGroup?.customHours ?? null;
+  const totalSessions        = courseTotalHours && sessionHours ? Math.ceil(courseTotalHours / sessionHours) : null;
+  const estimatedEndDate     = selectedGroup?.startDate && totalSessions && selectedWeekDays.length > 0
+    ? calcEstimatedEndDate(selectedGroup.startDate, totalSessions, selectedWeekDays, holidayDates)
+    : null;
+  const estimatedEndStr      = estimatedEndDate?.toISOString().slice(0, 10);
   const plannedCount    = selectedGroup
-    ? countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), selectedWeekDays, holidayDates, selectedGroup.startDate)
+    ? countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), selectedWeekDays, holidayDates, selectedGroup.startDate, estimatedEndStr)
     : 0;
   const doneCount       = selectedGroupId ? (monthlyDone[selectedGroupId] ?? 0) : 0;
   const remaining       = Math.max(0, plannedCount - doneCount);
@@ -442,14 +453,8 @@ export default function AttendancePanel({
     : false;
   const isActiveForDate = hasClassThisDay && !isHolidayDate && !isFridayBlock;
 
-  // totalHours: new groups (denormalized), moduleHours: old standart groups (live lookup), customHours: old özel/kurumsal
-  const courseTotalHours     = selectedGroup?.totalHours ?? moduleHours ?? selectedGroup?.customHours ?? null;
   const courseDoneHours      = totalDoneCount * sessionHours;
   const courseRemainingHours = courseTotalHours !== null ? Math.max(0, courseTotalHours - courseDoneHours) : null;
-  const totalSessions        = courseTotalHours && sessionHours ? Math.ceil(courseTotalHours / sessionHours) : null;
-  const estimatedEndDate     = selectedGroup?.startDate && totalSessions && selectedWeekDays.length > 0
-    ? calcEstimatedEndDate(selectedGroup.startDate, totalSessions, selectedWeekDays, holidayDates)
-    : null;
   const courseProgressPct    = courseTotalHours ? Math.min(100, Math.round((courseDoneHours / courseTotalHours) * 100)) : 0;
 
   // ── Load branches (for sessionHours) ──────────────────────────────────────
@@ -1042,9 +1047,15 @@ export default function AttendancePanel({
               <p className="px-5 py-6 text-[12px] text-text-placeholder text-center">Henüz grubunuz yok.</p>
             )}
             {visibleGroups.map(g => {
-              const gDays     = getWeekDays(g);
-              const done      = monthlyDone[g.id] ?? 0;
-              const planned   = countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), gDays, holidayDates, g.startDate);
+              const gDays        = getWeekDays(g);
+              const done         = monthlyDone[g.id] ?? 0;
+              const gSessionHrs  = g.sessionHours ?? branches.find(b => b.id === g.discipline)?.sessionHours ?? DEFAULT_SESSION_HOURS;
+              const gTotalHours  = g.totalHours ?? g.customHours ?? null;
+              const gTotalSess   = gTotalHours && gSessionHrs ? Math.ceil(gTotalHours / gSessionHrs) : null;
+              const gEndStr      = g.startDate && gTotalSess && gDays.length > 0
+                ? calcEstimatedEndDate(g.startDate, gTotalSess, gDays, holidayDates)?.toISOString().slice(0, 10)
+                : undefined;
+              const planned   = countWeekdaysInMonth(selectedMonth.getFullYear(), selectedMonth.getMonth(), gDays, holidayDates, g.startDate, gEndStr);
               const p         = planned > 0 ? Math.min(100, Math.round((done / planned) * 100)) : 0;
               const active    = selectedGroupId === g.id;
               const isHoliday    = holidayDates.has(toDateKey(selectedDate));
@@ -1399,6 +1410,7 @@ export default function AttendancePanel({
                           value={selectedDate}
                           minDate={selectedGroup?.startDate ? new Date(selectedGroup.startDate + "T12:00:00") : undefined}
                           maxDate={maxSelectable}
+                          courseEndDate={estimatedEndStr}
                           holidayDates={holidayDates}
                           weekDays={selectedWeekDays}
                           onChange={d => { setSelectedDate(d); setSelectedMonth(d); }}

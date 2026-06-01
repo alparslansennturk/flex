@@ -39,10 +39,16 @@
 | Auto-select en yakın ders günü + attendanceClosed filtre | §136 | `AttendancePanel.tsx` |
 | Home V4 — 4'lü kompakt ödev parkuru + onSnapshot hata yönetimi | §137–138 | `home-v4/page.tsx`, `DesignParkour.tsx` |
 | Ana Sayfa V4 → yeni `/dashboard`, ActivityFeed Firestore + per-user | §139–142 | `dashboard/page.tsx`, `activityLog.ts` |
+| Dashboard QuickActionCard büyük ekran iyileştirmeleri | §143 | `dashboard/page.tsx` |
+| DesignParkour compact buton sistemi yenileme + "Ödev Atölyesi" | §144 | `DesignParkour.tsx` |
+| AttendanceDetailContent "Detay" butonu + onGroupDetail prop | §145 | `AttendanceDetailContent.tsx` |
+| Yoklama bitiş tarihi cap — tüm aktif gruplar için estimatedEndDate | §146 | `AttendancePanel.tsx`, `AttendanceDetailContent.tsx` |
+| Takvim courseEndDate — bitiş sonrası ders günleri renksiz | §147 | `CalendarPopover.tsx`, `AttendancePanel.tsx` |
+| Yoklama Detay slide animasyon — grup detayı sağdan açılır | §148 | `attendance-detail/page.tsx`, `AttendanceDetailContent.tsx` |
 
 ---
 
-## Son Durum (2026-06-01)
+## Son Durum (2026-06-01 — güncellendi)
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
@@ -54,6 +60,11 @@
 - **Home V2:** ActivityFeed scroll sistemi tamamlandı (§132)
 - **Home V4 (§137–138):** `dashboard/home-v4` oluşturuldu — 4'lü kompakt ödev parkuru, beyaz hızlı eylem kartları, `onSnapshot` permission-denied hataları susturuldu
 - **Ana Sayfa Swap + ActivityFeed (§139–142):** `home-v4` içeriği `/dashboard`'a taşındı, eski `/dashboard` → `home-v4`'e. ActivityFeed Firestore `activity_log`'a bağlandı (per-user, `limit 15`, canlı). `activityLog.ts` per-user yazım + tüm ödev işlemlerine logActivity eklendi. Banner/sidebar/footer tasarım güncellemeleri yapıldı.
+- **Dashboard QuickActionCard (§143):** Büyük ekranlarda (`xl:`) kart yüksekliği +%25 (`xl:min-h-[194px]`), başlık `xl:text-[19px]`, ikon-başlık dikey ortalı, badge butonu `font-semibold xl:px-5`.
+- **DesignParkour compact butonlar (§144):** Tüm butonlar `rounded-full` pill, `font-semibold`, `h-8 px-4` standart, mor "Detay" `pl-4 pr-3` (chevron optik dengesi), `gap-1`, "Tasarım atölyesi" → **"Ödev Atölyesi"** `text-[11px]` tüm kart tiplerine eşitlendı.
+- **Yoklama bitiş tarihi cap (§146):** `estimatedEndDate` artık `attendanceClosed` koşulsuz tüm aktif gruplar için hesaplanıyor. `countWeekdaysInMonth`'a `endDate?` eklendi. Bitiş tarihinden sonraki günler planlanan derse dahil edilmiyor.
+- **Takvim renk fix (§147):** `CalendarPopover`'a `courseEndDate` prop eklendi. Sadece kurs bitiş sonrası ders günleri renksiz; bugün-bitiş arası ders günleri hâlâ mavi.
+- **Yoklama Detay slide animasyon (§148):** Grup satırındaki "Detay" butonuna basınca liste sola kayar, `AttendancePanel` sağdan gelir. Geri butonuyla tersine döner. `onGroupDetail` callback ile router.push kaldırıldı.
 
 ---
 
@@ -119,7 +130,7 @@
 - Örnek: Cuma günü → Pazartesi dersi olan Grup 598 otomatik seçilir
 
 ### Eksikler / Sonraki Oturum
-- [ ] **ActivityFeed Firestore bağlantısı:** Şu an mock data. Gerçek `activity_log` koleksiyonu gerekiyor
+- [x] **ActivityFeed Firestore bağlantısı** — TAMAMLANDI (§140)
 - [ ] Sol üst geniş alan (HomeBanner altı) — WorkshopAnalysis benzeri bir widget gelecek
 
 ---
@@ -152,6 +163,51 @@
 
 ---
 
+## Dashboard + DesignParkour İyileştirmeleri (§143–144)
+
+### QuickActionCard Büyük Ekran (§143) — TAMAMLANDI
+- Kart: `xl:min-h-[194px]` (%25 yükseklik artışı, küçük ekran `155px` korundu)
+- Başlık: `xl:text-[19px]`, ikon ile `items-center` dikey hizalama
+- Badge buton: `font-semibold`, `xl:text-[15px] xl:px-5 xl:py-2`
+
+### DesignParkour Compact Buton Sistemi (§144) — TAMAMLANDI
+- Tüm aksiyon butonları `rounded-full` (pill)
+- `font-semibold` (bold'dan düşürüldü)
+- Compact yükseklik `h-8`, padding `px-4` standardize edildi
+- Mor aktif "Detay" butonu: `pl-4 pr-3` (chevron sağ ağırlığı için asimetrik)
+- ChevronRight: `gap-1`, `shrink-0`, `leading-none` wrapper ile dikey hizalama
+- "Tasarım atölyesi" → **"Ödev Atölyesi"** — tüm kart tiplerinde `text-[11px]`, `opacity-60` kaldırıldı
+- "Ödev Ver" (sağ üst): `rounded-xl` (12px)
+
+---
+
+## Yoklama Bitiş Tarihi + Takvim (§146–147)
+
+### estimatedEndDate Cap — Tüm Gruplar (§146) — TAMAMLANDI
+- **Kök neden:** `estimatedEndDate` yalnızca `attendanceClosed === true` olduğunda hesaplanıyordu → aktif gruplar sınırsız ders günü sayıyordu
+- `AttendanceDetailContent.tsx`: `g.attendanceClosed &&` koşulu kaldırıldı
+- `AttendancePanel.tsx`: `countWeekdaysInMonth`'a `endDate?` eklendi; `courseTotalHours`/`totalSessions`/`estimatedEndDate` hesabı `plannedCount`'tan önceye alındı; grup listesinde de per-group `gEndStr` hesaplanıp geçiliyor
+- Sonuç: Tüm gruplar tahmini bitiş tarihinden sonraki günleri planlanan derse saymıyor
+
+### Takvim courseEndDate (§147) — TAMAMLANDI
+- **Kök neden:** `maxDate = today` olduğunda bugün-bitiş arası tüm ders günleri renksizleşiyordu
+- `CalendarPopover.tsx`: `courseEndDate?: string` prop eklendi; `isAfterCourseEnd` bayrağı türetildi
+- Yalnızca `courseEndDate`'ten sonraki ders günleri plain disabled; öncekiler mavi kalmaya devam ediyor
+- `AttendancePanel.tsx`: `DayCalendarPopover`'a `courseEndDate={estimatedEndStr}` geçildi
+
+---
+
+## Yoklama Detay Slide Animasyon (§148)
+
+### Slide Animasyon + onGroupDetail (§148) — TAMAMLANDI
+- `attendance-detail/page.tsx`: Framer Motion ile iki panel — liste sola (`x: -100%`), detay sağdan (`x: 100%→0`)
+- Geçiş: `tween 0.3s ease [0.4,0,0.2,1]` — `attend/page.tsx` ile aynı pattern
+- Detay panel: `AttendancePanel preSelectedGroupId + allowEdit + onBack`
+- `AttendanceDetailContent.tsx`: `onGroupDetail?: (groupId) => void` prop eklendi; verilmezse eski `router.push` davranışı korunur
+- Geri butonu: `AttendancePanel`'in sol sütun üstü — `onBack` prop ile ay seçicinin 24px üzerinde
+
+---
+
 ## Home V4 — `/dashboard/home-v4` (§137–138)
 
 ### Home V4 Oluşturma (§137) — TAMAMLANDI
@@ -178,10 +234,12 @@
 
 ### Kısa Vadeli
 - [x] **Ana Sayfa ActivityFeed Firestore bağlantısı** — TAMAMLANDI (§140)
-- [ ] **Sertifikasyon kartı gerçek veri** — sertifika sistemi güncellendikten sonra yapılacak (`dashboard/page.tsx` QuickActionCard meta)
+- [ ] **Öğrenci Grup Geçmişi (groupHistory):** `students/{id}/group_history` subcollection — transfer/mezuniyette otomatik kayıt + migration + StudentDetailModal UI. Kurumsal öncelik.
+- [ ] **Firestore şişmesi — month filtresi:** `design_attendance` + `lesson_exceptions` onSnapshot'larına `where("month", "==", monthKey)` ekle (`AttendancePanel.tsx:534,543`)
 - [ ] **Platform Aşama 3 — leagueEnabled toggle:** `GroupForm` + `useManagement` + `LeagueWidget` + `LeaderboardWidget` + `StudentLeagueWidget`
 - [ ] **Kitap PDF Arşivi:** `send-kitap` Drive'a kaydetmiyor; eğitmen kendi gönderdiği kitapları UI'dan göremez
 - [ ] **Notification Frontend:** Figma linki bekleniyor (PC'de devam edilecek)
+- [ ] **Sertifikasyon kartı gerçek veri** — sertifika sistemi güncellendikten sonra yapılacak (`dashboard/page.tsx` QuickActionCard meta)
 
 ### Uzun Vadeli (Acele Değil)
 - [ ] **Sertifika PDF + Dağıtım:** `react-pdf` + `send-kitap` pattern — şablon tasarımı kararlaştırılacak

@@ -163,6 +163,7 @@ export interface AttendanceDetailContentProps {
   initialMonth?: string;
   onBack?: () => void;
   backLabel?: string;
+  onGroupDetail?: (groupId: string) => void;
 }
 
 // ── Ana Bileşen ───────────────────────────────────────────────────────────────
@@ -172,6 +173,7 @@ export default function AttendanceDetailContent({
   initialMonth,
   onBack,
   backLabel = "Geri",
+  onGroupDetail,
 }: AttendanceDetailContentProps) {
   const { user, isAdmin } = useUser();
   const router = useRouter();
@@ -334,7 +336,7 @@ export default function AttendanceDetailContent({
         }
         const weekDays = parseWeekDays(g.session ?? "");
         const totalSessions = totalHours && sessionHours ? Math.ceil(totalHours / sessionHours) : null;
-        const estimatedEndDate = g.attendanceClosed && g.startDate && totalSessions
+        const estimatedEndDate = g.startDate && totalSessions
           ? calcEstimatedEndDate(g.startDate, totalSessions, weekDays, holidayDates) : null;
         const plannedThisMonth = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.startDate, estimatedEndDate ?? undefined);
 
@@ -637,9 +639,12 @@ export default function AttendanceDetailContent({
                       </div>
                       <div className="w-20 shrink-0 flex justify-end">
                         <button
-                          onClick={() => router.push(`/dashboard/attendance?groupId=${s.group.id}`)}
+                          onClick={() => onGroupDetail
+                            ? onGroupDetail(s.group.id)
+                            : router.push(`/dashboard/attendance?groupId=${s.group.id}`)
+                          }
                           className="text-[12px] font-bold text-base-primary-600 hover:text-white hover:bg-base-primary-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap">
-                          Yoklama Al
+                          Detay
                         </button>
                       </div>
                     </div>
