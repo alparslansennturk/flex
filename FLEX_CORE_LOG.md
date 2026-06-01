@@ -45,10 +45,14 @@
 | Yoklama bitiş tarihi cap — tüm aktif gruplar için estimatedEndDate | §146 | `AttendancePanel.tsx`, `AttendanceDetailContent.tsx` |
 | Takvim courseEndDate — bitiş sonrası ders günleri renksiz | §147 | `CalendarPopover.tsx`, `AttendancePanel.tsx` |
 | Yoklama Detay slide animasyon — grup detayı sağdan açılır | §148 | `attendance-detail/page.tsx`, `AttendanceDetailContent.tsx` |
+| Öğrenci Grup Geçmişi — studentHistory altyapısı | §149 | `lib/studentHistory.ts` |
+| Öğrenci Grup Geçmişi — useManagement + graduation yazım noktaları | §150 | `useManagement.ts`, `graduation/page.tsx` |
+| Admin backfill sayfası — migrate-history | §151 | `admin/migrate-history/page.tsx` |
+| StudentDetailModal tabbed UI — Ders/Geçmiş/İletişim/Ödeme | §152 | `StudentDetailModal.tsx` |
 
 ---
 
-## Son Durum (2026-06-01 — güncellendi)
+## Son Durum (2026-06-01 — 2. güncelleme)
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
@@ -65,6 +69,8 @@
 - **Yoklama bitiş tarihi cap (§146):** `estimatedEndDate` artık `attendanceClosed` koşulsuz tüm aktif gruplar için hesaplanıyor. `countWeekdaysInMonth`'a `endDate?` eklendi. Bitiş tarihinden sonraki günler planlanan derse dahil edilmiyor.
 - **Takvim renk fix (§147):** `CalendarPopover`'a `courseEndDate` prop eklendi. Sadece kurs bitiş sonrası ders günleri renksiz; bugün-bitiş arası ders günleri hâlâ mavi.
 - **Yoklama Detay slide animasyon (§148):** Grup satırındaki "Detay" butonuna basınca liste sola kayar, `AttendancePanel` sağdan gelir. Geri butonuyla tersine döner. `onGroupDetail` callback ile router.push kaldırıldı.
+- **Öğrenci Grup Geçmişi altyapısı (§149–151):** `studentHistory.ts` — `GroupHistoryEntry`, `StudentSnapshot` tipleri, `batchAddGroupHistory`, `batchUpsertSnapshot`, `backfillStudentHistory`. `useManagement.ts` + `graduation/page.tsx`'e 4 yazım noktası eklendi (enrollment, transfer, archive, modül yükseltme). Firestore rules: `group_history` subcollection + `student_snapshots`. Admin backfill sayfası: `/dashboard/admin/migrate-history`. 28 öğrenci başarıyla migrate edildi.
+- **StudentDetailModal tabbed UI (§152):** Ders / Geçmiş / İletişim / Ödeme tab'ları. Admin görür, eğitmen sadece ders içeriğini görür (tab bar gizli). Geçmiş tab'ında `group_history` subcollection'dan kayıtlar. İletişim + Ödeme şimdilik placeholder (ileride Eğitim Operasyon / Flex-CRM ile dolacak). Sabit boyut `min-h-135` wrapper.
 
 ---
 
@@ -234,7 +240,7 @@
 
 ### Kısa Vadeli
 - [x] **Ana Sayfa ActivityFeed Firestore bağlantısı** — TAMAMLANDI (§140)
-- [ ] **Öğrenci Grup Geçmişi (groupHistory):** `students/{id}/group_history` subcollection — transfer/mezuniyette otomatik kayıt + migration + StudentDetailModal UI. Kurumsal öncelik.
+- [x] **Öğrenci Grup Geçmişi** — TAMAMLANDI (§149–152). Altyapı + backfill + tabbed UI kuruldu.
 - [ ] **Firestore şişmesi — month filtresi:** `design_attendance` + `lesson_exceptions` onSnapshot'larına `where("month", "==", monthKey)` ekle (`AttendancePanel.tsx:534,543`)
 - [ ] **Platform Aşama 3 — leagueEnabled toggle:** `GroupForm` + `useManagement` + `LeagueWidget` + `LeaderboardWidget` + `StudentLeagueWidget`
 - [ ] **Kitap PDF Arşivi:** `send-kitap` Drive'a kaydetmiyor; eğitmen kendi gönderdiği kitapları UI'dan göremez

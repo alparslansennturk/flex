@@ -17,7 +17,13 @@ import {
   serverTimestamp,
   deleteField,
   increment,
+  writeBatch,
 } from "firebase/firestore";
+import {
+  batchAddGroupHistory, batchUpsertSnapshot,
+  toDateKey, toMonthKey,
+  type GroupHistoryEntry, type StudentSnapshot,
+} from "@/app/lib/studentHistory";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { ROLES } from "@/app/lib/constants";
@@ -424,6 +430,33 @@ export default function GraduationPage() {
             students: increment(-1),
           });
         }
+        // ── Geçmiş: mezuniyet kaydı ────────────────────────────────────
+        const gradBatch = writeBatch(db);
+        const gradHist: GroupHistoryEntry = {
+          groupId:      student.groupId,
+          groupCode:    student.groupCode,
+          module:       "",
+          branch:       "",
+          instructorId: null,
+          startDate:    null,
+          endDate:      toDateKey(),
+          reason:       "graduation",
+          paymentStatus: "unknown",
+        };
+        const gradSnap: StudentSnapshot = {
+          studentId:    student.id,
+          month:        toMonthKey(),
+          groupId:      student.groupId,
+          groupCode:    student.groupCode,
+          module:       "",
+          branch:       "",
+          isActive:     false,
+          paymentStatus: "unknown",
+          reason:       "graduation",
+        };
+        batchAddGroupHistory(gradBatch, student.id, gradHist);
+        batchUpsertSnapshot(gradBatch, gradSnap);
+        await gradBatch.commit();
       } catch (e) {
         console.error("Mezun etme hatası:", e);
       }

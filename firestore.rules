@@ -75,6 +75,21 @@ service cloud.firestore {
       allow create: if isAdmin() || isInstructor();
       allow update: if isAdmin() || isInstructor();
       allow delete: if isAdmin() || hasPermissionOverride('CLASS_MANAGE');
+
+      // ── group_history subcollection ──────────────────────────────────────
+      match /group_history/{entryId} {
+        allow read: if isAdmin() || isInstructor();
+        allow create: if isAdmin() || isInstructor();
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ─── student_snapshots ────────────────────────────────────────────────────
+
+    match /student_snapshots/{snapshotId} {
+      allow read: if isAdmin() || isInstructor();
+      allow create, update: if isAdmin() || isInstructor();
+      allow delete: if isAdmin();
     }
 
     // ─── groups ───────────────────────────────────────────────────────────────

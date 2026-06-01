@@ -6,6 +6,11 @@ import { getFlexMessage } from "@/app/lib/messages";
 import { calcScore, computeStudentStats } from "@/app/lib/scoring";
 import { logActivity } from "@/app/lib/activityLog";
 import {
+  batchAddGroupHistory, batchUpsertSnapshot,
+  toDateKey, toMonthKey,
+  type GroupHistoryEntry, type StudentSnapshot,
+} from "@/app/lib/studentHistory";
+import {
   collection, onSnapshot, addDoc, doc, getDoc,
   updateDoc, deleteDoc, increment, serverTimestamp, writeBatch,
   getDocs, query, where, deleteField, orderBy,
@@ -543,6 +548,34 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
               }
 
               if (Object.keys(updates).length > 0) batch.update(d.ref, updates);
+
+              // ── Geçmiş: modül yükseltme kaydı ──────────────────────────
+              if (isModuleUpgrade) {
+                const upgradeHist: GroupHistoryEntry = {
+                  groupId:      editingGroupId ?? "",
+                  groupCode:    oldCode ?? editingGroup?.code ?? "",
+                  module:       "GRAFIK_1",
+                  branch:       editingGroup?.discipline ?? "",
+                  instructorId: editingGroup?.instructorId ?? null,
+                  startDate:    editingGroup?.startDate ?? null,
+                  endDate:      toDateKey(),
+                  reason:       "module_upgrade",
+                  paymentStatus: "unknown",
+                };
+                const upgradeSnap: StudentSnapshot = {
+                  studentId:    d.id,
+                  month:        toMonthKey(),
+                  groupId:      editingGroupId ?? "",
+                  groupCode:    formattedCode,
+                  module:       "GRAFIK_2",
+                  branch:       editingGroup?.discipline ?? "",
+                  isActive:     true,
+                  paymentStatus: "unknown",
+                  reason:       "module_upgrade",
+                };
+                batchAddGroupHistory(batch, d.id, upgradeHist);
+                batchUpsertSnapshot(batch, upgradeSnap);
+              }
             });
             await batch.commit();
           }
@@ -694,6 +727,32 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
             isCarryOverApplied: true,
             updatedAt: new Date(),
           });
+          // ── Geçmiş: mezuniyet kaydı ───────────────────────────────────
+          const archiveGroup = groups.find(g => g.id === modalConfig.groupId);
+          const histEntry: GroupHistoryEntry = {
+            groupId:      modalConfig.groupId ?? "",
+            groupCode,
+            module:       archiveGroup?.module ?? "",
+            branch:       archiveGroup?.discipline ?? "",
+            instructorId: archiveGroup?.instructorId ?? null,
+            startDate:    archiveGroup?.startDate ?? null,
+            endDate:      toDateKey(),
+            reason:       "graduation",
+            paymentStatus: "unknown",
+          };
+          const snapEntry: StudentSnapshot = {
+            studentId:    student.id,
+            month:        toMonthKey(),
+            groupId:      modalConfig.groupId ?? "",
+            groupCode,
+            module:       archiveGroup?.module ?? "",
+            branch:       archiveGroup?.discipline ?? "",
+            isActive:     false,
+            paymentStatus: "unknown",
+            reason:       "graduation",
+          };
+          batchAddGroupHistory(batch, student.id, histEntry);
+          batchUpsertSnapshot(batch, snapEntry);
         });
         batch.update(groupRef, { status: 'archived' });
         await batch.commit();
@@ -815,10 +874,71 @@ studentData.rankChange = 0;
 studentData.isScoreHidden = false;
 }
 await updateDoc(doc(db,"students",editingStudentId),studentData);
+// ── Geçmiş: transfer kaydı (group_history + snapshot atomik) ──────────
+if (isGroupChange && oldStudent) {
+  const oldGroup   = groups.find(g => g.id === oldStudent.groupId);
+  const newGroup   = groups.find(g => g.id === groupId);
+  const histBatch  = writeBatch(db);
+  const transferEntry: GroupHistoryEntry = {
+    groupId:      oldStudent.groupId,
+    groupCode:    oldStudent.groupCode,
+    module:       oldGroup?.module ?? "",
+    branch:       oldGroup?.discipline ?? "",
+    instructorId: oldGroup?.instructorId ?? null,
+    startDate:    oldGroup?.startDate ?? null,
+    endDate:      toDateKey(),
+    reason:       "transfer",
+    paymentStatus: "unknown",
+  };
+  const transferSnap: StudentSnapshot = {
+    studentId:    editingStudentId,
+    month:        toMonthKey(),
+    groupId:      groupId as string,
+    groupCode:    (studentData.groupCode ?? "") as string,
+    module:       newGroup?.module ?? "",
+    branch:       newGroup?.discipline ?? "",
+    isActive:     true,
+    paymentStatus: "unknown",
+    reason:       "transfer",
+  };
+  batchAddGroupHistory(histBatch, editingStudentId, transferEntry);
+  batchUpsertSnapshot(histBatch, transferSnap);
+  await histBatch.commit();
+}
 setStudents((prev)=>prev.map((s)=>(s.id===editingStudentId?{...s,...studentData}:s)));
 }else{
 const newStudentRef = await addDoc(collection(db,"students"),{...studentData,points:0,createdAt:new Date(),});
 await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
+// ── Geçmiş: ilk kayıt (enrollment) ───────────────────────────────────
+{
+  const enrollGroup  = groups.find(g => g.id === groupId);
+  const enrollBatch  = writeBatch(db);
+  const enrollHist: GroupHistoryEntry = {
+    groupId:      groupId as string,
+    groupCode:    (studentData.groupCode ?? "") as string,
+    module:       enrollGroup?.module ?? "",
+    branch:       enrollGroup?.discipline ?? "",
+    instructorId: enrollGroup?.instructorId ?? null,
+    startDate:    toDateKey(),
+    endDate:      "9999-12-31",
+    reason:       "enrollment",
+    paymentStatus: "unknown",
+  };
+  const enrollSnap: StudentSnapshot = {
+    studentId:    newStudentRef.id,
+    month:        toMonthKey(),
+    groupId:      groupId as string,
+    groupCode:    (studentData.groupCode ?? "") as string,
+    module:       enrollGroup?.module ?? "",
+    branch:       enrollGroup?.discipline ?? "",
+    isActive:     true,
+    paymentStatus: "unknown",
+    reason:       "enrollment",
+  };
+  batchAddGroupHistory(enrollBatch, newStudentRef.id, enrollHist);
+  batchUpsertSnapshot(enrollBatch, enrollSnap);
+  await enrollBatch.commit();
+}
 await logActivity("ogrenci_eklendi", "Yeni öğrenci eklendi", `${name.trim()} ${lastName.trim()} — ${targetGroup?.code ?? groupId}`);
 if(email?.trim()){
   try {

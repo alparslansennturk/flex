@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, GraduationCap, Zap, BookOpen, Star, CalendarCheck } from "lucide-react";
+import { X, GraduationCap, Zap, BookOpen, Star, CalendarCheck, History, Phone, CreditCard, ArrowRight } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, query, where, getDocs, getDoc, doc, onSnapshot, documentId } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, doc, onSnapshot, documentId, orderBy } from "firebase/firestore";
 import { useScoring } from "@/app/context/ScoringContext";
+import { useUser } from "@/app/context/UserContext";
 import { calcScore, calcStudentFinalScore, getLevelXP, computeStudentStats } from "@/app/lib/scoring";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +94,38 @@ interface ProjectGradeDoc {
   odevPuani?: number;
   isFinalized?: boolean;
 }
+
+interface HistoryEntry {
+  groupCode: string;
+  module: string;
+  startDate: string | null;
+  endDate: string;
+  reason: string;
+}
+
+const REASON_LABEL: Record<string, string> = {
+  enrollment:      "Kayıt",
+  transfer:        "Transfer",
+  module_upgrade:  "Modül Yükseltme",
+  graduation:      "Mezuniyet",
+  cancellation:    "İptal",
+};
+
+type TabId = "ders" | "gecmis" | "iletisim" | "odeme";
+
+interface TabDef {
+  id: TabId;
+  label: string;
+  icon: React.ElementType;
+  adminOnly: boolean;
+}
+
+const TABS: TabDef[] = [
+  { id: "ders",      label: "Ders Bilgileri", icon: BookOpen,    adminOnly: false },
+  { id: "gecmis",    label: "Geçmiş",         icon: History,     adminOnly: true  },
+  { id: "iletisim",  label: "İletişim",       icon: Phone,       adminOnly: true  },
+  { id: "odeme",     label: "Ödeme",          icon: CreditCard,  adminOnly: true  },
+];
 
 const MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const EMPTY_STATS: ModuleStats = { taskCount: 0, xp: 0, score: 0, maxXP: 0, odevPuani: 0 };
@@ -274,6 +307,8 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   prefetchStudentId?: string | null;
 }) {
   const { settings, activeSeasonId } = useScoring();
+  const { isAdmin } = useUser();
+  const [activeTab, setActiveTab] = useState<TabId>("ders");
 
   const [visible,        setVisible]        = useState(false);
   const [loading,        setLoading]        = useState(false);
@@ -289,6 +324,8 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   const [computedTasks,  setComputedTasks]  = useState<number | null>(null);
   const [carryOver,      setCarryOver]      = useState(0);
 
+  const [groupHistory,     setGroupHistory]     = useState<HistoryEntry[]>([]);
+
   const [attTotal,         setAttTotal]         = useState<number | null>(null);
   const [attAttended,      setAttAttended]      = useState<number | null>(null);
   const [attAbsent,        setAttAbsent]        = useState<number | null>(null);
@@ -302,6 +339,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   // Visibility — sadece isOpen değişince
   useEffect(() => {
     if (isOpen) {
+      setActiveTab("ders");
       requestAnimationFrame(() => setVisible(true));
     } else {
       setVisible(false);
@@ -318,6 +356,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       setComputedScore(null); setComputedXP(null); setComputedTasks(null); setCarryOver(0);
       setAttTotal(null); setAttAttended(null); setAttAbsent(null); setAttRate(null);
       setAttAttendedHours(null); setAttAbsentHours(null);
+      setGroupHistory([]);
       setLoading(false);
       return;
     }
@@ -368,7 +407,16 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         return;
       }
 
-      // 2. Yoklama sorgusunu bağımsız başlat — ana loading'i bloke etmez
+      // 2a. Grup geçmişini bağımsız çek
+      getDocs(query(
+        collection(db, "students", fetchId, "group_history"),
+        orderBy("createdAt", "asc"),
+      )).then(snap => {
+        if (cancelled) return;
+        setGroupHistory(snap.docs.map(d => d.data() as HistoryEntry));
+      }).catch(() => {});
+
+      // 2b. Yoklama sorgusunu bağımsız başlat — ana loading'i bloke etmez
       const studentId = fetchId;
       getDocs(query(collection(db, "design_attendance"), where("groupId", "==", groupId)))
         .then(attSnap => {
@@ -808,8 +856,36 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
           </div>
         </div>
 
-        {/* ── İçerik: sabit iki sütun ── */}
-        <div className="p-6 grid grid-cols-[260px_1fr] gap-5 min-h-135">
+        {/* ── Tab Bar — sadece admin görür ── */}
+        {isAdmin() && (
+          <div className="flex gap-0 border-b border-surface-100 px-6 bg-white">
+            {TABS.map(tab => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-1.5 px-4 py-3.5 text-[12px] font-semibold transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap
+                    ${active
+                      ? "border-[#10294C] text-[#10294C]"
+                      : "border-transparent text-surface-400 hover:text-surface-600 hover:border-surface-300"
+                    }`}
+                >
+                  <Icon size={12} strokeWidth={2.2} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Tab İçerik Wrapper — sabit boyut ── */}
+        <div className="min-h-135">
+
+        {/* ── İçerik: Ders Bilgileri ── */}
+        {activeTab === "ders" && (
+        <div className="p-6 grid grid-cols-[260px_1fr] gap-5">
 
           {/* SOL */}
           <div className="space-y-4">
@@ -999,6 +1075,83 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
           </div>
         </div>
+        )} {/* ── Ders Bilgileri sonu ── */}
+
+        {/* ── Geçmiş Tab ── */}
+        {activeTab === "gecmis" && (
+          <div className="p-6">
+            {groupHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-surface-300">
+                <History size={32} strokeWidth={1.5} />
+                <p className="text-[13px] font-medium">Henüz geçmiş kaydı yok</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {groupHistory.map((entry, i) => {
+                  const isCurrent = entry.endDate === "9999-12-31";
+                  const isG2      = entry.module === "GRAFIK_2";
+                  const moduleCls = isG2
+                    ? "bg-accent-purple-100 text-accent-purple-700"
+                    : "bg-base-primary-100 text-base-primary-700";
+                  const reasonCls = entry.reason === "graduation"
+                    ? "bg-green-50 text-green-700 border-green-100"
+                    : entry.reason === "transfer"
+                    ? "bg-amber-50 text-amber-700 border-amber-100"
+                    : entry.reason === "module_upgrade"
+                    ? "bg-purple-50 text-purple-700 border-purple-100"
+                    : "bg-surface-50 text-surface-500 border-surface-100";
+                  return (
+                    <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-16 border ${isCurrent ? "bg-green-50/50 border-green-100" : "bg-surface-50 border-surface-100"}`}>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${moduleCls}`}>
+                        {entry.module === "GRAFIK_2" ? "Grafik-2" : entry.module === "GRAFIK_1" ? "Grafik-1" : "—"}
+                      </span>
+                      <span className="text-[14px] font-bold text-text-primary shrink-0">{entry.groupCode || "—"}</span>
+                      <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border shrink-0 ${reasonCls}`}>
+                        {REASON_LABEL[entry.reason] ?? entry.reason}
+                      </span>
+                      <div className="ml-auto flex items-center gap-1.5 text-[11px] text-surface-400 tabular-nums whitespace-nowrap">
+                        <span>{entry.startDate ?? "?"}</span>
+                        <ArrowRight size={10} className="text-surface-300" />
+                        {isCurrent
+                          ? <span className="text-green-600 font-semibold">Devam ediyor</span>
+                          : <span>{entry.endDate}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── İletişim Tab ── */}
+        {activeTab === "iletisim" && (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-surface-300">
+            <div className="w-14 h-14 rounded-2xl bg-surface-50 border border-surface-100 flex items-center justify-center">
+              <Phone size={22} strokeWidth={1.5} />
+            </div>
+            <div className="text-center">
+              <p className="text-[14px] font-semibold text-surface-400">İletişim Bilgileri</p>
+              <p className="text-[12px] text-surface-300 mt-1">Eğitim Operasyon modülü ile birlikte gelecek</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Ödeme Tab ── */}
+        {activeTab === "odeme" && (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-surface-300">
+            <div className="w-14 h-14 rounded-2xl bg-surface-50 border border-surface-100 flex items-center justify-center">
+              <CreditCard size={22} strokeWidth={1.5} />
+            </div>
+            <div className="text-center">
+              <p className="text-[14px] font-semibold text-surface-400">Ödeme Bilgileri</p>
+              <p className="text-[12px] text-surface-300 mt-1">Flex-CRM entegrasyonu ile birlikte gelecek</p>
+            </div>
+          </div>
+        )}
+
+        </div> {/* ── Tab İçerik Wrapper sonu ── */}
+
       </motion.div>
     </div>
     )}
