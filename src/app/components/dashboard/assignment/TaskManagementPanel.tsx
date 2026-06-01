@@ -17,6 +17,7 @@ import { DeleteConfirmModal } from "./TaskCardManager";
 import TaskForm from "./TaskForm";
 import AssignmentPoolPanel from "./pool/AssignmentPoolPanel";
 import { useUser } from "@/app/context/UserContext";
+import { logActivity } from "@/app/lib/activityLog";
 
 type AdminTab = "templates" | "active" | "archive" | "pools" | "league";
 
@@ -504,6 +505,7 @@ export default function TaskManagementPanel() {
     if (!deletingTask) return;
     try {
       await deleteDoc(doc(db, deletingCollection, deletingTask.id));
+      logActivity("odev_silindi", "Ödev silindi", `${deletingTask.name}`);
       showToast(`"${deletingTask.name}" silindi.`);
     } catch {
       showToast("Silme sırasında hata oluştu.");
@@ -518,6 +520,7 @@ export default function TaskManagementPanel() {
         status: "archived",
         isActive: false,
       });
+      logActivity("odev_arsivlendi", "Ödev arşivlendi", `${task.name}`);
       showToast(`"${task.name}" arşivlendi.`);
     } catch { showToast("İşlem sırasında hata oluştu."); }
   };
@@ -558,6 +561,7 @@ export default function TaskManagementPanel() {
         grades:   {},
         gradedAt: null,
       });
+      logActivity("odev_guncellendi", "Ödev not alanına gönderildi", `${task.name}`);
       showToast(`"${task.name}" not alanına gönderildi.`);
     } catch { showToast("İşlem sırasında hata oluştu."); }
   };
@@ -571,6 +575,7 @@ export default function TaskManagementPanel() {
         ids.slice(i, i + 500).forEach(id => batch.delete(doc(db, "tasks", id)));
         await batch.commit();
       }
+      logActivity("odev_silindi", "Arşivdeki ödevler silindi", `${ids.length} ödev`);
       setSelectedArchiveIds(new Set());
       showToast(`${ids.length} görev arşivden silindi.`);
     } catch { showToast("Silme sırasında hata oluştu."); }

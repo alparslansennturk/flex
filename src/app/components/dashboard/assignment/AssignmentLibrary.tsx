@@ -5,6 +5,7 @@ import { LibraryBig, ChevronLeft, ChevronRight, PlusCircle, MoreHorizontal, User
 import { db } from "@/app/lib/firebase";
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where } from "firebase/firestore";
 import { auth } from "@/app/lib/firebase";
+import { logActivity } from "@/app/lib/activityLog";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon } from "./taskTypes";
 import { AssignActivateModal, AssignSelection } from "./AssignActivateModal";
@@ -264,6 +265,7 @@ export default function AssignmentLibrary({ scrollRef, handleScroll }: { scrollR
                 branch:         groupBranch || user?.branch || null,
                 ownedBy:        user?.uid ?? null,
               });
+              await logActivity("odev_verildi", `Yeni ödev verildi (${classId || groupId})`, t.name);
 
               const senderId = user?.uid ?? auth.currentUser?.uid;
               if (senderId) {

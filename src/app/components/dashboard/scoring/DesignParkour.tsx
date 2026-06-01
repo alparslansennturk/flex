@@ -8,6 +8,7 @@ import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query,
 import { QuickAssignModal } from "./QuickAssignModal";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon, TaskType } from "../assignment/taskTypes";
+import { logActivity } from "@/app/lib/activityLog";
 import { PERMISSIONS } from "@/app/lib/constants";
 import { AssignActivateModal, AssignSelection } from "../assignment/AssignActivateModal";
 
@@ -841,6 +842,7 @@ export default function DesignParkour({
     }
     // Görevi tamamen sil
     await deleteDoc(taskRef);
+    logActivity("odev_silindi", `Ödev iptal edildi (${task.classId || task.groupId || ""})`, task.name);
   };
 
   const handleReactivateConfirm = async (selections: AssignSelection[]) => {

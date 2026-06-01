@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { logActivityAdmin } from "@/app/lib/activityLogAdmin";
 import {
   findFileByActualName,
   setPublicReadPermission,
@@ -171,8 +172,10 @@ export async function POST(req: NextRequest) {
       const studentName = sData
         ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
         : "Bir öğrenci";
+      const taskTitleForLog = (taskDoc.data()?.name ?? taskDoc.data()?.title ?? session.taskId) as string;
 
       const instructorId = groupDoc.data()?.instructorId as string | undefined;
+      await logActivityAdmin("odev_yukleme", "Ödev yüklendi", `${studentName} — ${taskTitleForLog}`, instructorId ?? "");
       if (!instructorId) {
         console.warn(`[complete-upload] Grup ${session.groupId} için instructorId bulunamadı — bildirim atlandı`);
       } else {

@@ -18,6 +18,7 @@ import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
 import { useUser } from "@/app/context/UserContext";
+import { logActivity } from "@/app/lib/activityLog";
 import { useScoring } from "@/app/context/ScoringContext";
 import { calculateXP, getLevelXP, calculateLeaderboardScore, computeStudentStats, GradedTaskEntry } from "@/app/lib/scoring";
 import { Task, TYPE_CONFIG, TYPE_GRADIENT, getIcon } from "../../components/dashboard/assignment/taskTypes";
@@ -962,9 +963,8 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
       // scoreLogs'a kayıt at — XP alan her öğrenci için bir kayıt
       try {
         const teacherName = user ? `${user.name} ${user.surname}`.trim() : "Bilinmiyor";
-        const logWrites = Object.entries(grades)
-          .filter(([, g]) => g.submitted && g.xp > 0)
-          .map(([sid, g]) => {
+        const gradedEntries = Object.entries(grades).filter(([, g]) => g.submitted && g.xp > 0);
+        const logWrites = gradedEntries.map(([sid, g]) => {
             const student = students.find(s => s.id === sid);
             return addDoc(collection(db, "scoreLogs"), {
               studentId: sid,
@@ -978,6 +978,13 @@ function GradingForm({ taskId, fromTab }: { taskId: string; fromTab?: ListTab })
             });
           });
         await Promise.all(logWrites);
+
+        // activity_log — bir giriş her öğrenci için
+        for (const [sid, g] of gradedEntries) {
+          const student = students.find(s => s.id === sid);
+          const studentName = student ? `${student.name} ${student.lastName}`.trim() : sid;
+          await logActivity("not", "Not girildi", `${studentName} — ${task.name} ${g.xp}p`);
+        }
       } catch (logErr) {
         console.error("[grading] scoreLogs kayıt hatası:", logErr);
       }

@@ -8,6 +8,7 @@ import { Task, FilterTab } from "./taskTypes";
 import { StatCard, TaskList, DeleteConfirmModal } from "./TaskCardManager";
 import { useUser } from "@/app/context/UserContext";
 import TaskForm from "./TaskForm";
+import { logActivity } from "@/app/lib/activityLog";
 
 export default function TasksContent() {
   const { user }                        = useUser();
@@ -63,6 +64,7 @@ export default function TasksContent() {
     if (!deletingTask) return;
     try {
       await deleteDoc(doc(db, "tasks", deletingTask.id));
+      logActivity("odev_silindi", "Ödev silindi", `${deletingTask.name}`);
       showToast(`"${deletingTask.name}" silindi.`);
     } catch {
       showToast("Silme sırasında hata oluştu.");
@@ -78,6 +80,7 @@ export default function TasksContent() {
   const handleSendToLibrary = async (task: Task) => {
     try {
       await updateDoc(doc(db, "tasks", task.id), { isActive: false, isHidden: false, isPaused: false, endDate: null });
+      logActivity("odev_arsivlendi", "Ödev kütüphaneye alındı", `${task.name}`);
       showToast(`"${task.name}" kütüphaneye gönderildi.`);
     } catch { showToast("İşlem sırasında hata oluştu."); }
   };
@@ -85,6 +88,7 @@ export default function TasksContent() {
   const handleActivate = async (task: Task) => {
     try {
       await updateDoc(doc(db, "tasks", task.id), { isActive: true, isPaused: false, isHidden: false, status: "published" });
+      logActivity("odev_aktif", "Ödev aktive edildi", `${task.name}`);
       showToast(`"${task.name}" aktife alındı.`);
     } catch { showToast("İşlem sırasında hata oluştu."); }
   };

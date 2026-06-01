@@ -3,6 +3,7 @@ import { updateSubmissionStatus } from "@/app/lib/submissions";
 import { createTimelineEntry } from "@/app/lib/submission-timeline";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { logActivityAdmin } from "@/app/lib/activityLogAdmin";
 import type { SubmissionStatus } from "@/app/types/submission";
 import type { TimelineEntryType } from "@/app/types/submission-timeline";
 
@@ -32,6 +33,22 @@ export async function PATCH(
     const subData = submissionSnap.data()!;
 
     await updateSubmissionStatus(submissionId, status);
+
+    // activity_log — sadece "completed" durumunda
+    if (status === "completed") {
+      try {
+        const [studentDoc, taskDoc] = await Promise.all([
+          adminDb.collection("students").doc(subData.studentId).get(),
+          adminDb.collection("tasks").doc(subData.taskId).get(),
+        ]);
+        const sData = studentDoc.data();
+        const studentName = sData
+          ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
+          : "Bir öğrenci";
+        const taskName = (taskDoc.data()?.name ?? taskDoc.data()?.title ?? subData.taskId) as string;
+        await logActivityAdmin("teslim", "Ödev teslim edildi", `${studentName} — ${taskName}`, authorId ?? "");
+      } catch (_) {}
+    }
 
     // Timeline entry ekle
     const timelineType = STATUS_TO_TIMELINE[status];

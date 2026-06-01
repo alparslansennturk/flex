@@ -38,10 +38,11 @@
 | Tamamlanan grup yoklama listesinden gizleme | §135 | `AttendancePanel.tsx` |
 | Auto-select en yakın ders günü + attendanceClosed filtre | §136 | `AttendancePanel.tsx` |
 | Home V4 — 4'lü kompakt ödev parkuru + onSnapshot hata yönetimi | §137–138 | `home-v4/page.tsx`, `DesignParkour.tsx` |
+| Ana Sayfa V4 → yeni `/dashboard`, ActivityFeed Firestore + per-user | §139–142 | `dashboard/page.tsx`, `activityLog.ts` |
 
 ---
 
-## Son Durum (2026-05-30)
+## Son Durum (2026-06-01)
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
@@ -52,6 +53,7 @@
 - **Platform Genişlemesi:** Aşama 1+2 bitti, Aşama 3 beklemede (leagueEnabled toggle)
 - **Home V2:** ActivityFeed scroll sistemi tamamlandı (§132)
 - **Home V4 (§137–138):** `dashboard/home-v4` oluşturuldu — 4'lü kompakt ödev parkuru, beyaz hızlı eylem kartları, `onSnapshot` permission-denied hataları susturuldu
+- **Ana Sayfa Swap + ActivityFeed (§139–142):** `home-v4` içeriği `/dashboard`'a taşındı, eski `/dashboard` → `home-v4`'e. ActivityFeed Firestore `activity_log`'a bağlandı (per-user, `limit 15`, canlı). `activityLog.ts` per-user yazım + tüm ödev işlemlerine logActivity eklendi. Banner/sidebar/footer tasarım güncellemeleri yapıldı.
 
 ---
 
@@ -122,6 +124,34 @@
 
 ---
 
+## Ana Sayfa Yenileme — `/dashboard` (§139–142)
+
+### Sayfa Swap (§139) — TAMAMLANDI
+- `home-v4` içeriği `/dashboard/page.tsx`'e taşındı (yeni ana sayfa)
+- Eski `/dashboard` içeriği → `dashboard/home-v4/page.tsx`'e taşındı
+
+### ActivityFeed Firestore Bağlantısı (§140) — TAMAMLANDI
+- `activity_log` koleksiyonu: `userId`, `type`, `title`, `description`, `createdAt`
+- `where("userId", "==", uid)` + `orderBy("createdAt", "desc")` + `limit(15)` — per-user, canlı
+- Firestore composite index oluşturuldu (`userId + createdAt desc`)
+- Firestore rules: `activity_log` için okuma/yazma kuralları eklendi
+- `activityLog.ts`: `auth.currentUser?.uid` ile per-user yazım, debug log'lar temizlendi
+
+### logActivity Kapsamı Genişletme (§141) — TAMAMLANDI
+- Tüm ödev işlemlerine logActivity eklendi: oluşturma, iptal, arşiv, aktifleştirme, silme, güncelleme
+- Format: `title = "İşlem (GrupKodu)"`, `description = "ÖdevAdı"`
+- Etkilenen dosyalar: `DesignParkour.tsx`, `QuickAssignModal.tsx`, `AssignmentLibrary.tsx`, `TaskManagementPanel.tsx`, `TasksContent.tsx`
+
+### Tasarım Güncellemeleri (§142) — TAMAMLANDI
+- Banner: `p-8` (32px her yön), stat kutucukları küçültüldü, gap 24px
+- Sidebar: `flex-logo-white.svg` 90px, menü `mt-12`, aktif item arka plan kaldırıldı (sadece turuncu ikon)
+- Footer: 64px yükseklik, logo 64px, yıl dinamik `new Date().getFullYear()`
+- ActivityFeed: yükseklik JS ile kartlara eşitleniyor (ResizeObserver), "Canlı" badge yeşil pulse noktası
+- Aktivite başlığında grup kodu parantez içinde gri ve küçük (`text-[11px] font-medium text-[#4B5563]`)
+- Loading state: beyaz flash yerine `#F4F6F9` arka planlı spinner
+
+---
+
 ## Home V4 — `/dashboard/home-v4` (§137–138)
 
 ### Home V4 Oluşturma (§137) — TAMAMLANDI
@@ -147,8 +177,8 @@
 ## Yapılacaklar / Bekleyenler
 
 ### Kısa Vadeli
-- [ ] **Home V2 — ActivityFeed UI iyileştirme** (bir sonraki oturum)
-- [ ] **Home V2 — ActivityFeed Firestore bağlantısı** (`activity_log` koleksiyonu)
+- [x] **Ana Sayfa ActivityFeed Firestore bağlantısı** — TAMAMLANDI (§140)
+- [ ] **Sertifikasyon kartı gerçek veri** — sertifika sistemi güncellendikten sonra yapılacak (`dashboard/page.tsx` QuickActionCard meta)
 - [ ] **Platform Aşama 3 — leagueEnabled toggle:** `GroupForm` + `useManagement` + `LeagueWidget` + `LeaderboardWidget` + `StudentLeagueWidget`
 - [ ] **Kitap PDF Arşivi:** `send-kitap` Drive'a kaydetmiyor; eğitmen kendi gönderdiği kitapları UI'dan göremez
 - [ ] **Notification Frontend:** Figma linki bekleniyor (PC'de devam edilecek)

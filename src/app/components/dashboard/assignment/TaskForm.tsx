@@ -18,6 +18,7 @@ const MODULES: { value: "GRAFIK_1" | "GRAFIK_2"; label: string }[] = [
 ];
 import { getFlexMessage } from "@/app/lib/messages";
 import { useUser } from "@/app/context/UserContext";
+import { logActivity } from "@/app/lib/activityLog";
 
 interface TaskFormProps {
   editingTask: Task | null;
@@ -111,6 +112,7 @@ export default function TaskForm({ editingTask, onClose, onSaved, targetCollecti
       };
       if (editingTask) {
         await updateDoc(doc(db, targetCollection, editingTask.id), payload);
+        logActivity("odev_guncellendi", "Ödev güncellendi", `${name}`);
         onSaved("Kart güncellendi.");
       } else {
         const isClone    = !!sourceTemplateId;

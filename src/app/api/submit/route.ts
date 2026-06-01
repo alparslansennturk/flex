@@ -6,6 +6,7 @@ import { createSubmission, getStudentTaskSubmission } from "@/app/lib/submission
 // ✅ NEW VALIDATION START
 import { verifyRequestToken } from "@/app/lib/submission-validation";
 // ✅ NEW VALIDATION END
+import { logActivityAdmin } from "@/app/lib/activityLogAdmin";
 
 async function validateIds(studentId: string, taskId: string, groupId: string): Promise<string | null> {
   const [studentSnap, taskSnap, groupSnap] = await Promise.all([
@@ -115,15 +116,17 @@ export async function POST(req: NextRequest) {
         adminDb.collection("groups").doc(groupId).get(),
       ]);
 
+      const sData = studentDoc.data();
+      const studentName = sData
+        ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
+        : "Bir öğrenci";
+      const taskName = taskDoc.data()?.name || "ödev";
+
       const instructorId = groupDoc.data()?.instructorId as string | undefined;
+      await logActivityAdmin("odev_yukleme", "Ödev yüklendi", `${studentName} — ${taskName}`, instructorId ?? "");
       if (!instructorId) {
         console.warn(`[submit] Grup ${groupId} için instructorId bulunamadı — bildirim atlandı`);
       } else {
-        const sData = studentDoc.data();
-        const studentName = sData
-          ? `${sData.name ?? ""} ${sData.surname ?? ""}`.trim() || "Bir öğrenci"
-          : "Bir öğrenci";
-        const taskName = taskDoc.data()?.name || "ödev";
 
         const notifId = `notif_submit_${submission.id}`;
         await adminDb

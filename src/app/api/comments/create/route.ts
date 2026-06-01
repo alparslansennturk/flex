@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { logActivityAdmin } from "@/app/lib/activityLogAdmin";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -172,6 +173,23 @@ export async function POST(req: NextRequest) {
   });
 
   console.log("[comments/create] Written:", commentRef.id);
+
+  // ── Activity log ──────────────────────────────────────────────────────────
+  try {
+    const taskDoc = await adminDb.collection("tasks").doc(taskId).get();
+    const taskName = (taskDoc.data()?.name ?? taskDoc.data()?.title ?? taskId) as string;
+    // Eğitmen yorumuysa uid doğrudan eğitmen; öğrenci yorumuysa grubun instructorId'si
+    let logInstructorId = uid;
+    if (isStudent) {
+      const sDoc = await adminDb.collection("students").doc(studentId).get();
+      const sGroupId = sDoc.data()?.groupId as string | undefined;
+      if (sGroupId) {
+        const gDoc = await adminDb.collection("groups").doc(sGroupId).get();
+        logInstructorId = (gDoc.data()?.instructorId as string | undefined) ?? uid;
+      }
+    }
+    await logActivityAdmin("yorum", "Yorum yapıldı", `${safeAuthorName || "Bilinmiyor"} — ${taskName}`, logInstructorId);
+  } catch (_) {}
 
   // ── Step 10: Bildirim tetikleyiciler ─────────────────────────────────────
   // await ile yazılır — fire-and-forget IIFE Vercel tarafından erken kesilebilir.

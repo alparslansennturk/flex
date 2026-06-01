@@ -5,6 +5,7 @@ import { X, CheckCircle2, ChevronDown, BookmarkPlus } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from "firebase/firestore";
 import { useUser } from "@/app/context/UserContext";
+import { logActivity } from "@/app/lib/activityLog";
 import { TaskType, DEFAULT_ICON, TYPE_GRADIENT, getIcon } from "../assignment/taskTypes";
 
 interface Group { id: string; code: string; branch: string; }
@@ -74,6 +75,7 @@ export function QuickAssignModal({ onClose }: { onClose: () => void }) {
       createdByName: user ? `${user.name} ${user.surname}` : null,
       ownedBy:       uid,
     });
+    await logActivity("odev_verildi", `Yeni ödev verildi (${selectedGroup?.code || groupId})`, name.trim());
 
     if (saveAsTemplate) {
       await addDoc(collection(db, "templates"), {

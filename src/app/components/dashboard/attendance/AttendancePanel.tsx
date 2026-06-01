@@ -17,6 +17,7 @@ import {
 import { DayCalendarPopover } from "./CalendarPopover";
 import StudentDetailModal, { ModalStudent } from "@/app/components/dashboard/student-management/StudentDetailModal";
 import { motion } from "framer-motion";
+import { logActivity } from "@/app/lib/activityLog";
 import { PieChart, Pie, Cell } from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -775,6 +776,7 @@ export default function AttendancePanel({
         ...(existingDoc ? {} : { createdAt: Timestamp.fromDate(new Date()) }),
       };
       await setDoc(doc(db, "design_attendance", docId), payload, { merge: true });
+      await logActivity("yoklama", "Yoklama alındı", `${selectedGroup?.code ?? selectedGroupId} — ${dateKey}`);
       if (!hasPersistedEntries) {
         setMonthlyDone(prev => ({ ...prev, [selectedGroupId]: (prev[selectedGroupId] ?? 0) + 1 }));
         setHasPersistedEntries(true);

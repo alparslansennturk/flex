@@ -74,7 +74,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
       </div>
 
       {/* ANA OPERASYONEL MENÜ — compact'ta üst margin ve item arası biraz azalır */}
-      <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-6 space-y-1" : "mt-10 space-y-1.5"}`}>
+      <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-12 space-y-1" : "mt-12 space-y-1.5"}`}>
         <SidebarLink href="/dashboard" icon={<LayoutDashboard size={18} />} label="Ana Sayfa" exact compact={compact} />
         <SidebarLink href={NAV_CONFIG.GROUPS.path} icon={<Users size={18} />} label="Sınıflar" compact={compact} />
 
@@ -202,7 +202,7 @@ function SidebarLink({ href, icon, label, exact = false, compact = false, sub = 
       href={href}
       className={`flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
         ${sub ? (compact ? "py-2" : "py-2.5") : compact ? "py-3.25" : "py-3.5"}
-        ${active ? 'bg-white/10 text-white shadow-sm' : 'text-white hover:bg-white/5'}`}
+        ${active ? 'text-white' : 'text-white hover:bg-white/5'}`}
     >
       <span className={`transition-colors duration-200 ${active ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>
         {icon}
