@@ -5,14 +5,14 @@ import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS } from "@/app/lib/constants";
 import { useRouter } from "next/navigation";
 
-import Sidebar from "../components/layout/Sidebar";
-import Header from "../components/layout/Header";
-import Footer from "../components/layout/Footer";
+import Sidebar from "../../components/layout/Sidebar";
+import Header from "../../components/layout/Header";
+import Footer from "../../components/layout/Footer";
 
-import WorkshopAnalysis from "../components/dashboard/scoring/WorkshopAnalysis";
-import LeaderboardWidget from "../components/dashboard/scoring/LeaderboardWidget";
-import DesignParkour from "../components/dashboard/scoring/DesignParkour";
-import AssignmentLibrary from "../components/dashboard/assignment/AssignmentLibrary";
+import WorkshopAnalysis from "../../components/dashboard/scoring/WorkshopAnalysis";
+import LeaderboardWidget from "../../components/dashboard/scoring/LeaderboardWidget";
+import DesignParkour from "../../components/dashboard/scoring/DesignParkour";
+import AssignmentLibrary from "../../components/dashboard/assignment/AssignmentLibrary";
 
 export default function HomeV4Page() {
   const scrollRef = useRef<HTMLDivElement>(null);
