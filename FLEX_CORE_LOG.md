@@ -52,10 +52,16 @@
 | Chrome Guest Mode multi-tab logout fix — 3s debounce | §153 | `UserContext.tsx` |
 | Yoklama sayfası geri dönüşte "Kaydet" bug fix — saved state restore | §154 | `AttendancePanel.tsx` |
 | ActivityFeed yoklama mesajları — başlatıldı/bitirildi/otomatik bitirildi | §155 | `AttendancePanel.tsx`, `auto-close-attendance/route.ts` |
+| Auth: authStateReady() ile yeni tab logout bug'ı + notification debug | §156–157 | `UserContext.tsx`, `NotificationRealtimeService.ts` |
+| attendance-detail refactor: Suspense, header onBack, enforceTimeWindow | §158–160 | `attendance-detail/page.tsx`, `Header.tsx` |
+| AttendancePanel 4K hizalama: max-w-[1620px], donut max-w kaldırıldı | §161 | `AttendancePanel.tsx` |
+| attend sayfası: logo düzeni, header hizalama, back btn kaldırıldı | §162 | `attend/page.tsx` |
+| AttendanceDetailContent: StatCard yükseklik + search genişliği (xl/2xl) | §163 | `AttendanceDetailContent.tsx` |
+| StudentDetailModal: online/yüzyüze saat breakdown, font weight azaltıldı | §164 | `StudentDetailModal.tsx` |
 
 ---
 
-## Son Durum (2026-06-02)
+## Son Durum (2026-06-02) — güncellendi
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
@@ -77,6 +83,13 @@
 - **Chrome Guest Mode logout fix (§153):** `onIdTokenChanged(null)` geldiğinde anında logout yerine 3 saniyelik debounce eklendi. Multi-tab açılışında Firebase geçici null ürettiğinde shared cookie silinmiyordu; timer içinde `auth.currentUser` kontrol edilerek gerçek logout/iptal ayrımı yapıldı. `UserContext.tsx`.
 - **Yoklama saved state restore (§154):** Yoklama sayfasından ayrılıp geri dönünce "Dersi Bitir" yerine "Kaydet" görünüyordu; her "Kaydet"te duplicate activity log yazılıyordu. Kök neden: `onSnapshot` callback'inde `d.exists()` durumunda `setSaved` hiç set edilmiyordu. Fix: `setSaved(entries dolu || attendanceClosed)` eklendi. `AttendancePanel.tsx:634`.
 - **ActivityFeed yoklama mesajları (§155):** `handleStartLesson` → `"Grup 550 25 Haziran 2026 yoklaması başlatıldı"`. `handleCloseLesson` → `"Grup 550 25 Haziran 2026 yoklaması bitirildi"`. Cron `auto-close-attendance` → `"Grup 550 25 Haziran 2026 yoklaması otomatik bitirildi"`. `groupCode` artık `design_attendance` dokümanına da yazılıyor (cron ekstra sorgu yapmıyor).
+- **Auth authStateReady fix (§156):** PC'de yeni tab açılınca logout olma bug'ı çözüldü. Kök neden: Firebase token refresh sırasında `onIdTokenChanged(null)` geliyor, eski 3s debounce yetmiyordu. Fix: `auth.authStateReady()` promise'inden sonra subscribe edildi — başlangıç null'u hiç gelmiyor. Post-init null için Guest Mode koruması 3s debounce korundu. `UserContext.tsx`.
+- **Notification debug logları (§157):** `NotificationRealtimeService.subscribe()`'a benzersiz `#ID (caller)` logları eklendi. `NotificationBell`, `NotificationToastListener`, `useNotifications` mount/unmount logları. Araştırma sonucu: triple subscription auth bug'ının yan etkisiydi — `authStateReady()` fix'i ile çözüldü, artık 2 subscription normal (Bell + ToastListener). Loglar production'da aktif bırakıldı.
+- **attendance-detail refactor (§158–160):** `page.tsx` Suspense + `AttendanceDetailMain` iç bileşenine bölündü (`useSearchParams` gereksinimi için). Back button `AttendancePanel` sidebar'ından `Header`'a taşındı (`onBack` prop). Liste görünümünde `router.back()`, grup detayında `setShowGroupDetail(false)`. `enforceTimeWindow={true}` eklendi — attendance-detail'dan da zaman kilidi artık çalışıyor. `Header.tsx`'e `onBack?: () => void` prop + `ArrowLeft` eklendi.
+- **AttendancePanel 4K hizalama (§161):** `max-w-[1920px]` → `max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]` — header ile hizalandı. Donut bölümündeki gereksiz `max-w-[1200px]` iç wrapper kaldırıldı — donut ve tablo artık aynı genişlikte. Sol sidebar `pt-6` → `pt-5`, sağ içerik de `pt-5` eşitlendi.
+- **attend sayfası düzenlemeleri (§162):** Logo yanındaki back button kaldırıldı (logo zaten `/dashboard`'a gidiyor). `topBar` container `max-w-[1920px]` → `max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]` — AttendancePanel ile hizalandı. Sol bölüm `bg-neutral-50 border-r w-[260px]` korundu (gri alan bütünlüğü için). `gap-4` kaldırıldı, `px-4` ile sidebar içeriğine hizalandı.
+- **AttendanceDetailContent büyük ekran (§163):** `StatCard` (4 kutu) `py-4` → `xl:py-6 2xl:py-7` — büyük ekranlarda yükseklik artar. Search input `w-44` → `xl:w-64 2xl:w-80`. Ana wrapper `max-w-6xl` → `max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]` header hizalaması.
+- **StudentDetailModal online/yüzyüze (§164):** `AttendanceDoc` interface'e `online?: boolean` eklendi. `attOnlineHours` + `attInPersonHours` state'leri ve hesaplama eklendi. Devam Durumu kartında Devamsızlık altında `• Yüzyüze: X saat` + `• Online: X saat` (sadece katılım > 0 iken). Font weight `font-black text-[22px]` → `font-bold text-[14px] xl:text-[16px]` — küçük ekranlarda sığıyor.
 
 ---
 
