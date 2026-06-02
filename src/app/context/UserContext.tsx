@@ -41,17 +41,42 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let unsubscribeDoc: (() => void) | null = null;
     let activeUid: string | null = null;
+    let logoutTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const doLogout = () => {
+      activeUid = null;
+      document.cookie = "flex-token=; path=/; max-age=0";
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+      setUser(null);
+      setLoading(false);
+    };
 
     // onIdTokenChanged: her token yenilenişinde (saatte bir) tetiklenir → cookie daima taze kalır
     const unsubscribeAuth = onIdTokenChanged(auth, (firebaseUser) => {
+      const ts = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
       if (firebaseUser) {
+        console.log(`[AUTH][${ts}] onIdTokenChanged → USER uid=${firebaseUser.uid} activeUid=${activeUid}`);
+
+        // Geçici null sonrası auth geri geldiyse bekleyen logout'u iptal et
+        if (logoutTimer) {
+          console.log(`[AUTH][${ts}] logoutTimer iptal edildi (auth geri döndü)`);
+          clearTimeout(logoutTimer);
+          logoutTimer = null;
+        }
+
         // Cookie 30 gün ömürlü; Firebase SDK saatte bir token'ı yeniler, bu satır da günceller
         firebaseUser.getIdToken().then(token => {
           document.cookie = `flex-token=${token}; path=/; max-age=2592000; SameSite=Lax`;
         });
 
         // Aynı kullanıcının token refresh'i → yeni listener açma, mevcut çalışmaya devam etsin
-        if (activeUid === firebaseUser.uid) return;
+        if (activeUid === firebaseUser.uid) {
+          console.log(`[AUTH][${ts}] Aynı uid, listener yeniden açılmıyor`);
+          return;
+        }
 
         activeUid = firebaseUser.uid;
         const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
@@ -65,19 +90,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
         });
       } else {
-        activeUid = null;
-        document.cookie = "flex-token=; path=/; max-age=0";
-        if (unsubscribeDoc) {
-          unsubscribeDoc();
-          unsubscribeDoc = null;
-        }
-        setUser(null);
-        setLoading(false);
+        console.log(`[AUTH][${ts}] onIdTokenChanged → NULL  activeUid=${activeUid} auth.currentUser=${auth.currentUser?.uid ?? 'null'}`);
+        // 3 saniye bekle; auth geri gelirse logout iptal, hâlâ null ise gerçek logout yap.
+        if (logoutTimer) clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+          const ts2 = new Date().toISOString().slice(11, 23);
+          console.log(`[AUTH][${ts2}] 3s timer doldu → auth.currentUser=${auth.currentUser?.uid ?? 'null'}`);
+          if (!auth.currentUser) {
+            console.log(`[AUTH][${ts2}] GERÇEK LOGOUT — doLogout() çağrılıyor`);
+            doLogout();
+          } else {
+            console.log(`[AUTH][${ts2}] auth.currentUser var, logout iptal`);
+          }
+        }, 3000);
       }
     });
 
     return () => {
       unsubscribeAuth();
+      if (logoutTimer) clearTimeout(logoutTimer);
       if (unsubscribeDoc) {
         unsubscribeDoc();
         unsubscribeDoc = null;
