@@ -987,9 +987,9 @@ export default function AttendancePanel({
             <div className="px-4 pt-6 pb-0">
               <button
                 onClick={onBack}
-                className="w-10 h-10 rounded-[13px] bg-surface-200 hover:bg-surface-300 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="w-10 h-10 rounded-xl hover:bg-surface-200 flex items-center justify-center text-surface-400 transition-colors cursor-pointer active:scale-95 shrink-0"
               >
-                <ArrowLeft size={18} className="text-surface-700" />
+                <ArrowLeft size={20} />
               </button>
             </div>
           )}
