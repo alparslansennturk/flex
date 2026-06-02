@@ -111,7 +111,7 @@ function StatCard({ label, value, sub, color, icon }: {
   label: string; value: number | string; sub?: string; color: string; icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-surface-100 shadow-sm px-4 py-4 flex items-center gap-3 min-w-0">
+    <div className="bg-white rounded-2xl border border-surface-100 shadow-sm px-4 py-4 xl:py-6 2xl:py-7 flex items-center gap-3 min-w-0">
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>{icon}</div>
       <div className="min-w-0">
         <p className="text-[10px] font-semibold text-surface-400 mb-0.5 whitespace-nowrap">{label}</p>
@@ -413,17 +413,11 @@ export default function AttendanceDetailContent({
   }, [searchResults]);
 
   return (
-    <div className="max-w-6xl xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+    <div className="w-[94%] max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto py-8 space-y-5">
 
       {/* ── Başlık ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          {onBack && (
-            <button onClick={onBack}
-              className="flex items-center gap-1 text-[13px] text-surface-400 hover:text-base-primary-700 transition-colors">
-              <ChevronLeft size={16} /> {backLabel}
-            </button>
-          )}
           <BarChart2 size={22} className="text-surface-400" />
           <div>
             <h1 className="text-[22px] font-bold text-base-primary-900">{pageTitle}</h1>
@@ -462,7 +456,7 @@ export default function AttendanceDetailContent({
             value={searchCode}
             onChange={e => setSearchCode(e.target.value)}
             placeholder="Grup kodu ara…"
-            className="text-[13px] font-medium bg-white border border-surface-200 rounded-xl pl-8 pr-3 py-2.5 outline-none hover:border-surface-300 transition-colors shadow-sm w-44"
+            className="text-[13px] font-medium bg-white border border-surface-200 rounded-xl pl-8 pr-3 py-2.5 outline-none hover:border-surface-300 transition-colors shadow-sm w-44 xl:w-64 2xl:w-80"
           />
         </div>
         {isSearchMode && (

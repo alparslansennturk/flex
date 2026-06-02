@@ -1,11 +1,11 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, Settings, LayoutGrid, BookOpen, Bell } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, LayoutGrid, BookOpen, Bell, ArrowLeft } from "lucide-react";
 import NotificationBell from "@/app/components/notifications/NotificationBell";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 
-export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClassName }: { activeTabLabel?: string; innerClassName?: string }) {
+export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClassName, onBack }: { activeTabLabel?: string; innerClassName?: string; onBack?: () => void }) {
   const pathname = usePathname();
   const { user } = useUser();
   const [selectedBranch, setSelectedBranch] = useState("Tüm Şubeler");
@@ -72,6 +72,14 @@ export default function Header({ activeTabLabel = "Eğitim Yönetimi", innerClas
 
         {/* SOL TARAF: Karşılama ve Başlık */}
         <div className="flex items-center gap-4 truncate pr-4">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="w-10 h-10 rounded-xl hover:bg-surface-200 flex items-center justify-center text-surface-400 transition-colors cursor-pointer active:scale-95 shrink-0 mr-4"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
           {currentPage && (
             <div className="w-10 h-10 rounded-xl bg-base-primary-5 flex items-center justify-center text-base-primary-900 border border-base-primary-100 shrink-0">
               {currentPage.icon}

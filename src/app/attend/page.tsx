@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import AttendancePanel from "../components/dashboard/attendance/AttendancePanel";
 import { useUser } from "../context/UserContext";
 import { motion } from "framer-motion";
@@ -46,20 +45,14 @@ export default function AttendPage() {
 
   const topBar = (onArrow: () => void) => (
     <div className="h-[64px] shrink-0 border-b border-surface-100 bg-white">
-      <div className="max-w-[1920px] mx-auto h-full flex">
-        <div className="w-[260px] shrink-0 flex items-center gap-4 px-5 bg-neutral-50 border-r border-surface-100">
-          <button
-            onClick={onArrow}
-            className="w-10 h-10 rounded-xl hover:bg-surface-200 flex items-center justify-center text-surface-400 transition-colors cursor-pointer active:scale-95 shrink-0"
-          >
-            <ArrowLeft size={20} />
-          </button>
+      <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto h-full flex">
+        <div className="w-[260px] shrink-0 flex items-center px-4 bg-neutral-50 border-r border-surface-100">
           <Link href="/dashboard" className="flex items-center select-none">
             <span className="text-[22px] font-semibold text-[#FF8D28]">tasarım</span>
             <span className="text-[22px] font-bold text-base-primary-900">atölyesi</span>
           </Link>
         </div>
-        <div className="flex-1 min-w-0 max-w-[1400px] flex items-center justify-end px-8">
+        <div className="flex-1 min-w-0 flex items-center justify-end px-8">
           <div className="flex items-center gap-3">
             {fullName && (
               <span className="text-[13px] font-semibold text-text-secondary">{fullName}</span>

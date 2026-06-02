@@ -64,7 +64,7 @@ interface StudentDoc {
 }
 
 interface AttendanceDoc {
-  entries?: Record<string, { hours: number }>;
+  entries?: Record<string, { hours: number; online?: boolean }>;
   sessionHours?: number;
 }
 
@@ -332,6 +332,8 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   const [attRate,          setAttRate]          = useState<number | null>(null);
   const [attAttendedHours, setAttAttendedHours] = useState<number | null>(null);
   const [attAbsentHours,   setAttAbsentHours]   = useState<number | null>(null);
+  const [attOnlineHours,   setAttOnlineHours]   = useState<number | null>(null);
+  const [attInPersonHours, setAttInPersonHours] = useState<number | null>(null);
 
   // Hover'dan gelen ID yoksa student.id, ikisi de yoksa null
   const fetchId = student?.id ?? prefetchStudentId ?? null;
@@ -356,6 +358,8 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       setComputedScore(null); setComputedXP(null); setComputedTasks(null); setCarryOver(0);
       setAttTotal(null); setAttAttended(null); setAttAbsent(null); setAttRate(null);
       setAttAttendedHours(null); setAttAbsentHours(null);
+      setAttOnlineHours(null); setAttInPersonHours(null);
+      setAttOnlineHours(null); setAttInPersonHours(null);
       setGroupHistory([]);
       setLoading(false);
       return;
@@ -438,12 +442,18 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
           const calcAttAbsentHours  = lessonDocs
             .filter(d => ((d.data() as AttendanceDoc).entries?.[studentId]?.hours ?? 0) === 0)
             .reduce((s, d) => s + ((d.data() as AttendanceDoc).sessionHours ?? 0), 0);
+          const calcAttOnlineHours   = attendedDocs
+            .filter(d => (d.data() as AttendanceDoc).entries?.[studentId]?.online === true)
+            .reduce((s, d) => s + ((d.data() as AttendanceDoc).sessionHours ?? 0), 0);
+          const calcAttInPersonHours = calcAttAttendedHours - calcAttOnlineHours;
           setAttTotal(calcAttTotal);
           setAttAttended(calcAttAttended);
           setAttAbsent(calcAttAbsent);
           setAttRate(calcAttRate);
           setAttAttendedHours(calcAttAttendedHours);
           setAttAbsentHours(calcAttAbsentHours);
+          setAttOnlineHours(calcAttOnlineHours);
+          setAttInPersonHours(calcAttInPersonHours);
         });
 
       // 3. Grup belgesi, proje notları ve G2 görevleri paralel çek
@@ -1023,25 +1033,39 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
                       <p className="text-[11px] text-surface-300 font-medium">Yoklama kaydı yok</p>
                     </div>
                   ) : (
-                  <div className="flex flex-1 items-center gap-3">
-                    {/* Metin — üst Katıldığı saat, alt Devamsızlık */}
-                    <div className="flex flex-col justify-between flex-1 self-stretch py-1">
+                  <div className="flex flex-1 items-start gap-3">
+                    <div className="flex flex-col flex-1 gap-2.5">
+                      {/* Katıldığı */}
                       <div>
                         <p className="text-[9px] font-bold text-surface-400 tracking-wide mb-0.5">Katıldığı</p>
-                        <p className="text-[22px] font-black tabular-nums leading-none text-text-primary">
+                        <p className="text-[14px] xl:text-[16px] font-bold tabular-nums leading-none text-text-primary">
                           {attAttendedHours ?? "—"}{attAttendedHours != null ? " saat" : ""}
                         </p>
                       </div>
+                      {/* Devamsızlık */}
                       <div>
                         <p className="text-[9px] font-bold text-surface-400 tracking-wide mb-0.5">Devamsızlık</p>
-                        <p className={`text-[22px] font-black tabular-nums leading-none ${attAbsentHours != null && attAbsentHours > 0 ? "text-red-400" : "text-text-primary"}`}>
+                        <p className={`text-[14px] xl:text-[16px] font-bold tabular-nums leading-none ${attAbsentHours != null && attAbsentHours > 0 ? "text-red-400" : "text-text-primary"}`}>
                           {attAbsentHours ?? "—"}{attAbsentHours != null ? " saat" : ""}
                         </p>
                       </div>
+                      {/* Yüzyüze / Online — harf hizası için bullet sabit genişlikte */}
+                      {attOnlineHours != null && attInPersonHours != null && attAttendedHours != null && attAttendedHours > 0 && (
+                        <div className="flex flex-col gap-1 -ml-3 mt-auto">
+                          <div className="flex items-center text-[10px] text-text-secondary">
+                            <span className="w-3 shrink-0 text-surface-300">•</span>
+                            Yüzyüze: <span className="font-semibold ml-1">{attInPersonHours} saat</span>
+                          </div>
+                          <div className="flex items-center text-[10px] text-text-secondary">
+                            <span className="w-3 shrink-0 text-surface-300">•</span>
+                            Online: <span className="font-semibold ml-1">{attOnlineHours} saat</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Donut — attRate gelince render edilir, animate hemen başlar */}
-                    <div className="shrink-0">
+                    {/* Donut — biraz yukarı */}
+                    <div className="shrink-0 -mt-1">
                       <AttendanceDonut rate={attRate} animate={visible} />
                     </div>
                   </div>

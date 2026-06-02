@@ -898,7 +898,7 @@ export default function AttendancePanel({
   const canEdit = allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
 
   // Giriş zaman kilidi: enforceTimeWindow=true ise admin dahil herkes için geçerli.
-  // Yoklama Detay (allowEdit) ekranında veya zaten başlatılmış derste kısıt yok.
+  // Zaten başlatılmış derste (existingDoc) veya bugün değilse (geçmiş tarih) kısıt yok.
   const sessionTimeRange = selectedGroup?.session ? parseSessionTime(selectedGroup.session) : null;
   const isWithinTimeWindow: boolean = (() => {
     if (!enforceTimeWindow || !isToday || !sessionTimeRange || existingDoc) return true;
@@ -977,7 +977,7 @@ export default function AttendancePanel({
         />
       )}
 
-      <div className="flex min-h-full w-full max-w-[1920px] mx-auto">
+      <div className="flex min-h-full w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto">
 
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
         <div className={`w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50 ${hideSidebar ? "hidden" : ""}`}>
@@ -995,7 +995,7 @@ export default function AttendancePanel({
           )}
 
           {/* Month dropdown */}
-          <div className="px-4 pt-6 pb-3 border-b border-surface-100">
+          <div className="px-4 pt-5 pb-3 border-b border-surface-100">
             <div className="relative flex items-center">
               <select
                 value={toMonthKey(selectedMonth)}
@@ -1125,9 +1125,7 @@ export default function AttendancePanel({
             <>
               {mode === "detailed" ? (
                 /* ── Detaylı: Sol (grup kartı + 3 stat kartı) | Sağ (donut), eşit yükseklik */
-                <div className="px-8 pt-6 pb-5 border-b border-surface-100 shrink-0">
-                  {/* max-w: 4K ekranlarda aşırı yayılmayı önler */}
-                  <div className="max-w-[1200px]">
+                <div className="px-8 pt-5 pb-5 border-b border-surface-100 shrink-0">
                     <div className="flex gap-4 items-stretch">
 
                       {/* ── SOL: grup bilgi kartı üstte, 3 stat kartı altta ── */}
@@ -1333,7 +1331,6 @@ export default function AttendancePanel({
                         </motion.div>
                       )}
                     </div>
-                  </div>
                 </div>
               ) : (
                 /* ── Basit: kompakt başlık + mor stats bar ───────────────── */

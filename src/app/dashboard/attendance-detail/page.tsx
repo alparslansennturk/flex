@@ -13,42 +13,22 @@ import AttendancePanel from "../../components/dashboard/attendance/AttendancePan
 
 const T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
-function AttendanceReportContent({
-  onGroupDetail,
-}: {
-  onGroupDetail: (groupId: string) => void;
-}) {
+// useSearchParams gerektirdiği için Suspense içinde — back URL + tüm sayfa içeriği burada
+function AttendanceDetailMain() {
+  const router       = useRouter();
   const searchParams = useSearchParams();
+
   const filterInstructorId = searchParams.get("instructorId");
-  const filterGroupId = searchParams.get("groupId");
-  const monthParam = searchParams.get("month");
-  const ref = searchParams.get("ref");
-  const router = useRouter();
+  const filterGroupId      = searchParams.get("groupId");
+  const monthParam         = searchParams.get("month");
+  const ref                = searchParams.get("ref");
+
+  const [showGroupDetail, setShowGroupDetail] = useState(false);
+  const [detailGroupId, setDetailGroupId]     = useState<string | null>(null);
 
   const backUrl = ref === "attendance"
     ? `/dashboard/attendance?groupId=${filterGroupId}`
-    : filterInstructorId
-      ? "/dashboard/attendance-report"
-      : null;
-  const backLabel = ref === "attendance" ? "Yoklama Al" : "Rapor";
-
-  return (
-    <AttendanceDetailContent
-      initialGroupId={filterGroupId ?? undefined}
-      initialInstructorId={filterInstructorId ?? undefined}
-      initialMonth={monthParam ?? undefined}
-      onBack={backUrl ? () => router.push(backUrl) : undefined}
-      backLabel={backLabel}
-      onGroupDetail={onGroupDetail}
-    />
-  );
-}
-
-// ── Sayfa ─────────────────────────────────────────────────────────────────────
-export default function AttendanceReportPage() {
-  const router = useRouter();
-  const [showGroupDetail, setShowGroupDetail] = useState(false);
-  const [detailGroupId, setDetailGroupId]     = useState<string | null>(null);
+    : null;
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -68,50 +48,64 @@ export default function AttendanceReportPage() {
   }, [router]);
 
   return (
+    <div className="flex-1 flex flex-col min-w-0 h-full">
+      <Header
+        activeTabLabel="Yoklama Detay"
+        innerClassName="w-[94%] max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]"
+        onBack={showGroupDetail ? () => setShowGroupDetail(false) : undefined}
+      />
+      <main className="flex-1 min-h-0 relative overflow-hidden">
+
+        {/* ── Liste paneli — sola gider ── */}
+        <motion.div
+          animate={{ x: showGroupDetail ? "-100%" : 0 }}
+          transition={T}
+          className="absolute inset-0 overflow-y-auto bg-white [scrollbar-gutter:stable]"
+        >
+          <AttendanceDetailContent
+            initialGroupId={filterGroupId ?? undefined}
+            initialInstructorId={filterInstructorId ?? undefined}
+            initialMonth={monthParam ?? undefined}
+            onGroupDetail={(gid) => { setDetailGroupId(gid); setShowGroupDetail(true); }}
+          />
+        </motion.div>
+
+        {/* ── Grup detay paneli — sağdan gelir ── */}
+        <motion.div
+          initial={false}
+          animate={{ x: showGroupDetail ? 0 : "100%" }}
+          transition={T}
+          className="absolute inset-0 overflow-y-auto bg-white"
+        >
+          {detailGroupId && (
+            <AttendancePanel
+              preSelectedGroupId={detailGroupId}
+              allowEdit={true}
+              enforceTimeWindow={true}
+            />
+          )}
+        </motion.div>
+
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+// ── Sayfa ─────────────────────────────────────────────────────────────────────
+export default function AttendanceReportPage() {
+  return (
     <div className="flex h-screen w-full bg-white font-inter overflow-hidden">
       <aside className="hidden lg:block h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-[#10294C]">
         <Sidebar />
       </aside>
-      <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header activeTabLabel="Yoklama Detay" />
-        <main className="flex-1 min-h-0 relative overflow-hidden">
-
-          {/* ── Liste paneli — sola gider ── */}
-          <motion.div
-            animate={{ x: showGroupDetail ? "-100%" : 0 }}
-            transition={T}
-            className="absolute inset-0 overflow-y-auto bg-white [scrollbar-gutter:stable]"
-          >
-            <Suspense fallback={
-              <div className="flex items-center justify-center h-full">
-                <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
-              </div>
-            }>
-              <AttendanceReportContent
-                onGroupDetail={(gid) => { setDetailGroupId(gid); setShowGroupDetail(true); }}
-              />
-            </Suspense>
-          </motion.div>
-
-          {/* ── Grup detay paneli — sağdan gelir ── */}
-          <motion.div
-            initial={false}
-            animate={{ x: showGroupDetail ? 0 : "100%" }}
-            transition={T}
-            className="absolute inset-0 overflow-y-auto bg-white"
-          >
-            {detailGroupId && (
-              <AttendancePanel
-                preSelectedGroupId={detailGroupId}
-                allowEdit={true}
-                onBack={() => setShowGroupDetail(false)}
-              />
-            )}
-          </motion.div>
-
-        </main>
-        <Footer />
-      </div>
+      <Suspense fallback={
+        <div className="flex-1 flex items-center justify-center bg-white">
+          <div className="w-7 h-7 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
+        </div>
+      }>
+        <AttendanceDetailMain />
+      </Suspense>
     </div>
   );
 }
