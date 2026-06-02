@@ -54,17 +54,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     };
 
+    const _t = () => new Date().toISOString().slice(11, 23);
+
     // onIdTokenChanged: her token yenilenişinde (saatte bir) tetiklenir → cookie daima taze kalır
     const unsubscribeAuth = onIdTokenChanged(auth, (firebaseUser) => {
-      const ts = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
       if (firebaseUser) {
-        console.log(`[AUTH][${ts}] onIdTokenChanged → USER uid=${firebaseUser.uid} activeUid=${activeUid}`);
-
-        // Geçici null sonrası auth geri geldiyse bekleyen logout'u iptal et
         if (logoutTimer) {
-          console.log(`[AUTH][${ts}] logoutTimer iptal edildi (auth geri döndü)`);
+          // SENARYO A: null sonrası USER geldi → timer iptal
+          console.log(`[AUTH][${_t()}] SENARYO-A: null sonrası USER döndü, timer iptal. uid=${firebaseUser.uid}`);
           clearTimeout(logoutTimer);
           logoutTimer = null;
+        } else {
+          console.log(`[AUTH][${_t()}] USER: uid=${firebaseUser.uid} activeUid=${activeUid}`);
         }
 
         // Cookie 30 gün ömürlü; Firebase SDK saatte bir token'ı yeniler, bu satır da günceller
@@ -73,10 +74,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         });
 
         // Aynı kullanıcının token refresh'i → yeni listener açma, mevcut çalışmaya devam etsin
-        if (activeUid === firebaseUser.uid) {
-          console.log(`[AUTH][${ts}] Aynı uid, listener yeniden açılmıyor`);
-          return;
-        }
+        if (activeUid === firebaseUser.uid) return;
 
         activeUid = firebaseUser.uid;
         const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
@@ -90,17 +88,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
         });
       } else {
-        console.log(`[AUTH][${ts}] onIdTokenChanged → NULL  activeUid=${activeUid} auth.currentUser=${auth.currentUser?.uid ?? 'null'}`);
+        // Chrome Guest Mode multi-tab: yeni sekme açılışında Firebase geçici null üretebilir.
         // 3 saniye bekle; auth geri gelirse logout iptal, hâlâ null ise gerçek logout yap.
+        console.log(`[AUTH][${_t()}] NULL geldi → 3s timer başladı`);
         if (logoutTimer) clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
-          const ts2 = new Date().toISOString().slice(11, 23);
-          console.log(`[AUTH][${ts2}] 3s timer doldu → auth.currentUser=${auth.currentUser?.uid ?? 'null'}`);
           if (!auth.currentUser) {
-            console.log(`[AUTH][${ts2}] GERÇEK LOGOUT — doLogout() çağrılıyor`);
+            // SENARYO B: 3s doldu, hâlâ null → gerçek logout
+            console.log(`[AUTH][${_t()}] SENARYO-B: 3s doldu, auth.currentUser=null → doLogout()`);
             doLogout();
           } else {
-            console.log(`[AUTH][${ts2}] auth.currentUser var, logout iptal`);
+            console.log(`[AUTH][${_t()}] 3s doldu ama auth.currentUser var → logout iptal`);
           }
         }, 3000);
       }

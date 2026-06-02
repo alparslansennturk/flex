@@ -634,6 +634,7 @@ export default function AttendancePanel({
         setEntries(data.entries ?? {});
         setExistingDoc(true);
         setLessonStarted(true);
+        setSaved(Object.keys(data.entries ?? {}).length > 0 || (data.attendanceClosed ?? false));
         setAttendanceClosed(data.attendanceClosed ?? false);
         setClosedAt(data.closedAt?.toDate ? data.closedAt.toDate() : null);
         setHasPersistedEntries(Object.keys(data.entries ?? {}).length > 0 || (data.attendanceClosed ?? false));
@@ -719,9 +720,11 @@ export default function AttendancePanel({
   const handleStartLesson = async () => {
     if (!selectedGroupId || existingDoc) return;
     setLessonStarted(true);
+    const groupCode = selectedGroup?.code ?? selectedGroupId;
     const docId = `${selectedGroupId}_${dateKey}`;
     await setDoc(doc(db, "design_attendance", docId), {
       groupId: selectedGroupId,
+      groupCode,
       date: dateKey,
       month: monthKey,
       instructorId: user?.uid ?? "",
@@ -730,6 +733,10 @@ export default function AttendancePanel({
       lessonStartedAt: new Date(),
     });
     setExistingDoc(true);
+    const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+    const [sy, sm, sd] = dateKey.split("-");
+    const trDate = `${parseInt(sd)} ${TR_MONTHS[parseInt(sm) - 1]} ${sy}`;
+    await logActivity("yoklama", `Grup ${groupCode} ${trDate} yoklaması başlatıldı`, "");
   };
 
   const handleClear = async () => {
@@ -805,6 +812,11 @@ export default function AttendancePanel({
     setAttendanceClosed(true);
     setClosedAt(now);
     setSaved(true);
+    const groupCode = selectedGroup?.code ?? selectedGroupId;
+    const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+    const [y, m, d] = dateKey.split("-");
+    const trDate = `${parseInt(d)} ${TR_MONTHS[parseInt(m) - 1]} ${y}`;
+    await logActivity("yoklama", `Grup ${groupCode} ${trDate} yoklaması bitirildi`, "");
   };
 
   // ── Exception save/delete ──────────────────────────────────────────────────

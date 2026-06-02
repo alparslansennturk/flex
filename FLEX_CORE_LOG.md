@@ -49,10 +49,13 @@
 | Öğrenci Grup Geçmişi — useManagement + graduation yazım noktaları | §150 | `useManagement.ts`, `graduation/page.tsx` |
 | Admin backfill sayfası — migrate-history | §151 | `admin/migrate-history/page.tsx` |
 | StudentDetailModal tabbed UI — Ders/Geçmiş/İletişim/Ödeme | §152 | `StudentDetailModal.tsx` |
+| Chrome Guest Mode multi-tab logout fix — 3s debounce | §153 | `UserContext.tsx` |
+| Yoklama sayfası geri dönüşte "Kaydet" bug fix — saved state restore | §154 | `AttendancePanel.tsx` |
+| ActivityFeed yoklama mesajları — başlatıldı/bitirildi/otomatik bitirildi | §155 | `AttendancePanel.tsx`, `auto-close-attendance/route.ts` |
 
 ---
 
-## Son Durum (2026-06-01 — 2. güncelleme)
+## Son Durum (2026-06-02)
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
@@ -71,6 +74,9 @@
 - **Yoklama Detay slide animasyon (§148):** Grup satırındaki "Detay" butonuna basınca liste sola kayar, `AttendancePanel` sağdan gelir. Geri butonuyla tersine döner. `onGroupDetail` callback ile router.push kaldırıldı.
 - **Öğrenci Grup Geçmişi altyapısı (§149–151):** `studentHistory.ts` — `GroupHistoryEntry`, `StudentSnapshot` tipleri, `batchAddGroupHistory`, `batchUpsertSnapshot`, `backfillStudentHistory`. `useManagement.ts` + `graduation/page.tsx`'e 4 yazım noktası eklendi (enrollment, transfer, archive, modül yükseltme). Firestore rules: `group_history` subcollection + `student_snapshots`. Admin backfill sayfası: `/dashboard/admin/migrate-history`. 28 öğrenci başarıyla migrate edildi.
 - **StudentDetailModal tabbed UI (§152):** Ders / Geçmiş / İletişim / Ödeme tab'ları. Admin görür, eğitmen sadece ders içeriğini görür (tab bar gizli). Geçmiş tab'ında `group_history` subcollection'dan kayıtlar. İletişim + Ödeme şimdilik placeholder (ileride Eğitim Operasyon / Flex-CRM ile dolacak). Sabit boyut `min-h-135` wrapper.
+- **Chrome Guest Mode logout fix (§153):** `onIdTokenChanged(null)` geldiğinde anında logout yerine 3 saniyelik debounce eklendi. Multi-tab açılışında Firebase geçici null ürettiğinde shared cookie silinmiyordu; timer içinde `auth.currentUser` kontrol edilerek gerçek logout/iptal ayrımı yapıldı. `UserContext.tsx`.
+- **Yoklama saved state restore (§154):** Yoklama sayfasından ayrılıp geri dönünce "Dersi Bitir" yerine "Kaydet" görünüyordu; her "Kaydet"te duplicate activity log yazılıyordu. Kök neden: `onSnapshot` callback'inde `d.exists()` durumunda `setSaved` hiç set edilmiyordu. Fix: `setSaved(entries dolu || attendanceClosed)` eklendi. `AttendancePanel.tsx:634`.
+- **ActivityFeed yoklama mesajları (§155):** `handleStartLesson` → `"Grup 550 25 Haziran 2026 yoklaması başlatıldı"`. `handleCloseLesson` → `"Grup 550 25 Haziran 2026 yoklaması bitirildi"`. Cron `auto-close-attendance` → `"Grup 550 25 Haziran 2026 yoklaması otomatik bitirildi"`. `groupCode` artık `design_attendance` dokümanına da yazılıyor (cron ekstra sorgu yapmıyor).
 
 ---
 

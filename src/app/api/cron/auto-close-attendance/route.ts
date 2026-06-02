@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
+import { logActivityAdmin } from "@/app/lib/activityLogAdmin";
+
+const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+function formatTRDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  return `${parseInt(d)} ${TR_MONTHS[parseInt(m) - 1]} ${y}`;
+}
 
 // Türkiye saati (UTC+3) ile offset gün sonrasının tarihini döndürür
 function trDateString(offsetDays: number): string {
@@ -41,6 +48,22 @@ export async function GET(req: NextRequest) {
     batch.update(d.ref, { attendanceClosed: true, autoClosedAt: now });
   });
   await batch.commit();
+
+  const trDate = formatTRDate(yesterdayTR);
+  await Promise.allSettled(
+    toClose.map(d => {
+      const data = d.data();
+      const groupCode = data.groupCode ?? data.groupId ?? d.id;
+      const instructorId = data.instructorId;
+      if (!instructorId) return Promise.resolve();
+      return logActivityAdmin(
+        "yoklama",
+        `Grup ${groupCode} ${trDate} yoklaması otomatik bitirildi`,
+        "",
+        instructorId,
+      );
+    })
+  );
 
   return NextResponse.json({ closed: toClose.length, date: yesterdayTR });
 }
