@@ -14,12 +14,17 @@ export function useNotifications(userId: string | undefined) {
 
   /* ── Real-time bildirimler ── */
   useEffect(() => {
+    console.log(`[NOTIF] useNotifications mount (userId=${userId ?? 'none'})`);
+    return () => console.log(`[NOTIF] useNotifications unmount (userId=${userId ?? 'none'})`);
+  }, [userId]);
+
+  useEffect(() => {
     if (!userId) { setLoading(false); return; }
     setLoading(true);
     const unsub = NotificationRealtimeService.subscribe(userId, (notifs) => {
       setNotifications(notifs);
       setLoading(false);
-    });
+    }, 50, 'useNotifications');
     return unsub;
   }, [userId]);
 

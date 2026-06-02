@@ -32,6 +32,11 @@ export default function NotificationToastListener() {
   useEffect(() => { routerRef.current = router; }, [router]);
 
   useEffect(() => {
+    console.log('[NOTIF] NotificationToastListener mount');
+    return () => console.log('[NOTIF] NotificationToastListener unmount');
+  }, []);
+
+  useEffect(() => {
     if (!user?.uid) return;
 
     // seenIds sadece kullanıcı değişince sıfırlanır — navigasyon kesmez.
@@ -80,7 +85,7 @@ export default function NotificationToastListener() {
       if (hasNew) playNotificationSound();
       // Her snapshot'tan sonra false olur — ilk çağrıdan itibaren kalıcı
       isInitialLoad.current = false;
-    });
+    }, 50, 'NotificationToastListener');
 
     return unsub;
   }, [user?.uid]); // Sadece user.uid değişince yeniden kur — pathname/router navigasyonu kesmez

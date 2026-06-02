@@ -69,6 +69,11 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    console.log('[NOTIF] NotificationBell mount');
+    return () => console.log('[NOTIF] NotificationBell unmount');
+  }, []);
+
   const { notifications, unreadCount, markAsRead, clearAll } = useNotifications(user?.uid);
 
   /* ── Dışarı tıklayınca kapat ── */

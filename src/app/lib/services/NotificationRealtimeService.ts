@@ -12,13 +12,19 @@ import type { NotificationPayload } from '@/app/lib/notifications/types'
 
 const db = getFirestore()
 
+let _subCounter = 0
+
 export class NotificationRealtimeService {
   static subscribe(
     userId: string,
     callback: (notifications: NotificationPayload[]) => void,
-    pageSize = 50
+    pageSize = 50,
+    caller = 'unknown'
   ): Unsubscribe {
     try {
+      const subId = ++_subCounter
+      console.log(`[NOTIF] ${caller} subscribe #${subId}`)
+
       const notificationsQuery = query(
         collection(db, 'users', userId, 'notifications'),
         orderBy('createdAt', 'desc'),
@@ -53,17 +59,16 @@ export class NotificationRealtimeService {
           // Sort: confirmed timestamps first (desc), pending (null) at top as brand-new
           .sort((a, b) => (b.createdAt?.toMillis() ?? Infinity) - (a.createdAt?.toMillis() ?? Infinity))
 
-        console.log(`📡 [${userId}] Received ${notifications.length} notifications`)
+        console.log(`[NOTIF] #${subId} (${caller}) received ${notifications.length}`)
         callback(notifications)
       }, (error) => {
-        console.warn(`[NotificationRealtimeService] Permission denied for ${userId}:`, error.code)
+        console.warn(`[NOTIF] #${subId} (${caller}) permission-denied:`, error.code)
       })
-
-      console.log(`📡 Subscribed to notifications for ${userId}`)
 
       return () => {
         unsubscribed = true
         unsubscribe()
+        console.log(`[NOTIF] ${caller} unsubscribe #${subId}`)
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
