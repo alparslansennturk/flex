@@ -163,7 +163,7 @@ export interface AttendanceDetailContentProps {
   initialMonth?: string;
   onBack?: () => void;
   backLabel?: string;
-  onGroupDetail?: (groupId: string) => void;
+  onGroupDetail?: (groupId: string, month: string) => void;
 }
 
 // ── Ana Bileşen ───────────────────────────────────────────────────────────────
@@ -645,8 +645,8 @@ export default function AttendanceDetailContent({
                       <div className="w-20 shrink-0 flex justify-end">
                         <button
                           onClick={() => onGroupDetail
-                            ? onGroupDetail(s.group.id)
-                            : router.push(`/dashboard/attendance?groupId=${s.group.id}`)
+                            ? onGroupDetail(s.group.id, selectedMonth)
+                            : router.push(`/dashboard/attendance?groupId=${s.group.id}&month=${selectedMonth}`)
                           }
                           className="text-[12px] font-bold text-base-primary-600 hover:text-white hover:bg-base-primary-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap">
                           Detay

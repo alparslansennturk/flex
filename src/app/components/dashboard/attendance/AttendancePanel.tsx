@@ -361,6 +361,9 @@ export default function AttendancePanel({
   enforceTimeWindow = false,
   onViewDetail,
   onBack,
+  onBackToAttend,
+  filterMonth,
+  preSelectedMonth,
 }: {
   mode?: "detailed" | "simple";
   autoSelectToday?: boolean;
@@ -374,6 +377,12 @@ export default function AttendancePanel({
   onViewDetail?: (groupId: string, month: string) => void;
   /** Sol sidebar'ın üstüne geri dön butonu ekler. */
   onBack?: () => void;
+  /** Yoklama Al'dan gelindiyse sağ üste geri dön butonu gösterir. */
+  onBackToAttend?: () => void;
+  /** Rapor'dan gelindiğinde hangi ay bağlamında açıldığını belirtir (YYYY-MM). Grup filtresini ve düzenleme kilidini etkiler. */
+  filterMonth?: string;
+  /** Açılışta hangi ayın seçili olacağını belirtir (YYYY-MM). */
+  preSelectedMonth?: string;
 }) {
   const { user, isAdmin } = useUser();
   const router = useRouter();
@@ -387,7 +396,13 @@ export default function AttendancePanel({
   const [prefetchStudentId, setPrefetchStudentId] = useState<string | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedDate, setSelectedDate]       = useState<Date>(new Date());
-  const [selectedMonth, setSelectedMonth]     = useState<Date>(new Date());
+  const [selectedMonth, setSelectedMonth]     = useState<Date>(() => {
+    if (preSelectedMonth) {
+      const [y, m] = preSelectedMonth.split("-").map(Number);
+      return new Date(y, m - 1, 1, 12, 0, 0);
+    }
+    return new Date();
+  });
   const [entries, setEntries]                 = useState<Record<string, StudentEntry>>({});
   const [saving, setSaving]                   = useState(false);
   const [saved, setSaved]                     = useState(false);
@@ -485,8 +500,19 @@ export default function AttendancePanel({
   // ── Load groups ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
-    const isActiveGroup = (g: Group) =>
-      g.status !== "archived" && !g.attendanceClosed;
+    const isActiveGroup = (g: Group) => {
+      if (g.status === "archived") return false;
+      if (filterMonth) {
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        if (filterMonth >= currentMonthKey) return !g.attendanceClosed; // bu ay veya gelecek → normal filtre
+        // Geçmiş ay: o ayın sonuna kadar başlamış tüm grupları göster
+        const [fy, fm] = filterMonth.split("-").map(Number);
+        const monthEnd = `${filterMonth}-${String(new Date(fy, fm, 0).getDate()).padStart(2, "0")}`;
+        return !g.startDate || g.startDate <= monthEnd;
+      }
+      return !g.attendanceClosed || g.id === preSelectedGroupId;
+    };
 
     if (isAdmin()) {
       const q = query(collection(db, "groups"), where("status", "!=", "archived"));
@@ -896,8 +922,16 @@ export default function AttendancePanel({
   const withinEditWindow = windowBase
     ? (Date.now() - windowBase.getTime()) < 3 * 24 * 60 * 60 * 1000
     : false;
+  // 3 aydan eski veri tamamen kilitli (admin dahil)
+  const isHistoricalLock = (() => {
+    if (!filterMonth) return false;
+    const [fy, fm] = filterMonth.split("-").map(Number);
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    return new Date(fy, fm - 1, 1) < threeMonthsAgo;
+  })();
   // Admin: süre sınırı yok — her zaman düzenleyebilir. Eğitmen: sadece 3 gün içinde.
-  const canEdit = allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
+  const canEdit = !isHistoricalLock && allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
 
   // Giriş zaman kilidi: enforceTimeWindow=true ise admin dahil herkes için geçerli.
   // Zaten başlatılmış derste (existingDoc) veya bugün değilse (geçmiş tarih) kısıt yok.
@@ -979,7 +1013,7 @@ export default function AttendancePanel({
         />
       )}
 
-      <div className="flex min-h-full w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto">
+      <div className="flex min-h-full w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
         <div className={`w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50 ${hideSidebar ? "hidden" : ""}`}>
@@ -1128,6 +1162,16 @@ export default function AttendancePanel({
               {mode === "detailed" ? (
                 /* ── Detaylı: Sol (grup kartı + 3 stat kartı) | Sağ (donut), eşit yükseklik */
                 <div className="px-8 pt-5 pb-5 border-b border-surface-100 shrink-0">
+                    {onBackToAttend && (
+                      <div className="flex justify-end pb-3">
+                        <button
+                          onClick={onBackToAttend}
+                          className="flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer"
+                        >
+                          <ChevronLeft size={12} /> Yoklama Al
+                        </button>
+                      </div>
+                    )}
                     <div className="flex gap-4 items-stretch">
 
                       {/* ── SOL: grup bilgi kartı üstte, 3 stat kartı altta ── */}
@@ -1344,18 +1388,27 @@ export default function AttendancePanel({
                       {formatMonthDisplay(selectedMonth)}
                     </span>
                     {selectedGroupId && (
-                      <button
-                        onClick={() => {
-                          if (onViewDetail) {
-                            onViewDetail(selectedGroupId, toMonthKey(selectedMonth));
-                          } else {
-                            router.push(`/dashboard/attendance?groupId=${selectedGroupId}&ref=attend`);
-                          }
-                        }}
-                        className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer"
-                      >
-                        Yoklama Detay <ChevronRight size={12} />
-                      </button>
+                      onBackToAttend ? (
+                        <button
+                          onClick={onBackToAttend}
+                          className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer"
+                        >
+                          <ChevronLeft size={12} /> Yoklama Al
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (onViewDetail) {
+                              onViewDetail(selectedGroupId, toMonthKey(selectedMonth));
+                            } else {
+                              router.push(`/dashboard/attendance?groupId=${selectedGroupId}&ref=attend`);
+                            }
+                          }}
+                          className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer"
+                        >
+                          Yoklama Detay <ChevronRight size={12} />
+                        </button>
+                      )
                     )}
                   </div>
                   <div className="mx-8 h-[48px] bg-base-primary-900 rounded-2xl shrink-0 flex items-center gap-3 px-6 text-[13px] font-medium overflow-x-auto no-scrollbar">

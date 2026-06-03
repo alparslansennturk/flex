@@ -60,6 +60,11 @@
 | StudentDetailModal: online/yüzyüze saat breakdown, font weight azaltıldı | §164 | `StudentDetailModal.tsx` |
 | UserTable: responsive layout, HoverPopover, BranchCell/RoleCell +N chip | §165 | `UserTable.tsx` |
 | AttendanceDetailContent + attendance-detail header hizalama | §166 | `AttendanceDetailContent.tsx`, `attendance-detail/page.tsx` |
+| Yoklama Al → Detay geri butonu (onBackToAttend) | §167 | `AttendancePanel.tsx`, `attend/page.tsx` |
+| AttendancePanel filterMonth + preSelectedMonth + 3 ay kilidi | §168 | `AttendancePanel.tsx` |
+| Yoklama Raporu 4 katlı slide panel yeniden tasarımı | §169 | `attendance-report/page.tsx` |
+| Rapor: eğitmen grup tablosu + yoklama geçmişi + günlük detay paneli | §170 | `attendance-report/page.tsx`, `AttendancePanel.tsx` |
+| Rapor: 4 panel → 3 panel (split view: sol gruplar, sağ geçmiş) | §171 | `attendance-report/page.tsx` |
 
 ---
 

@@ -1,15 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
-import { TrendingUp, ChevronDown, CheckCircle2, Clock, XCircle, ChevronRight, Users, Search, X, CalendarDays, Layers, GraduationCap } from "lucide-react";
+import { TrendingUp, ChevronDown, CheckCircle2, Clock, XCircle, ChevronRight, Users, Search, X, CalendarDays, Layers, GraduationCap, BookOpen } from "lucide-react";
 import Header from "../../components/layout/Header";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
 import { DayCalendarPopover } from "../../components/dashboard/attendance/CalendarPopover";
+import AttendancePanel from "../../components/dashboard/attendance/AttendancePanel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Group {
@@ -195,9 +196,10 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
   );
 }
 
+const T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
+
 // ── Ana bileşen ───────────────────────────────────────────────────────────────
-function AttendanceSummaryContent() {
-  const router = useRouter();
+function AttendanceSummaryContent({ onBackChange }: { onBackChange: (fn: (() => void) | null) => void }) {
   const [rows, setRows] = useState<InstructorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
@@ -205,7 +207,29 @@ function AttendanceSummaryContent() {
   const [branchesLoaded, setBranchesLoaded] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
-  const [expandedInstructorId, setExpandedInstructorId] = useState<string | null>(null);
+
+  // Slide panel state
+  const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
+  const [selectedGroupHistory, setSelectedGroupHistory] = useState<Group | null>(null);
+  const [groupHistorySessions, setGroupHistorySessions] = useState<{ date: string; entryCount: number; attendanceClosed: boolean }[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyShowAll, setHistoryShowAll] = useState(false);
+  const [historyDateFrom, setHistoryDateFrom] = useState("");
+  const [historyDateTo, setHistoryDateTo] = useState("");
+  const [selectedSession, setSelectedSession] = useState<{ date: string; entryCount: number; attendanceClosed: boolean } | null>(null);
+
+  // Header back handler — 2 seviye
+  useEffect(() => {
+    if (selectedSession)           onBackChange(() => setSelectedSession(null));
+    else if (selectedInstructorId) onBackChange(() => setSelectedInstructorId(null));
+    else                           onBackChange(null);
+  }, [selectedSession, selectedInstructorId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Eğitmen değişince grup seçimini sıfırla
+  useEffect(() => {
+    if (!selectedInstructorId) setSelectedGroupHistory(null);
+    else setSelectedGroupHistory(null);
+  }, [selectedInstructorId]);
 
   // Filtreler
   const [selectedBranch, setSelectedBranch] = useState("");
@@ -348,7 +372,7 @@ function AttendanceSummaryContent() {
         const toplam           = actualDone + studentCancelled;
         const remaining        = Math.max(0, planned - actualDone - cancelled);
 
-        map[iid].groupCount++;
+        if (!g.attendanceClosed) map[iid].groupCount++;
         map[iid].planned          += planned;
         map[iid].actualDone       += actualDone;
         map[iid].cancelled        += cancelled;
@@ -365,6 +389,27 @@ function AttendanceSummaryContent() {
       setLoading(false);
     }).catch(() => { setRows([]); setLoading(false); });
   }, [activeMonths, searchFrom, searchTo, branches, holidayDates, branchesLoaded, groups, groupsLoaded]);
+
+  // Grup yoklama geçmişi fetch
+  useEffect(() => {
+    if (!selectedGroupHistory) { setGroupHistorySessions([]); return; }
+    setHistoryLoading(true);
+    setHistoryShowAll(false);
+    setHistoryDateFrom(""); setHistoryDateTo("");
+    getDocs(query(collection(db, "design_attendance"), where("groupId", "==", selectedGroupHistory.id)))
+      .then(snap => {
+        const sessions = snap.docs
+          .map(d => {
+            const data = d.data();
+            return { date: data.date as string, entryCount: Object.keys((data.entries as Record<string, unknown>) ?? {}).length, attendanceClosed: !!data.attendanceClosed };
+          })
+          .filter(s => !!s.date)
+          .sort((a, b) => b.date.localeCompare(a.date));
+        setGroupHistorySessions(sessions);
+      })
+      .catch(() => setGroupHistorySessions([]))
+      .finally(() => setHistoryLoading(false));
+  }, [selectedGroupHistory]);
 
   // Eğitmen dropdown seçenekleri (rows'dan türetilir, ekstra fetch yok)
   const instructorOptions = useMemo(() =>
@@ -454,8 +499,44 @@ function AttendanceSummaryContent() {
   const totalStudentCancelled = filteredRows.reduce((s, r) => s + r.studentCancelled, 0);
   const totalToplamHours      = filteredRows.reduce((s, r) => s + r.toplamHours, 0);
 
+  // Panel 2: seçili eğitmenin grupları (non-archived tümü)
+  const instructorGroups = useMemo(() => {
+    if (!selectedInstructorId) return [];
+    return groups
+      .filter(g => g.instructorId === selectedInstructorId)
+      .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""));
+  }, [groups, selectedInstructorId]);
+
+  // İlk grubu otomatik seç — instructorGroups tanımlandıktan sonra
+  useEffect(() => {
+    if (selectedInstructorId && instructorGroups.length > 0 && !selectedGroupHistory) {
+      setSelectedGroupHistory(instructorGroups[0]);
+    }
+  }, [instructorGroups]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedInstructorName = useMemo(() =>
+    rows.find(r => r.instructorId === selectedInstructorId)?.name ?? "",
+  [rows, selectedInstructorId]);
+
+  // Panel 3: filtrelenmiş ve sınırlandırılmış history
+  const filteredHistory = useMemo(() => {
+    let s = groupHistorySessions;
+    if (historyDateFrom) s = s.filter(x => x.date >= historyDateFrom);
+    if (historyDateTo)   s = s.filter(x => x.date <= historyDateTo);
+    return s;
+  }, [groupHistorySessions, historyDateFrom, historyDateTo]);
+
+  const visibleHistory = historyShowAll ? filteredHistory : filteredHistory.slice(0, 10);
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+    <>
+    {/* ── Panel 1: Ana rapor ─────────────────────────────────────────────── */}
+    <motion.div
+      animate={{ x: selectedInstructorId ? "-100%" : 0 }}
+      transition={T}
+      className="absolute inset-0 overflow-y-auto [scrollbar-gutter:stable]"
+    >
+    <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
 
       {/* ── Başlık ── */}
       <div className="flex items-center gap-3">
@@ -647,25 +728,25 @@ function AttendanceSummaryContent() {
         <div className="overflow-x-auto">
           <div className="flex items-center gap-4 px-6 py-3 bg-surface-50 border-b border-surface-100 min-w-[720px]">
             <div className="flex-1 min-w-0">
-              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Eğitmen</span>
+              <span className="text-[11px] font-bold text-surface-500 capitalize tracking-wide">Eğitmen</span>
             </div>
             <div className="w-14 shrink-0 text-center">
-              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Grup</span>
+              <span className="text-[11px] font-bold text-surface-500 capitalize tracking-wide">Grup</span>
             </div>
             <div className="w-24 shrink-0 text-center">
-              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Planlanan</span>
+              <span className="text-[11px] font-bold text-surface-500 capitalize tracking-wide">Planlanan</span>
             </div>
             <div className="w-24 shrink-0 text-center">
-              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Verdi</span>
+              <span className="text-[11px] font-bold text-surface-500 capitalize tracking-wide">Verdi</span>
             </div>
             <div className="w-20 shrink-0 text-center">
-              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">İptal</span>
+              <span className="text-[11px] font-bold text-surface-500 capitalize tracking-wide">İptal</span>
             </div>
             <div className="w-24 shrink-0 text-center">
-              <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wide">Toplam Ders</span>
+              <span className="text-[11px] font-bold text-indigo-500 capitalize tracking-wide">Toplam Ders</span>
             </div>
             <div className="w-36 shrink-0 hidden lg:block">
-              <span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Tamamlama</span>
+              <span className="text-[11px] font-bold text-surface-500 capitalize tracking-wide">Tamamlama</span>
             </div>
             <div className="w-16 shrink-0" />
           </div>
@@ -681,15 +762,11 @@ function AttendanceSummaryContent() {
             </div>
           ) : (
             filteredRows.map((ins, idx) => {
-              const isExpanded = expandedInstructorId === ins.instructorId;
-              const instructorGroups = groups.filter(g => g.instructorId === ins.instructorId);
               const isLast = idx === filteredRows.length - 1;
               return (
                 <div key={ins.instructorId}>
                   <div
-                    className={`flex items-center gap-4 px-6 py-4 hover:bg-surface-50/50 transition-colors min-w-[720px] ${
-                      isExpanded ? "bg-surface-50/30" : ""
-                    } ${(!isExpanded || isLast) ? "border-b border-surface-50" : ""}`}
+                    className={`flex items-center gap-4 px-6 py-4 hover:bg-surface-50/50 transition-colors min-w-[720px] ${isLast ? "" : "border-b border-surface-50"}`}
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-[14px] font-bold text-base-primary-900 truncate">{ins.name}</p>
@@ -731,65 +808,13 @@ function AttendanceSummaryContent() {
 
                     <div className="w-16 shrink-0 flex justify-end">
                       <button
-                        onClick={() => setExpandedInstructorId(p => p === ins.instructorId ? null : ins.instructorId)}
+                        onClick={() => setSelectedInstructorId(ins.instructorId)}
                         className="flex items-center gap-0.5 text-[12px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer"
                       >
-                        Detay
-                        <motion.span
-                          animate={{ rotate: isExpanded ? 180 : 0 }}
-                          transition={{ duration: 0.2, ease: "easeInOut" }}
-                          style={{ display: "flex" }}
-                        >
-                          <ChevronDown size={13} />
-                        </motion.span>
+                        Detay <ChevronRight size={13} />
                       </button>
                     </div>
                   </div>
-
-                  {/* ── Accordion: eğitmenin grupları ── */}
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        key={ins.instructorId}
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.22, ease: "easeInOut" }}
-                        style={{ overflow: "hidden" }}
-                        className="border-b border-surface-100 min-w-[720px]"
-                      >
-                        <div className="bg-surface-50/40 px-8 py-4">
-                          <div className="flex items-center justify-between gap-3 mb-3">
-                            <p className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">
-                              {ins.name} — Gruplar ({instructorGroups.length})
-                            </p>
-                            <button
-                              onClick={() => router.push(`/dashboard/attendance-detail?instructorId=${ins.instructorId}&month=${activeMonths[activeMonths.length - 1]}`)}
-                              className="text-[11px] font-semibold text-base-primary-500 hover:text-base-primary-700 transition-colors flex items-center gap-0.5 cursor-pointer"
-                            >
-                              Tam rapor <ChevronRight size={12} />
-                            </button>
-                          </div>
-                          {instructorGroups.length === 0 ? (
-                            <p className="text-[13px] text-surface-400 italic">Grup bulunamadı.</p>
-                          ) : (
-                            <div className="flex flex-wrap gap-2">
-                              {instructorGroups.map(g => (
-                                <button
-                                  key={g.id}
-                                  onClick={() => router.push(`/dashboard/attendance?groupId=${g.id}`)}
-                                  className="flex items-center gap-2 bg-white border border-surface-200 hover:border-base-primary-400 hover:bg-base-primary-50 rounded-xl px-3.5 py-2.5 transition-all group cursor-pointer"
-                                >
-                                  <span className="text-[13px] font-bold text-base-primary-900 group-hover:text-base-primary-700">{g.code}</span>
-                                  <span className="text-[11px] text-surface-400 group-hover:text-base-primary-500">Yoklamaya git →</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </div>
               );
             })
@@ -817,12 +842,141 @@ function AttendanceSummaryContent() {
       </>
       )}
     </div>
+    </motion.div>
+
+    {/* ── Panel 2: Split view — Sol: gruplar | Sağ: yoklama geçmişi ──────── */}
+    <motion.div
+      animate={{ x: selectedInstructorId && !selectedSession ? 0 : selectedSession ? "-100%" : "100%" }}
+      transition={T}
+      className="absolute inset-0 flex bg-white"
+    >
+      {/* Sol: grup listesi */}
+      <div className="w-[280px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50">
+        <div className="px-5 py-4 border-b border-surface-100 shrink-0">
+          <p className="text-[15px] font-bold text-base-primary-900 truncate">{selectedInstructorName}</p>
+          <p className="text-[11px] text-surface-400 mt-0.5">{instructorGroups.length} grup</p>
+        </div>
+        <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+          {instructorGroups.map(g => {
+            const isActive = selectedGroupHistory?.id === g.id;
+            return (
+              <button
+                key={g.id}
+                onClick={() => setSelectedGroupHistory(g)}
+                className={`w-full text-left px-5 py-3.5 border-b border-surface-100 transition-colors cursor-pointer ${isActive ? "bg-base-primary-50 border-l-2 border-l-base-primary-500" : "hover:bg-white"}`}
+              >
+                <p className={`text-[13px] font-bold truncate ${isActive ? "text-base-primary-700" : "text-base-primary-900"}`}>{g.code}</p>
+                <p className="text-[11px] text-surface-400 mt-0.5 flex items-center gap-1.5">
+                  <span>{branches.find(b => b.id === g.discipline)?.name ?? "—"}</span>
+                  <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${g.attendanceClosed ? "bg-surface-200 text-surface-500" : "bg-status-success-100 text-status-success-600"}`}>
+                    {g.attendanceClosed ? "Bitti" : "Aktif"}
+                  </span>
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Sağ: seçili grubun yoklama geçmişi */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {!selectedGroupHistory ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-surface-300">
+            <BookOpen size={32} className="mb-3 opacity-40" />
+            <p className="text-[14px]">Soldan bir grup seçin</p>
+          </div>
+        ) : (
+          <>
+            {/* Başlık + filtre */}
+            <div className="px-6 py-4 border-b border-surface-100 shrink-0 space-y-3">
+              <div>
+                <p className="text-[16px] font-bold text-base-primary-900">{selectedGroupHistory.code} — Yoklama Geçmişi</p>
+                <p className="text-[12px] text-surface-400">{selectedGroupHistory.startDate ? new Date(selectedGroupHistory.startDate + "T12:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" }) : ""}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input type="date" value={historyDateFrom} onChange={e => setHistoryDateFrom(e.target.value)}
+                  className="text-[12px] border border-surface-200 rounded-xl px-3 py-1.5 bg-white outline-none hover:border-base-primary-400 transition-colors text-base-primary-900 cursor-pointer" />
+                <span className="text-[11px] text-neutral-400">—</span>
+                <input type="date" value={historyDateTo} onChange={e => setHistoryDateTo(e.target.value)}
+                  className="text-[12px] border border-surface-200 rounded-xl px-3 py-1.5 bg-white outline-none hover:border-base-primary-400 transition-colors text-base-primary-900 cursor-pointer" />
+                {(historyDateFrom || historyDateTo) && (
+                  <button onClick={() => { setHistoryDateFrom(""); setHistoryDateTo(""); }} className="text-[11px] text-surface-400 hover:text-surface-600 flex items-center gap-1 cursor-pointer">
+                    <X size={11} /> Temizle
+                  </button>
+                )}
+                <span className="ml-auto text-[11px] text-surface-400">{filteredHistory.length} kayıt</span>
+              </div>
+            </div>
+
+            {/* Liste */}
+            <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-14">
+                  <div className="w-6 h-6 border-2 border-surface-100 border-t-base-primary-500 rounded-full animate-spin" />
+                </div>
+              ) : filteredHistory.length === 0 ? (
+                <div className="flex flex-col items-center py-14 text-surface-300">
+                  <BookOpen size={26} className="mb-2 opacity-40" />
+                  <p className="text-[13px]">{groupHistorySessions.length === 0 ? "Yoklama kaydı yok" : "Bu aralıkta kayıt yok"}</p>
+                </div>
+              ) : (
+                <>
+                  {visibleHistory.map((s, i) => (
+                    <div key={s.date + i} className="flex items-center gap-4 px-6 py-3.5 border-b border-surface-50 last:border-0 hover:bg-surface-50/40 transition-colors">
+                      <span className="text-[13px] font-semibold text-base-primary-900 w-36 shrink-0">
+                        {new Date(s.date + "T12:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
+                      </span>
+                      <span className="text-[12px] text-surface-500 flex-1">{s.entryCount} öğrenci</span>
+                      <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${s.attendanceClosed ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}>
+                        {s.attendanceClosed ? "Kapatıldı" : "Devam Ediyor"}
+                      </span>
+                      <button
+                        onClick={() => setSelectedSession(s)}
+                        className="flex items-center gap-0.5 text-[12px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer shrink-0"
+                      >
+                        Detay <ChevronRight size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {!historyShowAll && filteredHistory.length > 10 && (
+                    <div className="px-6 py-4">
+                      <button onClick={() => setHistoryShowAll(true)} className="text-[13px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer">
+                        Tümünü göster ({filteredHistory.length} kayıt)
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </motion.div>
+
+    {/* ── Panel 3: Seçilen günün yoklama detayı (salt okunur) ──────────── */}
+    <motion.div
+      animate={{ x: selectedSession ? 0 : "100%" }}
+      transition={T}
+      className="absolute inset-0 overflow-y-auto [scrollbar-gutter:stable] bg-white"
+    >
+      {selectedSession && selectedGroupHistory && (
+        <AttendancePanel
+          preSelectedGroupId={selectedGroupHistory.id}
+          preSelectedMonth={selectedSession.date.slice(0, 7)}
+          filterMonth={selectedSession.date.slice(0, 7)}
+          allowEdit={false}
+          enforceTimeWindow={false}
+        />
+      )}
+    </motion.div>
+    </>
   );
 }
 
 // ── Sayfa ─────────────────────────────────────────────────────────────────────
 export default function AttendanceSummaryPage() {
   const router = useRouter();
+  const [backHandler, setBackHandler] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -847,9 +1001,13 @@ export default function AttendanceSummaryPage() {
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header activeTabLabel="Yoklama Raporu" />
-        <main className="flex-1 min-h-0 bg-white overflow-y-auto [scrollbar-gutter:stable]">
-          <AttendanceSummaryContent />
+        <Header
+          activeTabLabel="Yoklama Raporu"
+          innerClassName="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] px-4 sm:px-6 lg:px-8"
+          onBack={backHandler ?? undefined}
+        />
+        <main className="flex-1 min-h-0 bg-white relative overflow-hidden">
+          <AttendanceSummaryContent onBackChange={fn => setBackHandler(fn ? () => fn : null)} />
         </main>
         <Footer />
       </div>

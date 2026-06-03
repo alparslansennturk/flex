@@ -13,8 +13,9 @@ import { ChevronLeft } from "lucide-react";
 function AttendanceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const groupId = searchParams.get("groupId") ?? undefined;
-  const ref = searchParams.get("ref");
+  const groupId     = searchParams.get("groupId") ?? undefined;
+  const ref         = searchParams.get("ref");
+  const filterMonth = searchParams.get("month") ?? undefined;
 
   return (
     <>
@@ -32,6 +33,7 @@ function AttendanceContent() {
         preSelectedGroupId={groupId}
         allowEdit={true}
         enforceTimeWindow={true}
+        filterMonth={filterMonth}
         onViewDetail={(gid, month) =>
           router.push(`/dashboard/attendance-detail?groupId=${gid}&month=${month}&ref=attendance`)
         }
@@ -69,7 +71,7 @@ export default function AttendancePage() {
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
-        <Header activeTabLabel="Yoklama Al" />
+        <Header activeTabLabel="Yoklama Al" innerClassName="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] px-4 sm:px-6 lg:px-8" />
         <main className="flex-1 bg-white">
           <Suspense fallback={
             <div className="flex items-center justify-center py-24">

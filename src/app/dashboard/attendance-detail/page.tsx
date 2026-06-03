@@ -25,6 +25,7 @@ function AttendanceDetailMain() {
 
   const [showGroupDetail, setShowGroupDetail] = useState(false);
   const [detailGroupId, setDetailGroupId]     = useState<string | null>(null);
+  const [detailMonth, setDetailMonth]         = useState<string | null>(null);
 
   const backUrl = ref === "attendance"
     ? `/dashboard/attendance?groupId=${filterGroupId}`
@@ -66,7 +67,7 @@ function AttendanceDetailMain() {
             initialGroupId={filterGroupId ?? undefined}
             initialInstructorId={filterInstructorId ?? undefined}
             initialMonth={monthParam ?? undefined}
-            onGroupDetail={(gid) => { setDetailGroupId(gid); setShowGroupDetail(true); }}
+            onGroupDetail={(gid, month) => { setDetailGroupId(gid); setDetailMonth(month); setShowGroupDetail(true); }}
           />
         </motion.div>
 
@@ -82,6 +83,7 @@ function AttendanceDetailMain() {
               preSelectedGroupId={detailGroupId}
               allowEdit={true}
               enforceTimeWindow={true}
+              filterMonth={detailMonth ?? monthParam ?? undefined}
             />
           )}
         </motion.div>

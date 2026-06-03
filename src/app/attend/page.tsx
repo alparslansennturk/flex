@@ -100,6 +100,7 @@ export default function AttendPage() {
               preSelectedGroupId={detailGroupId}
               allowEdit={true}
               enforceTimeWindow={true}
+              onBackToAttend={() => setShowDetail(false)}
             />
           )}
         </main>
