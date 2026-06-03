@@ -58,6 +58,8 @@
 | attend sayfası: logo düzeni, header hizalama, back btn kaldırıldı | §162 | `attend/page.tsx` |
 | AttendanceDetailContent: StatCard yükseklik + search genişliği (xl/2xl) | §163 | `AttendanceDetailContent.tsx` |
 | StudentDetailModal: online/yüzyüze saat breakdown, font weight azaltıldı | §164 | `StudentDetailModal.tsx` |
+| UserTable: responsive layout, HoverPopover, BranchCell/RoleCell +N chip | §165 | `UserTable.tsx` |
+| AttendanceDetailContent + attendance-detail header hizalama | §166 | `AttendanceDetailContent.tsx`, `attendance-detail/page.tsx` |
 
 ---
 
@@ -89,6 +91,8 @@
 - **AttendancePanel 4K hizalama (§161):** `max-w-[1920px]` → `max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]` — header ile hizalandı. Donut bölümündeki gereksiz `max-w-[1200px]` iç wrapper kaldırıldı — donut ve tablo artık aynı genişlikte. Sol sidebar `pt-6` → `pt-5`, sağ içerik de `pt-5` eşitlendi.
 - **attend sayfası düzenlemeleri (§162):** Logo yanındaki back button kaldırıldı (logo zaten `/dashboard`'a gidiyor). `topBar` container `max-w-[1920px]` → `max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]` — AttendancePanel ile hizalandı. Sol bölüm `bg-neutral-50 border-r w-[260px]` korundu (gri alan bütünlüğü için). `gap-4` kaldırıldı, `px-4` ile sidebar içeriğine hizalandı.
 - **AttendanceDetailContent büyük ekran (§163):** `StatCard` (4 kutu) `py-4` → `xl:py-6 2xl:py-7` — büyük ekranlarda yükseklik artar. Search input `w-44` → `xl:w-64 2xl:w-80`. Ana wrapper `max-w-6xl` → `max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]` header hizalaması.
+- **UserTable responsive layout (§165):** Tüm sabit `w-X xl:w-X` sütun genişlikleri kaldırıldı — yatay scroll sorunu çözüldü. `HoverPopover` ortak bileşeni eklendi: trigger üzerinde hover'da içerik tam ortada yukarı çıkar (ok işareti dahil). `BranchCell`: ilk branş + `+N` chip, hover'da tümü görünür. `RoleCell`: aynı pattern roller için. Email, isim, şube hücrelerine truncate + hover ile tam metin. `İşlem` sütunu sticky right + centered, küçük ekranda kompakt buton gap'i. `Durum` sütunu centered. Telefon fontu küçük ekranda `text-[11px]`.
+- **AttendanceDetailContent + header hizalama (§166):** `AttendanceDetailContent` wrapper `w-[94%] max-w-[1300px]` → `w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8`. `attendance-detail/page.tsx` Header `innerClassName` da aynı `px-4 sm:px-6 lg:px-8` yaklaşımına geçirildi.
 - **StudentDetailModal online/yüzyüze (§164):** `AttendanceDoc` interface'e `online?: boolean` eklendi. `attOnlineHours` + `attInPersonHours` state'leri ve hesaplama eklendi. Devam Durumu kartında Devamsızlık altında `• Yüzyüze: X saat` + `• Online: X saat` (sadece katılım > 0 iken). Font weight `font-black text-[22px]` → `font-bold text-[14px] xl:text-[16px]` — küçük ekranlarda sığıyor.
 
 ---

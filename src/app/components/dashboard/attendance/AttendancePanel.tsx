@@ -733,10 +733,6 @@ export default function AttendancePanel({
       lessonStartedAt: new Date(),
     });
     setExistingDoc(true);
-    const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
-    const [sy, sm, sd] = dateKey.split("-");
-    const trDate = `${parseInt(sd)} ${TR_MONTHS[parseInt(sm) - 1]} ${sy}`;
-    await logActivity("yoklama", `Grup ${groupCode} ${trDate} yoklaması başlatıldı`, "");
   };
 
   const handleClear = async () => {
@@ -788,10 +784,16 @@ export default function AttendancePanel({
         ...(existingDoc ? {} : { createdAt: Timestamp.fromDate(new Date()) }),
       };
       await setDoc(doc(db, "design_attendance", docId), payload, { merge: true });
-      await logActivity("yoklama", "Yoklama alındı", `${selectedGroup?.code ?? selectedGroupId} — ${dateKey}`);
+      const groupCode = selectedGroup?.code ?? selectedGroupId;
+      const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+      const [sy, sm, sd] = dateKey.split("-");
+      const trDate = `${parseInt(sd)} ${TR_MONTHS[parseInt(sm) - 1]} ${sy}`;
       if (!hasPersistedEntries) {
+        await logActivity("yoklama", "Yoklama Başlatıldı", `${groupCode} ${trDate} yoklaması başlatıldı.`);
         setMonthlyDone(prev => ({ ...prev, [selectedGroupId]: (prev[selectedGroupId] ?? 0) + 1 }));
         setHasPersistedEntries(true);
+      } else if (attendanceClosed) {
+        await logActivity("yoklama", "Yoklama Güncellendi", `${groupCode} ${trDate} yoklaması güncellendi.`);
       }
       setExistingDoc(true);
       setSaved(true);
@@ -816,7 +818,7 @@ export default function AttendancePanel({
     const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
     const [y, m, d] = dateKey.split("-");
     const trDate = `${parseInt(d)} ${TR_MONTHS[parseInt(m) - 1]} ${y}`;
-    await logActivity("yoklama", `Grup ${groupCode} ${trDate} yoklaması bitirildi`, "");
+    await logActivity("yoklama", "Yoklama Bitirildi", `${groupCode} ${trDate} yoklaması bitirildi.`);
   };
 
   // ── Exception save/delete ──────────────────────────────────────────────────

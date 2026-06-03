@@ -211,7 +211,7 @@ function ActivityFeed({ uid }: { uid: string }) {
           return (
             <div
               key={item.id}
-              className={`flex items-start gap-3 px-4 py-3 hover:bg-[#F9FAFB] transition-colors cursor-default relative
+              className={`flex items-start gap-3 px-4 py-3.5 hover:bg-[#F9FAFB] transition-colors cursor-default relative
                           ${i < items.length - 1 ? "border-b border-[#F3F4F6]" : ""}`}
             >
               {/* Renkli sol şerit */}
@@ -234,7 +234,7 @@ function ActivityFeed({ uid }: { uid: string }) {
                       </>
                     : item.title}
                 </p>
-                <p className="text-[11.5px] text-[#9CA3AF] leading-snug truncate mt-0.5">{item.desc}</p>
+                {item.desc ? <p className="text-[11.5px] text-[#6B7280] leading-snug line-clamp-2 mt-0.5">{item.desc}</p> : null}
               </div>
 
               {/* Zaman */}
@@ -478,7 +478,7 @@ export default function DashboardPage() {
 
       {/* SIDEBAR */}
       <aside className="hidden lg:block h-full shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
-        <Sidebar logo={<img src="/assets/flex-logo-white.svg" width={90} alt="flex" />} />
+        <Sidebar logo={<img src="/assets/flex-logo-white.svg" width={84} alt="flex" />} />
       </aside>
 
       {/* MAIN */}

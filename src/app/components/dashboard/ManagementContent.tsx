@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus, Info, X, Users, PlusCircle, Search, CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid, ChevronDown } from "lucide-react";
 import { GlobalConfirmationModal, StudentDeleteModal } from "./management-components/Modals";
@@ -46,6 +47,16 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   } = useManagement(setHeaderTitle);
 
   const [detailStudent, setDetailStudent] = useState<ModalStudent | null>(null);
+  const searchParams = useSearchParams();
+
+  // URL'den grup seçimi: ?group=id
+  useEffect(() => {
+    const groupParam = searchParams.get('group');
+    if (groupParam && groups.length > 0) {
+      const found = groups.find(g => g.id === groupParam);
+      if (found) setSelectedGroupId(groupParam);
+    }
+  }, [searchParams, groups]);
   const [branches, setBranches] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [activeDiscipline, setActiveDiscipline] = useState("all");
   const [userBranches, setUserBranches] = useState<string[]>([]);

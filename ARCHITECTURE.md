@@ -1,101 +1,374 @@
 # Flex Platform — Mimari Dokümantasyon
 
-> Bu dosya teknik kararların ve genel mimarinin referans notudu.
-> Yeni bir modüle veya projeye başlarken buraya bakılmalı.
+> Bu dosya teknik kararların ve genel mimarinin referans notudur.
+> Yeni bir modüle veya geliştirmeye başlarken buraya bakılmalı.
+> Son güncelleme: Haziran 2026
 
 ---
 
-## Genel Yapı
+## Temel Felsefe
+
+Flex, bir eğitim kurumunun tüm işlemlerini yapacağı bir işletim sistemidir.
+
+**Öğrenci merkezli sistem.** Öğrenci gruba, eğitime veya satışa bağlı düşünülmez.
+Öğrenci sistemin ana varlığıdır. Satışlar, ürünler, eğitimler, gruplar ve sertifikalar öğrenci etrafında şekillenir.
 
 ```
-Flex CRM (İç Sistem)
-├── Eğitim Modülü
-│   ├── Tasarım Atölyesi  ← şu an geliştirilen
-│   ├── [3D Modelleme]    ← ileride
-│   └── [Dijital Pazarlama, ...]
-├── Eğitim Operasyon Modülü
-├── Satış Modülü
-└── [...]
-
-Öğrenci Portalı (Ayrı uygulama)
-└── CRM API'siyle konuşur, sadece kendi datasını görür
+Kişi (Öğrenci)
+↓
+Satış
+↓
+Ürün / Paket
+↓
+Eğitim Kayıtları (Enrollment)
+↓
+Gruplar
+↓
+Eğitim Süreci (Yoklama / Not / Sertifika)
 ```
 
 ---
 
-## Tasarım Atölyesi
+## Mevcut Durum
 
-- Flex CRM'in **Eğitim Modülü** altında bir alt modül
-- Grafik Tasarım eğitmenine özel
-- **Aynı zamanda bağımsız ticari ürün olarak da çalışabilir**
-- Şu an standalone Next.js + Firebase olarak geliştirilmekte
-- Flex CRM'e entegre edildiğinde auth ve user yönetimi merkezi sisteme devredilecek
+Eğitim Operasyonu ve Satış modülleri henüz geliştirilmediği için grup yönetimi **geçici olarak** eğitmen tarafında yapılmaktadır.
 
----
+Eğitmen şu an:
+- Grup oluşturuyor
+- Öğrenci ekliyor
+- Yoklama alıyor
+- Proje notu giriyor
 
-## Ölçek Kararları
-
-| Katman | Kullanıcı Sayısı | Notlar |
-|---|---|---|
-| CRM kullanıcıları (eğitmen, admin, operasyon, satış) | 50–100 | Aktif session, Firebase Auth |
-| Öğrenci datası | Binlerce (eski veriler dahil) | Firestore'da kayıt, portal auth ayrı |
-| Eş zamanlı aktif kullanıcı | Düşük | Belirli saatlerde yoğunluk, gece sessiz |
-
-**Bu ölçekte:** Firestore yeterli, over-engineering gereksiz. Öğrenci portalı ayrı tutulduğu için CRM tarafında yük minimal kalır.
+Bu yapı geçicidir. Uzun vadede eğitmen grup yönetemez. Bu sorumluluk Eğitim Operasyonu'na geçecektir.
 
 ---
 
-## Öğrenci Portalı — Neden Ayrı?
-
-- **Güvenlik:** Binlerce öğrenci CRM'in iç auth sistemine girerse tüm iç veri riske girer
-- **Yetki izolasyonu:** Öğrenci sadece kendi datasını görür; CRM kullanıcısı çok daha geniş yetkili
-- **Ölçeklenebilirlik:** Öğrenci trafiği CRM trafiğinden bağımsız scale edilebilir
-
-Portalın şu an için mimarisi:
-- Ayrı Next.js uygulaması
-- Ayrı Firebase Auth (ya da ilerleyen zamanda ayrı auth sağlayıcı)
-- Aynı Firestore, ama **ayrı security rules** ile
-- CRM PostgreSQL'e geçerse portal API katmanı üzerinden bağlanır
-
----
-
-## User / Role / Branch Mimarisi
-
-Şu anki yapı (Firestore):
+## Modüller
 
 ```
-users/{uid}
-├── name, surname, email, phone
-├── roles: string[]          // ["admin", "instructor", ...]
-├── branch: string           // "grafik-tasarim", "3d-modelleme", ...
-├── permissionOverrides: {}  // rol defaults üzerine ince ayar
-├── avatarId: number
-├── photoURL?: string        // kullanıcı fotoğrafı (ileride)
-└── isActivated: boolean
+flex/
+├── trainer/       ← Eğitmen Paneli (mevcut, neredeyse tamamlandı)
+├── operation/     ← Eğitim Operasyonu (sıradaki büyük modül)
+├── sales/         ← Satış
+├── finance/       ← Muhasebe
+└── shared/        ← Ortak sistemler (öğrenci, bildirim, sertifika, arama)
 ```
 
-- `roles` array olduğu için bir kullanıcı birden fazla rol taşıyabilir
-- `branch` ileride birden fazla olabilir — gerekirse `branches: string[]`'e geçilebilir
-- `permissionOverrides` rol bazlı default yetkilerin üzerine ince ayar sağlar
+### Trainer (Eğitmen Paneli)
+```
+trainer/
+├── dashboard        ← Ana sayfa, aktivite feed
+├── attendance       ← Yoklama
+├── projects         ← Ödev / Proje yönetimi
+├── students         ← Öğrenci listesi (geçici — ileride operation'a geçer)
+├── certificates     ← Sertifika
+└── grading          ← Not girme
+```
+
+### Operation (Eğitim Operasyonu)
+```
+operation/
+├── groups           ← Grup oluşturma, yönetim, durum takibi
+├── planning         ← Açılacak sınıf planlaması
+├── schedules        ← Takvim, erteleme
+├── trainers         ← Eğitmen atama
+└── certificates     ← Sertifika süreci yönetimi
+```
+
+### Sales (Satış)
+```
+sales/
+├── leads            ← Potansiyel müşteriler
+├── sales            ← Satış kayıtları
+├── products         ← Ürün / paket kataloğu
+└── enrollments      ← Kayıt oluşturma, öğrenci havuzu
+```
+
+### Finance (Muhasebe)
+```
+finance/
+├── payments         ← Ödeme takibi
+├── contracts        ← Sözleşmeler
+└── collections      ← Tahsilatlar
+```
+
+### Shared (Ortak Sistemler)
+```
+shared/
+├── students         ← Tek öğrenci sistemi (tüm modüller kullanır)
+├── notifications    ← Bildirim altyapısı
+├── quick-search     ← Ctrl+K global arama
+└── certificates     ← Sertifika altyapısı
+```
 
 ---
 
-## Flex CRM'e Geçişte Değişecekler
+## Önemli Prensip — Veri Tekrarı Yok
 
-- **Veritabanı:** Firestore → PostgreSQL + Prisma (modüller arası ilişkisel veri, raporlama, satış pipeline için)
-- **Auth:** Her modülün ayrı auth'u → merkezi kimlik katmanı (tüm modüller buradan beslenecek)
-- **Öğrenci Portalı:** CRM'in API'siyle konuşacak, doğrudan DB erişimi olmayacak
-- **Tasarım Atölyesi:** Mevcut Firestore yapısı referans alınarak yeni şemaya migrate edilecek
+Yanlış yaklaşım:
+```
+trainer/students
+operation/students
+sales/students     ← aynı veri üç yerde
+```
+
+Doğru yaklaşım:
+```
+shared/students    ← tek kaynak, tüm modüller buraya erişir
+```
+
+Rol klasörleri **ekran ve süreç** ayrımı içindir.
+Veri yapıları ve ortak sistemler **shared** altındadır.
+
+```
+Trainer    = süreç
+Operation  = süreç
+Sales      = süreç
+Finance    = süreç
+
+Students         = ortak veri
+Quick Search     = ortak servis
+Notifications    = ortak servis
+Certificates     = ortak servis
+```
 
 ---
 
-## Modül Bağımsızlığı Prensibi
+## Veri Hiyerarşisi
 
-Her modül:
-- Kendi başına çalışabilir (standalone ürün olabilir)
-- CRM'e bağlandığında merkezi auth ve user yönetimini devralır
-- Diğer modüllere doğrudan bağımlı değil, API/event üzerinden haberleşir
+```
+Person (Öğrenci)
+└── Sale (Satış)
+    └── Product (Ürün / Paket)
+        └── ProductItem (Paketteki eğitimler)
+            └── Enrollment (Eğitim kaydı)
+                └── Group (Grup)
+                    ├── Attendance (Yoklama)
+                    ├── Grades (Not / XP)
+                    └── Certificate (Sertifika)
+```
+
+### Person (Öğrenci)
+Sistemden silinmez. Öğrenci kurumun en değerli verisidir.
+- Birden fazla eğitim alabilir
+- Birden fazla paket satın alabilir
+- Farklı yıllarda geri dönebilir
+- Geçmiş eğitimleri, grupları, sertifikaları korunur
+
+### Product (Ürün / Paket Kataloğu)
+Satılan şey eğitim değil, ürün veya pakettir.
+
+```
+products/
+  "Dijital Tasarım Uzmanlığı"   ← paket
+  "Grafik Tasarım"              ← tek eğitim
+
+productItems/
+  productId: xxx
+  educationType: "Grafik Tasarım"
+  order: 1
+  defaultBranch: "grafik"
+```
+
+Tek eğitim satışı da, paket satışı da desteklenir.
+Ödeme **ürün seviyesinde** tutulur, devam **eğitim seviyesinde** tutulur.
+
+### Enrollment (Eğitim Kaydı)
+Sistemin kritik köprü varlığı. Sale ile Group arasındaki bağ.
+
+```
+Enrollment {
+  personId
+  saleId
+  educationId       ← paketteki hangi eğitim
+  groupId           ← hangi gruba yerleşti
+  status            ← aktif | dondurulmuş | tamamlandı | transfer
+  transferHistory[] ← grup değişiklik geçmişi
+}
+```
+
+### Group (Grup)
+Gruplar geçicidir. İsimler değiştirilmez, yeni grup oluşturulur.
+Öğrenciler eski gruptan seçilerek yeni gruba aktarılır.
+Böylece geçmiş yoklamalar, notlar ve sertifikalar korunur.
+
+**Grup yaşam döngüsü:**
+```
+Planlandı → Kayıt Alıyor → Aktif → Ertelendi → Tamamlandı → Sertifika Sürecinde → Arşiv
+```
 
 ---
 
-*Son güncelleme: Mart 2026*
+## Rol + Yetki Modeli
+
+Sadece role kontrolü yetmez. Role + Permission modeli kullanılır.
+
+```
+user {
+  role: "trainer"
+  permissions: [
+    "attendance.read",
+    "attendance.write",
+    "students.read"
+  ]
+}
+```
+
+Middleware ikisini birden kontrol eder:
+```
+hasRole("trainer") && hasPermission("attendance.write")
+```
+
+**Neden:** İleride şu varyasyonlar çıkacak:
+- Admin
+- Şube Müdürü
+- Kıdemli Eğitmen
+- Eğitmen
+- Stajyer Eğitmen
+- Satış + Eğitmen (çift yetki)
+
+Bir elemana ek yetki tıkla verilip alınabilmelidir. Örneğin eğitmene `sales` permission'ı eklenirse satış modülüne erişimi açılır.
+
+### Route Koruması (Middleware)
+```
+/trainer/*    → role: trainer | admin
+/operation/*  → role: operation | admin
+/sales/*      → role: sales | admin | permission: sales
+/finance/*    → role: finance | admin | permission: finance
+```
+
+---
+
+## Öğrenci Kartı
+
+Sistemin merkezidir. **Tek kart** vardır, role göre görünen sekmeler değişir.
+
+| Sekme | Eğitmen | Operasyon | Satış | Muhasebe |
+|-------|---------|-----------|-------|----------|
+| Eğitim Durumu | ✓ (default) | ✓ | | |
+| Lig | ✓ | | | |
+| Eğitimler / Gruplar | | ✓ | ✓ | |
+| Sertifikalar | ✓ | ✓ | | |
+| Eğitmen Notları | ✓ | | | |
+| Ödemeler / Sözleşme | | | | ✓ |
+
+**Eğitmen Notları:** Varsayılan olarak blur görünür. Öğrenci yanında ekran açılabilir. Butona basınca görünür hale gelir.
+
+**Öğrenci Kartı shared altındadır.** Her modülden açılabilir, Ctrl+K ile erişilebilir.
+
+---
+
+## Ctrl+K — Global Arama
+
+Tüm modüllerin merkezi erişim noktası.
+
+```
+Ctrl+K → "Ege" yaz → Öğrenci Kartı Açılır
+```
+
+- Tüm modüller aynı arama sistemini kullanır
+- Role göre filtrelenir: eğitmen sadece kendi öğrencilerini görür
+- Shared altında konumlanır
+
+---
+
+## Modüller Arası Sorumluluk Dağılımı
+
+### Eğitim Operasyonu — İşin Beyni
+- Branş, eğitim, grup tanımlar
+- Grup tarihlerini ve takvimini belirler
+- Eğitmen ataması yapar
+- Grubu "Aktif" statüsüne alır → eğitmene yoklama açılır
+- Öğrenci taleplerini ve şikayetleri yönetir
+- Sertifika süreçlerini yönetir
+- Sertifika basılınca SMS + e-posta otomatik gönderilir
+
+### Satış
+- Açılacak grupları ve ürün kataloğunu görür
+- Ürün / paket satışı yapar
+- Öğrenciyi sisteme kaydeder → havuza düşer
+- Havuzdan ilgili gruba yerleştirir
+
+### Eğitmen — Sadece Eğitim
+- Grup oluşturamaz, düzenleyemez
+- Öğrenci satışı yapamaz
+- Sadece: ders verir, yoklama alır, proje notu girer, eğitmen notu ekler
+- Atanmış grupları görür, öğrenciler zaten yerleştirilmiş gelir
+
+---
+
+## Oyunlaştırma (Lig Sistemi)
+
+Kaldırılmayacak. Korunacak. Opsiyonel olacak.
+
+Eğitmen sınıf ligini açarsa anlam kazanır. Öğrenci kartında ayrı "Lig" sekmesi olarak konumlanır.
+Default sekme "Eğitim Durumu"dur.
+
+---
+
+## Güvenlik
+
+### Firestore Rules — Katman Katman
+```
+Trainer    → sadece kendi atanmış groupId'lerine ait dökümanlar
+Operation  → tüm gruplar, enrollment'lar
+Sales      → products, groups (read) | persons, sales (write)
+Finance    → payment dökümanları, contracts
+```
+
+### PII & KVKK
+- Öğrenci adı, telefon, e-posta hassas veridir
+- KVKK rızası kayıt altına alınmalıdır
+- Veri erişim logu tutulmalıdır
+- "Öğrenci silinmez" prensibi — silme talebi gelirse kişisel veri anonimleştirilir, eğitim geçmişi korunur
+
+### Audit Log
+Her kritik işlem izlenebilir olmalıdır:
+```
+Kim → Ne yaptı → Hangi kayıtta → Ne zaman
+```
+Not girme, sertifika basma, ödeme kaydı, öğrenci transferi, grup statü değişikliği — hepsi loglanır.
+
+### JWT Claims
+```
+{ role: "trainer", permissions: ["sales"], groupIds: ["550", "598"] }
+```
+API route'lar claim'e göre izin verir. Client-side kontrole güvenilmez.
+
+---
+
+## Deployment Stratejisi
+
+Tek root, tek Next.js uygulaması. Modüller route bazlı ayrılır.
+
+```
+main  → production (eğitmen kullanımda)
+dev   → aktif geliştirme (yeni modüller)
+```
+
+- `main` → `flex.vercel.app` — stable, eğitmen kullanır
+- `dev` → `flex-dev.vercel.app` — geliştirme ortamı, ayrı Firebase projesi
+
+Separate repo veya Turborepo gerekmez. Auth, veri ve UI ortaktır. Ekip küçük, overhead gereksiz.
+
+---
+
+## Geliştirme Sırası
+
+1. **Eğitmen Paneli** — neredeyse tamamlandı
+   - Not girme düzenleme
+   - StudentDetailModal — Genel Durum tab
+   - Yönetim paneli boş sayfalar
+   - Profil ayarları
+
+2. **Eğitim Operasyonu** — sıradaki büyük modül
+   - Rol + permission modelinin genişletilmesi
+   - Grup yaşam döngüsü (Planlandı → Arşiv)
+   - Eğitmen atama
+   - Grup başlatma → yoklama aktivasyonu
+
+3. **Satış** — sonraki modül
+
+4. **Finance** — sonraki modül
+
+5. **Öğrenci Portalı** — en sona (Eğitim Operasyonu olmadan eksik kalır)

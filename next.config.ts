@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
 const ContentSecurityPolicy = [
   "default-src 'self'",
   // Next.js hydration + inline styles için unsafe-inline gerekli
-  "script-src 'self' 'unsafe-inline' https://vercel.live",
+  "script-src 'self' 'unsafe-inline' https://vercel.live https://apis.google.com",
   "style-src 'self' 'unsafe-inline'",
   // Google Drive görselleri + blob/data (PDF üretimi)
   "img-src 'self' data: blob: https://*.googleusercontent.com https://drive.google.com https://*.google.com https://*.gstatic.com",
@@ -28,7 +28,7 @@ const ContentSecurityPolicy = [
     "https://*.ingest.sentry.io",
   ].join(" "),
   // Google Drive iframe önizleme
-  "frame-src 'self' https://drive.google.com https://docs.google.com https://accounts.google.com",
+  "frame-src 'self' https://drive.google.com https://docs.google.com https://accounts.google.com https://vercel.live",
   // @react-pdf/renderer web worker
   "worker-src 'self' blob:",
   "object-src 'none'",

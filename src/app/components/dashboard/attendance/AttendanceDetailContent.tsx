@@ -413,7 +413,18 @@ export default function AttendanceDetailContent({
   }, [searchResults]);
 
   return (
-    <div className="w-[94%] max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto py-8 space-y-5">
+    <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+
+      {/* ── Geri Butonu ── */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-[13px] font-semibold text-neutral-400 hover:text-base-primary-700 transition-colors cursor-pointer -mt-2"
+        >
+          <ChevronLeft size={16} />
+          {backLabel}
+        </button>
+      )}
 
       {/* ── Başlık ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

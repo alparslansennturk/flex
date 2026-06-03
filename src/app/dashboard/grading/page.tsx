@@ -1840,27 +1840,6 @@ function CertModuleTab({ module }: { module: CertTab }) {
 // ─── SERTİFİKASYON PANELİ ────────────────────────────────────────────────────
 function CertificationPanel() {
   const [certTab, setCertTab] = useState<CertTab>("GRAFIK_1");
-  const [rounding, setRounding]   = useState(false);
-  const [roundDone, setRoundDone] = useState<number | null>(null);
-
-  const handleRoundAll = async () => {
-    setRounding(true);
-    setRoundDone(null);
-    try {
-      const snap  = await getDocs(collection(db, "projectGrades"));
-      const batch = writeBatch(db);
-      let count   = 0;
-      snap.forEach(d => {
-        const data = d.data();
-        const updates: Record<string, number | null> = {};
-        if (data.odevPuani != null) updates.odevPuani = Math.round(data.odevPuani);
-        if (data.finalNote != null) updates.finalNote = Math.round(data.finalNote);
-        if (Object.keys(updates).length) { batch.update(d.ref, updates); count++; }
-      });
-      await batch.commit();
-      setRoundDone(count);
-    } finally { setRounding(false); }
-  };
 
   return (
     <div className="w-full max-w-[1920px] mx-auto px-8 py-8 space-y-6">
@@ -1876,23 +1855,6 @@ function CertificationPanel() {
             </div>
             <h1 className="text-[26px] font-bold text-base-primary-900" style={{ letterSpacing: "-0.022em" }}>Proje Notları</h1>
             <p className="text-[13px] text-surface-400 mt-1">Modül bazında proje notlarını gir</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {roundDone != null && (
-              <span className="flex items-center gap-1.5 text-[12px] font-bold text-status-success-600">
-                <CheckCircle2 size={13} />{roundDone} kayıt yuvarlandı
-              </span>
-            )}
-            <button
-              onClick={handleRoundAll}
-              disabled={rounding}
-              className="flex items-center gap-2 h-10 px-5 rounded-xl border border-surface-200 bg-surface-50 text-[13px] font-bold text-surface-600 hover:bg-surface-100 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
-            >
-              {rounding
-                ? <><div className="w-3.5 h-3.5 border-2 border-surface-300 border-t-surface-600 rounded-full animate-spin" />Yuvarlanıyor…</>
-                : <><RotateCcw size={13} />Geriye Dönük Yuvarla</>
-              }
-            </button>
           </div>
         </div>
 

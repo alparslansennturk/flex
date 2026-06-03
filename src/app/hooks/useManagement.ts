@@ -605,7 +605,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           createdAt: serverTimestamp()
         });
         pendingSelectIdRef.current = docRef.id;
-        await logActivity("grup_olusturuldu", "Yeni grup oluşturuldu", `Grup ${formattedCode} — ${groupBranch}`);
+        await logActivity("grup_olusturuldu", "Yeni Grup Eklendi", `Grup ${formattedCode} sisteme eklendi`);
         showNotification("Yeni grup başarıyla oluşturuldu.");
       }
       setIsFormOpen(false);
@@ -939,7 +939,6 @@ await updateDoc(doc(db,"groups",groupId),{students:increment(1)});
   batchUpsertSnapshot(enrollBatch, enrollSnap);
   await enrollBatch.commit();
 }
-await logActivity("ogrenci_eklendi", "Yeni öğrenci eklendi", `${name.trim()} ${lastName.trim()} — ${targetGroup?.code ?? groupId}`);
 if(email?.trim()){
   try {
     const welcomeToken = await auth.currentUser?.getIdToken();

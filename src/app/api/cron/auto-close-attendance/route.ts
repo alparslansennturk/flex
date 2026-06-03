@@ -58,8 +58,8 @@ export async function GET(req: NextRequest) {
       if (!instructorId) return Promise.resolve();
       return logActivityAdmin(
         "yoklama",
-        `Grup ${groupCode} ${trDate} yoklaması otomatik bitirildi`,
-        "",
+        "Yoklama Otomatik Bitirildi",
+        `${groupCode} ${trDate} yoklaması otomatik bitirildi.`,
         instructorId,
       );
     })

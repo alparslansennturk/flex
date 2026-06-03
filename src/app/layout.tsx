@@ -5,6 +5,7 @@ import { UserProvider } from "@/app/context/UserContext";
 import { ScoringProvider } from "@/app/context/ScoringContext";
 import VercelToolbarWrapper from "@/app/components/VercelToolbarWrapper";
 import NotificationToastListener from "@/app/components/notifications/NotificationToastListener";
+import QuickSearch from "@/app/components/shared/QuickSearch";
 import { Toaster } from "sonner";
 
 const geistSans = Geist({
@@ -46,6 +47,7 @@ export default function RootLayout({
             {children}
           </ScoringProvider>
           <NotificationToastListener />
+          <QuickSearch />
           <VercelToolbarWrapper />
         </UserProvider>
       </body>
