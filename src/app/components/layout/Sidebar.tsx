@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { PERMISSIONS, NAV_CONFIG } from "@/app/lib/constants";
 import { LayoutDashboard, Users, BookOpen, Trophy, LogOut, GraduationCap, UserCircle, Settings2, Archive, ClipboardList, ChevronDown, FileCheck, Star, Eye, CalendarCheck, BarChart2, TrendingUp } from "lucide-react";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 import { auth, db } from "@/app/lib/firebase";
 import { signOut } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -28,9 +29,13 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
   const isAdmin = user?.roles?.includes('admin') || false;
   const router = useRouter();
   const compact = useCompact();
-  const [assignmentTestOpen, setAssignmentTestOpen] = useState(
-    pathname.startsWith('/dashboard/assignment') || pathname === '/dashboard/archive' || pathname.startsWith('/dashboard/tasks')
-  );
+  const [assignmentTestOpen, setAssignmentTestOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('assignmentOpen');
+      if (stored !== null) return stored === 'true';
+    }
+    return false;
+  });
   const [yoklamaOpen, setYoklamaOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = sessionStorage.getItem('yoklamaOpen');
@@ -50,6 +55,10 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
     sessionStorage.setItem('yoklamaOpen', String(yoklamaOpen));
   }, [yoklamaOpen]);
 
+  useEffect(() => {
+    sessionStorage.setItem('assignmentOpen', String(assignmentTestOpen));
+  }, [assignmentTestOpen]);
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -66,9 +75,8 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
         {logo ? (
           <Link href="/dashboard">{logo}</Link>
         ) : (
-          <Link href="/dashboard" className="flex items-center gap-1">
-            <span className="text-[24px] font-semibold text-[#FF8D28]">tasarım</span>
-            <span className="text-[24px] font-bold text-white">atölyesi</span>
+          <Link href="/dashboard">
+            <FlexLogo />
           </Link>
         )}
       </div>

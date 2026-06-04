@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { BookOpen, Trophy, LogOut, Settings } from "lucide-react";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 import { signOut } from "firebase/auth";
 import { auth, db } from "@/app/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -51,9 +52,8 @@ export default function StudentSidebar({ studentId: studentIdProp }: Props) {
 
       {/* Logo */}
       <div className="p-[40px_40px_0_40px]">
-        <Link href={`/student/${studentId}`} className="flex items-center gap-1">
-          <span className="text-[24px] font-semibold text-designstudio-primary-500">tasarım</span>
-          <span className="text-[24px] font-bold text-white">atölyesi</span>
+        <Link href={`/student/${studentId}`}>
+          <FlexLogo />
         </Link>
       </div>
 

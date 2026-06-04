@@ -1,4 +1,5 @@
 "use client";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { useUser } from "@/app/context/UserContext";
@@ -253,7 +254,7 @@ function FooterV3() {
     <footer className="w-full bg-[#10294C] border-t border-white/5 mt-auto font-inter shrink-0">
       <div className="w-[94%] mx-auto h-14 flex items-center justify-between max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]">
         <div className="cursor-pointer" onClick={() => router.push("/dashboard/home-v3")}>
-          <img src="/assets/flex-logo-white.svg" width={70} alt="flex" />
+          <FlexLogo width={70} />
         </div>
         <p className="text-[11px] font-normal text-white/60 tracking-wide">
           Copyright © Alparslan Şentürk 2026. Tüm Hakları Saklıdır.
@@ -388,7 +389,7 @@ export default function HomeV3Page() {
 
       {/* SIDEBAR */}
       <aside className="hidden lg:block h-full shrink-0 z-50 transition-all duration-300 w-[280px] 2xl:w-[320px] bg-[#10294C]">
-        <Sidebar logo={<img src="/assets/flex-logo-title-white.svg" width={165} alt="flex" />} />
+        <Sidebar logo={<FlexLogo width={165} />} />
       </aside>
 
       {/* MAIN */}

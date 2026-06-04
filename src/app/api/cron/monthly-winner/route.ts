@@ -76,7 +76,7 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
               Aynen devam :)
             </p>
             <p style="margin:0;font-size:12px;${BOLD}">
-              <span style="color:${DARK}">tasarım</span><span style="color:${WHITE}">atölyesi</span>
+              <span style="color:${WHITE};font-weight:700">flex</span>
             </p>
           </td>
           <td width="17"></td>
@@ -102,7 +102,7 @@ function buildWinnerHtml(firstName: string, score: number, monthLabel: string): 
                padding:16px 40px;text-align:center">
       <p style="margin:0;font-size:12px;color:#bbbbbb;line-height:1.6;
                 font-family:'Baloo 2',Arial,sans-serif">
-        Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.
+        Bu mail Flex sistemi tarafından otomatik gönderilmiştir.
       </p>
     </td>
   </tr>

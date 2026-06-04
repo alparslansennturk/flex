@@ -25,7 +25,7 @@ const rubik = Rubik({
 });
 
 export const metadata: Metadata = {
-  title: "Flex OS - Tasarım Atölyesi",
+  title: "Flex",
   description: "Yönetim Paneli",
 };
 

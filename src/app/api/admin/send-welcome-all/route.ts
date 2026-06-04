@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       await adminDb.collection("mailLogs").add({
         to: student.email.trim(),
         name,
-        subject: "Hesabın Oluşturuldu — Tasarım Atölyesi",
+        subject: "Hesabın Oluşturuldu — Flex",
         type: "welcome",
         groupCode: student.groupCode ?? null,
         status: result.success ? "success" : "failed",

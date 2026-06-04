@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         </p>
         <p style="font-size:14px;line-height:1.7;margin:0 0 32px">Başarılar.</p>
         <p style="font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;margin:0">
-          Tasarım Atölyesi
+          Flex
         </p>
       </div>`;
 

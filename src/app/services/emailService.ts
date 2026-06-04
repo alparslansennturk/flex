@@ -42,10 +42,10 @@ export async function sendOTPEmail(
 
   const result = await sendMail({
     to,
-    subject: "Giriş Kodunuz — Tasarım Atölyesi",
+    subject: "Giriş Kodunuz — Flex",
     html,
   });
-  await saveMailLog({ to, subject: "Giriş Kodunuz — Tasarım Atölyesi", type: "otp", result });
+  await saveMailLog({ to, subject: "Giriş Kodunuz — Flex", type: "otp", result });
   return result;
 }
 
@@ -68,7 +68,7 @@ export async function sendWelcomeEmail(
             <tr>
               <td style="background:linear-gradient(90deg,#FF8D28 0%,#D66500 100%);padding:32px 40px">
                 <p style="margin:0;font-size:24px;font-weight:600;color:#fff;letter-spacing:-0.5px">
-                  tasarımatölyesi
+                  flex
                 </p>
               </td>
             </tr>
@@ -78,7 +78,7 @@ export async function sendWelcomeEmail(
               <td style="padding:36px 40px 32px">
                 <p style="font-size:20px;font-weight:700;color:#111;margin:0 0 8px">Hoş geldin, ${name}! 👋</p>
                 <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px">
-                  Tasarım Atölyesi sürecine kaydın başarıyla oluşturuldu.
+                  Flex sürecine kaydın başarıyla oluşturuldu.
                 </p>
                 <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px">
                   Eğitim süresince yapacağın ödevler bu sistem üzerinden tanımlanacak ve değerlendirmelerin burada puanlanacaktır.
@@ -116,7 +116,7 @@ export async function sendWelcomeEmail(
             <tr>
               <td style="background:#fafafa;border-top:1px solid #f0f0f0;padding:20px 40px">
                 <p style="margin:0;font-size:12px;color:#bbb;line-height:1.6">
-                  Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.<br>
+                  Bu mail Flex sistemi tarafından otomatik gönderilmiştir.<br>
                   Eğer bu hesap sana ait değilse bu maili görmezden gelebilirsin.
                 </p>
               </td>
@@ -131,7 +131,7 @@ export async function sendWelcomeEmail(
 
   return sendMail({
     to,
-    subject: "Hesabın Oluşturuldu — Tasarım Atölyesi",
+    subject: "Hesabın Oluşturuldu — Flex",
     html,
   });
 }
@@ -147,12 +147,12 @@ export async function sendNotificationEmail(
   const html = `
     <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:40px auto;background:#fff;border-radius:16px;padding:40px;box-shadow:0 4px 24px rgba(0,0,0,0.06)">
       <p style="font-size:22px;font-weight:700;margin:0 0 24px">
-        <span style="color:#FF5C00">tasarım</span><span style="color:#7C3AED">atölyesi</span>
+        <span style="font-weight:700;color:#FF5C00">flex</span>
       </p>
       ${name ? `<p style="font-size:16px;color:#111;font-weight:600">Merhaba ${name},</p>` : ""}
       <p style="font-size:15px;color:#555;line-height:1.6">${message}</p>
       <hr style="border-color:#eee;margin:24px 0"/>
-      <p style="font-size:12px;color:#bbb;margin:0">Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.</p>
+      <p style="font-size:12px;color:#bbb;margin:0">Bu mail Flex sistemi tarafından otomatik gönderilmiştir.</p>
     </div>
   `;
 

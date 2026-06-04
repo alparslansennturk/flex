@@ -88,8 +88,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 
             {/* Logo */}
             <div style={{ display: "flex", alignItems: "baseline" }}>
-              <span style={{ fontFamily: "Baloo2", fontWeight: 700, fontSize: 30, color: DARK }}>tasarım</span>
-              <span style={{ fontFamily: "Baloo2", fontWeight: 700, fontSize: 30, color: WHITE }}>atölyesi</span>
+              <span style={{ fontFamily: "Baloo2", fontWeight: 700, fontSize: 30, color: DARK }}>flex</span>
             </div>
           </div>
         </div>

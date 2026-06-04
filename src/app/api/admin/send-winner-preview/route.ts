@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
 
             <!-- Logo -->
             <p style="margin:0;font-size:12px;${BOLD}">
-              <span style="color:${DARK}">tasarım</span><span style="color:${WHITE}">atölyesi</span>
+              <span style="color:${WHITE};font-weight:700">flex</span>
             </p>
 
           </td>
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
                padding:16px 40px;text-align:center">
       <p style="margin:0;font-size:12px;color:#bbbbbb;line-height:1.6;
                 font-family:'Baloo 2',Arial,sans-serif">
-        Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.
+        Bu mail Flex sistemi tarafından otomatik gönderilmiştir.
       </p>
     </td>
   </tr>

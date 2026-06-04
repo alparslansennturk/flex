@@ -226,7 +226,7 @@ export async function GET(req: NextRequest) {
   <tr>
     <td style="background:#F9FAFB;border-top:1px solid #E5E7EB;padding:16px 32px;text-align:center">
       <p style="margin:0;font-size:12px;color:#9CA3AF">
-        Bu önizleme Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.<br>
+        Bu önizleme Flex sistemi tarafından otomatik gönderilmiştir.<br>
         Aylık lig maili yarın saat 09:00'da (UTC+3) gönderilecek.
       </p>
     </td>

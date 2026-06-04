@@ -73,7 +73,7 @@ export function MonthlyWinnerTemplate({
             </Text>
 
             <Text style={styles.description}>
-              <strong>{monthLabel}</strong> ayında Tasarım Atölyesi'nin{" "}
+              <strong>{monthLabel}</strong> ayında Flex'in{" "}
               <span style={{ color: "#FF5C00" }}>en başarılı öğrencisi</span> sensin.
               Gösterdiğin çaba ve tutarlılık gerçekten takdire değer — bu başarı seni
               daha büyük hedeflere taşıyacak.
@@ -118,12 +118,9 @@ export function MonthlyWinnerTemplate({
 
           {/* Footer */}
           <Section style={styles.footer}>
-            <Text style={styles.brandName}>
-              <span style={{ color: "#FF5C00" }}>tasarım</span>
-              <span style={{ color: "#7C3AED" }}>atölyesi</span>
-            </Text>
+            <Text style={{ ...styles.brandName, color: "#FF5C00" }}>flex</Text>
             <Text style={styles.footerText}>
-              Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.
+              Bu mail Flex sistemi tarafından otomatik gönderilmiştir.
               Her ay en yüksek puanı alan öğrenciye ulaşır.
             </Text>
           </Section>

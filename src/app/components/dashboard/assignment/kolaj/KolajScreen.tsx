@@ -104,7 +104,7 @@ function KolajIntro({ onComplete }: { onComplete: () => void }) {
 
         <div className="text-center">
           <p className="text-[11px] font-bold tracking-[0.5em] uppercase mb-3" style={{ color: "rgba(168,213,186,0.5)" }}>
-            Tasarım Atölyesi
+            Flex
           </p>
           <h1 className="text-[56px] font-black text-white leading-none" style={{ letterSpacing: "-0.03em" }}>
             Kolaj

@@ -244,7 +244,7 @@ function KolajDocument({ data }: { data: KolajPdfData }) {
         {/* Sol panel */}
         <View style={s.sidebar}>
           <View style={s.sidebarTop}>
-            <Text style={s.eyebrow}>Tasarım Atölyesi</Text>
+            <Text style={s.eyebrow}>Flex</Text>
             <Text style={s.titleLine1}>Kolaj</Text>
             <Text style={s.titleLine2}>Bahçesi</Text>
             <Text style={s.taskName}>{data.taskName}</Text>

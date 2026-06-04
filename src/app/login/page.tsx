@@ -1,4 +1,5 @@
 "use client";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 
 import React, { useState, useEffect, Suspense } from "react";
 import { Eye, EyeOff, ChevronRight, Loader2, Check, ShieldCheck } from "lucide-react";
@@ -118,10 +119,7 @@ function LoginForm() {
     <div className={`w-full max-w-[614px] bg-surface-white p-[56px] radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center min-[1440px]:scale-105 2xl:scale-110 ${shake ? 'error-shake' : ''}`}>
       <div className="flex justify-between items-center mb-10">
         <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Kullanıcı Girişi</h2>
-        <div className="text-[24px] font-bold flex items-center font-inter text-nowrap">
-          <span style={{ color: 'var(--color-designstudio-primary-500)' }}>tasarım</span>
-          <span style={{ color: 'var(--color-accent-purple-500)' }}>atölyesi</span>
-        </div>
+        <FlexLogo width={64} />
       </div>
 
       <form onSubmit={handleLogin} noValidate className="w-full flex flex-col gap-6">

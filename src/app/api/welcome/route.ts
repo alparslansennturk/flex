@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
 
         <tr>
           <td style="background:linear-gradient(90deg,#FF8D28 0%,#D66500 100%);padding:32px 40px">
-            <p style="margin:0;font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px">tasarımatölyesi</p>
+            <p style="margin:0;font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px">flex</p>
           </td>
         </tr>
 
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
           <td style="padding:36px 40px 32px">
             <p style="font-size:20px;font-weight:700;color:#111;margin:0 0 8px">Hoş geldin, ${name}! 👋</p>
             <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 16px">
-              Tasarım Atölyesi sürecine kaydın başarıyla oluşturuldu.
+              Flex sürecine kaydın başarıyla oluşturuldu.
             </p>
 
             ${code ? `
@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
         <tr>
           <td style="background:#fafafa;border-top:1px solid #f0f0f0;padding:20px 40px">
             <p style="margin:0;font-size:12px;color:#bbb;line-height:1.6">
-              Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.<br>
+              Bu mail Flex sistemi tarafından otomatik gönderilmiştir.<br>
               Eğer bu hesap sana ait değilse bu maili görmezden gelebilirsin.
             </p>
           </td>
@@ -213,14 +213,14 @@ export async function POST(req: NextRequest) {
 
     const result = await sendMail({
       to:      email.trim(),
-      subject: "Hesabın Oluşturuldu — Tasarım Atölyesi",
+      subject: "Hesabın Oluşturuldu — Flex",
       html,
     });
 
     await adminDb.collection("mailLogs").add({
       to:        email.trim(),
       name,
-      subject:   "Hesabın Oluşturuldu — Tasarım Atölyesi",
+      subject:   "Hesabın Oluşturuldu — Flex",
       type:      "welcome",
       groupCode: groupCode ?? null,
       status:    result.success ? "success" : "failed",

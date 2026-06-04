@@ -1,35 +1,15 @@
 "use client";
 
-export type FlexLogoVariant =
-  | "eğitmen"
-  | "öğrenci"
-  | "satış"
-  | "eğitim operasyon"
-  | "yönetim";
+const LOGO_SRC = "/assets/flex-logo-white.svg";
 
 interface FlexLogoProps {
-  variant?: FlexLogoVariant;
-  size?: "sm" | "md" | "lg";
+  width?: number;
+  className?: string;
+  alt?: string;
 }
 
-const SIZE = {
-  sm: { flex: "text-[18px]", tag: "text-[11px]" },
-  md: { flex: "text-[22px]", tag: "text-[13px]" },
-  lg: { flex: "text-[26px]", tag: "text-[14px]" },
-};
-
-export default function FlexLogo({ variant, size = "md" }: FlexLogoProps) {
-  const s = SIZE[size];
+export default function FlexLogo({ width = 84, className, alt = "Flex" }: FlexLogoProps) {
   return (
-    <div className="flex items-baseline gap-[5px] select-none" style={{ fontFamily: "var(--font-rubik), sans-serif" }}>
-      <span className={`${s.flex} font-bold text-white tracking-[-0.03em] leading-none`}>
-        flex
-      </span>
-      {variant && (
-        <span className={`${s.tag} font-medium text-white/40 tracking-tight leading-none`}>
-          — {variant}
-        </span>
-      )}
-    </div>
+    <img src={LOGO_SRC} width={width} className={className} alt={alt} />
   );
 }

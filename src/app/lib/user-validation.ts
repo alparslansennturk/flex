@@ -41,7 +41,7 @@ export function buildActivationEmail(input: ActivationEmailInput): EmailTemplate
   const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/login?email=${encodeURIComponent(email)}&code=${code}`;
   const expiry   = expiresAt.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
-  const subject = "Tasarım Atölyesi — Aktivasyon Kodunuz";
+  const subject = "Flex — Aktivasyon Kodunuz";
 
   const html = `
 <!DOCTYPE html>
@@ -53,7 +53,7 @@ export function buildActivationEmail(input: ActivationEmailInput): EmailTemplate
       <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;">
         <tr>
           <td style="background:#FF6B35;padding:32px;text-align:center;">
-            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Tasarım Atölyesi</h1>
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Flex</h1>
           </td>
         </tr>
         <tr>
@@ -88,7 +88,7 @@ export function buildActivationEmail(input: ActivationEmailInput): EmailTemplate
         </tr>
         <tr>
           <td style="background:#f9f9f9;padding:20px 48px;border-top:1px solid #eee;text-align:center;">
-            <p style="margin:0;color:#aaa;font-size:12px;">© Tasarım Atölyesi — FLEX OS</p>
+            <p style="margin:0;color:#aaa;font-size:12px;">© Flex — FLEX OS</p>
           </td>
         </tr>
       </table>

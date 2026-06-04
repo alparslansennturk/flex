@@ -40,10 +40,7 @@ export function OTPTemplate({ otp, name }: OTPTemplateProps) {
 
           {/* Marka Başlığı */}
           <Section style={styles.header}>
-            <Text style={styles.brandName}>
-              <span style={{ color: "#FF5C00" }}>tasarım</span>
-              <span style={{ color: "#7C3AED" }}>atölyesi</span>
-            </Text>
+            <Text style={{ ...styles.brandName, color: "#FF5C00" }}>flex</Text>
           </Section>
 
           {/* Ana İçerik */}
@@ -78,7 +75,7 @@ export function OTPTemplate({ otp, name }: OTPTemplateProps) {
           {/* Footer */}
           <Section style={styles.footer}>
             <Text style={styles.footerText}>
-              Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.
+              Bu mail Flex sistemi tarafından otomatik gönderilmiştir.
             </Text>
             {/* TODO: Yarın buraya ödev PDF eki ekleme altyapısı kurulacak */}
             {/* TODO: İleride sertifika eki buraya eklenecek */}

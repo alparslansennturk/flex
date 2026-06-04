@@ -1,4 +1,5 @@
 "use client";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 
 import React, { useState, Suspense, useEffect } from "react";
 import { Eye, EyeOff, Loader2, ShieldCheck, Check, ChevronRight } from "lucide-react";
@@ -83,10 +84,7 @@ function ActivationContent() {
             {oobCode ? "Yeni Parola Belirle" : "Hesabı Aktifleştir"}
           </h2>
         </div>
-        <div className="text-[24px] font-bold flex items-center font-inter text-nowrap">
-          <span style={{ color: 'var(--color-designstudio-primary-500)' }}>tasarım</span>
-          <span style={{ color: 'var(--color-accent-purple-500)' }}>atölyesi</span>
-        </div>
+        <FlexLogo width={64} />
       </div>
 
       <form onSubmit={handleActivate} noValidate className="w-full flex flex-col font-inter">

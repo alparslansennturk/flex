@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
         <tr>
           <td style="background:linear-gradient(90deg,#FF8D28 0%,#D66500 100%);padding:32px 40px">
-            <p style="margin:0;font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px">tasarımatölyesi</p>
+            <p style="margin:0;font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px">flex</p>
           </td>
         </tr>
 
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
         <tr>
           <td style="background:#fafafa;border-top:1px solid #f0f0f0;padding:20px 40px">
             <p style="margin:0;font-size:12px;color:#bbb;line-height:1.6">
-              Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.
+              Bu mail Flex sistemi tarafından otomatik gönderilmiştir.
             </p>
           </td>
         </tr>
@@ -145,14 +145,14 @@ export async function POST(req: NextRequest) {
 
     const result = await sendMail({
       to: email,
-      subject: "Yeni Aktivasyon Kodun — Tasarım Atölyesi",
+      subject: "Yeni Aktivasyon Kodun — Flex",
       html,
     });
 
     await adminDb.collection("mailLogs").add({
       to: email,
       name,
-      subject: "Yeni Aktivasyon Kodun — Tasarım Atölyesi",
+      subject: "Yeni Aktivasyon Kodun — Flex",
       type: "resend-activation",
       groupCode: groupCode ?? null,
       status: result.success ? "success" : "failed",

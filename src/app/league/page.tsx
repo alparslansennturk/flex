@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Trophy,
@@ -949,9 +950,8 @@ function LeagueContent() {
         {/* ── TOP BAR ────────────────────────────────────────────────────── */}
         <div className="bg-white border-b border-surface-200 px-6 py-4 flex items-center justify-between shrink-0 z-30" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
           {!sidebarData && (
-            <div className="flex items-center gap-1 select-none">
-              <span className="text-[22px] font-semibold text-[#FF8D28]">tasarım</span>
-              <span className="text-[22px] font-bold text-text-primary">atölyesi</span>
+            <div className="select-none">
+              <FlexLogo width={64} />
             </div>
           )}
           {sidebarData && <div />}

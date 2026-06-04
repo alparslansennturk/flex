@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import FlexLogo from "@/app/components/ui/FlexLogo";
 
 export default function Footer() {
   const router = useRouter();
@@ -21,7 +20,8 @@ export default function Footer() {
           className="flex items-center gap-1 select-none cursor-pointer"
           onClick={() => router.push('/dashboard')}
         >
-          <FlexLogo width={64} />
+          <span className="text-[20px] font-semibold text-[#FF8D28] tracking-tight">tasarım</span>
+          <span className="text-[20px] font-bold text-white tracking-tight">atölyesi</span>
         </div>
 
         <div className="flex flex-col items-end justify-center">

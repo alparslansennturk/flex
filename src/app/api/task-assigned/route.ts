@@ -90,7 +90,7 @@ function buildHtml({ name, taskName, taskSubtitle, fmtDate }: {
 }) {
   return `
 <div style="font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:40px 32px;color:#111">
-  <h2 style="font-size:20px;font-weight:900;margin:0 0 2px">Tasarım Atölyesi</h2>
+  <h2 style="font-size:20px;font-weight:900;margin:0 0 2px">Flex</h2>
   <p style="font-size:12px;color:#9ca3af;margin:0 0 28px">Yeni Ödev Bildirimi</p>
 
   <p style="font-size:15px;font-weight:700;margin:0 0 6px">Merhaba ${name},</p>

@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
               Bu başarı seni beklenenden daha<br>ileri götürecek.<br>Aynen devam :)
             </p>
             <p style="margin:0;font-size:12px;${BOLD}">
-              <span style="color:${DARK}">tasarım</span><span style="color:${WHITE}">atölyesi</span>
+              <span style="color:${WHITE};font-weight:700">flex</span>
             </p>
           </td>
           <td width="17"></td>
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
   <tr>
     <td style="background:#fafafa;border-top:1px solid #f0f0f0;padding:16px 40px;text-align:center">
       <p style="margin:0;font-size:12px;color:#bbbbbb;font-family:'Baloo 2',Arial,sans-serif">
-        Bu mail Tasarım Atölyesi sistemi tarafından otomatik gönderilmiştir.
+        Bu mail Flex sistemi tarafından otomatik gönderilmiştir.
       </p>
     </td>
   </tr>

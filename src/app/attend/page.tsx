@@ -1,4 +1,5 @@
 "use client";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -47,9 +48,8 @@ export default function AttendPage() {
     <div className="h-[64px] shrink-0 border-b border-surface-100 bg-white">
       <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto h-full flex">
         <div className="w-[260px] shrink-0 flex items-center px-4 bg-neutral-50 border-r border-surface-100">
-          <Link href="/dashboard" className="flex items-center select-none">
-            <span className="text-[22px] font-semibold text-[#FF8D28]">tasarım</span>
-            <span className="text-[22px] font-bold text-base-primary-900">atölyesi</span>
+          <Link href="/dashboard" className="select-none">
+            <FlexLogo width={64} />
           </Link>
         </div>
         <div className="flex-1 min-w-0 flex items-center justify-end px-8">

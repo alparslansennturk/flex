@@ -166,7 +166,7 @@ export const UserTable = ({ users, branches = [], onEdit, onDelete }: UserTableP
                 <td className="p-3 xl:p-5 text-[12px] xl:text-[13px] text-neutral-400 text-left">
                   <HoverPopover
                     trigger={
-                      <span className="block truncate max-w-[160px] cursor-default">{user.email}</span>
+                      <span className="block truncate max-w-[160px] xl:max-w-none cursor-default">{user.email}</span>
                     }
                   >
                     <span className="px-2 py-1 text-[11px] font-medium text-neutral-600 whitespace-nowrap">{user.email}</span>
@@ -178,7 +178,7 @@ export const UserTable = ({ users, branches = [], onEdit, onDelete }: UserTableP
                 <td className="p-3 xl:p-5 text-left">
                   <HoverPopover
                     trigger={
-                      <span className="text-[11px] xl:text-[12px] font-semibold text-[#10294C] bg-neutral-100 px-2 py-0.5 rounded-lg border border-neutral-200 inline-block max-w-[80px] truncate cursor-default">
+                      <span className="text-[11px] xl:text-[12px] font-semibold text-[#10294C] bg-neutral-100 px-2 py-0.5 rounded-lg border border-neutral-200 inline-block max-w-[80px] xl:max-w-none truncate cursor-default">
                         {user.branch || "—"}
                       </span>
                     }

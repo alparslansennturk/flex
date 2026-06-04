@@ -32,7 +32,7 @@ export async function sendMail(options: MailOptions): Promise<SendResult> {
   const toList = Array.isArray(options.to) ? options.to : [options.to];
 
   const body: Record<string, unknown> = {
-    sender: { name: "Tasarım Atölyesi", email: senderEmail },
+    sender: { name: "Flex", email: senderEmail },
     to: toList.map(email => ({ email })),
     subject: options.subject,
     htmlContent: options.html,
