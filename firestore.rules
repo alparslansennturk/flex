@@ -71,7 +71,9 @@ service cloud.firestore {
     // ─── students ─────────────────────────────────────────────────────────────
 
     match /students/{studentId} {
-      allow read: if isSignedIn();
+      allow read: if isInstructor()
+                  || request.auth.uid == studentId
+                  || (isSignedIn() && resource.data.authUid == request.auth.uid);
       allow create: if isAdmin() || isInstructor();
       allow update: if isAdmin() || isInstructor();
       allow delete: if isAdmin() || hasPermissionOverride('CLASS_MANAGE');
