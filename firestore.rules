@@ -327,15 +327,12 @@ service cloud.firestore {
     // ─── announcements ────────────────────────────────────────────────────────
 
     match /announcements/{announcementId} {
-      allow create: if request.auth != null &&
-                       request.auth.token.role in ['instructor', 'teacher'] &&
-                       request.resource.data.groupId != null;
+      allow create: if isAdmin() || isInstructor();
 
-      allow read: if request.auth != null &&
-                     request.auth.token.role in ['student', 'teacher', 'instructor'];
+      allow read: if isSignedIn();
 
       allow update, delete: if request.auth.uid == resource.data.createdBy &&
-                               request.auth.token.role in ['instructor', 'teacher'];
+                               (isAdmin() || isInstructor());
     }
 
     // ─── system_backups ───────────────────────────────────────────────────────

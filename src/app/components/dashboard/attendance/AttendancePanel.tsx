@@ -611,12 +611,12 @@ export default function AttendancePanel({
   }, [selectedGroupId]);
 
   // ── Total done count (all-time) for course progress ──────────────────────
+  // getDocs: real-time gerekmiyor, onSnapshot tüm koleksiyonu sürekli dinlerdi (şişme)
   useEffect(() => {
     if (!selectedGroupId) { setTotalDoneCount(0); return; }
-    return onSnapshot(
-      query(collection(db, "design_attendance"), where("groupId", "==", selectedGroupId)),
-      snap => setTotalDoneCount(snap.size),
-    );
+    getDocs(query(collection(db, "design_attendance"), where("groupId", "==", selectedGroupId)))
+      .then(snap => setTotalDoneCount(snap.size))
+      .catch(() => setTotalDoneCount(0));
   }, [selectedGroupId]);
 
   // ── Cancelled count this month (for donut legend) ──────────────────────────
