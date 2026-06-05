@@ -65,10 +65,12 @@
 | Yoklama Raporu 4 katlı slide panel yeniden tasarımı | §169 | `attendance-report/page.tsx` |
 | Rapor: eğitmen grup tablosu + yoklama geçmişi + günlük detay paneli | §170 | `attendance-report/page.tsx`, `AttendancePanel.tsx` |
 | Rapor: 4 panel → 3 panel (split view: sol gruplar, sağ geçmiş) | §171 | `attendance-report/page.tsx` |
+| totalDoneCount onSnapshot → getDocs (Firestore şişme önlemi) | §172 | `AttendancePanel.tsx` |
+| Announcements rules: teacher→instructor, isAdmin()/isInstructor() helper | §173 | `firestore.rules` |
 
 ---
 
-## Son Durum (2026-06-02) — güncellendi
+## Son Durum (2026-06-05) — güncellendi
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
@@ -99,6 +101,8 @@
 - **UserTable responsive layout (§165):** Tüm sabit `w-X xl:w-X` sütun genişlikleri kaldırıldı — yatay scroll sorunu çözüldü. `HoverPopover` ortak bileşeni eklendi: trigger üzerinde hover'da içerik tam ortada yukarı çıkar (ok işareti dahil). `BranchCell`: ilk branş + `+N` chip, hover'da tümü görünür. `RoleCell`: aynı pattern roller için. Email, isim, şube hücrelerine truncate + hover ile tam metin. `İşlem` sütunu sticky right + centered, küçük ekranda kompakt buton gap'i. `Durum` sütunu centered. Telefon fontu küçük ekranda `text-[11px]`.
 - **AttendanceDetailContent + header hizalama (§166):** `AttendanceDetailContent` wrapper `w-[94%] max-w-[1300px]` → `w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8`. `attendance-detail/page.tsx` Header `innerClassName` da aynı `px-4 sm:px-6 lg:px-8` yaklaşımına geçirildi.
 - **StudentDetailModal online/yüzyüze (§164):** `AttendanceDoc` interface'e `online?: boolean` eklendi. `attOnlineHours` + `attInPersonHours` state'leri ve hesaplama eklendi. Devam Durumu kartında Devamsızlık altında `• Yüzyüze: X saat` + `• Online: X saat` (sadece katılım > 0 iken). Font weight `font-black text-[22px]` → `font-bold text-[14px] xl:text-[16px]` — küçük ekranlarda sığıyor.
+- **totalDoneCount Firestore fix (§172):** `AttendancePanel`'de tüm zamanları dinleyen `onSnapshot` → `getDocs` dönüştürüldü. Koleksiyon büyüdükçe şişmeyi önler. `AttendancePanel.tsx:616`.
+- **Announcements rules fix (§173):** `teacher`/`instructor` rol ismi tutarsızlığı giderildi. `isAdmin() || isInstructor()` helper'larına geçildi — admin artık duyuru oluşturabilir/okuyabilir/silebilir. `firestore.rules`.
 
 ---
 
