@@ -221,29 +221,29 @@ const InstructorExperienceScene = () => (
 
 // Slayt 7: Öğrenci Merkezli Yapı
 const StudentCentricScene = () => (
-  <div className="w-full flex flex-col lg:flex-row items-center justify-center gap-16 mx-auto max-w-6xl">
+  <div className="w-full flex flex-col lg:flex-row items-center lg:justify-between gap-8 lg:gap-12 mx-auto max-w-6xl">
     <div className="flex-1 space-y-8 text-center lg:text-left">
       <div className="text-base md:text-lg font-mono text-teal-400 font-medium border-l-4 border-teal-500 pl-4 inline-block lg:block">Yapısal mimari</div>
       <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-tight">Merkezde grup değil,<br />öğrenci var.</h2>
       <p className="text-xl md:text-2xl text-slate-400 font-light leading-relaxed">Öğrenci birden fazla eğitim alabilir, yıllar sonra tekrar dönebilir. Tüm kurumsal geçmişi tek bir kartta kalıcı olarak korunur.</p>
     </div>
-    <div className="flex-1 relative w-full h-[500px] flex items-center justify-center bg-slate-950/10 rounded-[40px] border border-white/5 mx-auto">
-      <div className="w-80 p-10 border-2 border-emerald-500/20 bg-slate-900 rounded-[36px] text-center z-20 shadow-[0_0_50px_rgba(0,0,0,0.6)]">
-        <div className="w-16 h-16 bg-emerald-500/10 rounded-full mx-auto mb-6 flex items-center justify-center text-emerald-400 font-bold text-xl">ID</div>
-        <div className="font-bold text-white text-3xl">Öğrenci kartı</div>
+    <div className="relative w-full max-w-[560px] h-[460px] flex items-center justify-center bg-slate-950/10 rounded-[40px] border border-white/5 ml-auto overflow-hidden">
+      <div className="w-56 p-7 border-2 border-emerald-500/20 bg-slate-900 rounded-[28px] text-center z-20 shadow-[0_0_50px_rgba(0,0,0,0.6)]">
+        <div className="w-12 h-12 bg-emerald-500/10 rounded-full mx-auto mb-4 flex items-center justify-center text-emerald-400 font-bold text-base">ID</div>
+        <div className="font-bold text-white text-xl">Öğrenci kartı</div>
       </div>
       {[
-        { name: "Çoklu Eğitim Desteği", x: -240, y: -130, color: "text-blue-400 border-blue-500/20 bg-blue-500/5" },
-        { name: "Kesintisiz Geçmiş Takibi", x: 240, y: -130, color: "text-orange-400 border-orange-500/20 bg-orange-500/5" },
-        { name: "Yıllar Boyu Portfolyo", x: -240, y: 130, color: "text-purple-400 border-purple-500/20 bg-purple-500/5" },
-        { name: "Akademik Gelişim Eğrisi", x: 240, y: 130, color: "text-teal-400 border-teal-500/20 bg-teal-500/5" },
+        { name: "Çoklu Eğitim Desteği", x: -148, y: -112, color: "text-blue-400 border-blue-500/20 bg-blue-500/5" },
+        { name: "Kesintisiz Geçmiş Takibi", x: 148, y: -112, color: "text-orange-400 border-orange-500/20 bg-orange-500/5" },
+        { name: "Yıllar Boyu Portfolyo", x: -148, y: 112, color: "text-purple-400 border-purple-500/20 bg-purple-500/5" },
+        { name: "Akademik Gelişim Eğrisi", x: 148, y: 112, color: "text-teal-400 border-teal-500/20 bg-teal-500/5" },
       ].map((edu, i) => (
         <motion.div
           key={i}
           initial={{ y: edu.y }}
           animate={{ y: [edu.y, edu.y + (i % 2 === 0 ? 6 : -6), edu.y] }}
           transition={{ repeat: Infinity, duration: 5, ease: "easeInOut", delay: i * 0.4 }}
-          className={`absolute px-6 py-4 border-2 rounded-2xl font-bold text-base md:text-lg shadow-xl backdrop-blur-sm whitespace-nowrap leading-normal ${edu.color}`}
+          className={`absolute px-5 py-3 border-2 rounded-xl font-semibold text-sm md:text-base shadow-xl backdrop-blur-sm whitespace-nowrap leading-normal ${edu.color}`}
           style={{ x: edu.x }}
         >
           {edu.name}
@@ -348,13 +348,37 @@ const GrowingPlatformScene = () => (
 
 // Slayt 11: Bugün
 const CurrentStatusScene = () => (
-  <div className="w-full text-center space-y-16 max-w-6xl mx-auto">
+  <div className="w-full text-center space-y-10 max-w-6xl mx-auto">
     <div className="space-y-6">
       <div className="text-base md:text-lg font-mono text-emerald-400 font-medium inline-block">Üretim aşaması</div>
       <h2 className="text-4xl md:text-6xl font-extrabold text-white leading-tight">Çalışan ürün. Ölçeklenebilir temel.</h2>
     </div>
+    <div className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] mx-auto">
+      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+      <span className="text-base md:text-lg font-black text-amber-400 tracking-wide">EĞİTİM MODÜLÜ</span>
+      <span className="w-px h-4 bg-amber-500/30" />
+      <span className="text-sm md:text-base font-medium text-amber-400/70">Geliştirme Aşamasında</span>
+    </div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full mx-auto">
+      {[
+        { value: "52K+", label: "Satır Kod" },
+        { value: "43",   label: "Sayfa" },
+        { value: "46",   label: "API Endpoint" },
+        { value: "376",  label: "Commit" },
+      ].map((stat, i) => (
+        <motion.div
+          key={i}
+          animate={{ y: [0, i % 2 === 0 ? -5 : 5, 0] }}
+          transition={{ repeat: Infinity, duration: 3.5 + i * 0.4, ease: "easeInOut", delay: i * 0.2 }}
+          className="border-2 border-emerald-500/20 bg-emerald-500/[0.04] rounded-2xl py-5 px-4 flex flex-col items-center gap-1"
+        >
+          <span className="text-3xl md:text-4xl font-black text-emerald-400">{stat.value}</span>
+          <span className="text-sm text-slate-400 font-medium">{stat.label}</span>
+        </motion.div>
+      ))}
+    </div>
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mx-auto text-left">
-      {["Çalışan Ürün Çekirdeği", "Gerçek Zamanlı Altyapı", "Gelişmiş Yetkilendirme", "Öğrenci Yönetimi Mimarisi", "Yeni Nesil Yoklama Altyapısı", "Anlık Bildirim Altyapısı"].map((item, i) => (
+      {["Gerçek Zamanlı Altyapı", "Gelişmiş Yetkilendirme", "Öğrenci Yönetimi Mimarisi", "Yeni Nesil Yoklama Altyapısı", "Anlık Bildirim Altyapısı", "Hızlı Arama (⌘K)"].map((item, i) => (
         <motion.div
           key={i}
           animate={{ y: [0, i % 2 === 0 ? -6 : 6, 0] }}
@@ -462,6 +486,21 @@ export default function PresentationPage() {
 
       {/* İlerleme Çubuğu */}
       <div className="absolute top-0 left-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-purple-500 transition-all duration-500 z-50" style={{ width: `${((index + 1) / SCENES.length) * 100}%` }} />
+
+      {/* Nokta Navigasyon */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2">
+        {SCENES.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setIndex(i)}
+            className={`rounded-full transition-all duration-300 ${
+              i === index
+                ? "w-6 h-2.5 bg-emerald-400"
+                : "w-2.5 h-2.5 bg-white/20 hover:bg-white/40"
+            }`}
+          />
+        ))}
+      </div>
 
       {/* Tam Ekran Kontrol Butonu */}
       <button 
