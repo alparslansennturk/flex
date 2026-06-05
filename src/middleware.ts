@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRemoteJWKSet, compactVerify } from "jose";
 
-// Edge-safe JWT payload decode (signature verification API routes'ta yapılır)
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
+// Firebase ID token public key endpoint (RS256, Edge-safe)
+// createRemoteJWKSet key'leri bellek içinde cache'ler — soğuk başlatma sonrası
+// ilk request ~100ms extra; warm instance'larda ihmal edilebilir.
+const FIREBASE_JWKS = createRemoteJWKSet(
+  new URL(
+    "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
+  )
+);
+
+/**
+ * Firebase ID token imzasını RS256 ile doğrular.
+ * exp kontrolü YAPILMAZ — Firebase SDK token'ı arka planda yeniler,
+ * middleware müdahale ederse yenileme penceresi kaçar.
+ * Gerçek exp zorunluluğu API route'larda verifyIdToken() ile sağlanır.
+ */
+async function verifyFirebaseToken(
+  token: string
+): Promise<Record<string, unknown> | null> {
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, "=");
-    return JSON.parse(atob(padded));
+    const { payload: rawPayload } = await compactVerify(token, FIREBASE_JWKS);
+    return JSON.parse(new TextDecoder().decode(rawPayload)) as Record<string, unknown>;
   } catch {
     return null;
   }
@@ -17,7 +31,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 // Örnek (layout veya auth hook'ta):
 //   const token = await user.getIdToken();
 //   document.cookie = `flex-token=${token}; path=/; max-age=3600; SameSite=Lax`;
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("flex-token")?.value;
 
@@ -34,19 +48,21 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const payload = decodeJwtPayload(token);
+  // İmza doğrulaması — sahte JWT bu noktada reddedilir
+  const payload = await verifyFirebaseToken(token);
   if (!payload) return NextResponse.redirect(new URL("/login", request.url));
 
   const role = typeof payload.role === "string" ? payload.role : null;
 
-  // exp kontrolü YAPILMAZ: Firebase JWT'leri 1 saatte bir expire olur ama
-  // Firebase SDK arka planda yenileyip cookie'yi günceller. Middleware burada
-  // exp'e bakıp logout ederse, SDK yenileme fırsatı bulamadan kullanıcı çıkarılır.
-
   // ─── Role isolation ───────────────────────────────────────────────────────
 
   // Öğrenci /dashboard, /admin veya /attend'a gitmeye çalışıyor → öğrenci portala yönlendir
-  if (role === "student" && (pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || pathname === "/attend")) {
+  if (
+    role === "student" &&
+    (pathname.startsWith("/dashboard") ||
+      pathname.startsWith("/admin") ||
+      pathname === "/attend")
+  ) {
     return NextResponse.redirect(new URL("/student", request.url));
   }
 
@@ -64,5 +80,12 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/student/:path*", "/dashboard/:path*", "/admin/:path*", "/league/:path*", "/league", "/attend"],
+  matcher: [
+    "/student/:path*",
+    "/dashboard/:path*",
+    "/admin/:path*",
+    "/league/:path*",
+    "/league",
+    "/attend",
+  ],
 };

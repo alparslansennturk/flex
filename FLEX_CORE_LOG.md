@@ -69,6 +69,7 @@
 | Announcements rules: teacher→instructor, isAdmin()/isInstructor() helper | §173 | `firestore.rules` |
 | API route auth standardizasyonu — withAuth() wrapper | §174 | `lib/with-auth.ts`, 7 route |
 | students read: öğrenciler sadece kendi kaydını okuyabilir | §175 | `firestore.rules` |
+| Middleware JWT imza doğrulaması — jose RS256 | §176 | `middleware.ts` |
 
 ---
 
@@ -105,6 +106,7 @@
 - **StudentDetailModal online/yüzyüze (§164):** `AttendanceDoc` interface'e `online?: boolean` eklendi. `attOnlineHours` + `attInPersonHours` state'leri ve hesaplama eklendi. Devam Durumu kartında Devamsızlık altında `• Yüzyüze: X saat` + `• Online: X saat` (sadece katılım > 0 iken). Font weight `font-black text-[22px]` → `font-bold text-[14px] xl:text-[16px]` — küçük ekranlarda sığıyor.
 - **totalDoneCount Firestore fix (§172):** `AttendancePanel`'de tüm zamanları dinleyen `onSnapshot` → `getDocs` dönüştürüldü. Koleksiyon büyüdükçe şişmeyi önler. `AttendancePanel.tsx:616`.
 - **Announcements rules fix (§173):** `teacher`/`instructor` rol ismi tutarsızlığı giderildi. `isAdmin() || isInstructor()` helper'larına geçildi — admin artık duyuru oluşturabilir/okuyabilir/silebilir. `firestore.rules`.
+- **Middleware JWT imza doğrulaması (§176):** `decodeJwtPayload` (base64 decode only) → `jose` `compactVerify` + Google Firebase JWKS (`RS256`). Sahte JWT artık middleware'i geçemiyor. `exp` kontrolü yapılmıyor — Firebase SDK token refresh akışı bozulmasın. Edge Runtime uyumlu. Bağımlılık: `jose@^6.2.3`. `middleware.ts`.
 - **students read kısıtlaması (§175):** `allow read: if isInstructor() || request.auth.uid == studentId || resource.data.authUid == request.auth.uid` — öğrenciler artık sadece kendi kaydını okuyabilir. Eğitmen/admin erişimi korundu, frontend değişikliği gerekmedi. `firestore.rules`.
 - **API auth standardizasyonu (§174):** `src/app/lib/with-auth.ts` — `withAuth(handler, { roles, allowAdminSecret })` wrapper. Bearer token + `x-admin-secret` desteği, tutarlı 401/403 hataları. Migrate edilen route'lar: `student/set-account-status`, `notifications/broadcast`, `notifications/task-assigned`, `admin/migrate-custom-claims`, `users/create`, `task-assigned`, `admin/send-welcome-all`, `admin/send-activation-codes`. `student/sync` ve `comments/create` kendine özgü logic nedeniyle migrate edilmedi.
 
