@@ -1,24 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb, adminAuth } from "@/app/lib/firebase-admin";
+import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { withAuth, Caller } from "@/app/lib/with-auth";
 
-export async function POST(req: NextRequest) {
-  // Auth — instructor veya admin
-  const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "").trim();
-  if (!token) return NextResponse.json({ error: "Token gerekli." }, { status: 401 });
-
-  let decoded: Awaited<ReturnType<typeof adminAuth.verifyIdToken>>;
-  try {
-    decoded = await adminAuth.verifyIdToken(token);
-  } catch {
-    return NextResponse.json({ error: "Geçersiz token." }, { status: 401 });
-  }
-
-  const role = decoded.role as string | undefined;
-  if (role !== "admin" && role !== "instructor") {
-    return NextResponse.json({ error: "Yetkisiz." }, { status: 403 });
-  }
-
+async function handler(req: NextRequest, caller: Caller) {
   const { taskId, groupId, taskName, endDate } = await req.json() as {
     taskId:   string;
     groupId:  string;
@@ -56,7 +41,7 @@ export async function POST(req: NextRequest) {
     batch.set(ref, {
       type:       "assignment",
       entityId:   taskId,
-      senderId:   decoded.uid,
+      senderId:   caller.uid,
       title:      `Yeni ödev: ${taskName}`,
       preview,
       actionUrl:  `/student/${studentDoc.id}/${taskId}`,
@@ -74,3 +59,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ success: true, sent: count });
 }
+
+export const POST = withAuth(handler, { roles: ["admin", "instructor"] });

@@ -1,31 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb, adminAuth } from "@/app/lib/firebase-admin";
+import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { withAuth, Caller } from "@/app/lib/with-auth";
 
 const MASTER_UID = "flexos.platform@gmail.com";
 const CHUNK_SIZE = 400;
 
-export async function POST(req: NextRequest) {
-  // ── Auth ──────────────────────────────────────────────────────────────────
-  const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "").trim();
-  if (!token) return NextResponse.json({ error: "Token gerekli." }, { status: 401 });
+export const POST = withAuth(async (req: NextRequest, caller: Caller) => {
+  const isInstructor = caller.role === "instructor";
 
-  let decoded: Awaited<ReturnType<typeof adminAuth.verifyIdToken>>;
-  try {
-    decoded = await adminAuth.verifyIdToken(token);
-  } catch {
-    return NextResponse.json({ error: "Geçersiz token." }, { status: 401 });
-  }
-
-  const role = decoded.role as string | undefined;
-  const isAdmin      = role === "admin" || decoded.email === MASTER_UID;
-  const isInstructor = role === "instructor";
-
-  if (!isAdmin && !isInstructor) {
-    return NextResponse.json({ error: "Yetkisiz." }, { status: 403 });
-  }
-
-  // ── Body ──────────────────────────────────────────────────────────────────
   const { title, preview, audience, actionUrl, groupId } = await req.json() as {
     title?: string;
     preview?: string;
@@ -45,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (isInstructor) {
     if (audience === "group") {
       const groupDoc = await adminDb.collection("groups").doc(groupId!).get();
-      if (!groupDoc.exists || groupDoc.data()?.instructorId !== decoded.uid)
+      if (!groupDoc.exists || groupDoc.data()?.instructorId !== caller.uid)
         return NextResponse.json({ error: "Bu grup size ait değil." }, { status: 403 });
     } else if (audience !== "my-groups") {
       return NextResponse.json({ error: "Eğitmenler sadece kendi gruplarına gönderebilir." }, { status: 403 });
@@ -55,7 +38,6 @@ export async function POST(req: NextRequest) {
   // ── Hedef kullanıcıları bul ───────────────────────────────────────────────
   let targetUids: string[] = [];
 
-  /** Verilen groupId listesindeki tüm öğrencilerin authUid'lerini döner */
   async function uidsFromGroups(groupIds: string[]): Promise<string[]> {
     const snaps = await Promise.all(
       groupIds.map(gid =>
@@ -76,9 +58,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bu grupta aktif (giriş yapmış) öğrenci bulunamadı." }, { status: 404 });
 
   } else if (audience === "my-groups") {
-    // Gönderenin kendi grupları
     const myGroupsSnap = await adminDb.collection("groups")
-      .where("instructorId", "==", decoded.uid)
+      .where("instructorId", "==", caller.uid)
       .get();
     const myGroupIds = myGroupsSnap.docs
       .filter(d => d.data().status !== "archived")
@@ -111,7 +92,7 @@ export async function POST(req: NextRequest) {
   const notifData = {
     type:       "system",
     entityId:   eventId,
-    senderId:   decoded.uid,
+    senderId:   caller.uid,
     title:      title.trim(),
     preview:    preview.trim(),
     actionUrl:  actionUrl?.trim() || "/",
@@ -135,4 +116,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ success: true, sent: written });
-}
+}, { roles: ["admin", "instructor"] });

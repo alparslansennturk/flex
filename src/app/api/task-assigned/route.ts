@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb, adminAuth } from "@/app/lib/firebase-admin";
+import { adminDb } from "@/app/lib/firebase-admin";
 import { sendMail } from "@/app/lib/email";
 import { saveMailLog } from "@/app/services/emailService";
+import { withAuth } from "@/app/lib/with-auth";
 
 interface RequestBody {
   groupId:      string;
@@ -10,16 +11,7 @@ interface RequestBody {
   endDate?:     string | null;
 }
 
-export async function POST(req: NextRequest) {
-  // ── Auth ──────────────────────────────────────────────────────────────────
-  const token = req.headers.get("Authorization")?.replace("Bearer ", "").trim() ?? "";
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  try {
-    await adminAuth.verifyIdToken(token);
-  } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-  }
-
+async function handler(req: NextRequest) {
   // ── Input ─────────────────────────────────────────────────────────────────
   let body: RequestBody;
   try {
@@ -80,6 +72,8 @@ export async function POST(req: NextRequest) {
   console.log(`[task-assigned] ${groupId}: ${sent}/${students.length} mail gönderildi`);
   return NextResponse.json({ success: true, sent, total: students.length });
 }
+
+export const POST = withAuth(handler, { roles: ["admin", "instructor"] });
 
 // ── HTML şablonu ──────────────────────────────────────────────────────────────
 function buildHtml({ name, taskName, taskSubtitle, fmtDate }: {

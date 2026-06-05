@@ -9,44 +9,11 @@ import {
   buildActivationEmail,
   type NewUserRole,
 } from "@/app/lib/user-validation";
+import { withAuth, Caller } from "@/app/lib/with-auth";
 
 // Admin veya instructor çağırabilir (instructor sadece student oluşturur)
-async function resolveCallerRole(req: NextRequest): Promise<
-  | { uid: string; role: string; error?: never }
-  | { error: string; status: number; uid?: never; role?: never }
-> {
-  const secret = req.headers.get("x-admin-secret");
-  if (secret) {
-    if (secret !== process.env.ADMIN_SECRET)
-      return { error: "Unauthorized", status: 401 };
-    return { uid: "system", role: "admin" };
-  }
-
-  const authHeader = req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    try {
-      const decoded = await getAuth().verifyIdToken(authHeader.slice(7));
-      const role = (decoded.role as string) ?? "";
-      if (!["admin", "instructor"].includes(role))
-        return { error: "Bu işlem için yetkiniz yok.", status: 403 };
-      return { uid: decoded.uid, role };
-    } catch {
-      return { error: "Geçersiz kimlik doğrulama.", status: 401 };
-    }
-  }
-
-  return { error: "Kimlik doğrulama gerekli.", status: 401 };
-}
-
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, caller: Caller) => {
   try {
-    // ── 1. Caller auth ──────────────────────────────────────────────────────
-    const caller = await resolveCallerRole(req);
-    if (caller.error)
-      return NextResponse.json({ error: caller.error }, { status: caller.status });
-
-    const { uid: callerUid, role: callerRole } = caller as { uid: string; role: string };
-
     const body = await req.json() as {
       email?:       unknown;
       name?:        unknown;
@@ -74,11 +41,11 @@ export async function POST(req: NextRequest) {
     const newRole = role as NewUserRole;
 
     // ── 4. Caller yetki kontrolü ────────────────────────────────────────────
-    if (newRole === "admin" && callerRole !== "admin")
+    if (newRole === "admin" && caller.role !== "admin")
       return NextResponse.json({ error: "Admin kullanıcı yalnızca admin oluşturabilir." }, { status: 403 });
-    if (newRole === "instructor" && callerRole !== "admin")
+    if (newRole === "instructor" && caller.role !== "admin")
       return NextResponse.json({ error: "Eğitmen yalnızca admin oluşturabilir." }, { status: 403 });
-    if (newRole === "accountant" && callerRole !== "admin")
+    if (newRole === "accountant" && caller.role !== "admin")
       return NextResponse.json({ error: "Muhasebe kullanıcısı yalnızca admin oluşturabilir." }, { status: 403 });
 
     // ── 5. Type otomatik set (client'tan asla alınmaz) ──────────────────────
@@ -137,7 +104,7 @@ export async function POST(req: NextRequest) {
       status:       "pending_activation",
       isActivated:  false,
       createdAt:    FieldValue.serverTimestamp(),
-      createdBy:    callerUid,
+      createdBy:    caller.uid,
     });
 
     // 5. codes collection
@@ -184,4 +151,4 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Sunucu hatası.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+}, { roles: ["admin", "instructor"], allowAdminSecret: true });

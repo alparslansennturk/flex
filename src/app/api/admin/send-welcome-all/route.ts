@@ -2,18 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { sendWelcomeEmail } from "@/app/services/emailService";
+import { withAuth } from "@/app/lib/with-auth";
 
 // Koruma: ADMIN_SECRET header zorunlu
 // Örnek çağrı:
 //   curl -X POST https://<domain>/api/admin/send-welcome-all \
 //        -H "x-admin-secret: <ADMIN_SECRET değeri>"
 
-export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-admin-secret");
-  if (!secret || secret !== process.env.ADMIN_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+async function handler(_req: NextRequest) {
   try {
     const studentsSnap = await adminDb
       .collection("students")
@@ -71,3 +67,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
   }
 }
+
+export const POST = withAuth(handler, { allowAdminSecret: true });

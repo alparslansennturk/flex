@@ -1,21 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
+import { withAuth } from "@/app/lib/with-auth";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
   try {
-    // Bearer token doğrula
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const token = authHeader.replace("Bearer ", "").trim();
-    if (!token) return NextResponse.json({ error: "Yetkisiz." }, { status: 401 });
-
-    const adminAuth = getAuth();
-    const decoded = await adminAuth.verifyIdToken(token);
-    const callerRole = decoded.role as string | undefined;
-    if (callerRole !== "admin" && callerRole !== "instructor" && !decoded.admin) {
-      return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
-    }
-
     const body = await req.json() as { studentDocId?: unknown; action?: unknown };
     const { studentDocId, action } = body;
 
@@ -24,7 +13,6 @@ export async function POST(req: NextRequest) {
     if (action !== "disable" && action !== "enable")
       return NextResponse.json({ error: "action 'disable' veya 'enable' olmalıdır." }, { status: 400 });
 
-    // Öğrenci doc'unu al
     const studentSnap = await adminDb.collection("students").doc(studentDocId).get();
     if (!studentSnap.exists)
       return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
@@ -34,11 +22,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bu öğrenciye ait Firebase hesabı yok." }, { status: 400 });
 
     const disabled = action === "disable";
+    await getAuth().updateUser(authUid, { disabled });
 
-    // Firebase Auth disabled toggle
-    await adminAuth.updateUser(authUid, { disabled });
-
-    // Re-enable: kullanıcı daha önce şifresini kurmuş mu kontrol et
     let newAccountStatus: string;
     if (disabled) {
       newAccountStatus = "disabled";
@@ -60,4 +45,4 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Sunucu hatası.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+}, { roles: ["admin", "instructor"] });

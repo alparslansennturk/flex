@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/app/lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
 import { getTypeForRole, type NewUserRole } from "@/app/lib/user-validation";
+import { withAuth } from "@/app/lib/with-auth";
 
 // Tek seferlik migration: mevcut users'a Firebase custom claims set eder.
 // Çağrı: POST /api/admin/migrate-custom-claims
 //         Header: x-admin-secret: <ADMIN_SECRET>
 
-export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-admin-secret");
-  if (!secret || secret !== process.env.ADMIN_SECRET)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+async function handler(_req: NextRequest) {
 
   const auth = getAuth();
   const usersSnap = await adminDb.collection("users").get();
@@ -75,3 +73,5 @@ export async function POST(req: NextRequest) {
     message: `Migration tamamlandı: ${updated} güncellendi, ${skipped} atlandı, ${failed} hata.`,
   });
 }
+
+export const POST = withAuth(handler, { allowAdminSecret: true });

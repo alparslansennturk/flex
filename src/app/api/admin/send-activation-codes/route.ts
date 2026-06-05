@@ -3,12 +3,9 @@ import { adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendMail } from "@/app/lib/email";
 import { buildActivationEmail } from "@/app/lib/user-validation";
+import { withAuth } from "@/app/lib/with-auth";
 
-export async function POST(req: NextRequest) {
-  // ── Admin only (x-admin-secret) ─────────────────────────────────────────
-  const secret = req.headers.get("x-admin-secret");
-  if (!secret || secret !== process.env.ADMIN_SECRET)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+async function handler(req: NextRequest) {
 
   const body = await req.json() as {
     userIds?: unknown;
@@ -122,3 +119,5 @@ export async function POST(req: NextRequest) {
     message:      `${sent} aktivasyon kodu gönderildi.`,
   });
 }
+
+export const POST = withAuth(handler, { allowAdminSecret: true });
