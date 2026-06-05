@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
               Şifremi Unuttum
             </h2>
           </div>
-          <FlexLogo width={64} />
+          <FlexLogo />
         </div>
 
         <form onSubmit={handleResetRequest} noValidate className="w-full flex flex-col font-inter">

@@ -4,6 +4,8 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, ChevronDown, Check, Users, Calendar } from "lucide-react";
 import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
+import { db } from "@/app/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 interface GroupFormProps {
   isFormOpen: boolean;
@@ -14,7 +16,7 @@ interface GroupFormProps {
   setGroupBranch: (val: string) => void;
   groupDiscipline: string;
   setGroupDiscipline: (val: string) => void;
-  availableBranches: { id: string; name: string }[];
+  availableBranches: { id: string; name: string; categoryId?: string }[];
   groupModule: "GRAFIK_1" | "GRAFIK_2" | "";
   setGroupModule: (val: "GRAFIK_1" | "GRAFIK_2" | "") => void;
   groupType: "standart" | "özel_ders" | "kurumsal";
@@ -77,8 +79,18 @@ export const GroupForm: React.FC<GroupFormProps> = ({
   const [isModuleDropOpen, setIsModuleDropOpen]     = useState(false);
   const [moduleDropPos, setModuleDropPos]           = useState({ top: 0, left: 0, width: 0 });
   const [mounted, setMounted] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [isCategoryDropOpen, setIsCategoryDropOpen] = useState(false);
+  const [categoryDropPos, setCategoryDropPos] = useState({ top: 0, left: 0, width: 0 });
 
   useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, "categories"), snap => {
+      setCategories(snap.docs.map(d => ({ id: d.id, name: (d.data().name as string) })));
+    });
+  }, []);
 
   useEffect(() => {
     if (!isFormOpen) {
@@ -125,9 +137,21 @@ export const GroupForm: React.FC<GroupFormProps> = ({
     return () => clearTimeout(t);
   }, [errors]);
 
+  const handleCategoryChange = (catId: string) => {
+    setSelectedCategoryId(catId);
+    setGroupDiscipline("");
+    setSelectedModuleId("");
+    setGroupModule("");
+  };
+
+  const filteredBranches = selectedCategoryId
+    ? availableBranches.filter(b => b.categoryId === selectedCategoryId)
+    : availableBranches;
+
   const handleDisciplineChange = (val: string) => {
     setGroupDiscipline(val);
     setSelectedModuleId("");
+    setCustomHours("");
     const name = availableBranches.find(b => b.id === val)?.name?.toLowerCase() ?? "";
     if (!name.includes("grafik")) setGroupModule("");
   };
@@ -206,8 +230,8 @@ export const GroupForm: React.FC<GroupFormProps> = ({
           ))}
         </div>
 
-        {/* Satır 1: Şube · Branş · Grup Kodu */}
-        <div className="grid grid-cols-3 gap-6">
+        {/* Satır 1: Şube · Branş · Eğitim · Grup Kodu */}
+        <div className="grid grid-cols-4 gap-6">
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Şube</label>
             <div onClick={(e) => { if (!isLocDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setLocDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsLocDropOpen(!isLocDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${isLocDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
@@ -218,6 +242,14 @@ export const GroupForm: React.FC<GroupFormProps> = ({
 
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Branş</label>
+            <div onClick={(e) => { if (!isCategoryDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setCategoryDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsCategoryDropOpen(!isCategoryDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${isCategoryDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
+              <span className={`text-[14px] ${selectedCategoryId ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{categories.find(c => c.id === selectedCategoryId)?.name || 'Seçiniz...'}</span>
+              <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isCategoryDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Eğitim</label>
             <div onClick={(e) => { if (!isDisciplineDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setDisciplineDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsDisciplineDropOpen(!isDisciplineDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${isDisciplineDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
               <span className={`text-[14px] ${groupDiscipline ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{availableBranches.find(b => b.id === groupDiscipline)?.name || 'Seçiniz...'}</span>
               <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isDisciplineDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
@@ -295,20 +327,8 @@ export const GroupForm: React.FC<GroupFormProps> = ({
           </div>
         </div>
 
-        {/* Satır 3: Modül + Özel alanlar + Aylık Ders Sayısı */}
+        {/* Satır 3: Şirket Adı (kurumsal) + Toplam Saat */}
         <div className="grid grid-cols-4 gap-6">
-          {groupType === "standart" && (
-            <div className="col-span-2 space-y-2">
-              <label className={`text-[13px] font-semibold ml-1 ${branchModules.length > 0 ? "text-neutral-500" : "text-neutral-300"}`}>
-                Modül
-              </label>
-              <div onClick={(e) => { if (branchModules.length === 0) return; if (!isModuleDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setModuleDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsModuleDropOpen(!isModuleDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between transition-all duration-200 ${branchModules.length === 0 ? 'border-neutral-100 bg-neutral-100 cursor-not-allowed opacity-60' : isModuleDropOpen ? 'border-orange-500 bg-white cursor-pointer' : 'border-neutral-100 bg-neutral-50 cursor-pointer'}`}>
-                <span className={`text-[14px] truncate ${selectedModuleId ? 'font-bold text-[#10294C]' : branchModules.length === 0 ? 'text-neutral-300' : 'font-normal text-neutral-400'}`}>{selectedModuleId ? (() => { const m = branchModules.find(x => x.id === selectedModuleId); return m ? `${m.name} (${m.totalHours} saat)` : 'Belirtilmemiş'; })() : branchModules.length > 0 ? 'Belirtilmemiş' : 'Önce branş seçin'}</span>
-                <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isModuleDropOpen ? 'rotate-180 text-orange-500' : branchModules.length === 0 ? 'text-neutral-300' : 'text-neutral-400'}`} />
-              </div>
-            </div>
-          )}
-
           {groupType === "kurumsal" && (
             <div className="space-y-2">
               <label className="text-[13px] font-semibold text-neutral-500 ml-1">Şirket Adı</label>
@@ -316,13 +336,10 @@ export const GroupForm: React.FC<GroupFormProps> = ({
             </div>
           )}
 
-          {groupType !== "standart" && (
-            <div className="space-y-2">
-              <label className="text-[13px] font-semibold text-neutral-500 ml-1">Toplam Saat</label>
-              <input type="number" min={1} value={customHours} onChange={e => setCustomHours(e.target.value)} placeholder="Örn: 40" className={inputNormal} />
-            </div>
-          )}
-
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-neutral-500 ml-1">Toplam Saat</label>
+            <input type="number" min={1} value={customHours} onChange={e => setCustomHours(e.target.value)} placeholder="Örn: 81" className={inputNormal} />
+          </div>
         </div>
 
         {/* Özel seans input */}
@@ -384,6 +401,24 @@ export const GroupForm: React.FC<GroupFormProps> = ({
     </>, document.body)}
 
     {mounted && createPortal(<>
+      {isCategoryDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsCategoryDropOpen(false)} />}
+      <AnimatePresence>
+        {isCategoryDropOpen && (
+          <motion.div {...dropProps} className="fixed bg-white border border-neutral-200 shadow-xl rounded-xl z-[9999] overflow-hidden" style={{ transformOrigin: 'top', top: categoryDropPos.top, left: categoryDropPos.left, width: categoryDropPos.width }}>
+            <div onClick={() => { handleCategoryChange(""); setIsCategoryDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b border-neutral-100">
+              <span className="text-[14px] font-medium text-neutral-400 italic">Seçilmemiş</span>
+              {!selectedCategoryId && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+            </div>
+            {categories.map(c => (
+              <div key={c.id} onClick={() => { handleCategoryChange(c.id); setIsCategoryDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
+                <span className="text-[14px] font-medium text-neutral-700">{c.name}</span>
+                {selectedCategoryId === c.id && <Check size={16} className="text-orange-500" strokeWidth={3} />}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {isDisciplineDropOpen && <div className="fixed inset-0 z-[9998]" onClick={() => setIsDisciplineDropOpen(false)} />}
       <AnimatePresence>
         {isDisciplineDropOpen && (
@@ -392,7 +427,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
               <span className="text-[14px] font-medium text-neutral-400 italic">Seçilmemiş</span>
               {!groupDiscipline && <Check size={16} className="text-orange-500" strokeWidth={3} />}
             </div>
-            {availableBranches.map(b => (
+            {filteredBranches.map(b => (
               <div key={b.id} onClick={() => { handleDisciplineChange(b.id); setIsDisciplineDropOpen(false); }} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 cursor-pointer transition-colors border-b last:border-0 border-neutral-100">
                 <span className="text-[14px] font-medium text-neutral-700">{b.name}</span>
                 {groupDiscipline === b.id && <Check size={16} className="text-orange-500" strokeWidth={3} />}

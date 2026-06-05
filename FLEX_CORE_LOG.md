@@ -288,3 +288,34 @@
 ### Uzun Vadeli (Acele Değil)
 - [ ] **Sertifika PDF + Dağıtım:** `react-pdf` + `send-kitap` pattern — şablon tasarımı kararlaştırılacak
 - [ ] **Dashboard Hızlı Yoklama Widget:** `/attend?groupId=xxx` shortcut kartı
+
+---
+
+## Eğitim Operasyon — Katalog Yönetimi Vizyonu (2026-06-05)
+
+> Bilge Adam deneyiminden ilham alınan, Eğitim Operasyon platformunun çekirdeği olacak modül.
+
+### Eğitim Tanımlama Ekranı
+- Eğitim adı + yıl (örn. "Grafik Tasarım 2026")
+- Bağlı branş seçimi
+- Durum akışı: `Taslak → Satışa Açık → Eğitim Başladı → Tamamlandı → Arşiv`
+- Eski yıl versiyonları arşivde saklanır, yeni yıl aktif olur
+
+### Sekmeler
+1. **Genel** — eğitim adı, branş, yıl, açıklama
+2. **Modüller** — modül listesi + sırası + saat (örn. Grafik-1 → Temel Photoshop)
+3. **Fiyatlandırma** — modül bazlı + toplam fiyat, KDV otomatik, taksit seçenekleri
+4. **Sertifikalar** — hangi sertifikaları alır: Katılım / Başarı / MEB; her biri için koşullar (devam %, not ortalaması vb.)
+5. **İçerik/Müfredat** — ders konuları, MEB belge bilgileri
+
+### "Satışa Başlat" Butonu
+- CRM ekranında eğitim görünür hale gelir
+- Satış ekibi lead'e bu eğitimi bağlayabilir, fiyat otomatik gelir
+- El ile fiyat girişi kaldırılır
+
+### Bağlantılar
+- **CRM** → hangi eğitim satıldı, fiyat buradan
+- **Öğrenci kaydı** → hangi eğitime kayıt oldu
+- **Sertifika** → MEB bilgileri + koşullar buradan çekilir, mezuniyette otomatik hesaplanır
+- **Fatura** → fiyat buradan gelir
+- **Mevcut grading/graduation** → sertifika koşullarına göre otomatik karar verir

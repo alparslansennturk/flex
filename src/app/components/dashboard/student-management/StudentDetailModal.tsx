@@ -906,13 +906,13 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
               <div className="space-y-2">
                 <div className="flex items-center justify-between bg-base-primary-50 border border-base-primary-100 rounded-12 px-3 py-2.5">
                   <span className="text-[10px] font-bold text-base-primary-400 tracking-tight">Grafik-1</span>
-                  <span className={`text-[16px] font-black text-base-primary-900 transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
+                  <span className={`text-[16px] font-bold text-base-primary-900 transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
                     {g1Code || "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between bg-accent-purple-100/40 border border-accent-purple-100 rounded-12 px-3 py-2.5">
                   <span className="text-[10px] font-bold text-accent-purple-400 tracking-tight">Grafik-2</span>
-                  <span className={`text-[16px] font-black text-accent-purple-700 transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
+                  <span className={`text-[16px] font-bold text-accent-purple-700 transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
                     {g2Code || "—"}
                   </span>
                 </div>
@@ -1033,41 +1033,42 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
                       <p className="text-[11px] text-surface-300 font-medium">Yoklama kaydı yok</p>
                     </div>
                   ) : (
-                  <div className="flex flex-1 items-start gap-3">
-                    <div className="flex flex-col flex-1 gap-2.5">
-                      {/* Katıldığı */}
-                      <div>
-                        <p className="text-[9px] font-bold text-surface-400 tracking-wide mb-0.5">Katıldığı</p>
-                        <p className="text-[14px] xl:text-[16px] font-bold tabular-nums leading-none text-text-primary">
-                          {attAttendedHours ?? "—"}{attAttendedHours != null ? " saat" : ""}
-                        </p>
-                      </div>
-                      {/* Devamsızlık */}
-                      <div>
-                        <p className="text-[9px] font-bold text-surface-400 tracking-wide mb-0.5">Devamsızlık</p>
-                        <p className={`text-[14px] xl:text-[16px] font-bold tabular-nums leading-none ${attAbsentHours != null && attAbsentHours > 0 ? "text-red-400" : "text-text-primary"}`}>
-                          {attAbsentHours ?? "—"}{attAbsentHours != null ? " saat" : ""}
-                        </p>
-                      </div>
-                      {/* Yüzyüze / Online — harf hizası için bullet sabit genişlikte */}
-                      {attOnlineHours != null && attInPersonHours != null && attAttendedHours != null && attAttendedHours > 0 && (
-                        <div className="flex flex-col gap-1 -ml-3 mt-auto">
-                          <div className="flex items-center text-[10px] text-text-secondary">
-                            <span className="w-3 shrink-0 text-surface-300">•</span>
-                            Yüzyüze: <span className="font-semibold ml-1">{attInPersonHours} saat</span>
-                          </div>
-                          <div className="flex items-center text-[10px] text-text-secondary">
-                            <span className="w-3 shrink-0 text-surface-300">•</span>
-                            Online: <span className="font-semibold ml-1">{attOnlineHours} saat</span>
-                          </div>
+                  <div className="flex flex-col flex-1 gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col flex-1 gap-2.5 pt-4">
+                        {/* Katıldığı */}
+                        <div>
+                          <p className="text-[9px] font-bold text-surface-600 tracking-wide mb-0.5">Katıldığı</p>
+                          <p className="text-[14px] xl:text-[16px] font-bold tabular-nums leading-none text-text-primary">
+                            {attAttendedHours ?? "—"}{attAttendedHours != null ? " saat" : ""}
+                          </p>
                         </div>
-                      )}
+                        {/* Devamsızlık */}
+                        <div>
+                          <p className="text-[9px] font-bold text-surface-600 tracking-wide mb-0.5">Devamsızlık</p>
+                          <p className={`text-[14px] xl:text-[16px] font-bold tabular-nums leading-none ${attAbsentHours != null && attAbsentHours > 0 ? "text-red-400" : "text-text-primary"}`}>
+                            {attAbsentHours ?? "—"}{attAbsentHours != null ? " saat" : ""}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Donut — biraz yukarı */}
+                      <div className="shrink-0 -mt-1">
+                        <AttendanceDonut rate={attRate} animate={visible} />
+                      </div>
                     </div>
 
-                    {/* Donut — biraz yukarı */}
-                    <div className="shrink-0 -mt-1">
-                      <AttendanceDonut rate={attRate} animate={visible} />
-                    </div>
+                    {/* Yüzyüze / Online — tam genişlik, tek satır */}
+                    {attOnlineHours != null && attInPersonHours != null && attAttendedHours != null && attAttendedHours > 0 && (
+                      <div className="flex items-center gap-4">
+                        <span className="text-[10px] text-text-secondary whitespace-nowrap">
+                          Yüzyüze: <span className="font-semibold">{attInPersonHours} saat</span>
+                        </span>
+                        <span className="text-[10px] text-text-secondary whitespace-nowrap">
+                          Online: <span className="font-semibold">{attOnlineHours} saat</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                   )}
                 </div>

@@ -46,10 +46,10 @@ export default function AttendPage() {
 
   const topBar = (onArrow: () => void) => (
     <div className="h-[64px] shrink-0 border-b border-surface-100 bg-white">
-      <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto h-full flex">
-        <div className="w-[260px] shrink-0 flex items-center px-4 bg-neutral-50 border-r border-surface-100">
+      <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto h-full flex pl-4 sm:pl-6 lg:pl-8">
+        <div className="w-[260px] shrink-0 flex items-center px-6 bg-neutral-50 border-r border-surface-100">
           <Link href="/dashboard" className="select-none">
-            <FlexLogo width={64} />
+            <FlexLogo variant="dark" />
           </Link>
         </div>
         <div className="flex-1 min-w-0 flex items-center justify-end px-8">

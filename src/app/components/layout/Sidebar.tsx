@@ -82,7 +82,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
       </div>
 
       {/* ANA OPERASYONEL MENÜ — compact'ta üst margin ve item arası biraz azalır */}
-      <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-12 space-y-1" : "mt-12 space-y-1.5"}`}>
+      <nav className={`flex-1 px-4 overflow-y-auto no-scrollbar transition-all duration-300 ${compact ? "mt-12 space-y-1" : "mt-12 space-y-1.5 xl:space-y-1"}`}>
         <SidebarLink href="/dashboard" icon={<LayoutDashboard size={18} />} label="Ana Sayfa" exact compact={compact} />
         <SidebarLink href={NAV_CONFIG.GROUPS.path} icon={<Users size={18} />} label="Sınıflar" compact={compact} />
 
@@ -98,7 +98,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
               <span className={`transition-colors duration-200 ${pathname.startsWith('/dashboard/attendance') ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>
                 <CalendarCheck size={18} />
               </span>
-              <span className="text-[15px] font-medium leading-tight flex-1 text-left">Yoklamalar</span>
+              <span className="text-[15px] font-[450] leading-tight flex-1 text-left">Yoklamalar</span>
               <ChevronDown
                 size={14}
                 className={`transition-transform duration-200 opacity-60 ${yoklamaOpen ? 'rotate-180' : ''}`}
@@ -144,7 +144,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
               }`}>
                 <ClipboardList size={18} />
               </span>
-              <span className="text-[15px] font-medium leading-tight flex-1 text-left">Ödevler</span>
+              <span className="text-[15px] font-[450] leading-tight flex-1 text-left">Ödevler</span>
               <ChevronDown
                 size={14}
                 className={`transition-transform duration-200 opacity-60 ${assignmentTestOpen ? 'rotate-180' : ''}`}
@@ -192,7 +192,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
           <span className="transition-colors duration-200 group-hover:text-[#FF8D28]">
             <LogOut size={18} />
           </span>
-          <span className="text-[15px] font-medium leading-tight">Çıkış Yap</span>
+          <span className="text-[15px] font-[450] leading-tight">Çıkış Yap</span>
         </div>
 
       </div>
@@ -215,7 +215,7 @@ function SidebarLink({ href, icon, label, exact = false, compact = false, sub = 
       <span className={`transition-colors duration-200 ${active ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>
         {icon}
       </span>
-      <span className={`leading-tight ${sub ? "text-[14px] font-normal" : "text-[15px] font-medium"}`}>
+      <span className={`leading-tight ${sub ? "text-[14px] font-normal" : "text-[15px] font-[450]"}`}>
         {label}
       </span>
     </Link>

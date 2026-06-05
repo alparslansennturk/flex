@@ -286,7 +286,7 @@ export default function PortalPreviewPage() {
           </div>
         </main>
 
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

@@ -679,7 +679,7 @@ export default function GraduationPage() {
             </div>
           </main>
 
-          <Footer />
+          <Footer mini />
         </div>
       </div>
 

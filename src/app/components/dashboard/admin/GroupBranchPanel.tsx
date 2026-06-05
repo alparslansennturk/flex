@@ -77,6 +77,18 @@ export default function GroupBranchPanel() {
   const [holidayLoading, setHolidayLoading] = useState(false);
   const [holidayError, setHolidayError]   = useState("");
 
+  // Category edit
+  const [editingCategoryId,   setEditingCategoryId]   = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+
+  // Branch (Eğitim) edit
+  const [editingBranchId,   setEditingBranchId]   = useState<string | null>(null);
+  const [editingBranchName, setEditingBranchName] = useState("");
+
+  // Module edit
+  const [editingModuleId,   setEditingModuleId]   = useState<string | null>(null);
+  const [editingModuleName, setEditingModuleName] = useState("");
+
   // Holiday edit
   const [editingHolidayId, setEditingHolidayId]         = useState<string | null>(null);
   const [editHolidayName, setEditHolidayName]           = useState("");
@@ -150,7 +162,7 @@ export default function GroupBranchPanel() {
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
     const slug = slugify(trimmed);
-    if (categories.some(c => c.slug === slug)) { setCategoryError("Bu kategori zaten mevcut."); return; }
+    if (categories.some(c => c.slug === slug)) { setCategoryError("Bu branş zaten mevcut."); return; }
     setCategoryLoading(true);
     try {
       await addDoc(collection(db, "categories"), {
@@ -160,9 +172,16 @@ export default function GroupBranchPanel() {
     } finally { setCategoryLoading(false); }
   };
 
+  const handleRenameCategory = async (id: string) => {
+    const trimmed = editingCategoryName.trim();
+    if (!trimmed) return;
+    await updateDoc(doc(db, "categories", id), { name: trimmed });
+    setEditingCategoryId(null);
+  };
+
   const handleDeleteCategory = async (c: Category) => {
     const hasBranches = branches.some(b => b.categoryId === c.id);
-    if (hasBranches) { setCategoryError(`"${c.name}" kategorisinde branşlar var. Önce branşları silin veya taşıyın.`); return; }
+    if (hasBranches) { setCategoryError(`"${c.name}" branşında eğitimler var. Önce eğitimleri silin veya taşıyın.`); return; }
     setCategoryError("");
     if (selectedCategoryId === c.id) { setSelectedCategoryId(null); setSelectedBranchId(null); }
     await deleteDoc(doc(db, "categories", c.id));
@@ -177,14 +196,14 @@ export default function GroupBranchPanel() {
   // ── Branch handlers ────────────────────────────────────────────────────────
 
   const handleAddBranch = async () => {
-    if (!selectedCategoryId) { setBranchError("Önce sol taraftan bir kategori seçin."); return; }
+    if (!selectedCategoryId) { setBranchError("Önce sol taraftan bir branş seçin."); return; }
     const trimmed = newBranchName.trim();
     if (!trimmed) return;
     const slug = slugify(trimmed);
     const existing = branches.find(b => b.slug === slug);
     if (existing) {
       if (existing.categoryId === selectedCategoryId) {
-        setBranchError("Bu branş zaten bu kategoride mevcut.");
+        setBranchError("Bu eğitim zaten bu branşta mevcut.");
         return;
       }
       // Kategorisiz veya başka kategorideki branşı bu kategoriye taşı
@@ -204,9 +223,16 @@ export default function GroupBranchPanel() {
     } finally { setBranchLoading(false); }
   };
 
+  const handleRenameBranch = async (id: string) => {
+    const trimmed = editingBranchName.trim();
+    if (!trimmed) return;
+    await updateDoc(doc(db, "branches", id), { name: trimmed });
+    setEditingBranchId(null);
+  };
+
   const handleDeleteBranch = async (b: Branch) => {
     const modSnap = await getDocs(collection(db, "branches", b.id, "modules"));
-    if (!modSnap.empty) { setBranchError(`"${b.name}" branşının modülleri var. Önce modülleri silin.`); return; }
+    if (!modSnap.empty) { setBranchError(`"${b.name}" branşının eğitimleri var. Önce eğitimleri silin.`); return; }
     setBranchError("");
     if (selectedBranchId === b.id) setSelectedBranchId(null);
     await deleteDoc(doc(db, "branches", b.id));
@@ -224,7 +250,7 @@ export default function GroupBranchPanel() {
     const name = newModName.trim();
     const totalHours = parseInt(newModHours, 10);
     const sessionHours = parseInt(newModSessionHours, 10);
-    if (!name || isNaN(totalHours) || totalHours < 1) { setModuleError("Modül adı ve toplam saat zorunludur."); return; }
+    if (!name || isNaN(totalHours) || totalHours < 1) { setModuleError("Eğitim adı ve toplam saat zorunludur."); return; }
     if (isNaN(sessionHours) || sessionHours < 1) { setModuleError("Seans süresi zorunludur."); return; }
     setModuleLoading(true);
     try {
@@ -234,6 +260,13 @@ export default function GroupBranchPanel() {
       });
       setNewModName(""); setNewModHours(""); setNewModSessionHours(""); setModuleError("");
     } finally { setModuleLoading(false); }
+  };
+
+  const handleRenameModule = async (modId: string) => {
+    const trimmed = editingModuleName.trim();
+    if (!trimmed || !selectedBranchId) return;
+    await updateDoc(doc(db, "branches", selectedBranchId, "modules", modId), { name: trimmed });
+    setEditingModuleId(null);
   };
 
   const handleDeleteModule = async (modId: string) => {
@@ -363,7 +396,7 @@ export default function GroupBranchPanel() {
       {/* Section buttons */}
       <div className="flex items-center gap-1 bg-surface-100/60 w-fit p-1 rounded-[14px] border border-surface-100 mb-8">
         {([
-          { id: "branches" as Section, label: "Branş & Modüller", icon: <GitBranch size={13} /> },
+          { id: "branches" as Section, label: "Branş & Eğitimler", icon: <GitBranch size={13} /> },
           { id: "sessions" as Section, label: "Seans Şablonları", icon: <CalendarDays size={13} /> },
           { id: "holidays" as Section, label: "Tatiller & İptaller", icon: <CalendarOff size={13} /> },
           { id: "special"  as Section, label: "Özel Tanımlar",    icon: <Layers size={13} /> },
@@ -388,13 +421,13 @@ export default function GroupBranchPanel() {
 
           {/* Col 1: Categories */}
           <div className="pr-7 border-r border-surface-200 space-y-4">
-            <h3 className="text-[11px] xl:text-[12px] font-bold text-text-tertiary">Kategoriler</h3>
+            <h3 className="text-[11px] xl:text-[12px] font-bold text-text-tertiary">Branşlar</h3>
             <div className="flex gap-2">
               <input
                 value={newCategoryName}
                 onChange={e => { setNewCategoryName(e.target.value); setCategoryError(""); }}
                 onKeyDown={e => e.key === "Enter" && handleAddCategory()}
-                placeholder="Yeni kategori"
+                placeholder="Yeni branş"
                 className="flex-1 h-9 border border-surface-300 bg-neutral-50 rounded-lg px-3 outline-none focus:border-base-primary-400 text-[12px] font-bold text-base-primary-900 placeholder:font-normal placeholder:text-neutral-400 min-w-0"
               />
               <button
@@ -414,31 +447,59 @@ export default function GroupBranchPanel() {
                 return (
                   <div
                     key={c.id}
-                    onClick={() => handleSelectCategory(c.id)}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl border cursor-pointer transition-all group ${
-                      isSelected
-                        ? "bg-base-primary-50 border-base-primary-200 shadow-sm"
-                        : "bg-white border-surface-200 hover:border-surface-300 hover:bg-neutral-50"
+                    onClick={() => { if (editingCategoryId !== c.id) handleSelectCategory(c.id); }}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all group ${
+                      editingCategoryId === c.id ? "bg-white border-base-primary-300 cursor-default" :
+                      isSelected ? "bg-base-primary-50 border-base-primary-200 shadow-sm cursor-pointer" :
+                      "bg-white border-surface-200 hover:border-surface-300 hover:bg-neutral-50 cursor-pointer"
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FolderOpen size={13} className={isSelected ? "text-base-primary-500 shrink-0" : "text-neutral-300 shrink-0"} />
-                      <span className={`text-[12px] font-bold truncate ${isSelected ? "text-base-primary-700" : "text-base-primary-900"}`}>
-                        {c.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                        isSelected ? "bg-base-primary-100 text-base-primary-600" : "bg-neutral-100 text-neutral-400"
-                      }`}>
-                        {count}
-                      </span>
-                      <button
-                        onClick={e => { e.stopPropagation(); handleDeleteCategory(c); }}
-                        className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+                    {editingCategoryId === c.id ? (
+                      <input
+                        autoFocus
+                        value={editingCategoryName}
+                        onChange={e => setEditingCategoryName(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") handleRenameCategory(c.id); if (e.key === "Escape") setEditingCategoryId(null); }}
+                        className="flex-1 text-[12px] font-bold text-base-primary-900 bg-transparent outline-none min-w-0 mr-2"
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FolderOpen size={13} className={isSelected ? "text-base-primary-500 shrink-0" : "text-neutral-300 shrink-0"} />
+                        <span className={`text-[12px] font-bold truncate ${isSelected ? "text-base-primary-700" : "text-base-primary-900"}`}>
+                          {c.name}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {editingCategoryId === c.id ? (
+                        <>
+                          <button onClick={e => { e.stopPropagation(); handleRenameCategory(c.id); }} className="w-5 h-5 flex items-center justify-center rounded-md text-green-500 hover:bg-green-50 transition-all cursor-pointer">
+                            <Check size={11} />
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); setEditingCategoryId(null); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 transition-all cursor-pointer">
+                            <X size={11} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isSelected ? "bg-base-primary-100 text-base-primary-600" : "bg-neutral-100 text-neutral-400"}`}>
+                            {count}
+                          </span>
+                          <button
+                            onClick={e => { e.stopPropagation(); setEditingCategoryId(c.id); setEditingCategoryName(c.name); }}
+                            className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-base-primary-500 hover:bg-base-primary-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                          >
+                            <Pencil size={10} />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDeleteCategory(c); }}
+                            className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -446,7 +507,7 @@ export default function GroupBranchPanel() {
               {categories.length === 0 && (
                 <div className="text-center py-10 text-neutral-300">
                   <FolderOpen size={28} strokeWidth={1} className="mx-auto mb-2" />
-                  <p className="text-[11px] xl:text-[12px] font-bold">Henüz kategori yok</p>
+                  <p className="text-[11px] xl:text-[12px] font-bold">Henüz branş yok</p>
                 </div>
               )}
             </div>
@@ -455,13 +516,13 @@ export default function GroupBranchPanel() {
           {/* Col 2: Branches */}
           <div className="px-7 border-r border-surface-200 space-y-4">
             <h3 className="text-[11px] xl:text-[12px] font-bold text-text-tertiary">
-              {selectedCategory ? selectedCategory.name : "Branşlar"}
+              {selectedCategory ? selectedCategory.name : "Eğitimler"}
             </h3>
 
             {!selectedCategoryId ? (
               <div className="flex flex-col items-center justify-center py-16 text-neutral-300">
                 <GitBranch size={28} strokeWidth={1} className="mb-2" />
-                <p className="text-[11px] xl:text-[12px] font-bold text-center">Sol taraftan kategori seçin</p>
+                <p className="text-[11px] xl:text-[12px] font-bold text-center">Sol taraftan branş seçin</p>
               </div>
             ) : (
               <>
@@ -470,7 +531,7 @@ export default function GroupBranchPanel() {
                     value={newBranchName}
                     onChange={e => { setNewBranchName(e.target.value); setBranchError(""); }}
                     onKeyDown={e => e.key === "Enter" && handleAddBranch()}
-                    placeholder="Yeni branş"
+                    placeholder="Yeni eğitim"
                     className="flex-1 h-9 border border-surface-300 bg-neutral-50 rounded-lg px-3 outline-none focus:border-base-primary-400 text-[12px] font-bold text-base-primary-900 placeholder:font-normal placeholder:text-neutral-400 min-w-0"
                   />
                   <button
@@ -489,34 +550,60 @@ export default function GroupBranchPanel() {
                     return (
                       <div
                         key={b.id}
-                        onClick={() => setSelectedBranchId(b.id)}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl border cursor-pointer transition-all group ${
-                          isSelected
-                            ? "bg-base-primary-50 border-base-primary-200 shadow-sm"
-                            : "bg-white border-surface-200 hover:border-surface-300 hover:bg-neutral-50"
+                        onClick={() => { if (editingBranchId !== b.id) setSelectedBranchId(b.id); }}
+                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all group ${
+                          editingBranchId === b.id ? "bg-white border-base-primary-300 cursor-default" :
+                          isSelected ? "bg-base-primary-50 border-base-primary-200 shadow-sm cursor-pointer" :
+                          "bg-white border-surface-200 hover:border-surface-300 hover:bg-neutral-50 cursor-pointer"
                         }`}
                       >
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[12px] font-bold truncate ${isSelected ? "text-base-primary-700" : "text-base-primary-900"}`}>
-                            {b.name}
-                          </p>
-                          <span className="text-[10px] text-neutral-400 font-medium flex items-center gap-1 mt-0.5">
-                            <Clock size={9} />{b.sessionHours ?? "—"} saat/seans
-                          </span>
+                        <div className="flex-1 min-w-0 mr-1">
+                          {editingBranchId === b.id ? (
+                            <input
+                              autoFocus
+                              value={editingBranchName}
+                              onChange={e => setEditingBranchName(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") handleRenameBranch(b.id); if (e.key === "Escape") setEditingBranchId(null); }}
+                              className="w-full text-[12px] font-bold text-base-primary-900 bg-transparent outline-none"
+                              onClick={e => e.stopPropagation()}
+                            />
+                          ) : (
+                            <>
+                              <p className={`text-[12px] font-bold truncate ${isSelected ? "text-base-primary-700" : "text-base-primary-900"}`}>{b.name}</p>
+                              <span className="text-[10px] text-neutral-400 font-medium flex items-center gap-1 mt-0.5">
+                                <Clock size={9} />{b.sessionHours ?? "—"} saat/seans
+                              </span>
+                            </>
+                          )}
                         </div>
-                        <button
-                          onClick={e => { e.stopPropagation(); handleDeleteBranch(b); }}
-                          className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
-                        >
-                          <Trash2 size={11} />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {editingBranchId === b.id ? (
+                            <>
+                              <button onClick={e => { e.stopPropagation(); handleRenameBranch(b.id); }} className="w-5 h-5 flex items-center justify-center rounded-md text-green-500 hover:bg-green-50 transition-all cursor-pointer">
+                                <Check size={11} />
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); setEditingBranchId(null); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 transition-all cursor-pointer">
+                                <X size={11} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={e => { e.stopPropagation(); setEditingBranchId(b.id); setEditingBranchName(b.name); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-base-primary-500 hover:bg-base-primary-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100">
+                                <Pencil size={10} />
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); handleDeleteBranch(b); }} className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer opacity-0 group-hover:opacity-100">
+                                <Trash2 size={11} />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                   {filteredBranches.length === 0 && (
                     <div className="text-center py-10 text-neutral-300">
                       <GitBranch size={28} strokeWidth={1} className="mx-auto mb-2" />
-                      <p className="text-[11px] xl:text-[12px] font-bold">Bu kategoride branş yok</p>
+                      <p className="text-[11px] xl:text-[12px] font-bold">Bu branşta eğitim yok</p>
                     </div>
                   )}
                 </div>
@@ -530,7 +617,7 @@ export default function GroupBranchPanel() {
               <div className="flex flex-col items-center justify-center py-24 text-neutral-300">
                 <BookOpen size={40} strokeWidth={1} className="mb-3" />
                 <p className="text-[14px] font-bold">Ortadan bir branş seçin</p>
-                <p className="text-[12px] mt-1">Branşın modüllerini buradan yönetebilirsiniz</p>
+                <p className="text-[12px] mt-1">Branşın eğitimlerini buradan yönetebilirsiniz</p>
               </div>
             ) : (
               <div className="space-y-5">
@@ -565,7 +652,7 @@ export default function GroupBranchPanel() {
                       <thead>
                         <tr className="border-b border-surface-200 bg-neutral-50/50">
                           <th className="w-8 px-3 py-3" />
-                          <th className="text-left px-5 py-3 text-[11px] xl:text-[12px] font-bold text-neutral-400">Modül Adı</th>
+                          <th className="text-left px-5 py-3 text-[11px] xl:text-[12px] font-bold text-neutral-400">Eğitim Adı</th>
                           <th className="text-left px-4 py-3 text-[11px] xl:text-[12px] font-bold text-neutral-400 w-36">Toplam Saat</th>
                           <th className="text-left px-4 py-3 text-[11px] xl:text-[12px] font-bold text-neutral-400 w-36">Seans Süresi</th>
                           <th className="text-center px-4 py-3 text-[11px] xl:text-[12px] font-bold text-neutral-400 w-20">Aktif</th>
@@ -647,16 +734,16 @@ export default function GroupBranchPanel() {
                 {modules.length === 0 && (
                   <div className="text-center py-10 text-neutral-300 bg-white border border-surface-200 rounded-2xl">
                     <BookOpen size={36} strokeWidth={1} className="mx-auto mb-2" />
-                    <p className="text-[13px] xl:text-[14px] font-bold">Bu branşa henüz modül eklenmedi</p>
+                    <p className="text-[13px] xl:text-[14px] font-bold">Bu branşa henüz eğitim eklenmedi</p>
                   </div>
                 )}
 
                 {/* Add module form */}
                 <div className="bg-neutral-50 border border-surface-300 border-dashed rounded-2xl p-5">
-                  <h4 className="text-[11px] xl:text-[12px] font-bold text-neutral-400 mb-3">Yeni Modül Ekle</h4>
+                  <h4 className="text-[11px] xl:text-[12px] font-bold text-neutral-400 mb-3">Yeni Eğitim Ekle</h4>
                   <div className="flex gap-3 items-end flex-wrap">
                     <div className="flex-1 min-w-[160px]">
-                      <label className="text-[11px] xl:text-[12px] font-bold text-neutral-400 ml-1 mb-1 block">Modül Adı</label>
+                      <label className="text-[11px] xl:text-[12px] font-bold text-neutral-400 ml-1 mb-1 block">Eğitim Adı</label>
                       <input
                         value={newModName}
                         onChange={e => { setNewModName(e.target.value); setModuleError(""); }}

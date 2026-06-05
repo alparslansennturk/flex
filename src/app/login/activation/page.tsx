@@ -84,7 +84,7 @@ function ActivationContent() {
             {oobCode ? "Yeni Parola Belirle" : "Hesabı Aktifleştir"}
           </h2>
         </div>
-        <FlexLogo width={64} />
+        <FlexLogo />
       </div>
 
       <form onSubmit={handleActivate} noValidate className="w-full flex flex-col font-inter">

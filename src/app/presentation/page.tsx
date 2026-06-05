@@ -437,11 +437,21 @@ export default function PresentationPage() {
   const [index, setIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.error(`Tam ekran moduna geçilemedi: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Başa dönme ve döngüsel (loop) geçiş mekanizması kuruldu
       if (e.key === "ArrowRight") setIndex((i) => (i + 1) % SCENES.length);
       if (e.key === "ArrowLeft") setIndex((i) => (i - 1 + SCENES.length) % SCENES.length);
+      if (e.key === "f" || e.key === "F") toggleFullscreen();
     };
     window.addEventListener("keydown", handleKeyDown);
 
@@ -455,16 +465,6 @@ export default function PresentationPage() {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
   }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch((err) => {
-        console.error(`Tam ekran moduna geçilemedi: ${err.message}`);
-      });
-    } else {
-      document.exitFullscreen();
-    }
-  };
 
   return (
     <main className="h-screen w-full bg-[#030712] text-slate-100 overflow-hidden relative font-sans select-none flex items-center justify-center">

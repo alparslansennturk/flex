@@ -163,7 +163,7 @@ export interface AttendanceDetailContentProps {
   initialMonth?: string;
   onBack?: () => void;
   backLabel?: string;
-  onGroupDetail?: (groupId: string, month: string) => void;
+  onGroupDetail?: (groupId: string, month: string, isClosed: boolean) => void;
 }
 
 // ── Ana Bileşen ───────────────────────────────────────────────────────────────
@@ -187,6 +187,9 @@ export default function AttendanceDetailContent({
   const [holidayDates, setHolidayDates]   = useState<Set<string>>(new Set());
   const [loading, setLoading]             = useState(true);
 
+  // Grup sekme
+  const [groupTab, setGroupTab] = useState<"active" | "closed">("active");
+
   // Filtreler
   const [selectedBranch,      setSelectedBranch]      = useState("");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState(initialGroupId ?? "");
@@ -205,13 +208,16 @@ export default function AttendanceDetailContent({
   const isSearchMode = searchCode.trim().length >= 2;
   const monthOptions = getMonthOptions();
 
-  // Grup dropdown'u için mevcut gruplar (branş + eğitmen cascades)
+  // Grup dropdown'u için mevcut gruplar (sekme + branş + eğitmen cascades)
   const dropdownGroups = useMemo(() => {
     let g = groups;
+    g = groupTab === "active"
+      ? g.filter(x => !x.attendanceClosed)
+      : g.filter(x => !!x.attendanceClosed);
     if (selectedBranch)     g = g.filter(x => x.discipline  === selectedBranch);
     if (selectedInstructor) g = g.filter(x => x.instructorId === selectedInstructor);
     return [...g].sort((a, b) => a.code.localeCompare(b.code, "tr"));
-  }, [groups, selectedBranch, selectedInstructor]);
+  }, [groups, groupTab, selectedBranch, selectedInstructor]);
 
   // Seçili grup artık dropdown'da yoksa sıfırla (ama groups yüklenmeden önce temizleme)
   useEffect(() => {
@@ -220,6 +226,9 @@ export default function AttendanceDetailContent({
       setSelectedGroupFilter("");
     }
   }, [dropdownGroups, selectedGroupFilter, groupsLoaded]);
+
+  // Sekme değişince grup filtresini sıfırla
+  useEffect(() => { setSelectedGroupFilter(""); }, [groupTab]);
 
   // Stats yüklenecek gruplar
   const filteredGroups = useMemo(() => {
@@ -448,8 +457,25 @@ export default function AttendanceDetailContent({
         </div>
       </div>
 
+      {/* ── Grup Sekmeleri ── */}
+      <div className="flex border-b border-surface-100">
+        {([["active", "Aktif Gruplar"], ["closed", "Tamamlanan Gruplar"]] as const).map(([tab, label]) => (
+          <button
+            key={tab}
+            onClick={() => setGroupTab(tab)}
+            className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-colors ${
+              groupTab === tab
+                ? "border-base-primary-600 text-base-primary-700"
+                : "border-transparent text-surface-400 hover:text-text-primary"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* ── Filtreler ── */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 !mt-6">
         {isAdmin() && (
           <FilterSelect value={selectedInstructor} onChange={setSelectedInstructor} placeholder="Tüm Eğitmenler" className="w-48">
             {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
@@ -645,7 +671,7 @@ export default function AttendanceDetailContent({
                       <div className="w-20 shrink-0 flex justify-end">
                         <button
                           onClick={() => onGroupDetail
-                            ? onGroupDetail(s.group.id, selectedMonth)
+                            ? onGroupDetail(s.group.id, selectedMonth, !!s.group.attendanceClosed)
                             : router.push(`/dashboard/attendance?groupId=${s.group.id}&month=${selectedMonth}`)
                           }
                           className="text-[12px] font-bold text-base-primary-600 hover:text-white hover:bg-base-primary-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap">

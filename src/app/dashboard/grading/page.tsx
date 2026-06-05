@@ -2181,7 +2181,7 @@ export default function GradingPage() {
             <GradingRouter />
           </Suspense>
         </main>
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,7 +13,7 @@ import AttendancePanel from "../../components/dashboard/attendance/AttendancePan
 
 const T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
-// useSearchParams gerektirdiği için Suspense içinde — back URL + tüm sayfa içeriği burada
+// useSearchParams gerektirdiÄŸi iÃ§in Suspense iÃ§inde â€” back URL + tÃ¼m sayfa iÃ§eriÄŸi burada
 function AttendanceDetailMain() {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -26,6 +26,7 @@ function AttendanceDetailMain() {
   const [showGroupDetail, setShowGroupDetail] = useState(false);
   const [detailGroupId, setDetailGroupId]     = useState<string | null>(null);
   const [detailMonth, setDetailMonth]         = useState<string | null>(null);
+  const [detailIsClosed, setDetailIsClosed]   = useState(false);
 
   const backUrl = ref === "attendance"
     ? `/dashboard/attendance?groupId=${filterGroupId}`
@@ -57,7 +58,7 @@ function AttendanceDetailMain() {
       />
       <main className="flex-1 min-h-0 relative overflow-hidden">
 
-        {/* ── Liste paneli — sola gider ── */}
+        {/* â”€â”€ Liste paneli â€” sola gider â”€â”€ */}
         <motion.div
           animate={{ x: showGroupDetail ? "-100%" : 0 }}
           transition={T}
@@ -67,11 +68,11 @@ function AttendanceDetailMain() {
             initialGroupId={filterGroupId ?? undefined}
             initialInstructorId={filterInstructorId ?? undefined}
             initialMonth={monthParam ?? undefined}
-            onGroupDetail={(gid, month) => { setDetailGroupId(gid); setDetailMonth(month); setShowGroupDetail(true); }}
+            onGroupDetail={(gid, month, isClosed) => { setDetailGroupId(gid); setDetailMonth(month); setDetailIsClosed(isClosed); setShowGroupDetail(true); }}
           />
         </motion.div>
 
-        {/* ── Grup detay paneli — sağdan gelir ── */}
+        {/* â”€â”€ Grup detay paneli â€” saÄŸdan gelir â”€â”€ */}
         <motion.div
           initial={false}
           animate={{ x: showGroupDetail ? 0 : "100%" }}
@@ -84,17 +85,18 @@ function AttendanceDetailMain() {
               allowEdit={true}
               enforceTimeWindow={true}
               filterMonth={detailMonth ?? monthParam ?? undefined}
+              groupMode={detailIsClosed ? "closed" : "active"}
             />
           )}
         </motion.div>
 
       </main>
-      <Footer />
+      <Footer mini />
     </div>
   );
 }
 
-// ── Sayfa ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Sayfa â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function AttendanceReportPage() {
   return (
     <div className="flex h-screen w-full bg-white font-inter overflow-hidden">
@@ -111,3 +113,4 @@ export default function AttendanceReportPage() {
     </div>
   );
 }
+

@@ -57,13 +57,13 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
       if (found) setSelectedGroupId(groupParam);
     }
   }, [searchParams, groups]);
-  const [branches, setBranches] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [branches, setBranches] = useState<{ id: string; name: string; slug: string; categoryId?: string }[]>([]);
   const [activeDiscipline, setActiveDiscipline] = useState("all");
   const [userBranches, setUserBranches] = useState<string[]>([]);
 
   useEffect(() => {
     return onSnapshot(query(collection(db, "branches")), snap => {
-      setBranches(snap.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; name: string; slug: string })));
+      setBranches(snap.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; name: string; slug: string; categoryId?: string })));
     });
   }, []);
 
@@ -280,7 +280,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                   onChange={e => setActiveDiscipline(e.target.value)}
                   className="h-10 bg-white border border-neutral-200 rounded-xl pl-4 pr-9 text-[13px] font-bold text-base-primary-900 outline-none shadow-sm cursor-pointer appearance-none focus:border-base-primary-400 transition-all"
                 >
-                  <option value="all">Tüm Branşlar</option>
+                  <option value="all">Tüm Eğitimler</option>
                   {availableDisciplines.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
@@ -344,7 +344,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
                       onChange={e => setActiveStudentDiscipline(e.target.value)}
                       className="h-10 bg-white border border-neutral-200 rounded-xl pl-4 pr-9 text-[13px] font-bold text-base-primary-900 outline-none shadow-sm cursor-pointer appearance-none focus:border-base-primary-400 transition-all"
                     >
-                      <option value="all">Tüm Branşlar</option>
+                      <option value="all">Tüm Eğitimler</option>
                       {availableDisciplines.map(b => (
                         <option key={b.id} value={b.id}>{b.name}</option>
                       ))}

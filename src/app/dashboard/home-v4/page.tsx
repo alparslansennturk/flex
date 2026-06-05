@@ -82,7 +82,7 @@ export default function HomeV4Page() {
           </div>
         </main>
 
-        <Footer />
+        <Footer mini />
       </div>
 
       <style jsx global>{`

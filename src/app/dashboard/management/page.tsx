@@ -76,7 +76,7 @@ export default function ManagementPage() {
           </div>
         </main>
 
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

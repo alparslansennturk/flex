@@ -81,7 +81,7 @@ export default function AttendancePage() {
             <AttendanceContent />
           </Suspense>
         </main>
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

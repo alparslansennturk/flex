@@ -559,7 +559,7 @@ export default function LogsPage() {
 
           </div>
         </main>
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

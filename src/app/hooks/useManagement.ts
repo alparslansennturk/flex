@@ -280,11 +280,13 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     if (!groupDiscipline) { setBranchModules([]); return; }
     const unsub = onSnapshot(
       query(collection(db, "branches", groupDiscipline, "modules"), orderBy("order", "asc")),
-      snap => setBranchModules(
-        snap.docs
+      snap => {
+        const mods = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as BranchModule))
-          .filter(m => m.isActive !== false)
-      ),
+          .filter(m => m.isActive !== false);
+        setBranchModules(mods);
+        setCustomHours(prev => prev === "" && mods.length > 0 ? mods[0].totalHours.toString() : prev);
+      },
       (err) => console.error("[branchModules]", err)
     );
     return () => unsub();
@@ -504,14 +506,12 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           instructor: instructorName,
           module: groupModule || null,
           type: groupType,
-          moduleId: groupType === "standart" && selectedModuleId ? selectedModuleId : null,
-          customHours: groupType !== "standart" && customHours ? parseInt(customHours, 10) : null,
+          moduleId: null,
+          customHours: customHours ? parseInt(customHours, 10) : null,
           companyName: groupType === "kurumsal" && companyName ? companyName : null,
           startDate: groupStartDate || null,
           sessionHours: lessonHours ? parseInt(lessonHours, 10) : null,
-          totalHours: groupType === "standart"
-            ? (selectedModuleId ? (branchModules.find(m => m.id === selectedModuleId)?.totalHours ?? null) : null)
-            : (customHours ? parseInt(customHours, 10) : null),
+          totalHours: customHours ? parseInt(customHours, 10) : null,
         });
 
         // Grup kodu değiştiyse VEYA modül GRAFIK_1→GRAFIK_2 geçişi varsa öğrencileri güncelle
@@ -594,14 +594,12 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
           status: "active",
           module: groupModule || null,
           type: groupType,
-          moduleId: groupType === "standart" && selectedModuleId ? selectedModuleId : null,
-          customHours: groupType !== "standart" && customHours ? parseInt(customHours, 10) : null,
+          moduleId: null,
+          customHours: customHours ? parseInt(customHours, 10) : null,
           companyName: groupType === "kurumsal" && companyName ? companyName : null,
           startDate: groupStartDate || null,
           sessionHours: lessonHours ? parseInt(lessonHours, 10) : null,
-          totalHours: groupType === "standart"
-            ? (selectedModuleId ? (branchModules.find(m => m.id === selectedModuleId)?.totalHours ?? null) : null)
-            : (customHours ? parseInt(customHours, 10) : null),
+          totalHours: customHours ? parseInt(customHours, 10) : null,
           createdAt: serverTimestamp()
         });
         pendingSelectIdRef.current = docRef.id;

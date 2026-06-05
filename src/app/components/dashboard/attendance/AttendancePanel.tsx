@@ -364,6 +364,7 @@ export default function AttendancePanel({
   onBackToAttend,
   filterMonth,
   preSelectedMonth,
+  groupMode = "active",
 }: {
   mode?: "detailed" | "simple";
   autoSelectToday?: boolean;
@@ -383,6 +384,8 @@ export default function AttendancePanel({
   filterMonth?: string;
   /** Açılışta hangi ayın seçili olacağını belirtir (YYYY-MM). */
   preSelectedMonth?: string;
+  /** Sidebar'da hangi grup kümesi gösterilir: aktif mi, tamamlananlar mı. */
+  groupMode?: "active" | "closed";
 }) {
   const { user, isAdmin } = useUser();
   const router = useRouter();
@@ -505,12 +508,16 @@ export default function AttendancePanel({
       if (filterMonth) {
         const now = new Date();
         const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        if (filterMonth >= currentMonthKey) return !g.attendanceClosed; // bu ay veya gelecek → normal filtre
+        if (filterMonth >= currentMonthKey) {
+          if (groupMode === "closed") return !!g.attendanceClosed || g.id === preSelectedGroupId;
+          return !g.attendanceClosed || g.id === preSelectedGroupId;
+        }
         // Geçmiş ay: o ayın sonuna kadar başlamış tüm grupları göster
         const [fy, fm] = filterMonth.split("-").map(Number);
         const monthEnd = `${filterMonth}-${String(new Date(fy, fm, 0).getDate()).padStart(2, "0")}`;
         return !g.startDate || g.startDate <= monthEnd;
       }
+      if (groupMode === "closed") return !!g.attendanceClosed || g.id === preSelectedGroupId;
       return !g.attendanceClosed || g.id === preSelectedGroupId;
     };
 

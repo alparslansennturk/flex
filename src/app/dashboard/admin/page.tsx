@@ -107,7 +107,7 @@ export default function AdminPage() {
             {activeSubTab === "logs" && <SystemPanel />}
           </div>
         </main>
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

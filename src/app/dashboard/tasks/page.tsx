@@ -47,7 +47,7 @@ export default function TasksPage() {
             </div>
           </div>
         </main>
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

@@ -1009,7 +1009,7 @@ export default function AttendanceSummaryPage() {
         <main className="flex-1 min-h-0 bg-white relative overflow-hidden">
           <AttendanceSummaryContent onBackChange={fn => setBackHandler(fn ? () => fn : null)} />
         </main>
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

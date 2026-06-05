@@ -951,7 +951,7 @@ function LeagueContent() {
         <div className="bg-white border-b border-surface-200 px-6 py-4 flex items-center justify-between shrink-0 z-30" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
           {!sidebarData && (
             <div className="select-none">
-              <FlexLogo width={64} />
+              <FlexLogo />
             </div>
           )}
           {sidebarData && <div />}

@@ -190,7 +190,7 @@ export default function MigrateHistoryPage() {
 
           </div>
         </main>
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );

@@ -281,7 +281,7 @@ export default function MigratePage() {
             </p>
           </div>
         </main>
-        <Footer />
+        <Footer mini />
       </div>
     </div>
   );
