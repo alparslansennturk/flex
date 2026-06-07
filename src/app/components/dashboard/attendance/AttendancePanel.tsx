@@ -202,7 +202,7 @@ function parseSessionTime(session: string): { start: number; end: number } | nul
 
 // Pencere sabitleri
 const WINDOW_BEFORE_MIN = 15;   // ders başlamadan kaç dk önce açılır
-const WINDOW_AFTER_MIN  = 180;  // ders bittikten kaç dk sonraya kadar açık kalır
+const WINDOW_AFTER_MIN  = 360;  // ders bittikten kaç dk sonraya kadar açık kalır
 
 function fmtMins(mins: number) {
   const h = Math.floor(mins / 60);
@@ -949,6 +949,8 @@ export default function AttendancePanel({
     return nowMins >= sessionTimeRange.start - WINDOW_BEFORE_MIN &&
            nowMins <= sessionTimeRange.end   + WINDOW_AFTER_MIN;
   })();
+  // Geçmiş tarihte kayıt alınmamış → giriş süresi dolmuş
+  const isPastExpired = enforceTimeWindow && !isToday && !existingDoc;
   // Banner için: açılma saati ve kapanma saati
   const windowOpenStr  = sessionTimeRange ? fmtMins(sessionTimeRange.start - WINDOW_BEFORE_MIN) : null;
   const windowCloseStr = sessionTimeRange ? fmtMins(sessionTimeRange.end   + WINDOW_AFTER_MIN)  : null;
@@ -1609,9 +1611,17 @@ export default function AttendancePanel({
                     </div>
                   )}
 
+                  {/* Geçmiş tarih — yoklama süresi dolmuş banner */}
+                  {isPastExpired && !exception && showAttendanceUI && (
+                    <div className="mx-5 mt-4 mb-1 px-4 py-3 rounded-xl flex items-start gap-2 text-[13px] font-semibold bg-amber-50 border border-amber-200 text-amber-800 shrink-0">
+                      <Lock size={14} className="shrink-0 mt-0.5" />
+                      <span>Bu ders için yoklama giriş süresi dolmuştur. Düzeltme yapılması gerekiyorsa Eğitim Operasyona başvurunuz.</span>
+                    </div>
+                  )}
+
                   {/* Sınıf Geneli quick-mark */}
                   {showAttendanceUI && students.length > 0 && !exception && (
-                    <div className={`px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50 ${isReadonlyView ? "pointer-events-none opacity-40" : ""}`}>
+                    <div className={`px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50 ${isReadonlyView || isPastExpired ? "pointer-events-none opacity-40" : ""}`}>
                       <span className="text-[11px] text-text-placeholder font-medium shrink-0">Sınıf Geneli:</span>
                       {[sessionHours, 0].map(h => (
                         <button key={h} onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
@@ -1626,7 +1636,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
-                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView || (!isWithinTimeWindow && !existingDoc)) ? "opacity-60 pointer-events-none select-none" : ""}`}>
+                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView || isPastExpired || (!isWithinTimeWindow && !existingDoc)) ? "opacity-60 pointer-events-none select-none" : ""}`}>
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
                         <Users size={28} strokeWidth={1.5} />
