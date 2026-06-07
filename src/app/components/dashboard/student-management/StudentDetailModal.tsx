@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, GraduationCap, Zap, BookOpen, Star, CalendarCheck, History, Phone, CreditCard, ArrowRight, Clock, LayoutGrid, Save, User } from "lucide-react";
+import { X, GraduationCap, Zap, BookOpen, Star, CalendarCheck, History, Phone, CreditCard, ArrowRight, Clock, LayoutGrid, Save, User, Pencil } from "lucide-react";
 import { db } from "@/app/lib/firebase";
 import { collection, query, where, getDocs, getDoc, doc, onSnapshot, documentId, orderBy, updateDoc } from "firebase/firestore";
 import { useScoring } from "@/app/context/ScoringContext";
@@ -61,6 +61,16 @@ interface StudentDoc {
   isScoreHidden?: boolean;
   grafik1Code?: string;
   grafik2Code?: string;
+  status?: string;
+}
+
+interface FeatureFlags {
+  leagueScore?: boolean;
+  badges?: boolean;
+  certificates?: boolean;
+  assignments?: boolean;
+  achievements?: boolean;
+  competencies?: boolean;
 }
 
 interface AttendanceDoc {
@@ -89,6 +99,7 @@ interface GroupDocData {
   codeAt_GRAFIK_2?: string;
   session?: string;
   days?: string[];
+  discipline?: string;
 }
 
 interface ProjectGradeDoc {
@@ -132,6 +143,22 @@ const TABS: TabDef[] = [
 
 const MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const EMPTY_STATS: ModuleStats = { taskCount: 0, xp: 0, score: 0, maxXP: 0, odevPuani: 0 };
+
+const STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  active:     { label: "Aktif",       cls: "bg-green-100 text-green-700 border-green-200" },
+  aktif:      { label: "Aktif",       cls: "bg-green-100 text-green-700 border-green-200" },
+  passive:    { label: "Pasif",       cls: "bg-surface-100 text-surface-500 border-surface-200" },
+  pasif:      { label: "Pasif",       cls: "bg-surface-100 text-surface-500 border-surface-200" },
+  graduated:  { label: "Mezun",       cls: "bg-blue-100 text-blue-700 border-blue-200" },
+  mezun:      { label: "Mezun",       cls: "bg-blue-100 text-blue-700 border-blue-200" },
+  frozen:     { label: "Donduruldu",  cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  donduruldu: { label: "Donduruldu",  cls: "bg-amber-100 text-amber-700 border-amber-200" },
+};
+
+const MODULE_LABEL: Record<string, string> = {
+  GRAFIK_1: "Grafik Tasarım",
+  GRAFIK_2: "Grafik Tasarım",
+};
 
 // ─── useCountUp — sayaç animasyonu ────────────────────────────────────────────
 
@@ -221,10 +248,10 @@ function GradCard({ label, code, grade, odevPuaniCalc, loading, color, odevDisab
 
   // Yapı her zaman tam yükseklikte render edilir — yükleme sırasında değerler "—" gösterilir
   return (
-    <div className={`flex-1 rounded-16 border ${s.bg} ${s.bdr} p-4 min-w-0`}>
+    <div className={`flex-1 rounded-16 border ${s.bg} ${s.bdr} p-3 min-w-0`}>
 
       {/* Başlık */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
           <span className={`text-[11px] font-bold tracking-tight ${s.ttl}`}>{label}</span>
@@ -234,45 +261,45 @@ function GradCard({ label, code, grade, odevPuaniCalc, loading, color, odevDisab
         </span>
       </div>
 
-      {/* Final nota — sayaç animasyonuyla */}
-      <div className="mb-2">
-        <p className={`text-[28px] font-black tabular-nums leading-none ${s.big}`}>
+      {/* Final nota */}
+      <div className="mb-2 flex items-baseline gap-2">
+        <p className={`text-[22px] font-black tabular-nums leading-none ${s.big}`}>
           {loading || animatedNote == null ? "—" : Math.round(animatedNote)}
         </p>
-        <p className={`text-[10px] font-semibold mt-0.5 ${s.sub}`}>Final Notu</p>
+        <p className={`text-[10px] font-semibold ${s.sub}`}>Final Notu</p>
       </div>
 
       {/* Bar */}
-      <div className="w-full h-1.5 bg-surface-100 rounded-full overflow-hidden mb-3">
+      <div className="w-full h-1.5 bg-surface-100 rounded-full overflow-hidden mb-2">
         <div className={`h-full rounded-full ${s.bar} transition-all duration-700`}
           style={{ width: `${loading ? 0 : finalNotePct}%` }} />
       </div>
 
-      <div className="h-px bg-surface-200 mb-3" />
+      <div className="h-px bg-surface-200 mb-2" />
 
       {/* Detay grid */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className={`rounded-12 px-3 py-2 ${s.cell}`}>
-          <p className={`text-[14px] font-bold tabular-nums transition-opacity duration-300 ${s.big} ${loading ? "opacity-20" : "opacity-100"}`}>
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className={`rounded-12 px-2.5 py-1.5 ${s.cell}`}>
+          <p className={`text-[13px] font-bold tabular-nums transition-opacity duration-300 ${s.big} ${loading ? "opacity-20" : "opacity-100"}`}>
             {loading ? "—" : grade?.projectScore != null ? grade.projectScore : "—"}
           </p>
           <p className={`text-[10px] font-medium ${s.sub}`}>Proje</p>
         </div>
-        <div className={`rounded-12 px-3 py-2 ${s.cell} ${odevDisabled ? "opacity-35" : ""}`}>
-          <p className={`text-[14px] font-bold tabular-nums transition-opacity duration-300 ${s.big} ${loading ? "opacity-20" : "opacity-100"}`}>
+        <div className={`rounded-12 px-2.5 py-1.5 ${s.cell} ${odevDisabled ? "opacity-35" : ""}`}>
+          <p className={`text-[13px] font-bold tabular-nums transition-opacity duration-300 ${s.big} ${loading ? "opacity-20" : "opacity-100"}`}>
             {loading ? "—" : odevDisabled ? "—" : effOdev}
           </p>
           <p className={`text-[10px] font-medium ${s.sub}`}>{odevDisabled ? "Ödev yok" : "Ödev / 30"}</p>
         </div>
       </div>
 
-      <div className="h-5 mt-2">
-        {!loading && grade?.isFinalized && (
+      {!loading && grade?.isFinalized && (
+        <div className="mt-2">
           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${s.bdg}`}>
             <GraduationCap size={9} /> Onaylandı
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -317,13 +344,134 @@ function AttendanceDonut({ rate, animate, size = 112 }: { rate: number; animate:
   );
 }
 
+// ─── Sınıf Performansı Yardımcıları ──────────────────────────────────────────
+
+function getClassStatus(grade: GradeData | null, stats: ModuleStats, active: boolean): string | null {
+  if (!active) return null;
+  if (grade?.isFinalized) {
+    if (grade.finalNote != null) return grade.finalNote >= 50 ? "Başarılı" : "Başarısız";
+    return "Tamamlandı";
+  }
+  return "Devam Ediyor";
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  "Başarılı":     "bg-green-100 text-green-700 border-green-200",
+  "Başarısız":    "bg-red-100 text-red-700 border-red-200",
+  "Tamamlandı":   "bg-blue-100 text-blue-700 border-blue-200",
+  "Devam Ediyor": "bg-amber-50 text-amber-700 border-amber-200",
+};
+
+// ─── PerformansKart ───────────────────────────────────────────────────────────
+
+function PerformansKart({ label, code, grade, stats, loading, color }: {
+  label: string;
+  code: string;
+  grade: GradeData | null;
+  stats: ModuleStats;
+  loading: boolean;
+  color: "blue" | "purple";
+}) {
+  const active     = !!code;
+  const status     = getClassStatus(grade, stats, active);
+  const effOdev    = grade?.odevPuani ?? stats.odevPuani;
+  const odevDisabled = stats.taskCount === 0;
+
+  const finalNote = active && !loading ? (grade?.finalNote   ?? null) : null;
+  const projeNote = active && !loading ? (grade?.projectScore ?? null) : null;
+  const odevVal   = active && !loading && !odevDisabled ? effOdev : null;
+
+  const isSuccess = status === "Başarılı";
+  const isFail    = status === "Başarısız";
+
+  const accentBadge = color === "blue"
+    ? "bg-base-primary-100 text-base-primary-600"
+    : active ? "bg-accent-purple-100 text-accent-purple-700" : "bg-surface-100 text-surface-400";
+  const accentBar = color === "blue"
+    ? "bg-base-primary-500"
+    : active ? "bg-accent-purple-500" : "bg-surface-300";
+
+  const cardBg = isSuccess
+    ? "border-green-100 bg-gradient-to-br from-green-50/70 to-white"
+    : isFail
+    ? "border-red-100 bg-gradient-to-br from-red-50/60 to-white"
+    : "border-surface-100 bg-white";
+
+  return (
+    <div className={`rounded-16 border p-4 ${cardBg} ${!active ? "opacity-55" : ""}`}>
+
+      {/* Başlık */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${accentBadge}`}>{label}</span>
+          <span className="text-[13px] font-black text-text-primary">{code || "—"}</span>
+        </div>
+        {status && (
+          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${STATUS_BADGE[status] ?? "bg-surface-100 text-surface-500 border-surface-200"}`}>
+            {status}
+          </span>
+        )}
+      </div>
+
+      {/* Final notu — büyük sayı + progress bar */}
+      {active && (
+        <div className="mb-3">
+          <div className="flex items-end justify-between mb-1.5">
+            <span className="text-[9px] font-semibold text-text-placeholder uppercase tracking-wide">Final Notu</span>
+            <span className={`text-[28px] font-black tabular-nums leading-none ${
+              finalNote == null ? "text-text-placeholder"
+              : finalNote >= 50  ? "text-green-600"
+              : "text-red-500"
+            }`}>
+              {finalNote ?? "—"}
+            </span>
+          </div>
+          <div className="w-full h-1.5 bg-surface-100 rounded-full overflow-hidden">
+            {finalNote != null && !loading && (
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${finalNote >= 50 ? accentBar : "bg-red-400"}`}
+                style={{ width: `${finalNote}%` }}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="h-px bg-surface-100 mb-2.5" />
+
+      {/* Diğer metrikler */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-tertiary">Proje</span>
+          <span className={`text-[12px] font-semibold tabular-nums ${projeNote != null ? "text-text-primary" : "text-text-placeholder"}`}>
+            {projeNote ?? "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-tertiary">Ödev</span>
+          <span className={`text-[12px] font-semibold tabular-nums ${odevVal != null ? "text-text-primary" : "text-text-placeholder"}`}>
+            {odevVal != null ? `${odevVal}/30` : "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-tertiary">Görev XP</span>
+          <span className={`text-[12px] font-semibold tabular-nums ${active && !loading ? "text-text-primary" : "text-text-placeholder"}`}>
+            {active && !loading ? stats.xp : "—"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Ana Bileşen ──────────────────────────────────────────────────────────────
 
-export default function StudentDetailModal({ student, isOpen, onClose, prefetchStudentId }: {
+export default function StudentDetailModal({ student, isOpen, onClose, prefetchStudentId, features }: {
   student: ModalStudent | null;
   isOpen: boolean;
   onClose: () => void;
   prefetchStudentId?: string | null;
+  features?: FeatureFlags;
 }) {
   const { settings, activeSeasonId } = useScoring();
   const { isAdmin, user: currentUser } = useUser();
@@ -356,9 +504,15 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
   const [groupSession,        setGroupSession]        = useState<string>("");
   const [groupDays,           setGroupDays]           = useState<string[]>([]);
+  const [groupModule,         setGroupModule]         = useState<string>("");
+  const [groupDiscipline,     setGroupDiscipline]     = useState<string>("");
+  const [instructorName,      setInstructorName]      = useState<string>("");
   const [instructorNote,      setInstructorNote]      = useState<string>("");
   const [instructorNoteSaved, setInstructorNoteSaved] = useState<string>("");
+  const [noteUpdatedAt,       setNoteUpdatedAt]       = useState<string>("");
+  const [noteEditing,         setNoteEditing]         = useState(false);
   const [noteSaving,          setNoteSaving]          = useState(false);
+  const [studentStatus,       setStudentStatus]       = useState<string>("");
 
   // Hover'dan gelen ID yoksa student.id, ikisi de yoksa null
   const fetchId = student?.id ?? prefetchStudentId ?? null;
@@ -367,6 +521,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   useEffect(() => {
     if (isOpen) {
       setActiveTab("genel");
+      setNoteEditing(false);
       requestAnimationFrame(() => setVisible(true));
     } else {
       setVisible(false);
@@ -385,8 +540,9 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       setAttAttendedHours(null); setAttAbsentHours(null);
       setAttOnlineHours(null); setAttInPersonHours(null);
       setGroupHistory([]);
-      setGroupSession(""); setGroupDays([]);
-      setInstructorNote(""); setInstructorNoteSaved("");
+      setGroupSession(""); setGroupDays([]); setGroupModule(""); setGroupDiscipline(""); setInstructorName("");
+      setInstructorNote(""); setInstructorNoteSaved(""); setNoteUpdatedAt(""); setNoteEditing(false);
+      setStudentStatus("");
       setLoading(false);
       return;
     }
@@ -403,11 +559,16 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       const sData = sDoc.exists() ? (sDoc.data() as StudentDoc) : {} as StudentDoc;
       const studentEmail = sData.email ?? "";
 
+      // Öğrenci durumu
+      if (!cancelled) setStudentStatus(sData.status ?? "");
+
       // Eğitmen notu — instructor'a özel, student doc'ta map olarak tutulur
       if (!cancelled && currentUser?.uid) {
         const note = (sData as Record<string, unknown>)[`instructorNote_${currentUser.uid}`] as string ?? "";
+        const noteAt = (sData as Record<string, unknown>)[`instructorNoteUpdatedAt_${currentUser.uid}`] as string ?? "";
         setInstructorNote(note);
         setInstructorNoteSaved(note);
+        setNoteUpdatedAt(noteAt);
       }
 
       const groupCode = sData.groupCode ?? "";
@@ -649,6 +810,18 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       if (!cancelled) {
         setGroupSession(gData.session ?? "");
         setGroupDays(gData.days ?? []);
+        setGroupModule(gData.module ?? "");
+        setGroupDiscipline(gData.discipline ?? "");
+      }
+
+      // Eğitmen adı — bağımsız, ana loading'i bloke etmez
+      if (gData.instructorId) {
+        getDoc(doc(db, "users", gData.instructorId)).then(uDoc => {
+          if (cancelled || !uDoc.exists()) return;
+          const u = uDoc.data() as { name?: string; lastName?: string; displayName?: string };
+          const name = [u.name, u.lastName].filter(Boolean).join(" ") || u.displayName || "";
+          if (!cancelled) setInstructorName(name);
+        }).catch(() => {});
       }
 
       // codeAt_GRAFIK_1/2: finalizasyon sırasında gruba yazılan orijinal kodlar
@@ -831,25 +1004,51 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   // Tüm animasyonlar için tek sinyal: hem ana veri hem attendance hazır olunca
   const dataReady = !loading && attRate !== null;
 
+  const overallStatus = (() => {
+    if (!dataReady) return null;
+    const finalized = g2Grade?.isFinalized ? g2Grade : g1Grade?.isFinalized ? g1Grade : null;
+    if (finalized?.finalNote != null) {
+      return finalized.finalNote >= 50
+        ? { label: "Başarılı",  bg: "bg-green-50",  bdr: "border-green-200",  color: "text-green-700",  sub: "text-green-500" }
+        : { label: "Başarısız", bg: "bg-red-50",    bdr: "border-red-200",    color: "text-red-600",    sub: "text-red-400" };
+    }
+    if (attRate !== null) {
+      if (attRate >= 70) return { label: "İyi Gidiyor", bg: "bg-blue-50",   bdr: "border-blue-200",   color: "text-blue-700",  sub: "text-blue-500" };
+      if (attRate >= 50) return { label: "Riskli",      bg: "bg-amber-50",  bdr: "border-amber-200",  color: "text-amber-700", sub: "text-amber-500" };
+      if (attTotal != null && attTotal > 0)
+                         return { label: "Dikkat",      bg: "bg-red-50",    bdr: "border-red-200",    color: "text-red-600",   sub: "text-red-400" };
+    }
+    return null;
+  })();
+
   const handleSaveNote = async () => {
     if (!fetchId || !currentUser?.uid || noteSaving) return;
     setNoteSaving(true);
     try {
+      const now = new Date();
+      const dateStr = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`;
       await updateDoc(doc(db, "students", fetchId), {
         [`instructorNote_${currentUser.uid}`]: instructorNote,
+        [`instructorNoteUpdatedAt_${currentUser.uid}`]: dateStr,
       });
       setInstructorNoteSaved(instructorNote);
+      setNoteUpdatedAt(dateStr);
     } finally {
       setNoteSaving(false);
     }
   };
+
+  // Ders verisi erişim izni: admin her zaman görür; eğitmen sadece kendi branşının grubunu görür
+  const canViewClassData = isAdmin() ||
+    !groupDiscipline ||
+    (currentUser?.branches ?? []).includes(groupDiscipline);
 
   const handleClose = () => setVisible(false);
 
   return (
     <AnimatePresence onExitComplete={onClose}>
     {visible && (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
       {/* Arka plan */}
       <motion.div
         className="absolute inset-0 bg-base-primary-900/40 backdrop-blur-md"
@@ -862,7 +1061,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
       {/* Kart */}
       <motion.div
-        className="relative bg-white rounded-24 shadow-2xl w-full max-w-[960px] max-h-[94vh] overflow-y-auto z-10"
+        className="relative bg-white rounded-24 shadow-2xl w-[960px] h-[632px] 2xl:h-[656px] overflow-hidden flex flex-col z-10"
         initial={{ opacity: 0, y: 80 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 60, transition: { duration: 0.2 } }}
@@ -872,20 +1071,51 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         {/* Kapat */}
         <button
           onClick={handleClose}
-          className={`absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-12 transition-colors cursor-pointer z-10
-            ${activeTab === "ders"
-              ? "bg-white/20 hover:bg-white/30"
-              : "bg-surface-100 hover:bg-surface-200"}`}
+          className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-12 transition-colors cursor-pointer z-20
+            ${activeTab === "ders" ? "bg-white/20 hover:bg-white/30" : "bg-white/20 hover:bg-white/30"}`}
         >
-          <X size={14} className={activeTab === "ders" ? "text-white" : "text-text-secondary"} />
+          <X size={14} className="text-white" />
         </button>
 
-        {/* ── Header: Ders Bilgileri — lacivert, oyun kartı ── */}
-        {activeTab === "ders" && (
-        <div className="relative bg-base-primary-900 rounded-t-24 px-8 py-6 overflow-hidden">
+        {/* ── GENEL / GEÇMİŞ / İLETİŞİM / ÖDEME: Lacivert header — initials avatar ── */}
+        {activeTab !== "ders" && (
+        <div className="relative bg-base-primary-900 rounded-t-24 px-8 py-6 overflow-hidden shrink-0">
           <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/4 pointer-events-none" />
           <div className="absolute -bottom-6 left-1/3  w-36 h-36 rounded-full bg-white/4 pointer-events-none" />
+          <div className="relative flex items-center gap-5 pr-14">
+            <div className="w-16 h-16 rounded-full border-2 border-white/20 bg-base-primary-800 shadow-xl flex items-center justify-center shrink-0">
+              <span className="text-[20px] font-black text-white tracking-tight select-none">
+                {[student.name, student.lastName].filter(Boolean).map(n => n[0].toUpperCase()).join("")}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[20px] font-black text-white leading-tight">{student.name} {student.lastName}</h2>
+              <p className="text-[12px] text-base-primary-300 mt-0.5 truncate">
+                {[student.branch, student.groupCode].filter(Boolean).join(" · ")}
+              </p>
+              {studentStatus && STATUS_MAP[studentStatus.toLowerCase()] && (
+                <span className={`mt-1.5 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_MAP[studentStatus.toLowerCase()].cls}`}>
+                  {STATUS_MAP[studentStatus.toLowerCase()].label}
+                </span>
+              )}
+            </div>
+            {activeTab === "genel" && attRate !== null && (
+              <div className="shrink-0 text-right hidden sm:block">
+                <p className={`text-[32px] font-black tabular-nums leading-none ${
+                  attRate >= 70 ? "text-green-300" : attRate >= 50 ? "text-amber-300" : "text-red-300"
+                }`}>%{attRate}</p>
+                <p className="text-[10px] text-base-primary-300 font-semibold">Devam</p>
+              </div>
+            )}
+          </div>
+        </div>
+        )}
 
+        {/* ── DERS: Orijinal lacivert header ── */}
+        {activeTab === "ders" && (
+        <div className="relative bg-base-primary-900 rounded-t-24 px-8 py-6 overflow-hidden shrink-0">
+          <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/4 pointer-events-none" />
+          <div className="absolute -bottom-6 left-1/3  w-36 h-36 rounded-full bg-white/4 pointer-events-none" />
           <div className="relative flex items-center gap-5 pr-14">
             <div className="relative shrink-0">
               <div className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden bg-base-primary-800 shadow-xl">
@@ -897,7 +1127,6 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
               </div>
               {medal && <span className="absolute -bottom-1 -right-1 text-[18px] leading-none">{medal}</span>}
             </div>
-
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap mb-0.5">
                 <h2 className="text-[20px] font-black text-white leading-tight">{student.name} {student.lastName}</h2>
@@ -912,7 +1141,6 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
               </p>
               <p className="text-[11px] text-base-primary-400 mt-0.5">{student.branch}</p>
             </div>
-
             <div className="shrink-0 text-right hidden sm:block">
               <p className="text-[32px] font-black text-white tabular-nums leading-none">{Math.round(displayScore)}</p>
               <p className="text-[10px] text-base-primary-300 font-semibold">Lig Puanı</p>
@@ -921,180 +1149,135 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         </div>
         )}
 
-        {/* ── Header: Diğer tab'lar — minimal beyaz kimlik şeridi ── */}
-        {activeTab !== "ders" && (
-        <div className="relative bg-white border-b border-surface-100 rounded-t-24 px-7 py-4">
-          <div className="flex items-center gap-3.5 pr-12">
-            <div className="w-[46px] h-[46px] rounded-full bg-base-primary-900 flex items-center justify-center shrink-0">
-              <span className="text-white font-bold text-[15px] leading-none select-none">
-                {(student.name?.[0] ?? "").toUpperCase()}{(student.lastName?.[0] ?? "").toUpperCase()}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-[16px] font-bold text-text-primary leading-tight truncate">
-                {student.name} {student.lastName}
-              </h2>
-              <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
-                {[student.branch, student.groupCode].filter(Boolean).join(" · ")}
-              </p>
-            </div>
-          </div>
-        </div>
-        )}
+        {/* ── Sol + Sağ panel layout ── */}
+        <div className="flex flex-1 min-h-0">
 
-        {/* ── Tab Bar ── */}
-        <div className="flex gap-0 border-b border-surface-100 px-6 bg-white">
-          {TABS.filter(tab => !tab.adminOnly || isAdmin()).map(tab => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-4 py-3.5 text-[12px] font-semibold transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap
-                  ${active
-                    ? "border-[#10294C] text-[#10294C]"
-                    : "border-transparent text-surface-400 hover:text-surface-600 hover:border-surface-300"
-                  }`}
-              >
-                <Icon size={12} strokeWidth={2.2} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+          {/* ── SAĞ PANEL ── */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
-        {/* ── Tab İçerik Wrapper — sabit boyut ── */}
-        <div className="min-h-135">
+            {/* Tab Bar */}
+            <div className="flex gap-0 border-b border-surface-100 bg-white shrink-0 px-6">
+              {TABS.filter(tab => {
+                if (tab.id === "ders") return canViewClassData;
+                return !tab.adminOnly || isAdmin();
+              }).map(tab => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-4 py-3.5 text-[12px] font-semibold transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap
+                      ${active
+                        ? "border-[#10294C] text-[#10294C]"
+                        : "border-transparent text-surface-400 hover:text-surface-600 hover:border-surface-300"
+                      }`}
+                  >
+                    <Icon size={12} strokeWidth={2.2} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Tab İçeriği — scrollable ── */}
+            <div className="flex-1 overflow-y-auto">
 
         {/* ── Genel Tab ── */}
         {activeTab === "genel" && (
-        <div className="p-6 grid grid-cols-2 gap-5">
+        <div className="p-5 grid grid-cols-[230px_1fr] gap-4">
 
-          {/* SOL SÜTUN */}
-          <div className="space-y-4">
+          {/* SOL — Akademik Durum + Sınıflar */}
+          <div className="space-y-3">
 
-            {/* Profil kartı — isim header'da var, burada yok */}
+            {/* Akademik Durum */}
             <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
-              <div className="flex items-center gap-3.5">
-                <ProfessionalAvatar gender={safeGender} size={48} />
-                <div className="min-w-0 flex-1">
-                  {student.branch && (
-                    <p className="text-[12px] font-semibold text-text-secondary truncate">{student.branch}</p>
-                  )}
-                  <span className="inline-block mt-1 text-[10px] font-medium text-text-placeholder bg-surface-200 px-2 py-0.5 rounded-full">
-                    {safeGender === "female" ? "Kadın" : "Erkek"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Grup / program */}
-              <div className="border-t border-surface-200 mt-3 pt-3 space-y-2">
-                {student.groupCode && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-text-placeholder font-medium">Aktif Grup</span>
-                    <span className="text-[12px] font-bold text-text-primary">{student.groupCode}</span>
+              <p className="text-[11px] font-bold text-neutral-500 tracking-tight mb-3">Akademik Durum</p>
+              <div className="space-y-2.5">
+                {(
+                  [
+                    { label: "Aktif Grup",   value: student.groupCode || null },
+                    { label: "Program",      value: groupModule ? (MODULE_LABEL[groupModule] ?? groupModule) : null },
+                    { label: "Eğitmen",      value: instructorName || null },
+                    { label: "Ders Günleri", value: groupDays.length > 0 ? groupDays.join(", ") : null },
+                    { label: "Ders Saati",   value: groupSession || null },
+                  ] as { label: string; value: string | null }[]
+                ).map(({ label, value }) => (
+                  <div key={label} className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] text-text-tertiary shrink-0">{label}</span>
+                    <span className="text-[11px] font-semibold text-text-primary text-right">{value ?? "—"}</span>
                   </div>
-                )}
-                {groupDays.length > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-text-placeholder font-medium">Günler</span>
-                    <span className="text-[11px] font-semibold text-text-secondary">{groupDays.join(", ")}</span>
-                  </div>
-                )}
-                {groupSession && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-text-placeholder font-medium">Saat</span>
-                    <span className="text-[11px] font-semibold text-text-secondary flex items-center gap-1">
-                      <Clock size={9} className="text-text-placeholder shrink-0" />{groupSession}
-                    </span>
-                  </div>
-                )}
+                ))}
               </div>
             </div>
 
-            {/* Eğitmen Notu */}
+            {/* Sınıflar */}
             <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
-              <p className="text-[11px] font-bold text-text-tertiary tracking-tight mb-2.5">Eğitmen Notu</p>
-              <textarea
-                value={instructorNote}
-                onChange={e => setInstructorNote(e.target.value)}
-                placeholder="Bu öğrenci hakkında not ekle…"
-                rows={7}
-                className="w-full text-[12px] text-text-primary bg-white border border-surface-100 rounded-12 px-3 py-2.5 resize-none outline-none focus:border-base-primary-300 transition-colors placeholder:text-text-placeholder"
-              />
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-text-placeholder">Sadece sen görebilirsin</span>
-                <button
-                  onClick={handleSaveNote}
-                  disabled={noteSaving || instructorNote === instructorNoteSaved}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-10 text-[11px] font-semibold bg-base-primary-900 text-white hover:bg-base-primary-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  <Save size={11} />
-                  {noteSaving ? "Kaydediliyor…" : "Kaydet"}
-                </button>
+              <p className="text-[11px] font-bold text-neutral-500 tracking-tight mb-3">Sınıf</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between bg-base-primary-50 border border-base-primary-100 rounded-12 px-3 py-2.5">
+                  <span className="text-[10px] font-bold text-base-primary-400 tracking-tight">Grafik-1</span>
+                  <span className={`text-[16px] font-bold text-base-primary-900 transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
+                    {g1Code || "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between bg-accent-purple-100/40 border border-accent-purple-100 rounded-12 px-3 py-2.5">
+                  <span className="text-[10px] font-bold text-accent-purple-400 tracking-tight">Grafik-2</span>
+                  <span className={`text-[16px] font-bold text-accent-purple-700 transition-opacity duration-300 ${loading ? "opacity-20" : "opacity-100"}`}>
+                    {g2Code || "—"}
+                  </span>
+                </div>
               </div>
             </div>
 
           </div>
 
-          {/* SAĞ SÜTUN */}
-          <div className="space-y-4 min-w-0">
+          {/* SAĞ — Devam + Performans + Mezuniyet */}
+          <div className="space-y-3 min-w-0">
 
-            {/* Devam Durumu — solda büyük donut, sağda stat listesi */}
+            {/* Devam Durumu */}
             <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
               <div className="flex items-center gap-1.5 mb-3">
                 <CalendarCheck size={11} className="text-surface-400" />
-                <p className="text-[11px] font-bold text-text-tertiary tracking-tight">Devam Durumu</p>
+                <p className="text-[11px] font-bold text-neutral-500 tracking-tight">Devam Durumu</p>
               </div>
 
               {attRate === null ? (
-                <div className="flex items-center justify-center h-20">
+                <div className="flex items-center justify-center h-24">
                   <div className="w-5 h-5 rounded-full border-2 border-surface-200 border-t-base-primary-400 animate-spin" />
                 </div>
               ) : attTotal === 0 ? (
-                <div className="flex items-center justify-center h-20">
-                  <p className="text-[12px] text-surface-300 font-medium">Yoklama kaydı yok</p>
+                <div className="flex items-center justify-center h-24">
+                  <p className="text-[11px] text-surface-300 font-medium">Yoklama kaydı yok</p>
                 </div>
               ) : (
-                <div className="flex items-center gap-4">
-                  {/* Donut — sol, büyük */}
-                  <div className="shrink-0">
-                    <AttendanceDonut rate={attRate} animate={visible} size={130} />
+                <div className="flex items-start gap-5">
+                  <div className="shrink-0 -mt-1">
+                    <AttendanceDonut rate={attRate} animate={visible} />
                   </div>
-
-                  {/* 2×2 stat grid — sağ */}
-                  <div className="flex-1 grid grid-cols-2 gap-2">
-                    {/* Katıldığı */}
-                    <div className="bg-surface-100 rounded-12 px-3 py-2.5">
-                      <p className="text-[9px] font-bold text-text-placeholder uppercase tracking-wide mb-0.5">Katıldığı</p>
-                      <p className="text-[15px] font-black tabular-nums leading-none text-text-primary">
-                        {attAttendedHours ?? "—"}
-                        {attAttendedHours != null && <span className="text-[9px] font-medium text-text-tertiary ml-1">saat</span>}
+                  <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-3 pt-1">
+                    <div>
+                      <p className="text-[9px] font-bold text-surface-600 tracking-wide mb-0.5">Katıldığı</p>
+                      <p className="text-[18px] font-bold tabular-nums leading-none text-text-primary">
+                        {attAttendedHours ?? "—"}{attAttendedHours != null ? " saat" : ""}
                       </p>
                     </div>
-                    {/* Devamsızlık */}
-                    <div className="bg-surface-100 rounded-12 px-3 py-2.5">
-                      <p className="text-[9px] font-bold text-text-placeholder uppercase tracking-wide mb-0.5">Devamsızlık</p>
-                      <p className={`text-[15px] font-black tabular-nums leading-none ${(attAbsentHours ?? 0) > 0 ? "text-status-danger-500" : "text-text-primary"}`}>
-                        {attAbsentHours ?? "—"}
-                        {attAbsentHours != null && <span className="text-[9px] font-medium text-text-tertiary ml-1">saat</span>}
+                    <div>
+                      <p className="text-[9px] font-bold text-surface-600 tracking-wide mb-0.5">Devamsızlık</p>
+                      <p className={`text-[18px] font-bold tabular-nums leading-none ${attAbsentHours != null && attAbsentHours > 0 ? "text-red-400" : "text-text-primary"}`}>
+                        {attAbsentHours ?? "—"}{attAbsentHours != null ? " saat" : ""}
                       </p>
                     </div>
-                    {/* Yüzyüze */}
-                    <div className="bg-surface-100 rounded-12 px-3 py-2.5">
-                      <p className="text-[9px] font-bold text-text-placeholder uppercase tracking-wide mb-0.5">Yüzyüze</p>
-                      <p className="text-[15px] font-black tabular-nums leading-none text-text-primary">
-                        {attInPersonHours ?? "—"}
-                        {attInPersonHours != null && <span className="text-[9px] font-medium text-text-tertiary ml-1">saat</span>}
+                    <div>
+                      <p className="text-[9px] font-bold text-surface-600 tracking-wide mb-0.5">Yüzyüze</p>
+                      <p className="text-[18px] font-bold tabular-nums leading-none text-text-primary">
+                        {attInPersonHours ?? "—"}{attInPersonHours != null ? " saat" : ""}
                       </p>
                     </div>
-                    {/* Online */}
-                    <div className="bg-surface-100 rounded-12 px-3 py-2.5">
-                      <p className="text-[9px] font-bold text-text-placeholder uppercase tracking-wide mb-0.5">Online</p>
-                      <p className="text-[15px] font-black tabular-nums leading-none text-text-primary">
-                        {attOnlineHours ?? "—"}
-                        {attOnlineHours != null && <span className="text-[9px] font-medium text-text-tertiary ml-1">saat</span>}
+                    <div>
+                      <p className="text-[9px] font-bold text-surface-600 tracking-wide mb-0.5">Online</p>
+                      <p className="text-[18px] font-bold tabular-nums leading-none text-text-primary">
+                        {attOnlineHours ?? "—"}{attOnlineHours != null ? " saat" : ""}
                       </p>
                     </div>
                   </div>
@@ -1102,132 +1285,39 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
               )}
             </div>
 
-            {/* Sertifikasyon — compact, dikey yığılı */}
-            <div>
-              <p className="text-[11px] font-bold text-text-tertiary tracking-tight mb-2.5 px-0.5">Sertifikasyon Notu</p>
-              <div className="flex flex-col gap-2">
-                {/* Grafik-1 — yatay şerit */}
-                {(() => {
-                  const s = {
-                    bg: "bg-base-primary-50", bdr: "border-base-primary-100",
-                    dot: "bg-base-primary-500", ttl: "text-base-primary-600",
-                    big: "text-base-primary-900", sub: "text-base-primary-400",
-                    bdg: "bg-base-primary-100 text-base-primary-600",
-                    divider: "bg-base-primary-100",
-                  };
-                  const odevDis = g1Stats.taskCount === 0;
-                  return (
-                    <div className={`rounded-14 border ${s.bg} ${s.bdr} px-3.5 py-2.5 flex items-center gap-3`}>
-                      {/* Sol: etiket + kod */}
-                      <div className="flex items-center gap-1.5 w-[90px] shrink-0">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
-                        <div className="min-w-0">
-                          <p className={`text-[11px] font-bold leading-none ${s.ttl}`}>Grafik-1</p>
-                          {g1Code && <p className={`text-[9px] font-medium mt-0.5 ${s.sub} truncate`}>{g1Code}</p>}
-                        </div>
-                      </div>
-
-                      <div className={`w-px self-stretch ${s.divider}`} />
-
-                      {/* Orta: Final notu */}
-                      <div className="text-center shrink-0">
-                        <p className={`text-[22px] font-black tabular-nums leading-none ${s.big} transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
-                          {!dataReady ? "—" : g1Grade?.finalNote != null ? g1Grade.finalNote : "—"}
-                        </p>
-                        <p className={`text-[9px] font-semibold ${s.sub}`}>Final</p>
-                      </div>
-
-                      <div className={`w-px self-stretch ${s.divider}`} />
-
-                      {/* Sağ: Proje + Ödev */}
-                      <div className="flex gap-3 flex-1">
-                        <div>
-                          <p className={`text-[13px] font-bold tabular-nums ${s.big} leading-none transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
-                            {!dataReady ? "—" : g1Grade?.projectScore != null ? g1Grade.projectScore : "—"}
-                          </p>
-                          <p className={`text-[9px] font-medium ${s.sub}`}>Proje</p>
-                        </div>
-                        <div className={odevDis ? "opacity-35" : ""}>
-                          <p className={`text-[13px] font-bold tabular-nums ${s.big} leading-none transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
-                            {!dataReady || odevDis ? "—" : g1Stats.odevPuani}
-                          </p>
-                          <p className={`text-[9px] font-medium ${s.sub}`}>{odevDis ? "Ödev yok" : "Ödev/30"}</p>
-                        </div>
-                      </div>
-
-                      {/* Onaylı badge */}
-                      {!dataReady && g1Grade?.isFinalized && (
-                        <span className={`shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${s.bdg}`}>
-                          <GraduationCap size={8} /> Onaylı
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Grafik-2 — yatay şerit */}
-                {(() => {
-                  const active = !!g2Code;
-                  const s = active ? {
-                    bg: "bg-accent-purple-100/40", bdr: "border-accent-purple-100",
-                    dot: "bg-accent-purple-500", ttl: "text-accent-purple-600",
-                    big: "text-accent-purple-700", sub: "text-accent-purple-400",
-                    bdg: "bg-accent-purple-100 text-accent-purple-700",
-                    divider: "bg-accent-purple-100",
-                  } : {
-                    bg: "bg-surface-50", bdr: "border-surface-100",
-                    dot: "bg-surface-300", ttl: "text-text-placeholder",
-                    big: "text-text-placeholder", sub: "text-text-placeholder",
-                    bdg: "bg-surface-100 text-surface-400",
-                    divider: "bg-surface-200",
-                  };
-                  const odevDis = g2Stats.taskCount === 0;
-                  return (
-                    <div className={`rounded-14 border ${s.bg} ${s.bdr} px-3.5 py-2.5 flex items-center gap-3`}>
-                      <div className="flex items-center gap-1.5 w-[90px] shrink-0">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
-                        <div className="min-w-0">
-                          <p className={`text-[11px] font-bold leading-none ${s.ttl}`}>Grafik-2</p>
-                          {g2Code && <p className={`text-[9px] font-medium mt-0.5 ${s.sub} truncate`}>{g2Code}</p>}
-                        </div>
-                      </div>
-
-                      <div className={`w-px self-stretch ${s.divider}`} />
-
-                      <div className="text-center shrink-0">
-                        <p className={`text-[22px] font-black tabular-nums leading-none ${s.big} transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
-                          {!dataReady ? "—" : active && g2Grade?.finalNote != null ? g2Grade.finalNote : "—"}
-                        </p>
-                        <p className={`text-[9px] font-semibold ${s.sub}`}>Final</p>
-                      </div>
-
-                      <div className={`w-px self-stretch ${s.divider}`} />
-
-                      <div className="flex gap-3 flex-1">
-                        <div>
-                          <p className={`text-[13px] font-bold tabular-nums ${s.big} leading-none transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
-                            {!dataReady || !active ? "—" : g2Grade?.projectScore != null ? g2Grade.projectScore : "—"}
-                          </p>
-                          <p className={`text-[9px] font-medium ${s.sub}`}>Proje</p>
-                        </div>
-                        <div className={odevDis ? "opacity-35" : ""}>
-                          <p className={`text-[13px] font-bold tabular-nums ${s.big} leading-none transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
-                            {!dataReady || !active || odevDis ? "—" : g2Stats.odevPuani}
-                          </p>
-                          <p className={`text-[9px] font-medium ${s.sub}`}>{active && !odevDis ? "Ödev/30" : "—"}</p>
-                        </div>
-                      </div>
-
-                      {!dataReady && g2Grade?.isFinalized && active && (
-                        <span className={`shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${s.bdg}`}>
-                          <GraduationCap size={8} /> Onaylı
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
+            {/* Sertifika Durumu — sadece branş eşleşiyorsa */}
+            {canViewClassData && <div>
+              <p className="text-[11px] font-bold text-neutral-500 tracking-tight mb-2 px-0.5">Sertifika Durumu</p>
+              <div className="flex gap-3 overflow-x-auto pb-0.5 no-scrollbar">
+                <div className="min-w-[calc(50%-6px)] shrink-0">
+                  <GradCard
+                    label="Grafik-1"
+                    code={g1Code}
+                    grade={g1Grade}
+                    odevPuaniCalc={g1Stats.odevPuani}
+                    loading={!dataReady}
+                    color="blue"
+                  />
+                </div>
+                {g2Code ? (
+                  <div className="min-w-[calc(50%-6px)] shrink-0">
+                    <GradCard
+                      label="Grafik-2"
+                      code={g2Code}
+                      grade={g2Grade}
+                      odevPuaniCalc={g2Stats.odevPuani}
+                      loading={!dataReady}
+                      color="purple"
+                    />
+                  </div>
+                ) : (
+                  <div className="min-w-[calc(50%-6px)] shrink-0 rounded-16 border border-dashed border-surface-200 flex flex-col items-center justify-center gap-1.5 min-h-[80px]">
+                    <GraduationCap size={16} className="text-surface-300" />
+                    <p className="text-[11px] font-medium text-surface-300">Grafik-2 eğitimi yok</p>
+                  </div>
+                )}
               </div>
-            </div>
+            </div>}
 
           </div>
         </div>
@@ -1444,48 +1534,14 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
         {/* ── Geçmiş Tab ── */}
         {activeTab === "gecmis" && (
-          <div className="p-6">
-            {groupHistory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-surface-300">
-                <History size={32} strokeWidth={1.5} />
-                <p className="text-[13px] font-medium">Henüz geçmiş kaydı yok</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {groupHistory.map((entry, i) => {
-                  const isCurrent = entry.endDate === "9999-12-31";
-                  const isG2      = entry.module === "GRAFIK_2";
-                  const moduleCls = isG2
-                    ? "bg-accent-purple-100 text-accent-purple-700"
-                    : "bg-base-primary-100 text-base-primary-700";
-                  const reasonCls = entry.reason === "graduation"
-                    ? "bg-green-50 text-green-700 border-green-100"
-                    : entry.reason === "transfer"
-                    ? "bg-amber-50 text-amber-700 border-amber-100"
-                    : entry.reason === "module_upgrade"
-                    ? "bg-purple-50 text-purple-700 border-purple-100"
-                    : "bg-surface-50 text-surface-500 border-surface-100";
-                  return (
-                    <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-16 border ${isCurrent ? "bg-green-50/50 border-green-100" : "bg-surface-50 border-surface-100"}`}>
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${moduleCls}`}>
-                        {entry.module === "GRAFIK_2" ? "Grafik-2" : entry.module === "GRAFIK_1" ? "Grafik-1" : "—"}
-                      </span>
-                      <span className="text-[14px] font-bold text-text-primary shrink-0">{entry.groupCode || "—"}</span>
-                      <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border shrink-0 ${reasonCls}`}>
-                        {REASON_LABEL[entry.reason] ?? entry.reason}
-                      </span>
-                      <div className="ml-auto flex items-center gap-1.5 text-[11px] text-surface-400 tabular-nums whitespace-nowrap">
-                        <span>{entry.startDate ?? "?"}</span>
-                        <ArrowRight size={10} className="text-surface-300" />
-                        {isCurrent
-                          ? <span className="text-green-600 font-semibold">Devam ediyor</span>
-                          : <span>{entry.endDate}</span>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-surface-300">
+            <div className="w-14 h-14 rounded-2xl bg-surface-50 border border-surface-100 flex items-center justify-center">
+              <History size={22} strokeWidth={1.5} />
+            </div>
+            <div className="text-center">
+              <p className="text-[14px] font-semibold text-surface-400">Geçmiş Kayıtlar</p>
+              <p className="text-[12px] text-surface-300 mt-1">Yakında gelecek</p>
+            </div>
           </div>
         )}
 
@@ -1515,7 +1571,9 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
           </div>
         )}
 
-        </div> {/* ── Tab İçerik Wrapper sonu ── */}
+            </div> {/* ── Tab İçeriği sonu ── */}
+          </div> {/* ── Sağ panel sonu ── */}
+        </div> {/* ── Sol+Sağ layout sonu ── */}
 
       </motion.div>
     </div>
