@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, GraduationCap, Zap, BookOpen, Star, CalendarCheck, History, Phone, CreditCard, ArrowRight } from "lucide-react";
+import { X, GraduationCap, Zap, BookOpen, Star, CalendarCheck, History, Phone, CreditCard, ArrowRight, Clock, LayoutGrid, Save, User } from "lucide-react";
 import { db } from "@/app/lib/firebase";
-import { collection, query, where, getDocs, getDoc, doc, onSnapshot, documentId, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, doc, onSnapshot, documentId, orderBy, updateDoc } from "firebase/firestore";
 import { useScoring } from "@/app/context/ScoringContext";
 import { useUser } from "@/app/context/UserContext";
 import { calcScore, calcStudentFinalScore, getLevelXP, computeStudentStats } from "@/app/lib/scoring";
@@ -87,6 +87,8 @@ interface GroupDocData {
   instructorId?: string;
   codeAt_GRAFIK_1?: string;
   codeAt_GRAFIK_2?: string;
+  session?: string;
+  days?: string[];
 }
 
 interface ProjectGradeDoc {
@@ -111,7 +113,7 @@ const REASON_LABEL: Record<string, string> = {
   cancellation:    "İptal",
 };
 
-type TabId = "ders" | "gecmis" | "iletisim" | "odeme";
+type TabId = "genel" | "ders" | "gecmis" | "iletisim" | "odeme";
 
 interface TabDef {
   id: TabId;
@@ -121,7 +123,8 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: "ders",      label: "Ders Bilgileri", icon: BookOpen,    adminOnly: false },
+  { id: "genel",     label: "Genel",          icon: LayoutGrid,  adminOnly: false },
+  { id: "ders",      label: "Ders Bilgileri", icon: BookOpen,    adminOnly: true  },
   { id: "gecmis",    label: "Geçmiş",         icon: History,     adminOnly: true  },
   { id: "iletisim",  label: "İletişim",       icon: Phone,       adminOnly: true  },
   { id: "odeme",     label: "Ödeme",          icon: CreditCard,  adminOnly: true  },
@@ -156,6 +159,21 @@ function useCountUp(target: number | null, active: boolean, duration = 900): num
   return display;
 }
 
+// ─── ProfessionalAvatar ───────────────────────────────────────────────────────
+
+function ProfessionalAvatar({ gender, size = 56 }: { gender: "male" | "female"; size?: number }) {
+  return (
+    <div
+      style={{ width: size, height: size }}
+      className={`rounded-full flex items-center justify-center shrink-0 ${
+        gender === "female" ? "bg-base-secondary-700" : "bg-base-primary-900"
+      }`}
+    >
+      <User size={Math.round(size * 0.46)} className="text-white/85" />
+    </div>
+  );
+}
+
 // ─── StatBox ──────────────────────────────────────────────────────────────────
 
 function StatBox({ label, value, colorClass, loading }: {
@@ -173,13 +191,14 @@ function StatBox({ label, value, colorClass, loading }: {
 
 // ─── GradCard ─────────────────────────────────────────────────────────────────
 
-function GradCard({ label, code, grade, odevPuaniCalc, loading, color }: {
+function GradCard({ label, code, grade, odevPuaniCalc, loading, color, odevDisabled }: {
   label: string;
   code: string;
   grade: GradeData | null;
   odevPuaniCalc: number;
   loading: boolean;
   color: "blue" | "purple";
+  odevDisabled?: boolean;
 }) {
   const blue = color === "blue";
   const s = {
@@ -239,11 +258,11 @@ function GradCard({ label, code, grade, odevPuaniCalc, loading, color }: {
           </p>
           <p className={`text-[10px] font-medium ${s.sub}`}>Proje</p>
         </div>
-        <div className={`rounded-12 px-3 py-2 ${s.cell}`}>
+        <div className={`rounded-12 px-3 py-2 ${s.cell} ${odevDisabled ? "opacity-35" : ""}`}>
           <p className={`text-[14px] font-bold tabular-nums transition-opacity duration-300 ${s.big} ${loading ? "opacity-20" : "opacity-100"}`}>
-            {loading ? "—" : effOdev}
+            {loading ? "—" : odevDisabled ? "—" : effOdev}
           </p>
-          <p className={`text-[10px] font-medium ${s.sub}`}>Ödev / 30</p>
+          <p className={`text-[10px] font-medium ${s.sub}`}>{odevDisabled ? "Ödev yok" : "Ödev / 30"}</p>
         </div>
       </div>
 
@@ -260,7 +279,7 @@ function GradCard({ label, code, grade, odevPuaniCalc, loading, color }: {
 
 // ─── AttendanceDonut ──────────────────────────────────────────────────────────
 
-function AttendanceDonut({ rate, animate }: { rate: number; animate: boolean }) {
+function AttendanceDonut({ rate, animate, size = 112 }: { rate: number; animate: boolean; size?: number }) {
   const [filled, setFilled] = useState(false);
   const countedRate = useCountUp(rate, animate);
 
@@ -277,7 +296,7 @@ function AttendanceDonut({ rate, animate }: { rate: number; animate: boolean }) 
   const bgStroke  = rate === 0 ? "#ef4444" : "#f1f5f9";
 
   return (
-    <svg width="112" height="112" viewBox="0 0 112 112">
+    <svg width={size} height={size} viewBox="0 0 112 112">
       <circle cx="56" cy="56" r="40" fill="none" stroke={bgStroke} strokeWidth="10" />
       <circle
         cx="56" cy="56" r="40"
@@ -307,8 +326,8 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   prefetchStudentId?: string | null;
 }) {
   const { settings, activeSeasonId } = useScoring();
-  const { isAdmin } = useUser();
-  const [activeTab, setActiveTab] = useState<TabId>("ders");
+  const { isAdmin, user: currentUser } = useUser();
+  const [activeTab, setActiveTab] = useState<TabId>("genel");
 
   const [visible,        setVisible]        = useState(false);
   const [loading,        setLoading]        = useState(false);
@@ -335,13 +354,19 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   const [attOnlineHours,   setAttOnlineHours]   = useState<number | null>(null);
   const [attInPersonHours, setAttInPersonHours] = useState<number | null>(null);
 
+  const [groupSession,        setGroupSession]        = useState<string>("");
+  const [groupDays,           setGroupDays]           = useState<string[]>([]);
+  const [instructorNote,      setInstructorNote]      = useState<string>("");
+  const [instructorNoteSaved, setInstructorNoteSaved] = useState<string>("");
+  const [noteSaving,          setNoteSaving]          = useState(false);
+
   // Hover'dan gelen ID yoksa student.id, ikisi de yoksa null
   const fetchId = student?.id ?? prefetchStudentId ?? null;
 
   // Visibility — sadece isOpen değişince
   useEffect(() => {
     if (isOpen) {
-      setActiveTab("ders");
+      setActiveTab("genel");
       requestAnimationFrame(() => setVisible(true));
     } else {
       setVisible(false);
@@ -359,8 +384,9 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       setAttTotal(null); setAttAttended(null); setAttAbsent(null); setAttRate(null);
       setAttAttendedHours(null); setAttAbsentHours(null);
       setAttOnlineHours(null); setAttInPersonHours(null);
-      setAttOnlineHours(null); setAttInPersonHours(null);
       setGroupHistory([]);
+      setGroupSession(""); setGroupDays([]);
+      setInstructorNote(""); setInstructorNoteSaved("");
       setLoading(false);
       return;
     }
@@ -376,6 +402,13 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       if (cancelled) return;
       const sData = sDoc.exists() ? (sDoc.data() as StudentDoc) : {} as StudentDoc;
       const studentEmail = sData.email ?? "";
+
+      // Eğitmen notu — instructor'a özel, student doc'ta map olarak tutulur
+      if (!cancelled && currentUser?.uid) {
+        const note = (sData as Record<string, unknown>)[`instructorNote_${currentUser.uid}`] as string ?? "";
+        setInstructorNote(note);
+        setInstructorNoteSaved(note);
+      }
 
       const groupCode = sData.groupCode ?? "";
 
@@ -613,6 +646,11 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       const g1Raw = g1Doc.exists() ? (g1Doc.data() as ProjectGradeDoc) : null;
       const g2Raw = g2Doc.exists() ? (g2Doc.data() as ProjectGradeDoc) : null;
 
+      if (!cancelled) {
+        setGroupSession(gData.session ?? "");
+        setGroupDays(gData.days ?? []);
+      }
+
       // codeAt_GRAFIK_1/2: finalizasyon sırasında gruba yazılan orijinal kodlar
       // grafik1Code/grafik2Code: öğrenci transferinde student doc'a kaydedilen eski modül kodları
       const codeG1 = sData.grafik1Code
@@ -793,6 +831,19 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
   // Tüm animasyonlar için tek sinyal: hem ana veri hem attendance hazır olunca
   const dataReady = !loading && attRate !== null;
 
+  const handleSaveNote = async () => {
+    if (!fetchId || !currentUser?.uid || noteSaving) return;
+    setNoteSaving(true);
+    try {
+      await updateDoc(doc(db, "students", fetchId), {
+        [`instructorNote_${currentUser.uid}`]: instructorNote,
+      });
+      setInstructorNoteSaved(instructorNote);
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
   const handleClose = () => setVisible(false);
 
   return (
@@ -811,7 +862,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
       {/* Kart */}
       <motion.div
-        className="relative bg-white rounded-24 shadow-2xl w-full max-w-4xl max-h-[94vh] overflow-y-auto z-10"
+        className="relative bg-white rounded-24 shadow-2xl w-full max-w-[960px] max-h-[94vh] overflow-y-auto z-10"
         initial={{ opacity: 0, y: 80 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 60, transition: { duration: 0.2 } }}
@@ -821,18 +872,21 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         {/* Kapat */}
         <button
           onClick={handleClose}
-          className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-12 bg-white/20 hover:bg-white/30 transition-colors cursor-pointer z-10"
+          className={`absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-12 transition-colors cursor-pointer z-10
+            ${activeTab === "ders"
+              ? "bg-white/20 hover:bg-white/30"
+              : "bg-surface-100 hover:bg-surface-200"}`}
         >
-          <X size={14} className="text-white" />
+          <X size={14} className={activeTab === "ders" ? "text-white" : "text-text-secondary"} />
         </button>
 
-        {/* ── Header ── */}
+        {/* ── Header: Ders Bilgileri — lacivert, oyun kartı ── */}
+        {activeTab === "ders" && (
         <div className="relative bg-base-primary-900 rounded-t-24 px-8 py-6 overflow-hidden">
           <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/4 pointer-events-none" />
           <div className="absolute -bottom-6 left-1/3  w-36 h-36 rounded-full bg-white/4 pointer-events-none" />
 
           <div className="relative flex items-center gap-5 pr-14">
-            {/* Avatar */}
             <div className="relative shrink-0">
               <div className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden bg-base-primary-800 shadow-xl">
                 <img
@@ -844,13 +898,14 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
               {medal && <span className="absolute -bottom-1 -right-1 text-[18px] leading-none">{medal}</span>}
             </div>
 
-            {/* Bilgi */}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap mb-0.5">
                 <h2 className="text-[20px] font-black text-white leading-tight">{student.name} {student.lastName}</h2>
-                <span className="shrink-0 text-[10px] font-bold text-base-primary-200 bg-white/10 px-2 py-0.5 rounded-full">
-                  #{student.rank}. sıra
-                </span>
+                {student.rank > 0 && (
+                  <span className="shrink-0 text-[10px] font-bold text-base-primary-200 bg-white/10 px-2 py-0.5 rounded-full">
+                    #{student.rank}. sıra
+                  </span>
+                )}
               </div>
               <p className="text-[12px] text-base-primary-300 truncate">
                 {email || (loading ? <span className="italic opacity-40">yükleniyor…</span> : "")}
@@ -858,40 +913,325 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
               <p className="text-[11px] text-base-primary-400 mt-0.5">{student.branch}</p>
             </div>
 
-            {/* Lig Puanı */}
             <div className="shrink-0 text-right hidden sm:block">
               <p className="text-[32px] font-black text-white tabular-nums leading-none">{Math.round(displayScore)}</p>
               <p className="text-[10px] text-base-primary-300 font-semibold">Lig Puanı</p>
             </div>
           </div>
         </div>
-
-        {/* ── Tab Bar — sadece admin görür ── */}
-        {isAdmin() && (
-          <div className="flex gap-0 border-b border-surface-100 px-6 bg-white">
-            {TABS.map(tab => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-4 py-3.5 text-[12px] font-semibold transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap
-                    ${active
-                      ? "border-[#10294C] text-[#10294C]"
-                      : "border-transparent text-surface-400 hover:text-surface-600 hover:border-surface-300"
-                    }`}
-                >
-                  <Icon size={12} strokeWidth={2.2} />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
         )}
+
+        {/* ── Header: Diğer tab'lar — minimal beyaz kimlik şeridi ── */}
+        {activeTab !== "ders" && (
+        <div className="relative bg-white border-b border-surface-100 rounded-t-24 px-7 py-4">
+          <div className="flex items-center gap-3.5 pr-12">
+            <div className="w-[46px] h-[46px] rounded-full bg-base-primary-900 flex items-center justify-center shrink-0">
+              <span className="text-white font-bold text-[15px] leading-none select-none">
+                {(student.name?.[0] ?? "").toUpperCase()}{(student.lastName?.[0] ?? "").toUpperCase()}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-[16px] font-bold text-text-primary leading-tight truncate">
+                {student.name} {student.lastName}
+              </h2>
+              <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
+                {[student.branch, student.groupCode].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* ── Tab Bar ── */}
+        <div className="flex gap-0 border-b border-surface-100 px-6 bg-white">
+          {TABS.filter(tab => !tab.adminOnly || isAdmin()).map(tab => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-4 py-3.5 text-[12px] font-semibold transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap
+                  ${active
+                    ? "border-[#10294C] text-[#10294C]"
+                    : "border-transparent text-surface-400 hover:text-surface-600 hover:border-surface-300"
+                  }`}
+              >
+                <Icon size={12} strokeWidth={2.2} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
         {/* ── Tab İçerik Wrapper — sabit boyut ── */}
         <div className="min-h-135">
+
+        {/* ── Genel Tab ── */}
+        {activeTab === "genel" && (
+        <div className="p-6 grid grid-cols-2 gap-5">
+
+          {/* SOL SÜTUN */}
+          <div className="space-y-4">
+
+            {/* Profil kartı — isim header'da var, burada yok */}
+            <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
+              <div className="flex items-center gap-3.5">
+                <ProfessionalAvatar gender={safeGender} size={48} />
+                <div className="min-w-0 flex-1">
+                  {student.branch && (
+                    <p className="text-[12px] font-semibold text-text-secondary truncate">{student.branch}</p>
+                  )}
+                  <span className="inline-block mt-1 text-[10px] font-medium text-text-placeholder bg-surface-200 px-2 py-0.5 rounded-full">
+                    {safeGender === "female" ? "Kadın" : "Erkek"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Grup / program */}
+              <div className="border-t border-surface-200 mt-3 pt-3 space-y-2">
+                {student.groupCode && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-text-placeholder font-medium">Aktif Grup</span>
+                    <span className="text-[12px] font-bold text-text-primary">{student.groupCode}</span>
+                  </div>
+                )}
+                {groupDays.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-text-placeholder font-medium">Günler</span>
+                    <span className="text-[11px] font-semibold text-text-secondary">{groupDays.join(", ")}</span>
+                  </div>
+                )}
+                {groupSession && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-text-placeholder font-medium">Saat</span>
+                    <span className="text-[11px] font-semibold text-text-secondary flex items-center gap-1">
+                      <Clock size={9} className="text-text-placeholder shrink-0" />{groupSession}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Eğitmen Notu */}
+            <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
+              <p className="text-[11px] font-bold text-text-tertiary tracking-tight mb-2.5">Eğitmen Notu</p>
+              <textarea
+                value={instructorNote}
+                onChange={e => setInstructorNote(e.target.value)}
+                placeholder="Bu öğrenci hakkında not ekle…"
+                rows={7}
+                className="w-full text-[12px] text-text-primary bg-white border border-surface-100 rounded-12 px-3 py-2.5 resize-none outline-none focus:border-base-primary-300 transition-colors placeholder:text-text-placeholder"
+              />
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[10px] text-text-placeholder">Sadece sen görebilirsin</span>
+                <button
+                  onClick={handleSaveNote}
+                  disabled={noteSaving || instructorNote === instructorNoteSaved}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-10 text-[11px] font-semibold bg-base-primary-900 text-white hover:bg-base-primary-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  <Save size={11} />
+                  {noteSaving ? "Kaydediliyor…" : "Kaydet"}
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* SAĞ SÜTUN */}
+          <div className="space-y-4 min-w-0">
+
+            {/* Devam Durumu — solda büyük donut, sağda stat listesi */}
+            <div className="rounded-16 border border-surface-100 bg-surface-50 p-4">
+              <div className="flex items-center gap-1.5 mb-3">
+                <CalendarCheck size={11} className="text-surface-400" />
+                <p className="text-[11px] font-bold text-text-tertiary tracking-tight">Devam Durumu</p>
+              </div>
+
+              {attRate === null ? (
+                <div className="flex items-center justify-center h-20">
+                  <div className="w-5 h-5 rounded-full border-2 border-surface-200 border-t-base-primary-400 animate-spin" />
+                </div>
+              ) : attTotal === 0 ? (
+                <div className="flex items-center justify-center h-20">
+                  <p className="text-[12px] text-surface-300 font-medium">Yoklama kaydı yok</p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  {/* Donut — sol, büyük */}
+                  <div className="shrink-0">
+                    <AttendanceDonut rate={attRate} animate={visible} size={130} />
+                  </div>
+
+                  {/* 2×2 stat grid — sağ */}
+                  <div className="flex-1 grid grid-cols-2 gap-2">
+                    {/* Katıldığı */}
+                    <div className="bg-surface-100 rounded-12 px-3 py-2.5">
+                      <p className="text-[9px] font-bold text-text-placeholder uppercase tracking-wide mb-0.5">Katıldığı</p>
+                      <p className="text-[15px] font-black tabular-nums leading-none text-text-primary">
+                        {attAttendedHours ?? "—"}
+                        {attAttendedHours != null && <span className="text-[9px] font-medium text-text-tertiary ml-1">saat</span>}
+                      </p>
+                    </div>
+                    {/* Devamsızlık */}
+                    <div className="bg-surface-100 rounded-12 px-3 py-2.5">
+                      <p className="text-[9px] font-bold text-text-placeholder uppercase tracking-wide mb-0.5">Devamsızlık</p>
+                      <p className={`text-[15px] font-black tabular-nums leading-none ${(attAbsentHours ?? 0) > 0 ? "text-status-danger-500" : "text-text-primary"}`}>
+                        {attAbsentHours ?? "—"}
+                        {attAbsentHours != null && <span className="text-[9px] font-medium text-text-tertiary ml-1">saat</span>}
+                      </p>
+                    </div>
+                    {/* Yüzyüze */}
+                    <div className="bg-surface-100 rounded-12 px-3 py-2.5">
+                      <p className="text-[9px] font-bold text-text-placeholder uppercase tracking-wide mb-0.5">Yüzyüze</p>
+                      <p className="text-[15px] font-black tabular-nums leading-none text-text-primary">
+                        {attInPersonHours ?? "—"}
+                        {attInPersonHours != null && <span className="text-[9px] font-medium text-text-tertiary ml-1">saat</span>}
+                      </p>
+                    </div>
+                    {/* Online */}
+                    <div className="bg-surface-100 rounded-12 px-3 py-2.5">
+                      <p className="text-[9px] font-bold text-text-placeholder uppercase tracking-wide mb-0.5">Online</p>
+                      <p className="text-[15px] font-black tabular-nums leading-none text-text-primary">
+                        {attOnlineHours ?? "—"}
+                        {attOnlineHours != null && <span className="text-[9px] font-medium text-text-tertiary ml-1">saat</span>}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sertifikasyon — compact, dikey yığılı */}
+            <div>
+              <p className="text-[11px] font-bold text-text-tertiary tracking-tight mb-2.5 px-0.5">Sertifikasyon Notu</p>
+              <div className="flex flex-col gap-2">
+                {/* Grafik-1 — yatay şerit */}
+                {(() => {
+                  const s = {
+                    bg: "bg-base-primary-50", bdr: "border-base-primary-100",
+                    dot: "bg-base-primary-500", ttl: "text-base-primary-600",
+                    big: "text-base-primary-900", sub: "text-base-primary-400",
+                    bdg: "bg-base-primary-100 text-base-primary-600",
+                    divider: "bg-base-primary-100",
+                  };
+                  const odevDis = g1Stats.taskCount === 0;
+                  return (
+                    <div className={`rounded-14 border ${s.bg} ${s.bdr} px-3.5 py-2.5 flex items-center gap-3`}>
+                      {/* Sol: etiket + kod */}
+                      <div className="flex items-center gap-1.5 w-[90px] shrink-0">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+                        <div className="min-w-0">
+                          <p className={`text-[11px] font-bold leading-none ${s.ttl}`}>Grafik-1</p>
+                          {g1Code && <p className={`text-[9px] font-medium mt-0.5 ${s.sub} truncate`}>{g1Code}</p>}
+                        </div>
+                      </div>
+
+                      <div className={`w-px self-stretch ${s.divider}`} />
+
+                      {/* Orta: Final notu */}
+                      <div className="text-center shrink-0">
+                        <p className={`text-[22px] font-black tabular-nums leading-none ${s.big} transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
+                          {!dataReady ? "—" : g1Grade?.finalNote != null ? g1Grade.finalNote : "—"}
+                        </p>
+                        <p className={`text-[9px] font-semibold ${s.sub}`}>Final</p>
+                      </div>
+
+                      <div className={`w-px self-stretch ${s.divider}`} />
+
+                      {/* Sağ: Proje + Ödev */}
+                      <div className="flex gap-3 flex-1">
+                        <div>
+                          <p className={`text-[13px] font-bold tabular-nums ${s.big} leading-none transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
+                            {!dataReady ? "—" : g1Grade?.projectScore != null ? g1Grade.projectScore : "—"}
+                          </p>
+                          <p className={`text-[9px] font-medium ${s.sub}`}>Proje</p>
+                        </div>
+                        <div className={odevDis ? "opacity-35" : ""}>
+                          <p className={`text-[13px] font-bold tabular-nums ${s.big} leading-none transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
+                            {!dataReady || odevDis ? "—" : g1Stats.odevPuani}
+                          </p>
+                          <p className={`text-[9px] font-medium ${s.sub}`}>{odevDis ? "Ödev yok" : "Ödev/30"}</p>
+                        </div>
+                      </div>
+
+                      {/* Onaylı badge */}
+                      {!dataReady && g1Grade?.isFinalized && (
+                        <span className={`shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${s.bdg}`}>
+                          <GraduationCap size={8} /> Onaylı
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Grafik-2 — yatay şerit */}
+                {(() => {
+                  const active = !!g2Code;
+                  const s = active ? {
+                    bg: "bg-accent-purple-100/40", bdr: "border-accent-purple-100",
+                    dot: "bg-accent-purple-500", ttl: "text-accent-purple-600",
+                    big: "text-accent-purple-700", sub: "text-accent-purple-400",
+                    bdg: "bg-accent-purple-100 text-accent-purple-700",
+                    divider: "bg-accent-purple-100",
+                  } : {
+                    bg: "bg-surface-50", bdr: "border-surface-100",
+                    dot: "bg-surface-300", ttl: "text-text-placeholder",
+                    big: "text-text-placeholder", sub: "text-text-placeholder",
+                    bdg: "bg-surface-100 text-surface-400",
+                    divider: "bg-surface-200",
+                  };
+                  const odevDis = g2Stats.taskCount === 0;
+                  return (
+                    <div className={`rounded-14 border ${s.bg} ${s.bdr} px-3.5 py-2.5 flex items-center gap-3`}>
+                      <div className="flex items-center gap-1.5 w-[90px] shrink-0">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+                        <div className="min-w-0">
+                          <p className={`text-[11px] font-bold leading-none ${s.ttl}`}>Grafik-2</p>
+                          {g2Code && <p className={`text-[9px] font-medium mt-0.5 ${s.sub} truncate`}>{g2Code}</p>}
+                        </div>
+                      </div>
+
+                      <div className={`w-px self-stretch ${s.divider}`} />
+
+                      <div className="text-center shrink-0">
+                        <p className={`text-[22px] font-black tabular-nums leading-none ${s.big} transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
+                          {!dataReady ? "—" : active && g2Grade?.finalNote != null ? g2Grade.finalNote : "—"}
+                        </p>
+                        <p className={`text-[9px] font-semibold ${s.sub}`}>Final</p>
+                      </div>
+
+                      <div className={`w-px self-stretch ${s.divider}`} />
+
+                      <div className="flex gap-3 flex-1">
+                        <div>
+                          <p className={`text-[13px] font-bold tabular-nums ${s.big} leading-none transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
+                            {!dataReady || !active ? "—" : g2Grade?.projectScore != null ? g2Grade.projectScore : "—"}
+                          </p>
+                          <p className={`text-[9px] font-medium ${s.sub}`}>Proje</p>
+                        </div>
+                        <div className={odevDis ? "opacity-35" : ""}>
+                          <p className={`text-[13px] font-bold tabular-nums ${s.big} leading-none transition-opacity ${!dataReady ? "opacity-20" : ""}`}>
+                            {!dataReady || !active || odevDis ? "—" : g2Stats.odevPuani}
+                          </p>
+                          <p className={`text-[9px] font-medium ${s.sub}`}>{active && !odevDis ? "Ödev/30" : "—"}</p>
+                        </div>
+                      </div>
+
+                      {!dataReady && g2Grade?.isFinalized && active && (
+                        <span className={`shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${s.bdg}`}>
+                          <GraduationCap size={8} /> Onaylı
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+          </div>
+        </div>
+        )} {/* ── Genel Tab sonu ── */}
 
         {/* ── İçerik: Ders Bilgileri ── */}
         {activeTab === "ders" && (

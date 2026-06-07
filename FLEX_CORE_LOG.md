@@ -70,10 +70,12 @@
 | API route auth standardizasyonu — withAuth() wrapper | §174 | `lib/with-auth.ts`, 7 route |
 | students read: öğrenciler sadece kendi kaydını okuyabilir | §175 | `firestore.rules` |
 | Middleware JWT imza doğrulaması — jose RS256 | §176 | `middleware.ts` |
+| AttendancePanel geçmiş ders süresi dolmuş kilidi + 6 saat penceresi | §177 | `AttendancePanel.tsx` |
+| StudentDetailModal — Genel tab + profesyonel avatar + Sertifikasyon şeritleri | §178 | `StudentDetailModal.tsx` |
 
 ---
 
-## Son Durum (2026-06-05) — güncellendi
+## Son Durum (2026-06-07) — güncellendi
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
 - **Cuma tatili (§133–134):** Standart gruplar Cuma günü tatil statüsünde — overlay amber renk, pulse yok, auto-select atlar. Field mismatch (`groupType`→`type`) düzeltildi.
@@ -109,6 +111,8 @@
 - **Middleware JWT imza doğrulaması (§176):** `decodeJwtPayload` (base64 decode only) → `jose` `compactVerify` + Google Firebase JWKS (`RS256`). Sahte JWT artık middleware'i geçemiyor. `exp` kontrolü yapılmıyor — Firebase SDK token refresh akışı bozulmasın. Edge Runtime uyumlu. Bağımlılık: `jose@^6.2.3`. `middleware.ts`.
 - **students read kısıtlaması (§175):** `allow read: if isInstructor() || request.auth.uid == studentId || resource.data.authUid == request.auth.uid` — öğrenciler artık sadece kendi kaydını okuyabilir. Eğitmen/admin erişimi korundu, frontend değişikliği gerekmedi. `firestore.rules`.
 - **API auth standardizasyonu (§174):** `src/app/lib/with-auth.ts` — `withAuth(handler, { roles, allowAdminSecret })` wrapper. Bearer token + `x-admin-secret` desteği, tutarlı 401/403 hataları. Migrate edilen route'lar: `student/set-account-status`, `notifications/broadcast`, `notifications/task-assigned`, `admin/migrate-custom-claims`, `users/create`, `task-assigned`, `admin/send-welcome-all`, `admin/send-activation-codes`. `student/sync` ve `comments/create` kendine özgü logic nedeniyle migrate edilmedi.
+- **AttendancePanel geçmiş ders kilidi (§177):** `isPastExpired = enforceTimeWindow && !isToday && !existingDoc` boolean eklendi. Geçmiş tarihli, kaydı olmayan derse ait yoklama tüm panel pasif + amber banner: "Bu ders için yoklama giriş süresi dolmuştur. Düzeltme yapılması gerekiyorsa Eğitim Operasyona başvurunuz." Zaman penceresi 3 saat → **6 saat** (`WINDOW_AFTER_MIN = 360`) genişletildi. `AttendancePanel.tsx`.
+- **StudentDetailModal Genel tab (§178):** Yeni `"genel"` tab eklendi — varsayılan tab artık Genel (oyunlaştırma yok). Modal genişliği `max-w-4xl` → `max-w-[960px]`. Koşullu header: Ders tab'ında eski lacivert oyunlaştırılmış header, diğer tüm tab'larda minimal beyaz kimlik şeridi (initials + isim + branş·grupKodu). `ProfessionalAvatar` bileşeni: gender'a göre `User` ikonu — erkek `bg-base-primary-900`, kadın `bg-base-secondary-700`. Genel tab içeriği `grid-cols-2`: sol sütun (Profil kartı + Eğitmen Notu), sağ sütun (Devam Durumu + Sertifikasyon Notu). Devam Durumu: sol büyük donut (`size=130`) + sağda 2×2 grid (Katıldığı | Devamsızlık, Yüzyüze | Online). Sertifikasyon: yatay şerit satırlar — Grafik-1/Grafik-2 için kod, final, proje, ödev notları. Ödev puanı yoksa pasif. Eğitmen Notu: `instructorNote_${uid}` alanıyla per-instructor Firestore yazımı. `StudentDetailModal.tsx`.
 
 ---
 
