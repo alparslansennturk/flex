@@ -941,16 +941,19 @@ export default function AttendancePanel({
   const canEdit = !isHistoricalLock && allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
 
   // Giriş zaman kilidi: enforceTimeWindow=true ise admin dahil herkes için geçerli.
-  // Zaten başlatılmış derste (existingDoc) veya bugün değilse (geçmiş tarih) kısıt yok.
+  // Kaydedilmiş veri (hasPersistedEntries) veya kapatılmış derste kısıt yok.
+  // Sadece "Dersi Başlat" basılmış ama giriş yapılmamışsa pencere kontrolü devreye girer.
   const sessionTimeRange = selectedGroup?.session ? parseSessionTime(selectedGroup.session) : null;
   const isWithinTimeWindow: boolean = (() => {
-    if (!enforceTimeWindow || !isToday || !sessionTimeRange || existingDoc) return true;
+    if (!enforceTimeWindow || !isToday || !sessionTimeRange) return true;
+    // Kaydedilmiş veri ya da kapatılmış → her zaman erişilebilir
+    if (existingDoc && (hasPersistedEntries || attendanceClosed)) return true;
     const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
     return nowMins >= sessionTimeRange.start - WINDOW_BEFORE_MIN &&
            nowMins <= sessionTimeRange.end   + WINDOW_AFTER_MIN;
   })();
-  // Geçmiş tarihte kayıt alınmamış → giriş süresi dolmuş
-  const isPastExpired = enforceTimeWindow && !isToday && !existingDoc;
+  // Geçmiş tarihte kayıt girilmemiş → giriş süresi dolmuş
+  const isPastExpired = enforceTimeWindow && !isToday && !hasPersistedEntries && !attendanceClosed;
   // Banner için: açılma saati ve kapanma saati
   const windowOpenStr  = sessionTimeRange ? fmtMins(sessionTimeRange.start - WINDOW_BEFORE_MIN) : null;
   const windowCloseStr = sessionTimeRange ? fmtMins(sessionTimeRange.end   + WINDOW_AFTER_MIN)  : null;
@@ -1599,20 +1602,16 @@ export default function AttendancePanel({
                     </div>
                   )}
 
-                  {/* Zaman kilidi banner'ı — ders saati penceresinin dışında, yeni kayıt yok */}
-                  {!isWithinTimeWindow && isToday && !existingDoc && !exception && showAttendanceUI && (
+                  {/* Zaman kilidi banner'ı — ders henüz başlamadı */}
+                  {!isWithinTimeWindow && isToday && isBeforeWindow && !hasPersistedEntries && !attendanceClosed && !exception && showAttendanceUI && (
                     <div className="mx-5 mt-4 mb-1 px-4 py-3 rounded-xl flex items-center gap-2 text-[13px] font-semibold bg-surface-50 border border-surface-200 text-text-secondary shrink-0">
                       <Clock size={14} className="shrink-0 text-text-placeholder" />
-                      {isBeforeWindow && windowOpenStr
-                        ? `Yoklama ${windowOpenStr}'den itibaren alınabilir.`
-                        : windowCloseStr
-                        ? `Yoklama alma süresi sona erdi (${windowCloseStr}'de kapandı).`
-                        : "Yoklama için ders saati bekleniyor."}
+                      {windowOpenStr ? `Yoklama ${windowOpenStr}'den itibaren alınabilir.` : "Yoklama için ders saati bekleniyor."}
                     </div>
                   )}
 
-                  {/* Geçmiş tarih — yoklama süresi dolmuş banner */}
-                  {isPastExpired && !exception && showAttendanceUI && (
+                  {/* Yoklama süresi dolmuş — bugün pencere kapandı VEYA geçmiş tarih */}
+                  {(isPastExpired || (!isWithinTimeWindow && isToday && !isBeforeWindow && !hasPersistedEntries && !attendanceClosed)) && !exception && showAttendanceUI && (
                     <div className="mx-5 mt-4 mb-1 px-4 py-3 rounded-xl flex items-start gap-2 text-[13px] font-semibold bg-amber-50 border border-amber-200 text-amber-800 shrink-0">
                       <Lock size={14} className="shrink-0 mt-0.5" />
                       <span>Bu ders için yoklama giriş süresi dolmuştur. Düzeltme yapılması gerekiyorsa Eğitim Operasyona başvurunuz.</span>
@@ -1621,7 +1620,7 @@ export default function AttendancePanel({
 
                   {/* Sınıf Geneli quick-mark */}
                   {showAttendanceUI && students.length > 0 && !exception && (
-                    <div className={`px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50 ${isReadonlyView || isPastExpired ? "pointer-events-none opacity-40" : ""}`}>
+                    <div className={`px-5 py-2 border-b border-surface-100 flex items-center gap-2 shrink-0 bg-surface-50 ${isReadonlyView || isPastExpired || (!isWithinTimeWindow && !hasPersistedEntries && !attendanceClosed) ? "pointer-events-none opacity-40" : ""}`}>
                       <span className="text-[11px] text-text-placeholder font-medium shrink-0">Sınıf Geneli:</span>
                       {[sessionHours, 0].map(h => (
                         <button key={h} onClick={() => { if (isReadonlyView) { showReadonlyHint(); return; } if (!lessonStarted) { showHintToast(); return; } markAllHours(h); }}
@@ -1636,7 +1635,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
-                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView || isPastExpired || (!isWithinTimeWindow && !existingDoc)) ? "opacity-60 pointer-events-none select-none" : ""}`}>
+                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView || isPastExpired || (!isWithinTimeWindow && !hasPersistedEntries && !attendanceClosed)) ? "opacity-60 pointer-events-none select-none" : ""}`}>
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
                         <Users size={28} strokeWidth={1.5} />
@@ -1790,7 +1789,7 @@ export default function AttendancePanel({
                               </button>
                             )
                           ) : null
-                        ) : !lessonStarted ? (
+                        ) : (!lessonStarted || (!isWithinTimeWindow && !hasPersistedEntries && !attendanceClosed)) ? (
                           (!isToday && !allowEdit) ? (
                             <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-surface-100 text-surface-400 cursor-not-allowed opacity-50 outline-none">
                               <CalendarCheck size={13} /> Bu tarih için kayıt yok
@@ -1803,7 +1802,7 @@ export default function AttendancePanel({
                           )
                         ) : !saved ? (
                           <button onClick={handleSave} disabled={saving}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-green-500 text-white hover:bg-green-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-green-500 text-white hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
                             <CheckCircle2 size={13} /> {saving ? "Kaydediliyor…" : "Kaydet"}
                           </button>
                         ) : (
