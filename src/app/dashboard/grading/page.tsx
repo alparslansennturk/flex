@@ -1586,9 +1586,12 @@ function CertModuleTab({ module }: { module: CertTab }) {
   };
 
   const getOdevPuani = (studentId: string) => {
-    // Finalize edilmişse ve kayıtlı değer varsa onu kullan (task silinse de etkilenmez)
+    if (maxOdevPuani === 0) return 0;
+    // XP verisi varsa her zaman güncel ağırlıkla yeniden hesapla
+    if (maxXP > 0) return Math.round((studentXPs[studentId] ?? 0) / maxXP * maxOdevPuani);
+    // Task'lar silinmiş → finalize'daki kayıtlı değeri fallback olarak kullan
     if (finalized && savedOdevPuanis[studentId] != null) return Math.round(savedOdevPuanis[studentId]);
-    return Math.round(maxXP > 0 ? (studentXPs[studentId] ?? 0) / maxXP * maxOdevPuani : 0);
+    return 0;
   };
 
   const getFinalNot = (studentId: string): number | null => {
@@ -1669,9 +1672,10 @@ function CertModuleTab({ module }: { module: CertTab }) {
               {students.map(s => {
                 const odevPuani    = getOdevPuani(s.id);
                 const finalNot     = getFinalNot(s.id);
-                const rawOdevPuani = (finalized && savedOdevPuanis[s.id] != null)
-                  ? savedOdevPuanis[s.id]
-                  : (maxXP > 0 ? (studentXPs[s.id] ?? 0) / maxXP * maxOdevPuani : 0);
+                const rawOdevPuani = maxOdevPuani === 0 ? 0
+                  : maxXP > 0
+                    ? (studentXPs[s.id] ?? 0) / maxXP * maxOdevPuani
+                    : (finalized && savedOdevPuanis[s.id] != null ? savedOdevPuanis[s.id] : 0);
                 const rawFinalNot  = scores[s.id] !== "" && scores[s.id] != null
                   ? Number(scores[s.id]) * projectWeight + rawOdevPuani
                   : null;
@@ -1895,6 +1899,8 @@ function NotAyarlariPanel() {
   const [saving,         setSaving]         = useState(false);
   const [saved,          setSaved]          = useState(false);
   const [error,          setError]          = useState("");
+  const autoSaveTimer   = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const readyRef        = useRef(false); // ilk yüklemede auto-save tetiklenmesin
 
   useEffect(() => {
     const uid = user?.uid;
@@ -1902,14 +1908,16 @@ function NotAyarlariPanel() {
     const branchIds = (user as { branches?: string[] })?.branches ?? [];
 
     const load = async () => {
-      const userSnap = await getDoc(doc(db, "users", uid));
-      const saved: CertSettingsMap = userSnap.exists() ? ((userSnap.data() as { certSettings?: CertSettingsMap }).certSettings ?? {}) : {};
+      const saved: CertSettingsMap = await getDoc(doc(db, "users", uid)).then(snap =>
+        snap.exists() ? ((snap.data() as { certSettings?: CertSettingsMap }).certSettings ?? {}) : {}
+      );
       setCertSettings(saved);
 
       if (branchIds.length === 0) {
         setLocalSetting(saved[""] ?? DEFAULT_CERT_SETTING);
         setSelectedBranch("");
         setLoading(false);
+        setTimeout(() => { readyRef.current = true; }, 50);
         return;
       }
 
@@ -1920,31 +1928,56 @@ function NotAyarlariPanel() {
       setSelectedBranch(first);
       setLocalSetting(saved[first] ?? DEFAULT_CERT_SETTING);
       setLoading(false);
+      setTimeout(() => { readyRef.current = true; }, 50);
     };
 
     load();
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    readyRef.current = false;
     setLocalSetting(certSettings[selectedBranch] ?? DEFAULT_CERT_SETTING);
+    setTimeout(() => { readyRef.current = true; }, 50);
   }, [selectedBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const weightValid = !localSetting.useAssignment ||
     Math.abs(localSetting.projectWeight + localSetting.assignmentWeight - 1.0) < 0.001;
 
-  const handleSaveSettings = async (applyToAll = false) => {
+  // Auto-save: localSetting değişince 700ms sonra otomatik kaydet
+  useEffect(() => {
+    if (!readyRef.current || !weightValid || !user?.uid) return;
+    const uid = user.uid;
+    const branch = selectedBranch;
+    const setting = localSetting;
+    const currentMap = certSettings;
+    clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      setSaving(true); setSaved(false); setError("");
+      try {
+        const updates: CertSettingsMap = { ...currentMap, [branch]: setting };
+        await updateDoc(doc(db, "users", uid), { certSettings: updates });
+        setCertSettings(updates);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      } catch {
+        setError("Kayıt sırasında hata oluştu.");
+      } finally { setSaving(false); }
+    }, 700);
+    return () => clearTimeout(autoSaveTimer.current);
+  }, [localSetting]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleApplyToAll = async () => {
     if (!user?.uid || !weightValid) return;
-    setSaving(true); setError("");
+    clearTimeout(autoSaveTimer.current);
+    setSaving(true); setSaved(false); setError("");
     try {
-      const branchIds = applyToAll
-        ? (branches.length > 0 ? branches.map(b => b.id) : [""])
-        : [selectedBranch];
+      const branchIds = branches.length > 0 ? branches.map(b => b.id) : [""];
       const updates: CertSettingsMap = { ...certSettings };
       branchIds.forEach(bid => { updates[bid] = localSetting; });
       await updateDoc(doc(db, "users", user.uid), { certSettings: updates });
       setCertSettings(updates);
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaved(false), 2500);
     } catch {
       setError("Kayıt sırasında hata oluştu.");
     } finally { setSaving(false); }
@@ -2084,35 +2117,25 @@ function NotAyarlariPanel() {
 
         {/* Footer */}
         <div className="flex items-center justify-between">
-          <div className="min-h-[20px]">
+          <div className="min-h-[20px] flex items-center gap-2">
             {error
               ? <span className="text-[13px] text-status-danger-500 font-medium">{error}</span>
-              : saved
-                ? <div className="flex items-center gap-2"><CheckCircle2 size={14} className="text-status-success-500" /><span className="text-[13px] font-bold text-status-success-500">Kaydedildi.</span></div>
-                : null
+              : saving
+                ? <><div className="w-3.5 h-3.5 border-2 border-surface-200 border-t-base-primary-500 rounded-full animate-spin" /><span className="text-[13px] text-surface-400">Kaydediliyor…</span></>
+                : saved
+                  ? <div className="flex items-center gap-2"><CheckCircle2 size={14} className="text-status-success-500" /><span className="text-[13px] font-bold text-status-success-500">Kaydedildi.</span></div>
+                  : <span className="text-[12px] text-surface-300">Değişiklikler otomatik kaydedilir</span>
             }
           </div>
-          <div className="flex items-center gap-3">
-            {branches.length > 1 && (
-              <button
-                onClick={() => handleSaveSettings(true)}
-                disabled={saving || !weightValid}
-                className="h-10 px-5 rounded-xl border border-surface-200 text-[12px] font-bold text-surface-600 hover:border-surface-400 transition-all cursor-pointer disabled:opacity-40"
-              >
-                Tüm Branşlara Uygula
-              </button>
-            )}
+          {branches.length > 1 && (
             <button
-              onClick={() => handleSaveSettings(false)}
+              onClick={handleApplyToAll}
               disabled={saving || !weightValid}
-              className="flex items-center gap-2 h-10 px-6 rounded-xl bg-base-primary-900 text-white text-[13px] font-bold hover:bg-base-primary-800 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-sm"
+              className="h-10 px-5 rounded-xl border border-surface-200 text-[12px] font-bold text-surface-600 hover:border-surface-400 transition-all cursor-pointer disabled:opacity-40"
             >
-              {saving
-                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Kaydediliyor…</>
-                : "Kaydet"
-              }
+              Tüm Branşlara Uygula
             </button>
-          </div>
+          )}
         </div>
       </div>
     </div>

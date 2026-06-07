@@ -841,7 +841,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       const gradedIds = new Set(Object.keys(fsGradedTasks));
 
       // Tek bir classId için tüm graded task'ları çek, öğrencinin tamamladıklarını say
-      const calcModuleStats = async (classId: string): Promise<ModuleStats> => {
+      const calcModuleStats = async (classId: string, maxOdevPoints: number): Promise<ModuleStats> => {
         if (!classId) return EMPTY_STATS;
         // Sadece classId filtresi — isGraded+classId composite index gerektirmez
         const snap = await getDocs(query(collection(db, "tasks"), where("classId", "==", classId)));
@@ -884,13 +884,30 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         const totalAssigned = validTasks.length + deletedTaskCount;
 
         const maxXP = validTasks.reduce((s, t) => s + getLevelXP(t.level, settings) * (t.xpMultiplier ?? 1), 0) + deletedMaxXP;
-        const odevPuani = Math.round(maxXP > 0 ? (studentXP / maxXP) * 30 : 0);
+        const odevPuani = Math.round(maxXP > 0 ? (studentXP / maxXP) * maxOdevPoints : 0);
         return { taskCount, xp: studentXP, score: calcScore(studentXP, taskCount, settings, totalAssigned || undefined), maxXP, odevPuani };
       };
 
       // codeG1/codeG2 bilinmiyorsa doğru classId'yi bul:
       // 1. gradedTasks classId'lerinden → 2. instructor'ın grup taramasından (task.grades fallback)
       const instructorId = gData.instructorId;
+
+      // Instructor'ın not ağırlıkları — certSettings[discipline]
+      type CertSetting = { useAssignment: boolean; projectWeight: number; assignmentWeight: number };
+      const DEFAULT_CERT: CertSetting = { useAssignment: false, projectWeight: 0.7, assignmentWeight: 0.3 };
+      let certSetting: CertSetting = DEFAULT_CERT;
+      if (instructorId) {
+        try {
+          const iDoc = await getDoc(doc(db, "users", instructorId));
+          if (iDoc.exists()) {
+            const map = (iDoc.data() as { certSettings?: Record<string, CertSetting> }).certSettings ?? {};
+            const discipline = gData.discipline ?? "";
+            certSetting = map[discipline] ?? map[""] ?? DEFAULT_CERT;
+          }
+        } catch {}
+      }
+      const effectiveProjectWeight = certSetting.useAssignment ? certSetting.projectWeight : 1.0;
+      const effectiveMaxOdevPuani  = certSetting.useAssignment ? Math.round(certSetting.assignmentWeight * 100) : 0;
 
       const resolveCode = async (
         knownCode: string,
@@ -946,8 +963,8 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       ]);
 
       const [s1, s2] = await Promise.all([
-        calcModuleStats(resolvedG1),
-        resolvedG2 ? calcModuleStats(resolvedG2) : Promise.resolve(EMPTY_STATS),
+        calcModuleStats(resolvedG1, effectiveMaxOdevPuani),
+        resolvedG2 ? calcModuleStats(resolvedG2, effectiveMaxOdevPuani) : Promise.resolve(EMPTY_STATS),
       ]);
 
       if (cancelled) return;
@@ -957,12 +974,12 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       const makeGrade = (raw: ProjectGradeDoc | null, stats: ModuleStats): GradeData | null => {
         if (!raw && stats.taskCount === 0) return null;
         const projectScore: number | null = raw?.projectScore ?? null;
-        // Finalize edilmişse snapshot'taki odevPuani'yi kullan (yeni task eklense bile değişmez)
-        const odevPuani = (raw?.isFinalized && raw?.odevPuani != null)
-          ? raw.odevPuani
-          : stats.odevPuani;
+        // Ödev puanı: useAssignment kapalıysa 0; XP varsa canlı hesapla; task silinmişse saved fallback
+        const odevPuani = effectiveMaxOdevPuani === 0 ? 0
+          : stats.maxXP > 0 ? stats.odevPuani
+          : (raw?.isFinalized && raw?.odevPuani != null ? Math.round(raw.odevPuani) : 0);
         const finalNote = projectScore != null
-          ? Math.round(projectScore * 0.7 + odevPuani)
+          ? Math.round(projectScore * effectiveProjectWeight + odevPuani)
           : null;
         return { groupId, projectScore, odevPuani, finalNote, isFinalized: !!raw?.isFinalized };
       };
