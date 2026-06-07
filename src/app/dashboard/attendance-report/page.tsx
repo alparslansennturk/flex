@@ -199,7 +199,7 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 const T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
 // ── Ana bileşen ───────────────────────────────────────────────────────────────
-function AttendanceSummaryContent({ onBackChange }: { onBackChange: (fn: (() => void) | null) => void }) {
+function AttendanceSummaryContent({ onBackChange }: { onBackChange?: (fn: (() => void) | null) => void }) {
   const [rows, setRows] = useState<InstructorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
@@ -220,6 +220,7 @@ function AttendanceSummaryContent({ onBackChange }: { onBackChange: (fn: (() => 
 
   // Header back handler — 2 seviye
   useEffect(() => {
+    if (!onBackChange) return;
     if (selectedSession)           onBackChange(() => setSelectedSession(null));
     else if (selectedInstructorId) onBackChange(() => setSelectedInstructorId(null));
     else                           onBackChange(null);
