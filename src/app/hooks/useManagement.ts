@@ -827,7 +827,7 @@ try{
 if(email?.trim()){
   const normalizedEmail=email.trim().toLowerCase();
   const emailSnap=await getDocs(query(collection(db,"students"),where("email","==",normalizedEmail)));
-  const conflict=emailSnap.docs.find(d=>d.id!==editingStudentId);
+  const conflict=emailSnap.docs.find(d=>d.id!==editingStudentId && d.data().status!=='passive');
   if(conflict){
     const cd=conflict.data();
     const conflictGroupId=cd.groupId as string|undefined;
