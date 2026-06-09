@@ -328,9 +328,10 @@ function BookResultModal({
   groupName?: string;
   instructorName?: string;
 }) {
-  const [visible,     setVisible]     = useState(false);
-  const [sendingMail, setSendingMail] = useState(false);
-  const [mailSent,    setMailSent]    = useState(false);
+  const [visible,         setVisible]         = useState(false);
+  const [sendingMail,     setSendingMail]     = useState(false);
+  const [mailSent,        setMailSent]        = useState(false);
+  const [uploadProgress,  setUploadProgress]  = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 30);
@@ -418,37 +419,93 @@ function BookResultModal({
   const handleMail = async () => {
     if (!student.email) return;
     setSendingMail(true);
+    setUploadProgress(0);
     try {
+      // 1. PDF oluştur → base64 → Uint8Array (chunklama için)
       const pdfBase64 = await generateKitapPdf({ book, deadline, paperWeight, paperThickness });
-      const mailToken = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/send-kitap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${mailToken ?? ""}` },
+      const binaryStr = atob(pdfBase64);
+      const pdfBytes  = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) pdfBytes[i] = binaryStr.charCodeAt(i);
+
+      const totalBytes = pdfBytes.length;
+      const fileName   = `${student.name} ${student.lastName}-${book.title}.pdf`;
+      const mimeType   = "application/pdf";
+
+      // 2. Upload session başlat (Drive resumable session açar)
+      const initToken = await auth.currentUser?.getIdToken();
+      const initRes   = await fetch("/api/instructor/init-upload", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${initToken ?? ""}` },
         body: JSON.stringify({
-          to: student.email,
-          studentName: student.name,
-          studentLastName: student.lastName,
-          pdfBase64,
-          bookTitle: book.title,
-          groupName: groupName ?? task.classId ?? "",
+          fileName,
+          fileSize:       totalBytes,
+          mimeType,
+          groupName:      groupName ?? task.classId ?? "",
           instructorName: instructorName ?? "",
-          taskName: task.name,
+          taskName:       task.name,
+          taskId:         task.id ?? "",
+          studentEmail:   student.email,
+          studentName:    student.name,
+          studentLastName: student.lastName,
+          studentId:      student.id,
+          bookTitle:      book.title,
         }),
       });
-      if (res.ok) {
-        setMailSent(true);
-        // Drive URL'ini Firestore'a kaydet (eğitmen arşivde indirebilsin)
-        const data = await res.json().catch(() => ({})) as { driveUrl?: string; fileName?: string };
-        if (data.driveUrl && task.id) {
-          try {
-            await updateDoc(doc(db, "tasks", task.id), {
-              [`kitapDriveFiles.${student.id}`]: { url: data.driveUrl, fileName: data.fileName ?? "" },
-            });
-          } catch { /* non-fatal */ }
+
+      if (!initRes.ok) {
+        console.error("[handleMail] Init hatası:", initRes.status, await initRes.text());
+        return;
+      }
+      const { uploadId } = await initRes.json() as { uploadId: string };
+
+      // 3. Chunk loop — 256KB parçalar (Vercel 4.5MB limitinin çok altında)
+      const CHUNK_SIZE  = 256 * 1024;
+      const totalChunks = Math.ceil(totalBytes / CHUNK_SIZE);
+      let driveFileId: string | null = null;
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end   = Math.min(start + CHUNK_SIZE, totalBytes);
+        const chunk = pdfBytes.slice(start, end);
+
+        const chunkToken = await auth.currentUser?.getIdToken();
+        const chunkRes   = await fetch("/api/submissions/upload-chunk", {
+          method:  "POST",
+          headers: {
+            Authorization:   `Bearer ${chunkToken ?? ""}`,
+            "x-upload-id":   uploadId,
+            "content-range": `bytes ${start}-${end - 1}/${totalBytes}`,
+            "x-file-type":   mimeType,
+          },
+          body: chunk,
+        });
+
+        if (!chunkRes.ok) {
+          console.error("[handleMail] Chunk hatası:", chunkRes.status, await chunkRes.text());
+          return;
         }
+
+        const chunkData = await chunkRes.json() as { status: string; driveFileId?: string };
+        if (chunkData.driveFileId) driveFileId = chunkData.driveFileId;
+
+        // %0–90 arası upload ilerlemesi
+        setUploadProgress(Math.round((end / totalBytes) * 90));
+      }
+
+      // 4. Finalize — Drive'ı public yap + mail gönder + Firestore güncelle
+      setUploadProgress(95);
+      const completeToken = await auth.currentUser?.getIdToken();
+      const completeRes   = await fetch("/api/instructor/complete-upload", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${completeToken ?? ""}` },
+        body: JSON.stringify({ uploadId, driveFileId }),
+      });
+
+      if (completeRes.ok) {
+        setUploadProgress(100);
+        setMailSent(true);
       } else {
-        const err = await res.json().catch(() => ({}));
-        console.error("[handleMail] API hatası:", res.status, err);
+        console.error("[handleMail] Complete hatası:", completeRes.status, await completeRes.text());
       }
     } catch (err) {
       console.error("[handleMail] Hata:", err);
@@ -622,23 +679,33 @@ function BookResultModal({
                 }}>
                   <Check size={12} strokeWidth={3} /> Mail Gönderildi
                 </div>
+              ) : sendingMail ? (
+                <div style={{
+                  display: "flex", flexDirection: "column", justifyContent: "center",
+                  padding: "0 14px", height: 38, borderRadius: 10,
+                  background: "#1e3a5f", minWidth: 160, gap: 4,
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
+                      {uploadProgress < 90 ? "Yükleniyor" : uploadProgress < 100 ? "Tamamlanıyor" : "Gönderildi"}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "white" }}>{uploadProgress}%</span>
+                  </div>
+                  <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%", borderRadius: 2, background: "white",
+                      width: `${uploadProgress}%`, transition: "width 0.3s ease",
+                    }} />
+                  </div>
+                </div>
               ) : (
-                <button onClick={handleMail} disabled={sendingMail} style={{
+                <button onClick={handleMail} style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "0 16px", height: 38, borderRadius: 10,
                   background: "#2980b9", color: "white",
                   fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none",
-                  opacity: sendingMail ? 0.55 : 1,
                 }}>
-                  {sendingMail ? (
-                    <><div style={{
-                      width: 12, height: 12, borderRadius: "50%",
-                      border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white",
-                      animation: "bkSpin 0.8s linear infinite",
-                    }} /> Gönderiliyor</>
-                  ) : (
-                    <><Mail size={13} /> Mail Gönder</>
-                  )}
+                  <Mail size={13} /> Mail Gönder
                 </button>
               )
             )}
