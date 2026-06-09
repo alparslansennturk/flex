@@ -66,8 +66,9 @@ export function AssignActivateModal({
   const [attachMode,   setAttachMode]   = useState<"idle" | "drive">("idle");
   const [driveLink,    setDriveLink]    = useState("");
   const [driveName,    setDriveName]    = useState("");
-  const [uploading,    setUploading]    = useState(false);
-  const [uploadError,  setUploadError]  = useState("");
+  const [uploading,      setUploading]      = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError,    setUploadError]    = useState("");
   const [dragOver,     setDragOver]     = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -118,17 +119,54 @@ export function AssignActivateModal({
 
   const uploadFile = async (file: File) => {
     setUploading(true);
+    setUploadProgress(0);
     setUploadError("");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
+      const CHUNK_SIZE     = 262144;
+      const buffer         = await file.arrayBuffer();
+      const bytes          = new Uint8Array(buffer);
+      const totalBytes     = bytes.byteLength;
+      const mimeType       = file.type || "application/octet-stream";
       const instructorName = user ? `${user.name} ${user.surname ?? ""}`.trim() : "Eğitmen";
-      fd.append("folderPath", JSON.stringify(["Ödev Şablonları", instructorName, taskName]));
-      const uploadToken = await auth.currentUser?.getIdToken();
-      const res  = await fetch("/api/upload", { method: "POST", body: fd, headers: { Authorization: `Bearer ${uploadToken ?? ""}` } });
-      const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Yükleme başarısız");
-      setAttachment({ url: data.webViewLink!, name: data.fileName ?? file.name, type: "upload" });
+      const folderPath     = ["Ödev Şablonları", instructorName, taskName];
+
+      const initToken = await auth.currentUser?.getIdToken();
+      const initRes   = await fetch("/api/instructor/init-file-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${initToken ?? ""}` },
+        body: JSON.stringify({ fileName: file.name, fileSize: totalBytes, mimeType, folderPath }),
+      });
+      if (!initRes.ok) { const e = await initRes.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? "Yükleme başlatılamadı"); }
+      const { uploadId } = await initRes.json() as { uploadId: string };
+
+      const totalChunks = Math.ceil(totalBytes / CHUNK_SIZE);
+      let driveFileId: string | null = null;
+      for (let i = 0; i < totalChunks; i++) {
+        const start      = i * CHUNK_SIZE;
+        const end        = Math.min(start + CHUNK_SIZE, totalBytes);
+        const chunkToken = await auth.currentUser?.getIdToken();
+        const chunkRes   = await fetch("/api/submissions/upload-chunk", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${chunkToken ?? ""}`, "x-upload-id": uploadId, "content-range": `bytes ${start}-${end - 1}/${totalBytes}`, "x-file-type": mimeType },
+          body: bytes.slice(start, end),
+        });
+        if (!chunkRes.ok) { const e = await chunkRes.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? "Chunk hatası"); }
+        const cd = await chunkRes.json() as { driveFileId?: string };
+        if (cd.driveFileId) driveFileId = cd.driveFileId;
+        setUploadProgress(Math.round((end / totalBytes) * 90));
+      }
+
+      setUploadProgress(95);
+      const completeToken = await auth.currentUser?.getIdToken();
+      const completeRes   = await fetch("/api/instructor/complete-file-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${completeToken ?? ""}` },
+        body: JSON.stringify({ uploadId, driveFileId }),
+      });
+      if (!completeRes.ok) { const e = await completeRes.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? "Tamamlama hatası"); }
+      const data = await completeRes.json() as { webViewLink: string; fileName: string };
+      setUploadProgress(100);
+      setAttachment({ url: data.webViewLink, name: data.fileName, type: "upload" });
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Yükleme başarısız");
     } finally {
@@ -339,9 +377,16 @@ export function AssignActivateModal({
               )}
 
               {!attachment && uploading && (
-                <div className="flex items-center gap-2 px-3 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-surface-400">
-                  <Loader2 size={13} className="animate-spin" />
-                  <span className="text-[12px] font-medium">Yükleniyor...</span>
+                <div className="flex flex-col justify-center px-3 py-2.5 bg-surface-50 border border-surface-200 rounded-xl">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] font-semibold text-surface-400">
+                      {uploadProgress < 90 ? "Yükleniyor" : uploadProgress < 100 ? "Tamamlanıyor" : "Bitti"}
+                    </span>
+                    <span className="text-[11px] font-bold text-surface-600">{uploadProgress}%</span>
+                  </div>
+                  <div className="h-[3px] rounded-full bg-surface-200 overflow-hidden">
+                    <div className="h-full rounded-full bg-base-primary-500 transition-[width] duration-300" style={{ width: `${uploadProgress}%` }} />
+                  </div>
                 </div>
               )}
 

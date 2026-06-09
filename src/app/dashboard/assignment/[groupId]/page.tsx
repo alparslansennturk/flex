@@ -689,14 +689,15 @@ function AttachmentManager({
       ? [{ url: initialUrl, name: initialName ?? "Ödev Dosyası", type: (initialType ?? "upload") as "upload" | "drive" }]
       : [];
 
-  const [items,      setItems]      = useState<AttachmentItem[]>(initItems);
-  const [expanding,  setExpanding]  = useState(false);
-  const [driveMode,  setDriveMode]  = useState(false);
-  const [dragOver,   setDragOver]   = useState(false);
-  const [uploading,  setUploading]  = useState(false);
-  const [driveLink,  setDriveLink]  = useState("");
-  const [driveName,  setDriveName]  = useState("");
-  const [error,      setError]      = useState("");
+  const [items,          setItems]          = useState<AttachmentItem[]>(initItems);
+  const [expanding,      setExpanding]      = useState(false);
+  const [driveMode,      setDriveMode]      = useState(false);
+  const [dragOver,       setDragOver]       = useState(false);
+  const [uploading,      setUploading]      = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [driveLink,      setDriveLink]      = useState("");
+  const [driveName,      setDriveName]      = useState("");
+  const [error,          setError]          = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasFiles = items.length > 0;
 
@@ -723,19 +724,54 @@ function AttachmentManager({
   };
 
   const uploadOne = async (file: File): Promise<AttachmentItem> => {
-    const fd = new FormData();
-    fd.append("file", file);
-    const segments = ["Gruplar"];
+    const CHUNK_SIZE = 262144;
+    const buffer     = await file.arrayBuffer();
+    const bytes      = new Uint8Array(buffer);
+    const totalBytes = bytes.byteLength;
+    const mimeType   = file.type || "application/octet-stream";
+    const segments   = ["Gruplar"];
     if (groupName)      segments.push(groupName);
     segments.push("Eğitmen");
     if (instructorName) segments.push(instructorName);
     if (taskName)       segments.push(taskName);
-    fd.append("folderPath", JSON.stringify(segments));
-    const token = await auth.currentUser?.getIdToken();
-    const res  = await fetch("/api/upload", { method: "POST", body: fd, headers: { Authorization: `Bearer ${token ?? ""}` } });
-    const data = await res.json() as { webViewLink?: string; fileName?: string; error?: string };
-    if (!res.ok) throw new Error(data.error ?? "Yükleme başarısız");
-    return { url: data.webViewLink!, name: data.fileName ?? file.name, type: "upload" };
+
+    const initToken = await auth.currentUser?.getIdToken();
+    const initRes   = await fetch("/api/instructor/init-file-upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${initToken ?? ""}` },
+      body: JSON.stringify({ fileName: file.name, fileSize: totalBytes, mimeType, folderPath: segments }),
+    });
+    if (!initRes.ok) { const e = await initRes.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? "Yükleme başlatılamadı"); }
+    const { uploadId } = await initRes.json() as { uploadId: string };
+
+    const totalChunks = Math.ceil(totalBytes / CHUNK_SIZE);
+    let driveFileId: string | null = null;
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end   = Math.min(start + CHUNK_SIZE, totalBytes);
+      const chunkToken = await auth.currentUser?.getIdToken();
+      const chunkRes   = await fetch("/api/submissions/upload-chunk", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${chunkToken ?? ""}`, "x-upload-id": uploadId, "content-range": `bytes ${start}-${end - 1}/${totalBytes}`, "x-file-type": mimeType },
+        body: bytes.slice(start, end),
+      });
+      if (!chunkRes.ok) { const e = await chunkRes.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? "Chunk hatası"); }
+      const cd = await chunkRes.json() as { driveFileId?: string };
+      if (cd.driveFileId) driveFileId = cd.driveFileId;
+      setUploadProgress(Math.round((end / totalBytes) * 90));
+    }
+
+    setUploadProgress(95);
+    const completeToken = await auth.currentUser?.getIdToken();
+    const completeRes   = await fetch("/api/instructor/complete-file-upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${completeToken ?? ""}` },
+      body: JSON.stringify({ uploadId, driveFileId }),
+    });
+    if (!completeRes.ok) { const e = await completeRes.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? "Tamamlama hatası"); }
+    const data = await completeRes.json() as { webViewLink: string; fileName: string };
+    setUploadProgress(100);
+    return { url: data.webViewLink, name: data.fileName, type: "upload" };
   };
 
   const handleFiles = async (fileList: FileList | File[]) => {
@@ -844,9 +880,16 @@ function AttachmentManager({
             style={{ height: 44, overflow: "hidden", flexShrink: 0 }}
           >
             {uploading ? (
-              <div style={{ height: 44 }} className="flex items-center gap-2 px-4 border border-surface-200 rounded-xl bg-white text-surface-400 whitespace-nowrap">
-                <Loader2 size={13} className="animate-spin shrink-0" />
-                <span className="text-[12px] font-semibold">Yükleniyor...</span>
+              <div style={{ height: 44, minWidth: 180 }} className="flex flex-col justify-center px-4 border border-surface-200 rounded-xl bg-white whitespace-nowrap">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[11px] font-semibold text-surface-400">
+                    {uploadProgress < 90 ? "Yükleniyor" : uploadProgress < 100 ? "Tamamlanıyor" : "Bitti"}
+                  </span>
+                  <span className="text-[11px] font-bold text-surface-600">{uploadProgress}%</span>
+                </div>
+                <div className="h-[3px] rounded-full bg-surface-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-base-primary-500 transition-[width] duration-300" style={{ width: `${uploadProgress}%` }} />
+                </div>
               </div>
             ) : driveMode ? (
               <div style={{ height: 44 }} className="flex items-center gap-2 w-full">
