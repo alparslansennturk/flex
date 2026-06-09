@@ -80,35 +80,45 @@
 
 ---
 
-## ⚠️ AÇIK SORUN — §184 Grup Arşivleme Öğrenciyi Mezuna Düşürmüyor (2026-06-09)
+## ✅ ÇÖZÜLDÜ — §184 Mezuniyet + §185 Re-Enrollment + UI Düzeltmeleri (2026-06-09)
 
-**Durum: ÇÖZÜLMEDE — PC'de devam edilecek**
+> **⚠️ COMMIT EDİLMEDİ — dönünce commit'le.** Aşağıdaki tüm değişiklikler working tree'de, henüz commit yok.
 
-### Sorun
-Grup arşivlendiğinde içindeki öğrenci `status: passive`, `groupCode: "Mezun (X)"` olmuyor. Öğrenci mezun listesinde görünmüyor.
+### §184 — Grup Arşivleme Öğrenciyi Mezuna Düşürmüyordu (ÇÖZÜLDÜ)
+**Gerçek kök neden UI filtresiydi** (önceki "groupId eksik" teşhisi yanlıştı). Firestore yazımı `e03a38d` ile zaten düzelmişti — öğrenci `status: passive`, `groupId: "unassigned"` oluyordu. Mezun listede görünmemesinin nedeni **iki ayrı UI filtre katmanı**:
+1. `useManagement.ts` `filteredStudents` — "Mezun" paneline geçilse bile `viewMode` (`group-list`/`all-groups`) grup filtresi çalışmaya devam ediyordu; mezunun `groupId`'si `"unassigned"` → eleniyordu. **Fix:** passive panel bloğunda sahiplik kontrolünden sonra `return true` (viewMode filtreleri passive'e uygulanmaz).
+2. `ManagementContent.tsx` — branş (discipline) filtresi `disciplineGroupIds.has(s.groupId)` ile eliyordu (`"unassigned"` hiçbir grupta yok). **Bu, ilk fix'ten sonra hayatta kalan asıl katmandı.**
 
-### Kök Neden (tespit edildi, tam doğrulanmadı)
-`confirmModalAction()` içinde `affectedStudents` local React state'inden filtreleniyor:
-```typescript
-const affectedStudents = students.filter(s => s.groupId === modalConfig.groupId);
-```
-Bazı öğrencilerin `groupId` alanı Firestore'da yok (kayıt sırasında set edilmemiş). Bu durumda filtre boş dönüyor, batch commit'te sadece grup `status: 'archived'` yazılıyor, öğrenci güncellenmeden kalıyor.
+### §184b — Mezun Tablosunda "Mezun (X)" İbaresi (ÇÖZÜLDÜ)
+`StudentTable.tsx:177` — sınıf kolonunda `groupCode?.replace(/^Mezun \((.*)\)$/, "$1")`. Zaten Mezun panelindeyken tekrar gereksizdi; aktif öğrencide prefix olmadığı için koşulsuz güvenli.
 
-### Yapılan Fix Denemeleri
-1. `affectedStudents` filtresini Firestore'dan canlı query'e çevrildi (`getDocs + where("groupId","==",...)`) — **commit e03a38d** — test edilmedi henüz, deploy bekleniyor
-2. Mezun listesi filtresi `s.groupId` → `s.lastGroupId ?? s.groupId` — **commit 5e2be89** — kısmen çalışıyor ama asıl sorun devam ediyor
+### §184c — Grup Silinince Mezun Öğrenci Listeden Kayboluyordu (ÇÖZÜLDÜ)
+Arşiv grubu **tamamen silinince** mezunun `lastGroupId`'si artık var olmayan gruba bakıyor → branş filtresi eliyordu. **Fix:** `ManagementContent.tsx` `matchesDiscipline()` — passive öğrenci için grup lookup yerine öğrencinin kendi `discipline` alanı kullanılıyor; yoksa `lastGroupId` lookup; o da yoksa her branşta gösterilir (yetim mezun kaybolmasın). `Student` interface'e `discipline?` eklendi.
 
-### İkincil Sorunlar (aynı oturumda çözülenler)
-- `student/sync` JWT claims stale `studentDocId` güncellemiyordu → **fix: c3d0907**
-- Mezun listeden sil → sadece students doc siliyordu, auth + users kalıyordu → **fix: 7446a91** (`/api/admin/delete-student`)
-- Email çakışma kontrolü mezun öğrencileri de blokluyordu → **fix: b4bc3ba**
-- `welcome/route.ts` users doc varsa `studentDocId` güncellemiyordu → önceki oturumda fix edilmişti
+### §185 — Mezun Öğrenciyi Yeni Gruba Alma (GEÇİCİ ÇÖZÜM)
+> Kalıcı çözüm sıfırdan öğrenci/grup yazımında (EduOS, Kişi≠Kayıt modeli) ele alınacak. Bu geçici.
 
-### Devamı İçin Yapılacak
-1. Deploy'un tamamlanmasını bekle
-2. Yeni bir test öğrencisi ekle, gruba ata, grubu arşivle — konsol hatalarına bak
-3. Eğer hata yoksa ama öğrenci hala güncellenmiyorsa: `groupId` alanının student doc'a yazılıp yazılmadığını kontrol et (öğrenci eklerken `studentData` içinde `groupId` var mı?)
-4. Büyük ihtimalle öğrenci ekleme akışında `groupId` field'ı eksik — `useManagement.ts`'de `addDoc` çağrısındaki `studentData` objesini incele
+**Akış:** Mezun panel → öğrenci satırında kalem (Düzenle) → formda aktif grup seç → kaydet. Mevcut transfer akışına bağlandı (`handleSave`, `useManagement.ts`):
+- `status` passive→active, yeni gruba geçer, mezun listeden düşer, `group_history`'ye "transfer" kaydı yazılır.
+- **Mezuniyet işaretçileri temizleniyor:** passive→active geçişte `lastGroupId`/`lastGroupCode`/`graduatedAt` `deleteField()`. (Yoksa eski arşiv grubu geri yüklenirse `restore` akışı öğrenciyi yeni grubundan koparırdı.)
+- **Footgun guard:** `groupId === "unassigned"` ise status zorla aktife çevrilmez (mezunu sadece düzenlerken yanlışlıkla aktife düşmesin).
+- **Eski veri korunur:** yoklama `design_attendance` (`{groupId}_{tarih}` key'li, öğrenci dokümanından bağımsız), ödev puanları `gradedTasks` (classId/grup kodu etiketli, silinmiyor), mezuniyet `group_history` — hiçbiri transfer'den etkilenmez.
+
+### Aynı Oturumda Yapılan Diğer UI Düzeltmeleri
+- **Login logosu:** `login/page.tsx` `<FlexLogo variant="dark" />` — beyaz kart üzerinde white logo görünmüyordu.
+- **GroupForm küçük ekran:** 3 grid `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`, iç padding `p-5 sm:p-8 lg:p-10`, modal dış padding `p-3 sm:p-6` (`GroupForm.tsx` + `ManagementContent.tsx`).
+- **Toast bastırma:** `NotificationToastListener.tsx` — eğitmen ödev detay/`preview` alt sayfasındayken message toast'ı çıkmasın. `===` tam eşleşme → `startsWith(targetPath + '/')` ön-ek kontrolü (preview alt route'u da kapsar).
+- **Logout permission-denied:** error callback'siz `onSnapshot`'lar → `Sidebar.tsx:49` (`settings/platform`, her sayfada mount + logout butonu burada, asıl suçlu) ve `ManagementContent.tsx:65` (`branches`) → `() => {}` eklendi.
+
+### Commit Edilecek Dosyalar (working tree)
+- `src/app/hooks/useManagement.ts` — §184 viewMode filtresi, §185 re-enrollment + lastGroupId temizliği + footgun guard, `Student.discipline?`
+- `src/app/components/dashboard/ManagementContent.tsx` — §184c `matchesDiscipline`, branches onSnapshot error cb, modal padding
+- `src/app/components/dashboard/student-management/StudentTable.tsx` — §184b "Mezun" prefix kaldırma
+- `src/app/components/dashboard/class-management/GroupForm.tsx` — responsive grid + padding
+- `src/app/login/page.tsx` — logo variant dark
+- `src/app/components/notifications/NotificationToastListener.tsx` — toast bastırma ön-ek
+- `src/app/components/layout/Sidebar.tsx` — settings/platform onSnapshot error cb
+- `FLEX_CORE_LOG.md` — bu kayıt
 
 ---
 

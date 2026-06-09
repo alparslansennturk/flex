@@ -119,7 +119,7 @@ function LoginForm() {
     <div className={`w-full max-w-[614px] bg-surface-white p-[56px] radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center min-[1440px]:scale-105 2xl:scale-110 ${shake ? 'error-shake' : ''}`}>
       <div className="flex justify-between items-center mb-10">
         <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Kullanıcı Girişi</h2>
-        <FlexLogo />
+        <FlexLogo variant="dark" />
       </div>
 
       <form onSubmit={handleLogin} noValidate className="w-full flex flex-col gap-6">

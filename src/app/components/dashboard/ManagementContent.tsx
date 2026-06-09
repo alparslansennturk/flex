@@ -64,7 +64,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   useEffect(() => {
     return onSnapshot(query(collection(db, "branches")), snap => {
       setBranches(snap.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; name: string; slug: string; categoryId?: string })));
-    });
+    }, () => {});
   }, []);
 
   useEffect(() => {
@@ -94,13 +94,21 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
   const hasOwnGroupsInDiscipline = activeStudentDiscipline === "all"
     || myGroupCards.some(g => g.discipline === activeStudentDiscipline);
 
-  const disciplineFilteredStudents = activeStudentDiscipline === "all"
-    ? filteredStudents
-    : filteredStudents.filter(s => disciplineGroupIds.has(s.groupId));
+  // Branş eşleşmesi. Mezun (passive) öğrencinin groupId'si "unassigned" olur ve
+  // son grubu silinmiş olabilir → grup lookup yerine öğrencinin kendi `discipline`
+  // alanını kullan. Yoksa son grubundan türet; o da yoksa hiçbir branşta gizleme.
+  const matchesDiscipline = (s: typeof filteredStudents[number]) => {
+    if (activeStudentDiscipline === "all") return true;
+    if (s.status === 'passive') {
+      if (s.discipline) return s.discipline === activeStudentDiscipline;
+      if (s.lastGroupId) return disciplineGroupIds.has(s.lastGroupId);
+      return true; // yetim mezun kaydı — kaybolmasın
+    }
+    return disciplineGroupIds.has(s.groupId);
+  };
 
-  const disciplinePagedStudents = activeStudentDiscipline === "all"
-    ? pagedStudents
-    : pagedStudents.filter(s => disciplineGroupIds.has(s.groupId));
+  const disciplineFilteredStudents = filteredStudents.filter(matchesDiscipline);
+  const disciplinePagedStudents = pagedStudents.filter(matchesDiscipline);
 
   useEffect(() => {
     if (!isFormOpen || !editingGroupId) return;
@@ -168,7 +176,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         {/* GRUP FORM MODAL */}
         <AnimatePresence>
           {isFormOpen && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-6">
           <motion.div
             className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md"
             initial={{ opacity: 0 }}

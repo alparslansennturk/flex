@@ -174,7 +174,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                     </div>
                   </td>
                   <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.branch || "—"}</td>
-                  <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.groupCode || "—"}</td>
+                  <td className="px-6 text-[13px] font-medium text-neutral-500 leading-none truncate">{student.groupCode?.replace(/^Mezun \((.*)\)$/, "$1") || "—"}</td>
                   <td className="px-6 text-[13px] font-medium text-neutral-400 leading-none truncate">{student.email || "—"}</td>
                   <td className="px-6 text-[13px] font-medium text-neutral-400 leading-none truncate">{student.note || "—"}</td>
                   {showBranchCol && (

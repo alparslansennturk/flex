@@ -68,7 +68,12 @@ export default function NotificationToastListener() {
         // markAsRead çağrılmaz — badge bell'e tıklayınca kullanıcı tarafından okunur.
         if (n.type === 'message') {
           const targetPath = n.actionUrl?.split('?')[0] ?? '/';
-          if (pathnameRef.current === targetPath) continue;
+          // Eğitmen ödev detayındayken (veya alt teslim/preview sayfasındayken)
+          // sohbet zaten önünde — toast bastırılır. actionUrl base path'i
+          // (örn. /dashboard/assignment/G/A) mevcut path'in ön eki ise eşleşir.
+          const onTarget = targetPath !== '/' &&
+            (pathnameRef.current === targetPath || pathnameRef.current.startsWith(targetPath + '/'));
+          if (onTarget) continue;
         }
 
         hasNew = true;

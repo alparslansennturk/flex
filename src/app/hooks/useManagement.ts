@@ -96,6 +96,7 @@ interface Student {
   authUid?: string;
   lastGroupCode?: string;
   lastGroupId?: string;
+  discipline?: string;
   hiddenFromInstructors?: string[];
   updatedAt?: unknown;
   isCarryOverApplied?: boolean;
@@ -226,6 +227,10 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
         if (!myGroupIds.includes(s.lastGroupId ?? s.groupId)) return false;
         if (uid && s.hiddenFromInstructors?.includes(uid)) return false;
       }
+      // Mezun öğrencilerin groupId'si "unassigned" — viewMode grup filtreleri
+      // (group-list / all-groups) bunları eleyeceği için passive panelde uygulanmaz.
+      // Sahiplik kontrolü zaten yukarıda lastGroupId ile yapıldı, admin hepsini görür.
+      return true;
     }
     // Arama (aktif panelde)
     if (studentPanel === 'active') {
@@ -844,6 +849,9 @@ if(email?.trim()){
 }
 if(editingStudentId){
 const oldStudent=students.find((s)=>s.id===editingStudentId);
+// Gerçek bir grup atanmadıysa (hâlâ "unassigned") status'ü zorla aktife çevirme —
+// mezun bir öğrenciyi sadece düzenlerken yanlışlıkla aktife düşmesin.
+if(groupId==="unassigned") studentData.status = oldStudent?.status ?? 'passive';
 const isGroupChange = oldStudent && oldStudent.groupId !== groupId;
 if(isGroupChange){
 if(oldStudent.groupId&&oldStudent.groupId!=="unassigned"){
@@ -871,6 +879,16 @@ if (!isCarryOverApplied && oldGroup?.module === "GRAFIK_1" && targetGroup?.modul
 }
 studentData.rankChange = 0;
 studentData.isScoreHidden = false;
+// Mezun öğrenci yeni gruba alınıyorsa mezuniyet işaretçilerini temizle.
+// (lastGroupId kalırsa eski arşiv grubu geri yüklendiğinde restore akışı
+//  öğrenciyi yeni grubundan koparıp eskiye geri çeker — satır ~770.)
+// Yoklama (design_attendance), ödev puanları (gradedTasks, classId'ye göre)
+// ve mezuniyet kaydı (group_history) ayrı tutulduğu için korunur.
+if (oldStudent.status === 'passive') {
+  studentData.lastGroupId = deleteField();
+  studentData.lastGroupCode = deleteField();
+  studentData.graduatedAt = deleteField();
+}
 }
 await updateDoc(doc(db,"students",editingStudentId),studentData);
 // ── Geçmiş: transfer kaydı (group_history + snapshot atomik) ──────────

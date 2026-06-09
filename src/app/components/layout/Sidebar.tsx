@@ -48,7 +48,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
   useEffect(() => {
     return onSnapshot(doc(db, "settings", "platform"), snap => {
       setLeagueGlobal(snap.data()?.leagueGlobalEnabled !== false);
-    });
+    }, () => {});
   }, []);
 
   useEffect(() => {

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
-import { X, Check, GraduationCap, ChevronDown, Users, Monitor } from "lucide-react";
+import { X, Check, GraduationCap, ChevronDown, Users, Monitor, AlertTriangle } from "lucide-react";
 import { getFlexMessage } from "@/app/lib/messages";
 
 interface Student {
@@ -118,6 +118,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
   const [localErrors, setLocalErrors] = useState<Record<string, boolean>>({});
   const [localShake, setLocalShake] = useState(false);
   const [emailErrorMsg, setEmailErrorMsg] = useState("");
+  const [duplicateModal, setDuplicateModal] = useState<{ open: boolean; msg: string }>({ open: false, msg: "" });
   const [isOnlineStudent, setIsOnlineStudent] = useState(false);
   const [isGenderDropOpen, setIsGenderDropOpen] = useState(false);
   const [genderDropPos, setGenderDropPos]       = useState({ top: 0, left: 0, width: 0 });
@@ -229,7 +230,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({
       const e = err as { code?: string; message?: string };
       if (e?.code === "DUPLICATE_EMAIL") {
         setLocalErrors({ email: true });
-        setEmailErrorMsg(e.message ?? "");
+        setDuplicateModal({ open: true, msg: e.message ?? "Bu e-posta aktif bir gruptaki öğrenciye tanımlı." });
       } else {
         console.error("Kayıt hatası:", err);
       }
@@ -460,6 +461,34 @@ export const StudentForm: React.FC<StudentFormProps> = ({
           )}
         </AnimatePresence>
       </>, document.body
+    )}
+
+    {mounted && duplicateModal.open && createPortal(
+      <div className="fixed inset-0 z-[700] flex items-center justify-center p-6">
+        <div className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-sm" onClick={() => setDuplicateModal({ open: false, msg: "" })} />
+        <motion.div
+          className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+          initial={{ opacity: 0, scale: 0.94, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 350, damping: 26 }}
+        >
+          <div className="p-7 flex flex-col items-center text-center">
+            <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
+              <AlertTriangle size={28} className="text-red-500" strokeWidth={2.2} />
+            </div>
+            <h3 className="text-[18px] font-bold text-[#10294C] mb-2">Bu e-posta kullanılamaz</h3>
+            <p className="text-[13px] font-medium text-neutral-500 leading-relaxed mb-6">
+              {duplicateModal.msg}<br />
+              Aktif bir gruptaki öğrenciye tanımlı e-posta ile yeni kayıt yapılamaz.
+            </p>
+            <button
+              onClick={() => setDuplicateModal({ open: false, msg: "" })}
+              className="h-11 w-full bg-[#10294C] hover:bg-[#1c3a64] text-white rounded-xl text-[14px] font-semibold transition-colors cursor-pointer"
+            >
+              Anladım
+            </button>
+          </div>
+        </motion.div>
+      </div>, document.body
     )}
     </>
   );

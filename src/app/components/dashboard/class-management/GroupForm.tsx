@@ -209,7 +209,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-10 space-y-8 custom-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-8 lg:p-10 space-y-6 sm:space-y-8 custom-scrollbar">
 
         {/* Grup tipi */}
         <div className="flex items-center gap-1 bg-neutral-100 w-fit p-1 rounded-xl">
@@ -231,7 +231,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
         </div>
 
         {/* Satır 1: Şube · Branş · Eğitim · Grup Kodu */}
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Şube</label>
             <div onClick={(e) => { if (!isLocDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setLocDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsLocDropOpen(!isLocDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${isLocDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
@@ -269,7 +269,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
         </div>
 
         {/* Satır 2: Eğitmen · Seans · Ders Saati · Başlangıç Tarihi */}
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Sorumlu Eğitmen</label>
             {!isAdmin ? (
@@ -328,7 +328,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
         </div>
 
         {/* Satır 3: Şirket Adı (kurumsal) + Toplam Saat */}
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {groupType === "kurumsal" && (
             <div className="space-y-2">
               <label className="text-[13px] font-semibold text-neutral-500 ml-1">Şirket Adı</label>
