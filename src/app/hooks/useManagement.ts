@@ -223,7 +223,7 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
       if (!isAdminRef.current) {
         const uid = auth.currentUser?.uid;
         const myGroupIds = groups.filter(g => g.instructorId === uid).map(g => g.id);
-        if (!myGroupIds.includes(s.groupId)) return false;
+        if (!myGroupIds.includes(s.lastGroupId ?? s.groupId)) return false;
         if (uid && s.hiddenFromInstructors?.includes(uid)) return false;
       }
     }
