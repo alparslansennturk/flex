@@ -685,7 +685,8 @@ export const useManagement = (setHeaderTitle: (t: string) => void) => {
     try {
       const groupRef = doc(db, "groups", modalConfig.groupId);
       const targetGroup = groups.find(g => g.id === modalConfig.groupId);
-      const affectedStudents = students.filter(s => s.groupId === modalConfig.groupId);
+      const freshSnap = await getDocs(query(collection(db, "students"), where("groupId", "==", modalConfig.groupId)));
+      const affectedStudents = freshSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student));
       const batch = writeBatch(db);
 
       if (modalConfig.type === 'delete') {
