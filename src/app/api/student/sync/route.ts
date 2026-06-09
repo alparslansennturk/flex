@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
       console.log(`[student/sync] authUid güncellendi: ${studentDocId} → ${uid}`);
     }
 
-    // Claims'e studentDocId yoksa yaz (mevcut öğrenciler için)
-    if (!decoded.studentDocId) {
+    // Claims eksik veya yanlış studentDocId içeriyorsa güncelle
+    if (!decoded.studentDocId || decoded.studentDocId !== studentDocId) {
       const existingClaims = decoded as Record<string, unknown>;
       const claimsToSet: Record<string, unknown> = {
         role: existingClaims.role || "student",
