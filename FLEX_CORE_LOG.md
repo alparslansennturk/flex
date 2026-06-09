@@ -80,6 +80,38 @@
 
 ---
 
+## ⚠️ AÇIK SORUN — §184 Grup Arşivleme Öğrenciyi Mezuna Düşürmüyor (2026-06-09)
+
+**Durum: ÇÖZÜLMEDE — PC'de devam edilecek**
+
+### Sorun
+Grup arşivlendiğinde içindeki öğrenci `status: passive`, `groupCode: "Mezun (X)"` olmuyor. Öğrenci mezun listesinde görünmüyor.
+
+### Kök Neden (tespit edildi, tam doğrulanmadı)
+`confirmModalAction()` içinde `affectedStudents` local React state'inden filtreleniyor:
+```typescript
+const affectedStudents = students.filter(s => s.groupId === modalConfig.groupId);
+```
+Bazı öğrencilerin `groupId` alanı Firestore'da yok (kayıt sırasında set edilmemiş). Bu durumda filtre boş dönüyor, batch commit'te sadece grup `status: 'archived'` yazılıyor, öğrenci güncellenmeden kalıyor.
+
+### Yapılan Fix Denemeleri
+1. `affectedStudents` filtresini Firestore'dan canlı query'e çevrildi (`getDocs + where("groupId","==",...)`) — **commit e03a38d** — test edilmedi henüz, deploy bekleniyor
+2. Mezun listesi filtresi `s.groupId` → `s.lastGroupId ?? s.groupId` — **commit 5e2be89** — kısmen çalışıyor ama asıl sorun devam ediyor
+
+### İkincil Sorunlar (aynı oturumda çözülenler)
+- `student/sync` JWT claims stale `studentDocId` güncellemiyordu → **fix: c3d0907**
+- Mezun listeden sil → sadece students doc siliyordu, auth + users kalıyordu → **fix: 7446a91** (`/api/admin/delete-student`)
+- Email çakışma kontrolü mezun öğrencileri de blokluyordu → **fix: b4bc3ba**
+- `welcome/route.ts` users doc varsa `studentDocId` güncellemiyordu → önceki oturumda fix edilmişti
+
+### Devamı İçin Yapılacak
+1. Deploy'un tamamlanmasını bekle
+2. Yeni bir test öğrencisi ekle, gruba ata, grubu arşivle — konsol hatalarına bak
+3. Eğer hata yoksa ama öğrenci hala güncellenmiyorsa: `groupId` alanının student doc'a yazılıp yazılmadığını kontrol et (öğrenci eklerken `studentData` içinde `groupId` var mı?)
+4. Büyük ihtimalle öğrenci ekleme akışında `groupId` field'ı eksik — `useManagement.ts`'de `addDoc` çağrısındaki `studentData` objesini incele
+
+---
+
 ## Son Durum (2026-06-07) — güncellendi
 
 - **Yoklama modülü:** Tam çalışıyor (kayıt, kapanma, rapor, detay)
