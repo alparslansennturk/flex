@@ -82,10 +82,9 @@ export async function POST(req: NextRequest) {
             createdAt:    FieldValue.serverTimestamp(),
           });
         } else {
-          // Zaten varsa studentDocId'yi güncelle (eksikse)
-          if (!userDoc.data()?.studentDocId) {
-            await adminDb.collection("users").doc(uid).update({ studentDocId });
-          }
+          // Zaten varsa studentDocId'yi her zaman güncelle
+          // (aynı email farklı gruba atandığında eski doc'a kilitlenmesin)
+          await adminDb.collection("users").doc(uid).update({ studentDocId });
         }
 
         // students/{studentDocId} docuna authUid ve accountStatus ekle

@@ -423,13 +423,12 @@ function BookResultModal({
     try {
       // 1. PDF oluştur → base64 → Uint8Array (chunklama için)
       const pdfBase64 = await generateKitapPdf({ book, deadline, paperWeight, paperThickness });
-      const binaryStr = atob(pdfBase64);
-      const pdfBytes  = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) pdfBytes[i] = binaryStr.charCodeAt(i);
-
-      const totalBytes = pdfBytes.length;
-      const fileName   = `${student.name} ${student.lastName}-${book.title}.pdf`;
-      const mimeType   = "application/pdf";
+      const fileName  = `${student.name} ${student.lastName}-${book.title}.pdf`;
+      const mimeType  = "application/pdf";
+      const blob      = new Blob([Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0))], { type: mimeType });
+      const buffer    = await blob.arrayBuffer();
+      const pdfBytes  = new Uint8Array(buffer);
+      const totalBytes = pdfBytes.byteLength;
 
       // 2. Upload session başlat (Drive resumable session açar)
       const initToken = await auth.currentUser?.getIdToken();

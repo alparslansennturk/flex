@@ -20,10 +20,11 @@ export async function POST(req: NextRequest) {
 
     let studentDocId = userDoc.data()?.studentDocId as string | undefined;
 
-    // users doc'ta yoksa students koleksiyonunda authUid ile ara
+    // users doc'ta yoksa students koleksiyonunda authUid ile ara — sadece aktif öğrenci
     if (!studentDocId) {
       const snap = await adminDb.collection("students")
         .where("authUid", "==", uid)
+        .where("status", "==", "active")
         .limit(1)
         .get();
       if (!snap.empty) {
