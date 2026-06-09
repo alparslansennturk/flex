@@ -1001,14 +1001,18 @@ throw error;
 
   const handleDeleteGraduatedStudent = async (studentId: string) => {
     if (isAdminRef.current) {
-      const student = students.find(s => s.id === studentId);
       try {
-        await deleteDoc(doc(db, "students", studentId));
-        if (student?.groupId && student.groupId !== 'unassigned') {
-          await updateDoc(doc(db, "groups", student.groupId), { students: increment(-1) });
-        }
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch("/api/admin/delete-student", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({ studentDocId: studentId }),
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
         showNotification("Öğrenci silindi.");
-      } catch { showNotification("Hata oluştu."); }
+      } catch (e: unknown) {
+        showNotification((e instanceof Error ? e.message : null) ?? "Hata oluştu.");
+      }
     } else {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
