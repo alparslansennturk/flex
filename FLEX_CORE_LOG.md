@@ -144,7 +144,7 @@
 Arşiv grubu **tamamen silinince** mezunun `lastGroupId`'si artık var olmayan gruba bakıyor → branş filtresi eliyordu. **Fix:** `ManagementContent.tsx` `matchesDiscipline()` — passive öğrenci için grup lookup yerine öğrencinin kendi `discipline` alanı kullanılıyor; yoksa `lastGroupId` lookup; o da yoksa her branşta gösterilir (yetim mezun kaybolmasın). `Student` interface'e `discipline?` eklendi.
 
 ### §185 — Mezun Öğrenciyi Yeni Gruba Alma (GEÇİCİ ÇÖZÜM)
-> Kalıcı çözüm sıfırdan öğrenci/grup yazımında (EduOS, Kişi≠Kayıt modeli) ele alınacak. Bu geçici.
+> Kalıcı çözüm sıfırdan öğrenci/grup yazımında (FlexOS, Kişi≠Kayıt modeli) ele alınacak. Bu geçici.
 
 **Akış:** Mezun panel → öğrenci satırında kalem (Düzenle) → formda aktif grup seç → kaydet. Mevcut transfer akışına bağlandı (`handleSave`, `useManagement.ts`):
 - `status` passive→active, yeni gruba geçer, mezun listeden düşer, `group_history`'ye "transfer" kaydı yazılır.

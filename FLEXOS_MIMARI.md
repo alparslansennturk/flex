@@ -3,7 +3,7 @@
 > **Durum:** Tasarım/tartışma kilitlendi (2026-06-09). Kod yazılmadı.
 > Yol haritası sunumdan sonra çizilecek.
 >
-> İlgili: `ARCHITECTURE.md`, `FLEX_CORE_LOG.md`. Bu doküman EduOS yeniden-inşa veri modelini tanımlar.
+> İlgili: `ARCHITECTURE.md`, `FLEX_CORE_LOG.md`. Bu doküman FlexOS yeniden-inşa veri modelini tanımlar.
 
 ---
 
@@ -22,15 +22,15 @@ Eğitmen tarafı ileride **"Flex Classroom"** olarak ayrı ticari ürün çıkab
 | Katman | İçerik | Bağımlılık |
 |--------|--------|------------|
 | **Core (Classroom)** | Person, Enrollment, Group, Module + eğitim verisi (yoklama/not/ödev/sertifika sonucu) | Kendi kendine yeter, üst katmanı **bilmez** |
-| **EduOS (üst katman)** | Education (ürün), Sale, Payment, Account (firma), Quota, Branş, Şube, gelir raporu | Core'u besler, Core'a bağımlı |
+| **FlexOS (üst katman)** | Education (ürün), Sale, Payment, Account (firma), Quota, Branş, Şube, gelir raporu | Core'u besler, Core'a bağımlı |
 
-**Demir kural:** Bağımlılık tek yönlü → `EduOS → Core`. Core, EduOS'tan import etmez.
+**Demir kural:** Bağımlılık tek yönlü → `FlexOS → Core`. Core, FlexOS'tan import etmez.
 Üst katmandan gelen tüm alanlar Core'da **opsiyonel/nullable** (`Enrollment.saleId?`, `Person.accountId?`).
 Klasör: `lib/domain/core` ve `lib/domain/eduos`.
 
 **İki kapı:** Enrollment iki yoldan doğabilir:
 1. **Eğitmen quick-add (Core):** satış YOK, grup+öğrenci manuel. Standalone Classroom böyle çalışır.
-2. **Satış (EduOS):** Sale → Person + Enrollment.
+2. **Satış (FlexOS):** Sale → Person + Enrollment.
 
 ---
 
@@ -66,7 +66,7 @@ Bir modül farklı eğitimlerin öğrencilerine **ortak sınıfta** verilebilir.
 - `groupId?` boş = grupsuz havuzda bekliyor (eğitim op yerleştirecek).
 - `moduleScope?` boş = grubun eğitiminin tüm modülleri; dolu = sadece o modül(ler) (Ahmet: "Temel Photoshop").
 - `durum`: aktif | mezun | tekrar | bıraktı.
-- `saleId?` Core'da opsiyonel (standalone Classroom'da boş; EduOS'ta zorunlu).
+- `saleId?` Core'da opsiyonel (standalone Classroom'da boş; FlexOS'ta zorunlu).
 - **Yoklama / not / ödev:** grup seviyesinde tutulur (mevcut sistem: `design_attendance` grup bazlı, `gradedTasks` classId bazlı — DEĞİŞMİYOR).
 - **Sertifika sonucu:** `certificate{durum: bekliyor|hak_kazandı|kalamadı, finalNot, sertifikaKodu, verilişTarihi}`. moduleScope'a bağlı. Bir kez kazanılınca **kalıcı** (öğrenci başka gruba geçse de durur).
 
@@ -78,13 +78,13 @@ Bir modül farklı eğitimlerin öğrencilerine **ortak sınıfta** verilebilir.
 ### Module (Core)
 `id, educationId, ad, sıra, saat`
 
-### Education / Eğitim (EduOS) — satılan ürün
+### Education / Eğitim (FlexOS) — satılan ürün
 `id, ad, branşId, listeFiyatı, kdv, satışaAçık, modules[], sertifikaTanımı`
 - `listeFiyatı`: ürün fiyatı (+KDV otomatik). Değişince satış ekranı görür.
 - `sertifikaTanımı`: hangi sertifika (Katılım/Başarı/MEB) + koşullar (min devam %, min not, MEB belge bilgisi). **Şu an yanlış yerde** (`users/{instructorId}.certSettings`) → buraya taşınacak.
 - Paket = bundle-tipi Education (içinde N education referansı, tek total fiyat).
 
-### Sale / İşlem (EduOS) — enrollment hareket defteri
+### Sale / İşlem (FlexOS) — enrollment hareket defteri
 `id, tip, customerType, personId, accountId?, educationId(ler), satışFiyatı, salespersonId, şubeId, tarih`
 - `tip`: yeni_satış | transfer | tekrar | yerleştirme.
 - **Her öğrenci hareketi bir Sale ile başlar — tutar 0 TL olsa bile** (Bilge Adam deseni: güvenlik/denetim, tek giriş kapısı, headcount-gelir tutarlılığı). Transfer/tekrar = çoğu 0 TL.
@@ -92,15 +92,15 @@ Bir modül farklı eğitimlerin öğrencilerine **ortak sınıfta** verilebilir.
 - `customerType`: bireysel | kurumsal. Özel ders = bireyselin içinde bir tip (Grup.type).
 - Paket satışı → 1 Sale → N Enrollment.
 
-### Account / Müşteri (EduOS) — kurumsal
+### Account / Müşteri (FlexOS) — kurumsal
 `id, firmaAdı, yetkili, telefon, ...` → 1 firma N Person.
 - Bireyselde ödeyen = kişinin kendisi (ayrı Account yok).
 - **Kurumsal en baştan ayrı:** ayrı panel, ayrı firma/yetkili verisi, ayrı gelir (rapor istenirse birleştirilir).
 
-### Payment (EduOS)
+### Payment (FlexOS)
 Taksit/tahsilat. `tutar, taksit, durum`. (1. etap dışı, alan hazır.)
 
-### Quota (EduOS)
+### Quota (FlexOS)
 **Gelir bazlı** (örn "ay 200k"). Satışçı bazlı + genel.
 
 ---
@@ -135,7 +135,7 @@ Eski enrollment'ı kapatan + yeni enrollment açan 0 TL'lik Sale (tip=transfer/t
 
 ## 7. İnşa Sırası
 
-1. **Core tiplerini kilitle** (Person, Enrollment, Group, Module) + EduOS tipleri (Education, Sale, Branş, Şube).
+1. **Core tiplerini kilitle** (Person, Enrollment, Group, Module) + FlexOS tipleri (Education, Sale, Branş, Şube).
 2. **Backfill:** mevcut `students` → Person + Enrollment (groupId'den) + `group_history`'den geçmiş enrollment'lar. **Hiçbir şey silinmez.**
 3. **İlk dikey dilim:** bireysel satış → gruba ekleme → eğitmene atama (1. etap).
 4. Yazım + liste + yoklama + grading sorgularını enrollment-aware repoint.
