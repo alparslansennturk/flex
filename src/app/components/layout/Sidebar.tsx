@@ -55,6 +55,13 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
     sessionStorage.setItem('yoklamaOpen', String(yoklamaOpen));
   }, [yoklamaOpen]);
 
+  // Yoklama dışı bir sayfaya gidince dropdown'ı kapat
+  useEffect(() => {
+    if (!pathname.startsWith('/dashboard/attendance')) {
+      setYoklamaOpen(false);
+    }
+  }, [pathname]);
+
   useEffect(() => {
     sessionStorage.setItem('assignmentOpen', String(assignmentTestOpen));
   }, [assignmentTestOpen]);
@@ -123,7 +130,7 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
                   </span>
                   <span className="text-[14px] font-normal leading-tight">Yoklama Al</span>
                 </button>
-                <SidebarLink href="/dashboard/attendance-detail" icon={<BarChart2 size={15} />} label="Yoklama Detay" compact={compact} sub />
+                <SidebarLink href="/dashboard/attendance-detail" icon={<BarChart2 size={15} />} label="Yoklama Detay" compact={compact} sub hardNav />
                 {isAdmin && <SidebarLink href="/dashboard/attendance-report" icon={<TrendingUp size={15} />} label="Yoklama Raporu" compact={compact} sub />}
               </div>
             </div>
@@ -200,24 +207,24 @@ export default function Sidebar({ logo }: { logo?: React.ReactNode } = {}) {
   );
 }
 
-function SidebarLink({ href, icon, label, exact = false, compact = false, sub = false }: {
-  href: string; icon: React.ReactNode; label: string; exact?: boolean; compact?: boolean; sub?: boolean;
+function SidebarLink({ href, icon, label, exact = false, compact = false, sub = false, hardNav = false }: {
+  href: string; icon: React.ReactNode; label: string; exact?: boolean; compact?: boolean; sub?: boolean; hardNav?: boolean;
 }) {
   const pathname = usePathname();
   const active = exact ? pathname === href : (pathname === href || pathname.startsWith(href + '/'));
-  return (
-    <Link
-      href={href}
-      className={`flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
-        ${sub ? (compact ? "py-2" : "py-2.5") : compact ? "py-3.25" : "py-3.5"}
-        ${active ? 'text-white' : 'text-white hover:bg-white/5'}`}
-    >
+  const cls = `flex items-center gap-4 px-6 rounded-xl transition-all duration-200 group
+    ${sub ? (compact ? "py-2" : "py-2.5") : compact ? "py-3.25" : "py-3.5"}
+    ${active ? 'text-white' : 'text-white hover:bg-white/5'}`;
+  const inner = (
+    <>
       <span className={`transition-colors duration-200 ${active ? 'text-[#FF8D28]' : 'group-hover:text-[#FF8D28]'}`}>
         {icon}
       </span>
       <span className={`leading-tight ${sub ? "text-[14px] font-normal" : "text-[15px] font-[450]"}`}>
         {label}
       </span>
-    </Link>
+    </>
   );
+  if (hardNav) return <a href={href} className={cls}>{inner}</a>;
+  return <Link href={href} className={cls}>{inner}</Link>;
 }

@@ -186,7 +186,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
 
   return (
     <>
-    <div className={`relative w-full bg-white rounded-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-[#10294C] ${shake ? "error-shake" : ""}`}>
+    <div className={`relative w-full bg-white rounded-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] sm:max-h-[92vh] text-[#10294C] ${shake ? "error-shake" : ""}`}>
 
       {/* Header */}
       <div className="bg-[#10294C] p-6 text-white flex items-center justify-between shrink-0">
@@ -287,7 +287,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
           <div className="space-y-2">
             <label className="text-[13px] font-semibold text-neutral-500 ml-1">Seans</label>
             <div onClick={(e) => { if (!isScheduleDropOpen) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setScheduleDropPos({ top: r.bottom + 4, left: r.left, width: r.width }); } setIsScheduleDropOpen(!isScheduleDropOpen); }} className={`h-12 w-full border-2 rounded-[12px] px-4 flex items-center justify-between cursor-pointer transition-all duration-200 ${errors.schedule ? 'border-red-400 bg-red-50' : isScheduleDropOpen ? 'border-orange-500 bg-white' : 'border-neutral-100 bg-neutral-50'}`}>
-              <span className={`text-[14px] truncate ${selectedSchedule && selectedSchedule !== 'Grup seansı seçiniz...' ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{selectedSchedule && selectedSchedule !== 'Grup seansı seçiniz...' ? selectedSchedule : 'Grup seansı seçiniz...'}</span>
+              <span className={`min-w-0 truncate text-[12px] sm:text-[13px] ${selectedSchedule && selectedSchedule !== 'Grup seansı seçiniz...' ? 'font-bold text-[#10294C]' : 'font-normal text-neutral-400'}`}>{selectedSchedule && selectedSchedule !== 'Grup seansı seçiniz...' ? selectedSchedule : 'Grup seansı seçiniz...'}</span>
               <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isScheduleDropOpen ? 'rotate-180 text-orange-500' : 'text-neutral-400'}`} />
             </div>
           </div>

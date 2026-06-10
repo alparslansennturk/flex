@@ -77,12 +77,60 @@
 | Not Ayarları auto-save (700ms debounce), Kaydet butonu kaldırıldı | §181 | `grading/page.tsx` |
 | Ödev puanı hesaplama fix: useAssignment=false→0, live weights, finalize fallback | §182 | `grading/page.tsx` |
 | StudentDetailModal certSettings entegrasyonu: hardcoded 0.7/30 kaldırıldı | §183 | `StudentDetailModal.tsx` |
+| Yoklama detay kilitli + Düzenle butonu + ders aktifken lock | §186a-c | `AttendancePanel.tsx` |
+| Detail paneli son ders tarihine atlar | §186d | `AttendancePanel.tsx` |
+| attendance-detail panel state URL'e taşındı | §186e | `attendance-detail/page.tsx` |
+| Sidebar Yoklama Detay hardNav + dropdown otomatik kapanır | §186f-g | `Sidebar.tsx` |
+| GroupForm modal max-w-5xl, max-h büyütüldü, seans truncate fix | §186h | `GroupForm.tsx`, `ManagementContent.tsx` |
+
+---
+
+## ✅ §186 — Yoklama Detay + Düzenle Butonu + Sidebar + GroupForm (2026-06-10)
+
+### §186a — Ders Aktifken Detail Panelden Düzenleme Engellendi
+`isReadonlyView` koşuluna `(existingDoc && !attendanceClosed && isToday && mode !== "simple")` eklendi. Ders başlatılmış ama bitmemişken yoklama-detay slide ve dashboard attendance-detail sayfasından düzenleme artık kapalı. Ana attend paneli (`mode="simple"`) etkilenmez. `AttendancePanel.tsx:967`.
+
+### §186b — Dersi Başlat Öncesi Öğrenci Listesi Pasif
+Öğrenci listesi opacity koşuluna `(mode === "simple" && isToday && !existingDoc && !hasPersistedEntries && !attendanceClosed)` eklendi. Saat penceresi açılsa bile "Dersi Başlat" basılmadan liste gri + pointer-events-none. `AttendancePanel.tsx:1638`.
+
+### §186c — Yoklama Detay: Varsayılan Kilitli + "Düzenle" Butonu
+- Detail panelinde kapatılmış yoklama herkese varsayılan kilitli — `isReadonlyView` koşulu `(attendanceClosed && (!canEdit || !editUnlocked))` oldu.
+- `editUnlocked` state eklendi (grup/tarih değişince sıfırlanır).
+- "Düzenle" butonu: Temizle'nin 32px solunda. Admin/yönetici → her zaman aktif. Eğitmen → 3 gün içinde aktif, sonra disabled.
+- "Düzenle" basılınca `editUnlocked=true` + `setSaved(false)` → "Kaydedildi" otomatik "Güncelle" olur.
+- "Güncelle" sonrası `setEditUnlocked(false)` → otomatik tekrar kilitlenir. `AttendancePanel.tsx`.
+
+### §186d — Detail Paneli Son Ders Tarihine Atlar
+`preSelectedGroupId` değişince `design_attendance` koleksiyonundan o grubun tüm kayıtları çekilir, en büyük `date` alanı bulunur, `selectedDate` + `selectedMonth` set edilir. Composite index gerektirmez (JS sort). `AttendancePanel.tsx`.
+
+### §186e — attendance-detail Panel State URL'e Taşındı
+`showGroupDetail` / `detailGroupId` local state'ten URL parametrelerine (`?detail=groupId&detailMonth=...&detailClosed=...`) taşındı. Sidebar "Yoklama Detay" linki `/dashboard/attendance-detail` (param yok) → panel kapanır. Back butonu `buildListUrl()` ile list param'larını korur. `attendance-detail/page.tsx`.
+
+### §186f — Sidebar "Yoklama Detay" Hard Navigation
+`SidebarLink`'e `hardNav` prop eklendi — `<Link>` yerine `<a href>` kullanır, tam sayfa geçişi yapar. "Yoklama Detay" bu prop ile işaretlendi. Sidebar'dan tıklanınca animasyon yok, loader ile sayfa taze gelir. `Sidebar.tsx`.
+
+### §186g — Sidebar Yoklama Dropdown Otomatik Kapanır
+`pathname` değişince `/dashboard/attendance` dışına çıkıldığında `setYoklamaOpen(false)` tetiklenir. `Sidebar.tsx`.
+
+### §186h — GroupForm Modal Boyutu Büyütüldü
+- `ManagementContent.tsx`: dış padding `p-3 sm:p-6` → `p-2 sm:p-4 lg:p-6`, wrapper `max-w-4xl` → `max-w-5xl`.
+- `GroupForm.tsx`: `max-h-[90vh]` → `max-h-[96vh] sm:max-h-[92vh]`.
+- Seans span: `min-w-0 truncate text-[12px] sm:text-[13px]` — flex container içinde uzun seans metni düzgün truncate olur.
+
+### Commit Edilecek Dosyalar
+- `src/app/components/dashboard/attendance/AttendancePanel.tsx` — §186a-d
+- `src/app/dashboard/attendance-detail/page.tsx` — §186e
+- `src/app/components/layout/Sidebar.tsx` — §186f-g
+- `src/app/components/dashboard/ManagementContent.tsx` — §186h
+- `src/app/components/dashboard/class-management/GroupForm.tsx` — §186h
+- `src/app/components/dashboard/student-management/StudentForm.tsx` — newline fix
+- `FLEX_CORE_LOG.md` — bu kayıt
 
 ---
 
 ## ✅ ÇÖZÜLDÜ — §184 Mezuniyet + §185 Re-Enrollment + UI Düzeltmeleri (2026-06-09)
 
-> **⚠️ COMMIT EDİLMEDİ — dönünce commit'le.** Aşağıdaki tüm değişiklikler working tree'de, henüz commit yok.
+> **commit: `f4fafd1`**
 
 ### §184 — Grup Arşivleme Öğrenciyi Mezuna Düşürmüyordu (ÇÖZÜLDÜ)
 **Gerçek kök neden UI filtresiydi** (önceki "groupId eksik" teşhisi yanlıştı). Firestore yazımı `e03a38d` ile zaten düzelmişti — öğrenci `status: passive`, `groupId: "unassigned"` oluyordu. Mezun listede görünmemesinin nedeni **iki ayrı UI filtre katmanı**:

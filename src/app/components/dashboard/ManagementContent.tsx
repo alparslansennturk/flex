@@ -176,7 +176,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
         {/* GRUP FORM MODAL */}
         <AnimatePresence>
           {isFormOpen && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-6">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-2 sm:p-4 lg:p-6">
           <motion.div
             className="absolute inset-0 bg-[#10294C]/60 backdrop-blur-md"
             initial={{ opacity: 0 }}
@@ -186,7 +186,7 @@ export default function ManagementContent({ setHeaderTitle }: { setHeaderTitle: 
             onClick={handleCancel}
           />
           <motion.div
-            className="relative w-full max-w-4xl"
+            className="relative w-full max-w-5xl"
             initial={{ opacity: 0, y: 80 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 60, transition: { duration: 0.2 } }}

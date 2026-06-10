@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -23,14 +23,22 @@ function AttendanceDetailMain() {
   const monthParam         = searchParams.get("month");
   const ref                = searchParams.get("ref");
 
-  const [showGroupDetail, setShowGroupDetail] = useState(false);
-  const [detailGroupId, setDetailGroupId]     = useState<string | null>(null);
-  const [detailMonth, setDetailMonth]         = useState<string | null>(null);
-  const [detailIsClosed, setDetailIsClosed]   = useState(false);
+  // Panel state URL'den okunur: ?detail=groupId&detailMonth=...&detailClosed=true
+  // Böylece sidebar "Yoklama Detay" linki (param yok) her zaman liste görünümüne döner.
+  const detailGroupId  = searchParams.get("detail");
+  const detailMonth    = searchParams.get("detailMonth");
+  const detailIsClosed = searchParams.get("detailClosed") === "true";
+  const showGroupDetail = !!detailGroupId;
 
-  const backUrl = ref === "attendance"
-    ? `/dashboard/attendance?groupId=${filterGroupId}`
-    : null;
+  const buildListUrl = () => {
+    const p = new URLSearchParams();
+    if (filterGroupId)      p.set("groupId", filterGroupId);
+    if (filterInstructorId) p.set("instructorId", filterInstructorId);
+    if (monthParam)         p.set("month", monthParam);
+    if (ref)                p.set("ref", ref);
+    const q = p.toString();
+    return `/dashboard/attendance-detail${q ? "?" + q : ""}`;
+  };
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -54,7 +62,7 @@ function AttendanceDetailMain() {
       <Header
         activeTabLabel="Yoklama Detay"
         innerClassName="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] px-4 sm:px-6 lg:px-8"
-        onBack={showGroupDetail ? () => setShowGroupDetail(false) : undefined}
+        onBack={showGroupDetail ? () => router.push(buildListUrl()) : undefined}
       />
       <main className="flex-1 min-h-0 relative overflow-hidden">
 
@@ -68,7 +76,17 @@ function AttendanceDetailMain() {
             initialGroupId={filterGroupId ?? undefined}
             initialInstructorId={filterInstructorId ?? undefined}
             initialMonth={monthParam ?? undefined}
-            onGroupDetail={(gid, month, isClosed) => { setDetailGroupId(gid); setDetailMonth(month); setDetailIsClosed(isClosed); setShowGroupDetail(true); }}
+            onGroupDetail={(gid, month, isClosed) => {
+                const p = new URLSearchParams();
+                if (filterGroupId)      p.set("groupId", filterGroupId);
+                if (filterInstructorId) p.set("instructorId", filterInstructorId);
+                if (monthParam)         p.set("month", monthParam);
+                if (ref)                p.set("ref", ref);
+                p.set("detail", gid);
+                p.set("detailMonth", month);
+                p.set("detailClosed", String(isClosed));
+                router.push(`/dashboard/attendance-detail?${p.toString()}`);
+              }}
           />
         </motion.div>
 

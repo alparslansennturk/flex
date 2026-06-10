@@ -425,6 +425,7 @@ export default function AttendancePanel({
   const [attendanceClosed, setAttendanceClosed]   = useState(false);
   const [closedAt, setClosedAt]                   = useState<Date | null>(null);
   const [hasPersistedEntries, setHasPersistedEntries] = useState(false);
+  const [editUnlocked, setEditUnlocked]               = useState(false);
 
 
   const dateKey  = toDateKey(selectedDate);
@@ -648,14 +649,31 @@ export default function AttendancePanel({
       .catch(() => setModuleHours(null));
   }, [selectedGroup?.moduleId, selectedGroup?.discipline]);
 
+  // ── Detail view: son ders tarihine atla ──────────────────────────────────
+  useEffect(() => {
+    if (!preSelectedGroupId) return;
+    getDocs(query(collection(db, "design_attendance"), where("groupId", "==", preSelectedGroupId)))
+      .then(snap => {
+        if (snap.empty) return;
+        const dates = snap.docs.map(d => d.data().date as string).filter(Boolean).sort().reverse();
+        if (!dates[0]) return;
+        const [y, m, day] = dates[0].split("-").map(Number);
+        const d = new Date(y, m - 1, day, 12, 0, 0);
+        setSelectedDate(d);
+        setSelectedMonth(d);
+      })
+      .catch(() => {});
+  }, [preSelectedGroupId]);
+
   // ── Load attendance + exceptions for selected date (real-time) ───────────
   useEffect(() => {
-    if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); setLessonStarted(false); setAttendanceClosed(false); setClosedAt(null); setHasPersistedEntries(false); return; }
+    if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); setLessonStarted(false); setAttendanceClosed(false); setClosedAt(null); setHasPersistedEntries(false); setEditUnlocked(false); return; }
     setSaved(false);
     setLessonStarted(false);
     setAttendanceClosed(false);
     setClosedAt(null);
     setHasPersistedEntries(false);
+    setEditUnlocked(false);
     setException(null);
 
     const docId = `${selectedGroupId}_${dateKey}`;
@@ -830,6 +848,7 @@ export default function AttendancePanel({
       }
       setExistingDoc(true);
       setSaved(true);
+      if (attendanceClosed) setEditUnlocked(false);
     } finally {
       setSaving(false);
     }
@@ -962,9 +981,13 @@ export default function AttendancePanel({
     : false;
 
   // Yoklama Al ekranında geçmiş tarih kaydı VEYA kapatılmış+pencere dolmuş → salt okunur
+  // Ders aktifken (başlatılmış ama bitmemiş) detail panellerinden düzenleme yapılamaz;
+  // sadece mode="simple" (ana yoklama alma ekranı) erişilebilir kalır.
+  // Detail panelinde kapatılmış yoklama varsayılan kilitli: "Düzenle" butonu ile açılır.
   const isReadonlyView =
-    (attendanceClosed && !canEdit) ||
-    (!allowEdit && !isToday && existingDoc);
+    (attendanceClosed && (!canEdit || !editUnlocked)) ||
+    (!allowEdit && !isToday && existingDoc) ||
+    (existingDoc && !attendanceClosed && isToday && mode !== "simple");
 
   const filledCount         = students.filter(s => (entries[s.id]?.hours ?? 0) > 0).length;
   const onlineAttendCount   = students.filter(s => (entries[s.id]?.hours ?? 0) > 0 && entries[s.id]?.online).length;
@@ -1514,6 +1537,21 @@ export default function AttendancePanel({
                 </div>
 
                 <div className="flex items-center shrink-0">
+                  {/* Düzenle: detail panelinde kapalı yoklamayı manuel aç */}
+                  {allowEdit && attendanceClosed && !editUnlocked && mode !== "simple" && (
+                    <button
+                      onClick={() => { if (!canEdit) return; setEditUnlocked(true); setSaved(false); }}
+                      disabled={!canEdit}
+                      className={`flex items-center gap-1 text-[11px] font-semibold transition-colors mr-8 ${
+                        canEdit
+                          ? "text-base-primary-600 hover:text-base-primary-800 cursor-pointer"
+                          : "text-text-placeholder opacity-40 cursor-not-allowed"
+                      }`}
+                    >
+                      <Pencil size={11} strokeWidth={2.2} />
+                      Düzenle
+                    </button>
+                  )}
                   {/* Temizle: entries sıfırla */}
                   {!(exception && !exception.countsAsLesson) && lessonStarted && !hasPersistedEntries ? (
                     <button
@@ -1635,7 +1673,7 @@ export default function AttendancePanel({
                   )}
 
                   {/* Student list */}
-                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView || isPastExpired || (!isWithinTimeWindow && !hasPersistedEntries && !attendanceClosed)) ? "opacity-60 pointer-events-none select-none" : ""}`}>
+                  <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView || isPastExpired || (!isWithinTimeWindow && !hasPersistedEntries && !attendanceClosed) || (mode === "simple" && isToday && !existingDoc && !hasPersistedEntries && !attendanceClosed)) ? "opacity-60 pointer-events-none select-none" : ""}`}>
                     {students.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">
                         <Users size={28} strokeWidth={1.5} />
