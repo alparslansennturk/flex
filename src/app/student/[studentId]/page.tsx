@@ -137,6 +137,7 @@ export default function StudentDashboard() {
   const [filter,        setFilter]        = useState<Filter>("all");
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [selectedAnn,   setSelectedAnn]   = useState<AnnouncementItem | null>(null);
+  const [leagueVisible, setLeagueVisible] = useState(true);
 
   useEffect(() => { loadData(); }, [studentId]);
 
@@ -190,6 +191,21 @@ export default function StudentDashboard() {
       })));
     });
     return unsub;
+  }, [student?.groupId]);
+
+  // Lig görünürlüğü: global ayar + grup leagueEnabled (ikisi de varsayılan açık).
+  // StudentSidebar ile aynı mantık — kapatılırsa lig widget'ı gizlenir.
+  useEffect(() => {
+    if (!student?.groupId) { setLeagueVisible(true); return; }
+    let cancelled = false;
+    const unsub = onSnapshot(doc(db, "settings", "platform"), async settingsSnap => {
+      const globalOn = settingsSnap.data()?.leagueGlobalEnabled !== false;
+      const groupSnap = await getDoc(doc(db, "groups", student.groupId));
+      if (cancelled) return;
+      const groupOn = groupSnap.exists() ? groupSnap.data()?.leagueEnabled !== false : true;
+      setLeagueVisible(globalOn && groupOn);
+    }, () => {});
+    return () => { cancelled = true; unsub(); };
   }, [student?.groupId]);
 
   async function loadData() {
@@ -375,15 +391,17 @@ export default function StudentDashboard() {
               {/* ══ Sağ: Lig + Duyurular ══ */}
               <aside className="w-72 shrink-0 sticky top-7 hidden xl:flex xl:flex-col xl:gap-6 xl:pt-14">
 
-                {/* Sınıf Ligi */}
-                <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
-                  <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-surface-100">
-                    <span className="text-[15px] font-bold text-text-primary">Sınıf Ligi</span>
+                {/* Sınıf Ligi — lig kapalıysa (global veya grup) gizlenir */}
+                {leagueVisible && (
+                  <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-surface-100">
+                      <span className="text-[15px] font-bold text-text-primary">Sınıf Ligi</span>
+                    </div>
+                    <div className="px-2 py-2">
+                      <StudentLeagueWidget groupId={student.groupId} groupCode={student.groupCode} light />
+                    </div>
                   </div>
-                  <div className="px-2 py-2">
-                    <StudentLeagueWidget groupId={student.groupId} groupCode={student.groupCode} light />
-                  </div>
-                </div>
+                )}
 
                 {/* Duyurular */}
                 <div>

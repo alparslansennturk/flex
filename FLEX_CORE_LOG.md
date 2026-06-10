@@ -383,15 +383,17 @@ Arşiv grubu **tamamen silinince** mezunun `lastGroupId`'si artık var olmayan g
 ### Kısa Vadeli
 - [x] **Ana Sayfa ActivityFeed Firestore bağlantısı** — TAMAMLANDI (§140)
 - [x] **Öğrenci Grup Geçmişi** — TAMAMLANDI (§149–152). Altyapı + backfill + tabbed UI kuruldu.
-- [ ] **Firestore şişmesi — month filtresi:** `design_attendance` + `lesson_exceptions` onSnapshot'larına `where("month", "==", monthKey)` ekle (`AttendancePanel.tsx:534,543`)
-- [ ] **Platform Aşama 3 — leagueEnabled toggle:** `GroupForm` + `useManagement` + `LeagueWidget` + `LeaderboardWidget` + `StudentLeagueWidget`
-- [ ] **Kitap PDF Arşivi:** `send-kitap` Drive'a kaydetmiyor; eğitmen kendi gönderdiği kitapları UI'dan göremez
-- [ ] **Notification Frontend:** Figma linki bekleniyor (PC'de devam edilecek)
-- [ ] **Sertifikasyon kartı gerçek veri** — sertifika sistemi güncellendikten sonra yapılacak (`dashboard/page.tsx` QuickActionCard meta)
-
+- [x] **Firestore şişmesi — month filtresi:** TAMAMLANDI. `design_attendance` aylık count `getDocs` + `groupId`+`month` filtreli (`AttendancePanel.tsx:595`); `lesson_exceptions` onSnapshot `groupId`+`month` filtreli (`:633`). Kalan iki sorgu bilinçli all-time + `groupId`-scoped `getDocs`.
+- [x] **Platform Aşama 3 — leagueEnabled toggle:** TAMAMLANDI. Toggle `TaskManagementPanel` "Lig Yönetimi" sekmesinde (global=`settings/platform.leagueGlobalEnabled` admin-only, sınıf=`groups/{id}.leagueEnabled` admin+kendi branşı). Tüketim: eğitmen Sidebar + `/dashboard/league` global'e bakar; öğrenci Sidebar global+grup, öğrenci ana sayfa widget'ı + `/league` sayfası global+grup (son ikisi bu oturumda kapatıldı). Arşiv sekmesi de eğitmene açıldı (kendi ödevleri).
+- [x] **Kitap PDF Arşivi:** TAMAMLANDI. `send-kitap` + `instructor/complete-upload` Drive'a yükleyip `tasks/{id}.kitapDriveFiles.{studentId}` yazıyor; `/dashboard/archive` per-öğrenci "PDF / İndir" sütununda gösteriyor (kitap/kolaj/sosyal).
+- [x] **Notification Frontend:** TAMAMLANDI. `NotificationBell` → `Header` + `StudentHeader`, `NotificationToastListener` → root `layout.tsx`, `useNotifications` + `NotificationRealtimeService` canlı.
 ### Uzun Vadeli (Acele Değil)
-- [ ] **Sertifika PDF + Dağıtım:** `react-pdf` + `send-kitap` pattern — şablon tasarımı kararlaştırılacak
 - [ ] **Dashboard Hızlı Yoklama Widget:** `/attend?groupId=xxx` shortcut kartı
+
+### Sertifika — Eğitim Operasyonu Kapsamı (çok ileride)
+> Sertifika basımı/verilmesi **eğitmenin değil kurumun yetkisidir**. Mimarisi Eğitim Operasyonu ile birlikte yapılacak. O zamana kadar dokunulmayacak.
+- Sertifika PDF + dağıtım (basım, SMS/e-posta), koşul hesabı (devam % + not), MEB bilgileri
+- `dashboard/page.tsx` "Sertifikasyon" kartı not girişine (`/dashboard/grading`) gidiyor — etiket yanıltıcı; meta sabit kalabilir, gerçek-veri işi bu kapsama ait
 
 ---
 

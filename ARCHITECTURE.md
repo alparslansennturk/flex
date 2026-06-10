@@ -184,8 +184,33 @@ Enrollment {
   groupId           ← hangi gruba yerleşti
   status            ← aktif | dondurulmuş | tamamlandı | transfer
   transferHistory[] ← grup değişiklik geçmişi
+
+  // ── Donmuş sonuç (sınıf bitince yazılır, kalıcı) ──
+  result {
+    finalNot          ← eğitmenin notundan hesaplanan nihai not
+    projeNot
+    odevPuani
+    groupCode         ← hangi sınıfta alındı (denormalize)
+    module            ← hangi modül/eğitim
+    branch
+    donem             ← hangi dönem/yıl
+  }
+  certificate {
+    durum             ← bekliyor | hak_kazandı | kalamadı | verildi
+    tip               ← Katılım | Başarı | MEB
+    kod               ← belge no (verilince)
+    verilisTarihi
+  }
 }
 ```
+
+**Not + Sertifika sonucu Enrollment'ta DONAR.** Eğitmenin girdiği not, sınıf bitince (modül finalize / mezuniyet) nihai nota hesaplanır ve **o anda enrollment'a snapshot'lanır** — sonradan ödev/ağırlık değişse veya grup silinse bile **değişmez**. Sertifika dondurulmuş bir gerçektir, her açılışta yeniden hesaplanmaz.
+
+**Her eğitim ayrı saklanır.** Bir Person birden çok Enrollment taşır; her birinin notu, sertifikası ve sınıf bilgisi (groupCode/module/branch/dönem) **ayrı ayrı** durur. Aynı kişinin Grafik-1 notu ile Grafik-2 notu bağımsızdır.
+
+**Sertifika verilmesi kurumun işidir, eğitmenin değil.** Eğitmen yalnızca notu besler (`certificate.durum = hak_kazandı`). Basım/dağıtım Eğitim Operasyonu'nda ayrı bir adımdır: Eğitim Op, `durum = hak_kazandı && kod yok` enrollment'ları **otomatik listede** görür, sertifikayı basıp `durum = verildi` + `kod` + `verilisTarihi` yazar. (Bkz. Modüller Arası Sorumluluk → Eğitim Operasyonu.)
+
+> Bugünkü sistem notu canlı hesaplayıp `projectGrades`'e yazıyor; donmuş per-enrollment sonuç + sertifika alanları **sıfırdan inşada** (öğrenci/veri tipleri oluşturulurken) eklenecek. 1. etapta sertifika üretilmez ama şema baştan bu alanları taşır.
 
 ### Group (Grup)
 Gruplar geçicidir. İsimler değiştirilmez, yeni grup oluşturulur.
@@ -196,6 +221,37 @@ Böylece geçmiş yoklamalar, notlar ve sertifikalar korunur.
 ```
 Planlandı → Kayıt Alıyor → Aktif → Ertelendi → Tamamlandı → Sertifika Sürecinde → Arşiv
 ```
+
+---
+
+## Sertifika Verme Akışı (Eğitim Operasyonu)
+
+Hedef: kurumu rahatlatan, uçtan uca otomatik akış. Eğitmen yalnızca notu besler; gerisini sistem + Eğitim Op tek ekrandan yürütür.
+
+```
+1. Eğitmen notu verir
+        ↓
+2. Sistem sertifika notunu hesaplar (proje + ödev ağırlıkları)
+   → nota göre hak edilen sertifika türü belirlenir: Başarı | Katılım
+        ↓
+3. Eğitim Op ekranı — sınıfın "Sertifika Not" listesi
+   Her öğrenci satırında: not + hak kazandığı sertifika türü + [Sertifika Bastır]
+        ↓
+4. [Sertifika Bastır] → otomatik yazıcıdan basılır
+   + aynı anda öğrenciye mail/SMS: "Sertifikanız hazır, gelip alabilirsiniz."
+        ↓
+5. İl dışı / gelemiyorsa → dijital PDF kopyası öğrenciye gönderilir
+        ↓
+6. enrollment.certificate.durum = verildi + kod + verilisTarihi (kalıcı)
+```
+
+**Sertifika türü karara bağlı:** Eğitim tanımındaki koşullar (min devam %, min not) öğrencinin notuyla kıyaslanır → Başarı mı Katılım mı otomatik belirlenir. Eğitim Op onaylar, sistem türü önerir.
+
+**Kanal:** Fiziksel basım (yazıcı) **varsayılan**; PDF **opsiyonel/uzaktan** alternatif. İkisi de aynı butondan tetiklenir, durum `verildi`ye döner.
+
+**Otomatik bildirim:** Basım anında mail + SMS tetiklenir (mevcut `send-*` + bildirim altyapısı pattern'i). Öğrenci "gel al" veya "PDF'ini indir" yönlendirmesi alır.
+
+> Tümü Eğitim Operasyonu modülünde, sıfırdan inşada gelecek. Eğitmen tarafında **hiçbir sertifika butonu olmayacak** — sadece not girişi. Bkz. [Enrollment → certificate], Modüller Arası Sorumluluk → Eğitim Operasyonu.
 
 ---
 

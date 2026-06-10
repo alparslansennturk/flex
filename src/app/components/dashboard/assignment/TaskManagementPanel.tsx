@@ -638,7 +638,7 @@ export default function TaskManagementPanel() {
   const allTabs: { id: AdminTab; label: string; adminOnly: boolean }[] = [
     { id: "templates", label: "Şablon Yönetimi", adminOnly: false },
     { id: "active",    label: "Mevcut Ödevler",  adminOnly: true  },
-    { id: "archive",   label: "Arşiv",            adminOnly: true  },
+    { id: "archive",   label: "Arşiv",            adminOnly: false },
     { id: "pools",     label: "Ödev Havuzları",   adminOnly: true  },
     { id: "league",    label: "Lig Yönetimi",     adminOnly: false },
   ];
@@ -651,7 +651,10 @@ export default function TaskManagementPanel() {
   ).filter(t => branchFilter === "all" || t.discipline === branchFilter);
 
   const enrichedActive   = activeTasks.map(enrichTask);
-  const enrichedArchived = archivedTasks.map(enrichTask);
+  // Arşiv: admin tümünü görür, eğitmen yalnızca kendi verdiği ödevleri görür
+  const enrichedArchived = archivedTasks
+    .filter(t => isAdmin() || t.createdBy === user?.uid)
+    .map(enrichTask);
 
 
   // ── Render ─────────────────────────────────────────────────────────────────

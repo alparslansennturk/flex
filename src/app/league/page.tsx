@@ -610,6 +610,19 @@ function LeagueContent() {
         }
         if (!studentDocId) { setSidebarReady(true); return; }
 
+        // Grup bazlı lig kapalıysa URL'den doğrudan erişimi engelle → panele yönlendir
+        try {
+          const stuSnap = await getDoc(doc(db, "students", studentDocId));
+          const gId = stuSnap.data()?.groupId as string | undefined;
+          if (gId) {
+            const gSnap = await getDoc(doc(db, "groups", gId));
+            if (gSnap.exists() && gSnap.data()?.leagueEnabled === false) {
+              router.replace(`/student/${studentDocId}`);
+              return;
+            }
+          }
+        } catch { /* ignore */ }
+
         setSidebarData({ studentId: studentDocId });
       } catch { /* ignore */ }
       setSidebarReady(true);
