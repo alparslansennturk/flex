@@ -376,6 +376,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
                 instructorName: user ? `${user.name} ${user.surname ?? ""}`.trim() : "",
                 taskName:       task.name,
                 studentId:      student.id,
+                taskId:         task.id,
               }),
             });
           })

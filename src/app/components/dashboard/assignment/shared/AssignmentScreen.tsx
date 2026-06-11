@@ -72,7 +72,10 @@ function EntryScreen({
     setSelected(allSelected ? new Set() : new Set(selectableStudents.map(s => s.id)));
 
   const handleStart = () => {
-    const list = students.filter(s => selected.has(s.id));
+    // Seçili öğrenciler + DAHA ÖNCE çekilmiş öğrenciler birlikte oyun ekranına taşınır.
+    // Çekilmişler oyun ekranına gitmezse sol panelden ve arşiv yazımından düşüyor,
+    // bir önceki oturumda çekilen öğrenci "kaybolmuş" gibi görünüyordu.
+    const list = students.filter(s => selected.has(s.id) || drawnStudentIds.includes(s.id));
     if (list.length > 0) onStart(list);
   };
 

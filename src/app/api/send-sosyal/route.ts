@@ -5,6 +5,7 @@ import { createFolderStructure } from "@/app/lib/googledrive-folder";
 import { uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
 import { verifyRequestToken } from "@/app/lib/submission-validation";
 import { isRateLimited } from "@/app/lib/rate-limit";
+import { adminDb } from "@/app/lib/firebase-admin";
 
 interface SosyalMailRequest {
   to: string;
@@ -15,6 +16,7 @@ interface SosyalMailRequest {
   instructorName?: string;
   taskName?: string;
   studentId?: string;
+  taskId?: string;    // Drive linkini task dokümanına server-side yazmak için
 }
 
 export async function POST(req: NextRequest) {
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body: SosyalMailRequest = await req.json();
-    const { to, studentName, brandName, pdfBase64, groupName, instructorName, taskName, studentId } = body;
+    const { to, studentName, brandName, pdfBase64, groupName, instructorName, taskName, studentId, taskId } = body;
 
     if (!to || !pdfBase64) {
       return NextResponse.json({ error: "Eksik parametre." }, { status: 400 });
@@ -93,6 +95,18 @@ export async function POST(req: NextRequest) {
         driveUrl = webViewLink;
       } catch (driveErr) {
         console.warn("[send-sosyal] Drive upload atlandı:", driveErr);
+      }
+    }
+
+    // Drive linkini task dokümanına server-side yaz (client unmount olsa bile kaybolmasın)
+    if (driveUrl && taskId && studentId) {
+      try {
+        await adminDb.collection("tasks").doc(taskId).set(
+          { sosyalDriveFiles: { [studentId]: { url: driveUrl, fileName } } },
+          { merge: true },
+        );
+      } catch (writeErr) {
+        console.warn("[send-sosyal] sosyalDriveFiles yazımı atlandı:", writeErr);
       }
     }
 

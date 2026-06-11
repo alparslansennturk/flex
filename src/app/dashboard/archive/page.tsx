@@ -7,7 +7,7 @@ import { db, auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
-import { Archive, ChevronDown, Users, Trash2, BookOpen, Layers, Smartphone, Download, ExternalLink } from "lucide-react";
+import { Archive, ChevronDown, Users, Trash2, BookOpen, Layers, Smartphone, Download, ExternalLink, AlertTriangle } from "lucide-react";
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 
@@ -193,13 +193,53 @@ function AssignmentAccordion({
   );
 }
 
+// ─── Silme onay modalı (native confirm yerine — INP donmasını önler) ──────────
+
+function DeleteConfirmModal({
+  entry, onCancel, onConfirm,
+}: {
+  entry: ArchiveEntry;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+  const close   = () => { setVisible(false); setTimeout(onCancel, 250); };
+  const confirm = () => { setVisible(false); setTimeout(onConfirm, 250); };
+
+  return (
+    <div className={`fixed inset-0 z-[700] flex items-center justify-center p-6 transition-all duration-300 ${visible ? "visible" : "invisible"}`}>
+      <div
+        className={`absolute inset-0 bg-slate-900/40 backdrop-blur-md transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
+        onClick={close}
+      />
+      <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-5 text-center transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"}`}>
+        <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+          <AlertTriangle size={26} className="text-red-500" />
+        </div>
+        <div>
+          <p className="text-[17px] font-bold text-slate-800 mb-1">Ödevi sil</p>
+          <p className="text-[13px] text-slate-500 leading-relaxed">
+            <span className="font-bold text-slate-700">&quot;{entry.taskName}&quot;</span> ödevi ve tüm ilişkili verileri (arşiv, Drive dosyaları, teslimler) kalıcı olarak silinecek. Bu işlem geri alınamaz.
+          </p>
+        </div>
+        <div className="flex gap-3 w-full">
+          <button onClick={close} className="flex-1 h-11 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-50 transition-all cursor-pointer">Vazgeç</button>
+          <button onClick={confirm} className="flex-1 h-11 rounded-xl bg-red-500 text-white text-[13px] font-bold hover:bg-red-600 active:scale-95 transition-all cursor-pointer">Kalıcı Sil</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Grup accordion ───────────────────────────────────────────────────────────
 
 function GroupAccordion({ group }: { group: Group }) {
   const [open,       setOpen]       = useState(false);
   const [entries,    setEntries]    = useState<ArchiveEntry[]>([]);
-  const [loadState,  setLoadState]  = useState<"idle" | "loading" | "done">("idle");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [loadState,    setLoadState]    = useState<"idle" | "loading" | "done">("idle");
+  const [deletingId,   setDeletingId]   = useState<string | null>(null);
+  const [confirmEntry, setConfirmEntry] = useState<ArchiveEntry | null>(null);
 
   const load = useCallback(async () => {
     if (loadState !== "idle") return;
@@ -259,8 +299,14 @@ function GroupAccordion({ group }: { group: Group }) {
     setOpen(o => !o);
   };
 
-  const handleDelete = async (entry: ArchiveEntry) => {
-    if (!confirm("Bu ödev ve tüm ilişkili verileri (arşiv, Drive dosyaları, teslimler) kalıcı olarak silinecek. Emin misiniz?")) return;
+  // Çöp kutusu → onay modalını aç (native confirm() yerine)
+  const requestDelete = (entry: ArchiveEntry) => setConfirmEntry(entry);
+
+  // Modaldan "Kalıcı Sil" → gerçek cascade silme
+  const performDelete = async () => {
+    const entry = confirmEntry;
+    if (!entry) return;
+    setConfirmEntry(null);
     setDeletingId(entry.taskId);
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -332,12 +378,20 @@ function GroupAccordion({ group }: { group: Group }) {
             <AssignmentAccordion
               key={entry.taskId}
               entry={entry}
-              onDelete={handleDelete}
+              onDelete={requestDelete}
               deletingId={deletingId}
             />
           ))}
         </div>
       </div>
+
+      {confirmEntry && (
+        <DeleteConfirmModal
+          entry={confirmEntry}
+          onCancel={() => setConfirmEntry(null)}
+          onConfirm={performDelete}
+        />
+      )}
     </div>
   );
 }

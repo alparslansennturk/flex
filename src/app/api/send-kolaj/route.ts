@@ -5,6 +5,7 @@ import { createFolderStructure } from "@/app/lib/googledrive-folder";
 import { uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
 import { verifyRequestToken } from "@/app/lib/submission-validation";
 import { isRateLimited } from "@/app/lib/rate-limit";
+import { adminDb } from "@/app/lib/firebase-admin";
 
 interface DrawResult {
   category: string;
@@ -20,6 +21,8 @@ interface KolajMailRequest {
   deadline: string;
   pdfBase64: string;
   groupName?: string; // Drive'a kaydetmek için grup kodu
+  taskId?: string;    // Drive linkini task dokümanına server-side yazmak için
+  studentId?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body: KolajMailRequest = await req.json();
-    const { to, studentName, studentLastName, taskName, draws, deadline, pdfBase64, groupName } = body;
+    const { to, studentName, studentLastName, taskName, draws, deadline, pdfBase64, groupName, taskId, studentId } = body;
 
     if (!to || !draws?.length) {
       return NextResponse.json({ error: "Eksik parametre." }, { status: 400 });
@@ -109,6 +112,20 @@ export async function POST(req: NextRequest) {
         driveFileName = fileName;
       } catch (driveErr) {
         console.warn("[send-kolaj] Drive upload atlandı:", driveErr);
+      }
+    }
+
+    // Drive linkini task dokümanına server-side yaz — kullanıcı ana sayfaya
+    // dönse (client unmount olsa) bile arşivdeki "İndir" linki kaybolmaz.
+    // merge:true ile diğer öğrencilerin kayıtları korunur.
+    if (driveUrl && taskId && studentId) {
+      try {
+        await adminDb.collection("tasks").doc(taskId).set(
+          { kolajDriveFiles: { [studentId]: { url: driveUrl, fileName: driveFileName ?? "" } } },
+          { merge: true },
+        );
+      } catch (writeErr) {
+        console.warn("[send-kolaj] kolajDriveFiles yazımı atlandı:", writeErr);
       }
     }
 

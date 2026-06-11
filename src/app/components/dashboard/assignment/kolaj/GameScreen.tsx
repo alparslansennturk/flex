@@ -153,6 +153,8 @@ function FinalOverlay({
           deadline,
           pdfBase64,
           groupName,
+          taskId:          task.id,
+          studentId:       student.id,
         }),
       });
       if (!res.ok) throw new Error("Mail gönderilemedi.");
@@ -574,6 +576,8 @@ export default function GameScreen({
               deadline,
               pdfBase64,
               groupName:       groupCode,
+              taskId:          task.id,
+              studentId:       sid,
             }),
           });
           if (res.ok) {

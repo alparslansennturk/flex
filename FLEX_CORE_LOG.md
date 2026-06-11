@@ -86,6 +86,32 @@
 | attendance-detail panel state URL'e taşındı | §186e | `attendance-detail/page.tsx` |
 | Sidebar Yoklama Detay hardNav + dropdown otomatik kapanır | §186f-g | `Sidebar.tsx` |
 | GroupForm modal max-w-5xl, max-h büyütüldü, seans truncate fix | §186h | `GroupForm.tsx`, `ManagementContent.tsx` |
+| Çekiliş ödevi: çekilmiş öğrenci kaybı + iptal cascade + Drive link server-side | §188a-c | `AssignmentScreen.tsx`, `DesignParkour.tsx`, `send-*` |
+
+---
+
+## ✅ §188 — Çekiliş Ödevi Veri Kaybı + İptal + Drive Link (2026-06-11)
+
+### §188a — Çekilmiş Öğrenciler Oyun Ekranına Taşınmıyordu (Issue 2 & 4) — KÖK NEDEN
+`EntryScreen.handleStart` yalnızca `selected` (= sadece çekilmemiş) öğrencileri `onStart`'a veriyordu. Bir önceki oturumda çekilen öğrenci `participants` listesine girmiyordu → GameScreen `students` prop'unda yok → sol panel onu render edemiyor (tik yok, "kaybolmuş" görünüm) **ve** her çekimde yazılan `assignment_archive.students = students.map(...)` o öğrenciyi düşürüyordu (arşivden silinme). **Fix:** `students.filter(s => selected.has(s.id) || drawnStudentIds.includes(s.id))` — çekilmişler de oyun ekranına taşınır. Tek değişiklik 3 ödev tipini de düzeltir (paylaşımlı `AssignmentScreen`). `SharedStudentPanel`/sosyal/kitap panelleri zaten `draws`'ı lottery_results'tan yükleyip tik gösteriyor.
+
+### §188b — "Ödevi İptal Et" Tam Silmiyordu (Issue 1) — KÖK NEDEN
+`DesignParkour.handleCancelTask` yalnızca `deleteDoc(taskRef)` + gradedTasks temizliği yapıyordu; `lottery_results`, `assignment_archive` (doc-ID + eski where formatı), `submissions`, `upload_sessions`, Drive dosyaları kalıyordu. **Fix:** mevcut server-side cascade `POST /api/tasks/delete` çağrısına yönlendirildi (zaten 7 adımı temizliyor). Kullanılmayan importlar (`deleteDoc/writeBatch/deleteField/getDoc`) kaldırıldı.
+
+### §188c — Ana Sayfaya Dönünce PDF Linki Kayboluyordu (Issue 2/3) — KÖK NEDEN
+Drive yükleme server'da yapılıp `driveUrl` dönüyor, ama `{tip}DriveFiles.{studentId}` yazımını **client** yapıyordu — kullanıcı çekim sonrası ana sayfaya dönünce yazım tamamlanmıyordu. **Fix:** `send-kolaj/send-kitap/send-sosyal` route'ları `taskId`+`studentId` alıp Drive yüklemesi sonrası linki `tasks/{taskId}` dokümanına `set(..., { merge: true })` ile server-side yazıyor (diğer öğrencilerin kayıtları korunur). Client yazımı yedek olarak duruyor. 3 GameScreen mail çağrısına `taskId`/`studentId` eklendi.
+
+### §188d — İptal Edince Öğrenciye "Ödev İptal Edildi" Bildirimi
+Yeni ödevde öğrenciye `task-assigned` bildirimi gidiyordu ama iptalde hiçbir şey gitmiyordu. **Yeni route:** `POST /api/notifications/task-cancelled` (task-assigned'ın aynısı; başlık `Ödev iptal edildi: {ad}`, preview "Bu ödev eğitmenin tarafından iptal edildi", `actionUrl` ödev silindiği için `/student/{studentId}` ana sayfaya gider). `DesignParkour`: `sendTaskCancelledNotification` helper + `handleCancelTask` başarılı cascade silme sonrası fire-and-forget çağrı. Sadece kart üzerindeki "Ödevi İptal Et" akışı; arşivdeki tamamlanmış ödev silme bu bildirimi göndermez.
+
+### §188e — Arşiv Silme: native confirm() → Özel Modal (INP fix)
+Arşiv çöp kutusu `confirm()` kullanıyordu — native blocking dialog main thread'i dondurup INP uyarısına yol açıyordu (~973ms). **Fix:** `archive/page.tsx`'e `DeleteConfirmModal` (DesignParkour iptal modalının arşive uyarlanmışı) eklendi. `handleDelete` ikiye bölündü: `requestDelete(entry)` modalı açar, `performDelete()` modaldan onayla cascade silmeyi çalıştırır. Silme mantığı (`/api/tasks/delete`) değişmedi; sadece onay katmanı native dialog'dan markalı modale geçti, INP donması ortadan kalktı.
+
+### Değişen Dosyalar
+- `src/app/components/dashboard/assignment/shared/AssignmentScreen.tsx` — §188a
+- `src/app/components/dashboard/scoring/DesignParkour.tsx` — §188b
+- `src/app/api/send-kolaj/route.ts`, `send-kitap/route.ts`, `send-sosyal/route.ts` — §188c
+- `src/app/components/dashboard/assignment/{kolaj/GameScreen,kitap/BookGameScreen,social/SocialGameScreen}.tsx` — §188c (mail çağrısına taskId/studentId)
 
 ---
 

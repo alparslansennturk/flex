@@ -432,6 +432,8 @@ function BookResultModal({
           groupName:       groupName ?? task.classId ?? "",
           instructorName:  instructorName ?? "",
           taskName:        task.name,
+          taskId:          task.id,
+          studentId:       student.id,
         }),
       });
       if (res.ok) {

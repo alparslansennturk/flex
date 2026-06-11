@@ -5,6 +5,7 @@ import { createFolderStructure } from "@/app/lib/googledrive-folder";
 import { uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
 import { verifyRequestToken } from "@/app/lib/submission-validation";
 import { isRateLimited } from "@/app/lib/rate-limit";
+import { adminDb } from "@/app/lib/firebase-admin";
 
 interface KitapMailRequest {
   to: string;
@@ -15,6 +16,8 @@ interface KitapMailRequest {
   groupName?: string;
   instructorName?: string;
   taskName?: string;
+  taskId?: string;    // Drive linkini task dokümanına server-side yazmak için
+  studentId?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body: KitapMailRequest = await req.json();
-    const { to, studentName, studentLastName, pdfBase64, bookTitle, groupName, instructorName, taskName } = body;
+    const { to, studentName, studentLastName, pdfBase64, bookTitle, groupName, instructorName, taskName, taskId, studentId } = body;
 
     if (!to || !pdfBase64) {
       return NextResponse.json({ error: "Eksik parametre." }, { status: 400 });
@@ -93,6 +96,18 @@ export async function POST(req: NextRequest) {
         driveUrl = webViewLink;
       } catch (driveErr) {
         console.warn("[send-kitap] Drive upload atlandı:", driveErr);
+      }
+    }
+
+    // Drive linkini task dokümanına server-side yaz (client unmount olsa bile kaybolmasın)
+    if (driveUrl && taskId && studentId) {
+      try {
+        await adminDb.collection("tasks").doc(taskId).set(
+          { kitapDriveFiles: { [studentId]: { url: driveUrl, fileName } } },
+          { merge: true },
+        );
+      } catch (writeErr) {
+        console.warn("[send-kitap] kitapDriveFiles yazımı atlandı:", writeErr);
       }
     }
 

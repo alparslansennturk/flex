@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Route, Clock, ChevronRight, ChevronDown, MoreHorizontal, AlertTriangle, CheckCircle2, ClipboardList, Palette, Check, Users, Plus } from "lucide-react";
 import { db, auth } from "@/app/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs, getDoc, writeBatch, deleteField, deleteDoc, documentId } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, where, getDocs, documentId } from "firebase/firestore";
 import { QuickAssignModal } from "./QuickAssignModal";
 import { useUser } from "@/app/context/UserContext";
 import { Task, getIcon, TaskType } from "../assignment/taskTypes";
@@ -827,22 +827,19 @@ export default function DesignParkour({
   };
 
   const handleCancelTask = async (task: Task) => {
-    // Kaydedilmiş puanları öğrencilerden geri al
-    const taskRef = doc(db, "tasks", task.id);
-    const taskSnap = await getDoc(taskRef);
-    if (taskSnap.exists()) {
-      const grades: Record<string, { submitted?: boolean; xp?: number }> = (taskSnap.data() as { grades?: Record<string, { submitted?: boolean; xp?: number }> }).grades ?? {};
-      const toClean = Object.entries(grades)
-        .filter(([, g]) => g?.submitted && (g?.xp ?? 0) > 0)
-        .map(([sid]) => sid);
-      if (toClean.length > 0) {
-        const batch = writeBatch(db);
-        toClean.forEach(sid => batch.update(doc(db, "students", sid), { [`gradedTasks.${task.id}`]: deleteField() }));
-        await batch.commit();
-      }
-    }
-    // Görevi tamamen sil
-    await deleteDoc(taskRef);
+    // Sunucu taraflı cascade silme: tasks + lottery_results + assignment_archive
+    // (yeni doc-ID ve eski where-query formatı) + submissions + upload_sessions +
+    // Drive dosyaları + öğrenci gradedTasks temizliği. Eskiden burada sadece
+    // deleteDoc(task) yapılıyordu, bu yüzden arşiv/lottery kayıtları sistemde kalıyordu.
+    const token = await auth.currentUser?.getIdToken();
+    const res = await fetch("/api/tasks/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+      body: JSON.stringify({ taskId: task.id }),
+    });
+    if (!res.ok) throw new Error("Silme başarısız");
+    // Öğrencilere "ödev iptal edildi" bildirimi (gruptaki tüm öğrencilere)
+    if (task.groupId) sendTaskCancelledNotification(task.id, task.groupId, task.name);
     logActivity("odev_silindi", `Ödev iptal edildi (${task.classId || task.groupId || ""})`, task.name);
   };
 
@@ -868,6 +865,17 @@ export default function DesignParkour({
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ taskId, groupId, taskName, endDate }),
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
+  // Fire-and-forget: öğrencilere "ödev iptal edildi" bildirimi
+  function sendTaskCancelledNotification(taskId: string, groupId: string, taskName: string) {
+    auth.currentUser?.getIdToken().then(token => {
+      fetch("/api/notifications/task-cancelled", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ taskId, groupId, taskName }),
       }).catch(() => {});
     }).catch(() => {});
   }
