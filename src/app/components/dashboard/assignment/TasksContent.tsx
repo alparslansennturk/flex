@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import { collection, deleteDoc, doc, getDocs, onSnapshot, query, orderBy, updateDoc } from "firebase/firestore";
 import { Plus, Filter, X, CheckCircle2 } from "lucide-react";
 import { Task, FilterTab } from "./taskTypes";
@@ -63,7 +63,18 @@ export default function TasksContent() {
   const handleDelete = async () => {
     if (!deletingTask) return;
     try {
-      await deleteDoc(doc(db, "tasks", deletingTask.id));
+      // Cascade silme: task + lottery_results + assignment_archive + submissions + Drive dosyaları
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/tasks/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+        body: JSON.stringify({ taskId: deletingTask.id }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.error("[handleDelete] API hatası:", res.status, result);
+        throw new Error(result.error || "API hatası");
+      }
       logActivity("odev_silindi", "Ödev silindi", `${deletingTask.name}`);
       showToast(`"${deletingTask.name}" silindi.`);
     } catch {

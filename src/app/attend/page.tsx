@@ -79,7 +79,8 @@ export default function AttendPage() {
           <AttendancePanel
             mode="simple"
             autoSelectToday
-            enforceTimeWindow
+            allowEdit  // TEST: geçmiş tarih düzenleme geçici açık
+            // enforceTimeWindow  // TEST: zaman kilidi geçici kapalı
             onViewDetail={(gid) => { setDetailGroupId(gid); setShowDetail(true); }}
           />
         </main>
@@ -99,7 +100,7 @@ export default function AttendPage() {
             <AttendancePanel
               preSelectedGroupId={detailGroupId}
               allowEdit={true}
-              enforceTimeWindow={true}
+              // enforceTimeWindow={true}  // TEST: zaman kilidi geçici kapalı
               onBackToAttend={() => setShowDetail(false)}
             />
           )}

@@ -52,13 +52,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Drive klasör hiyerarşisi oluştur: Gruplar/{group}/Eğitmen/{instructor}/{taskName}/
+    // Drive klasör hiyerarşisi oluştur: Gruplar/{group}/Öğrenciler/{öğrenci}/{taskName}/
+    const studentFullName = `${studentName ?? ""} ${studentLastName ?? ""}`.trim();
     let folderId: string;
     try {
       const folderResult = await createFolderStructure(
         groupName?.trim() || "Genel",
-        instructorName?.trim() || "Eğitmen",
-        "instructor",
+        studentFullName || "Öğrenci",
+        "student",
         taskName?.trim() || undefined,
       );
       folderId = folderResult.folderId;

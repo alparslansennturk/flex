@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import {
   collection, deleteDoc, doc, deleteField, getDoc, getDocs, onSnapshot,
   query, orderBy, updateDoc, writeBatch, setDoc,
@@ -504,7 +504,24 @@ export default function TaskManagementPanel() {
   const handleDelete = async () => {
     if (!deletingTask) return;
     try {
-      await deleteDoc(doc(db, deletingCollection, deletingTask.id));
+      if (deletingCollection === "tasks") {
+        // Cascade silme: task + lottery_results + assignment_archive + submissions + Drive dosyaları
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch("/api/tasks/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+          body: JSON.stringify({ taskId: deletingTask.id }),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error("[handleDelete] API hatası:", res.status, result);
+          throw new Error(result.error || "API hatası");
+        }
+        console.log("[handleDelete] Cascade silme tamamlandı:", result);
+      } else {
+        // Template silme — sadece doküman sil
+        await deleteDoc(doc(db, deletingCollection, deletingTask.id));
+      }
       logActivity("odev_silindi", "Ödev silindi", `${deletingTask.name}`);
       showToast(`"${deletingTask.name}" silindi.`);
     } catch {
@@ -566,18 +583,23 @@ export default function TaskManagementPanel() {
     } catch { showToast("İşlem sırasında hata oluştu."); }
   };
 
-  // Arşivden seçilenleri sil
+  // Arşivden seçilenleri sil (cascade)
   const handleBulkDeleteArchive = async (ids: string[]) => {
     if (ids.length === 0) return;
     try {
-      for (let i = 0; i < ids.length; i += 500) {
-        const batch = writeBatch(db);
-        ids.slice(i, i + 500).forEach(id => batch.delete(doc(db, "tasks", id)));
-        await batch.commit();
+      const token = await auth.currentUser?.getIdToken();
+      let successCount = 0;
+      for (const taskId of ids) {
+        const res = await fetch("/api/tasks/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+          body: JSON.stringify({ taskId }),
+        });
+        if (res.ok) successCount++;
       }
-      logActivity("odev_silindi", "Arşivdeki ödevler silindi", `${ids.length} ödev`);
+      logActivity("odev_silindi", "Arşivdeki ödevler silindi", `${successCount} ödev`);
       setSelectedArchiveIds(new Set());
-      showToast(`${ids.length} görev arşivden silindi.`);
+      showToast(`${successCount} görev arşivden silindi.`);
     } catch { showToast("Silme sırasında hata oluştu."); }
   };
 

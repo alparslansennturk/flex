@@ -77,14 +77,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    // Drive'a kaydet: Gruplar/{group}/Eğitmen/{instructor}/{taskName}/{ad-soyad-taskName}.pdf
+    // Drive'a kaydet: Gruplar/{group}/Öğrenciler/{öğrenci}/{taskName}/{ad-soyad-taskName}.pdf
     let driveUrl: string | undefined;
-    if (pdfBase64 && groupName?.trim() && instructorName?.trim() && taskName?.trim()) {
+    if (pdfBase64 && groupName?.trim() && studentName?.trim() && taskName?.trim()) {
       try {
         const { folderId } = await createFolderStructure(
           groupName.trim(),
-          instructorName.trim(),
-          "instructor",
+          studentName.trim(),
+          "student",
           taskName.trim(),
         );
         const pdfBuffer = Buffer.from(pdfBase64, "base64");

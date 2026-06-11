@@ -314,20 +314,24 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
       setDoc(doc(db, "lottery_results", task.id), {
         draws: newDraws, groupId: task.groupId ?? "", lastUpdated: serverTimestamp(),
       });
-      addDoc(collection(db, "assignment_archive"), {
-        taskId: task.id, taskName: task.name, type: "sosyal-medya",
-        classId: task.classId ?? "", groupId: task.groupId ?? "",
-        completedAt: serverTimestamp(),
-        students: [{ id: student.id, name: student.name, lastName: student.lastName }],
-        draws: [{
-          studentId: student.id,
-          draws: [
-            { category: "Ana Sektör", item: { name: draw.anaSector } },
-            { category: "Alt Sektör", item: { name: draw.altSector } },
-            { category: "Marka",      item: { name: draw.marka } },
-          ],
-        }],
-      });
+      // Arşivi her çekimde güncelle (yarım bırakılsa bile arşivde görünsün)
+      const allStudentDraws = newDraws.map(d => ({
+        studentId: d.studentId,
+        draws: [
+          { category: "Ana Sektör", item: { name: d.anaSector } },
+          { category: "Alt Sektör", item: { name: d.altSector } },
+          { category: "Marka",      item: { name: d.marka } },
+        ],
+      }));
+      if (task.groupId) {
+        setDoc(doc(db, "assignment_archive", task.id), {
+          taskId: task.id, taskName: task.name, type: "sosyal-medya",
+          classId: task.classId ?? "", groupId: task.groupId,
+          completedAt: serverTimestamp(),
+          students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+          draws: allStudentDraws,
+        }).catch(() => {});
+      }
 
       // Tüm grup tamamlandıysa seçim aşamasını kapat (not girişi aşamasına geç)
       if (groupStudentCount > 0 && newDraws.length >= groupStudentCount) {
@@ -423,27 +427,11 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
     // selectedStudentId, pendingDraw ve finalIndexes korunuyor (frozen görünüm için)
   }, []);
 
-  // Sadece arşive yedekle — task status'a dokunmaz, 3 sn sonra /dashboard'a döner
+  // Tamamla ve ödevi başlat — arşiv zaten her çekimde güncelleniyor
   const handleArchive = useCallback(async () => {
     if (archiving || archived) return;
     setArchiving(true);
     try {
-      await addDoc(collection(db, "assignment_archive"), {
-        groupId:     task.groupId ?? "",
-        taskId:      task.id,
-        taskName:    task.name,
-        type:        "sosyal-medya",
-        completedAt: serverTimestamp(),
-        students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
-        draws: drawsRef.current.map(d => ({
-          studentId: d.studentId,
-          draws: [
-            { category: "Ana Sektör", item: { name: d.anaSector } },
-            { category: "Alt Sektör", item: { name: d.altSector } },
-            { category: "Marka",      item: { name: d.marka } },
-          ],
-        })),
-      });
       if (groupStudentCount > 0 && drawsRef.current.length >= groupStudentCount) {
         await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
       }
@@ -452,30 +440,12 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
     } finally {
       setArchiving(false);
     }
-  }, [task, archiving, archived, students, groupStudentCount, router]);
+  }, [task, archiving, archived, groupStudentCount, router]);
 
   const handleFinalizeTask = useCallback(async () => {
     if (finalizing || finalized) return;
     setFinalizing(true);
     try {
-      if (!archived) {
-        await addDoc(collection(db, "assignment_archive"), {
-          groupId:     task.groupId ?? "",
-          taskId:      task.id,
-          taskName:    task.name,
-          type:        "sosyal-medya",
-          completedAt: serverTimestamp(),
-          students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
-          draws: drawsRef.current.map(d => ({
-            studentId: d.studentId,
-            draws: [
-              { category: "Ana Sektör", item: { name: d.anaSector } },
-              { category: "Alt Sektör", item: { name: d.altSector } },
-              { category: "Marka",      item: { name: d.marka } },
-            ],
-          })),
-        });
-      }
       await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
       setFinalized(true);
       const dest = task.groupId
@@ -485,7 +455,7 @@ export default function SocialGameScreen({ task, students }: { task: TaskData; s
     } finally {
       setFinalizing(false);
     }
-  }, [task, archived, students, finalizing, finalized, router]);
+  }, [task, finalizing, finalized, router]);
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, orderBy, deleteDoc, doc, getDoc } from "firebase/firestore";
-import { db } from "@/app/lib/firebase";
+import { db, auth } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import Sidebar from "@/app/components/layout/Sidebar";
 import Header from "@/app/components/layout/Header";
@@ -260,11 +260,19 @@ function GroupAccordion({ group }: { group: Group }) {
   };
 
   const handleDelete = async (entry: ArchiveEntry) => {
-    if (!confirm("Bu arşiv kaydını silmek istediğinize emin misiniz?")) return;
+    if (!confirm("Bu ödev ve tüm ilişkili verileri (arşiv, Drive dosyaları, teslimler) kalıcı olarak silinecek. Emin misiniz?")) return;
     setDeletingId(entry.taskId);
     try {
-      await Promise.all(entry.allIds.map(id => deleteDoc(doc(db, "assignment_archive", id))));
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/tasks/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+        body: JSON.stringify({ taskId: entry.taskId }),
+      });
+      if (!res.ok) throw new Error("Silme başarısız");
       setEntries(prev => prev.filter(e => e.taskId !== entry.taskId));
+    } catch {
+      alert("Silme sırasında hata oluştu.");
     } finally {
       setDeletingId(null);
     }

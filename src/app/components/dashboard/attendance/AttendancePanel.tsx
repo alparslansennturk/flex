@@ -414,6 +414,7 @@ export default function AttendancePanel({
   const [showEndConfirm, setShowEndConfirm]   = useState(false);
   const [showReadonlyToast, setShowReadonlyToast] = useState(false);
   const clearingRef                           = useRef(false);
+  const dirtyRef                              = useRef(false);  // yerel düzenleme var mı (onSnapshot ezmesin)
   const [existingDoc, setExistingDoc]         = useState(false);
   const [exception, setException]             = useState<LessonException | null>(null);
   const [showExModal, setShowExModal]         = useState(false);
@@ -558,34 +559,59 @@ export default function AttendancePanel({
   }, [selectedGroupId]);
 
   // ── Auto-select today's group ─────────────────────────────────────────────
+  // Öncelik: 1) Bugün başlatılmış ama bitirilmemiş yoklama 2) Bugün dersi olan grup 3) En yakın ders günü
   useEffect(() => {
     if (!autoSelectToday || selectedGroupId || groups.length === 0) return;
-    const todayDay = new Date().getDay();
-    const isFriday = todayDay === 5;
-    const todayMatch = groups.find(g => {
-      // Standart gruplar (ve type belirsiz olanlar) Cuma'da tatil — otomatik seçime dahil etme
-      if (isFriday && g.type !== "özel_ders" && g.type !== "kurumsal") return false;
-      const days = getWeekDays(g);
-      return days.length === 0 || days.includes(todayDay);
-    });
-    if (todayMatch) {
-      setSelectedGroupId(todayMatch.id);
-      return;
-    }
-    // Bugün dersi olan grup yok → en yakın ders günü olan grubu seç
-    const daysUntilNext = (g: Group): number => {
-      const days = getWeekDays(g);
-      if (days.length === 0) return 1; // esnek grup: yarın
-      for (let offset = 1; offset <= 7; offset++) {
-        if (days.includes((todayDay + offset) % 7)) return offset;
+
+    // 1. Bugün başlatılmış ama bitirilmemiş yoklama var mı?
+    const todayStr = toDateKey(new Date());
+    Promise.all(groups.map(async g => {
+      const docRef = doc(db, "design_attendance", `${g.id}_${todayStr}`);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        // Başlatılmış ama bitirilmemiş (attendanceClosed=false veya yok)
+        if (!data.attendanceClosed) return g.id;
       }
-      return 8;
-    };
-    const nearest = groups.reduce<Group | null>((best, g) => {
-      if (!best) return g;
-      return daysUntilNext(g) < daysUntilNext(best) ? g : best;
-    }, null);
-    if (nearest) setSelectedGroupId(nearest.id);
+      return null;
+    })).then(results => {
+      // Zaten başka bir seçim yapıldıysa dokunma
+      if (selectedGroupId) return;
+
+      const activeGroupId = results.find(id => id !== null);
+      if (activeGroupId) {
+        setSelectedGroupId(activeGroupId);
+        return;
+      }
+
+      // 2. Bugün dersi olan grup
+      const todayDay = new Date().getDay();
+      const isFriday = todayDay === 5;
+      const todayMatch = groups.find(g => {
+        if (isFriday && g.type !== "özel_ders" && g.type !== "kurumsal") return false;
+        const days = getWeekDays(g);
+        return days.length === 0 || days.includes(todayDay);
+      });
+      if (todayMatch) {
+        setSelectedGroupId(todayMatch.id);
+        return;
+      }
+
+      // 3. En yakın ders günü olan grup
+      const daysUntilNext = (g: Group): number => {
+        const days = getWeekDays(g);
+        if (days.length === 0) return 1;
+        for (let offset = 1; offset <= 7; offset++) {
+          if (days.includes((todayDay + offset) % 7)) return offset;
+        }
+        return 8;
+      };
+      const nearest = groups.reduce<Group | null>((best, g) => {
+        if (!best) return g;
+        return daysUntilNext(g) < daysUntilNext(best) ? g : best;
+      }, null);
+      if (nearest) setSelectedGroupId(nearest.id);
+    }).catch(() => {});
   }, [groups, autoSelectToday, selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Monthly done count for all groups ─────────────────────────────────────
@@ -620,10 +646,17 @@ export default function AttendancePanel({
 
   // ── Total done count (all-time) for course progress ──────────────────────
   // getDocs: real-time gerekmiyor, onSnapshot tüm koleksiyonu sürekli dinlerdi (şişme)
+  // Sadece entries'i dolu olan veya kapatılmış dokümanları say (handleStartLesson'ın boş doc'u hariç)
   useEffect(() => {
     if (!selectedGroupId) { setTotalDoneCount(0); return; }
     getDocs(query(collection(db, "design_attendance"), where("groupId", "==", selectedGroupId)))
-      .then(snap => setTotalDoneCount(snap.size))
+      .then(snap => {
+        const validCount = snap.docs.filter(d => {
+          const data = d.data();
+          return Object.keys(data.entries ?? {}).length > 0 || (data.attendanceClosed ?? false);
+        }).length;
+        setTotalDoneCount(validCount);
+      })
       .catch(() => setTotalDoneCount(0));
   }, [selectedGroupId]);
 
@@ -667,7 +700,8 @@ export default function AttendancePanel({
 
   // ── Load attendance + exceptions for selected date (real-time) ───────────
   useEffect(() => {
-    if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); setLessonStarted(false); setAttendanceClosed(false); setClosedAt(null); setHasPersistedEntries(false); setEditUnlocked(false); return; }
+    if (!selectedGroupId) { setEntries({}); setExistingDoc(false); setException(null); setLessonStarted(false); setAttendanceClosed(false); setClosedAt(null); setHasPersistedEntries(false); setEditUnlocked(false); dirtyRef.current = false; return; }
+    dirtyRef.current = false;
     setSaved(false);
     setLessonStarted(false);
     setAttendanceClosed(false);
@@ -682,12 +716,18 @@ export default function AttendancePanel({
       if (clearingRef.current) return;
       if (d.exists()) {
         const data = d.data() as AttendanceDoc;
-        setEntries(data.entries ?? {});
+        // Yerel düzenleme varsa entries'i ezme — sadece meta state'leri güncelle
+        if (!dirtyRef.current) {
+          setEntries(data.entries ?? {});
+        }
         setExistingDoc(true);
         setLessonStarted(true);
-        setSaved(Object.keys(data.entries ?? {}).length > 0 || (data.attendanceClosed ?? false));
+        // dirty ise saved'ı true'ya çekme — kullanıcı henüz kaydetmedi
+        if (!dirtyRef.current) {
+          setSaved(Object.keys(data.entries ?? {}).length > 0 || (data.attendanceClosed ?? false));
+        }
         setAttendanceClosed(data.attendanceClosed ?? false);
-        setClosedAt(data.closedAt?.toDate ? data.closedAt.toDate() : null);
+        setClosedAt(data.closedAt?.toDate ? data.closedAt.toDate() : (data.closedAt instanceof Date ? data.closedAt : null));
         setHasPersistedEntries(Object.keys(data.entries ?? {}).length > 0 || (data.attendanceClosed ?? false));
       } else {
         setEntries({});
@@ -695,6 +735,7 @@ export default function AttendancePanel({
         setAttendanceClosed(false);
         setClosedAt(null);
         setHasPersistedEntries(false);
+        dirtyRef.current = false;
       }
     });
 
@@ -735,6 +776,7 @@ export default function AttendancePanel({
 
   // ── Entry helpers ──────────────────────────────────────────────────────────
   const setHours = (studentId: string, hours: number) => {
+    dirtyRef.current = true;
     setEntries(prev => ({
       ...prev,
       [studentId]: { hours, online: prev[studentId]?.online ?? false },
@@ -743,6 +785,7 @@ export default function AttendancePanel({
   };
 
   const toggleOnline = (studentId: string) => {
+    dirtyRef.current = true;
     setEntries(prev => ({
       ...prev,
       [studentId]: { hours: prev[studentId]?.hours ?? 0, online: !prev[studentId]?.online },
@@ -751,6 +794,7 @@ export default function AttendancePanel({
   };
 
   const markAllHours = (hours: number) => {
+    dirtyRef.current = true;
     const all: Record<string, StudentEntry> = {};
     students.forEach(s => { all[s.id] = { hours, online: entries[s.id]?.online ?? false }; });
     setEntries(all);
@@ -769,11 +813,20 @@ export default function AttendancePanel({
 
   // ── Start lesson — Firestore'a boş doc yazar, refresh'te hatırlanır ─────────
   const handleStartLesson = async () => {
-    if (!selectedGroupId || existingDoc) return;
+    if (!selectedGroupId) return;
+    const docId = `${selectedGroupId}_${dateKey}`;
+    const docRef = doc(db, "design_attendance", docId);
+    // Race condition koruması: onSnapshot henüz dönmeden "Dersi Başlat"a basılırsa
+    // mevcut dokümanı kontrol et — varsa üzerine yazma
+    const existing = await getDoc(docRef);
+    if (existing.exists()) {
+      setExistingDoc(true);
+      setLessonStarted(true);
+      return;
+    }
     setLessonStarted(true);
     const groupCode = selectedGroup?.code ?? selectedGroupId;
-    const docId = `${selectedGroupId}_${dateKey}`;
-    await setDoc(doc(db, "design_attendance", docId), {
+    await setDoc(docRef, {
       groupId: selectedGroupId,
       groupCode,
       date: dateKey,
@@ -781,13 +834,14 @@ export default function AttendancePanel({
       instructorId: user?.uid ?? "",
       sessionHours,
       entries: {},
-      lessonStartedAt: new Date(),
+      lessonStartedAt: Timestamp.fromDate(new Date()),
     });
     setExistingDoc(true);
   };
 
   const handleClear = async () => {
     clearingRef.current = true;
+    dirtyRef.current = false;
     setEntries({});
     setSaved(false);
 
@@ -835,6 +889,7 @@ export default function AttendancePanel({
         ...(existingDoc ? {} : { createdAt: Timestamp.fromDate(new Date()) }),
       };
       await setDoc(doc(db, "design_attendance", docId), payload, { merge: true });
+      dirtyRef.current = false;  // kayıt başarılı — onSnapshot artık güncel veriyi alabilir
       const groupCode = selectedGroup?.code ?? selectedGroupId;
       const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
       const [sy, sm, sd] = dateKey.split("-");
@@ -842,6 +897,7 @@ export default function AttendancePanel({
       if (!hasPersistedEntries) {
         await logActivity("yoklama", "Yoklama Başlatıldı", `${groupCode} ${trDate} yoklaması başlatıldı.`);
         setMonthlyDone(prev => ({ ...prev, [selectedGroupId]: (prev[selectedGroupId] ?? 0) + 1 }));
+        setTotalDoneCount(prev => prev + 1);
         setHasPersistedEntries(true);
       } else if (attendanceClosed) {
         await logActivity("yoklama", "Yoklama Güncellendi", `${groupCode} ${trDate} yoklaması güncellendi.`);
@@ -849,6 +905,8 @@ export default function AttendancePanel({
       setExistingDoc(true);
       setSaved(true);
       if (attendanceClosed) setEditUnlocked(false);
+    } catch (err) {
+      console.error("Yoklama kayıt hatası:", err);
     } finally {
       setSaving(false);
     }
@@ -861,8 +919,9 @@ export default function AttendancePanel({
     const docId = `${selectedGroupId}_${dateKey}`;
     await setDoc(doc(db, "design_attendance", docId), {
       attendanceClosed: true,
-      closedAt: now,
+      closedAt: Timestamp.fromDate(now),
     }, { merge: true });
+    dirtyRef.current = false;
     setAttendanceClosed(true);
     setClosedAt(now);
     setSaved(true);
@@ -892,7 +951,7 @@ export default function AttendancePanel({
         sessionHours: sessionHoursVal,
         entries: attEntries,
         attendanceClosed: true,
-        closedAt: new Date(),
+        closedAt: Timestamp.fromDate(new Date()),
         createdByException: true,
       });
     }
@@ -993,6 +1052,11 @@ export default function AttendancePanel({
   const onlineAttendCount   = students.filter(s => (entries[s.id]?.hours ?? 0) > 0 && entries[s.id]?.online).length;
   const inPersonAttendCount = filledCount - onlineAttendCount;
   const absentCount         = students.length - filledCount;
+
+  // Saat bazlı istatistikler (kısmi katılım hesabı: 2/3 saat geldi = 2 katılım + 1 devamsızlık)
+  const totalAttendedHours  = students.reduce((sum, s) => sum + (entries[s.id]?.hours ?? 0), 0);
+  const markedStudentCount  = students.filter(s => entries[s.id] !== undefined).length;
+  const totalAbsentHours    = markedStudentCount * sessionHours - totalAttendedHours;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -1800,11 +1864,18 @@ export default function AttendancePanel({
                     <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-between shrink-0">
 
                       {/* Sol: katılım istatistikleri */}
-                      <div className="flex items-center gap-5 text-[13px]">
-                        <span className="text-text-primary">Yüz yüze: <span className="font-bold">{inPersonAttendCount}</span></span>
-                        <span className="text-text-primary">Online: <span className="font-bold">{onlineAttendCount}</span></span>
-                        <span className="text-text-primary">Toplam katılan: <span className="font-bold">{filledCount}</span></span>
+                      <div className="flex items-center gap-4 text-[13px]">
+                        <span className="text-text-primary">Katılan: <span className="font-bold">{filledCount}</span></span>
                         <span className="text-text-primary">Katılmayan: <span className="font-bold">{absentCount}</span></span>
+                        <span className="text-surface-300">|</span>
+                        <span className="text-text-primary">Katılım: <span className="font-bold text-status-success-600">{totalAttendedHours} saat</span></span>
+                        <span className="text-text-primary">Devamsızlık: <span className={`font-bold ${totalAbsentHours > 0 ? "text-red-500" : ""}`}>{totalAbsentHours} saat</span></span>
+                        {onlineAttendCount > 0 && (
+                          <>
+                            <span className="text-surface-300">|</span>
+                            <span className="text-text-primary">Online: <span className="font-bold">{onlineAttendCount}</span></span>
+                          </>
+                        )}
                       </div>
 
                       {/* Tek akıllı buton */}

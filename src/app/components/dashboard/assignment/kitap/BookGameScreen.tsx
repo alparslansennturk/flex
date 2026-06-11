@@ -329,16 +329,14 @@ function BookResultModal({
   instructorName?: string;
 }) {
   const [visible,         setVisible]         = useState(false);
-  const [sendingMail,     setSendingMail]     = useState(false);
   const [mailSent,        setMailSent]        = useState(false);
-  const [uploadProgress,  setUploadProgress]  = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 30);
     return () => clearTimeout(t);
   }, []);
 
-  // Otomatik mail — modal açılınca öğrencinin maili varsa gönder
+  // Otomatik mail — modal açılınca öğrencinin maili varsa arka planda gönder
   useEffect(() => {
     if (visible && student.email && !isPastView && !mailSent) {
       handleMail();
@@ -418,98 +416,37 @@ function BookResultModal({
 
   const handleMail = async () => {
     if (!student.email) return;
-    setSendingMail(true);
-    setUploadProgress(0);
+    setMailSent(true); // Anında "Gönderildi" göster — arka planda devam eder
     try {
-      // 1. PDF oluştur → base64 → Uint8Array (chunklama için)
       const pdfBase64 = await generateKitapPdf({ book, deadline, paperWeight, paperThickness });
-      const fileName  = `${student.name} ${student.lastName}-${book.title}.pdf`;
-      const mimeType  = "application/pdf";
-      const blob      = new Blob([Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0))], { type: mimeType });
-      const buffer    = await blob.arrayBuffer();
-      const pdfBytes  = new Uint8Array(buffer);
-      const totalBytes = pdfBytes.byteLength;
-
-      // 2. Upload session başlat (Drive resumable session açar)
-      const initToken = await auth.currentUser?.getIdToken();
-      const initRes   = await fetch("/api/instructor/init-upload", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${initToken ?? ""}` },
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/send-kitap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({
-          fileName,
-          fileSize:       totalBytes,
-          mimeType,
-          groupName:      groupName ?? task.classId ?? "",
-          instructorName: instructorName ?? "",
-          taskName:       task.name,
-          taskId:         task.id ?? "",
-          studentEmail:   student.email,
-          studentName:    student.name,
+          to:              student.email,
+          studentName:     student.name,
           studentLastName: student.lastName,
-          studentId:      student.id,
-          bookTitle:      book.title,
+          pdfBase64,
+          bookTitle:       book.title,
+          groupName:       groupName ?? task.classId ?? "",
+          instructorName:  instructorName ?? "",
+          taskName:        task.name,
         }),
       });
-
-      if (!initRes.ok) {
-        console.error("[handleMail] Init hatası:", initRes.status, await initRes.text());
-        return;
-      }
-      const { uploadId } = await initRes.json() as { uploadId: string };
-
-      // 3. Chunk loop — 256KB parçalar (Vercel 4.5MB limitinin çok altında)
-      const CHUNK_SIZE  = 256 * 1024;
-      const totalChunks = Math.ceil(totalBytes / CHUNK_SIZE);
-      let driveFileId: string | null = null;
-
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end   = Math.min(start + CHUNK_SIZE, totalBytes);
-        const chunk = pdfBytes.slice(start, end);
-
-        const chunkToken = await auth.currentUser?.getIdToken();
-        const chunkRes   = await fetch("/api/submissions/upload-chunk", {
-          method:  "POST",
-          headers: {
-            Authorization:   `Bearer ${chunkToken ?? ""}`,
-            "x-upload-id":   uploadId,
-            "content-range": `bytes ${start}-${end - 1}/${totalBytes}`,
-            "x-file-type":   mimeType,
-          },
-          body: chunk,
-        });
-
-        if (!chunkRes.ok) {
-          console.error("[handleMail] Chunk hatası:", chunkRes.status, await chunkRes.text());
-          return;
-        }
-
-        const chunkData = await chunkRes.json() as { status: string; driveFileId?: string };
-        if (chunkData.driveFileId) driveFileId = chunkData.driveFileId;
-
-        // %0–90 arası upload ilerlemesi
-        setUploadProgress(Math.round((end / totalBytes) * 90));
-      }
-
-      // 4. Finalize — Drive'ı public yap + mail gönder + Firestore güncelle
-      setUploadProgress(95);
-      const completeToken = await auth.currentUser?.getIdToken();
-      const completeRes   = await fetch("/api/instructor/complete-upload", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${completeToken ?? ""}` },
-        body: JSON.stringify({ uploadId, driveFileId }),
-      });
-
-      if (completeRes.ok) {
-        setUploadProgress(100);
-        setMailSent(true);
-      } else {
-        console.error("[handleMail] Complete hatası:", completeRes.status, await completeRes.text());
+      if (res.ok) {
+        // Drive URL'ini Firestore'a kaydet (arşivde indirebilsin)
+        try {
+          const data = await res.json() as { driveUrl?: string; fileName?: string };
+          if (data.driveUrl && task.id) {
+            await updateDoc(doc(db, "tasks", task.id), {
+              [`kitapDriveFiles.${student.id}`]: { url: data.driveUrl, fileName: data.fileName ?? "" },
+            });
+          }
+        } catch { /* non-fatal */ }
       }
     } catch (err) {
       console.error("[handleMail] Hata:", err);
-    } finally {
-      setSendingMail(false);
     }
   };
 
@@ -677,25 +614,6 @@ function BookResultModal({
                   background: "#27ae60", color: "white", fontSize: 13, fontWeight: 700,
                 }}>
                   <Check size={12} strokeWidth={3} /> Mail Gönderildi
-                </div>
-              ) : sendingMail ? (
-                <div style={{
-                  display: "flex", flexDirection: "column", justifyContent: "center",
-                  padding: "0 14px", height: 38, borderRadius: 10,
-                  background: "#1e3a5f", minWidth: 160, gap: 4,
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
-                      {uploadProgress < 90 ? "Yükleniyor" : uploadProgress < 100 ? "Tamamlanıyor" : "Gönderildi"}
-                    </span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "white" }}>{uploadProgress}%</span>
-                  </div>
-                  <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%", borderRadius: 2, background: "white",
-                      width: `${uploadProgress}%`, transition: "width 0.3s ease",
-                    }} />
-                  </div>
                 </div>
               ) : (
                 <button onClick={handleMail} style={{
@@ -871,6 +789,22 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     setDoc(doc(db, "lottery_results", task.id), {
       draws: updated, groupId: task.groupId ?? "", lastUpdated: serverTimestamp(),
     });
+
+    // Arşivi her çekimde güncelle (yarım bırakılsa bile arşivde görünsün)
+    const updatedStudentDraws: StudentDraw[] = updated.map(d => ({
+      studentId: d.studentId,
+      draws: [{ category: "Kitap", item: { name: d.book.title, emoji: "📚" } }],
+    }));
+    if (task.groupId) {
+      setDoc(doc(db, "assignment_archive", task.id), {
+        groupId: task.groupId, taskId: task.id,
+        taskName: task.name, type: "kitap",
+        completedAt: serverTimestamp(),
+        draws: updatedStudentDraws,
+        students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+      }).catch(() => {});
+    }
+
     // Gruptaki tüm öğrenciler tamamlandıysa görevi başlat (published)
     if (groupStudentCount > 0 && updated.length >= groupStudentCount) {
       updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
@@ -879,7 +813,7 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     revealTimerRef.current = setTimeout(() => setWinnerRevealed(true), 1150);
     // 1.5sn sonra modal
     modalTimerRef.current = setTimeout(() => setShowModal(true), 1500);
-  }, [selectedStudent, currentBook, bookDraws, task, groupStudentCount]);
+  }, [selectedStudent, currentBook, bookDraws, task, groupStudentCount, students]);
 
   // Kapat → sadece sıfırla, kullanıcı "Başlat"a basar
   const handleClose = useCallback(() => {
@@ -898,18 +832,11 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     draws: [{ category: "Kitap", item: { name: d.book.title, emoji: "📚" } }],
   }));
 
-  // Sadece arşive yedekle — task status'a dokunmaz, 3 sn sonra /dashboard'a döner
+  // Tamamla ve ödevi başlat — arşiv zaten her çekimde güncelleniyor
   const handleArchive = useCallback(async () => {
     if (!task.groupId || archiving || archived) return;
     setArchiving(true);
     try {
-      await addDoc(collection(db, "assignment_archive"), {
-        groupId: task.groupId, taskId: task.id,
-        taskName: task.name, type: "kitap",
-        completedAt: serverTimestamp(),
-        draws: studentDraws,
-        students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
-      });
       // Tüm çekişler tamam → görevi published yap (öğrenciler çalışmaya başlıyor)
       if (groupStudentCount > 0 && studentDraws.length >= groupStudentCount) {
         await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
@@ -919,29 +846,20 @@ export default function BookGameScreen({ task, students }: { task: TaskData; stu
     } finally {
       setArchiving(false);
     }
-  }, [task, archiving, archived, students, studentDraws, groupStudentCount, router]);
+  }, [task, archiving, archived, studentDraws, groupStudentCount, router]);
 
   // Ödevi gerçekten kapat: status → "completed", not girişine yönlendir
   const handleFinalizeTask = useCallback(async () => {
     if (finalizing || finalized) return;
     setFinalizing(true);
     try {
-      if (!archived && task.groupId) {
-        await addDoc(collection(db, "assignment_archive"), {
-          groupId: task.groupId, taskId: task.id,
-          taskName: task.name, type: "kitap",
-          completedAt: serverTimestamp(),
-          draws: studentDraws,
-          students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
-        });
-      }
       await updateDoc(doc(db, "tasks", task.id), { status: "completed", archived: true, gradingClosed: true, completedAt: serverTimestamp() });
       setFinalized(true);
       setTimeout(() => router.push("/dashboard"), 1500);
     } finally {
       setFinalizing(false);
     }
-  }, [task, archived, students, studentDraws, finalizing, finalized, router]);
+  }, [task, finalizing, finalized, router]);
 
   if (poolLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#f5f7fb" }}>

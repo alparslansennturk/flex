@@ -77,11 +77,94 @@
 | Not Ayarları auto-save (700ms debounce), Kaydet butonu kaldırıldı | §181 | `grading/page.tsx` |
 | Ödev puanı hesaplama fix: useAssignment=false→0, live weights, finalize fallback | §182 | `grading/page.tsx` |
 | StudentDetailModal certSettings entegrasyonu: hardcoded 0.7/30 kaldırıldı | §183 | `StudentDetailModal.tsx` |
+| Yoklama bug fix: race condition, dirty state, saat bazlı hesaplama | §187a-d | `AttendancePanel.tsx`, `StudentDetailModal.tsx` |
+| Ödev mail CSP fix + Drive öğrenci klasörü + arşiv incremental | §187e-j | `next.config.ts`, `GameScreen.tsx`, `BookGameScreen.tsx`, `SocialGameScreen.tsx` |
+| Ödev cascade silme (task + arşiv + Drive + submissions) | §187k | `api/tasks/delete/route.ts`, `TaskManagementPanel.tsx` |
+| Öğrenci ödev sayfasında kura PDF indirme | §187l | `student/[studentId]/[taskId]/page.tsx` |
 | Yoklama detay kilitli + Düzenle butonu + ders aktifken lock | §186a-c | `AttendancePanel.tsx` |
 | Detail paneli son ders tarihine atlar | §186d | `AttendancePanel.tsx` |
 | attendance-detail panel state URL'e taşındı | §186e | `attendance-detail/page.tsx` |
 | Sidebar Yoklama Detay hardNav + dropdown otomatik kapanır | §186f-g | `Sidebar.tsx` |
 | GroupForm modal max-w-5xl, max-h büyütüldü, seans truncate fix | §186h | `GroupForm.tsx`, `ManagementContent.tsx` |
+
+---
+
+## ✅ §187 — Yoklama Bug Fix + Ödev Mail/Arşiv/Silme Sistemi (2026-06-11)
+
+### §187a — Yoklama Race Condition + Dirty State Fix
+- `dirtyRef` pattern: onSnapshot, local düzenleme sırasında entries/saved üstüne yazmıyor.
+- `handleStartLesson`: `getDoc` kontrolü eklendi — kayıtlı yoklama varsa üstüne yazmıyor, sadece state'e yüklüyor.
+- `handleSave`: `dirtyRef.current = false` + `totalDoneCount` artırma.
+- Grup/tarih değişiminde `dirtyRef.current = false` sıfırlama.
+- `AttendancePanel.tsx`.
+
+### §187b — Yoklama Saat Bazlı Hesaplama
+- `totalAttendedHours`, `totalAbsentHours`, `markedStudentCount` state'leri eklendi.
+- Alt stats bar saat bazlı: "X saat katılım • Y saat devamsızlık".
+- `totalDoneCount` getDocs filtresi: boş entries dokümanları sayılmıyor.
+- `AttendancePanel.tsx`.
+
+### §187c — StudentDetailModal Yoklama Düzeltmeleri
+- Devamsızlık oranı: doc-count → saat bazlı (`attAttendedHours / totalPossibleHours`).
+- Gerçek saatler: `entries[studentId].hours` kullanılıyor (eskiden sabit `sessionHours`).
+- Ayrı useEffect `[isOpen, fetchId, attGroupId]` bağımlılıklarıyla — modal tekrar açılınca taze veri.
+- Genel tab: "Toplam X ders • Y/Z saat • %W" satırı eklendi.
+- Ders Bilgileri: "Yüzyüze: Xs Online: Xs Toplam: X/Xs" her zaman gösterilir.
+- `StudentDetailModal.tsx`.
+
+### §187d — Yoklama Auto-Select: Tamamlanmamış Derse Öncelik
+- Yoklama Al sayfasında bitmemiş yoklama olan grup otomatik seçilir.
+- `Promise.all` ile `getDoc` kontrolü, `attendanceClosed=false` ve entries dolu olan tercih edilir.
+- `AttendancePanel.tsx`.
+
+### §187e — CSP Fix: @react-pdf/renderer WebAssembly
+- `yoga-layout` (WebAssembly) CSP tarafından engelleniyordu — tüm PDF üretimi sessizce başarısız.
+- `script-src`'ye `'wasm-unsafe-eval'` eklendi.
+- `font-src` ve `connect-src`'ye `https://fonts.gstatic.com` eklendi (Roboto font indirmesi).
+- `next.config.ts`.
+
+### §187f — Kitap Maili: Chunked Upload → Doğrudan PDF Eki
+- Eski: `init-upload` → `upload-chunk` → `complete-upload` (Drive'a yükle, sonra link gönder).
+- Yeni: `/api/send-kitap` — PDF base64 ek olarak mail + Drive'a kaydet (kolaj/sosyal gibi).
+- Upload progress göstergesi kaldırıldı — mail arka planda gidiyor, `mailSent` anında true.
+- `BookGameScreen.tsx`.
+
+### §187g — Kolaj Auto-Mail: Drive URL Firestore'a Kaydedilmiyor (FIX)
+- Kolaj kura çekimi sonrası auto-mail, API response'u parse etmiyordu.
+- Fix: `res.json()` ile `driveUrl` alınıp `tasks.kolajDriveFiles.{studentId}` Firestore'a yazılıyor.
+- Arşivde "İndir" linki artık çalışıyor.
+- `kolaj/GameScreen.tsx`.
+
+### §187h — Drive Klasör Yapısı: Eğitmen → Öğrenci
+- Eski: `Gruplar/{grup}/Eğitmen/{eğitmen}/{ödev}/dosya.pdf`
+- Yeni: `Gruplar/{grup}/Öğrenciler/{öğrenci}/{ödev}/dosya.pdf`
+- `send-sosyal/route.ts`, `instructor/init-upload/route.ts` değiştirildi.
+- `send-kolaj/route.ts` zaten doğruydu (student role).
+
+### §187i — Ödev Arşivi: Her Çekimde Incremental Kayıt
+- Eski: Arşiv sadece "Tamamla" butonunda `addDoc` ile yazılıyordu — yarım bırakılan çekimler kayboluyordu.
+- Yeni: Her öğrenci çekimi sonrası `setDoc(doc(db, "assignment_archive", task.id), ...)` — aynı doküman güncellenir.
+- `handleArchive` / `handleFinalizeTask`'tan duplicate `addDoc` kaldırıldı.
+- 3 ödev tipi: `BookGameScreen.tsx`, `kolaj/GameScreen.tsx`, `SocialGameScreen.tsx`.
+
+### §187j — Öğrenci Ödev Sayfasında Kura PDF İndirme
+- `Task` interface'e `kitapDriveFiles`, `kolajDriveFiles`, `sosyalDriveFiles` eklendi.
+- `loadData`'da bu alanlar task'tan çekiliyor.
+- "Ödev Kartın" bölümü: yeşil indirme kartı, öğrenciye özel PDF.
+- `student/[studentId]/[taskId]/page.tsx`.
+
+### §187k — Ödev Cascade Silme (API)
+- **Yeni API:** `POST /api/tasks/delete` — server-side cascade:
+  1. `tasks/{taskId}` + alt koleksiyonlar (threads/comments)
+  2. `lottery_results/{taskId}`
+  3. `assignment_archive` (doc ID + where query)
+  4. `submissions` + Drive dosyaları
+  5. `upload_sessions`
+  6. Google Drive dosyaları (`deleteFromDrive`)
+  7. Öğrenci `gradedTasks` temizliği
+- `TaskManagementPanel.tsx`: `handleDelete` + `handleBulkDeleteArchive` API'ye yönlendirildi.
+- `TasksContent.tsx`: `handleDelete` API'ye yönlendirildi.
+- `archive/page.tsx`: `handleDelete` API'ye yönlendirildi, uyarı mesajı güncellendi.
 
 ---
 

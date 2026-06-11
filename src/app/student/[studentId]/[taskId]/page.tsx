@@ -26,6 +26,7 @@ interface Student {
   groupId: string;
 }
 
+interface DriveFile { url: string; fileName: string }
 interface Task {
   name: string;
   points: number;
@@ -35,6 +36,9 @@ interface Task {
   attachmentUrl?: string;
   attachmentName?: string;
   attachmentType?: string;
+  kitapDriveFiles?: Record<string, DriveFile>;
+  kolajDriveFiles?: Record<string, DriveFile>;
+  sosyalDriveFiles?: Record<string, DriveFile>;
 }
 
 interface SubmissionRow {
@@ -274,7 +278,7 @@ export default function StudentTaskDetailPage() {
 
       if (taskSnap.exists()) {
         const td = taskSnap.data();
-        setTask({ name: td.name ?? "", points: td.points ?? 0, endDate: td.endDate, subtitle: td.subtitle, description: td.description, attachmentUrl: td.attachmentUrl, attachmentName: td.attachmentName, attachmentType: td.attachmentType });
+        setTask({ name: td.name ?? "", points: td.points ?? 0, endDate: td.endDate, subtitle: td.subtitle, description: td.description, attachmentUrl: td.attachmentUrl, attachmentName: td.attachmentName, attachmentType: td.attachmentType, kitapDriveFiles: td.kitapDriveFiles, kolajDriveFiles: td.kolajDriveFiles, sosyalDriveFiles: td.sosyalDriveFiles });
       }
     } catch (err) {
       console.error("[loadData]", err);
@@ -572,6 +576,34 @@ export default function StudentTaskDetailPage() {
                 </div>
               )}
 
+
+              {/* ── Kura çekimi PDF (kitap/kolaj/sosyal) ── */}
+              {(() => {
+                const df = task.kitapDriveFiles?.[studentId] ?? task.kolajDriveFiles?.[studentId] ?? task.sosyalDriveFiles?.[studentId];
+                if (!df) return null;
+                return (
+                  <div className="bg-white border border-surface-200 rounded-2xl px-6 py-4">
+                    <p className="text-[11px] font-bold text-surface-400 uppercase tracking-widest mb-3">Ödev Kartın</p>
+                    <a
+                      href={df.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl hover:border-emerald-400 hover:bg-emerald-100 transition-colors"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                        <Download size={16} className="text-emerald-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-bold text-emerald-800 truncate">
+                          {df.fileName || "Ödev PDF"}
+                        </p>
+                        <p className="text-[11px] text-emerald-500">İndir / Görüntüle</p>
+                      </div>
+                      <ExternalLink size={14} className="text-emerald-400 shrink-0" />
+                    </a>
+                  </div>
+                );
+              })()}
 
               {/* ── Upload alanı ── */}
               {canUpload && (

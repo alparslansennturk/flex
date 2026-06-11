@@ -4,15 +4,16 @@ import type { NextConfig } from "next";
 const ContentSecurityPolicy = [
   "default-src 'self'",
   // Next.js hydration + inline styles için unsafe-inline gerekli
-  "script-src 'self' 'unsafe-inline' https://vercel.live https://apis.google.com",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://vercel.live https://apis.google.com",
   "style-src 'self' 'unsafe-inline'",
   // Google Drive görselleri + blob/data (PDF üretimi)
   "img-src 'self' data: blob: https://*.googleusercontent.com https://drive.google.com https://*.google.com https://*.gstatic.com",
-  // Fontlar next/font ile local serve ediliyor
-  "font-src 'self'",
+  // Fontlar: next/font local + @react-pdf/renderer Roboto (Google Fonts)
+  "font-src 'self' https://fonts.gstatic.com",
   // Firebase, Firestore, Google APIs, Vercel Toolbar
   [
     "connect-src 'self'",
+    "https://fonts.gstatic.com",
     "https://*.googleapis.com",
     "https://*.firebase.com",
     "https://*.firebaseapp.com",

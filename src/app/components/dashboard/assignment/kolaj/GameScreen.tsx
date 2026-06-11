@@ -536,6 +536,17 @@ export default function GameScreen({
       // Firestore'a kaydet
       setDoc(doc(db, "lottery_results", task.id), { taskId: task.id, draws: newAllDraws });
 
+      // Arşivi her çekimde güncelle (yarım bırakılsa bile arşivde görünsün)
+      if (task.groupId) {
+        setDoc(doc(db, "assignment_archive", task.id), {
+          groupId: task.groupId, taskId: task.id,
+          taskName: task.name, type: "kolaj",
+          completedAt: serverTimestamp(),
+          draws: newAllDraws,
+          students: students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
+        }).catch(() => {});
+      }
+
       // Otomatik mail gönder (PDF ekiyle — client-side üretim)
       if (selectedStudent.email) {
         const deadline = task.endDate || (() => {
@@ -551,7 +562,7 @@ export default function GameScreen({
           deadline,
         }).then(async pdfBase64 => {
           const kolajToken = await auth.currentUser?.getIdToken();
-          return fetch("/api/send-kolaj", {
+          const res = await fetch("/api/send-kolaj", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${kolajToken ?? ""}` },
             body: JSON.stringify({
@@ -565,8 +576,19 @@ export default function GameScreen({
               groupName:       groupCode,
             }),
           });
-        }).then(() => setAutoMailSentFor(prev => new Set([...prev, sid])))
-          .catch(console.error);
+          if (res.ok) {
+            setAutoMailSentFor(prev => new Set([...prev, sid]));
+            // Drive URL'ini Firestore'a kaydet (arşivde indirebilsin)
+            try {
+              const data = await res.json() as { driveUrl?: string; driveFileName?: string };
+              if (data.driveUrl && task.id) {
+                await updateDoc(doc(db, "tasks", task.id), {
+                  [`kolajDriveFiles.${sid}`]: { url: data.driveUrl, fileName: data.driveFileName ?? "" },
+                });
+              }
+            } catch { /* non-fatal */ }
+          }
+        }).catch(console.error);
       }
 
       setPickHighlightId(null);
@@ -602,20 +624,11 @@ export default function GameScreen({
     setShowFinal(true);
   }, []);
 
-  // Sadece arşive yedekle — task status'a dokunmaz, 3 sn sonra /dashboard'a döner
+  // Tamamla ve ödevi başlat — arşiv zaten her çekimde güncelleniyor
   const handleArchive = useCallback(async () => {
     if (!task.groupId || archiving || archived) return;
     setArchiving(true);
     try {
-      await addDoc(collection(db, "assignment_archive"), {
-        groupId:     task.groupId,
-        taskId:      task.id,
-        taskName:    task.name,
-        type:        "kolaj",
-        completedAt: serverTimestamp(),
-        draws:       drawsRef.current,
-        students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
-      });
       // Tüm çekişler tamam → görevi published yap (öğrenciler çalışmaya başlıyor)
       if (groupStudentCount > 0 && drawsRef.current.length >= groupStudentCount) {
         await updateDoc(doc(db, "tasks", task.id), { status: "published", isActive: true });
@@ -625,31 +638,20 @@ export default function GameScreen({
     } finally {
       setArchiving(false);
     }
-  }, [task, archiving, archived, students, groupStudentCount, router]);
+  }, [task, archiving, archived, groupStudentCount, router]);
 
   // Ödevi gerçekten kapat: status → "completed", not girişine yönlendir
   const handleFinalizeTask = useCallback(async () => {
     if (finalizing || finalized) return;
     setFinalizing(true);
     try {
-      if (!archived && task.groupId) {
-        await addDoc(collection(db, "assignment_archive"), {
-          groupId:     task.groupId,
-          taskId:      task.id,
-          taskName:    task.name,
-          type:        "kolaj",
-          completedAt: serverTimestamp(),
-          draws:       drawsRef.current,
-          students:    students.map(s => ({ id: s.id, name: s.name, lastName: s.lastName })),
-        });
-      }
       await updateDoc(doc(db, "tasks", task.id), { status: "completed", archived: true, gradingClosed: true, completedAt: serverTimestamp() });
       setFinalized(true);
       setTimeout(() => router.push("/dashboard"), 1500);
     } finally {
       setFinalizing(false);
     }
-  }, [task, archived, students, finalizing, finalized, router]);
+  }, [task, finalizing, finalized, router]);
 
   // ─── Loading ─────────────────────────────────────────────────────────────
 
