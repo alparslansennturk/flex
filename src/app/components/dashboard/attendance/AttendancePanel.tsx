@@ -584,16 +584,37 @@ export default function AttendancePanel({
         return;
       }
 
-      // 2. Bugün dersi olan grup
+      // 2. Bugün dersi olan gruplar — şu an aktif penceredeki öncelikli
       const todayDay = new Date().getDay();
       const isFriday = todayDay === 5;
-      const todayMatch = groups.find(g => {
+      const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+      const todayGroups = groups.filter(g => {
         if (isFriday && g.type !== "özel_ders" && g.type !== "kurumsal") return false;
         const days = getWeekDays(g);
         return days.length === 0 || days.includes(todayDay);
       });
-      if (todayMatch) {
-        setSelectedGroupId(todayMatch.id);
+
+      if (todayGroups.length > 0) {
+        // Aktif pencerede olan grubu bul (15dk önce – ders sonu + 6 saat)
+        const activeNow = todayGroups.find(g => {
+          const range = g.session ? parseSessionTime(g.session) : null;
+          if (!range) return false;
+          return nowMins >= range.start - 15 && nowMins <= range.end + 360;
+        });
+        // Henüz başlamamış en yakın dersi bul
+        const upcoming = todayGroups
+          .filter(g => {
+            const range = g.session ? parseSessionTime(g.session) : null;
+            return range && nowMins < range.start - 15;
+          })
+          .sort((a, b) => {
+            const ra = parseSessionTime(a.session!)!;
+            const rb = parseSessionTime(b.session!)!;
+            return ra.start - rb.start;
+          });
+
+        const best = activeNow ?? upcoming[0] ?? todayGroups[0];
+        setSelectedGroupId(best.id);
         return;
       }
 
@@ -1044,6 +1065,38 @@ export default function AttendancePanel({
   const isBeforeWindow = sessionTimeRange
     ? (new Date().getHours() * 60 + new Date().getMinutes()) < sessionTimeRange.start - WINDOW_BEFORE_MIN
     : false;
+
+  // ── Client-side auto-close: ders bitiminden 3 saat sonra yoklamayı kapat ──
+  useEffect(() => {
+    if (!isToday || !sessionTimeRange || attendanceClosed || !existingDoc || !hasPersistedEntries || !selectedGroupId) return;
+    const endMin = sessionTimeRange.end;
+    const closeAtMin = endMin + 180; // 3 saat sonra
+    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+    if (nowMins >= closeAtMin) {
+      // Zaten süre geçmiş — hemen kapat
+      const docId = `${selectedGroupId}_${dateKey}`;
+      setDoc(doc(db, "design_attendance", docId), {
+        attendanceClosed: true,
+        autoClosedAt: Timestamp.fromDate(new Date()),
+      }, { merge: true });
+      setAttendanceClosed(true);
+      setSaved(true);
+      return;
+    }
+    // Süre dolmamış — timer kur
+    const msUntilClose = (closeAtMin - nowMins) * 60 * 1000;
+    const timer = setTimeout(() => {
+      const docId = `${selectedGroupId}_${dateKey}`;
+      setDoc(doc(db, "design_attendance", docId), {
+        attendanceClosed: true,
+        autoClosedAt: Timestamp.fromDate(new Date()),
+      }, { merge: true });
+      setAttendanceClosed(true);
+      setSaved(true);
+    }, msUntilClose);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isToday, sessionTimeRange?.end, attendanceClosed, existingDoc, hasPersistedEntries, selectedGroupId, dateKey]);
 
   // Yoklama Al ekranında geçmiş tarih kaydı VEYA kapatılmış+pencere dolmuş → salt okunur
   // Ders aktifken (başlatılmış ama bitmemiş) detail panellerinden düzenleme yapılamaz;
