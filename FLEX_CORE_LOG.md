@@ -87,6 +87,66 @@
 | Sidebar Yoklama Detay hardNav + dropdown otomatik kapanır | §186f-g | `Sidebar.tsx` |
 | GroupForm modal max-w-5xl, max-h büyütüldü, seans truncate fix | §186h | `GroupForm.tsx`, `ManagementContent.tsx` |
 | Çekiliş ödevi: çekilmiş öğrenci kaybı + iptal cascade + Drive link server-side | §188a-c | `AssignmentScreen.tsx`, `DesignParkour.tsx`, `send-*` |
+| Yoklama zaman kilidi aktif + admin/yönetici muafiyeti | §189a | `AttendancePanel.tsx`, `attend/page.tsx` |
+| Client-side auto-close (ders+3sa) + cron güncelleme | §189b | `AttendancePanel.tsx`, `auto-close-attendance/route.ts` |
+| Yoklama düzenleme aktivite logu (düzenleyen adıyla) | §189c | `AttendancePanel.tsx` |
+| Auto-select: aynı gün çoklu ders → aktif penceredeki grup | §189d | `AttendancePanel.tsx` |
+| QuickSearch Spotlight davranışı (debounce + sabit rounded) | §189e | `QuickSearch.tsx` |
+| StudentDetailModal: ortak header + eşit yükseklik + max-h responsive | §189f | `StudentDetailModal.tsx` |
+
+---
+
+## ✅ §189 — Yoklama Zaman Kilidi + Auto-Close + UI İyileştirmeleri (2026-06-12)
+
+### §189a — Yoklama Zaman Kilidi Aktif Edildi
+- `attend/page.tsx`: `enforceTimeWindow` yorumdan çıkarıldı, her iki panelde aktif.
+- `attendance-detail/page.tsx`: `enforceTimeWindow={true}` aktif edildi.
+- `AttendancePanel.tsx`: `isAdminOrManager = isAdmin() || MANAGEMENT_PANEL` eklendi — admin ve yönetici zaman kısıtından muaf (`isWithinTimeWindow`, `isPastExpired` bypass).
+- `canEdit`'e yönetici eklendi — `isAdmin()` yanına `isAdminOrManager` (süresiz düzenleme).
+- Pencere sabitleri: `WINDOW_BEFORE_MIN=15` (15dk önce), `WINDOW_AFTER_MIN=360` (6 saat sonra).
+- `allowEdit` korundu — eğitmen 3 gün, admin/yönetici sınırsız düzenleyebilir.
+
+### §189b — Client-Side Auto-Close + Cron Güncelleme
+- **Client-side:** `AttendancePanel` useEffect — ders bitiminden 3 saat sonra (`endMin + 180`) yoklama otomatik kapanır. Süre dolmamışsa `setTimeout` ile timer kurulur, dolmuşsa anında Firestore'a yazar.
+- **Cron (`auto-close-attendance/route.ts`):** Tamamen yeniden yazıldı — bugün+dün kayıtlarını kontrol eder, grup `session` bilgisini çeker. Başlatılmış→3 saat, alınmamış→6 saat kuralı. Attendance doc'undaki `session` alanı öncelikli (grup lookup'a düşmemek için).
+- `handleStartLesson`'a `session` alanı eklendi — yeni yoklama doc'larına ders saati yazılıyor.
+- `vercel.json`: cron schedule `"1 21 * * *"` (gece 00:01 TR) — Hobby plan uyumlu günde 1 kez.
+
+### §189c — Yoklama Düzenleme Aktivite Logu
+- `handleSave`'de `editUnlocked || attendanceClosed` durumunda `"Yoklama Düzenlendi"` logActivity yazılıyor.
+- Mesajda düzenleyenin adı soyadı: `"Grup 550 12 Haziran 2026 yoklaması Ali Yılmaz tarafından düzenlendi."`.
+- Eski `"Yoklama Güncellendi"` → `"Yoklama Düzenlendi"` olarak değiştirildi.
+
+### §189d — Auto-Select: Aynı Gün Çoklu Ders Akıllı Seçim
+- Eski: `groups.find()` — bugün dersi olan ilk grubu seçiyordu, saat fark etmeksizin.
+- Yeni öncelik sırası: (1) Başlatılmış ama bitirilmemiş yoklama, (2) Şu an aktif zaman penceresindeki grup (`start-15dk` – `end+6sa`), (3) Henüz başlamamış en yakın ders (session start'a göre sort), (4) Bugün dersi olan ilk grup (fallback).
+- Senaryo: 09-12 / 12-15 / 15-18 → saat 14:00'te Grup 2 seçilir, saat 17:00'de Grup 3 seçilir.
+
+### §189e — QuickSearch Spotlight Davranışı
+- **Oval→köşeli titreme fix:** Koşullu `rounded-full`/`rounded-2xl` + `transition-all` kaldırıldı → sabit `rounded-2xl`.
+- **200ms debounce:** `searchQuery` → `debouncedQuery` (her tuş vuruşunda panel zıplamaz).
+- **"Sonuç bulunamadı":** Sadece debounce kesinleştikten sonra (`settled` state) gösterilir.
+- **AnimatePresence `mode="wait"`:** Önceki animasyon bitmeden yenisi başlamaz.
+- **Sonuç paneli:** `height: 0 → auto`, 0.25s ease-out ile yumuşak genişleme.
+
+### §189f — StudentDetailModal Header + Responsive
+- İki ayrı lacivert header (ders / diğer tab'lar) → **tek ortak header** birleştirildi.
+- `min-h-[88px]` — tüm tab'larda eşit minimum yükseklik.
+- Ders tab'ında email ve branş tek satıra birleştirildi (`email · branş`).
+- Status badge (`Aktif` vb.) artık tüm tab'larda görünür (ders dahil).
+- Avatar `w-16→w-14`, isim `text-[20px]→text-[18px]`, sağ stat `text-[32px]→text-[28px]`.
+- Tab bar'a `pt-6` (24px) üst padding — tab'lar aşağı indi.
+- Kart `max-h-[85vh]` — küçük ekranlarda alttan boşluk azaldı.
+
+### Değişen Dosyalar
+- `src/app/components/dashboard/attendance/AttendancePanel.tsx` — §189a-d
+- `src/app/attend/page.tsx` — §189a
+- `src/app/dashboard/attendance-detail/page.tsx` — §189a
+- `src/app/api/cron/auto-close-attendance/route.ts` — §189b
+- `vercel.json` — §189b
+- `src/app/components/shared/QuickSearch.tsx` — §189e
+- `src/app/components/dashboard/student-management/StudentDetailModal.tsx` — §189f
+- `FLEX_CORE_LOG.md` — bu kayıt
 
 ---
 
