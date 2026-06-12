@@ -1098,7 +1098,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
 
       {/* Kart */}
       <motion.div
-        className="relative bg-white rounded-24 shadow-2xl w-[960px] h-[632px] 2xl:h-[656px] overflow-hidden flex flex-col z-10"
+        className="relative bg-white rounded-24 shadow-2xl w-[960px] max-h-[85vh] h-[632px] 2xl:h-[656px] overflow-hidden flex flex-col z-10"
         initial={{ opacity: 0, y: 80 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 60, transition: { duration: 0.2 } }}
@@ -1115,76 +1115,70 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         </button>
 
         {/* ── GENEL / GEÇMİŞ / İLETİŞİM / ÖDEME: Lacivert header — initials avatar ── */}
-        {activeTab !== "ders" && (
-        <div className="relative bg-base-primary-900 rounded-t-24 px-8 py-6 overflow-hidden shrink-0">
+        {/* ── Ortak lacivert header — tüm tab'larda aynı yükseklik ── */}
+        <div className="relative bg-base-primary-900 rounded-t-24 px-8 py-5 overflow-hidden shrink-0 min-h-[88px]">
           <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/4 pointer-events-none" />
           <div className="absolute -bottom-6 left-1/3  w-36 h-36 rounded-full bg-white/4 pointer-events-none" />
           <div className="relative flex items-center gap-5 pr-14">
-            <div className="w-16 h-16 rounded-full border-2 border-white/20 bg-base-primary-800 shadow-xl flex items-center justify-center shrink-0">
-              <span className="text-[20px] font-black text-white tracking-tight select-none">
-                {[student.name, student.lastName].filter(Boolean).map(n => n[0].toUpperCase()).join("")}
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[20px] font-black text-white leading-tight">{student.name} {student.lastName}</h2>
-              <p className="text-[12px] text-base-primary-300 mt-0.5 truncate">
-                {[student.branch, student.groupCode].filter(Boolean).join(" · ")}
-              </p>
-              {studentStatus && STATUS_MAP[studentStatus.toLowerCase()] && (
-                <span className={`mt-1.5 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_MAP[studentStatus.toLowerCase()].cls}`}>
-                  {STATUS_MAP[studentStatus.toLowerCase()].label}
-                </span>
-              )}
-            </div>
-            {activeTab === "genel" && attRate !== null && (
-              <div className="shrink-0 text-right hidden sm:block">
-                <p className={`text-[32px] font-black tabular-nums leading-none ${
-                  attRate >= 70 ? "text-green-300" : attRate >= 50 ? "text-amber-300" : "text-red-300"
-                }`}>%{attRate}</p>
-                <p className="text-[10px] text-base-primary-300 font-semibold">Devam</p>
-              </div>
-            )}
-          </div>
-        </div>
-        )}
-
-        {/* ── DERS: Orijinal lacivert header ── */}
-        {activeTab === "ders" && (
-        <div className="relative bg-base-primary-900 rounded-t-24 px-8 py-6 overflow-hidden shrink-0">
-          <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/4 pointer-events-none" />
-          <div className="absolute -bottom-6 left-1/3  w-36 h-36 rounded-full bg-white/4 pointer-events-none" />
-          <div className="relative flex items-center gap-5 pr-14">
+            {/* Avatar */}
             <div className="relative shrink-0">
-              <div className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden bg-base-primary-800 shadow-xl">
-                <img
-                  src={`/avatars/${safeGender}/${safeAvatar}.svg`} alt=""
-                  className="w-full h-full object-cover"
-                  onError={e => { (e.target as HTMLImageElement).src = `/avatars/${safeGender}/1.svg`; }}
-                />
-              </div>
-              {medal && <span className="absolute -bottom-1 -right-1 text-[18px] leading-none">{medal}</span>}
+              {activeTab === "ders" ? (
+                <div className="w-14 h-14 rounded-full border-2 border-white/20 overflow-hidden bg-base-primary-800 shadow-xl">
+                  <img
+                    src={`/avatars/${safeGender}/${safeAvatar}.svg`} alt=""
+                    className="w-full h-full object-cover"
+                    onError={e => { (e.target as HTMLImageElement).src = `/avatars/${safeGender}/1.svg`; }}
+                  />
+                </div>
+              ) : (
+                <div className="w-14 h-14 rounded-full border-2 border-white/20 bg-base-primary-800 shadow-xl flex items-center justify-center">
+                  <span className="text-[18px] font-black text-white tracking-tight select-none">
+                    {[student.name, student.lastName].filter(Boolean).map(n => n[0].toUpperCase()).join("")}
+                  </span>
+                </div>
+              )}
+              {activeTab === "ders" && medal && <span className="absolute -bottom-1 -right-1 text-[18px] leading-none">{medal}</span>}
             </div>
+            {/* İsim + detay */}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                <h2 className="text-[20px] font-black text-white leading-tight">{student.name} {student.lastName}</h2>
-                {student.rank > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-[18px] font-black text-white leading-tight">{student.name} {student.lastName}</h2>
+                {activeTab === "ders" && student.rank > 0 && (
                   <span className="shrink-0 text-[10px] font-bold text-base-primary-200 bg-white/10 px-2 py-0.5 rounded-full">
                     #{student.rank}. sıra
                   </span>
                 )}
               </div>
-              <p className="text-[12px] text-base-primary-300 truncate">
-                {email || (loading ? <span className="italic opacity-40">yükleniyor…</span> : "")}
+              <p className="text-[12px] text-base-primary-300 mt-0.5 truncate">
+                {activeTab === "ders"
+                  ? [email || (loading ? "yükleniyor…" : ""), student.branch].filter(Boolean).join(" · ")
+                  : [student.branch, student.groupCode].filter(Boolean).join(" · ")
+                }
               </p>
-              <p className="text-[11px] text-base-primary-400 mt-0.5">{student.branch}</p>
+              {studentStatus && STATUS_MAP[studentStatus.toLowerCase()] && (
+                <span className={`mt-1 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_MAP[studentStatus.toLowerCase()].cls}`}>
+                  {STATUS_MAP[studentStatus.toLowerCase()].label}
+                </span>
+              )}
             </div>
+            {/* Sağ stat */}
             <div className="shrink-0 text-right hidden sm:block">
-              <p className="text-[32px] font-black text-white tabular-nums leading-none">{Math.round(displayScore)}</p>
-              <p className="text-[10px] text-base-primary-300 font-semibold">Lig Puanı</p>
+              {activeTab === "ders" ? (
+                <>
+                  <p className="text-[28px] font-black text-white tabular-nums leading-none">{Math.round(displayScore)}</p>
+                  <p className="text-[10px] text-base-primary-300 font-semibold">Lig Puanı</p>
+                </>
+              ) : activeTab === "genel" && attRate !== null ? (
+                <>
+                  <p className={`text-[28px] font-black tabular-nums leading-none ${
+                    attRate >= 70 ? "text-green-300" : attRate >= 50 ? "text-amber-300" : "text-red-300"
+                  }`}>%{attRate}</p>
+                  <p className="text-[10px] text-base-primary-300 font-semibold">Devam</p>
+                </>
+              ) : null}
             </div>
           </div>
         </div>
-        )}
 
         {/* ── Sol + Sağ panel layout ── */}
         <div className="flex flex-1 min-h-0">
@@ -1193,7 +1187,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
             {/* Tab Bar */}
-            <div className="flex gap-0 border-b border-surface-100 bg-white shrink-0 px-6">
+            <div className="flex gap-0 border-b border-surface-100 bg-white shrink-0 px-6 pt-6">
               {TABS.filter(tab => {
                 if (tab.id === "ders") return canViewClassData;
                 return !tab.adminOnly || isAdmin();

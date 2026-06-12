@@ -143,14 +143,17 @@ const TYPE_ICON: Record<ResultType, React.ReactNode> = {
 export default function QuickSearch() {
   const [open, setOpen]               = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [allGroups, setAllGroups]     = useState<{ id: string; code: string; branch: string }[]>([]);
   const [allStudents, setAllStudents] = useState<SearchResult[]>([]);
   const [results, setResults]         = useState<SearchResult[]>([]);
   const [loading, setLoading]         = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [openStudent, setOpenStudent] = useState<ModalStudent | null>(null);
+  const [settled, setSettled]         = useState(false); // sonuç kesinleşti mi
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router   = useRouter();
   const { user, isAdmin } = useUser();
 
@@ -181,8 +184,10 @@ export default function QuickSearch() {
       if (allGroups.length === 0) fetchData();
     } else {
       setSearchQuery('');
+      setDebouncedQuery('');
       setResults([]);
       setSelectedIndex(0);
+      setSettled(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -247,9 +252,20 @@ export default function QuickSearch() {
     }
   };
 
+  // ── Debounce: searchQuery → debouncedQuery (200ms) ──────────────────────────
+  useEffect(() => {
+    setSettled(false);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+      setSettled(true);
+    }, 200);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchQuery]);
+
   // ── Akıllı arama & sıralama ─────────────────────────────────────────────────
   useEffect(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) { setResults([]); setSelectedIndex(0); return; }
 
     const tokens = q.split(/\s+/);
@@ -332,7 +348,7 @@ export default function QuickSearch() {
 
     setResults(ordered.slice(0, 8));
     setSelectedIndex(0);
-  }, [searchQuery, allGroups, allStudents]);
+  }, [debouncedQuery, allGroups, allStudents]);
 
   // ── Klavye navigasyonu ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -402,7 +418,7 @@ export default function QuickSearch() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -10 }}
               transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-              className={`w-[720px] shadow-2xl overflow-hidden transition-all duration-150 ${results.length > 0 || (searchQuery && !loading) ? 'rounded-2xl' : 'rounded-full'}`}
+              className="w-[720px] shadow-2xl overflow-hidden rounded-2xl"
               style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)' }}
               onClick={e => e.stopPropagation()}
             >
@@ -425,14 +441,14 @@ export default function QuickSearch() {
               </div>
 
               {/* ── Sonuçlar ── */}
-              <AnimatePresence>
+              <AnimatePresence mode="wait">
                 {results.length > 0 && (
                   <motion.div
                     key="results"
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.15 }}
+                    transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
                     className="overflow-hidden"
                   >
                     <div className="border-t border-[#F0F2F6] max-h-[400px] overflow-y-auto">
@@ -493,17 +509,20 @@ export default function QuickSearch() {
                   </motion.div>
                 )}
 
-                {/* Sonuç yok */}
-                {!loading && searchQuery && results.length === 0 && (
+                {/* Sonuç yok — sadece debounce kesinleştikten sonra göster */}
+                {!loading && settled && debouncedQuery && results.length === 0 && (
                   <motion.div
                     key="empty"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="border-t border-[#F0F2F6] flex flex-col items-center justify-center py-10 gap-1.5"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                    className="overflow-hidden"
                   >
-                    <p className="text-[13px] text-[#9CA3AF] font-medium">Sonuç bulunamadı</p>
-                    <p className="text-[11px] text-[#C4C9D4]">"{searchQuery}" için eşleşme yok</p>
+                    <div className="border-t border-[#F0F2F6] flex flex-col items-center justify-center py-10 gap-1.5">
+                      <p className="text-[13px] text-[#9CA3AF] font-medium">Sonuç bulunamadı</p>
+                      <p className="text-[11px] text-[#C4C9D4]">&ldquo;{debouncedQuery}&rdquo; için eşleşme yok</p>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

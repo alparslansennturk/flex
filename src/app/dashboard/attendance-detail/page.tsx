@@ -101,7 +101,7 @@ function AttendanceDetailMain() {
             <AttendancePanel
               preSelectedGroupId={detailGroupId}
               allowEdit={true}
-              enforceTimeWindow={false}
+              enforceTimeWindow={true}
               filterMonth={detailMonth ?? monthParam ?? undefined}
               groupMode={detailIsClosed ? "closed" : "active"}
             />

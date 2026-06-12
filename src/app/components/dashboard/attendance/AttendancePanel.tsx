@@ -833,6 +833,7 @@ export default function AttendancePanel({
       month: monthKey,
       instructorId: user?.uid ?? "",
       sessionHours,
+      session: selectedGroup?.session ?? "",
       entries: {},
       lessonStartedAt: Timestamp.fromDate(new Date()),
     });
@@ -899,8 +900,9 @@ export default function AttendancePanel({
         setMonthlyDone(prev => ({ ...prev, [selectedGroupId]: (prev[selectedGroupId] ?? 0) + 1 }));
         setTotalDoneCount(prev => prev + 1);
         setHasPersistedEntries(true);
-      } else if (attendanceClosed) {
-        await logActivity("yoklama", "Yoklama Güncellendi", `${groupCode} ${trDate} yoklaması güncellendi.`);
+      } else if (editUnlocked || attendanceClosed) {
+        const editorName = user ? `${user.name} ${user.surname}`.trim() || user.email : "Bilinmeyen";
+        await logActivity("yoklama", "Yoklama Düzenlendi", `${groupCode} ${trDate} yoklaması ${editorName} tarafından düzenlendi.`);
       }
       setExistingDoc(true);
       setSaved(true);
@@ -1015,23 +1017,27 @@ export default function AttendancePanel({
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     return new Date(fy, fm - 1, 1) < threeMonthsAgo;
   })();
-  // Admin: süre sınırı yok — her zaman düzenleyebilir. Eğitmen: sadece 3 gün içinde.
-  const canEdit = !isHistoricalLock && allowEdit && (!attendanceClosed || withinEditWindow || isAdmin());
+  // Admin / yönetici (MANAGEMENT_PANEL): süre sınırı yok — her zaman düzenleyebilir.
+  // Eğitmen: sadece 3 gün içinde.
+  const isAdminOrManager = isAdmin() || (user?.permissions?.includes("MANAGEMENT_PANEL") ?? false);
+  const canEdit = !isHistoricalLock && allowEdit && (!attendanceClosed || withinEditWindow || isAdminOrManager);
 
-  // Giriş zaman kilidi: enforceTimeWindow=true ise admin dahil herkes için geçerli.
+  // Giriş zaman kilidi: enforceTimeWindow=true ise eğitmenler için geçerli.
+  // Admin ve yönetici (MANAGEMENT_PANEL) zaman kısıtından muaftır.
   // Kaydedilmiş veri (hasPersistedEntries) veya kapatılmış derste kısıt yok.
-  // Sadece "Dersi Başlat" basılmış ama giriş yapılmamışsa pencere kontrolü devreye girer.
   const sessionTimeRange = selectedGroup?.session ? parseSessionTime(selectedGroup.session) : null;
   const isWithinTimeWindow: boolean = (() => {
     if (!enforceTimeWindow || !isToday || !sessionTimeRange) return true;
+    // Admin / yönetici → zaman kısıtı yok
+    if (isAdminOrManager) return true;
     // Kaydedilmiş veri ya da kapatılmış → her zaman erişilebilir
     if (existingDoc && (hasPersistedEntries || attendanceClosed)) return true;
     const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
     return nowMins >= sessionTimeRange.start - WINDOW_BEFORE_MIN &&
            nowMins <= sessionTimeRange.end   + WINDOW_AFTER_MIN;
   })();
-  // Geçmiş tarihte kayıt girilmemiş → giriş süresi dolmuş
-  const isPastExpired = enforceTimeWindow && !isToday && !hasPersistedEntries && !attendanceClosed;
+  // Geçmiş tarihte kayıt girilmemiş → giriş süresi dolmuş (admin/yönetici muaf)
+  const isPastExpired = enforceTimeWindow && !isAdminOrManager && !isToday && !hasPersistedEntries && !attendanceClosed;
   // Banner için: açılma saati ve kapanma saati
   const windowOpenStr  = sessionTimeRange ? fmtMins(sessionTimeRange.start - WINDOW_BEFORE_MIN) : null;
   const windowCloseStr = sessionTimeRange ? fmtMins(sessionTimeRange.end   + WINDOW_AFTER_MIN)  : null;
