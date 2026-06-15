@@ -18,13 +18,24 @@
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
 - [x] Mimari 4 dosyadan tek `FLEXOS.md`'ye birleştirildi (2026-06-15)
-- [x] **Tip katmanı yazıldı** — `src/app/lib/domain/` (`core/`: Person, Enrollment, Group, Module, PersonNote · `education/`: Grade · `eduos/` dikiş: Education, Sale, Payment) · `tsc` temiz · canlıya dokunmadı
+- [x] **Tip katmanı yazıldı** — `src/app/lib/domain/` (`core/`: Person, Enrollment, Group, PersonNote · `education/`: Grade · `eduos/` dikiş: Education, **Track**, Sale, Payment) · `tsc` temiz · canlıya dokunmadı
+- [x] **Hiyerarşi netleşti** — Branş → Eğitim (Grafik-1) → **Track** (Temel Photoshop, satılabilir, eski "Modül") → Grup. `Module` tipi silindi, `Group.trackId` + `Enrollment.trackScope` eklendi
 - [x] **Yetki omurgası yazıldı** — `src/app/lib/domain/access/` (capability registry ~22 + `Scope`/`Sensitivity`/`Actor` tipleri + 4 paket Satış/Op/Eğitmen/Admin + `can()`/`hasCapability()`/`widestScope()`). `person.pii.write` eklendi; eğitmen paketinde PII YOK. `tsc` temiz
 - [x] **Person backend yazıldı** — `domain/repo/person-repo.ts` (port) + `domain/services/person-service.ts` (`createPerson`, gated: PII'ı `can()` ile sunucuda siler) + `server/person-repo.firestore.ts` (Firestore adapter, yeni `persons` koleksiyonu) + `domain/errors.ts`. 7 assertion doğrulama geçti (eğitmen PII silindi / satış korundu / yetkisiz reddedildi). `tsc` temiz
-- [ ] **SIRADAKİ →** Server action / API route — `createPerson`'ı aktörle (token→Actor) çağıran uç + yeni `persons` için Firestore rules
-- [ ] UI: öğrenci ekleme formu (capability'li — eğitmen sade / satış tam) — **kullanıcıyla beraber tasarlanacak**
-- [ ] Enrollment service + dikey dilimi tamamla (eğitmen kendi öğrencisini görür)
-- [ ] Backfill (`students` → `persons`, tek yönlü, okuma)
+- [x] **API route + auth köprüsü yazıldı** — `POST /api/flexos/persons` (`withAuth` → `actorFromCaller`: eski rol→paket, tek kiracı "default") → `createPerson`; hata→HTTP (403/400/500). `server/auth-actor.ts`. Firestore rules: `persons`/`enrollments` server-only (`if false`, Admin SDK). Actor köprüsü doğrulandı (admin pii.write var / eğitmen yok). `tsc` temiz
+- [x] **Enrollment service + çoklu-grup fix** — `domain/services/enrollment-service.ts` (`createEnrollment`, gated; aynı kişi FARKLI gruplara SERBEST = eski çoklu-grup bug'ı yapısal çözüldü, aynı grupta çift kayıt engelli) + `domain/repo/enrollment-repo.ts` (port, `findActive`) + `server/enrollment-repo.firestore.ts`. Eğitmen paketi **genişletildi** (group.create/edit/assign_student/activate — standalone Classroom için). 5 assertion geçti, `tsc` temiz
+- [x] **Öğrenci-ekle TAM callable** — `POST /api/flexos/persons` + `POST /api/flexos/enrollments`. `groupIds` token claim'i Actor'a bağlandı (`with-auth.ts` Caller.groupIds) → assigned scope gerçek: eğitmen kendi grubuna kayıt yapar, başkasınınkine YAPAMAZ. Doğrulandı
+- [x] **Grup backend** — `domain/services/group-service.ts` (`createGroup`, gated `group.create`, validation) + repo port + `server/group-repo.firestore.ts` (yeni `flexos_groups` koleksiyonu — canlı `groups` çakışmasın) + `POST /api/flexos/groups` + Firestore rules. 6 assertion geçti, `tsc` temiz
+### ✅ Tamamlanan (write-side backend, hepsi gated + doğrulandı, ~26 assertion)
+- **Öğrenci ekle:** `POST /api/flexos/persons` (PII gated) + `POST /api/flexos/enrollments` (çoklu-grup, scope) → BİTTİ (callable). Sadece UI eksik.
+- **Grup ekle (temel):** `POST /api/flexos/groups` → grup oluşturma BİTTİ (callable). Sadece UI + katalog eksik.
+
+### ⏳ SIRADAKİ İŞLER
+- [ ] **UI** (kullanıcı form çizecek): öğrenci ekleme + grup ekleme — backend hazır, hızlı bağlanır
+- [ ] **Grup ekle — kalanlar:** (a) **Katalog backend** = Branş/Eğitim/Track entity'leri + CRUD (form dropdown'larını besler; Eğitim Op çekirdeği), (b) grup okuma uçları (liste), (c) referans kontrolü (trackId/educationId gerçek mi)
+- [ ] Okuma uçları + havuz görünümü (enrollment listesi + grupsuz/gruplu filtre) + "gruba yerleştir"
+- [ ] Referans bütünlüğü: enrollment'ta personId/groupId gerçekten var mı kontrolü
+- [ ] Backfill (`students`→`persons`, `groups`→`flexos_groups`, tek yönlü)
 
 ---
 
@@ -157,9 +168,9 @@ Klasör: `lib/domain/core` ve `lib/domain/eduos`.
 
 ```
 ŞUBE (lokasyon: Kadıköy/Şirinevler/Pendik — satış ekibi buraya bağlı)
-BRANŞ (disiplin: Grafik Tasarım, Yazılım)
-   └─ EĞİTİM (ürün, satılır: Grafik-1, Grafik-2, Python, "Tasarım Full"=paket)
-        └─ MODÜL (Temel Photoshop, Temel Illustrator, Corel Draw)
+BRANŞ (disiplin/genel ad: Grafik Tasarım, Yazılım)
+   └─ EĞİTİM (branşa ait eğitim: Grafik-1, Grafik-2, Python)
+        └─ TRACK (eğitimin AYRI SATILABİLİR parçası: Temel Photoshop, Temel Illustrator — fiyat/satış burada; eski "Modül"ün yeri)
              └─ GRUP / SINIF (eğitmen, takvim, kontenjan, type)
                   ├─ Attendance (Yoklama)
                   ├─ Grades (Not / XP)
@@ -167,11 +178,11 @@ BRANŞ (disiplin: Grafik Tasarım, Yazılım)
 ```
 
 - **Şube ≠ Branş.** Şube = fiziksel lokasyon + satış ekibi. Branş = disiplin. Gelir raporu ikisini de ister → Sale her ikisini taşır (şube doğrudan, branş eğitim üzerinden).
-- **Eğitim = satılan ürün.** Grafik-1 ve Grafik-2 ayrı satılabilen eğitimler. Paket = bundle-tipi eğitim (içinde N eğitim, tek total fiyat).
-- **Grup = eğitimin somut sınıfı.** Bir eğitimi baştan sona işler (örn. 81 saat, tüm modülleri sırayla, tek sınıf).
+- **Eğitim = branşa ait eğitim (Grafik-1, Grafik-2); Track = eğitimin satılan parçası (Temel Photoshop).** (2026-06-15 netleşti.) Track, eski "Modül"ün yerini alır — artık ayrı satılabilir. Fiyat/satış **Track** seviyesinde. Paket = birden çok Track'in (veya tüm eğitimin) tek total fiyatla satılması.
+- **Grup = somut sınıf.** Branş + Eğitim + Track seçilerek tanımlanır (eğitmen, takvim, kontenjan, type).
 
-### Ortak modül (cross-education)
-Bir modül farklı eğitimlerin öğrencilerine **ortak sınıfta** verilebilir. Örnek: AutoCAD/sosyal medya öğrencisi "Temel Photoshop"u mevcut Grafik-1 grubunun Photoshop haftalarına katılarak alır (ayrı sınıf açılmaz). Modül bitince mezun edilir, yoklaması kilitlenir.
+### Ortak Track (cross-education)
+Bir Track farklı eğitimlerin öğrencilerine **ortak sınıfta** verilebilir. Örnek: AutoCAD/sosyal medya öğrencisi "Temel Photoshop" track'ini mevcut Grafik-1 grubunun ilgili haftalarına katılarak alır (ayrı sınıf açılmaz). Track bitince mezun edilir, yoklaması kilitlenir.
 
 ## 2.3 Varlıklar ve Alanlar
 
@@ -187,7 +198,7 @@ Bir modül farklı eğitimlerin öğrencilerine **ortak sınıfta** verilebilir.
 ### Enrollment (Core) — kişinin bir GRUPTAKİ katılımı (kritik köprü)
 Sistemin kritik köprü varlığı: Sale ile Group arasındaki bağ.
 
-`id, personId, educationId, groupId?, moduleScope?, başlangıçTarihi, bitişTarihi?, durum, saleId?`
+`id, personId, educationId, groupId?, trackScope?, başlangıçTarihi, bitişTarihi?, durum, saleId?`
 
 ```
 Enrollment {
@@ -195,7 +206,7 @@ Enrollment {
   saleId?           ← Core'da opsiyonel (standalone Classroom'da boş; FlexOS'ta zorunlu)
   educationId       ← paketteki hangi eğitim
   groupId?          ← hangi gruba yerleşti (boş = grupsuz havuzda bekliyor)
-  moduleScope?      ← boş = grubun eğitiminin tüm modülleri; dolu = sadece o modül(ler)
+  trackScope?       ← boş = grubun eğitiminin tüm track'leri; dolu = sadece o Track(ler)
   durum             ← aktif | dondurulmuş | mezun | tamamlandı | transfer | tekrar | bıraktı
   transferHistory[] ← grup değişiklik geçmişi
 
@@ -277,8 +288,8 @@ Taksit/tahsilat. `tutar, taksit, durum`. (1. etap dışı, alan hazır.)
               → öğrenci o eğitmenin altına düşer
 ```
 
-### Ortak modül / dış öğrenci (Ahmet AutoCAD → Temel Photoshop)
-Eğitim op uygun (yeni başlayan) Grafik-1 grubu bulur → Ahmet'i yerleştirir (ek satış veya 0 TL transfer) → modül bitince mezun eder → yoklama kilitlenir, enrollment kapanır. `moduleScope = "Temel Photoshop"`.
+### Ortak Track / dış öğrenci (Ahmet AutoCAD → Temel Photoshop)
+Eğitim op uygun (yeni başlayan) Grafik-1 grubu bulur → Ahmet'i yerleştirir (ek satış veya 0 TL transfer) → Track bitince mezun eder → yoklama kilitlenir, enrollment kapanır. `trackScope = "Temel Photoshop"`.
 
 ### Transfer / tekrar
 Eski enrollment'ı kapatan + yeni enrollment açan 0 TL'lik Sale (tip=transfer/tekrar). Eski veri (yoklama/not/sertifika) silinmez — eski grubun anahtarıyla ayrı kayıtlarda durur.

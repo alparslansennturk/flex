@@ -18,6 +18,8 @@ export interface Caller {
   email:   string;
   role:    string;
   isAdmin: boolean;
+  /** Eğitmenin atanmış grupları (token claim'i) — FlexOS @assigned scope için. */
+  groupIds?: string[];
 }
 
 interface WithAuthOptions {
@@ -41,7 +43,7 @@ export function withAuth<C = { params: Promise<Record<string, string>> }>(
         if (secret !== process.env.ADMIN_SECRET) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-        const systemCaller: Caller = { uid: "system", email: "", role: "admin", isAdmin: true };
+        const systemCaller: Caller = { uid: "system", email: "", role: "admin", isAdmin: true, groupIds: [] };
         return handler(req, systemCaller, ctx);
       }
     }
@@ -70,7 +72,8 @@ export function withAuth<C = { params: Promise<Record<string, string>> }>(
       }
     }
 
-    const caller: Caller = { uid: decoded.uid, email: decoded.email ?? "", role, isAdmin };
+    const groupIds = Array.isArray(decoded.groupIds) ? (decoded.groupIds as string[]) : undefined;
+    const caller: Caller = { uid: decoded.uid, email: decoded.email ?? "", role, isAdmin, groupIds };
     return handler(req, caller, ctx);
   };
 }

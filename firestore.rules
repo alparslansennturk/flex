@@ -399,5 +399,25 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
+
+    // ─── FlexOS yeniden-inşa (yeni koleksiyonlar) ─────────────────────────────
+    //
+    // persons / enrollments: TÜM erişim Admin SDK (server) üzerinden, gated
+    // service'ten geçer (yetki + PII filtreleme orada). Client erişimi kapalı —
+    // PII'ı korumak ve "tek kapı" disiplinini zorlamak için. Daha ince client
+    // okuma kuralları, capability token'a girince eklenecek (FLEXOS.md §3).
+
+    match /persons/{personId} {
+      allow read, write: if false;
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read, write: if false;
+    }
+
+    // Yeni grup modeli — canlı `groups` KULLANIMDA, çakışmasın diye ayrı koleksiyon.
+    match /flexos_groups/{groupId} {
+      allow read, write: if false;
+    }
   }
 }

@@ -28,9 +28,10 @@ export interface Group extends Audit {
   tenantId: TenantId;
 
   code: string; // "550"
-  educationId?: EntityId; // bağlı eğitim (FlexOS dikişi; standalone'da boş olabilir)
-  branch?: string; // disiplin — denormalize, kolay sorgu
-  module?: string; // "GRAFIK_1"
+  // Grup Branş + Eğitim + Track seçilerek tanımlanır:
+  trackId?: EntityId; // grubun işlediği Track (Temel Photoshop) — FlexOS dikişi
+  educationId?: EntityId; // bağlı eğitim (Grafik-1) — denormalize, kolay sorgu
+  branch?: string; // branş (Grafik Tasarım) — denormalize, kolay sorgu
 
   status: GroupStatus;
   type: GroupType;

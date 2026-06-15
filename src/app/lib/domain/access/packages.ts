@@ -46,8 +46,12 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "grade.report.read",
   ),
 
-  // Eğitmen: SADECE kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet)
-  // ama PII YAZAMAZ/GÖREMEZ — person.read.pii ve person.pii.write YOK. İşin püf noktası.
+  // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
+  // PII YAZAMAZ/GÖREMEZ — person.read.pii / person.pii.write YOK. İşin püf noktası.
+  //
+  // GENİŞ kurulum (Ayrılabilirlik Kısıtı — FLEXOS.md §2.1): standalone "Flex Classroom"
+  // ihtimaline karşı eğitmen kendi kendine yeter → grup oluştur + öğrenci ekle + sınıfa
+  // kaydet hepsi onda. Tam FlexOS'a geçilirse grup yetkileri en sonda daraltılır (ops alır).
   egitmen: at(
     "assigned",
     "person.create",
@@ -57,7 +61,12 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "person.note.write",
     "enrollment.create",
     "enrollment.read",
+    "enrollment.transfer",
+    "group.create",
     "group.read",
+    "group.edit",
+    "group.assign_student",
+    "group.activate",
     "grade.read",
     "grade.write",
     "grade.finalize",

@@ -56,7 +56,7 @@ export interface Enrollment extends Audit {
   personId: EntityId;
   groupId?: EntityId; // boş = grupsuz havuzda bekliyor (op yerleştirecek)
   educationId?: EntityId;
-  moduleScope?: string; // boş = tüm modüller; dolu = sadece o modül (cross-education)
+  trackScope?: string; // boş = eğitimin tüm track'leri; dolu = sadece o Track (cross-education, örn. yalnız "Temel Photoshop")
 
   status: EnrollmentStatus;
   saleId?: EntityId; // FlexOS dikişi — Core'da opsiyonel
