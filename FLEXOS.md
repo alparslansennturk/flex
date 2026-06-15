@@ -20,8 +20,10 @@
 - [x] Mimari 4 dosyadan tek `FLEXOS.md`'ye birleştirildi (2026-06-15)
 - [x] **Tip katmanı yazıldı** — `src/app/lib/domain/` (`core/`: Person, Enrollment, Group, Module, PersonNote · `education/`: Grade · `eduos/` dikiş: Education, Sale, Payment) · `tsc` temiz · canlıya dokunmadı
 - [x] **Yetki omurgası yazıldı** — `src/app/lib/domain/access/` (capability registry ~22 + `Scope`/`Sensitivity`/`Actor` tipleri + 4 paket Satış/Op/Eğitmen/Admin + `can()`/`hasCapability()`/`widestScope()`). `person.pii.write` eklendi; eğitmen paketinde PII YOK. `tsc` temiz
-- [ ] **SIRADAKİ →** Repo/adapter katmanı (Firestore ↔ domain dönüşümü) — `persons` yaz/oku (yeni koleksiyon)
-- [ ] En ince dikey dilim: öğrenci ekle (capability'li form — eğitmen sade / satış tam) → enrollment → eğitmen kendi öğrencisini görür
+- [x] **Person backend yazıldı** — `domain/repo/person-repo.ts` (port) + `domain/services/person-service.ts` (`createPerson`, gated: PII'ı `can()` ile sunucuda siler) + `server/person-repo.firestore.ts` (Firestore adapter, yeni `persons` koleksiyonu) + `domain/errors.ts`. 7 assertion doğrulama geçti (eğitmen PII silindi / satış korundu / yetkisiz reddedildi). `tsc` temiz
+- [ ] **SIRADAKİ →** Server action / API route — `createPerson`'ı aktörle (token→Actor) çağıran uç + yeni `persons` için Firestore rules
+- [ ] UI: öğrenci ekleme formu (capability'li — eğitmen sade / satış tam) — **kullanıcıyla beraber tasarlanacak**
+- [ ] Enrollment service + dikey dilimi tamamla (eğitmen kendi öğrencisini görür)
 - [ ] Backfill (`students` → `persons`, tek yönlü, okuma)
 
 ---
