@@ -19,9 +19,10 @@
 
 - [x] Mimari 4 dosyadan tek `FLEXOS.md`'ye birleştirildi (2026-06-15)
 - [x] **Tip katmanı yazıldı** — `src/app/lib/domain/` (`core/`: Person, Enrollment, Group, Module, PersonNote · `education/`: Grade · `eduos/` dikiş: Education, Sale, Payment) · `tsc` temiz · canlıya dokunmadı
-- [ ] **SIRADAKİ →** `can(capability, scope)` helper + 4 paket (Satış/Op/Eğitmen/Admin) + `person.pii.write` capability ekle
-- [ ] En ince dikey dilim: öğrenci ekle (capability'li form) → enrollment → eğitmen kendi öğrencisini görür
-- [ ] Repo/adapter katmanı (Firestore dönüşümü) + backfill (`students` → `persons`, tek yönlü)
+- [x] **Yetki omurgası yazıldı** — `src/app/lib/domain/access/` (capability registry ~22 + `Scope`/`Sensitivity`/`Actor` tipleri + 4 paket Satış/Op/Eğitmen/Admin + `can()`/`hasCapability()`/`widestScope()`). `person.pii.write` eklendi; eğitmen paketinde PII YOK. `tsc` temiz
+- [ ] **SIRADAKİ →** Repo/adapter katmanı (Firestore ↔ domain dönüşümü) — `persons` yaz/oku (yeni koleksiyon)
+- [ ] En ince dikey dilim: öğrenci ekle (capability'li form — eğitmen sade / satış tam) → enrollment → eğitmen kendi öğrencisini görür
+- [ ] Backfill (`students` → `persons`, tek yönlü, okuma)
 
 ---
 

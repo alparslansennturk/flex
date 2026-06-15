@@ -5,6 +5,9 @@
 
 export * from "./base";
 
+// ── Yetki omurgası (capability + scope + can) ──
+export * from "./access";
+
 // ── Core (Classroom çekirdeği — üst katmanı bilmez) ──
 export * from "./core/person";
 export * from "./core/group";
