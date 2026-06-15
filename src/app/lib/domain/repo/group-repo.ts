@@ -8,4 +8,5 @@ export interface GroupRepo {
   nextId(): string;
   save(group: Group): Promise<void>;
   getById(id: string, tenantId: string): Promise<Group | null>;
+  list(tenantId: string, trainerId?: string): Promise<Group[]>;
 }

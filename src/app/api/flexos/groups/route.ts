@@ -33,3 +33,11 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
   }
 });
+
+/** GET /api/flexos/groups?trainerId=... — grup listesi (kiracıya göre). */
+export const GET = withAuth(async (req: NextRequest, caller) => {
+  const actor = actorFromCaller(caller);
+  const trainerId = req.nextUrl.searchParams.get("trainerId") ?? undefined;
+  const items = await firestoreGroupRepo.list(actor.tenantId, trainerId);
+  return NextResponse.json({ items });
+});

@@ -22,6 +22,26 @@ function makeRepo<T extends { id: string; tenantId: string }>(collection: string
   };
 }
 
-export const firestoreBranchRepo: BranchRepo = makeRepo<Branch>("flexos_branches");
-export const firestoreEducationRepo: EducationRepo = makeRepo<Education>("flexos_educations");
-export const firestoreTrackRepo: TrackRepo = makeRepo<Track>("flexos_tracks");
+async function listColl<T>(collection: string, tenantId: string, field?: string, value?: string): Promise<T[]> {
+  let q = adminDb.collection(collection).where("tenantId", "==", tenantId);
+  if (field && value) q = q.where(field, "==", value);
+  const snap = await q.get();
+  return snap.docs.map((d) => d.data() as T);
+}
+
+const branchBase = makeRepo<Branch>("flexos_branches");
+const eduBase = makeRepo<Education>("flexos_educations");
+const trackBase = makeRepo<Track>("flexos_tracks");
+
+export const firestoreBranchRepo: BranchRepo = {
+  ...branchBase,
+  list: (tenantId) => listColl<Branch>("flexos_branches", tenantId),
+};
+export const firestoreEducationRepo: EducationRepo = {
+  ...eduBase,
+  list: (tenantId, branchId) => listColl<Education>("flexos_educations", tenantId, "branchId", branchId),
+};
+export const firestoreTrackRepo: TrackRepo = {
+  ...trackBase,
+  list: (tenantId, educationId) => listColl<Track>("flexos_tracks", tenantId, "educationId", educationId),
+};

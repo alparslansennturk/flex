@@ -7,14 +7,17 @@ export interface BranchRepo {
   nextId(): string;
   save(branch: Branch): Promise<void>;
   getById(id: string, tenantId: string): Promise<Branch | null>;
+  list(tenantId: string): Promise<Branch[]>;
 }
 export interface EducationRepo {
   nextId(): string;
   save(education: Education): Promise<void>;
   getById(id: string, tenantId: string): Promise<Education | null>;
+  list(tenantId: string, branchId?: string): Promise<Education[]>;
 }
 export interface TrackRepo {
   nextId(): string;
   save(track: Track): Promise<void>;
   getById(id: string, tenantId: string): Promise<Track | null>;
+  list(tenantId: string, educationId?: string): Promise<Track[]>;
 }

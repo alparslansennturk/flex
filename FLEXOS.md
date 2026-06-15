@@ -33,7 +33,8 @@
 ### ⏳ SIRADAKİ İŞLER
 - [ ] **UI** (kullanıcı form çizecek): öğrenci ekleme + grup ekleme — backend hazır, hızlı bağlanır
 - [x] **Katalog backend (Branş/Eğitim/Track)** — `domain/services/catalog-service.ts` (createBranch/Education/Track, gated) + `eduos/branch.ts` + `repo/catalog-repo.ts` + `server/catalog-repo.firestore.ts` (flexos_branches/educations/tracks) + 3 route (`/api/flexos/{branches,educations,tracks}`) + capability'ler (branch/education/track.create → operasyon+admin) + rules. `tsc` temiz
-- [ ] **Grup ekle — kalanlar:** (a) grup + katalog okuma/liste uçları (form dropdown'ları), (b) UI, (c) referans kontrolü (trackId/educationId gerçek mi)
+- [x] **Okuma/liste uçları** — `GET /api/flexos/{branches,educations?branchId,tracks?educationId,groups?trainerId}` (kiracı filtreli, repo `list`). `tsc` temiz
+- [ ] **Grup ekle — kalan:** (a) UI form (dropdown'lar bu GET'leri kullanır), (b) referans kontrolü (trackId/educationId gerçek mi). Yazma+okuma backend HAZIR
 - [ ] Okuma uçları + havuz görünümü (enrollment listesi + grupsuz/gruplu filtre) + "gruba yerleştir"
 - [ ] Referans bütünlüğü: enrollment'ta personId/groupId gerçekten var mı kontrolü
 - [ ] Backfill (`students`→`persons`, `groups`→`flexos_groups`, tek yönlü)

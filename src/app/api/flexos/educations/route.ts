@@ -20,3 +20,11 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
   }
 });
+
+/** GET /api/flexos/educations?branchId=... — eğitim listesi. */
+export const GET = withAuth(async (req: NextRequest, caller) => {
+  const actor = actorFromCaller(caller);
+  const branchId = req.nextUrl.searchParams.get("branchId") ?? undefined;
+  const items = await firestoreEducationRepo.list(actor.tenantId, branchId);
+  return NextResponse.json({ items });
+});

@@ -28,4 +28,11 @@ export const firestoreGroupRepo: GroupRepo = {
     if (data.tenantId !== tenantId) return null; // kiracı izolasyonu
     return data;
   },
+
+  async list(tenantId, trainerId) {
+    let q = adminDb.collection(COLLECTION).where("tenantId", "==", tenantId);
+    if (trainerId) q = q.where("trainerId", "==", trainerId);
+    const snap = await q.get();
+    return snap.docs.map((d) => d.data() as Group);
+  },
 };

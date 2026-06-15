@@ -20,3 +20,10 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
   }
 });
+
+/** GET /api/flexos/branches — branş listesi (kiracıya göre). */
+export const GET = withAuth(async (_req: NextRequest, caller) => {
+  const actor = actorFromCaller(caller);
+  const items = await firestoreBranchRepo.list(actor.tenantId);
+  return NextResponse.json({ items });
+});

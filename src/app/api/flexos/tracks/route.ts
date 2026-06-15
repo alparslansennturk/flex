@@ -20,3 +20,11 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
   }
 });
+
+/** GET /api/flexos/tracks?educationId=... — track listesi. */
+export const GET = withAuth(async (req: NextRequest, caller) => {
+  const actor = actorFromCaller(caller);
+  const educationId = req.nextUrl.searchParams.get("educationId") ?? undefined;
+  const items = await firestoreTrackRepo.list(actor.tenantId, educationId);
+  return NextResponse.json({ items });
+});
