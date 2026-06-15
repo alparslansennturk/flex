@@ -182,6 +182,7 @@ BRANŞ (disiplin/genel ad: Grafik Tasarım, Yazılım)
 - **Şube ≠ Branş.** Şube = fiziksel lokasyon + satış ekibi. Branş = disiplin. Gelir raporu ikisini de ister → Sale her ikisini taşır (şube doğrudan, branş eğitim üzerinden).
 - **Eğitim = branşa ait eğitim (Grafik-1, Grafik-2); Track = eğitimin satılan parçası (Temel Photoshop).** (2026-06-15 netleşti.) Track, eski "Modül"ün yerini alır — artık ayrı satılabilir. Fiyat/satış **Track** seviyesinde. Paket = birden çok Track'in (veya tüm eğitimin) tek total fiyatla satılması.
 - **Grup = somut sınıf.** Branş + Eğitim + Track seçilerek tanımlanır (eğitmen, takvim, kontenjan, type).
+- **Track'ler "Eğitim Ekle" modülünün İçerik sekmesinde tanımlanır** (add-to-list: track adı+içerik gir → Ekle → listeye eklenir). **Çift seviye fiyat:** tüm eğitim fiyatı (`Education.listPrice`) AYRI + her track fiyatı (`Track.listPrice`) AYRI. Track tek başına satılabilir; `Track.sellable` toggle ile "track satışını kapat". Satış liste fiyatını görür, kampanya (% indirim) liste üzerinden uygulanır → `Sale.soldPrice`.
 
 ### Ortak Track (cross-education)
 Bir Track farklı eğitimlerin öğrencilerine **ortak sınıfta** verilebilir. Örnek: AutoCAD/sosyal medya öğrencisi "Temel Photoshop" track'ini mevcut Grafik-1 grubunun ilgili haftalarına katılarak alır (ayrı sınıf açılmaz). Track bitince mezun edilir, yoklaması kilitlenir.
