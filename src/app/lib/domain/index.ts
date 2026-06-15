@@ -18,6 +18,7 @@ export * from "./core/person-note";
 export * from "./education/grade";
 
 // ── FlexOS üst katman (DİKİŞ — mantık sonraki etapta) ──
+export * from "./eduos/branch";
 export * from "./eduos/education";
 export * from "./eduos/track";
 export * from "./eduos/sale";

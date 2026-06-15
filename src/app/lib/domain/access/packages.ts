@@ -44,6 +44,9 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "group.assign_trainer",
     "group.activate",
     "grade.report.read",
+    "branch.create",
+    "education.create",
+    "track.create",
   ),
 
   // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
@@ -97,6 +100,9 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "grade.write",
       "grade.finalize",
       "grade.report.read",
+      "branch.create",
+      "education.create",
+      "track.create",
       "role.manage",
       "capability.grant",
     ),
