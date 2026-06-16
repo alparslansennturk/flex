@@ -31,11 +31,15 @@
 - **Grup ekle (temel):** `POST /api/flexos/groups` → grup oluşturma BİTTİ (callable). Sadece UI + katalog eksik.
 
 ### ⏳ SIRADAKİ İŞLER
-- [ ] **UI** (kullanıcı form çizecek): öğrenci ekleme + grup ekleme — backend hazır, hızlı bağlanır
 - [x] **Katalog backend (Branş/Eğitim/Track)** — `domain/services/catalog-service.ts` (createBranch/Education/Track, gated) + `eduos/branch.ts` + `repo/catalog-repo.ts` + `server/catalog-repo.firestore.ts` (flexos_branches/educations/tracks) + 3 route (`/api/flexos/{branches,educations,tracks}`) + capability'ler (branch/education/track.create → operasyon+admin) + rules. `tsc` temiz
 - [x] **Okuma/liste uçları** — `GET /api/flexos/{branches,educations?branchId,tracks?educationId,groups?trainerId}` (kiracı filtreli, repo `list`). `tsc` temiz
 - [x] **Referans bütünlüğü** — servisler artık deps-bag alır: `createGroup(actor, input, {groups, educations?, tracks?})` verilen educationId/trackId katalogda var mı + track o eğitime mi bağlı (tutarlılık) doğrular; katalog repo verilmezse atlar (standalone). `createEnrollment(actor, input, {enrollments, persons, groups})` personId+groupId aynı kiracıda gerçekten var mı doğrular. Route'lar firestore repo'larını enjekte eder. 9 assertion geçti (jiti), `tsc` temiz
-- [ ] **Grup ekle — kalan:** UI form (dropdown'lar GET uçlarını kullanır). Yazma+okuma+referans backend HAZIR
+- [x] **Eğitim Yönetimi katalog SAYFASI (ilk UI)** — `src/app/flexos/egitim-yonetimi/page.tsx` (route `/flexos/egitim-yonetimi`). Claude Design tasarımı React'e portlandı (kaynak `_design/egitim-yonetimi`). Liste = **Eğitimler** (Track değil; Track eğitimin alt parçası, "Eğitim Ekle"de tanımlanacak). Branş filtresi + tablo gerçek GET'ten; fiyat (`listPrice`)/durum (`onSale`→Satışta/Taslak) bağlı. Font Inter, `authStateReady()` korumalı. Commit 023a38f, PUSH EDİLDİ.
+  - **Placeholder (Education tipinde alan YOK → "Eğitim Ekle"de eklenecek):** Toplam Saat, Teslim Modu (online/in_person), Tip (bireysel/kurumsal). Page'de opsiyonel alan olarak okunuyor, dolunca otomatik görünür.
+  - **Henüz bağlanmadı (şimdilik "yakında" toast):** Eğitim Ekle, satır düzenle/sil, toplu sil, sidebar menü linkleri.
+  - **AÇIK SORU (ileride):** Track'ler bu listede ayrıca görünecek mi? (kullanıcı "sonra konuşuruz" dedi)
+- [ ] **SIRADAKİ = "Eğitim Ekle" formu/modülü** — Education tipini büyüt (totalHours, deliveryMode, audience/tip) + içinde **Track tanımı** (çift seviye fiyat — bkz commit 1ef8e56) + `POST /api/flexos/educations`'a bağla. Sonra liste otomatik dolu gelir. NİHAİ HEDEF (kullanıcı): bu bitince gerçek eğitimleri sisteme girmeye başlamak.
+- [ ] Öğrenci ekle + Grup ekle UI (backend hazır, hızlı bağlanır)
 - [ ] Havuz görünümü (enrollment listesi + grupsuz/gruplu filtre) + "gruba yerleştir"
 - [ ] Backfill (`students`→`persons`, `groups`→`flexos_groups`, tek yönlü)
 
