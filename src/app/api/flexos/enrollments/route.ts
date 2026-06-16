@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
+import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
+import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { createEnrollment, type CreateEnrollmentInput } from "@/app/lib/domain/services/enrollment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
@@ -21,7 +23,11 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
 
   try {
-    const enrollment = await createEnrollment(actor, body, firestoreEnrollmentRepo);
+    const enrollment = await createEnrollment(actor, body, {
+      enrollments: firestoreEnrollmentRepo,
+      persons: firestorePersonRepo,
+      groups: firestoreGroupRepo,
+    });
     return NextResponse.json({ id: enrollment.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

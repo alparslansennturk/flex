@@ -34,9 +34,9 @@
 - [ ] **UI** (kullanıcı form çizecek): öğrenci ekleme + grup ekleme — backend hazır, hızlı bağlanır
 - [x] **Katalog backend (Branş/Eğitim/Track)** — `domain/services/catalog-service.ts` (createBranch/Education/Track, gated) + `eduos/branch.ts` + `repo/catalog-repo.ts` + `server/catalog-repo.firestore.ts` (flexos_branches/educations/tracks) + 3 route (`/api/flexos/{branches,educations,tracks}`) + capability'ler (branch/education/track.create → operasyon+admin) + rules. `tsc` temiz
 - [x] **Okuma/liste uçları** — `GET /api/flexos/{branches,educations?branchId,tracks?educationId,groups?trainerId}` (kiracı filtreli, repo `list`). `tsc` temiz
-- [ ] **Grup ekle — kalan:** (a) UI form (dropdown'lar bu GET'leri kullanır), (b) referans kontrolü (trackId/educationId gerçek mi). Yazma+okuma backend HAZIR
-- [ ] Okuma uçları + havuz görünümü (enrollment listesi + grupsuz/gruplu filtre) + "gruba yerleştir"
-- [ ] Referans bütünlüğü: enrollment'ta personId/groupId gerçekten var mı kontrolü
+- [x] **Referans bütünlüğü** — servisler artık deps-bag alır: `createGroup(actor, input, {groups, educations?, tracks?})` verilen educationId/trackId katalogda var mı + track o eğitime mi bağlı (tutarlılık) doğrular; katalog repo verilmezse atlar (standalone). `createEnrollment(actor, input, {enrollments, persons, groups})` personId+groupId aynı kiracıda gerçekten var mı doğrular. Route'lar firestore repo'larını enjekte eder. 9 assertion geçti (jiti), `tsc` temiz
+- [ ] **Grup ekle — kalan:** UI form (dropdown'lar GET uçlarını kullanır). Yazma+okuma+referans backend HAZIR
+- [ ] Havuz görünümü (enrollment listesi + grupsuz/gruplu filtre) + "gruba yerleştir"
 - [ ] Backfill (`students`→`persons`, `groups`→`flexos_groups`, tek yönlü)
 
 ---

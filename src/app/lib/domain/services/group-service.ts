@@ -3,6 +3,7 @@ import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Group, GroupSchedule, GroupStatus, GroupType } from "../core/group";
 import { ForbiddenError, ValidationError } from "../errors";
+import type { EducationRepo, TrackRepo } from "../repo/catalog-repo";
 import type { GroupRepo } from "../repo/group-repo";
 
 export interface CreateGroupInput {
@@ -20,6 +21,16 @@ export interface CreateGroupInput {
 
 const VALID_TYPES: GroupType[] = ["standart", "ozel_ders", "kurumsal"];
 
+/**
+ * Grup oluşturma bağımlılıkları. `educations`/`tracks` verilmezse referans
+ * kontrolü atlanır (standalone eğitmen akışı katalogsuz çalışabilir).
+ */
+export interface CreateGroupDeps {
+  groups: GroupRepo;
+  educations?: EducationRepo;
+  tracks?: TrackRepo;
+}
+
 function nowISO(): ISODateTime {
   return new Date().toISOString();
 }
@@ -27,11 +38,13 @@ function nowISO(): ISODateTime {
 /**
  * Grup oluşturma — gated (`group.create`).
  * Eğitmen (geniş paket) kendi grubunu kurabilir; trainerId verilmezse aktörün kendisi.
+ * Referans bütünlüğü: verilen educationId/trackId katalogda gerçekten var mı,
+ * ve track verilen eğitime mi bağlı (tutarlılık) — deps'te repo varsa doğrulanır.
  */
 export async function createGroup(
   actor: Actor,
   input: CreateGroupInput,
-  repo: GroupRepo,
+  deps: CreateGroupDeps,
 ): Promise<Group> {
   if (!can(actor, "group.create")) {
     throw new ForbiddenError("group.create");
@@ -48,9 +61,22 @@ export async function createGroup(
   }
   if (!(s.sessionHours > 0)) throw new ValidationError("Seans saati 0'dan büyük olmalıdır.");
 
+  // Referans bütünlüğü (katalog repo'ları verilmişse).
+  if (input.educationId && deps.educations) {
+    const edu = await deps.educations.getById(input.educationId, actor.tenantId);
+    if (!edu) throw new ValidationError("Seçilen eğitim bulunamadı.");
+  }
+  if (input.trackId && deps.tracks) {
+    const track = await deps.tracks.getById(input.trackId, actor.tenantId);
+    if (!track) throw new ValidationError("Seçilen track bulunamadı.");
+    if (input.educationId && track.educationId !== input.educationId) {
+      throw new ValidationError("Seçilen track, seçilen eğitime bağlı değil.");
+    }
+  }
+
   const ts = nowISO();
   const group: Group = {
-    id: repo.nextId(),
+    id: deps.groups.nextId(),
     tenantId: actor.tenantId,
     code,
     trackId: input.trackId,
@@ -71,6 +97,6 @@ export async function createGroup(
     createdBy: actor.uid,
   };
 
-  await repo.save(group);
+  await deps.groups.save(group);
   return group;
 }

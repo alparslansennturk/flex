@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
+import { firestoreEducationRepo, firestoreTrackRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { createGroup, type CreateGroupInput } from "@/app/lib/domain/services/group-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
@@ -20,7 +21,11 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
 
   try {
-    const group = await createGroup(actor, body, firestoreGroupRepo);
+    const group = await createGroup(actor, body, {
+      groups: firestoreGroupRepo,
+      educations: firestoreEducationRepo,
+      tracks: firestoreTrackRepo,
+    });
     return NextResponse.json({ id: group.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {
