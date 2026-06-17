@@ -38,7 +38,18 @@
   - **Placeholder (Education tipinde alan YOK → "Eğitim Ekle"de eklenecek):** Toplam Saat, Teslim Modu (online/in_person), Tip (bireysel/kurumsal). Page'de opsiyonel alan olarak okunuyor, dolunca otomatik görünür.
   - **Henüz bağlanmadı (şimdilik "yakında" toast):** Eğitim Ekle, satır düzenle/sil, toplu sil, sidebar menü linkleri.
   - **AÇIK SORU (ileride):** Track'ler bu listede ayrıca görünecek mi? (kullanıcı "sonra konuşuruz" dedi)
-- [ ] **SIRADAKİ = "Eğitim Ekle" formu/modülü** — Education tipini büyüt (totalHours, deliveryMode, audience/tip) + içinde **Track tanımı** (çift seviye fiyat — bkz commit 1ef8e56) + `POST /api/flexos/educations`'a bağla. Sonra liste otomatik dolu gelir. NİHAİ HEDEF (kullanıcı): bu bitince gerçek eğitimleri sisteme girmeye başlamak.
+- [x] **"Eğitim Ekle" formu (UI + yerel etkileşim) bitti** — `src/app/flexos/egitim-yonetimi/ekle/page.tsx` (route `/flexos/egitim-yonetimi/ekle`). Tasarım `_design/egitim-ekle` (`Eğitim Ekle.dc.html`) React'e birebir portlandı, katalogla aynı desen (inline S/IC, Inter, authStateReady). **4 sekme tam çalışır (yerel state):** Genel Bilgiler · İçerikler (saat→bölüm&track ağacı / gün→gün planlayıcı) · Fiyat (havuz + KDV→net matrah) · Sertifikasyon (kurumsal statik / bireysel dinamik) + Satışa Başlat barı + sekme bazlı Kaydet. Katalogdaki "Eğitim Ekle" butonu buraya bağlandı. `tsc` temiz.
+  - **Branş seçici eklendi (2026-06-17):** Genel sekmesinde Eğitim Adı'nın ÜSTÜNE "Branş" dropdown'ı kondu (`bransId` state). Şimdilik BOŞ (sadece "Branş seçin…" placeholder). KARAR: branş buradan eklenmez; merkezî listeden (`GET /api/flexos/branches`) çağrılıp seçilir. Backend bağlanınca dropdown gerçek branşlarla dolacak.
+  - **HENÜZ BACKEND YOK:** Kaydet/Satışa Başlat yereldir; `POST /api/flexos/educations`'a bağlanmadı.
+- [ ] **SIRADAKİ (kullanıcı: "yarın FlexOS'a devam deyince adım adım, doğru mimariyle bitirelim")** — Eğitim Ekle'nin EKSİKLERİNİ kapat + backend'e bağla:
+  1. **"Bölüm" kavramı kararı** — form hiyerarşisi Eğitim→**Bölüm**→Track ama domain Branş→Eğitim→Track (Bölüm YOK). Üç ihtimal: (a) Bölüm = sadece UI gruplama, DB'ye yazılmaz Track'ler düz Education altına (en hızlı, domain değişmez); (b) Bölüm = Eğitim, üst "Eğitim Adı" = şemsiye/paket; (c) Bölüm = yeni 4. seviye entity (en çok iş). Kullanıcı henüz seçmedi — wiring'den önce karar şart.
+  2. **Branş dropdown'ını gerçek veriye bağla** (`GET /api/flexos/branches`).
+  3. **Education tipini büyüt** — audience (bireysel/kurumsal — ayrı havuz için şart), deliveryMode, durationType (saat/gün), gunSayisi, contractType, description, salesModel.
+  4. **Gün-bazlı içerik** (günler+konular) domain karşılığı yok → nereye yazılacak kararı.
+  5. Form→DTO map + `POST /api/flexos/educations` + Track (çift seviye fiyat, commit 1ef8e56). Sonra katalog listesi otomatik dolar. NİHAİ HEDEF: gerçek eğitimleri girmeye başlamak.
+- [ ] **Katalog işlevsellik bekleyenler (kullanıcı kararları 2026-06-17):**
+  - **Kurumsal ≠ Bireysel ayrı gelir havuzu** → kataloğta kurumsal/bireysel eğitimleri **ayrı liste veya ayrı filtre** ile göster (AYRI SAYFA DEĞİL — aynı "Eğitim Ekle" ekranından eklenir, sadece listeleme/filtre ayrışır). Sebep: gelirler ileride ayrı havuzda toplanacak.
+  - **Sözleşme yönetimi (ileride)** → "Sözleşme Tipi" şu an statik option listesi; ileride kendi sözleşme metinlerimizi ekleyeceğimiz bir alan/modül olacak. Şu an elde gerçek sözleşme yok, ertelendi.
 - [ ] Öğrenci ekle + Grup ekle UI (backend hazır, hızlı bağlanır)
 - [ ] Havuz görünümü (enrollment listesi + grupsuz/gruplu filtre) + "gruba yerleştir"
 - [ ] Backfill (`students`→`persons`, `groups`→`flexos_groups`, tek yönlü)

@@ -249,7 +249,7 @@ export default function EgitimYonetimiPage() {
                 <p style={{ margin: "3px 0 0", fontSize: 13, color: "#64748b", fontWeight: 500 }}>Tüm programlar tek listede — filtrele, düzenle ve yayına al.</p>
               </div>
             </div>
-            <button className="ey-addbtn" style={S.addBtn} onClick={soon}>
+            <button className="ey-addbtn" style={S.addBtn} onClick={() => router.push("/flexos/egitim-yonetimi/ekle")}>
               <span style={S.shimmer} />
               <span style={{ position: "relative", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.plus }} />
               <span style={{ position: "relative" }}>Eğitim Ekle</span>
