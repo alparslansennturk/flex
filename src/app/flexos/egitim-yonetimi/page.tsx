@@ -14,6 +14,7 @@ import React, { useEffect, useState, useMemo, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
+import FlexSidebar from "../_components/FlexSidebar";
 
 // ── API tipleri (ileride genişleyecek alanlar opsiyonel) ──────────────────────
 interface EducationDoc {
@@ -24,7 +25,7 @@ interface EducationDoc {
   onSale?: boolean;
   totalHours?: number; // ileride (Eğitim Ekle)
   deliveryMode?: "online" | "in_person"; // ileride
-  audience?: "bireysel" | "kurumsal"; // ileride
+  audience?: "individual" | "corporate"; // Eğitim Ekle'den (Bireysel/Kurumsal)
 }
 interface BranchDoc {
   id: string;
@@ -60,7 +61,7 @@ export default function EgitimYonetimiPage() {
   const [openDropdown, setOpenDropdown] = useState<null | "bran" | "mod" | "tip">(null);
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
   const [selectedMode, setSelectedMode] = useState<"online" | "in_person" | null>(null);
-  const [selectedType, setSelectedType] = useState<"bireysel" | "kurumsal" | null>(null);
+  const [selectedType, setSelectedType] = useState<"individual" | "corporate" | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
@@ -182,33 +183,7 @@ export default function EgitimYonetimiPage() {
     <div style={S.root}>
       <style>{globalCss}</style>
 
-      {/* ============ SIDEBAR ============ */}
-      <aside style={S.sidebar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 26px" }}>
-          <div style={S.logoBox}>
-            <span style={{ borderRadius: 3, background: "#5b8cff" }} />
-            <span style={{ borderRadius: 3, background: "#f97316" }} />
-            <span style={{ borderRadius: 3, background: "#22c55e" }} />
-            <span style={{ borderRadius: 3, background: "#38bdf8" }} />
-          </div>
-          <span style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-.5px" }}>flex</span>
-        </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {NAV.map((n) => (
-            <a key={n.label} className={n.active ? "" : "ey-navlink"} style={n.active ? S.navActive : S.navItem} onClick={soon}>
-              {n.active && <span style={S.navActiveBar} />}
-              <span style={{ display: "inline-flex", color: n.active ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: n.icon }} />
-              <span style={{ flex: 1 }}>{n.label}</span>
-            </a>
-          ))}
-        </nav>
-        <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.08)" }}>
-          <a className="ey-navlink" style={S.navItem} onClick={soon}>
-            <span dangerouslySetInnerHTML={{ __html: IC.panel }} />
-            <span>Yönetim Paneli</span>
-          </a>
-        </div>
-      </aside>
+      <FlexSidebar active="egitimler" />
 
       {/* ============ MAIN ============ */}
       <main style={S.main}>
@@ -319,13 +294,13 @@ export default function EgitimYonetimiPage() {
                 <button className="ey-filterbtn" style={S.filterBtn} onClick={() => toggleDropdown("tip")}>
                   <span dangerouslySetInnerHTML={{ __html: IC.users }} />
                   <span>Eğitim Tipi</span>
-                  {selectedType && <span style={S.filterPill}>{selectedType === "bireysel" ? "Bireysel" : "Kurumsal"}</span>}
+                  {selectedType && <span style={S.filterPill}>{selectedType === "individual" ? "Bireysel" : "Kurumsal"}</span>}
                   <span dangerouslySetInnerHTML={{ __html: IC.chevron }} />
                 </button>
                 {openDropdown === "tip" && (
                   <div style={{ ...S.dropdown, width: 210 }}>
                     <div style={S.ddLabel}>Katılım Tipi</div>
-                    {([{ l: "Tümü", v: null }, { l: "Bireysel", v: "bireysel" }, { l: "Kurumsal", v: "kurumsal" }] as const).map((o) => (
+                    {([{ l: "Tümü", v: null }, { l: "Bireysel", v: "individual" }, { l: "Kurumsal", v: "corporate" }] as const).map((o) => (
                       <div key={o.l} className="ey-ddrow" style={selectedType === o.v ? S.ddOptActive : S.ddOpt} onClick={() => { setSelectedType(o.v); setOpenDropdown(null); setPage(1); }}>
                         <span>{o.l}</span>
                         {selectedType === o.v && <span dangerouslySetInnerHTML={{ __html: IC.checkIndigo }} />}
@@ -398,8 +373,8 @@ export default function EgitimYonetimiPage() {
                     const pal = br?.palette ?? BRANCH_PALETTE[0];
                     const st = e.onSale ? STATUS.satista : STATUS.taslak;
                     return (
-                      <tr key={e.id} className="ey-row" style={{ background: sel ? "#f6f8ff" : "#fff", borderBottom: "1px solid #f1f4f9", transition: "background .12s" }}>
-                        <td style={{ ...S.cell, width: 52, paddingLeft: 24, paddingRight: 10 }}>
+                      <tr key={e.id} className="ey-row" style={{ background: sel ? "#f6f8ff" : "#fff", borderBottom: "1px solid #f1f4f9", transition: "background .12s", cursor: "pointer" }} onClick={() => router.push(`/flexos/egitim-yonetimi/ekle?id=${e.id}`)}>
+                        <td style={{ ...S.cell, width: 52, paddingLeft: 24, paddingRight: 10 }} onClick={(ev) => ev.stopPropagation()}>
                           <span onClick={() => toggleSelect(e.id)} style={S.thCheck}>
                             {sel && <span style={S.checkFill}><span dangerouslySetInnerHTML={{ __html: IC.check }} /></span>}
                           </span>
@@ -410,7 +385,7 @@ export default function EgitimYonetimiPage() {
                             <div style={{ lineHeight: 1.35 }}>
                               <div style={{ fontSize: 14.5, fontWeight: 700, color: "#1e293b" }}>{e.name}</div>
                               <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>
-                                {e.audience === "kurumsal" ? "Kurumsal Eğitim" : e.audience === "bireysel" ? "Bireysel Eğitim" : "Eğitim"}
+                                {e.audience === "corporate" ? "Kurumsal Eğitim" : e.audience === "individual" ? "Bireysel Eğitim" : "Eğitim"}
                               </div>
                             </div>
                           </div>
@@ -446,9 +421,9 @@ export default function EgitimYonetimiPage() {
                             {st.label}
                           </span>
                         </td>
-                        <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }}>
+                        <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(ev) => ev.stopPropagation()}>
                           <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <button className="ey-edit" style={S.iconBtn} title="Düzenle" onClick={soon}><span dangerouslySetInnerHTML={{ __html: IC.edit }} /></button>
+                            <button className="ey-edit" style={S.iconBtn} title="Düzenle" onClick={() => router.push(`/flexos/egitim-yonetimi/ekle?id=${e.id}`)}><span dangerouslySetInnerHTML={{ __html: IC.edit }} /></button>
                             <button className="ey-del" style={{ ...S.iconBtn, color: "#94a3b8" }} title="Sil" onClick={soon}><span dangerouslySetInnerHTML={{ __html: IC.trash }} /></button>
                           </div>
                         </td>
@@ -522,6 +497,7 @@ const S: Record<string, CSSProperties> = {
   h2: { margin: 0, fontSize: 18.5, fontWeight: 800, color: "#0f1f3d", letterSpacing: "-.3px", display: "flex", alignItems: "center", gap: 10 },
   countChip: { fontSize: 12.5, fontWeight: 700, color: "#4338ca", background: "#e8ecfd", padding: "3px 10px", borderRadius: 999 },
   addBtn: { position: "relative", overflow: "hidden", display: "inline-flex", alignItems: "center", gap: 10, padding: "14px 24px", border: "none", borderRadius: 14, background: "linear-gradient(135deg,#fdba74 0%,#fb923c 36%,#f97316 68%,#ea580c 100%)", color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", animation: "ey-glow 2.8s ease-in-out infinite" },
+  secBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "13px 18px", border: "1px solid #e3e8f0", borderRadius: 14, background: "#fff", color: "#334155", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
   shimmer: { position: "absolute", top: 0, left: 0, width: "36%", height: "100%", background: "linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent)", animation: "ey-shimmer 3.4s ease-in-out infinite", pointerEvents: "none" },
   filterPanel: { position: "relative", zIndex: 20, background: "#fff", border: "1px solid #e9edf4", borderRadius: 16, padding: "15px 18px", boxShadow: "0 1px 2px rgba(15,31,61,.04)", marginBottom: 18 },
   filterBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "10px 15px", borderRadius: 11, border: "1px solid #e3e8f0", background: "#fff", color: "#1e293b", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
@@ -591,18 +567,8 @@ const IC = {
   trashSm: sv('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 'width="14" height="14" stroke-width="2.2"'),
   chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
+  settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', 'width="16" height="16"'),
 };
-
-const NAV = [
-  { label: "Ana Sayfa", icon: IC.home, active: false },
-  { label: "Eğitim Yönetimi", icon: IC.book, active: true },
-  { label: "Sınıflar", icon: IC.users, active: false },
-  { label: "Yoklamalar", icon: IC.calendar, active: false },
-  { label: "Ödevler", icon: IC.clipboard, active: false },
-  { label: "Sertifikasyon", icon: IC.award, active: false },
-  { label: "Sınıflar Ligi", icon: IC.trophy, active: false },
-  { label: "Profil Ayarları", icon: IC.user, active: false },
-];
 
 const spinCss = `.ey-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:ey-spin 1s linear infinite}@keyframes ey-spin{to{transform:rotate(360deg)}}`;
 const globalCss = `
@@ -615,6 +581,7 @@ const globalCss = `
 .ey-filterbtn:hover{border-color:#c7d0de;background:#f8fafc}
 .ey-clearbtn:hover{background:#fef2f2}
 .ey-addbtn:hover{filter:brightness(1.06)}
+.ey-secbtn:hover{border-color:#c7d0de;background:#f8fafc}
 .ey-iconbtn:hover{background:#f8fafc;color:#0f172a}
 .ey-ddrow:hover{background:#f5f7fb}
 .ey-row:hover{background:#f9fafc!important}

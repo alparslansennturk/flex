@@ -46,6 +46,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "grade.report.read",
     "branch.create",
     "education.create",
+    "education.edit",
+    "section.create",
     "track.create",
   ),
 
@@ -102,6 +104,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "grade.report.read",
       "branch.create",
       "education.create",
+      "education.edit",
+      "section.create",
       "track.create",
       "role.manage",
       "capability.grant",

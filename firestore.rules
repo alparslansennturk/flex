@@ -420,9 +420,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Katalog (Branş/Eğitim/Track) — canlı `branches` çakışmasın diye flexos_ önekli.
+    // Katalog (Branş/Eğitim/Bölüm/Track) — canlı `branches` çakışmasın diye flexos_ önekli.
     match /flexos_branches/{id} { allow read, write: if false; }
     match /flexos_educations/{id} { allow read, write: if false; }
+    match /flexos_sections/{id} { allow read, write: if false; }
     match /flexos_tracks/{id} { allow read, write: if false; }
   }
 }

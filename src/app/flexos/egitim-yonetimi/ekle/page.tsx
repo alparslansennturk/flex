@@ -15,6 +15,8 @@ import React, { useEffect, useRef, useState, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
+import FlexSidebar from "../../_components/FlexSidebar";
+import FlexModal from "../../_components/FlexModal";
 
 // ── model tipleri (yerel; backend'e bağlanınca DTO'ya map'lenecek) ────────────
 interface Track {
@@ -53,10 +55,10 @@ interface FormState {
   egitimTipi: "Bireysel" | "Kurumsal";
   satisModeli: string;
   egitimOrtami: string;
-  sureTipi: "Saat Bazlı" | "Gün Bazlı";
   sozlesmeTipi: string;
   kdvOrani: string;
   aciklama: string;
+  icerikMetni: string; // Standart Paket: web sitesinden yapıştırılan düz içerik metni
   gunSayisi: string;
   bolumler: Bolum[];
   dBolumAd: string;
@@ -83,10 +85,10 @@ const INITIAL: FormState = {
   egitimTipi: "Bireysel",
   satisModeli: "Grup Eğitimi",
   egitimOrtami: "Yüz Yüze",
-  sureTipi: "Saat Bazlı",
   sozlesmeTipi: "Mesafeli Satış Sözleşmesi",
   kdvOrani: "10",
   aciklama: "",
+  icerikMetni: "",
   gunSayisi: "3",
   bolumler: [],
   dBolumAd: "",
@@ -109,17 +111,49 @@ export default function EgitimEklePage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [s, setForm] = useState<FormState>(INITIAL);
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [eduId, setEduId] = useState<string | null>(null); // ilk kayıttan sonra dolu → günceller
+  const [busy, setBusy] = useState(false);
+  const [modal, setModal] = useState<null | "save" | "publish" | "unpublish">(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       await auth.authStateReady();
-      if (!auth.currentUser) {
+      const user = auth.currentUser;
+      if (!user) {
         router.push("/login");
         return;
       }
       if (!cancelled) setAuthed(true);
+      try {
+        const token = await user.getIdToken();
+        const headers = { Authorization: `Bearer ${token}` };
+        // Branş havuzu (Eğitim Ayarları → Branş Havuzu'ndan eklenenler)
+        const res = await fetch("/api/flexos/branches", { headers });
+        if (res.ok) {
+          const j = await res.json();
+          if (!cancelled) setBranches(j.items ?? []);
+        }
+        // Düzenleme modu — ?id varsa eğitimi + bölüm/track'leri forma geri doldur
+        const editId = new URLSearchParams(window.location.search).get("id");
+        if (editId) {
+          const [eRes, sRes, tRes] = await Promise.all([
+            fetch(`/api/flexos/educations/${editId}`, { headers }),
+            fetch(`/api/flexos/sections?educationId=${editId}`, { headers }),
+            fetch(`/api/flexos/tracks?educationId=${editId}`, { headers }),
+          ]);
+          if (eRes.ok && !cancelled) {
+            const edu = (await eRes.json()).item;
+            const secList = sRes.ok ? (await sRes.json()).items ?? [] : [];
+            const trkList = tRes.ok ? (await tRes.json()).items ?? [] : [];
+            if (!cancelled) { prefillForm(edu, secList, trkList); setEduId(editId); }
+          }
+        }
+      } catch (e) {
+        console.error("[egitim-ekle] veri yüklenemedi:", e);
+      }
     })();
     return () => {
       cancelled = true;
@@ -130,11 +164,54 @@ export default function EgitimEklePage() {
   // ── state yardımcıları (design'daki set/setState eşleri) ──
   const patch = (p: Partial<FormState>) => setForm((f) => ({ ...f, ...p, saved: false })); // değişiklik = kaydedilmedi
   const selectTab = (t: TabKey) => setForm((f) => ({ ...f, activeTab: t, saved: false }));
-  const togglePublish = () => setForm((f) => ({ ...f, published: !f.published }));
-  const saveTab = () => {
+  const flashSaved = () => {
     setForm((f) => ({ ...f, saved: true }));
     if (savedTimer.current) clearTimeout(savedTimer.current);
     savedTimer.current = setTimeout(() => setForm((f) => ({ ...f, saved: false })), 1800);
+  };
+
+  // ── Düzenleme: API verisini forma geri doldur (server id → local id remap) ──
+  const prefillForm = (
+    edu: { name?: string; branchId?: string; audience?: string; structure?: string; outline?: string[]; vatRate?: number; listPrice?: number; onSale?: boolean },
+    secList: Array<{ id: string; name: string; hours?: number; listPrice?: number; sellable?: boolean }>,
+    trkList: Array<{ id: string; name: string; sectionId?: string; hours?: number; listPrice?: number; sellable?: boolean }>,
+  ) => {
+    let seq = 1;
+    const secLocal = new Map<string, number>();
+    const bolumler: Bolum[] = secList.map((sec) => {
+      const localId = seq++;
+      secLocal.set(sec.id, localId);
+      return { id: localId, name: sec.name, hours: Number(sec.hours) || 0, tracks: [] as Track[] };
+    });
+    const bolumByLocal = new Map(bolumler.map((b) => [b.id, b]));
+    const priceRows: PriceRow[] = [];
+    if (edu.listPrice != null) priceRows.push({ id: seq++, key: "__main", name: edu.name ?? "", kind: "Ana Paket", liste: String(edu.listPrice) });
+    secList.forEach((sec) => {
+      const localId = secLocal.get(sec.id);
+      if (localId != null && sec.sellable && sec.listPrice != null) priceRows.push({ id: seq++, key: "b" + localId, name: sec.name, kind: "Bölüm", liste: String(sec.listPrice) });
+    });
+    trkList.forEach((trk) => {
+      const localId = seq++;
+      const b = trk.sectionId ? bolumByLocal.get(secLocal.get(trk.sectionId) ?? -1) : undefined;
+      if (b) {
+        b.tracks.push({ id: localId, name: trk.name, hours: Number(trk.hours) || 0, sellable: !!trk.sellable });
+        if (trk.sellable && trk.listPrice != null) priceRows.push({ id: seq++, key: "t" + localId, name: trk.name, kind: "Track", liste: String(trk.listPrice) });
+      }
+    });
+    setForm((f) => ({
+      ...f,
+      egitimAdi: edu.name ?? "",
+      bransId: edu.branchId ?? "",
+      egitimTipi: edu.audience === "corporate" ? "Kurumsal" : "Bireysel",
+      egitimYapisi: edu.structure === "sectioned" ? "Track Bazlı" : "Standart Paket",
+      icerikMetni: edu.outline?.[0] ?? "",
+      kdvOrani: edu.vatRate != null ? String(edu.vatRate) : f.kdvOrani,
+      published: edu.onSale ?? false,
+      bolumler,
+      priceRows,
+      seq: seq + 1,
+      saved: false,
+    }));
   };
 
   const getSymbol = () => SYMBOLS[s.paraBirimi] || "₺";
@@ -229,7 +306,7 @@ export default function EgitimEklePage() {
   };
   const totalHours = () => s.bolumler.reduce((sum, b) => sum + (Number(b.hours) || 0), 0);
   const sureFor = (key: string) => {
-    const isGun = s.sureTipi === "Gün Bazlı";
+    const isGun = s.egitimTipi === "Kurumsal";
     if (key === "__main") return isGun ? `${s.gunSayisi} Gün` : `${totalHours()} Saat`;
     const tid = Number(key.slice(1));
     let h = 0;
@@ -258,8 +335,9 @@ export default function EgitimEklePage() {
   // ── türetilmiş değerler ──
   const isBireysel = s.egitimTipi === "Bireysel";
   const isKurumsal = s.egitimTipi === "Kurumsal";
-  const isSaat = s.sureTipi === "Saat Bazlı";
-  const isGun = s.sureTipi === "Gün Bazlı";
+  // Süre tipi artık Eğitim Tipi'nden türetilir: Bireysel=Saat, Kurumsal=Gün.
+  const isSaat = isBireysel;
+  const isGun = isKurumsal;
   const kdv = Number(s.kdvOrani) || 0;
   const yapiStd = s.egitimYapisi === "Standart Paket";
   const hasBolum = s.bolumler.length > 0;
@@ -274,12 +352,33 @@ export default function EgitimEklePage() {
   const alreadyAdded = s.priceRows.some((r) => r.key === s.poolSel);
   const canAddPrice = !!s.poolSel && !alreadyAdded;
 
-  const contentOk = isSaat ? hasBolum : days.some((n) => (getDay(n).ad || "").trim().length > 0);
-  const canPublish = s.egitimAdi.trim().length > 0 && contentOk && s.priceRows.length > 0;
+  // İçerik yeterliliği: Kurumsal → en az bir günün başlığı dolu; Bireysel+Track Bazlı → en az bir bölüm;
+  // Bireysel+Standart Paket → paket başlı başına yeterli.
+  const contentOk = isKurumsal
+    ? days.some((n) => (getDay(n).ad || "").trim().length > 0)
+    : !yapiStd
+    ? hasBolum
+    : s.icerikMetni.replace(/<[^>]*>/g, "").trim().length > 0; // Standart Paket: içerik metni dolu olmalı
+  // Ana paket fiyatı (yayın için zorunlu)
+  const mainPriceVal = (() => {
+    const r = s.priceRows.find((x) => x.key === "__main");
+    return r ? Number(r.liste) || 0 : 0;
+  })();
+  // Yayın engelleri — hepsi temizlenmeden "Satışa Başlat" açılmaz
+  const publishBlockers: string[] = [];
+  if (!s.bransId) publishBlockers.push("Branş");
+  if (!s.egitimAdi.trim()) publishBlockers.push("Eğitim adı");
+  if (!contentOk) publishBlockers.push(isKurumsal ? "Gün planı" : !yapiStd ? "Bölüm/Track" : "İçerik metni");
+  if (!(mainPriceVal > 0)) publishBlockers.push("Ana paket fiyatı");
+  const canPublish = publishBlockers.length === 0;
   const publishActive = canPublish || s.published;
   const canShimmer = canPublish && !s.published;
 
-  const statusText = s.published ? "Yayında — satış kataloğunda" : canPublish ? "Yayına hazır" : "Taslak — zorunlu alanları doldurun";
+  const statusText = s.published
+    ? "Yayında — satış kataloğunda"
+    : canPublish
+    ? "Yayına hazır"
+    : "Taslak — eksik: " + publishBlockers.join(", ");
   const statusDot = s.published ? "#22c55e" : canPublish ? "#f59e0b" : "#cbd5e1";
 
   const saveHints: Record<TabKey, string> = {
@@ -311,6 +410,90 @@ export default function EgitimEklePage() {
     ? { ...S.publishBase, cursor: "pointer", background: "linear-gradient(135deg,#fdba74 0%,#fb923c 36%,#f97316 68%,#ea580c 100%)", color: "#fff", animation: "ee-glow 2.8s ease-in-out infinite" }
     : { ...S.publishBase, cursor: "not-allowed", background: "#e8edf4", color: "#a9b4c4" };
 
+  // ── DB kaydetme (Taslak / Satışa Başlat / Satışı Kapat) ──
+  const priceForKey = (key: string): number | undefined => {
+    const r = s.priceRows.find((x) => x.key === key);
+    return r && String(r.liste).trim() !== "" ? Number(r.liste) || 0 : undefined;
+  };
+  const authHeaders = async (): Promise<Record<string, string>> => {
+    const user = auth.currentUser;
+    const token = user ? await user.getIdToken() : "";
+    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  };
+
+  /** Eğitimi DB'ye yazar (yoksa oluşturur, varsa günceller). publish = satışa açık mı. */
+  const saveEducation = async (publish: boolean): Promise<boolean> => {
+    if (!s.egitimAdi.trim()) { toast.error("Eğitim adı zorunludur."); return false; }
+    if (!s.bransId) { toast.error("Önce branş seçin."); return false; }
+    if (publish && !canPublish) { toast.error("Satışa başlatmak için eksik: " + publishBlockers.join(", ")); return false; }
+    setBusy(true);
+    try {
+      const headers = await authHeaders();
+      const audience = isKurumsal ? "corporate" : "individual";
+      const structure = isBireysel && !yapiStd ? "sectioned" : "single";
+      const outline = isBireysel && yapiStd && s.icerikMetni.trim() ? [s.icerikMetni] : undefined;
+
+      if (!eduId) {
+        const res = await fetch("/api/flexos/educations", {
+          method: "POST", headers,
+          body: JSON.stringify({ name: s.egitimAdi.trim(), branchId: s.bransId, audience, structure, outline, listPrice: priceForKey("__main"), vatRate: kdv, onSale: publish }),
+        });
+        if (res.status !== 201) { const j = await res.json().catch(() => ({})); toast.error(j.error || "Kaydedilemedi."); return false; }
+        const { id } = await res.json();
+        setEduId(id);
+        // Track Bazlı → bölüm + track kayıtları (ilk kayıtta oluşturulur)
+        if (isBireysel && !yapiStd) {
+          for (let i = 0; i < s.bolumler.length; i++) {
+            const b = s.bolumler[i];
+            const sres = await fetch("/api/flexos/sections", {
+              method: "POST", headers,
+              body: JSON.stringify({ name: b.name, educationId: id, order: i, hours: b.hours, listPrice: priceForKey("b" + b.id), sellable: priceForKey("b" + b.id) !== undefined }),
+            });
+            const secId = sres.status === 201 ? (await sres.json()).id : undefined;
+            for (let j = 0; j < b.tracks.length; j++) {
+              const trk = b.tracks[j];
+              await fetch("/api/flexos/tracks", {
+                method: "POST", headers,
+                body: JSON.stringify({ name: trk.name, educationId: id, sectionId: secId, order: j, hours: trk.hours, sellable: trk.sellable, listPrice: priceForKey("t" + trk.id) }),
+              });
+            }
+          }
+        }
+      } else {
+        const res = await fetch(`/api/flexos/educations/${eduId}`, {
+          method: "PATCH", headers,
+          body: JSON.stringify({ name: s.egitimAdi.trim(), audience, structure, outline, listPrice: priceForKey("__main"), vatRate: kdv, onSale: publish }),
+        });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); toast.error(j.error || "Güncellenemedi."); return false; }
+      }
+      setForm((f) => ({ ...f, published: publish }));
+      flashSaved();
+      return true;
+    } catch (e) {
+      console.error("[egitim-ekle] kaydetme hatası:", e);
+      toast.error("Bağlantı hatası — kaydedilemedi.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runModal = async () => {
+    const kind = modal;
+    if (!kind) return;
+    const ok = await saveEducation(kind === "publish" ? true : kind === "unpublish" ? false : s.published);
+    if (ok) {
+      setModal(null);
+      toast.success(kind === "publish" ? "Eğitim satışa açıldı." : kind === "unpublish" ? "Satış kapatıldı — taslağa alındı." : "Taslak kaydedildi.");
+    }
+  };
+
+  const modalCfg = {
+    save: { title: "Taslak olarak kaydet", message: <>Eğitim <strong>taslak</strong> olarak kaydedilecek. Katalogda “Taslak” görünür, henüz satışa açılmaz.</>, confirmLabel: "Kaydet", tone: "primary" as const },
+    publish: { title: "Satışa başlat", message: <>Eğitim <strong>satışa açılacak</strong> ve satış kataloğunda “Satışta” görünecek. Emin misin?</>, confirmLabel: "Satışa Başlat", tone: "publish" as const },
+    unpublish: { title: "Satışı kapat", message: <>Eğitim satıştan kaldırılıp <strong>taslağa</strong> alınacak. Devam edilsin mi?</>, confirmLabel: "Satışı Kapat", tone: "danger" as const },
+  };
+
   if (authed === null) {
     return (
       <div style={{ display: "flex", height: "100vh", width: "100%", alignItems: "center", justifyContent: "center", background: "#eef2f8" }}>
@@ -324,38 +507,7 @@ export default function EgitimEklePage() {
     <div style={S.root}>
       <style>{globalCss}</style>
 
-      {/* ============ SIDEBAR ============ */}
-      <aside style={S.sidebar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 26px" }}>
-          <div style={S.logoBox}>
-            <span style={{ borderRadius: 3, background: "#5b8cff" }} />
-            <span style={{ borderRadius: 3, background: "#f97316" }} />
-            <span style={{ borderRadius: 3, background: "#22c55e" }} />
-            <span style={{ borderRadius: 3, background: "#38bdf8" }} />
-          </div>
-          <span style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-.5px" }}>flex</span>
-        </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {NAV.map((n) => (
-            <a
-              key={n.label}
-              className={n.active ? "" : "ee-navlink"}
-              style={n.active ? S.navActive : S.navItem}
-              onClick={() => (n.to ? router.push(n.to) : soon())}
-            >
-              {n.active && <span style={S.navActiveBar} />}
-              <span style={{ display: "inline-flex", color: n.active ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: n.icon }} />
-              <span style={{ flex: 1 }}>{n.label}</span>
-            </a>
-          ))}
-        </nav>
-        <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.08)" }}>
-          <a className="ee-navlink" style={S.navItem} onClick={soon}>
-            <span dangerouslySetInnerHTML={{ __html: IC.panel }} />
-            <span>Yönetim Paneli</span>
-          </a>
-        </div>
-      </aside>
+      <FlexSidebar active="egitimler" />
 
       {/* ============ MAIN ============ */}
       <main style={S.main}>
@@ -369,9 +521,9 @@ export default function EgitimEklePage() {
               <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
                 <span>Eğitim Yönetimi</span>
                 <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
-                <span style={{ color: "#f97316" }}>Yeni Kayıt</span>
+                <span style={{ color: "#f97316" }}>{eduId ? "Düzenle" : "Yeni Kayıt"}</span>
               </div>
-              <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>Yeni Eğitim Ekle</h1>
+              <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>{eduId ? "Eğitimi Düzenle" : "Yeni Eğitim Ekle"}</h1>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
@@ -406,7 +558,7 @@ export default function EgitimEklePage() {
               <span style={{ width: 9, height: 9, borderRadius: "50%", flex: "0 0 auto", background: statusDot }} />
               <span style={{ fontSize: 13.5, fontWeight: 600, color: "#64748b" }}>{statusText}</span>
             </div>
-            <button style={publishStyle} disabled={!publishActive} onClick={() => publishActive && togglePublish()}>
+            <button style={publishStyle} disabled={!publishActive} onClick={() => publishActive && setModal(s.published ? "unpublish" : "publish")}>
               {canShimmer && <span style={S.shimmer} />}
               <span style={{ position: "relative", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: s.published ? IC.stop : IC.rocket }} />
               <span style={{ position: "relative" }}>{s.published ? "Satışı Kapat" : "Satışa Başlat"}</span>
@@ -437,7 +589,10 @@ export default function EgitimEklePage() {
                     <label style={S.label}>Branş</label>
                     <div style={{ position: "relative" }}>
                       <select className="ee-select" value={s.bransId} onChange={onChange("bransId")} style={S.select}>
-                        <option value="">Branş seçin…</option>
+                        <option value="">{branches.length ? "Branş seçin…" : "Branş yok — Eğitim Ayarları › Branş Havuzu'ndan ekleyin"}</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
                       </select>
                       <span style={S.selChev} dangerouslySetInnerHTML={{ __html: IC.selChev }} />
                     </div>
@@ -459,13 +614,17 @@ export default function EgitimEklePage() {
                     <input type="text" value={s.egitimAdi} readOnly placeholder="Eğitim Adı yazıldıkça buraya kopyalanır" style={S.inputMirror} />
                   </div>
 
-                  <div style={{ marginBottom: 22 }}>
-                    <label style={S.label}>Eğitim Yapısı</label>
-                    <div style={S.segWrap}>
-                      <button onClick={() => patch({ egitimYapisi: "Standart Paket" })} style={yapiStd ? S.segOn : S.segOff}>Standart Paket</button>
-                      <button onClick={() => patch({ egitimYapisi: "Track Bazlı" })} style={yapiStd ? S.segOff : S.segOn}>Track Bazlı</button>
+                  {/* Eğitim Yapısı yalnız Bireysel'de anlamlı (Kurumsal = gün bazlı program). */}
+                  {isBireysel && (
+                    <div style={{ marginBottom: 22 }}>
+                      <label style={S.label}>Eğitim Yapısı</label>
+                      <div style={S.segWrap}>
+                        <button onClick={() => patch({ egitimYapisi: "Standart Paket" })} style={yapiStd ? S.segOn : S.segOff}>Standart Paket</button>
+                        <button onClick={() => patch({ egitimYapisi: "Track Bazlı" })} style={yapiStd ? S.segOff : S.segOn}>Track Bazlı</button>
+                      </div>
+                      <p style={{ margin: "7px 2px 0", fontSize: 12, color: "#94a3b8" }}>Standart Paket = tek satış. Track Bazlı = bölüm/track olarak parça parça satış.</p>
                     </div>
-                  </div>
+                  )}
 
                   <div style={{ marginBottom: 22 }}>
                     <label style={S.label}>Eğitim Tipi</label>
@@ -505,19 +664,8 @@ export default function EgitimEklePage() {
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: 22 }}>
-                    <label style={S.label}>Eğitim Süresi Tipi</label>
-                    <div style={{ position: "relative" }}>
-                      <select className="ee-select" value={s.sureTipi} onChange={onChange("sureTipi")} style={S.select}>
-                        <option value="Saat Bazlı">Saat Bazlı</option>
-                        <option value="Gün Bazlı">Gün Bazlı</option>
-                      </select>
-                      <span style={S.selChev} dangerouslySetInnerHTML={{ __html: IC.selChev }} />
-                    </div>
-                    <p style={{ margin: "7px 2px 0", fontSize: 12, color: "#94a3b8" }}>Bu seçim İçerikler sekmesinin yapısını belirler.</p>
-                  </div>
-
-                  {isGun && (
+                  {/* Kurumsal = gün bazlı program → gün sayısı (Süre tipi Eğitim Tipi'nden türetilir). */}
+                  {isKurumsal && (
                     <div style={{ marginBottom: 22, animation: "ee-slide .25s ease", overflow: "hidden" }}>
                       <label style={S.label}>Toplam Gün Sayısı</label>
                       <input className="ee-input" type="number" min={1} max={60} value={s.gunSayisi} onChange={onChange("gunSayisi")} style={{ ...S.input, width: 160 }} />
@@ -565,12 +713,12 @@ export default function EgitimEklePage() {
               {/* ===== TAB 2: İÇERİKLER ===== */}
               {s.activeTab === "icerikler" && (
                 <>
-                  {/* SAAT BAZLI → bölüm & track ağacı */}
-                  {isSaat && (
+                  {/* BİREYSEL + TRACK BAZLI → bölüm & track ağacı (ultra esnek mod) */}
+                  {isBireysel && !yapiStd && (
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
                         <span style={{ fontSize: 15.5, fontWeight: 700, color: "#0f1f3d" }}>Bölüm &amp; Track Yöneticisi</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#0369a1", background: "#e0f2fe", padding: "3px 10px", borderRadius: 999 }}>saat bazlı</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", background: "#f3e8ff", padding: "3px 10px", borderRadius: 999 }}>track bazlı · parçalanabilir</span>
                       </div>
 
                       {/* Bölüm Ekle */}
@@ -638,6 +786,15 @@ export default function EgitimEklePage() {
 
                       {/* ağaç görünümü */}
                       <div style={{ marginTop: 20 }}>
+                        {/* otomatik ana başlık — eğitim adı + toplam saat (bölümlerin toplamı) */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 2px 14px", borderBottom: "2px solid #eef1f6", marginBottom: 14 }}>
+                          <span style={{ fontSize: 19, fontWeight: 800, color: "#0f1f3d", letterSpacing: "-.3px" }}>
+                            {s.egitimAdi.trim() || "Eğitim Adı"}
+                          </span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#4338ca", background: "#e8ecfd", padding: "4px 12px", borderRadius: 999 }}>
+                            {totalHours()} Saat
+                          </span>
+                        </div>
                         {!hasBolum && (
                           <div style={S.emptyBox}>
                             <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.folderBig }} />
@@ -650,7 +807,7 @@ export default function EgitimEklePage() {
                             <div key={b.id} style={{ border: "1px solid #e9edf4", borderRadius: 14, overflow: "hidden" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", background: "#f8fafc", borderBottom: "1px solid #eef1f6" }}>
                                 <span style={S.bolumIcon} dangerouslySetInnerHTML={{ __html: IC.folder }} />
-                                <span style={{ fontSize: 14.5, fontWeight: 700, color: "#0f1f3d", flex: 1 }}>{b.name}</span>
+                                <span style={{ fontSize: 14, fontWeight: 600, color: "#0f1f3d", flex: 1 }}>{b.name}</span>
                                 <span style={{ fontSize: 12.5, fontWeight: 700, color: "#475569", background: "#eef2f8", padding: "4px 11px", borderRadius: 999 }}>{(Number(b.hours) || 0)} Saat</span>
                                 <button className="ee-del" title="Bölümü sil" style={S.smDelBtn} onClick={() => removeBolum(b.id)}>
                                   <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />
@@ -682,8 +839,23 @@ export default function EgitimEklePage() {
                     </div>
                   )}
 
-                  {/* GÜN BAZLI → gün gün planlama */}
-                  {isGun && (
+                  {/* BİREYSEL + STANDART PAKET → tek paket; düz metin içerik (web sitesinden yapıştır) */}
+                  {isBireysel && yapiStd && (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 6 }}>
+                        <span style={{ fontSize: 15.5, fontWeight: 700, color: "#0f1f3d" }}>İçerik</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#0369a1", background: "#e0f2fe", padding: "3px 10px", borderRadius: 999 }}>standart paket</span>
+                      </div>
+                      <p style={{ margin: "0 0 14px", fontSize: 12.5, color: "#94a3b8", lineHeight: 1.5 }}>
+                        Tek paket olarak satılır. Web sitesindeki müfredat/içerik metnini buraya yapıştırın.
+                        Parçalara ayırıp bölüm/track bazlı satmak isterseniz Genel Bilgiler'den <strong>Eğitim Yapısı → Track Bazlı</strong> yapın.
+                      </p>
+                      <RichText value={s.icerikMetni} onChange={(html) => patch({ icerikMetni: html })} />
+                    </div>
+                  )}
+
+                  {/* KURUMSAL → gün gün program (1. Gün, 2. Gün… — düz metin başlıklar) */}
+                  {isKurumsal && (
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 6 }}>
                         <span style={{ fontSize: 15.5, fontWeight: 700, color: "#0f1f3d" }}>Gün Gün Planlama Paneli</span>
@@ -872,14 +1044,80 @@ export default function EgitimEklePage() {
             {/* sekme bazlı Kaydet footer */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "16px 32px", borderTop: "1px solid #eef1f6", background: "#fafbfd" }}>
               <span style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500 }}>{saveHints[s.activeTab]}</span>
-              <button onClick={saveTab} style={s.saved ? S.saveOk : S.saveBtn}>
+              <button onClick={() => setModal("save")} disabled={busy} style={s.saved ? S.saveOk : S.saveBtn}>
                 <span dangerouslySetInnerHTML={{ __html: s.saved ? IC.checkSave : IC.save }} />
-                <span>{s.saved ? "Kaydedildi" : "Kaydet"}</span>
+                <span>{s.saved ? "Kaydedildi" : eduId ? "Güncelle" : "Kaydet"}</span>
               </button>
             </div>
           </div>
         </div>
       </main>
+
+      {modal !== null && (
+        <FlexModal
+          open
+          title={modalCfg[modal].title}
+          message={modalCfg[modal].message}
+          confirmLabel={modalCfg[modal].confirmLabel}
+          tone={modalCfg[modal].tone}
+          busy={busy}
+          onConfirm={runModal}
+          onCancel={() => !busy && setModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── basit zengin-metin editörü (contentEditable + execCommand, kütüphanesiz) ──
+function RichText({ value, onChange }: { value: string; onChange: (html: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // İçeriği yalnız ilk montajda DOM'a bas (controlled etmiyoruz → imleç zıplamaz).
+  useEffect(() => {
+    if (ref.current && ref.current.innerHTML !== value) ref.current.innerHTML = value;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const sync = () => { if (ref.current) onChange(ref.current.innerHTML); };
+  const cmd = (c: string, arg?: string) => {
+    document.execCommand(c, false, arg);
+    ref.current?.focus();
+    sync();
+  };
+  // mousedown'da preventDefault → seçim kaybolmaz
+  const btn = (label: string, title: string, run: () => void, extra?: CSSProperties) => (
+    <span
+      className="ee-fmt"
+      title={title}
+      style={{ ...S.fmtBtn, ...extra }}
+      onMouseDown={(e) => { e.preventDefault(); run(); }}
+    >
+      {label}
+    </span>
+  );
+  return (
+    <div className="ee-editor" style={{ border: "1px solid #e3e8f0", borderRadius: 12, background: "#fff", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "7px 10px", borderBottom: "1px solid #eef1f6", background: "#fafbfd", flexWrap: "wrap" }}>
+        {btn("B", "Kalın", () => cmd("bold"), { fontWeight: 800 })}
+        {btn("Başlık", "Başlık (semibold)", () => cmd("formatBlock", "h3"), { width: "auto", padding: "0 9px", fontWeight: 700, fontSize: 12.5 })}
+        {btn("I", "İtalik", () => cmd("italic"), { fontStyle: "italic" })}
+        {btn("U", "Altı çizili", () => cmd("underline"), { textDecoration: "underline" })}
+        <span style={{ width: 1, height: 18, background: "#e2e8f1", margin: "0 6px" }} />
+        {btn("A", "Küçük yazı", () => cmd("fontSize", "2"), { fontSize: 11, fontWeight: 700 })}
+        {btn("A", "Normal yazı", () => cmd("fontSize", "3"), { fontSize: 14, fontWeight: 700 })}
+        {btn("A", "Büyük yazı", () => cmd("fontSize", "5"), { fontSize: 17, fontWeight: 700 })}
+        <span style={{ width: 1, height: 18, background: "#e2e8f1", margin: "0 6px" }} />
+        <span className="ee-fmt" title="Madde listesi" style={S.fmtBtn} onMouseDown={(e) => { e.preventDefault(); cmd("insertUnorderedList"); }} dangerouslySetInnerHTML={{ __html: IC.list }} />
+        {btn("Temizle", "Biçimi temizle", () => cmd("removeFormat"), { width: "auto", padding: "0 9px", fontSize: 12 })}
+      </div>
+      <div
+        ref={ref}
+        className="ee-rt"
+        contentEditable
+        suppressContentEditableWarning
+        data-ph="Eğitim içeriğini buraya yapıştırın — kazanımlar, müfredat başlıkları, modüller…"
+        onInput={sync}
+        style={{ minHeight: 240, padding: "14px 16px", fontSize: 14, lineHeight: 1.6, color: "#1e293b", outline: "none", overflowY: "auto" }}
+      />
     </div>
   );
 }
@@ -997,17 +1235,6 @@ const IC = {
   link: sv('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>', 'width="15" height="15"'),
 };
 
-const NAV = [
-  { label: "Ana Sayfa", icon: IC.home, active: false, to: "/flexos/egitim-yonetimi" },
-  { label: "Eğitim Yönetimi", icon: IC.book, active: true, to: "/flexos/egitim-yonetimi" },
-  { label: "Sınıflar", icon: IC.users, active: false, to: null as string | null },
-  { label: "Yoklamalar", icon: IC.calendar, active: false, to: null as string | null },
-  { label: "Ödevler", icon: IC.clipboard, active: false, to: null as string | null },
-  { label: "Sertifikasyon", icon: IC.award, active: false, to: null as string | null },
-  { label: "Sınıflar Ligi", icon: IC.trophy, active: false, to: null as string | null },
-  { label: "Profil Ayarları", icon: IC.user, active: false, to: null as string | null },
-];
-
 const TABS: Array<{ key: TabKey; label: string; num: string }> = [
   { key: "genel", label: "Genel Bilgiler", num: "1" },
   { key: "icerikler", label: "İçerikler", num: "2" },
@@ -1030,6 +1257,10 @@ const globalCss = `
 .ee-select:focus{border-color:#a5b4fc;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
 .ee-editor:focus-within{border-color:#a5b4fc;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
 .ee-fmt:hover{background:#eef2f8}
+.ee-rt:empty:before{content:attr(data-ph);color:#94a3b8}
+.ee-rt h3{font-size:15.5px;font-weight:600;color:#0f1f3d;margin:10px 0 4px}
+.ee-rt ul{margin:6px 0;padding-left:22px}
+.ee-rt:focus{outline:none}
 .ee-del:hover{border-color:#fca5a5;color:#dc2626;background:#fef2f2}
 .ee-kondel:hover{color:#dc2626;background:#fef2f2}
 .ee-konadd:hover{background:#f5f6ff;border-color:#a5b4fc}

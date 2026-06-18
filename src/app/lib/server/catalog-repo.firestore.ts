@@ -2,8 +2,9 @@
 import { adminDb } from "../firebase-admin";
 import type { Branch } from "../domain/eduos/branch";
 import type { Education } from "../domain/eduos/education";
+import type { Section } from "../domain/eduos/section";
 import type { Track } from "../domain/eduos/track";
-import type { BranchRepo, EducationRepo, TrackRepo } from "../domain/repo/catalog-repo";
+import type { BranchRepo, EducationRepo, SectionRepo, TrackRepo } from "../domain/repo/catalog-repo";
 
 const clean = <T>(o: T): T => JSON.parse(JSON.stringify(o)) as T;
 
@@ -31,6 +32,7 @@ async function listColl<T>(collection: string, tenantId: string, field?: string,
 
 const branchBase = makeRepo<Branch>("flexos_branches");
 const eduBase = makeRepo<Education>("flexos_educations");
+const sectionBase = makeRepo<Section>("flexos_sections");
 const trackBase = makeRepo<Track>("flexos_tracks");
 
 export const firestoreBranchRepo: BranchRepo = {
@@ -40,6 +42,10 @@ export const firestoreBranchRepo: BranchRepo = {
 export const firestoreEducationRepo: EducationRepo = {
   ...eduBase,
   list: (tenantId, branchId) => listColl<Education>("flexos_educations", tenantId, "branchId", branchId),
+};
+export const firestoreSectionRepo: SectionRepo = {
+  ...sectionBase,
+  list: (tenantId, educationId) => listColl<Section>("flexos_sections", tenantId, "educationId", educationId),
 };
 export const firestoreTrackRepo: TrackRepo = {
   ...trackBase,

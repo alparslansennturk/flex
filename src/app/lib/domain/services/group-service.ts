@@ -3,15 +3,16 @@ import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Group, GroupSchedule, GroupStatus, GroupType } from "../core/group";
 import { ForbiddenError, ValidationError } from "../errors";
-import type { EducationRepo, TrackRepo } from "../repo/catalog-repo";
+import type { EducationRepo, SectionRepo, TrackRepo } from "../repo/catalog-repo";
 import type { GroupRepo } from "../repo/group-repo";
 
 export interface CreateGroupInput {
   code: string;
   type: GroupType;
   schedule: GroupSchedule;
-  trackId?: EntityId; // grubun işlediği Track (Temel Photoshop)
-  educationId?: EntityId; // bağlı eğitim (Grafik-1)
+  sectionId?: EntityId; // grubun işlediği Bölüm (Grafik-1) — bölümlü teslim birimi
+  trackId?: EntityId; // (ops.) yalnız tek Track teslimi (Temel Photoshop standalone)
+  educationId?: EntityId; // bağlı eğitim (Grafik Tasarım Kursu)
   branch?: string; // branş (Grafik Tasarım)
   trainerId?: string; // verilmezse oluşturan aktör (standalone eğitmen kendi grubunu kurar)
   branchOfficeId?: EntityId;
@@ -28,6 +29,7 @@ const VALID_TYPES: GroupType[] = ["standart", "ozel_ders", "kurumsal"];
 export interface CreateGroupDeps {
   groups: GroupRepo;
   educations?: EducationRepo;
+  sections?: SectionRepo;
   tracks?: TrackRepo;
 }
 
@@ -66,11 +68,21 @@ export async function createGroup(
     const edu = await deps.educations.getById(input.educationId, actor.tenantId);
     if (!edu) throw new ValidationError("Seçilen eğitim bulunamadı.");
   }
+  if (input.sectionId && deps.sections) {
+    const section = await deps.sections.getById(input.sectionId, actor.tenantId);
+    if (!section) throw new ValidationError("Seçilen bölüm bulunamadı.");
+    if (input.educationId && section.educationId !== input.educationId) {
+      throw new ValidationError("Seçilen bölüm, seçilen eğitime bağlı değil.");
+    }
+  }
   if (input.trackId && deps.tracks) {
     const track = await deps.tracks.getById(input.trackId, actor.tenantId);
     if (!track) throw new ValidationError("Seçilen track bulunamadı.");
     if (input.educationId && track.educationId !== input.educationId) {
       throw new ValidationError("Seçilen track, seçilen eğitime bağlı değil.");
+    }
+    if (input.sectionId && track.sectionId && track.sectionId !== input.sectionId) {
+      throw new ValidationError("Seçilen track, seçilen bölüme bağlı değil.");
     }
   }
 
@@ -79,6 +91,7 @@ export async function createGroup(
     id: deps.groups.nextId(),
     tenantId: actor.tenantId,
     code,
+    sectionId: input.sectionId,
     trackId: input.trackId,
     educationId: input.educationId,
     branch: input.branch,
