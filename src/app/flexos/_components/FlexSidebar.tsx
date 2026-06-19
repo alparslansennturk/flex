@@ -13,7 +13,15 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
-export type FlexNavKey = "ana" | "egitimler" | "ayarlar" | "siniflar" | "yoklamalar" | "sertifikasyon";
+export type FlexNavKey =
+  | "ana"
+  | "egitimler"
+  | "ayarlar"
+  | "satis-yap"
+  | "satis-liste"
+  | "siniflar"
+  | "yoklamalar"
+  | "sertifikasyon";
 
 export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const router = useRouter();
@@ -22,6 +30,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const eduActive = active === "egitimler" || active === "ayarlar";
   const [eduOpen, setEduOpen] = useState(eduActive); // aktif alt sayfadaysak başta açık
+
+  const salesActive = active === "satis-yap" || active === "satis-liste";
+  const [salesOpen, setSalesOpen] = useState(salesActive);
 
   return (
     <aside style={S.sidebar}>
@@ -63,6 +74,35 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                 <SubItem label="Eğitimler" active={active === "egitimler"} onClick={go("/flexos/egitim-yonetimi")} />
                 <SubItem label="Eğitim Ayarları" active={active === "ayarlar"} onClick={go("/flexos/egitim-yonetimi/ayarlar")} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Satışlar — akordiyon ana başlık */}
+        <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={() => setSalesOpen((o) => !o)}>
+          <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
+          <span style={{ flex: 1 }}>Satışlar</span>
+          <motion.span
+            style={{ display: "inline-flex", opacity: 0.7 }}
+            animate={{ rotate: salesOpen ? 0 : -90 }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+            dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+          />
+        </a>
+        <AnimatePresence initial={false}>
+          {salesOpen && (
+            <motion.div
+              key="sales-sub"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+              style={{ overflow: "hidden" }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                <SubItem label="Satış Yap" active={active === "satis-yap"} onClick={go("/flexos/satislar/satis-yap")} />
+                <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go(null)} />
               </div>
             </motion.div>
           )}
@@ -110,6 +150,7 @@ const sv = (inner: string, attrs = 'width="19" height="19"') =>
 const IC = {
   home: sv('<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
   book: sv('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>'),
+  tag: sv('<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>'),
   users: sv('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
   calendar: sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>'),
   award: sv('<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>'),
