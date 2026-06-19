@@ -115,6 +115,9 @@ export default function EgitimEklePage() {
   const [eduId, setEduId] = useState<string | null>(null); // ilk kayıttan sonra dolu → günceller
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<null | "save" | "publish" | "unpublish">(null);
+  const [editingTrack, setEditingTrack] = useState<{ bId: number; tId: number; name: string; hours: string; sellable: boolean } | null>(null);
+  const [dragTrack, setDragTrack] = useState<{ bId: number; tId: number } | null>(null);
+  const [dragBolum, setDragBolum] = useState<number | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -172,7 +175,7 @@ export default function EgitimEklePage() {
 
   // ── Düzenleme: API verisini forma geri doldur (server id → local id remap) ──
   const prefillForm = (
-    edu: { name?: string; branchId?: string; audience?: string; structure?: string; outline?: string[]; vatRate?: number; listPrice?: number; onSale?: boolean },
+    edu: { name?: string; branchId?: string; audience?: string; structure?: string; outline?: string[]; vatRate?: number; listPrice?: number; onSale?: boolean; certType?: string },
     secList: Array<{ id: string; name: string; hours?: number; listPrice?: number; sellable?: boolean }>,
     trkList: Array<{ id: string; name: string; sectionId?: string; hours?: number; listPrice?: number; sellable?: boolean }>,
   ) => {
@@ -206,6 +209,7 @@ export default function EgitimEklePage() {
       egitimYapisi: edu.structure === "sectioned" ? "Track Bazlı" : "Standart Paket",
       icerikMetni: edu.outline?.[0] ?? "",
       kdvOrani: edu.vatRate != null ? String(edu.vatRate) : f.kdvOrani,
+      sertTipi: edu.certType === "project" ? "Proje Bazlı" : "Sınav Bazlı",
       published: edu.onSale ?? false,
       bolumler,
       priceRows,
@@ -230,6 +234,7 @@ export default function EgitimEklePage() {
         dBolumAd: "",
         dBolumSaat: "",
         dTrackTarget: f.dTrackTarget || String(id),
+        dTrackSaat: !f.dTrackTarget ? String(Number(f.dBolumSaat) || 0) : f.dTrackSaat,
         seq: f.seq + 1,
         saved: false,
       };
@@ -244,23 +249,36 @@ export default function EgitimEklePage() {
     });
   const toggleTrackSell = () =>
     setForm((f) => ({ ...f, dTrackSell: !f.dTrackSell, dTrackSaat: f.dTrackSell ? "" : f.dTrackSaat, saved: false }));
+  // Hedef bölümün kalan saati (toplam - mevcut track'lerin saatleri)
+  const targetBolum = s.bolumler.find((b) => b.id === Number(s.dTrackTarget));
+  const usedHours = targetBolum ? targetBolum.tracks.reduce((sum, t) => sum + (Number(t.hours) || 0), 0) : 0;
+  const remainingHours = targetBolum ? Math.max(0, (Number(targetBolum.hours) || 0) - usedHours) : 0;
+
   const addTrack = () => {
     const ad = s.dTrackAd.trim();
     const target = Number(s.dTrackTarget);
     if (!ad || !target) return;
-    if (s.dTrackSell && !(Number(s.dTrackSaat) > 0)) return;
+    const hrs = Number(s.dTrackSaat) || 0;
+    if (hrs <= 0) return;
+    if (hrs > remainingHours && remainingHours > 0) { toast.error(`Kalan saat ${remainingHours}. Fazla giremezsiniz.`); return; }
     setForm((f) => {
       const id = f.seq;
       return {
         ...f,
         bolumler: f.bolumler.map((b) =>
           b.id === target
-            ? { ...b, tracks: [...b.tracks, { id, name: ad, sellable: f.dTrackSell, hours: f.dTrackSell ? Number(f.dTrackSaat) || 0 : 0 }] }
+            ? { ...b, tracks: [...b.tracks, { id, name: ad, sellable: f.dTrackSell, hours: hrs }] }
             : b,
         ),
         dTrackAd: "",
         dTrackSell: false,
-        dTrackSaat: "",
+        dTrackSaat: (() => {
+          const b = f.bolumler.find((b) => b.id === target);
+          if (!b) return "";
+          const newUsed = b.tracks.reduce((sum, t) => sum + (Number(t.hours) || 0), 0) + hrs;
+          const rem = Math.max(0, (Number(b.hours) || 0) - newUsed);
+          return rem > 0 ? String(rem) : "";
+        })(),
         seq: f.seq + 1,
         saved: false,
       };
@@ -272,6 +290,77 @@ export default function EgitimEklePage() {
       bolumler: f.bolumler.map((b) => (b.id === bId ? { ...b, tracks: b.tracks.filter((t) => t.id !== tId) } : b)),
       saved: false,
     }));
+
+  // ── track düzenle ──
+  const startEditTrack = (bId: number, t: Track) =>
+    setEditingTrack({ bId, tId: t.id, name: t.name, hours: String(t.hours), sellable: t.sellable });
+  const saveEditTrack = () => {
+    if (!editingTrack) return;
+    const { bId, tId, name, hours, sellable } = editingTrack;
+    const trimmed = name.trim();
+    if (!trimmed) { toast.error("Track adı boş olamaz."); return; }
+    const hrs = Number(hours) || 0;
+    if (hrs <= 0) { toast.error("Track saati 0'dan büyük olmalı."); return; }
+    // kalan saat kontrolü (düzenlenen track'in kendi saati hariç)
+    const bolum = s.bolumler.find((b) => b.id === bId);
+    if (bolum) {
+      const otherHours = bolum.tracks.filter((t) => t.id !== tId).reduce((sum, t) => sum + (Number(t.hours) || 0), 0);
+      const remaining = Math.max(0, (Number(bolum.hours) || 0) - otherHours);
+      if (hrs > remaining && remaining > 0) { toast.error(`Kalan saat ${remaining}. Fazla giremezsiniz.`); return; }
+    }
+    setForm((f) => ({
+      ...f,
+      bolumler: f.bolumler.map((b) =>
+        b.id === bId
+          ? { ...b, tracks: b.tracks.map((t) => (t.id === tId ? { ...t, name: trimmed, hours: hrs, sellable } : t)) }
+          : b,
+      ),
+      saved: false,
+    }));
+    setEditingTrack(null);
+  };
+  const cancelEditTrack = () => setEditingTrack(null);
+
+  // ── track sürükle-bırak sıralama ──
+  const onTrackDragStart = (bId: number, tId: number) => setDragTrack({ bId, tId });
+  const onTrackDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
+  const onTrackDrop = (bId: number, targetTId: number) => {
+    if (!dragTrack || dragTrack.bId !== bId || dragTrack.tId === targetTId) { setDragTrack(null); return; }
+    setForm((f) => {
+      const bolumler = f.bolumler.map((b) => {
+        if (b.id !== bId) return b;
+        const tracks = [...b.tracks];
+        const fromIdx = tracks.findIndex((t) => t.id === dragTrack.tId);
+        const toIdx = tracks.findIndex((t) => t.id === targetTId);
+        if (fromIdx === -1 || toIdx === -1) return b;
+        const [moved] = tracks.splice(fromIdx, 1);
+        // Aşağı sürüklemede splice sonrası index 1 kayar
+        const insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+        tracks.splice(insertIdx, 0, moved);
+        return { ...b, tracks };
+      });
+      return { ...f, bolumler, saved: false };
+    });
+    setDragTrack(null);
+  };
+
+  // ── bölüm sürükle-bırak sıralama ──
+  const onBolumDragStart = (bId: number) => setDragBolum(bId);
+  const onBolumDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
+  const onBolumDrop = (targetBId: number) => {
+    if (dragBolum === null || dragBolum === targetBId) { setDragBolum(null); return; }
+    setForm((f) => {
+      const bolumler = [...f.bolumler];
+      const fromIdx = bolumler.findIndex((b) => b.id === dragBolum);
+      const toIdx = bolumler.findIndex((b) => b.id === targetBId);
+      if (fromIdx === -1 || toIdx === -1) return f;
+      const [moved] = bolumler.splice(fromIdx, 1);
+      const insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+      bolumler.splice(insertIdx, 0, moved);
+      return { ...f, bolumler, saved: false };
+    });
+    setDragBolum(null);
+  };
 
   // ── gün planlayıcı ──
   const getDay = (n: number): DayData => s.days[n] || { ad: "", konular: [], draft: "" };
@@ -343,7 +432,7 @@ export default function EgitimEklePage() {
   const hasBolum = s.bolumler.length > 0;
   const trackLocked = !hasBolum;
   const canAddBolum = s.dBolumAd.trim().length > 0 && Number(s.dBolumSaat) > 0;
-  const canAddTrack = hasBolum && s.dTrackAd.trim().length > 0 && (!s.dTrackSell || Number(s.dTrackSaat) > 0);
+  const canAddTrack = hasBolum && s.dTrackAd.trim().length > 0 && Number(s.dTrackSaat) > 0;
 
   const gun = Math.max(1, Math.min(60, Number(s.gunSayisi) || 1));
   const days = Array.from({ length: gun }, (_, i) => i + 1);
@@ -434,9 +523,10 @@ export default function EgitimEklePage() {
       const outline = isBireysel && yapiStd && s.icerikMetni.trim() ? [s.icerikMetni] : undefined;
 
       if (!eduId) {
+        const certType = s.sertTipi === "Proje Bazlı" ? "project" as const : "exam" as const;
         const res = await fetch("/api/flexos/educations", {
           method: "POST", headers,
-          body: JSON.stringify({ name: s.egitimAdi.trim(), branchId: s.bransId, audience, structure, outline, listPrice: priceForKey("__main"), vatRate: kdv, onSale: publish }),
+          body: JSON.stringify({ name: s.egitimAdi.trim(), branchId: s.bransId, audience, structure, outline, listPrice: priceForKey("__main"), vatRate: kdv, onSale: publish, certType }),
         });
         if (res.status !== 201) { const j = await res.json().catch(() => ({})); toast.error(j.error || "Kaydedilemedi."); return false; }
         const { id } = await res.json();
@@ -460,11 +550,37 @@ export default function EgitimEklePage() {
           }
         }
       } else {
+        // Scalar alanları güncelle
+        const certType = s.sertTipi === "Proje Bazlı" ? "project" as const : "exam" as const;
         const res = await fetch(`/api/flexos/educations/${eduId}`, {
           method: "PATCH", headers,
-          body: JSON.stringify({ name: s.egitimAdi.trim(), audience, structure, outline, listPrice: priceForKey("__main"), vatRate: kdv, onSale: publish }),
+          body: JSON.stringify({ name: s.egitimAdi.trim(), branchId: s.bransId, audience, structure, outline, listPrice: priceForKey("__main"), vatRate: kdv, onSale: publish, certType }),
         });
         if (!res.ok) { const j = await res.json().catch(() => ({})); toast.error(j.error || "Güncellenemedi."); return false; }
+        // Bölüm/Track ağacını senkronize et (Track Bazlı ise)
+        if (isBireysel && !yapiStd && s.bolumler.length > 0) {
+          const syncBody = {
+            sections: s.bolumler.map((b, i) => ({
+              name: b.name,
+              order: i,
+              hours: b.hours || undefined,
+              listPrice: priceForKey("b" + b.id),
+              sellable: priceForKey("b" + b.id) !== undefined,
+              tracks: b.tracks.map((trk, j) => ({
+                name: trk.name,
+                order: j,
+                hours: trk.hours || undefined,
+                listPrice: priceForKey("t" + trk.id),
+                sellable: trk.sellable,
+              })),
+            })),
+          };
+          const cRes = await fetch(`/api/flexos/educations/${eduId}/content`, {
+            method: "PUT", headers,
+            body: JSON.stringify(syncBody),
+          });
+          if (!cRes.ok) { const j = await cRes.json().catch(() => ({})); toast.error(j.error || "İçerik kaydedilemedi."); return false; }
+        }
       }
       setForm((f) => ({ ...f, published: publish }));
       flashSaved();
@@ -518,12 +634,12 @@ export default function EgitimEklePage() {
               <span dangerouslySetInnerHTML={{ __html: IC.back }} />
             </a>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
                 <span>Eğitim Yönetimi</span>
                 <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
                 <span style={{ color: "#f97316" }}>{eduId ? "Düzenle" : "Yeni Kayıt"}</span>
               </div>
-              <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>{eduId ? "Eğitimi Düzenle" : "Yeni Eğitim Ekle"}</h1>
+              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>{eduId ? "Eğitimi Düzenle" : "Yeni Eğitim Ekle"}</h1>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
@@ -532,16 +648,16 @@ export default function EgitimEklePage() {
               <span style={S.bellDot} />
             </button>
             <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
-              <div style={{ textAlign: "right", lineHeight: 1.25 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
-                <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
+              <div style={{ textAlign: "right", lineHeight: 1.3 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
+                <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
               </div>
               <div style={S.avatar}>AŞ</div>
             </div>
           </div>
         </header>
 
-        <div style={{ padding: "26px 36px 64px", maxWidth: 1080, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ padding: "26px 36px 64px", maxWidth: 1080, margin: "0 auto", width: "100%", minWidth: 0, boxSizing: "border-box", overflowX: "hidden" }}>
           {/* published banner */}
           {s.published && (
             <div style={S.banner}>
@@ -579,8 +695,8 @@ export default function EgitimEklePage() {
           </div>
 
           {/* ============ CARD ============ */}
-          <div style={S.card}>
-            <div style={{ padding: "30px 32px 26px" }}>
+          <div style={{ ...S.card, width: "100%" }}>
+            <div style={{ padding: "30px 32px 26px", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
               {/* ===== TAB 1: GENEL ===== */}
               {s.activeTab === "genel" && (
                 <div style={{ maxWidth: 580 }}>
@@ -752,7 +868,15 @@ export default function EgitimEklePage() {
                         <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
                           <div style={{ width: 190 }}>
                             <div style={{ position: "relative" }}>
-                              <select className="ee-select" value={s.dTrackTarget} onChange={onChange("dTrackTarget")} disabled={trackLocked} style={S.selectSm}>
+                              <select className="ee-select" value={s.dTrackTarget} onChange={(e) => {
+                                const val = e.target.value;
+                                setForm((f) => {
+                                  const b = f.bolumler.find((b) => b.id === Number(val));
+                                  const used = b ? b.tracks.reduce((sum, t) => sum + (Number(t.hours) || 0), 0) : 0;
+                                  const rem = b ? Math.max(0, (Number(b.hours) || 0) - used) : 0;
+                                  return { ...f, dTrackTarget: val, dTrackSaat: rem > 0 ? String(rem) : "", saved: false };
+                                });
+                              }} disabled={trackLocked} style={S.selectSm}>
                                 {hasBolum
                                   ? s.bolumler.map((b) => <option key={b.id} value={String(b.id)}>{b.name}</option>)
                                   : <option value="">Önce bölüm ekleyin</option>}
@@ -769,6 +893,11 @@ export default function EgitimEklePage() {
                           </button>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 13, flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Track Saati</span>
+                            <input className="ee-input" type="number" min={1} max={remainingHours > 0 ? remainingHours : undefined} value={s.dTrackSaat} onChange={onChange("dTrackSaat")} disabled={trackLocked} placeholder="zorunlu" style={S.inputTrackHours} />
+                            {targetBolum && <span style={{ fontSize: 12, fontWeight: 600, color: remainingHours > 0 ? "#16a34a" : "#dc2626" }}>Kalan: {remainingHours} saat</span>}
+                          </div>
                           <div onClick={() => !trackLocked && toggleTrackSell()} style={{ display: "inline-flex", alignItems: "center", gap: 9, cursor: trackLocked ? "not-allowed" : "pointer", userSelect: "none" }}>
                             <span style={{ ...S.checkbox, border: s.dTrackSell ? "1.5px solid #4f46e5" : "1.5px solid #cbd5e1", background: s.dTrackSell ? "#4f46e5" : "#fff" }}>
                               {s.dTrackSell && <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />}
@@ -777,8 +906,6 @@ export default function EgitimEklePage() {
                           </div>
                           {s.dTrackSell && (
                             <div style={{ display: "flex", alignItems: "center", gap: 8, animation: "ee-fade .2s ease" }}>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Track Saati</span>
-                              <input className="ee-input" type="number" min={0} value={s.dTrackSaat} onChange={onChange("dTrackSaat")} placeholder="zorunlu" style={S.inputTrackHours} />
                             </div>
                           )}
                         </div>
@@ -804,9 +931,19 @@ export default function EgitimEklePage() {
                         )}
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                           {s.bolumler.map((b) => (
-                            <div key={b.id} style={{ border: "1px solid #e9edf4", borderRadius: 14, overflow: "hidden" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", background: "#f8fafc", borderBottom: "1px solid #eef1f6" }}>
-                                <span style={S.bolumIcon} dangerouslySetInnerHTML={{ __html: IC.folder }} />
+                            <div
+                              key={b.id}
+                              onDragOver={onBolumDragOver}
+                              onDrop={(e) => { e.preventDefault(); if (dragBolum !== null) onBolumDrop(b.id); }}
+                              style={{ border: "1px solid #e9edf4", borderRadius: 14, overflow: "hidden", opacity: dragBolum === b.id ? 0.4 : 1, transition: "opacity .15s" }}
+                            >
+                              <div
+                                draggable
+                                onDragStart={(e) => { e.stopPropagation(); onBolumDragStart(b.id); }}
+                                onDragEnd={() => setDragBolum(null)}
+                                style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", background: "#f8fafc", borderBottom: "1px solid #eef1f6", cursor: "grab" }}
+                              >
+                                <span style={{ ...S.bolumIcon, cursor: "grab" }} dangerouslySetInnerHTML={{ __html: IC.folder }} />
                                 <span style={{ fontSize: 14, fontWeight: 600, color: "#0f1f3d", flex: 1 }}>{b.name}</span>
                                 <span style={{ fontSize: 12.5, fontWeight: 700, color: "#475569", background: "#eef2f8", padding: "4px 11px", borderRadius: 999 }}>{(Number(b.hours) || 0)} Saat</span>
                                 <button className="ee-del" title="Bölümü sil" style={S.smDelBtn} onClick={() => removeBolum(b.id)}>
@@ -815,22 +952,52 @@ export default function EgitimEklePage() {
                               </div>
                               <div style={{ padding: "8px 16px 8px 30px" }}>
                                 {b.tracks.length === 0 && <div style={{ fontSize: 12.5, color: "#94a3b8", padding: "8px 4px" }}>Bu bölümde henüz track yok.</div>}
-                                {b.tracks.map((t) => (
-                                  <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 4px", borderBottom: "1px solid #f4f6fa" }}>
-                                    <span style={S.trackIcon} dangerouslySetInnerHTML={{ __html: IC.file }} />
-                                    <span style={{ fontSize: 14, fontWeight: 600, color: "#334155", flex: 1 }}>{t.name}</span>
-                                    <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748b" }}>{(Number(t.hours) || 0)} Saat</span>
-                                    {t.sellable && (
-                                      <span style={S.sellChip}>
-                                        <span dangerouslySetInnerHTML={{ __html: IC.sellSm }} />
-                                        Satışa Açık
-                                      </span>
-                                    )}
-                                    <button className="ee-del" title="Track sil" style={S.xsDelBtn} onClick={() => removeTrack(b.id, t.id)}>
-                                      <span dangerouslySetInnerHTML={{ __html: IC.xSm }} />
-                                    </button>
-                                  </div>
-                                ))}
+                                {b.tracks.map((t) => {
+                                  const isEditing = editingTrack?.bId === b.id && editingTrack?.tId === t.id;
+                                  const isDragging = dragTrack?.bId === b.id && dragTrack?.tId === t.id;
+                                  return isEditing ? (
+                                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: "1px solid #f4f6fa", background: "#f0f4ff", borderRadius: 8 }}>
+                                      <span style={S.trackIcon} dangerouslySetInnerHTML={{ __html: IC.file }} />
+                                      <input className="ee-input" type="text" value={editingTrack.name} onChange={(e) => setEditingTrack({ ...editingTrack, name: e.target.value })} style={{ ...S.inputSm, flex: 1, fontSize: 13.5 }} autoFocus />
+                                      <input className="ee-input" type="number" min={1} value={editingTrack.hours} onChange={(e) => setEditingTrack({ ...editingTrack, hours: e.target.value })} style={{ ...S.inputTrackHours, width: 70 }} />
+                                      <span style={{ fontSize: 12, color: "#64748b" }}>saat</span>
+                                      <div onClick={() => setEditingTrack({ ...editingTrack, sellable: !editingTrack.sellable })} style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", userSelect: "none" }}>
+                                        <span style={{ ...S.checkbox, width: 16, height: 16, border: editingTrack.sellable ? "1.5px solid #4f46e5" : "1.5px solid #cbd5e1", background: editingTrack.sellable ? "#4f46e5" : "#fff" }}>
+                                          {editingTrack.sellable && <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />}
+                                        </span>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>Satılabilir</span>
+                                      </div>
+                                      <button onClick={saveEditTrack} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Kaydet</button>
+                                      <button onClick={cancelEditTrack} style={{ background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>İptal</button>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      key={t.id}
+                                      draggable
+                                      onDragStart={(e) => { e.stopPropagation(); onTrackDragStart(b.id, t.id); }}
+                                      onDragOver={(e) => { e.stopPropagation(); onTrackDragOver(e); }}
+                                      onDrop={(e) => { e.stopPropagation(); onTrackDrop(b.id, t.id); }}
+                                      onDragEnd={() => { setDragTrack(null); setDragBolum(null); }}
+                                      style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 4px", borderBottom: "1px solid #f4f6fa", opacity: isDragging ? 0.4 : 1, cursor: "grab", transition: "opacity .15s" }}
+                                    >
+                                      <span style={{ ...S.trackIcon, cursor: "grab" }} dangerouslySetInnerHTML={{ __html: IC.file }} />
+                                      <span style={{ fontSize: 14, fontWeight: 600, color: "#334155", flex: 1 }}>{t.name}</span>
+                                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748b" }}>{(Number(t.hours) || 0)} Saat</span>
+                                      {t.sellable && (
+                                        <span style={S.sellChip}>
+                                          <span dangerouslySetInnerHTML={{ __html: IC.sellSm }} />
+                                          Satışa Açık
+                                        </span>
+                                      )}
+                                      <button title="Track düzenle" style={{ ...S.xsDelBtn, color: "#4f46e5" }} onClick={() => startEditTrack(b.id, t)}>
+                                        <span dangerouslySetInnerHTML={{ __html: IC.editSm }} />
+                                      </button>
+                                      <button className="ee-del" title="Track sil" style={S.xsDelBtn} onClick={() => removeTrack(b.id, t.id)}>
+                                        <span dangerouslySetInnerHTML={{ __html: IC.xSm }} />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           ))}
@@ -1135,14 +1302,14 @@ const tabNumStyle = (active: boolean): CSSProperties => ({
 
 // ── stiller ──
 const S: Record<string, CSSProperties> = {
-  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', system-ui, sans-serif", background: "#eef2f8" },
+  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', 'Plus Jakarta Sans', system-ui, sans-serif", background: "#eef2f8" },
   sidebar: { width: 252, flex: "0 0 252px", height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
   logoBox: { width: 38, height: 38, borderRadius: 11, background: "#0a1c38", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 3, padding: 8, boxShadow: "inset 0 0 0 1px rgba(255,255,255,.06)" },
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   navActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   navActiveBar: { position: "absolute", left: 0, top: 9, bottom: 9, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
-  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
-  header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "rgba(238,242,248,.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid #e2e8f1" },
+  main: { flex: 1, minWidth: 0, height: "100%", overflowY: "scroll", overflowX: "hidden", background: "#eef2f8" },
+  header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 2px 6px rgba(15,31,61,.04)" },
   backBtn: { width: 46, height: 46, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", textDecoration: "none", transition: "all .14s" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },
   bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
@@ -1223,6 +1390,7 @@ const IC = {
   sellBig: sv('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', 'width="22" height="22" stroke-width="1.8"'),
   trashSm: sv('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 'width="15" height="15"'),
   xSm: sv('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 'width="14" height="14" stroke-width="2.2"'),
+  editSm: sv('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>', 'width="14" height="14" stroke-width="2.2"'),
   calDay: sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>', 'width="18" height="18"'),
   clock: sv('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', 'width="12" height="12" stroke-width="2.2"'),
   awardBig: sv('<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>', 'width="26" height="26" stroke-width="1.9"'),

@@ -43,6 +43,7 @@ export interface CreateEducationInput {
   listPrice?: number;
   vatRate?: number;
   onSale?: boolean;
+  certType?: "exam" | "project";
 }
 export async function createEducation(actor: Actor, input: CreateEducationInput, repo: EducationRepo): Promise<Education> {
   if (!can(actor, "education.create")) throw new ForbiddenError("education.create");
@@ -60,6 +61,7 @@ export async function createEducation(actor: Actor, input: CreateEducationInput,
     listPrice: input.listPrice,
     vatRate: input.vatRate,
     onSale: input.onSale,
+    certType: input.certType,
     createdAt: now(),
     createdBy: actor.uid,
   };
@@ -70,12 +72,14 @@ export async function createEducation(actor: Actor, input: CreateEducationInput,
 // ── Eğitim güncelle (kısmi — Taslak↔Satışta dahil) ──
 export interface UpdateEducationInput {
   name?: string;
+  branchId?: EntityId;
   audience?: "individual" | "corporate";
   structure?: "single" | "sectioned";
   outline?: string[];
   listPrice?: number;
   vatRate?: number;
   onSale?: boolean;
+  certType?: "exam" | "project";
 }
 export async function updateEducation(actor: Actor, id: EntityId, patch: UpdateEducationInput, repo: EducationRepo): Promise<Education> {
   if (!can(actor, "education.edit")) throw new ForbiddenError("education.edit");
@@ -86,12 +90,14 @@ export async function updateEducation(actor: Actor, id: EntityId, patch: UpdateE
   const updated: Education = {
     ...existing,
     ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+    ...(patch.branchId !== undefined ? { branchId: patch.branchId } : {}),
     ...(patch.audience !== undefined ? { audience: patch.audience } : {}),
     ...(patch.structure !== undefined ? { structure: patch.structure } : {}),
     ...(patch.outline !== undefined ? { outline: patch.outline } : {}),
     ...(patch.listPrice !== undefined ? { listPrice: patch.listPrice } : {}),
     ...(patch.vatRate !== undefined ? { vatRate: patch.vatRate } : {}),
     ...(patch.onSale !== undefined ? { onSale: patch.onSale } : {}),
+    ...(patch.certType !== undefined ? { certType: patch.certType } : {}),
     updatedAt: now(),
     updatedBy: actor.uid,
   };
@@ -138,6 +144,104 @@ export async function createSection(actor: Actor, input: CreateSectionInput, dep
   };
   await deps.sections.save(section);
   return section;
+}
+
+// ── Eğitim sil (cascade: sections + tracks da silinir) ──
+export interface DeleteEducationDeps {
+  educations: EducationRepo;
+  sections: SectionRepo;
+  tracks: TrackRepo;
+}
+export async function deleteEducation(actor: Actor, id: EntityId, deps: DeleteEducationDeps): Promise<void> {
+  if (!can(actor, "education.edit")) throw new ForbiddenError("education.edit");
+  if (!id) throw new ValidationError("id zorunludur.");
+  const existing = await deps.educations.getById(id, actor.tenantId);
+  if (!existing) throw new ValidationError("Eğitim bulunamadı.");
+  // Cascade: önce tracks, sonra sections, sonra education
+  await deps.tracks.deleteByEducation(id, actor.tenantId);
+  await deps.sections.deleteByEducation(id, actor.tenantId);
+  await deps.educations.delete(id, actor.tenantId);
+}
+
+// ── İçerik senkronizasyonu (düzenleme: sil+yeniden-oluştur) ──
+export interface SyncContentSectionInput {
+  name: string;
+  order: number;
+  hours?: number;
+  listPrice?: number;
+  sellable?: boolean;
+  tracks: Array<{
+    name: string;
+    order: number;
+    hours?: number;
+    listPrice?: number;
+    sellable?: boolean;
+  }>;
+}
+export interface SyncContentDeps {
+  sections: SectionRepo;
+  tracks: TrackRepo;
+  educations: EducationRepo;
+}
+/**
+ * Bir eğitimin tüm bölüm/track içeriğini yeni ağaçla değiştirir (delete-all + recreate).
+ * capability: `education.edit` (mevcut bölüm/track oluşturma da bunun parçası).
+ */
+export async function syncEducationContent(
+  actor: Actor,
+  educationId: EntityId,
+  sections: SyncContentSectionInput[],
+  deps: SyncContentDeps,
+): Promise<{ sections: Section[]; tracks: Track[] }> {
+  if (!can(actor, "education.edit")) throw new ForbiddenError("education.edit");
+  if (!educationId) throw new ValidationError("educationId zorunludur.");
+  const edu = await deps.educations.getById(educationId, actor.tenantId);
+  if (!edu) throw new ValidationError("Eğitim bulunamadı.");
+
+  // 1) Mevcut bölüm/track'leri sil
+  await deps.tracks.deleteByEducation(educationId, actor.tenantId);
+  await deps.sections.deleteByEducation(educationId, actor.tenantId);
+
+  // 2) Yeni ağacı oluştur
+  const createdSections: Section[] = [];
+  const createdTracks: Track[] = [];
+
+  for (const secInput of sections) {
+    const section: Section = {
+      id: deps.sections.nextId(),
+      tenantId: actor.tenantId,
+      educationId,
+      name: secInput.name.trim(),
+      order: secInput.order,
+      hours: secInput.hours,
+      listPrice: secInput.listPrice,
+      sellable: secInput.sellable,
+      createdAt: now(),
+      createdBy: actor.uid,
+    };
+    await deps.sections.save(section);
+    createdSections.push(section);
+
+    for (const trkInput of secInput.tracks) {
+      const track: Track = {
+        id: deps.tracks.nextId(),
+        tenantId: actor.tenantId,
+        educationId,
+        sectionId: section.id,
+        name: trkInput.name.trim(),
+        order: trkInput.order,
+        hours: trkInput.hours,
+        listPrice: trkInput.listPrice,
+        sellable: trkInput.sellable,
+        createdAt: now(),
+        createdBy: actor.uid,
+      };
+      await deps.tracks.save(track);
+      createdTracks.push(track);
+    }
+  }
+
+  return { sections: createdSections, tracks: createdTracks };
 }
 
 // ── Track (Temel Photoshop) ──

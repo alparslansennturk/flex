@@ -44,4 +44,5 @@ export interface Education extends Audit {
   bundledEducationIds?: EntityId[]; // paket ise içindeki eğitimler
 
   certificateRules?: CertificateRule[]; // "single" eğitim için; bölümlüde sertifika Section'da
+  certType?: "exam" | "project"; // Sınav Bazlı / Proje Bazlı (bireysel eğitim)
 }

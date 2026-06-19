@@ -10,11 +10,12 @@
  * Ekle / Düzenle / Sil aksiyonları sonraki etapta bağlanacak (şimdilik bilgi toast'u).
  */
 
-import React, { useEffect, useState, useMemo, CSSProperties } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState, useMemo, useCallback, useRef, CSSProperties } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
+import FlexModal from "../_components/FlexModal";
 
 // ── API tipleri (ileride genişleyecek alanlar opsiyonel) ──────────────────────
 interface EducationDoc {
@@ -52,6 +53,8 @@ const fmtPrice = (n?: number) => (typeof n === "number" ? n.toLocaleString("tr-T
 
 export default function EgitimYonetimiPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const didMount = useRef(false);
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [educations, setEducations] = useState<EducationDoc[]>([]);
@@ -65,43 +68,53 @@ export default function EgitimYonetimiPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
+  const [deleteModal, setDeleteModal] = useState<null | { ids: string[]; names: string[] }>(null);
+  const [busy, setBusy] = useState(false);
 
-  // ── Auth + veri yükle ──
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      await auth.authStateReady(); // ilk açılışta currentUser null olmasın (yeni-tab logout fix'i)
-      const user = auth.currentUser;
-      if (!user) {
-        router.push("/login");
-        return;
+  // ── Veri yükleme fonksiyonu (tekrar kullanılabilir) ──
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const [eduRes, brRes] = await Promise.all([
+        fetch("/api/flexos/educations", { headers, signal }),
+        fetch("/api/flexos/branches", { headers, signal }),
+      ]);
+      const eduJson = eduRes.ok ? await eduRes.json() : { items: [] };
+      const brJson = brRes.ok ? await brRes.json() : { items: [] };
+      if (!signal?.aborted) {
+        setEducations(eduJson.items ?? []);
+        setBranches(brJson.items ?? []);
       }
-      if (!cancelled) setAuthed(true);
-      try {
-        const token = await user.getIdToken();
-        const headers = { Authorization: `Bearer ${token}` };
-        const [eduRes, brRes] = await Promise.all([
-          fetch("/api/flexos/educations", { headers }),
-          fetch("/api/flexos/branches", { headers }),
-        ]);
-        const eduJson = eduRes.ok ? await eduRes.json() : { items: [] };
-        const brJson = brRes.ok ? await brRes.json() : { items: [] };
-        if (!cancelled) {
-          setEducations(eduJson.items ?? []);
-          setBranches(brJson.items ?? []);
-        }
-      } catch (e) {
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
         console.error("[egitim-yonetimi] veri yüklenemedi:", e);
-        if (!cancelled) toast.error("Eğitim kataloğu yüklenemedi.");
-      } finally {
-        if (!cancelled) setLoading(false);
+        toast.error("Eğitim kataloğu yüklenemedi.");
       }
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
+
+  // ── Auth + ilk yükleme + sayfa odağına dönünce yenileme ──
+  useEffect(() => {
+    const ac = new AbortController();
+    (async () => {
+      await auth.authStateReady();
+      if (!auth.currentUser) { router.push("/login"); return; }
+      setAuthed(true);
+      fetchData(ac.signal);
+    })();
+    return () => { ac.abort(); };
+  }, [router, fetchData]);
+
+  // SPA navigasyonla geri dönünce (pathname tekrar bu sayfaya eşleşince) listeyi yenile
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return; }
+    if (pathname === "/flexos/egitim-yonetimi") fetchData();
+  }, [pathname, fetchData]);
 
   // branchId → {name, palette}
   const branchMap = useMemo(() => {
@@ -154,7 +167,39 @@ export default function EgitimYonetimiPage() {
     setSelected((s) =>
       allSelected ? s.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...s, ...pageIds])),
     );
-  const soon = () => toast.info("Bu özellik yakında — şimdilik sadece liste görünümü.");
+  const soon = () => toast.info("Bu özellik yakında.");
+
+  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const user = auth.currentUser;
+    const token = user ? await user.getIdToken() : "";
+    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  }, []);
+
+  const askDelete = (ids: string[]) => {
+    const names = ids.map((id) => educations.find((e) => e.id === id)?.name ?? id);
+    setDeleteModal({ ids, names });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal) return;
+    setBusy(true);
+    try {
+      const headers = await authHeaders();
+      const results = await Promise.all(
+        deleteModal.ids.map((id) => fetch(`/api/flexos/educations/${id}`, { method: "DELETE", headers })),
+      );
+      const failed = results.filter((r) => !r.ok).length;
+      if (failed > 0) toast.error(`${failed} eğitim silinemedi.`);
+      else toast.success(deleteModal.ids.length === 1 ? "Eğitim silindi." : `${deleteModal.ids.length} eğitim silindi.`);
+      setEducations((prev) => prev.filter((e) => !deleteModal.ids.includes(e.id)));
+      setSelected((prev) => prev.filter((id) => !deleteModal.ids.includes(id)));
+    } catch {
+      toast.error("Bağlantı hatası — silinemedi.");
+    } finally {
+      setBusy(false);
+      setDeleteModal(null);
+    }
+  };
 
   // sayfa numaraları
   const pageNumbers = useMemo(() => {
@@ -192,8 +237,8 @@ export default function EgitimYonetimiPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
             <div style={S.headerIcon} dangerouslySetInnerHTML={{ __html: IC.headerBook }} />
             <div>
-              <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>Eğitim Yönetimi</h1>
-              <p style={{ margin: "3px 0 0", fontSize: 13.5, color: "#64748b", fontWeight: 500 }}>Eğitim programlarını ve katalog listesini buradan yönet.</p>
+              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>Eğitimler</h1>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#64748b", fontWeight: 500 }}>Tüm eğitim programlarını buradan yönetin.</p>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
@@ -202,9 +247,9 @@ export default function EgitimYonetimiPage() {
               <span style={S.bellDot} />
             </button>
             <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
-              <div style={{ textAlign: "right", lineHeight: 1.25 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
-                <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
+              <div style={{ textAlign: "right", lineHeight: 1.3 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
+                <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
               </div>
               <div style={S.avatar}>AŞ</div>
             </div>
@@ -213,21 +258,15 @@ export default function EgitimYonetimiPage() {
 
         <div style={{ padding: "30px 36px 48px", maxWidth: 1480, margin: "0 auto" }}>
           {/* section header + CTA */}
-          <div style={S.sectionHead}>
-            <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-              <span dangerouslySetInnerHTML={{ __html: IC.grid }} />
-              <div>
-                <h2 style={S.h2}>
-                  Eğitim Kataloğu
-                  <span style={S.countChip}>{total} eğitim</span>
-                </h2>
-                <p style={{ margin: "3px 0 0", fontSize: 13, color: "#64748b", fontWeight: 500 }}>Tüm programlar tek listede — filtrele, düzenle ve yayına al.</p>
-              </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={S.countChip}>{total} eğitim</span>
             </div>
             <button className="ey-addbtn" style={S.addBtn} onClick={() => router.push("/flexos/egitim-yonetimi/ekle")}>
               <span style={S.shimmer} />
               <span style={{ position: "relative", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.plus }} />
               <span style={{ position: "relative" }}>Eğitim Ekle</span>
+              <span style={{ position: "relative", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.sparkle }} />
             </button>
           </div>
 
@@ -341,7 +380,7 @@ export default function EgitimYonetimiPage() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <button style={S.bulkClear} onClick={() => setSelected([])}>Seçimi Temizle</button>
-                <button style={S.bulkDelete} onClick={soon}>
+                <button style={S.bulkDelete} onClick={() => askDelete(selected)}>
                   <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />
                   Seçilenleri Sil
                 </button>
@@ -373,7 +412,7 @@ export default function EgitimYonetimiPage() {
                     const pal = br?.palette ?? BRANCH_PALETTE[0];
                     const st = e.onSale ? STATUS.satista : STATUS.taslak;
                     return (
-                      <tr key={e.id} className="ey-row" style={{ background: sel ? "#f6f8ff" : "#fff", borderBottom: "1px solid #f1f4f9", transition: "background .12s", cursor: "pointer" }} onClick={() => router.push(`/flexos/egitim-yonetimi/ekle?id=${e.id}`)}>
+                      <tr key={e.id} className="ey-row" style={{ background: sel ? "#f6f8ff" : "#fff", borderBottom: "1px solid #f1f4f9", transition: "background .12s" }}>
                         <td style={{ ...S.cell, width: 52, paddingLeft: 24, paddingRight: 10 }} onClick={(ev) => ev.stopPropagation()}>
                           <span onClick={() => toggleSelect(e.id)} style={S.thCheck}>
                             {sel && <span style={S.checkFill}><span dangerouslySetInnerHTML={{ __html: IC.check }} /></span>}
@@ -424,7 +463,7 @@ export default function EgitimYonetimiPage() {
                         <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(ev) => ev.stopPropagation()}>
                           <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                             <button className="ey-edit" style={S.iconBtn} title="Düzenle" onClick={() => router.push(`/flexos/egitim-yonetimi/ekle?id=${e.id}`)}><span dangerouslySetInnerHTML={{ __html: IC.edit }} /></button>
-                            <button className="ey-del" style={{ ...S.iconBtn, color: "#94a3b8" }} title="Sil" onClick={soon}><span dangerouslySetInnerHTML={{ __html: IC.trash }} /></button>
+                            <button className="ey-del" style={{ ...S.iconBtn, color: "#94a3b8" }} title="Sil" onClick={() => askDelete([e.id])}><span dangerouslySetInnerHTML={{ __html: IC.trash }} /></button>
                           </div>
                         </td>
                       </tr>
@@ -475,20 +514,36 @@ export default function EgitimYonetimiPage() {
 
       {/* click-away overlay */}
       {openDropdown && <div onClick={() => setOpenDropdown(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+
+      {/* silme onay modalı */}
+      <FlexModal
+        open={!!deleteModal}
+        title={deleteModal?.ids.length === 1 ? "Eğitimi Sil" : `${deleteModal?.ids.length ?? 0} Eğitimi Sil`}
+        message={
+          deleteModal?.ids.length === 1
+            ? <><strong>{deleteModal.names[0]}</strong> eğitimi ve tüm bölüm/track içerikleri kalıcı olarak silinecek. Bu işlem geri alınamaz.</>
+            : <><strong>{deleteModal?.ids.length ?? 0}</strong> eğitim ve tüm bölüm/track içerikleri kalıcı olarak silinecek. Bu işlem geri alınamaz.</>
+        }
+        confirmLabel={busy ? "Siliniyor…" : "Sil"}
+        tone="danger"
+        busy={busy}
+        onConfirm={confirmDelete}
+        onCancel={() => !busy && setDeleteModal(null)}
+      />
     </div>
   );
 }
 
 // ── stiller ───────────────────────────────────────────────────────────────────
 const S: Record<string, CSSProperties> = {
-  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', system-ui, sans-serif", background: "#eef2f8" },
+  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", background: "#eef2f8" },
   sidebar: { width: 252, flex: "0 0 252px", height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
   logoBox: { width: 38, height: 38, borderRadius: 11, background: "#0a1c38", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 3, padding: 8, boxShadow: "inset 0 0 0 1px rgba(255,255,255,.06)" },
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   navActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   navActiveBar: { position: "absolute", left: 0, top: 9, bottom: 9, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
   main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
-  header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "rgba(238,242,248,.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid #e2e8f1" },
+  header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 1px 2px rgba(15,31,61,.04)" },
   headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#1d4ed8,#0b2244)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(29,78,216,.7)" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },
   bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
@@ -567,12 +622,13 @@ const IC = {
   trashSm: sv('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 'width="14" height="14" stroke-width="2.2"'),
   chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
+  sparkle: `<svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,255,255,.9)" stroke="none"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/></svg>`,
   settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', 'width="16" height="16"'),
 };
 
 const spinCss = `.ey-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:ey-spin 1s linear infinite}@keyframes ey-spin{to{transform:rotate(360deg)}}`;
 const globalCss = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @keyframes ey-ddin{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes ey-glow{0%,100%{box-shadow:0 10px 22px -8px rgba(234,88,12,.6),0 0 0 0 rgba(249,115,22,0)}50%{box-shadow:0 14px 30px -6px rgba(234,88,12,.72),0 0 26px 1px rgba(249,115,22,.30)}}
 @keyframes ey-shimmer{0%{transform:translateX(-130%) skewX(-18deg)}60%,100%{transform:translateX(320%) skewX(-18deg)}}

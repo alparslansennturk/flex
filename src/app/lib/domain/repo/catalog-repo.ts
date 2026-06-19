@@ -15,16 +15,19 @@ export interface EducationRepo {
   save(education: Education): Promise<void>;
   getById(id: string, tenantId: string): Promise<Education | null>;
   list(tenantId: string, branchId?: string): Promise<Education[]>;
+  delete(id: string, tenantId: string): Promise<boolean>;
 }
 export interface SectionRepo {
   nextId(): string;
   save(section: Section): Promise<void>;
   getById(id: string, tenantId: string): Promise<Section | null>;
   list(tenantId: string, educationId?: string): Promise<Section[]>;
+  deleteByEducation(educationId: string, tenantId: string): Promise<number>;
 }
 export interface TrackRepo {
   nextId(): string;
   save(track: Track): Promise<void>;
   getById(id: string, tenantId: string): Promise<Track | null>;
   list(tenantId: string, educationId?: string): Promise<Track[]>;
+  deleteByEducation(educationId: string, tenantId: string): Promise<number>;
 }

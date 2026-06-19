@@ -27,7 +27,7 @@ async function listColl<T>(collection: string, tenantId: string, field?: string,
   let q = adminDb.collection(collection).where("tenantId", "==", tenantId);
   if (field && value) q = q.where(field, "==", value);
   const snap = await q.get();
-  return snap.docs.map((d) => d.data() as T);
+  return snap.docs.map((d) => d.data() as T).sort((a, b) => ((a as any).order ?? 0) - ((b as any).order ?? 0));
 }
 
 const branchBase = makeRepo<Branch>("flexos_branches");
@@ -42,12 +42,31 @@ export const firestoreBranchRepo: BranchRepo = {
 export const firestoreEducationRepo: EducationRepo = {
   ...eduBase,
   list: (tenantId, branchId) => listColl<Education>("flexos_educations", tenantId, "branchId", branchId),
+  async delete(id, tenantId) {
+    const snap = await adminDb.collection("flexos_educations").doc(id).get();
+    if (!snap.exists) return false;
+    const data = snap.data() as Education;
+    if (data.tenantId !== tenantId) return false;
+    await adminDb.collection("flexos_educations").doc(id).delete();
+    return true;
+  },
 };
+async function deleteColl(collection: string, tenantId: string, field: string, value: string): Promise<number> {
+  const snap = await adminDb.collection(collection).where("tenantId", "==", tenantId).where(field, "==", value).get();
+  if (snap.empty) return 0;
+  const batch = adminDb.batch();
+  snap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+  return snap.size;
+}
+
 export const firestoreSectionRepo: SectionRepo = {
   ...sectionBase,
   list: (tenantId, educationId) => listColl<Section>("flexos_sections", tenantId, "educationId", educationId),
+  deleteByEducation: (educationId, tenantId) => deleteColl("flexos_sections", tenantId, "educationId", educationId),
 };
 export const firestoreTrackRepo: TrackRepo = {
   ...trackBase,
   list: (tenantId, educationId) => listColl<Track>("flexos_tracks", tenantId, "educationId", educationId),
+  deleteByEducation: (educationId, tenantId) => deleteColl("flexos_tracks", tenantId, "educationId", educationId),
 };
