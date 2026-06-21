@@ -425,5 +425,11 @@ service cloud.firestore {
     match /flexos_educations/{id} { allow read, write: if false; }
     match /flexos_sections/{id} { allow read, write: if false; }
     match /flexos_tracks/{id} { allow read, write: if false; }
+
+    // Satış kayıtları — server-only (Admin SDK), PII + finansal veri koruması.
+    match /flexos_sales/{id} { allow read, write: if false; }
+
+    // Seans kalıpları — server-only.
+    match /flexos_seanslar/{id} { allow read, write: if false; }
   }
 }

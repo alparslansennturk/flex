@@ -44,6 +44,7 @@ export default function EgitimAyarlariPage() {
     { key: "brans", title: "Branş Havuzu", desc: "Eğitimlerin üst kategorileri (Grafik Tasarım, Yazılım…). Eğitim Ekle dropdown'ı buradan beslenir.", icon: IC.branch, to: "/flexos/egitim-yonetimi/branslar", accent: { color: "#4338ca", background: "#e6e9ff" } },
     { key: "tatil", title: "Senelik Tatiller", desc: "Resmî tatil ve kurum tatil günleri — ders/grup takvimleri bunları atlar.", icon: IC.calendar, to: null, accent: { color: "#c2410c", background: "#ffedd5" } },
     { key: "sertifika", title: "Sertifika Ayarları", desc: "Sertifika kural ve şablonları (başarı/katılım barajları, belge tasarımı).", icon: IC.award, to: null, accent: { color: "#15803d", background: "#dcfce7" } },
+    { key: "seans", title: "Seans Yönetimi", desc: "Grup açarken seçilebilecek seans kalıpları (gün + saat aralığı).", icon: IC.clock, to: "/flexos/egitim-yonetimi/seanslar", accent: { color: "#7c3aed", background: "#ede9fe" } },
     { key: "sozlesme", title: "Sözleşme Şablonları", desc: "Mesafeli satış, kurumsal hizmet vb. sözleşme metinleri.", icon: IC.file, to: null, accent: { color: "#0369a1", background: "#e0f2fe" } },
   ];
 
@@ -66,28 +67,28 @@ export default function EgitimAyarlariPage() {
       <main style={S.main}>
         <header style={S.header}>
           <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <a className="ea-iconbtn" style={S.backBtn} title="Eğitim Yönetimi'ne dön" onClick={() => router.push("/flexos/egitim-yonetimi")}>
-              <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-            </a>
+            <div style={S.headerIcon} dangerouslySetInnerHTML={{ __html: IC.settings }} />
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
-                <span>Eğitim Yönetimi</span>
-                <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
-                <span style={{ color: "#f97316" }}>Eğitim Ayarları</span>
-              </div>
-              <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>Eğitim Ayarları</h1>
+              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>Eğitim Ayarları</h1>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Branşlar, seanslar, tatiller ve sertifika yapılandırması.</p>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ textAlign: "right", lineHeight: 1.25 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
-              <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            <button className="ea-iconbtn" style={S.bellBtn} onClick={soon}>
+              <span dangerouslySetInnerHTML={{ __html: IC.bell }} />
+              <span style={S.bellDot} />
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
+              <div style={{ textAlign: "right", lineHeight: 1.25 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
+                <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
+              </div>
+              <div style={S.avatar}>AŞ</div>
             </div>
-            <div style={S.avatar}>AŞ</div>
           </div>
         </header>
 
-        <div style={{ padding: "30px 36px 48px", maxWidth: 1080, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ padding: "30px 36px 48px" }}>
           <p style={{ margin: "0 0 22px", fontSize: 13.5, color: "#64748b", fontWeight: 500 }}>
             Eğitim modülünün yapılandırması — branşlar, tatiller, sertifika ve sözleşme ayarları.
           </p>
@@ -131,7 +132,9 @@ const S: Record<string, CSSProperties> = {
   navActiveBar: { position: "absolute", left: 0, top: 9, bottom: 9, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
   main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "rgba(238,242,248,.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid #e2e8f1" },
-  backBtn: { width: 46, height: 46, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", textDecoration: "none", transition: "all .14s" },
+  headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
+  bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },
+  bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
   avatar: { width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#fb923c,#ea580c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(234,88,12,.7)" },
   card: { background: "#fff", border: "1px solid #e9edf4", borderRadius: 16, padding: 20, boxShadow: "0 1px 3px rgba(15,31,61,.05)", transition: "all .14s" },
   cardIcon: { width: 42, height: 42, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" },
@@ -148,8 +151,9 @@ const IC = {
   award: sv('<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>'),
   file: sv('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'),
   branch: sv('<path d="M7.59 13.41 11 17l9-9"/><path d="M3 12l3.59 3.59"/>'),
-  back: sv('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', 'width="21" height="21" stroke-width="2.1"'),
-  crumb: sv('<path d="m9 18 6-6-6-6"/>', 'width="13" height="13" stroke="#94a3b8" stroke-width="2.3"'),
+  settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', 'width="23" height="23" stroke="#fff" stroke-width="2"'),
+  clock: sv('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+  bell: sv('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 'width="20" height="20"'),
   arrow: sv('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>', 'width="18" height="18" stroke-width="2.2"'),
 };
 

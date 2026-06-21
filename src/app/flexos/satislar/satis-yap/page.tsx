@@ -76,6 +76,7 @@ export default function SatisYapPage() {
   const [satisModeli, setSatisModeli] = useState<"full" | "track">("full"); // varsayılan Full Paket
   // track bazlı seçim: trackId → seçili mi (varsayılan true = hepsi dahil)
   const [trackSel, setTrackSel] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);
 
   // ── katalog verisi (GET'ten) ──
   const [branches, setBranches] = useState<BranchDoc[]>([]);
@@ -212,8 +213,72 @@ export default function SatisYapPage() {
 
   const onNext = () => {
     if (step === "genel") { setStep("egitim"); return; }
-    // egitim → ödeme (henüz yok)
-    toast.info("Ödeme adımı yakında.");
+    // egitim sekmesinde → kaydet
+    onSave();
+  };
+
+  const onSave = async () => {
+    // ── validasyon ──
+    if (!ad.trim() || !soyad.trim()) { toast.error("Ad ve soyad zorunludur."); setStep("genel"); return; }
+    if (!egitim) { toast.error("Lütfen eğitim seçin."); setStep("egitim"); return; }
+
+    // track bazlı → seçili track id'leri
+    const selectedTrackIds = showTrackTree
+      ? treeTracks.filter((t) => trackOn(t.id)).map((t) => t.id)
+      : undefined;
+
+    if (showTrackTree && (!selectedTrackIds || selectedTrackIds.length === 0)) {
+      toast.error("En az bir track seçmelisiniz."); return;
+    }
+
+    // cinsiyet → domain Gender
+    const genderMap: Record<string, string> = { "Kadın": "female", "Erkek": "male", "Belirtmek istemiyorum": "other" };
+    const gender = cinsiyet ? genderMap[cinsiyet] || undefined : undefined;
+
+    // PII bloğu
+    const idType = isTc ? "tc" as const : "passport" as const;
+    const idNo = isTc ? tcNo.trim() : pasaportNo.trim();
+    const pii: Record<string, string> = {};
+    if (idNo) { pii.idType = idType; pii.idNo = idNo; }
+    if (telefon.trim()) pii.phone = telefon.trim();
+    if (eposta.trim()) pii.email = eposta.trim();
+    if (adres.trim()) pii.address = adres.trim();
+
+    // guardian (18 altı)
+    const guardian = isMinor && veliAd.trim()
+      ? { name: veliAd.trim(), idNo: veliTc.trim() || undefined }
+      : undefined;
+
+    // satış tipi map
+    const saleTypeMap: Record<string, string> = { "Yeni Satış": "new_sale", "Tekrar Öğrencisi": "repeat", "Sınıf Değişimi": "transfer" };
+
+    const body = {
+      firstName: ad.trim(),
+      lastName: soyad.trim(),
+      birthDate: dogumTarihi || undefined,
+      gender,
+      pii: Object.keys(pii).length > 0 ? pii : undefined,
+      type: saleTypeMap[satisNedeni] || "new_sale",
+      customerType: satisTipi === "Kurumsal" ? "corporate" : "individual",
+      educationId: egitim,
+      trackIds: selectedTrackIds,
+      guardian,
+    };
+
+    setSaving(true);
+    try {
+      const headers = await authHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch("/api/flexos/sales", { method: "POST", headers, body: JSON.stringify(body) });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error || "Satış kaydedilemedi."); return; }
+      toast.success("Satış başarıyla kaydedildi!");
+      router.push("/flexos/ogrenciler/havuz");
+    } catch {
+      toast.error("Sunucu hatası — satış kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (authed === null) {
@@ -237,16 +302,10 @@ export default function SatisYapPage() {
         {/* header */}
         <header style={S.header}>
           <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <button className="sy-iconbtn" style={S.backBtn} title="Geri dön" onClick={() => router.push("/flexos/egitim-yonetimi")}>
-              <span dangerouslySetInnerHTML={{ __html: IC.arrowLeft }} />
-            </button>
+            <div style={S.headerIcon} dangerouslySetInnerHTML={{ __html: IC.shoppingBag }} />
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
-                <span>Satış Yönetimi</span>
-                <span dangerouslySetInnerHTML={{ __html: IC.chevRightSm }} />
-                <span style={{ color: "#f97316" }}>Yeni Satış</span>
-              </div>
               <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>Satış Yap</h1>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Yeni öğrenci kaydı oluşturun.</p>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
@@ -264,7 +323,7 @@ export default function SatisYapPage() {
           </div>
         </header>
 
-        <div style={{ padding: "26px 36px 64px", maxWidth: 1080, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ padding: "26px 36px 64px" }}>
 
           {/* 1) Satış Tipi toggle */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 20 }}>
@@ -614,12 +673,12 @@ export default function SatisYapPage() {
                   </button>
                 )}
                 <span style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500 }}>
-                  {isEgitim ? "Satış kapsamını onaylayıp ödemeye geçin." : "Kişisel bilgileri tamamlayıp sonraki adıma geçin."}
+                  {isEgitim ? "Satış kapsamını onaylayıp kaydı tamamlayın." : "Kişisel bilgileri tamamlayıp sonraki adıma geçin."}
                 </span>
               </div>
-              <button className="sy-next" style={S.nextBtn} onClick={onNext}>
-                {isEgitim ? "Devam Et — Ödeme" : "Devam Et — Eğitim"}
-                <span dangerouslySetInnerHTML={{ __html: IC.arrowRight }} />
+              <button className="sy-next" style={{ ...S.nextBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }} onClick={onNext} disabled={saving}>
+                {saving ? "Kaydediliyor…" : isEgitim ? "Satışı Kaydet" : "Devam Et — Eğitim"}
+                {!saving && <span dangerouslySetInnerHTML={{ __html: isEgitim ? IC.checkWhite : IC.arrowRight }} />}
               </button>
             </div>
           </div>
@@ -684,7 +743,7 @@ const S: Record<string, CSSProperties> = {
   root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', 'Plus Jakarta Sans', system-ui, sans-serif", background: "#eef2f8" },
   main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 2px 6px rgba(15,31,61,.04)" },
-  backBtn: { width: 46, height: 46, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },
+  headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },
   bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
   avatar: { width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#fb923c,#ea580c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(234,88,12,.7)" },
@@ -711,8 +770,7 @@ const S: Record<string, CSSProperties> = {
 const sv = (inner: string, attrs = 'width="19" height="19" stroke="currentColor"') =>
   `<svg ${attrs} viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 const IC = {
-  arrowLeft: sv('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', 'width="21" height="21" stroke="currentColor" stroke-width="2.1"'),
-  chevRightSm: sv('<path d="m9 18 6-6-6-6"/>', 'width="13" height="13" stroke="currentColor" stroke-width="2.3"'),
+  shoppingBag: sv('<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><line x1="3" x2="21" y1="6" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>', 'width="23" height="23" stroke="#fff" stroke-width="2"'),
   bell: sv('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 'width="20" height="20" stroke="currentColor"'),
   user: sv('<circle cx="12" cy="8" r="4"/><path d="M6 21v-1a6 6 0 0 1 12 0v1"/>', 'width="17" height="17" stroke="currentColor"'),
   building: sv('<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/>', 'width="17" height="17" stroke="currentColor"'),
@@ -731,6 +789,7 @@ const IC = {
   awardGreen: sv('<path d="M15.477 12.89 17 21l-5-3-5 3 1.523-8.11"/><circle cx="12" cy="8" r="6"/>', 'width="14" height="14" stroke="#16a34a" stroke-width="2.2"'),
   chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="15" height="15" stroke="currentColor" stroke-width="2.3"'),
   arrowRight: sv('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>', 'width="16" height="16" stroke="currentColor" stroke-width="2.3"'),
+  checkWhite: sv('<path d="M20 6 9 17l-5-5"/>', 'width="16" height="16" stroke="#fff" stroke-width="2.5"'),
 };
 
 const spinCss = `.sy-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:sy-spin 1s linear infinite}@keyframes sy-spin{to{transform:rotate(360deg)}}`;

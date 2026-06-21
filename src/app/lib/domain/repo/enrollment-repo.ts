@@ -12,4 +12,6 @@ export interface EnrollmentRepo {
    * Çift kaydı önlemek için kullanılır — aynı kişi FARKLI gruplara serbestçe kaydolur.
    */
   findActive(personId: string, groupId: string, tenantId: string): Promise<Enrollment | null>;
+  /** Kiracıya ait tüm kayıtları listele (havuz sayfası için). */
+  list(tenantId: string): Promise<Enrollment[]>;
 }

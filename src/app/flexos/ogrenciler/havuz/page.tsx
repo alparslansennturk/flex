@@ -36,53 +36,43 @@ const ST: Record<StatusKey, { label: string; hint: string; color: string; backgr
   donduruldu: { label: "Donduruldu", hint: "Kayıt donduruldu", color: "#0E5D59", background: "#AFF3F0", dot: "#1CB5AE" },
 };
 
-const BRANS: Record<string, { color: string; background: string; dot: string }> = {
+const BRANS_COLORS: Record<string, { color: string; background: string; dot: string }> = {
   Design: { color: "#B80E57", background: "#FED7E9", dot: "#F91079" },
   Finance: { color: "#0E5D59", background: "#AFF3F0", dot: "#1CB5AE" },
   Software: { color: "#4D52A6", background: "#DDE0FA", dot: "#6F74D8" },
 };
+const BRANS_FALLBACK = { color: "#414B59", background: "#EEF0F3", dot: "#8E95A3" };
+const BRANS = new Proxy(BRANS_COLORS, {
+  get: (t, k: string) => t[k] ?? BRANS_FALLBACK,
+});
 
 const AV_PALETTES: Array<[string, string]> = [
   ["#689adf", "#2867bd"], ["#FFA352", "#FF7800"], ["#67B5B6", "#1CB5AE"], ["#8B91E6", "#4D52A6"], ["#F76FA3", "#F91079"],
 ];
 
 const SUBE_LIST = ["Tümü", "Kadıköy", "Pendik", "Ümraniye", "Beşiktaş"];
-const BRANS_LIST = ["Tümü", "Design", "Finance", "Software"];
 const PAGE_SIZE = 8;
 
 interface StudentGroup { label: string; branch: string }
 interface Student {
-  id: number; name: string; email: string; phone: string;
+  id: string; name: string; email: string; phone: string;
   status: StatusKey; sube: string; gender: string; branches: string[];
-  groups: StudentGroup[]; // 0 = atanmadı · 1 = tek grup · 2+ = çoklu (sayı + hover)
+  groups: StudentGroup[];
 }
 
-// DEMO veri — gerçek GET /api/flexos/persons bağlanınca kaldırılacak.
-const DEMO: Array<[string, string, string, StatusKey, string, string, string[]]> = [
-  ["Elif Yıldız", "elif.yildiz@mail.com", "0532 418 22 71", "beklemede", "Kadıköy", "Kadın", ["Design", "Software"]],
-  ["Mert Aksoy", "mert.aksoy@mail.com", "0541 903 18 44", "aktif", "Pendik", "Erkek", ["Software"]],
-  ["Zeynep Kaya", "zeynep.kaya@mail.com", "0505 277 65 90", "grupsuz", "Ümraniye", "Kadın", ["Finance", "Design", "Software"]],
-  ["Burak Demir", "burak.demir@mail.com", "0533 612 40 07", "tekrar", "Kadıköy", "Erkek", ["Software"]],
-  ["Ayşe Şahin", "ayse.sahin@mail.com", "0544 190 73 28", "aktif", "Beşiktaş", "Kadın", ["Design", "Finance"]],
-  ["Can Öztürk", "can.ozturk@mail.com", "0537 845 21 60", "beklemede", "Pendik", "Erkek", ["Finance"]],
-  ["Selin Arslan", "selin.arslan@mail.com", "0531 408 99 13", "grupsuz", "Kadıköy", "Kadın", ["Software", "Design"]],
-  ["Emre Çelik", "emre.celik@mail.com", "0542 736 50 82", "aktif", "Ümraniye", "Erkek", ["Design"]],
-  ["Deniz Koç", "deniz.koc@mail.com", "0536 217 84 35", "tekrar", "Beşiktaş", "Kadın", ["Finance", "Software"]],
-  ["Kaan Aydın", "kaan.aydin@mail.com", "0530 671 29 47", "beklemede", "Pendik", "Erkek", ["Software"]],
-  ["Melisa Doğan", "melisa.dogan@mail.com", "0545 382 16 90", "aktif", "Kadıköy", "Kadın", ["Design", "Finance", "Software"]],
-  ["Yusuf Polat", "yusuf.polat@mail.com", "0534 928 47 11", "pasif", "Beşiktaş", "Erkek", ["Finance"]],
-  ["İrem Güneş", "irem.gunes@mail.com", "0539 165 73 28", "mezun", "Ümraniye", "Kadın", ["Software"]],
-  ["Ozan Yılmaz", "ozan.yilmaz@mail.com", "0532 740 88 51", "tekrar", "Pendik", "Erkek", ["Design", "Software"]],
-  ["Buse Kara", "buse.kara@mail.com", "0543 519 02 67", "donduruldu", "Kadıköy", "Kadın", ["Finance"]],
-  ["Arda Şen", "arda.sen@mail.com", "0538 246 91 03", "grupsuz", "Beşiktaş", "Erkek", ["Software", "Finance"]],
-  ["Ece Tunç", "ece.tunc@mail.com", "0531 873 64 29", "aktif", "Ümraniye", "Kadın", ["Design"]],
-  ["Berk Acar", "berk.acar@mail.com", "0546 312 70 85", "tekrar", "Kadıköy", "Erkek", ["Finance", "Design"]],
-  ["Naz Erdem", "naz.erdem@mail.com", "0535 690 41 72", "beklemede", "Pendik", "Kadın", ["Software"]],
-  ["Tolga Bulut", "tolga.bulut@mail.com", "0540 127 53 96", "aktif", "Beşiktaş", "Erkek", ["Design", "Software", "Finance"]],
-  ["Gizem Avcı", "gizem.avci@mail.com", "0533 458 19 04", "grupsuz", "Kadıköy", "Kadın", ["Finance"]],
-  ["Onur Taş", "onur.tas@mail.com", "0544 802 36 51", "mezun", "Ümraniye", "Erkek", ["Software"]],
-  ["Sıla Korkmaz", "sila.korkmaz@mail.com", "0537 219 75 48", "tekrar", "Pendik", "Kadın", ["Design", "Finance"]],
-  ["Efe Yalçın", "efe.yalcin@mail.com", "0532 564 90 17", "donduruldu", "Beşiktaş", "Erkek", ["Finance"]],
+const DUMMY: Student[] = [
+  { id: "1", name: "Ayşe Kara", email: "ayse.kara@mail.com", phone: "0532 111 22 33", status: "aktif", sube: "Kadıköy", gender: "female", branches: ["Grafik Tasarım"], groups: [{ label: "GRF-2026A", branch: "Grafik Tasarım" }] },
+  { id: "2", name: "Mehmet Ali Yılmaz", email: "mehmetali@mail.com", phone: "0541 222 33 44", status: "grupsuz", sube: "Kadıköy", gender: "male", branches: ["Web Geliştirme"], groups: [] },
+  { id: "3", name: "Zeynep Demir", email: "zeynep.d@mail.com", phone: "0555 333 44 55", status: "beklemede", sube: "Pendik", gender: "female", branches: ["Grafik Tasarım", "UI/UX"], groups: [] },
+  { id: "4", name: "Ahmet Çelik", email: "ahmet.celik@mail.com", phone: "0544 444 55 66", status: "aktif", sube: "Kadıköy", gender: "male", branches: ["Python"], groups: [{ label: "PY-2026A", branch: "Python" }] },
+  { id: "5", name: "Elif Özkan", email: "elif.ozkan@mail.com", phone: "0533 555 66 77", status: "mezun", sube: "Ümraniye", gender: "female", branches: ["Grafik Tasarım"], groups: [{ label: "GRF-2025B", branch: "Grafik Tasarım" }] },
+  { id: "6", name: "Burak Şentürk", email: "burak.s@mail.com", phone: "0542 666 77 88", status: "aktif", sube: "Beşiktaş", gender: "male", branches: ["Web Geliştirme", "Python"], groups: [{ label: "WEB-2026A", branch: "Web Geliştirme" }, { label: "PY-2026A", branch: "Python" }] },
+  { id: "7", name: "Seda Arslan", email: "seda.arslan@mail.com", phone: "0531 777 88 99", status: "donduruldu", sube: "Pendik", gender: "female", branches: ["UI/UX"], groups: [{ label: "UX-2026A", branch: "UI/UX" }] },
+  { id: "8", name: "Can Yıldırım", email: "can.y@mail.com", phone: "0546 888 99 00", status: "pasif", sube: "Kadıköy", gender: "male", branches: ["Python"], groups: [] },
+  { id: "9", name: "Deniz Koç", email: "deniz.koc@mail.com", phone: "0537 999 00 11", status: "aktif", sube: "Ümraniye", gender: "female", branches: ["Grafik Tasarım"], groups: [{ label: "GRF-2026A", branch: "Grafik Tasarım" }] },
+  { id: "10", name: "Emre Aydın", email: "emre.a@mail.com", phone: "0548 000 11 22", status: "tekrar", sube: "Beşiktaş", gender: "male", branches: ["Web Geliştirme"], groups: [{ label: "WEB-2025C", branch: "Web Geliştirme" }] },
+  { id: "11", name: "Fatma Nur Güneş", email: "fatmanur@mail.com", phone: "0539 111 22 33", status: "grupsuz", sube: "Kadıköy", gender: "female", branches: ["Python", "Grafik Tasarım"], groups: [] },
+  { id: "12", name: "Gökhan Erdoğan", email: "gokhan.e@mail.com", phone: "0543 222 33 44", status: "aktif", sube: "Pendik", gender: "male", branches: ["UI/UX"], groups: [{ label: "UX-2026A", branch: "UI/UX" }] },
 ];
 
 function initials(name: string) {
@@ -104,27 +94,19 @@ export default function OgrenciHavuzuPage() {
   const [pBrans, setPBrans] = useState("Tümü");
 
   const [openDropdown, setOpenDropdown] = useState<null | "sube" | "brans">(null);
-  const [hoveredBrans, setHoveredBrans] = useState<number | null>(null);
-  const [hoveredGroup, setHoveredGroup] = useState<number | null>(null);
+  const [hoveredBrans, setHoveredBrans] = useState<string | null>(null);
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
-      // DEMO doldur — gerçek GET burada çağrılacak.
-      // Grup demo'su: aktif/tekrar/mezun olanın her branşı için bir grup üret (çoklu grubu görselleştirmek için).
-      setStudents(DEMO.map((r, i) => {
-        const id = i + 1;
-        const status = r[3];
-        const branches = r[6];
-        const hasGroup = status === "aktif" || status === "tekrar" || status === "mezun";
-        const groups: StudentGroup[] = hasGroup
-          ? branches.map((b, bi) => ({ label: `Grup ${200 + ((id * 7 + bi * 13) % 90)}`, branch: b }))
-          : [];
-        return { id, name: r[0], email: r[1], phone: r[2], status, sube: r[4], gender: r[5], branches, groups };
-      }));
+      // Dummy veri — gerçek API bağlandığında fetch ile değiştirilecek
+      setStudents(DUMMY);
     })();
   }, [router]);
 
@@ -157,6 +139,13 @@ export default function OgrenciHavuzuPage() {
   const startIdx = (curPage - 1) * PAGE_SIZE;
   const pageStudents = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
+  // Branş listesini gerçek öğrenci verisinden türet
+  const BRANS_LIST = useMemo(() => {
+    const set = new Set<string>();
+    students.forEach((st) => st.branches.forEach((b) => set.add(b)));
+    return ["Tümü", ...Array.from(set).sort()];
+  }, [students]);
+
   const anyFilter = pStatus.length > 0 || pSube !== "Tümü" || pBrans !== "Tümü";
 
   if (authed === null) {
@@ -180,7 +169,7 @@ export default function OgrenciHavuzuPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
             <div style={S.headerIcon} dangerouslySetInnerHTML={{ __html: IC.headerUsers }} />
             <div>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Öğrenci Havuzu</h1>
+              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Öğrenciler</h1>
               <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Tüm öğrenci kayıtlarını filtreleyin ve gruplara atayın.</p>
             </div>
           </div>
@@ -200,12 +189,9 @@ export default function OgrenciHavuzuPage() {
         </header>
 
         <div style={{ padding: "30px 36px 48px", maxWidth: 1480, margin: "0 auto" }}>
-          {/* section header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 22 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Öğrenci Havuzu</h2>
-              <span style={S.countChip}>{total} öğrenci</span>
-            </div>
+          {/* section chip */}
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 22 }}>
+            <span style={S.countChip}>{total} öğrenci</span>
           </div>
 
           {/* ============ FILTER PANEL ============ */}
@@ -269,7 +255,7 @@ export default function OgrenciHavuzuPage() {
                     {BRANS_LIST.map((v) => (
                       <div key={v} className="oh-ddrow" style={pBrans === v ? S.ddActive : S.ddBase} onClick={() => { setPBrans(v); setOpenDropdown(null); }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: v === "Tümü" ? "#CDD2DA" : BRANS[v].dot }} />
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: v === "Tümü" ? "#CDD2DA" : (BRANS[v]?.dot ?? BRANS_FALLBACK.dot) }} />
                           {v}
                         </span>
                         {pBrans === v && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
@@ -298,65 +284,63 @@ export default function OgrenciHavuzuPage() {
           {/* ============ TABLE ============ */}
           <div style={S.tableCard}>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "#F7F8FA", borderBottom: "1px solid #EEF0F3" }}>
-                    {["Ad", "Email", "Telefon", "Durum", "Şube", "Branş", "Grup"].map((h) => (
-                      <th key={h} style={S.th}>{h}</th>
-                    ))}
+                    <th style={S.th}>Ad Soyad</th>
+                    <th style={S.th}>Branş</th>
+                    <th style={S.th}>Durum</th>
+                    <th className="oh-wide-col" style={S.th}>E-posta</th>
+                    <th className="oh-wide-col" style={S.th}>Telefon</th>
+                    <th style={S.th}>Grup</th>
                     <th style={{ ...S.th, textAlign: "right" }}>İşlem</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pageStudents.map((st) => {
                     const ss = ST[st.status];
-                    const pal = AV_PALETTES[(st.id - 1) % AV_PALETTES.length];
+                    const idHash = st.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+                    const pal = AV_PALETTES[idHash % AV_PALETTES.length];
                     const branchCount = st.branches.length;
-                    const activeBrans = st.branches[0];
-                    const groups = st.groups;
-                    const hasGroup = groups.length > 0;
-                    const groupCount = groups.length;
+                    const activeBrans = st.branches[0] ?? "—";
                     const popupOpen = hoveredBrans === st.id && branchCount > 1;
+                    const groups = st.groups;
+                    const groupCount = groups.length;
+                    const hasGroup = groupCount > 0;
                     const groupPopupOpen = hoveredGroup === st.id && groupCount > 1;
                     return (
-                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3" }}>
+                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => toast.info("Öğrenci detayı yakında açılacak.")}>
+                        {/* Ad Soyad */}
                         <td style={S.cell}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <span style={{ ...S.avatarSm, background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>{initials(st.name)}</span>
-                            <span style={{ fontSize: 14.5, fontWeight: 700, color: "#1E222B" }}>{st.name}</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{st.name}</span>
                           </div>
                         </td>
-                        <td style={S.cell}><span style={{ fontSize: 13.5, color: "#414B59", fontWeight: 500 }}>{st.email}</span></td>
-                        <td style={S.cell}><span style={{ fontSize: 13.5, color: "#414B59", fontWeight: 600 }}>{st.phone}</span></td>
-                        <td style={S.cell}>
-                          <span style={{ ...S.statusBadge, color: ss.color, background: ss.background }}>
-                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: ss.dot, flex: "0 0 auto" }} />
-                            {ss.label}
-                          </span>
-                        </td>
-                        <td style={S.cell}><span style={{ fontSize: 13.5, color: "#414B59", fontWeight: 600 }}>{st.sube}</span></td>
+                        {/* Branş */}
                         <td style={S.cell}>
                           <div
-                            style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 9, cursor: "default" }}
+                            style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 8, cursor: "default" }}
                             onMouseEnter={() => setHoveredBrans(st.id)}
                             onMouseLeave={() => setHoveredBrans(null)}
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <span style={{ fontSize: 13.5, fontWeight: 600, color: "#414B59" }}>{activeBrans}</span>
-                            {branchCount > 1 && <span style={S.branchBadge}>{branchCount}</span>}
+                            <span style={{ ...S.bransBadge, color: (BRANS[activeBrans] ?? BRANS_FALLBACK).color, background: (BRANS[activeBrans] ?? BRANS_FALLBACK).background }}>
+                              <span style={{ width: 7, height: 7, borderRadius: "50%", background: (BRANS[activeBrans] ?? BRANS_FALLBACK).dot, flex: "0 0 auto" }} />
+                              {activeBrans}
+                            </span>
+                            {branchCount > 1 && <span style={S.branchBadge}>+{branchCount - 1}</span>}
                             {popupOpen && (
                               <div style={S.branchPopup}>
-                                <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".06em", padding: "4px 9px 7px" }}>
+                                <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", padding: "4px 9px 7px" }}>
                                   Branşlar ({branchCount})
                                 </div>
                                 {st.branches.map((b, bi) => {
-                                  const c = BRANS[b] ?? BRANS.Design;
+                                  const c = BRANS[b] ?? BRANS_FALLBACK;
                                   return (
-                                    <div key={b} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "7px 9px", borderRadius: 8, background: bi === 0 ? "#EFF3FA" : "transparent" }}>
-                                      <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-                                        <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: c.dot }} />
-                                        <span style={{ fontSize: 13.5, fontWeight: 600, color: "#414B59" }}>{b}</span>
-                                      </span>
-                                      {bi === 0 && <span style={{ fontSize: 10, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 7px", borderRadius: 999 }}>Aktif</span>}
+                                    <div key={b} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 9px", borderRadius: 8, background: bi === 0 ? "#EFF3FA" : "transparent" }}>
+                                      <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: c.dot }} />
+                                      <span style={{ fontSize: 13, fontWeight: 600, color: "#414B59" }}>{b}</span>
                                     </div>
                                   );
                                 })}
@@ -364,7 +348,19 @@ export default function OgrenciHavuzuPage() {
                             )}
                           </div>
                         </td>
+                        {/* Durum */}
                         <td style={S.cell}>
+                          <span style={{ ...S.statusBadge, color: ss.color, background: ss.background }}>
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: ss.dot, flex: "0 0 auto" }} />
+                            {ss.label}
+                          </span>
+                        </td>
+                        {/* E-posta — geniş ekran */}
+                        <td className="oh-wide-col" style={S.cell}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>{st.email}</span></td>
+                        {/* Telefon — geniş ekran */}
+                        <td className="oh-wide-col" style={S.cell}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 600, whiteSpace: "nowrap" }}>{st.phone}</span></td>
+                        {/* Grup */}
+                        <td style={S.cell} onClick={(e) => e.stopPropagation()}>
                           {groupCount === 0 ? (
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#8E95A3", fontStyle: "italic", whiteSpace: "nowrap" }}>
                               <span dangerouslySetInnerHTML={{ __html: IC.alert }} />
@@ -388,16 +384,16 @@ export default function OgrenciHavuzuPage() {
                               </span>
                               {groupPopupOpen && (
                                 <div style={S.branchPopup}>
-                                  <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".06em", padding: "4px 9px 7px" }}>
+                                  <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", padding: "4px 9px 7px" }}>
                                     Gruplar ({groupCount})
                                   </div>
                                   {groups.map((g) => {
-                                    const c = BRANS[g.branch] ?? BRANS.Design;
+                                    const c = BRANS[g.branch] ?? BRANS_FALLBACK;
                                     return (
                                       <div key={g.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "7px 9px", borderRadius: 8 }}>
                                         <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
                                           <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: c.dot }} />
-                                          <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{g.label}</span>
+                                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{g.label}</span>
                                         </span>
                                         <span style={{ fontSize: 12, fontWeight: 600, color: "#8E95A3", whiteSpace: "nowrap" }}>{g.branch}</span>
                                       </div>
@@ -408,23 +404,18 @@ export default function OgrenciHavuzuPage() {
                             </div>
                           )}
                         </td>
-                        <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }}>
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                            <button className="oh-detail" style={S.detailBtn} onClick={soon}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.eye }} />
-                              Detay
-                            </button>
-                            <button
-                              className={hasGroup ? undefined : "oh-assign"}
-                              disabled={hasGroup}
-                              title={hasGroup ? (groupCount === 1 ? `Zaten bir gruba atanmış (${groups[0].label})` : `Zaten ${groupCount} gruba atanmış`) : "Gruba ata"}
-                              onClick={soon}
-                              style={{ ...S.assignBtn, color: hasGroup ? "#CDD2DA" : "#414B59", cursor: hasGroup ? "not-allowed" : "pointer" }}
-                            >
-                              <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
-                              Gruba Ata
-                            </button>
-                          </div>
+                        {/* İşlem — Gruba Ata */}
+                        <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className={hasGroup ? undefined : "oh-assign"}
+                            disabled={hasGroup}
+                            title={hasGroup ? (groupCount === 1 ? `Zaten bir gruba atanmış (${groups[0].label})` : `Zaten ${groupCount} gruba atanmış`) : "Gruba ata"}
+                            onClick={soon}
+                            style={{ ...S.assignBtn, color: hasGroup ? "#CDD2DA" : "#414B59", cursor: hasGroup ? "not-allowed" : "pointer" }}
+                          >
+                            <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
+                            Gruba Ata
+                          </button>
                         </td>
                       </tr>
                     );
@@ -433,12 +424,20 @@ export default function OgrenciHavuzuPage() {
               </table>
             </div>
 
+            {/* loading */}
+            {loading && pageStudents.length === 0 && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center" }}>
+                <div className="oh-spin" />
+                <div style={{ fontSize: 13.5, color: "#8E95A3" }}>Öğrenciler yükleniyor…</div>
+              </div>
+            )}
+
             {/* empty state */}
-            {pageStudents.length === 0 && (
+            {!loading && pageStudents.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center" }}>
                 <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.searchBig }} />
-                <div style={{ fontSize: 15.5, fontWeight: 700, color: "#414B59" }}>Sonuç bulunamadı</div>
-                <div style={{ fontSize: 13.5, color: "#8E95A3", maxWidth: 320 }}>Seçili filtrelere uygun öğrenci yok. Filtreleri temizleyip tekrar deneyin.</div>
+                <div style={{ fontSize: 15.5, fontWeight: 700, color: "#414B59" }}>{students.length === 0 ? "Henüz öğrenci yok" : "Sonuç bulunamadı"}</div>
+                <div style={{ fontSize: 13.5, color: "#8E95A3", maxWidth: 320 }}>{students.length === 0 ? "İlk satışı yaptığınızda öğrenciler burada görünecek." : "Seçili filtrelere uygun öğrenci yok. Filtreleri temizleyip tekrar deneyin."}</div>
               </div>
             )}
 
@@ -483,7 +482,7 @@ const S: Record<string, CSSProperties> = {
   avatar: { width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#FF8D28,#D66500)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(214,101,0,.5)" },
   countChip: { fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 },
   filterPanel: { position: "relative", zIndex: 20, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16, padding: "18px 20px", boxShadow: "0 1px 2px rgba(15,31,61,.04)", marginBottom: 18 },
-  sectionLabel: { fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".06em" },
+  sectionLabel: { fontSize: 11.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em" },
   statusChip: { display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, cursor: "pointer", transition: "all .14s" },
   statusCheck: { position: "relative", width: 17, height: 17, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" },
   selectBtn: { display: "inline-flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 15px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
@@ -493,15 +492,15 @@ const S: Record<string, CSSProperties> = {
   clearBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "11px 14px", borderRadius: 11, border: "1px dashed #F3B0B0", background: "#fff", color: "#D93636", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
   filterBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "12px 22px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)", transition: "filter .14s" },
   tableCard: { background: "#fff", border: "1px solid #E2E5EA", borderRadius: 18, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,31,61,.05)" },
-  th: { padding: "14px 24px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em" },
+  th: { padding: "14px 24px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#8E95A3", letterSpacing: ".02em" },
   cell: { padding: "15px 24px", verticalAlign: "middle" },
   avatarSm: { width: 36, height: 36, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12.5, fontWeight: 700 },
   statusBadge: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
+  bransBadge: { display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 11px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
+  groupChip: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 8, background: "#f1f5f9", border: "1px solid #E2E5EA", fontSize: 13, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" },
+  assignBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, border: "none", background: "transparent", fontSize: 13, fontWeight: 600, fontFamily: "inherit", transition: "all .13s" },
   branchBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, padding: "0 5px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: "#fff", background: "#2867bd", boxShadow: "0 3px 8px -3px rgba(40,103,189,.55)", flex: "0 0 auto" },
   branchPopup: { position: "absolute", top: "calc(100% + 9px)", left: 0, minWidth: 172, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 18px 40px -12px rgba(15,31,61,.26)", padding: 8, zIndex: 50, animation: "oh-ddin .14s cubic-bezier(.2,.8,.3,1)" },
-  groupChip: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 8, background: "#f1f5f9", border: "1px solid #E2E5EA", fontSize: 13, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" },
-  detailBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .13s" },
-  assignBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, border: "none", background: "transparent", fontSize: 13, fontWeight: 600, fontFamily: "inherit", transition: "all .13s" },
   emptyIcon: { width: 58, height: 58, borderRadius: 16, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" },
   pagination: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", padding: "16px 24px", borderTop: "1px solid #EEF0F3", background: "#F7F8FA" },
   pageArrow: { width: 38, height: 38, borderRadius: 10, border: "1px solid #e6e9f0", background: "#fff", color: "#414B59", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" },
@@ -545,4 +544,5 @@ const globalCss = `
 .oh-iconbtn:hover{background:#F7F8FA;color:#1E222B}
 .oh-detail:hover{border-color:#92b6e8;color:#2867bd;background:#EFF3FA}
 .oh-assign:hover{color:#2867bd;background:#EFF3FA}
+@media(max-width:1599px){.oh-wide-col{display:none}}
 `;

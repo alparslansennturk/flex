@@ -22,6 +22,9 @@ export type FlexNavKey =
   | "ogrenci-havuzu"
   | "kayitli-ogrenciler"
   | "mezunlar"
+  | "grup-ekle"
+  | "tum-gruplar"
+  | "seans-takvimi"
   | "siniflar"
   | "yoklamalar"
   | "sertifikasyon";
@@ -40,6 +43,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const studentsActive =
     active === "ogrenci-havuzu" || active === "kayitli-ogrenciler" || active === "mezunlar";
   const [studentsOpen, setStudentsOpen] = useState(studentsActive);
+
+  const classesActive =
+    active === "grup-ekle" || active === "tum-gruplar" || active === "seans-takvimi" || active === "siniflar";
+  const [classesOpen, setClassesOpen] = useState(classesActive);
 
   return (
     <aside style={S.sidebar}>
@@ -145,7 +152,36 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           )}
         </AnimatePresence>
 
-        <Item icon={IC.users} label="Sınıflar" onClick={go(null)} />
+        {/* Sınıflar — akordiyon ana başlık */}
+        <a className="fs-navlink" style={classesActive ? S.parentActive : S.navItem} onClick={() => setClassesOpen((o) => !o)}>
+          <span style={{ display: "inline-flex", color: classesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.graduation }} />
+          <span style={{ flex: 1 }}>Sınıflar</span>
+          <motion.span
+            style={{ display: "inline-flex", opacity: 0.7 }}
+            animate={{ rotate: classesOpen ? 0 : -90 }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+            dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+          />
+        </a>
+        <AnimatePresence initial={false}>
+          {classesOpen && (
+            <motion.div
+              key="classes-sub"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+              style={{ overflow: "hidden" }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                <SubItem label="Grup Ekle" active={active === "grup-ekle"} onClick={go("/flexos/siniflar")} />
+                <SubItem label="Tüm Gruplar" active={active === "tum-gruplar"} onClick={go(null)} />
+                <SubItem label="Seans Takvimi" active={active === "seans-takvimi"} onClick={go(null)} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <Item icon={IC.calendar} label="Yoklamalar" onClick={go(null)} />
         <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />
       </nav>
@@ -191,6 +227,7 @@ const IC = {
   users: sv('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
   calendar: sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>'),
   award: sv('<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>'),
+  graduation: sv('<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>'),
   chevDown: sv('<path d="m6 9 6 6 6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
 };

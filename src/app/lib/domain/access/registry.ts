@@ -37,6 +37,10 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "grade.finalize", domain: "grade", label: "Modülü Bitir (not donar)", sensitivity: "red", write: true, scopable: true, audited: true },
   { key: "grade.report.read", domain: "grade", label: "Not Raporu", sensitivity: "green", write: false, scopable: true, audited: false },
 
+  // ── sale ──
+  { key: "sale.create", domain: "sale", label: "Satış Yap", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "sale.read", domain: "sale", label: "Satış Gör", sensitivity: "yellow", write: false, scopable: true, audited: false },
+
   // ── catalog (Branş/Eğitim/Bölüm/Track — Eğitim Op) ──
   { key: "branch.create", domain: "catalog", label: "Branş Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "education.create", domain: "catalog", label: "Eğitim Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },

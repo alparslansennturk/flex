@@ -13,7 +13,7 @@ function at(scope: Scope, ...capabilities: string[]): Grant[] {
 }
 
 export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
-  // Satış: kişi (PII dahil) + eğitime kaydet. PII YAZAR.
+  // Satış: kişi (PII dahil) + eğitime kaydet + satış. PII YAZAR.
   satis: at(
     "org",
     "person.create",
@@ -23,6 +23,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "person.edit",
     "person.search",
     "enrollment.create",
+    "sale.create",
+    "sale.read",
   ),
 
   // Operasyon: grup + kayıt yönetimi, kişi (PII dahil) okur, rapor.
@@ -44,6 +46,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "group.assign_trainer",
     "group.activate",
     "grade.report.read",
+    "sale.create",
+    "sale.read",
     "branch.create",
     "education.create",
     "education.edit",
@@ -107,6 +111,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "education.edit",
       "section.create",
       "track.create",
+      "sale.create",
+      "sale.read",
       "role.manage",
       "capability.grant",
     ),

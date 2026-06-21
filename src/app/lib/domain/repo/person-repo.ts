@@ -11,4 +11,6 @@ export interface PersonRepo {
   save(person: Person): Promise<void>;
   /** tenantId eşleşmezse null (kiracı izolasyonu). */
   getById(id: string, tenantId: string): Promise<Person | null>;
+  /** Kiracıya ait tüm kişileri listele. */
+  list(tenantId: string): Promise<Person[]>;
 }
