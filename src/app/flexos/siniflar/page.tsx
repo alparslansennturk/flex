@@ -29,9 +29,9 @@ interface EducationDoc {
 interface SectionDoc { id: string; educationId: string; name: string; order: number; hours?: number }
 
 type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
-type GroupStatus = "açılacak" | "aktif" | "bitmiş";
+type GroupStatus = "açılacak" | "aktif" | "bitmiş" | "iptal";
 type ViewMode = "list" | "card";
-type FilterKey = "hepsi" | "açılacak" | "aktif" | "bitmiş";
+type FilterKey = "hepsi" | "açılacak" | "aktif" | "bitmiş" | "iptal";
 
 interface DemoGroup {
   id: number;
@@ -69,6 +69,7 @@ const STATUS_MAP: Record<GroupStatus, { label: string; color: string; background
   açılacak: { label: "Açılacak", color: "#205297", background: "#DDE8F8", dot: "#3A7BD5" },
   aktif:    { label: "Aktif",    color: "#007A30", background: "#E6F5ED", dot: "#009F3E" },
   bitmiş:   { label: "Mezun",    color: "#6F7B87", background: "#EEF0F3", dot: "#AEB4C0" },
+  iptal:    { label: "İptal",    color: "#9E3A00", background: "#FFF0E6", dot: "#D45A00" },
 };
 
 // -- Şube ve eğitmen listesi (statik demo) --
@@ -93,6 +94,7 @@ function buildDemoGroups(): DemoGroup[] {
     ["GRP-247", "Design", "UX Arastirma", "Pendik", "Naz Erdem", "Sal - Per 19.00 - 21.30", "18 Haz 2026", "aktif", 13, 16],
     ["GRP-249", "Software", "React ile Frontend", "Kadikoy", "Onur Tas", "Pts - Crs 19.00 - 21.30", "25 Haz 2026", "aktif", 18, 18],
     ["GRP-250", "Finance", "Butce & Raporlama", "Besiktas", "Gizem Avci", "Cts - Paz 09.00 - 12.00", "28 Haz 2026", "aktif", 11, 14],
+    ["GRP-235", "Software", "Python ile Otomasyon", "Pendik", "Onur Tas", "Sal - Per 19.00 - 21.30", "15 Şub 2026", "iptal", 2, 16],
   ];
   return d.map((r, i) => ({ id: i + 1, kod: r[0], brans: r[1], eğitim: r[2], şube: r[3], eğitmen: r[4], seans: r[5], tarih: r[6], status: r[7], dolu: r[8], kontenjan: r[9] }));
 }
@@ -134,6 +136,10 @@ export default function SınıflarPage() {
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [startId, setStartId] = useState<number | null>(null);
+  const [finishId, setFinishId] = useState<number | null>(null);
+  const [cancelId, setCancelId] = useState<number | null>(null);
+  const [reopenId, setReopenId] = useState<number | null>(null);
 
   const mainRef = useRef<HTMLElement>(null);
 
@@ -291,6 +297,30 @@ export default function SınıflarPage() {
     setDeleteId(null);
   };
 
+  const confirmStart = () => {
+    setGroups((prev) => prev.map((g) => g.id === startId ? { ...g, status: "aktif" as GroupStatus } : g));
+    setStartId(null);
+    toast.success("Grup başarıyla başlatıldı!");
+  };
+
+  const confirmFinish = () => {
+    setGroups((prev) => prev.map((g) => g.id === finishId ? { ...g, status: "bitmiş" as GroupStatus } : g));
+    setFinishId(null);
+    toast.success("Eğitim tamamlandı, grup mezun durumuna alındı.");
+  };
+
+  const confirmCancel = () => {
+    setGroups((prev) => prev.map((g) => g.id === cancelId ? { ...g, status: "iptal" as GroupStatus } : g));
+    setCancelId(null);
+    toast.success("Grup iptal edildi.");
+  };
+
+  const confirmReopen = () => {
+    setGroups((prev) => prev.map((g) => g.id === reopenId ? { ...g, status: "aktif" as GroupStatus } : g));
+    setReopenId(null);
+    toast.success("Grup tekrar aktif duruma alındı.");
+  };
+
   // -- filtered list --
   const filtered = useMemo(() => {
     if (groupFilter === "hepsi") return groups;
@@ -303,7 +333,7 @@ export default function SınıflarPage() {
   const pageGroups = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
   const counts = useMemo(() => {
-    const c = { hepsi: groups.length, açılacak: 0, aktif: 0, bitmiş: 0 };
+    const c = { hepsi: groups.length, açılacak: 0, aktif: 0, bitmiş: 0, iptal: 0 };
     groups.forEach((g) => { c[g.status]++; });
     return c;
   }, [groups]);
@@ -483,9 +513,9 @@ export default function SınıflarPage() {
                       <input type="date" value={fTarih} onChange={(e) => setFTarih(e.target.value)} style={S.inp} />
                     </label>
 
-                    {/* Eğitmen */}
+                    {/* Eğitmen (opsiyonel) */}
                     <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Eğitmen</span>
+                      <span style={S.lbl}>Eğitmen <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
                       <SelectW>
                         <select value={fEğitmen} onChange={(e) => setFEğitmen(e.target.value)} style={S.sel}>
                           <option value="">Eğitmen seçin</option>
@@ -582,6 +612,7 @@ export default function SınıflarPage() {
                   { key: "açılacak" as FilterKey, label: "Açılacak", dot: STATUS_MAP.açılacak.dot },
                   { key: "aktif" as FilterKey, label: "Aktif", dot: STATUS_MAP.aktif.dot },
                   { key: "bitmiş" as FilterKey, label: "Mezun", dot: STATUS_MAP.bitmiş.dot },
+                  { key: "iptal" as FilterKey, label: "İptal", dot: STATUS_MAP.iptal.dot },
                 ]).map((fd) => {
                   const active = groupFilter === fd.key;
                   return (
@@ -611,7 +642,7 @@ export default function SınıflarPage() {
           {viewMode === "list" && filtered.length > 0 && (
             <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,31,61,.05)" }}>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
                   <thead>
                     <tr style={{ background: "#F7F8FA", borderBottom: "1px solid #EEF0F3" }}>
                       <th style={S.thFirst}>Grup</th>
@@ -631,42 +662,87 @@ export default function SınıflarPage() {
                       const st = STATUS_MAP[g.status];
                       const pct = Math.round((g.dolu / g.kontenjan) * 100);
                       const barColor = g.status === "bitmiş" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
+                      /* Seans: "Pts - Crs 19.00 - 21.30" → günler + saat ayrı satır */
+                      const seansParts = g.seans.split(" ");
+                      const seansGun = seansParts.slice(0, -3).join(" ");
+                      const seansSaat = seansParts.slice(-3).join(" ");
+                      /* Başlat: tarih parse → bugün veya sonra ise aktif */
+                      const canStart = g.status === "açılacak" && (() => {
+                        const months: Record<string, number> = { Oca: 0, Şub: 1, Mar: 2, Nis: 3, May: 4, Haz: 5, Tem: 6, Ağu: 7, Eyl: 8, Eki: 9, Kas: 10, Ara: 11, Agu: 7 };
+                        const p = g.tarih.split(" ");
+                        if (p.length < 3) return false;
+                        const d = parseInt(p[0]), m = months[p[1]], y = parseInt(p[2]);
+                        if (isNaN(d) || m === undefined || isNaN(y)) return false;
+                        return new Date(y, m, d) <= new Date();
+                      })();
                       return (
                         <tr key={g.id} className="sg-trow" style={{ borderBottom: "1px solid #EEF0F3" }}>
                           <td style={S.tdFirst}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <span style={{ width: 9, height: 9, borderRadius: "50%", background: bs.dot, flex: "0 0 auto" }} />
-                              <span style={{ fontSize: 14, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px", whiteSpace: "nowrap" }}>{g.kod}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: bs.dot, flex: "0 0 auto" }} />
+                              <span style={{ fontSize: 13.5, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px", whiteSpace: "nowrap" }}>{g.kod}</span>
                             </div>
                           </td>
-                          <td style={S.td}><span style={{ fontSize: 13.5, color: "#414B59", fontWeight: 600 }}>{g.eğitim}</span></td>
-                          <td style={S.td}><span style={{ fontSize: 13.5, color: "#414B59" }}>{g.şube}</span></td>
-                          <td style={S.td}><span style={{ fontSize: 13.5, color: "#414B59" }}>{g.eğitmen}</span></td>
-                          <td style={S.td}><span style={{ fontSize: 13, color: "#6F7B87", whiteSpace: "nowrap" }}>{g.seans}</span></td>
-                          <td style={S.td}><span style={{ fontSize: 13, color: "#414B59", fontWeight: 600, whiteSpace: "nowrap" }}>{g.tarih}</span></td>
+                          <td style={S.td}><span style={{ fontSize: 13, color: "#414B59", fontWeight: 600 }}>{g.eğitim}</span></td>
+                          <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.şube}</span></td>
+                          <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.eğitmen}</span></td>
                           <td style={S.td}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 130 }}>
-                              <div style={{ flex: 1, height: 7, borderRadius: 999, background: "#EEF0F3", overflow: "hidden" }}>
+                            <div style={{ lineHeight: 1.35 }}>
+                              <div style={{ fontSize: 12.5, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" }}>{seansGun}</div>
+                              <div style={{ fontSize: 11.5, color: "#8E95A3", whiteSpace: "nowrap" }}>{seansSaat}</div>
+                            </div>
+                          </td>
+                          <td style={S.td}><span style={{ fontSize: 12.5, color: "#414B59", fontWeight: 600, whiteSpace: "nowrap" }}>{g.tarih}</span></td>
+                          <td style={S.td}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 80 }}>
+                              <div style={{ width: 36, height: 5, borderRadius: 999, background: "#EEF0F3", overflow: "hidden", flex: "0 0 auto" }}>
                                 <div style={{ height: "100%", width: `${Math.min(100, pct)}%`, borderRadius: 999, background: barColor, transition: "width .3s" }} />
                               </div>
-                              <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1E222B", whiteSpace: "nowrap" }}>{g.dolu}<span style={{ color: "#AEB4C0", fontWeight: 600 }}>/{g.kontenjan}</span></span>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: "#1E222B", whiteSpace: "nowrap" }}>{g.dolu}<span style={{ color: "#AEB4C0", fontWeight: 600 }}>/{g.kontenjan}</span></span>
                             </div>
                           </td>
                           <td style={S.td}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700, color: st.color, background: st.background, whiteSpace: "nowrap" }}>
-                              <span style={{ width: 7, height: 7, borderRadius: "50%", background: st.dot }} />
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: st.color, background: st.background, whiteSpace: "nowrap" }}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot }} />
                               {st.label}
                             </span>
                           </td>
                           <td style={S.tdRight}>
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                              <button className="sg-edit-btn" onClick={() => editGroup(g)} style={S.editBtn}>
-                                <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
-                                Düzenle
-                              </button>
-                              <button className="sg-del-btn" onClick={() => setDeleteId(g.id)} title="Sil" style={S.delBtn}>
-                                <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                              </button>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              {g.status === "açılacak" && (
+                                <button className="sg-start-btn" disabled={!canStart} onClick={() => canStart && setStartId(g.id)}
+                                  style={{ ...S.startBtn, opacity: canStart ? 1 : 0.45, cursor: canStart ? "pointer" : "not-allowed" }}>
+                                  <span dangerouslySetInnerHTML={{ __html: IC.play }} />
+                                  Başlat
+                                </button>
+                              )}
+                              {g.status === "aktif" && (
+                                <button className="sg-start-btn" onClick={() => setFinishId(g.id)} style={S.startBtn}>
+                                  <span dangerouslySetInnerHTML={{ __html: IC.checkSm }} />
+                                  Bitir
+                                </button>
+                              )}
+                              {(g.status === "açılacak" || g.status === "aktif") && (
+                                <>
+                                  <button className="sg-edit-btn" onClick={() => editGroup(g)} title="Düzenle" style={S.editBtnIcon}>
+                                    <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
+                                  </button>
+                                  <button className="sg-del-btn" onClick={() => setCancelId(g.id)} title="İptal Et" style={S.delBtn}>
+                                    <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
+                                  </button>
+                                </>
+                              )}
+                              {g.status === "açılacak" && g.dolu === 0 && (
+                                <button className="sg-del-btn" onClick={() => setDeleteId(g.id)} title="Sil" style={S.delBtn}>
+                                  <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
+                                </button>
+                              )}
+                              {g.status === "bitmiş" && (
+                                <button className="sg-start-btn" onClick={() => setReopenId(g.id)} style={S.startBtn}>
+                                  <span dangerouslySetInnerHTML={{ __html: IC.undo }} />
+                                  Geri al
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -787,6 +863,103 @@ export default function SınıflarPage() {
       {/* Seans overlay */}
 
       {/* Delete modal */}
+      {/* Start modal */}
+      {startId !== null && (
+        <div onClick={() => setStartId(null)} style={S.overlay}>
+          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+            <div style={{ padding: "26px 26px 20px" }}>
+              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#E6F5ED", display: "flex", alignItems: "center", justifyContent: "center", color: "#007A30", marginBottom: 16 }}>
+                <span dangerouslySetInnerHTML={{ __html: IC.playBig }} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Eğitimi başlat</h3>
+              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
+                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === startId)?.kod}</strong> grubunun eğitimini başlatmak istediğinize emin misiniz? Grup durumu <strong style={{ color: "#007A30", fontWeight: 700 }}>Aktif</strong> olarak güncellenecektir.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
+              <button className="sg-cancel" onClick={() => setStartId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button className="sg-save" onClick={confirmStart} style={S.confirmStartBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.playWhite }} />
+                Evet, başlat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Finish modal */}
+      {finishId !== null && (
+        <div onClick={() => setFinishId(null)} style={S.overlay}>
+          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+            <div style={{ padding: "26px 26px 20px" }}>
+              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center", color: "#6F7B87", marginBottom: 16 }}>
+                <span dangerouslySetInnerHTML={{ __html: IC.checkBig }} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Eğitimi bitir</h3>
+              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
+                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === finishId)?.kod}</strong> grubunun eğitimini tamamlamak istediğinize emin misiniz? Grup <strong style={{ color: "#6F7B87", fontWeight: 700 }}>Mezun</strong> durumuna alınacaktır.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
+              <button className="sg-cancel" onClick={() => setFinishId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button className="sg-save" onClick={confirmFinish} style={S.confirmFinishBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />
+                Evet, bitir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel modal */}
+      {cancelId !== null && (
+        <div onClick={() => setCancelId(null)} style={S.overlay}>
+          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+            <div style={{ padding: "26px 26px 20px" }}>
+              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#FFF0E6", display: "flex", alignItems: "center", justifyContent: "center", color: "#9E3A00", marginBottom: 16 }}>
+                <span dangerouslySetInnerHTML={{ __html: IC.xMarkBig }} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Grubu iptal et</h3>
+              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
+                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === cancelId)?.kod}</strong> grubunu iptal etmek istediğinize emin misiniz? Kayıtlı öğrenciler başka gruplara aktarılabilir.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
+              <button className="sg-cancel" onClick={() => setCancelId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button className="sg-confirm-del" onClick={confirmCancel} style={S.confirmCancelBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.xMarkWhite }} />
+                Evet, iptal et
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reopen modal */}
+      {reopenId !== null && (
+        <div onClick={() => setReopenId(null)} style={S.overlay}>
+          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
+            <div style={{ padding: "26px 26px 20px" }}>
+              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#DDE8F8", display: "flex", alignItems: "center", justifyContent: "center", color: "#205297", marginBottom: 16 }}>
+                <span dangerouslySetInnerHTML={{ __html: IC.undoBig }} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Grubu geri al</h3>
+              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
+                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === reopenId)?.kod}</strong> grubunu tekrar <strong style={{ color: "#007A30", fontWeight: 700 }}>Aktif</strong> duruma almak istediğinize emin misiniz?
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
+              <button className="sg-cancel" onClick={() => setReopenId(null)} style={S.cancelBtn}>Vazgeç</button>
+              <button className="sg-save" onClick={confirmReopen} style={S.confirmStartBtn}>
+                <span dangerouslySetInnerHTML={{ __html: IC.undoWhite }} />
+                Evet, geri al
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete modal */}
       {deleteId !== null && (
         <div onClick={() => setDeleteId(null)} style={S.overlay}>
           <div onClick={(e) => e.stopPropagation()} style={S.modal}>
@@ -884,13 +1057,15 @@ const S: Record<string, CSSProperties> = {
   saveBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "12px 24px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)", transition: "filter .14s" },
 
   // table styles
-  th: { padding: "14px 14px", textAlign: "left" as const, fontSize: 11, fontWeight: 700, color: "#8E95A3", letterSpacing: ".05em", whiteSpace: "nowrap" as const },
-  thFirst: { padding: "14px 14px 14px 28px", textAlign: "left" as const, fontSize: 11, fontWeight: 700, color: "#8E95A3", letterSpacing: ".05em", whiteSpace: "nowrap" as const },
-  thRight: { padding: "14px 28px 14px 14px", textAlign: "right" as const },
-  td: { padding: "15px 14px", verticalAlign: "middle" as const },
-  tdFirst: { padding: "15px 14px 15px 28px", verticalAlign: "middle" as const },
-  tdRight: { padding: "15px 28px 15px 14px", verticalAlign: "middle" as const, textAlign: "right" as const, whiteSpace: "nowrap" as const },
+  th: { padding: "12px 10px", textAlign: "left" as const, fontSize: 11, fontWeight: 700, color: "#8E95A3", letterSpacing: ".05em", whiteSpace: "nowrap" as const },
+  thFirst: { padding: "12px 10px 12px 20px", textAlign: "left" as const, fontSize: 11, fontWeight: 700, color: "#8E95A3", letterSpacing: ".05em", whiteSpace: "nowrap" as const },
+  thRight: { padding: "12px 16px 12px 10px", textAlign: "right" as const },
+  td: { padding: "12px 10px", verticalAlign: "middle" as const },
+  tdFirst: { padding: "12px 10px 12px 20px", verticalAlign: "middle" as const },
+  tdRight: { padding: "12px 16px 12px 10px", verticalAlign: "middle" as const, textAlign: "right" as const, whiteSpace: "nowrap" as const },
 
+  startBtn: { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", transition: "all .13s", whiteSpace: "nowrap" as const },
+  editBtnIcon: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontFamily: "inherit", cursor: "pointer", transition: "all .13s", flex: "0 0 auto" },
   editBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .13s", whiteSpace: "nowrap" as const },
   delBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#8E95A3", fontFamily: "inherit", cursor: "pointer", transition: "all .13s", flex: "0 0 auto" },
   detailBtn: { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .13s" },
@@ -901,6 +1076,9 @@ const S: Record<string, CSSProperties> = {
 
   overlay: { position: "fixed" as const, inset: 0, zIndex: 90, background: "rgba(15,31,61,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, animation: "sgIn .14s ease" },
   modal: { width: "100%", maxWidth: 420, background: "#fff", borderRadius: 18, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden" },
+  confirmStartBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#007A30", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(0,122,48,.5)", transition: "filter .14s" },
+  confirmFinishBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#414B59", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(65,75,89,.5)", transition: "filter .14s" },
+  confirmCancelBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#9E3A00", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(158,58,0,.5)", transition: "filter .14s" },
   confirmDelBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#D93636", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)", transition: "filter .14s" },
 };
 
@@ -934,6 +1112,18 @@ const IC = {
   chevRightSm: sv('<path d="m9 18 6-6-6-6"/>', 'width="13" height="13" stroke="currentColor" stroke-width="2.2"'),
   chevLeftNav: sv('<path d="m15 18-6-6 6-6"/>', 'width="17" height="17" stroke="currentColor" stroke-width="2.2"'),
   chevRightNav: sv('<path d="m9 18 6-6-6-6"/>', 'width="17" height="17" stroke="currentColor" stroke-width="2.2"'),
+  play: sv('<polygon points="6 3 20 12 6 21 6 3"/>', 'width="13" height="13" stroke="currentColor" fill="currentColor" stroke-width="1"'),
+  playBig: sv('<polygon points="6 3 20 12 6 21 6 3"/>', 'width="24" height="24" stroke="currentColor" fill="currentColor" stroke-width="1"'),
+  playWhite: sv('<polygon points="6 3 20 12 6 21 6 3"/>', 'width="16" height="16" stroke="#fff" fill="#fff" stroke-width="1"'),
+  checkSm: sv('<path d="M20 6 9 17l-5-5"/>', 'width="13" height="13" stroke="currentColor" stroke-width="2.5"'),
+  checkBig: sv('<path d="M20 6 9 17l-5-5"/>', 'width="24" height="24" stroke="currentColor" stroke-width="2.5"'),
+  checkWhite: sv('<path d="M20 6 9 17l-5-5"/>', 'width="16" height="16" stroke="#fff" stroke-width="2.8"'),
+  xMark: sv('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 'width="15" height="15" stroke="currentColor" stroke-width="2.2"'),
+  xMarkBig: sv('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 'width="24" height="24" stroke="currentColor" stroke-width="2.5"'),
+  xMarkWhite: sv('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 'width="16" height="16" stroke="#fff" stroke-width="2.5"'),
+  undo: sv('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>', 'width="14" height="14" stroke="currentColor" stroke-width="2.2"'),
+  undoBig: sv('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>', 'width="24" height="24" stroke="currentColor" stroke-width="2"'),
+  undoWhite: sv('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>', 'width="16" height="16" stroke="#fff" stroke-width="2.2"'),
 };
 
 const spinCss = `.sg-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:sg-spin 1s linear infinite}@keyframes sg-spin{to{transform:rotate(360deg)}}`;
@@ -951,6 +1141,7 @@ const globalCss = `
 .sg-seans-btn:hover{border-color:#CDD2DA}
 .sg-seans-row:hover{background:#F7F8FA!important}
 .sg-trow:hover{background:#F7F8FA}
+.sg-start-btn:hover:not(:disabled){border-color:#92b6e8;color:#205297;background:#EFF3FA}
 .sg-edit-btn:hover{border-color:#92b6e8;color:#205297;background:#EFF3FA}
 .sg-del-btn:hover{border-color:#F3B0B0;color:#D93636;background:#FFECEC}
 .sg-detail-btn:hover{border-color:#92b6e8;color:#205297;background:#EFF3FA}
