@@ -26,6 +26,7 @@ export type FlexNavKey =
   | "tum-gruplar"
   | "seans-takvimi"
   | "siniflar"
+  | "egitmenler"
   | "yoklamalar"
   | "sertifikasyon";
 
@@ -182,6 +183,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           )}
         </AnimatePresence>
 
+        <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />
         <Item icon={IC.calendar} label="Yoklamalar" onClick={go(null)} />
         <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />
       </nav>
@@ -189,10 +191,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   );
 }
 
-function Item({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function Item({ icon, label, onClick, active }: { icon: string; label: string; onClick: () => void; active?: boolean }) {
   return (
-    <a className="fs-navlink" style={S.navItem} onClick={onClick}>
-      <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: icon }} />
+    <a className="fs-navlink" style={active ? S.itemActive : S.navItem} onClick={onClick}>
+      <span style={{ display: "inline-flex", color: active ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: icon }} />
       <span style={{ flex: 1 }}>{label}</span>
     </a>
   );
@@ -213,6 +215,7 @@ const S: Record<string, CSSProperties> = {
   logoBox: { width: 38, height: 38, borderRadius: 11, background: "#0a1c38", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 3, padding: 8, boxShadow: "inset 0 0 0 1px rgba(255,255,255,.06)" },
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
+  itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },
   subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "9px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "9px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   subBar: { position: "absolute", left: 0, top: 8, bottom: 8, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
@@ -228,6 +231,7 @@ const IC = {
   calendar: sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>'),
   award: sv('<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>'),
   graduation: sv('<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>'),
+  trainer: sv('<path d="M14 22v-4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4"/><path d="M18 14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2"/><circle cx="9" cy="9" r="3"/><path d="M17 21v-1a2 2 0 0 0-2-2"/>'),
   chevDown: sv('<path d="m6 9 6 6 6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
 };
