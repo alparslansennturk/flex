@@ -113,3 +113,30 @@ export async function createGroup(
   await deps.groups.save(group);
   return group;
 }
+
+const VALID_STATUSES: GroupStatus[] = ["planned", "enrolling", "active", "postponed", "completed", "archived"];
+
+/**
+ * Grup yaşam-döngüsü durumunu günceller (Başlat/Bitir/İptal/Geri Al) — gated `group.edit`.
+ * Sadece `status` alanını değiştirir; diğer alanlara dokunmaz.
+ */
+export async function updateGroupStatus(
+  actor: Actor,
+  groupId: EntityId,
+  status: GroupStatus,
+  deps: { groups: GroupRepo },
+): Promise<Group> {
+  if (!can(actor, "group.edit", { groupId })) {
+    throw new ForbiddenError("group.edit");
+  }
+  if (!VALID_STATUSES.includes(status)) {
+    throw new ValidationError("Geçersiz grup durumu.");
+  }
+
+  const group = await deps.groups.getById(groupId, actor.tenantId);
+  if (!group) throw new ValidationError("Grup bulunamadı.");
+
+  const updated: Group = { ...group, status, updatedAt: nowISO(), updatedBy: actor.uid };
+  await deps.groups.save(updated);
+  return updated;
+}

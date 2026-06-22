@@ -7,6 +7,8 @@ import type { Enrollment } from "../core/enrollment";
 export interface EnrollmentRepo {
   nextId(): string;
   save(enrollment: Enrollment): Promise<void>;
+  /** Tek kayıt (id + kiracı). Gruba atama için atanacak kaydı bulur. */
+  getById(id: string, tenantId: string): Promise<Enrollment | null>;
   /**
    * Bir kişinin BELİRLİ bir gruptaki AKTİF kaydı (varsa).
    * Çift kaydı önlemek için kullanılır — aynı kişi FARKLI gruplara serbestçe kaydolur.

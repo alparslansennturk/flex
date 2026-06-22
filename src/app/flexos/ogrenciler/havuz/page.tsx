@@ -16,11 +16,12 @@
  *   alanlar — wiring adımında modele eklenecek/eşlenecek (bkz. FLEXOS.md Durum bloğu).
  */
 
-import React, { useEffect, useMemo, useState, CSSProperties } from "react";
+import React, { useEffect, useMemo, useState, useCallback, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
+import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 
 // ── Durum & Branş sözlükleri (tasarımdan) ────────────────────────────────────
 type StatusKey =
@@ -50,30 +51,26 @@ const AV_PALETTES: Array<[string, string]> = [
   ["#689adf", "#2867bd"], ["#FFA352", "#FF7800"], ["#67B5B6", "#1CB5AE"], ["#8B91E6", "#4D52A6"], ["#F76FA3", "#F91079"],
 ];
 
-const SUBE_LIST = ["Tümü", "Kadıköy", "Pendik", "Ümraniye", "Beşiktaş"];
+const SUBE_LIST = ["Tümü", ...BRANCH_OFFICES.map((o) => o.name)];
 const PAGE_SIZE = 8;
 
 interface StudentGroup { label: string; branch: string }
 interface Student {
   id: string; name: string; email: string; phone: string;
-  status: StatusKey; sube: string; gender: string; branches: string[];
+  status: StatusKey; subeler: string[]; gender: string; branches: string[];
   groups: StudentGroup[];
+  assignableEnrollmentId: string | null; // grupsuz aktif kaydın id'si (Gruba Ata için)
 }
 
-const DUMMY: Student[] = [
-  { id: "1", name: "Ayşe Kara", email: "ayse.kara@mail.com", phone: "0532 111 22 33", status: "aktif", sube: "Kadıköy", gender: "female", branches: ["Grafik Tasarım"], groups: [{ label: "GRF-2026A", branch: "Grafik Tasarım" }] },
-  { id: "2", name: "Mehmet Ali Yılmaz", email: "mehmetali@mail.com", phone: "0541 222 33 44", status: "grupsuz", sube: "Kadıköy", gender: "male", branches: ["Web Geliştirme"], groups: [] },
-  { id: "3", name: "Zeynep Demir", email: "zeynep.d@mail.com", phone: "0555 333 44 55", status: "beklemede", sube: "Pendik", gender: "female", branches: ["Grafik Tasarım", "UI/UX"], groups: [] },
-  { id: "4", name: "Ahmet Çelik", email: "ahmet.celik@mail.com", phone: "0544 444 55 66", status: "aktif", sube: "Kadıköy", gender: "male", branches: ["Python"], groups: [{ label: "PY-2026A", branch: "Python" }] },
-  { id: "5", name: "Elif Özkan", email: "elif.ozkan@mail.com", phone: "0533 555 66 77", status: "mezun", sube: "Ümraniye", gender: "female", branches: ["Grafik Tasarım"], groups: [{ label: "GRF-2025B", branch: "Grafik Tasarım" }] },
-  { id: "6", name: "Burak Şentürk", email: "burak.s@mail.com", phone: "0542 666 77 88", status: "aktif", sube: "Beşiktaş", gender: "male", branches: ["Web Geliştirme", "Python"], groups: [{ label: "WEB-2026A", branch: "Web Geliştirme" }, { label: "PY-2026A", branch: "Python" }] },
-  { id: "7", name: "Seda Arslan", email: "seda.arslan@mail.com", phone: "0531 777 88 99", status: "donduruldu", sube: "Pendik", gender: "female", branches: ["UI/UX"], groups: [{ label: "UX-2026A", branch: "UI/UX" }] },
-  { id: "8", name: "Can Yıldırım", email: "can.y@mail.com", phone: "0546 888 99 00", status: "pasif", sube: "Kadıköy", gender: "male", branches: ["Python"], groups: [] },
-  { id: "9", name: "Deniz Koç", email: "deniz.koc@mail.com", phone: "0537 999 00 11", status: "aktif", sube: "Ümraniye", gender: "female", branches: ["Grafik Tasarım"], groups: [{ label: "GRF-2026A", branch: "Grafik Tasarım" }] },
-  { id: "10", name: "Emre Aydın", email: "emre.a@mail.com", phone: "0548 000 11 22", status: "tekrar", sube: "Beşiktaş", gender: "male", branches: ["Web Geliştirme"], groups: [{ label: "WEB-2025C", branch: "Web Geliştirme" }] },
-  { id: "11", name: "Fatma Nur Güneş", email: "fatmanur@mail.com", phone: "0539 111 22 33", status: "grupsuz", sube: "Kadıköy", gender: "female", branches: ["Python", "Grafik Tasarım"], groups: [] },
-  { id: "12", name: "Gökhan Erdoğan", email: "gokhan.e@mail.com", phone: "0543 222 33 44", status: "aktif", sube: "Pendik", gender: "male", branches: ["UI/UX"], groups: [{ label: "UX-2026A", branch: "UI/UX" }] },
-];
+/** API'den gelen ham havuz kaydı (GET /api/flexos/persons). */
+interface PersonApiItem {
+  id: string; name: string; email: string; phone: string;
+  status: string; branches?: string[]; groups?: StudentGroup[];
+  assignableEnrollmentId?: string | null; gender?: string; subeler?: string[];
+}
+
+/** Modal'daki atanabilir grup seçeneği. */
+interface GroupOption { id: string; code: string; sub: string }
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toLocaleUpperCase("tr");
@@ -100,15 +97,108 @@ export default function OgrenciHavuzuPage() {
 
   const [loading, setLoading] = useState(false);
 
+  // ── Gruba Ata modal state ──
+  const [assignTarget, setAssignTarget] = useState<Student | null>(null);
+  const [groupOptions, setGroupOptions] = useState<GroupOption[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+
+  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const u = auth.currentUser;
+    const token = u ? await u.getIdToken() : "";
+    return { Authorization: `Bearer ${token}` };
+  }, []);
+
+  const loadStudents = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/flexos/persons", { headers: await authHeaders(), signal });
+      if (!res.ok) throw new Error(String(res.status));
+      const json = await res.json();
+      const items: PersonApiItem[] = json.items ?? [];
+      if (signal?.aborted) return;
+      setStudents(items.map((it) => ({
+        id: it.id,
+        name: it.name,
+        email: it.email ?? "",
+        phone: it.phone ?? "",
+        status: (it.status as StatusKey) ?? "beklemede",
+        subeler: it.subeler ?? [],
+        gender: it.gender ?? "",
+        branches: it.branches ?? [],
+        groups: it.groups ?? [],
+        assignableEnrollmentId: it.assignableEnrollmentId ?? null,
+      })));
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") toast.error("Öğrenciler yüklenemedi.");
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, [authHeaders]);
+
   useEffect(() => {
+    const ac = new AbortController();
     (async () => {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
-      // Dummy veri — gerçek API bağlandığında fetch ile değiştirilecek
-      setStudents(DUMMY);
+      await loadStudents(ac.signal);
     })();
-  }, [router]);
+    return () => ac.abort();
+  }, [router, loadStudents]);
+
+  // ── Gruba Ata: modal aç + grupları çek (eğitim adıyla etiketle) ──
+  const openAssign = useCallback(async (st: Student) => {
+    setAssignTarget(st);
+    setSelectedGroupId("");
+    if (groupOptions.length) return; // bir kez çek
+    setLoadingGroups(true);
+    try {
+      const hdrs = await authHeaders();
+      const [gRes, eRes] = await Promise.all([
+        fetch("/api/flexos/groups", { headers: hdrs }),
+        fetch("/api/flexos/educations", { headers: hdrs }),
+      ]);
+      const gJson = gRes.ok ? await gRes.json() : { items: [] };
+      const eJson = eRes.ok ? await eRes.json() : { items: [] };
+      const eduName = new Map<string, string>((eJson.items ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
+      const opts: GroupOption[] = (gJson.items ?? []).map((g: { id: string; code: string; educationId?: string; branch?: string; type?: string }) => ({
+        id: g.id,
+        code: g.code,
+        sub: (g.educationId && eduName.get(g.educationId)) || g.branch || (g.type === "ozel_ders" ? "Özel Ders" : g.type === "kurumsal" ? "Kurumsal" : "Grup"),
+      }));
+      setGroupOptions(opts);
+    } catch {
+      toast.error("Gruplar yüklenemedi.");
+    } finally {
+      setLoadingGroups(false);
+    }
+  }, [authHeaders, groupOptions.length]);
+
+  const closeAssign = () => { if (!assigning) { setAssignTarget(null); setSelectedGroupId(""); } };
+
+  const confirmAssign = async () => {
+    if (!assignTarget?.assignableEnrollmentId || !selectedGroupId) return;
+    setAssigning(true);
+    try {
+      const headers = await authHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(`/api/flexos/enrollments/${assignTarget.assignableEnrollmentId}`, {
+        method: "PATCH", headers, body: JSON.stringify({ groupId: selectedGroupId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(json.error || "Gruba atama başarısız."); return; }
+      const grpCode = groupOptions.find((g) => g.id === selectedGroupId)?.code ?? "";
+      toast.success(`${assignTarget.name} ${grpCode ? `${grpCode} grubuna` : "gruba"} atandı.`);
+      setAssignTarget(null); setSelectedGroupId("");
+      await loadStudents(); // havuz durumu güncellensin (grupsuz → aktif)
+    } catch {
+      toast.error("Sunucu hatası — atama yapılamadı.");
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const togglePStatus = (k: StatusKey) =>
     setPStatus((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
@@ -126,7 +216,7 @@ export default function OgrenciHavuzuPage() {
   const filtered = useMemo(
     () => students.filter((st) => {
       if (statusFilter.length && !statusFilter.includes(st.status)) return false;
-      if (subeFilter !== "Tümü" && st.sube !== subeFilter) return false;
+      if (subeFilter !== "Tümü" && !st.subeler.includes(subeFilter)) return false;
       if (bransFilter !== "Tümü" && !st.branches.includes(bransFilter)) return false;
       return true;
     }),
@@ -406,16 +496,21 @@ export default function OgrenciHavuzuPage() {
                         </td>
                         {/* İşlem — Gruba Ata */}
                         <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            className={hasGroup ? undefined : "oh-assign"}
-                            disabled={hasGroup}
-                            title={hasGroup ? (groupCount === 1 ? `Zaten bir gruba atanmış (${groups[0].label})` : `Zaten ${groupCount} gruba atanmış`) : "Gruba ata"}
-                            onClick={soon}
-                            style={{ ...S.assignBtn, color: hasGroup ? "#CDD2DA" : "#414B59", cursor: hasGroup ? "not-allowed" : "pointer" }}
-                          >
-                            <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
-                            Gruba Ata
-                          </button>
+                          {(() => {
+                            const canAssign = !!st.assignableEnrollmentId;
+                            return (
+                              <button
+                                className={canAssign ? "oh-assign" : undefined}
+                                disabled={!canAssign}
+                                title={canAssign ? "Gruba ata" : (hasGroup ? (groupCount === 1 ? `Zaten bir gruba atanmış (${groups[0].label})` : `Zaten ${groupCount} gruba atanmış`) : "Atanabilir grupsuz kayıt yok")}
+                                onClick={() => openAssign(st)}
+                                style={{ ...S.assignBtn, color: canAssign ? "#414B59" : "#CDD2DA", cursor: canAssign ? "pointer" : "not-allowed" }}
+                              >
+                                <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
+                                Gruba Ata
+                              </button>
+                            );
+                          })()}
                         </td>
                       </tr>
                     );
@@ -467,6 +562,73 @@ export default function OgrenciHavuzuPage() {
 
       {/* click-away overlay */}
       {openDropdown && <div onClick={() => setOpenDropdown(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+
+      {/* ============ GRUBA ATA MODAL ============ */}
+      {assignTarget && (
+        <div style={S.modalOverlay} onClick={closeAssign}>
+          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+            {/* head */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DDE8F8", color: "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
+                  dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>Gruba Ata</h3>
+                  <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
+                    <strong style={{ color: "#414B59", fontWeight: 700 }}>{assignTarget.name}</strong> için bir grup seçin.
+                  </p>
+                </div>
+              </div>
+              <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={closeAssign}>
+                <span dangerouslySetInnerHTML={{ __html: IC.x }} />
+              </button>
+            </div>
+
+            {/* body */}
+            <div style={{ padding: 16, maxHeight: 360, overflowY: "auto" }}>
+              {loadingGroups ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "40px 20px" }}>
+                  <div className="oh-spin" />
+                  <div style={{ fontSize: 13, color: "#8E95A3" }}>Gruplar yükleniyor…</div>
+                </div>
+              ) : groupOptions.length === 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "40px 20px", textAlign: "center" }}>
+                  <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: "#414B59" }}>Henüz grup yok</div>
+                  <div style={{ fontSize: 13, color: "#8E95A3", maxWidth: 280 }}>Önce Sınıflar sayfasından bir grup oluşturun.</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {groupOptions.map((g) => {
+                    const sel = selectedGroupId === g.id;
+                    return (
+                      <div key={g.id} className="oh-grow" onClick={() => setSelectedGroupId(g.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
+                        <span style={{ width: 18, height: 18, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
+                        <span style={{ width: 34, height: 34, borderRadius: 9, background: "#f1f5f9", color: "#6F7B87", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
+                          dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{g.code}</div>
+                          <div style={{ fontSize: 12.5, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.sub}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* footer */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "16px 24px 20px", borderTop: "1px solid #EEF0F3" }}>
+              <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={closeAssign} disabled={assigning}>Vazgeç</button>
+              <button className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || assigning ? 0.55 : 1, pointerEvents: !selectedGroupId || assigning ? "none" : "auto" }} onClick={confirmAssign}>
+                <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
+                {assigning ? "Atanıyor…" : "Gruba Ata"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -506,6 +668,8 @@ const S: Record<string, CSSProperties> = {
   pageArrow: { width: 38, height: 38, borderRadius: 10, border: "1px solid #e6e9f0", background: "#fff", color: "#414B59", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" },
   pageCur: { minWidth: 38, height: 38, padding: "0 12px", borderRadius: 10, border: "1px solid #2867bd", background: "#2867bd", color: "#fff", fontWeight: 700, fontSize: 14, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 6px 14px -6px rgba(40,103,189,.5)" },
   pageReg: { minWidth: 38, height: 38, padding: "0 12px", borderRadius: 10, border: "1px solid #e6e9f0", background: "#fff", color: "#414B59", fontWeight: 600, fontSize: 14, fontFamily: "inherit", cursor: "pointer" },
+  modalOverlay: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,.45)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "oh-ddin .14s ease" },
+  modal: { width: "100%", maxWidth: 440, background: "#fff", borderRadius: 18, boxShadow: "0 28px 60px -16px rgba(15,31,61,.4)", overflow: "hidden", display: "flex", flexDirection: "column" },
 };
 
 // ── ikonlar (lucide, design'dan birebir) ──────────────────────────────────────
@@ -544,5 +708,6 @@ const globalCss = `
 .oh-iconbtn:hover{background:#F7F8FA;color:#1E222B}
 .oh-detail:hover{border-color:#92b6e8;color:#2867bd;background:#EFF3FA}
 .oh-assign:hover{color:#2867bd;background:#EFF3FA}
+.oh-grow:hover{border-color:#92b6e8 !important;background:#F7F8FA}
 @media(max-width:1599px){.oh-wide-col{display:none}}
 `;

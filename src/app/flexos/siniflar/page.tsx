@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
+import { BRANCH_OFFICES, officeName } from "@/app/lib/branch-offices";
 
 // -- Katalog API tipleri --
 interface BranchDoc { id: string; name: string; order?: number }
@@ -34,17 +35,68 @@ type ViewMode = "list" | "card";
 type FilterKey = "hepsi" | "açılacak" | "aktif" | "bitmiş" | "iptal";
 
 interface DemoGroup {
-  id: number;
+  id: string;
   kod: string;
   brans: string;
   eğitim: string;
   şube: string;
   eğitmen: string;
-  seans: string;
+  seansGun: string; // "Pts - Çrş" (saat saklanmıyor)
+  seansSaat: string; // "3 saat/ders" veya ""
   tarih: string;
+  bitiş: string; // tahmini/gerçek bitiş tarihi (domain: GroupSchedule.endDate)
   status: GroupStatus;
   dolu: number;
   kontenjan: number;
+}
+
+/** API'den gelen zenginleştirilmiş grup (GET /api/flexos/groups). */
+interface GroupApiItem {
+  id: string; code: string; type: string; status: string;
+  educationId: string | null; educationName: string; branch: string;
+  branchOfficeId: string | null; branchOffice: string;
+  trainerId: string;
+  schedule: { startDate?: string; days?: number[]; sessionHours?: number; endDate?: string };
+  capacity: number; enrolled: number;
+}
+
+const TR_MONTH_ABBR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+/** ISO ("2026-07-12") → "12 Tem 2026". */
+function fmtTrDate(iso?: string): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("T")[0].split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return `${d} ${TR_MONTH_ABBR[m - 1]} ${y}`;
+}
+/** Domain GroupStatus → UI durumu. */
+function mapStatus(s: string): GroupStatus {
+  switch (s) {
+    case "active": return "aktif";
+    case "completed": return "bitmiş";
+    case "archived": case "cancelled": return "iptal";
+    default: return "açılacak"; // planned / enrolling / postponed
+  }
+}
+/** API grubu → liste satırı. */
+function toDisplayGroup(g: GroupApiItem): DemoGroup {
+  const days = g.schedule?.days ?? [];
+  const seansGun = days.length ? days.map((d) => DAY_ABBR[d] ?? "?").join(" - ") : "—";
+  const sh = g.schedule?.sessionHours;
+  return {
+    id: g.id,
+    kod: g.code,
+    brans: g.branch || "—",
+    eğitim: g.educationName || "—",
+    şube: g.branchOffice || officeName(g.branchOfficeId) || "—",
+    eğitmen: g.trainerId || "—",
+    seansGun,
+    seansSaat: sh ? `${sh} saat/ders` : "",
+    tarih: fmtTrDate(g.schedule?.startDate),
+    bitiş: fmtTrDate(g.schedule?.endDate),
+    status: mapStatus(g.status),
+    dolu: g.enrolled,
+    kontenjan: g.capacity,
+  };
 }
 
 // -- Seans tipi (API'den gelir) --
@@ -54,6 +106,21 @@ const DAY_ABBR = ["Pts", "Sal", "Çrş", "Prş", "Cum", "Cts", "Paz"];
 function formatSeansLabel(s: SeansDoc): string {
   const daysStr = s.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
   return `${daysStr} · ${s.startTime} - ${s.endTime}`;
+}
+
+// -- Türkçe tarih parse ("12 Tem 2026" → Date, yerel gece yarısı) --
+const TR_MONTHS: Record<string, number> = { Oca: 0, Şub: 1, Mar: 2, Nis: 3, May: 4, Haz: 5, Tem: 6, Ağu: 7, Eyl: 8, Eki: 9, Kas: 10, Ara: 11, Agu: 7 };
+function parseTrDate(s: string): Date | null {
+  const p = s.split(" ");
+  if (p.length < 3) return null;
+  const d = parseInt(p[0]), m = TR_MONTHS[p[1]], y = parseInt(p[2]);
+  if (isNaN(d) || m === undefined || isNaN(y)) return null;
+  return new Date(y, m, d);
+}
+function todayMidnight(): Date {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return t;
 }
 
 // -- Brans renkleri --
@@ -72,32 +139,8 @@ const STATUS_MAP: Record<GroupStatus, { label: string; color: string; background
   iptal:    { label: "İptal",    color: "#9E3A00", background: "#FFF0E6", dot: "#D45A00" },
 };
 
-// -- Şube ve eğitmen listesi (statik demo) --
-const SUBE_LIST = ["Kadikoy", "Pendik", "Umraniye", "Besiktas"];
+// -- Eğitmen listesi (statik demo); şube = paylaşımlı BRANCH_OFFICES --
 const EGITMEN_LIST = ["Mert Yilmaz", "Selin Aydin", "Burak Demir", "Ece Tunc", "Naz Erdem", "Onur Tas", "Gizem Avci", "Berk Acar"];
-
-// -- Demo gruplar --
-function buildDemoGroups(): DemoGroup[] {
-  const d: [string, string, string, string, string, string, string, GroupStatus, number, number][] = [
-    ["GRP-248", "Software", "Full-Stack Web Gelistirme", "Kadikoy", "Mert Yilmaz", "Pts - Crs 19.00 - 21.30", "12 Tem 2026", "aktif", 16, 18],
-    ["GRP-251", "Design", "UI/UX Tasarım", "Pendik", "Selin Aydin", "Sal - Per 19.00 - 21.30", "20 Tem 2026", "aktif", 14, 16],
-    ["GRP-255", "Finance", "Finansal Modelleme", "Umraniye", "Burak Demir", "Cts - Paz 09.00 - 12.00", "02 Agu 2026", "açılacak", 7, 14],
-    ["GRP-256", "Software", "Veri Bilimi Bootcamp", "Kadikoy", "Ece Tunc", "Cts - Paz 12.00 - 15.00", "09 Agu 2026", "açılacak", 4, 16],
-    ["GRP-259", "Design", "Grafik Tasarım", "Besiktas", "Naz Erdem", "Cts - Paz 14.00 - 19.00", "16 Agu 2026", "açılacak", 11, 18],
-    ["GRP-238", "Software", "Mobil Uygulama Gelistirme", "Kadikoy", "Onur Tas", "Pts - Crs 19.00 - 21.30", "04 Mar 2026", "bitmiş", 17, 18],
-    ["GRP-240", "Finance", "Yatirim & Portfolyo", "Pendik", "Gizem Avci", "Cts - Paz 09.00 - 14.00", "08 Mar 2026", "bitmiş", 15, 16],
-    ["GRP-244", "Design", "Motion & Animasyon", "Umraniye", "Berk Acar", "Sal - Per 19.00 - 21.30", "22 Mar 2026", "aktif", 12, 14],
-    ["GRP-261", "Software", "Backend & API Gelistirme", "Pendik", "Mert Yilmaz", "Sal - Per 19.00 - 21.30", "23 Agu 2026", "açılacak", 9, 16],
-    ["GRP-262", "Design", "Marka & Kimlik Tasarımi", "Kadikoy", "Selin Aydin", "Cts - Paz 12.00 - 15.00", "30 Agu 2026", "açılacak", 6, 16],
-    ["GRP-263", "Finance", "Kurumsal Finans", "Besiktas", "Burak Demir", "Pts - Crs 19.00 - 21.30", "06 Eyl 2026", "açılacak", 3, 14],
-    ["GRP-264", "Software", "DevOps & Bulut", "Umraniye", "Ece Tunc", "Cts - Paz 14.00 - 19.00", "13 Eyl 2026", "açılacak", 10, 16],
-    ["GRP-247", "Design", "UX Arastirma", "Pendik", "Naz Erdem", "Sal - Per 19.00 - 21.30", "18 Haz 2026", "aktif", 13, 16],
-    ["GRP-249", "Software", "React ile Frontend", "Kadikoy", "Onur Tas", "Pts - Crs 19.00 - 21.30", "25 Haz 2026", "aktif", 18, 18],
-    ["GRP-250", "Finance", "Butce & Raporlama", "Besiktas", "Gizem Avci", "Cts - Paz 09.00 - 12.00", "28 Haz 2026", "aktif", 11, 14],
-    ["GRP-235", "Software", "Python ile Otomasyon", "Pendik", "Onur Tas", "Sal - Per 19.00 - 21.30", "15 Şub 2026", "iptal", 2, 16],
-  ];
-  return d.map((r, i) => ({ id: i + 1, kod: r[0], brans: r[1], eğitim: r[2], şube: r[3], eğitmen: r[4], seans: r[5], tarih: r[6], status: r[7], dolu: r[8], kontenjan: r[9] }));
-}
 
 const PAGE_SIZE = 15;
 
@@ -131,15 +174,16 @@ export default function SınıflarPage() {
 
   // -- Liste state --
   const [groups, setGroups] = useState<DemoGroup[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
   const [groupFilter, setGroupFilter] = useState<FilterKey>("hepsi");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [startId, setStartId] = useState<number | null>(null);
-  const [finishId, setFinishId] = useState<number | null>(null);
-  const [cancelId, setCancelId] = useState<number | null>(null);
-  const [reopenId, setReopenId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [startId, setStartId] = useState<string | null>(null);
+  const [finishId, setFinishId] = useState<string | null>(null);
+  const [cancelId, setCancelId] = useState<string | null>(null);
+  const [reopenId, setReopenId] = useState<string | null>(null);
 
   const mainRef = useRef<HTMLElement>(null);
 
@@ -149,6 +193,22 @@ export default function SınıflarPage() {
     return { Authorization: `Bearer ${token}` };
   }, []);
 
+  // -- grup listesini gerçek API'den yükle --
+  const loadGroups = useCallback(async (signal?: AbortSignal) => {
+    setLoadingGroups(true);
+    try {
+      const res = await fetch("/api/flexos/groups", { headers: await authHeaders(), signal });
+      const json = res.ok ? await res.json() : { items: [] };
+      if (signal?.aborted) return;
+      const items: GroupApiItem[] = json.items ?? [];
+      setGroups(items.map(toDisplayGroup));
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") toast.error("Gruplar yüklenemedi.");
+    } finally {
+      if (!signal?.aborted) setLoadingGroups(false);
+    }
+  }, [authHeaders]);
+
   // -- auth + branslari yukle --
   useEffect(() => {
     const ac = new AbortController();
@@ -156,7 +216,7 @@ export default function SınıflarPage() {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
-      setGroups(buildDemoGroups());
+      await loadGroups(ac.signal);
       try {
         const hdrs = await authHeaders();
         const [brRes, snRes] = await Promise.all([
@@ -174,7 +234,7 @@ export default function SınıflarPage() {
       }
     })();
     return () => ac.abort();
-  }, [router, authHeaders]);
+  }, [router, authHeaders, loadGroups]);
 
   // -- brans secilince eğitimler --
   useEffect(() => {
@@ -251,6 +311,7 @@ export default function SınıflarPage() {
       type: eğitimTipi,
       educationId: fEğitim || undefined,
       sectionId: isSectioned && fBölüm ? fBölüm : undefined,
+      branchOfficeId: fŞube || undefined,
       status: "planned",
       trainerId: fEğitmen || undefined,
       seansId: selSeans?.id ?? undefined,
@@ -272,6 +333,7 @@ export default function SınıflarPage() {
       if (!res.ok) { toast.error(json.error || "Grup oluşturulamadi."); return; }
       toast.success("Grup basariyla oluşturuldu!");
       resetForm();
+      loadGroups(); // yeni grup listede görünsün
     } catch {
       toast.error("Sunucu hatasi - grup oluşturulamadi.");
     } finally {
@@ -282,10 +344,9 @@ export default function SınıflarPage() {
   // -- edit --
   const editGroup = (g: DemoGroup) => {
     setEditingId(g.id);
-    setFŞube(g.şube); setFKod(g.kod); setFEğitmen(g.eğitmen);
+    setFKod(g.kod); setFEğitmen(g.eğitmen);
     setFKontenjan(String(g.kontenjan));
-    const idx = seanslar.findIndex(se => formatSeansLabel(se) === g.seans);
-    setFSeansIdx(idx >= 0 ? idx : -1);
+    setFSeansIdx(-1); // seans saati saklanmıyor → yeniden seçilir
     mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -297,28 +358,46 @@ export default function SınıflarPage() {
     setDeleteId(null);
   };
 
-  const confirmStart = () => {
-    setGroups((prev) => prev.map((g) => g.id === startId ? { ...g, status: "aktif" as GroupStatus } : g));
-    setStartId(null);
-    toast.success("Grup başarıyla başlatıldı!");
+  /**
+   * Grup durumunu DB'ye yazar (PATCH) + başarıda yerel listeyi günceller.
+   * domainStatus = Firestore'a yazılan değer, uiStatus = listede gösterilen.
+   */
+  const patchStatus = async (id: string, domainStatus: string, uiStatus: GroupStatus, okMsg: string) => {
+    try {
+      const headers = await authHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(`/api/flexos/groups/${id}`, { method: "PATCH", headers, body: JSON.stringify({ status: domainStatus }) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(json.error || "Durum güncellenemedi."); return; }
+      setGroups((prev) => prev.map((g) => g.id === id ? { ...g, status: uiStatus } : g));
+      toast.success(okMsg);
+    } catch {
+      toast.error("Sunucu hatası — durum güncellenemedi.");
+    }
   };
 
-  const confirmFinish = () => {
-    setGroups((prev) => prev.map((g) => g.id === finishId ? { ...g, status: "bitmiş" as GroupStatus } : g));
-    setFinishId(null);
-    toast.success("Eğitim tamamlandı, grup mezun durumuna alındı.");
+  const confirmStart = async () => {
+    if (startId === null) return;
+    const id = startId; setStartId(null);
+    await patchStatus(id, "active", "aktif", "Grup başarıyla başlatıldı!");
   };
 
-  const confirmCancel = () => {
-    setGroups((prev) => prev.map((g) => g.id === cancelId ? { ...g, status: "iptal" as GroupStatus } : g));
-    setCancelId(null);
-    toast.success("Grup iptal edildi.");
+  const confirmFinish = async () => {
+    if (finishId === null) return;
+    const id = finishId; setFinishId(null);
+    await patchStatus(id, "completed", "bitmiş", "Eğitim tamamlandı, grup mezun durumuna alındı.");
   };
 
-  const confirmReopen = () => {
-    setGroups((prev) => prev.map((g) => g.id === reopenId ? { ...g, status: "aktif" as GroupStatus } : g));
-    setReopenId(null);
-    toast.success("Grup tekrar aktif duruma alındı.");
+  const confirmCancel = async () => {
+    if (cancelId === null) return;
+    const id = cancelId; setCancelId(null);
+    await patchStatus(id, "archived", "iptal", "Grup iptal edildi.");
+  };
+
+  const confirmReopen = async () => {
+    if (reopenId === null) return;
+    const id = reopenId; setReopenId(null);
+    await patchStatus(id, "active", "aktif", "Grup tekrar aktif duruma alındı.");
   };
 
   // -- filtered list --
@@ -459,7 +538,7 @@ export default function SınıflarPage() {
                       <SelectW>
                         <select value={fŞube} onChange={(e) => setFŞube(e.target.value)} style={S.sel}>
                           <option value="">Şube seçin</option>
-                          {SUBE_LIST.map((s) => <option key={s} value={s}>{s}</option>)}
+                          {BRANCH_OFFICES.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                         </select>
                       </SelectW>
                     </label>
@@ -537,7 +616,7 @@ export default function SınıflarPage() {
                       {seansOpen && (
                         <div style={S.seansPopup}>
                           {seanslar.length === 0 && (
-                            <div style={{ padding: "14px 11px", fontSize: 13, color: "#8E95A3", textAlign: "center" }}>Henüz seans eklenmemiş. Eğitim Ayarları → Seans Yönetimi'nden ekleyin.</div>
+                            <div style={{ padding: "14px 11px", fontSize: 13, color: "#8E95A3", textAlign: "center" }}>Henüz seans eklenmemiş. Eğitim Ayarları → Seans Yönetimi&apos;nden ekleyin.</div>
                           )}
                           {seanslar.map((se, i) => {
                             const active = fSeansIdx === i;
@@ -663,18 +742,14 @@ export default function SınıflarPage() {
                       const pct = Math.round((g.dolu / g.kontenjan) * 100);
                       const barColor = g.status === "bitmiş" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
                       /* Seans: "Pts - Crs 19.00 - 21.30" → günler + saat ayrı satır */
-                      const seansParts = g.seans.split(" ");
-                      const seansGun = seansParts.slice(0, -3).join(" ");
-                      const seansSaat = seansParts.slice(-3).join(" ");
-                      /* Başlat: tarih parse → bugün veya sonra ise aktif */
-                      const canStart = g.status === "açılacak" && (() => {
-                        const months: Record<string, number> = { Oca: 0, Şub: 1, Mar: 2, Nis: 3, May: 4, Haz: 5, Tem: 6, Ağu: 7, Eyl: 8, Eki: 9, Kas: 10, Ara: 11, Agu: 7 };
-                        const p = g.tarih.split(" ");
-                        if (p.length < 3) return false;
-                        const d = parseInt(p[0]), m = months[p[1]], y = parseInt(p[2]);
-                        if (isNaN(d) || m === undefined || isNaN(y)) return false;
-                        return new Date(y, m, d) <= new Date();
-                      })();
+                      const seansGun = g.seansGun;
+                      const seansSaat = g.seansSaat;
+                      /* Başlat: başlangıç tarihi bugün veya geçmişse başlatılabilir */
+                      const startD = parseTrDate(g.tarih);
+                      const canStart = g.status === "açılacak" && startD !== null && startD <= new Date();
+                      /* Geri al: yalnız bitiş tarihi GEÇMEMİŞSE (erken/yanlış mezuniyet). Tarih geçtiyse mezuniyet meşru → buton yok. Tarih okunamazsa güvenli taraf = göster. */
+                      const endD = parseTrDate(g.bitiş);
+                      const canReopen = g.status === "bitmiş" && (endD === null || endD >= todayMidnight());
                       return (
                         <tr key={g.id} className="sg-trow" style={{ borderBottom: "1px solid #EEF0F3" }}>
                           <td style={S.tdFirst}>
@@ -737,7 +812,7 @@ export default function SınıflarPage() {
                                   <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                                 </button>
                               )}
-                              {g.status === "bitmiş" && (
+                              {canReopen && (
                                 <button className="sg-start-btn" onClick={() => setReopenId(g.id)} style={S.startBtn}>
                                   <span dangerouslySetInnerHTML={{ __html: IC.undo }} />
                                   Geri al
@@ -794,7 +869,7 @@ export default function SınıflarPage() {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "#414B59" }}>
                         <span dangerouslySetInnerHTML={{ __html: IC.clockGray }} />
-                        <span>{g.seans}</span>
+                        <span>{g.seansSaat ? `${g.seansGun} · ${g.seansSaat}` : g.seansGun}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "#414B59" }}>
                         <span dangerouslySetInnerHTML={{ __html: IC.calendarGray }} />
@@ -825,14 +900,22 @@ export default function SınıflarPage() {
             </div>
           )}
 
+          {/* Loading state */}
+          {loadingGroups && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16 }}>
+              <div className="sg-spin" />
+              <div style={{ fontSize: 13.5, color: "#8E95A3" }}>Gruplar yükleniyor…</div>
+            </div>
+          )}
+
           {/* Empty state */}
-          {filtered.length === 0 && (
+          {!loadingGroups && filtered.length === 0 && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16 }}>
               <div style={{ width: 58, height: 58, borderRadius: 16, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" }}>
                 <span dangerouslySetInnerHTML={{ __html: IC.graduationBig }} />
               </div>
-              <div style={{ fontSize: 15.5, fontWeight: 700, color: "#414B59" }}>Bu kategoride grup yok</div>
-              <div style={{ fontSize: 13.5, color: "#8E95A3" }}>Farklı bir durum seçin veya yukaridan yeni bir grup oluşturun.</div>
+              <div style={{ fontSize: 15.5, fontWeight: 700, color: "#414B59" }}>{groups.length === 0 ? "Henüz grup yok" : "Bu kategoride grup yok"}</div>
+              <div style={{ fontSize: 13.5, color: "#8E95A3" }}>{groups.length === 0 ? "Yukarıdaki formdan ilk grubunuzu oluşturun." : "Farklı bir durum seçin veya yukaridan yeni bir grup oluşturun."}</div>
             </div>
           )}
 

@@ -79,3 +79,65 @@ export async function createEnrollment(
   await deps.enrollments.save(enrollment);
   return enrollment;
 }
+
+export interface AssignToGroupInput {
+  enrollmentId: EntityId;
+  groupId: EntityId;
+}
+
+/** Gruba atama bağımlılıkları (mevcut kaydı bul + grup var mı + çift kayıt). */
+export interface AssignToGroupDeps {
+  enrollments: EnrollmentRepo;
+  groups: GroupRepo;
+}
+
+/**
+ * Havuzdaki GRUPSUZ bir kaydı bir gruba yerleştirir — gated `group.assign_student`.
+ *
+ * Satıştan doğan kayıt grupsuz havuzda bekler; operasyon onu bir gruba atar.
+ * Grup DEĞİŞTİRME (zaten gruplu kaydı başka gruba taşıma) burada DEĞİL —
+ * o `enrollment.transfer` yetkisiyle ayrı akıştır. Eğitmen ataması GEREKMEZ
+ * (grupta eğitmen opsiyonel/dummy olabilir).
+ */
+export async function assignToGroup(
+  actor: Actor,
+  input: AssignToGroupInput,
+  deps: AssignToGroupDeps,
+): Promise<Enrollment> {
+  if (!can(actor, "group.assign_student", { groupId: input.groupId })) {
+    throw new ForbiddenError("group.assign_student");
+  }
+  if (!input.enrollmentId || !input.groupId) {
+    throw new ValidationError("enrollmentId ve groupId zorunludur.");
+  }
+
+  const enrollment = await deps.enrollments.getById(input.enrollmentId, actor.tenantId);
+  if (!enrollment) throw new ValidationError("Atanacak kayıt bulunamadı.");
+
+  if (enrollment.groupId) {
+    throw new ValidationError("Bu kayıt zaten bir gruba bağlı. Grup değiştirmek için aktarım kullanın.");
+  }
+  if (enrollment.status !== "active") {
+    throw new ValidationError("Yalnızca aktif kayıtlar gruba atanabilir.");
+  }
+
+  const group = await deps.groups.getById(input.groupId, actor.tenantId);
+  if (!group) throw new ValidationError("Atanacak grup bulunamadı.");
+
+  const duplicate = await deps.enrollments.findActive(enrollment.personId, input.groupId, actor.tenantId);
+  if (duplicate) {
+    throw new ValidationError("Bu öğrenci zaten bu grupta aktif kayıtlı.");
+  }
+
+  const updated: Enrollment = {
+    ...enrollment,
+    groupId: input.groupId,
+    // grup eğitime bağlıysa kaydın eğitimini de denormalize et (boşsa)
+    educationId: enrollment.educationId ?? group.educationId,
+    updatedAt: nowISO(),
+    updatedBy: actor.uid,
+  };
+
+  await deps.enrollments.save(updated);
+  return updated;
+}

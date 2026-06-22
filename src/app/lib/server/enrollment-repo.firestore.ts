@@ -19,6 +19,14 @@ export const firestoreEnrollmentRepo: EnrollmentRepo = {
     await adminDb.collection(COLLECTION).doc(enrollment.id).set(clean(enrollment));
   },
 
+  async getById(id, tenantId) {
+    const snap = await adminDb.collection(COLLECTION).doc(id).get();
+    if (!snap.exists) return null;
+    const data = snap.data() as Enrollment;
+    if (data.tenantId !== tenantId) return null; // kiracı izolasyonu
+    return data;
+  },
+
   async findActive(personId, groupId, tenantId) {
     const snap = await adminDb
       .collection(COLLECTION)

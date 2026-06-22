@@ -7,6 +7,7 @@ import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firest
 import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { createPerson, type CreatePersonInput } from "@/app/lib/domain/services/person-service";
+import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import type { Person } from "@/app/lib/domain/core/person";
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
@@ -52,6 +53,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       // branş listesi (enrollment → education → branch)
       const branchNames = new Set<string>();
       const groupList: Array<{ label: string; branch: string }> = [];
+      const officeNames = new Set<string>(); // şube = öğrencinin gruplarından türetilir
 
       for (const enr of enrs) {
         const edu = enr.educationId ? eduMap.get(enr.educationId) : undefined;
@@ -64,11 +66,16 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
             label: grp?.code ? `Grup ${grp.code}` : enr.groupId,
             branch: branch?.name ?? "",
           });
+          const office = officeName(grp?.branchOfficeId);
+          if (office) officeNames.add(office);
         }
       }
 
       // enrollment durumundan havuz durumu türet
       const status = derivePoolStatus(p, enrs);
+
+      // "Gruba Ata" için atanabilir kayıt: aktif + grupsuz (ilk uygun)
+      const assignable = enrs.find((e) => e.status === "active" && !e.groupId);
 
       return {
         id: p.id,
@@ -78,6 +85,8 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         status,
         branches: [...branchNames],
         groups: groupList,
+        subeler: [...officeNames],
+        assignableEnrollmentId: assignable?.id ?? null,
         gender: p.gender ?? "",
         createdAt: p.createdAt,
       };
