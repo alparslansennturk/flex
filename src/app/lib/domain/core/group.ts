@@ -15,6 +15,8 @@ export interface GroupSchedule {
   startDate: ISODate;
   days: number[]; // 0=Pazar .. 6=Cumartesi
   sessionHours: number; // seans başına saat
+  startTime?: string; // seans başlangıç saati — "19.00"
+  endTime?: string; // seans bitiş saati — "21.30"
   endDate?: ISODate; // tahmini/gerçek bitiş
 }
 

@@ -49,7 +49,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const [classesOpen, setClassesOpen] = useState(classesActive);
 
   return (
-    <aside style={S.sidebar}>
+    <aside className="fs-sidebar" style={S.sidebar}>
       <style>{css}</style>
       <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 26px" }}>
         <div style={S.logoBox}>
@@ -209,11 +209,11 @@ function SubItem({ label, active, onClick }: { label: string; active: boolean; o
 }
 
 const S: Record<string, CSSProperties> = {
-  sidebar: { width: 252, flex: "0 0 252px", height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
+  sidebar: { height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
   logoBox: { width: 38, height: 38, borderRadius: 11, background: "#0a1c38", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 3, padding: 8, boxShadow: "inset 0 0 0 1px rgba(255,255,255,.06)" },
-  navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
+  navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
-  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "9px 13px", borderRadius: 10, color: "#9fb2cd", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
+  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "9px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "9px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   subBar: { position: "absolute", left: 0, top: 8, bottom: 8, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
 };
@@ -233,5 +233,9 @@ const IC = {
 };
 
 const css = `
+/* Responsive genişlik: küçük ekranda dar, büyükte kademeli geniş (canlının 320 sıçraması yok) */
+.fs-sidebar{width:248px;flex:0 0 248px}
+@media(min-width:1536px){.fs-sidebar{width:272px;flex-basis:272px}}
+@media(min-width:2560px){.fs-sidebar{width:300px;flex-basis:300px}}
 .fs-navlink:hover{background:rgba(255,255,255,.06);color:#fff!important}
 `;

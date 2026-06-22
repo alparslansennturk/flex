@@ -16,4 +16,6 @@ export interface EnrollmentRepo {
   findActive(personId: string, groupId: string, tenantId: string): Promise<Enrollment | null>;
   /** Kiracıya ait tüm kayıtları listele (havuz sayfası için). */
   list(tenantId: string): Promise<Enrollment[]>;
+  /** Bir grubun kayıtları (roster + silmeden önce doluluk kontrolü). */
+  listByGroup(groupId: string, tenantId: string): Promise<Enrollment[]>;
 }

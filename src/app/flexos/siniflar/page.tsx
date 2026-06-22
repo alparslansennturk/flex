@@ -56,7 +56,7 @@ interface GroupApiItem {
   educationId: string | null; educationName: string; branch: string;
   branchOfficeId: string | null; branchOffice: string;
   trainerId: string;
-  schedule: { startDate?: string; days?: number[]; sessionHours?: number; endDate?: string };
+  schedule: { startDate?: string; days?: number[]; sessionHours?: number; startTime?: string; endTime?: string; endDate?: string };
   capacity: number; enrolled: number;
 }
 
@@ -81,7 +81,9 @@ function mapStatus(s: string): GroupStatus {
 function toDisplayGroup(g: GroupApiItem): DemoGroup {
   const days = g.schedule?.days ?? [];
   const seansGun = days.length ? days.map((d) => DAY_ABBR[d] ?? "?").join(" - ") : "—";
-  const sh = g.schedule?.sessionHours;
+  const { startTime, endTime, sessionHours: sh } = g.schedule ?? {};
+  // seans saati: gerçek başlangıç-bitiş varsa onu, yoksa ders saatine düş
+  const seansSaat = startTime && endTime ? `${startTime} - ${endTime}` : sh ? `${sh} saat/ders` : "";
   return {
     id: g.id,
     kod: g.code,
@@ -90,7 +92,7 @@ function toDisplayGroup(g: GroupApiItem): DemoGroup {
     şube: g.branchOffice || officeName(g.branchOfficeId) || "—",
     eğitmen: g.trainerId || "—",
     seansGun,
-    seansSaat: sh ? `${sh} saat/ders` : "",
+    seansSaat,
     tarih: fmtTrDate(g.schedule?.startDate),
     bitiş: fmtTrDate(g.schedule?.endDate),
     status: mapStatus(g.status),
@@ -98,6 +100,9 @@ function toDisplayGroup(g: GroupApiItem): DemoGroup {
     kontenjan: g.capacity,
   };
 }
+
+// -- Roster (grup öğrenci listesi) --
+interface RosterItem { enrollmentId: string; name: string; email: string; phone: string; assignedAt: string }
 
 // -- Seans tipi (API'den gelir) --
 interface SeansDoc { id: string; days: number[]; startTime: string; endTime: string }
@@ -185,6 +190,11 @@ export default function SınıflarPage() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [reopenId, setReopenId] = useState<string | null>(null);
 
+  // -- Roster (sınıf listesi) paneli --
+  const [rosterGroup, setRosterGroup] = useState<DemoGroup | null>(null);
+  const [rosterItems, setRosterItems] = useState<RosterItem[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+
   const mainRef = useRef<HTMLElement>(null);
 
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -206,6 +216,22 @@ export default function SınıflarPage() {
       if ((e as Error).name !== "AbortError") toast.error("Gruplar yüklenemedi.");
     } finally {
       if (!signal?.aborted) setLoadingGroups(false);
+    }
+  }, [authHeaders]);
+
+  // -- roster (sınıf listesi) aç + çek --
+  const openRoster = useCallback(async (g: DemoGroup) => {
+    setRosterGroup(g);
+    setRosterItems([]);
+    setRosterLoading(true);
+    try {
+      const res = await fetch(`/api/flexos/groups/${g.id}/roster`, { headers: await authHeaders() });
+      const json = res.ok ? await res.json() : { items: [] };
+      setRosterItems(json.items ?? []);
+    } catch {
+      toast.error("Sınıf listesi yüklenemedi.");
+    } finally {
+      setRosterLoading(false);
     }
   }, [authHeaders]);
 
@@ -352,10 +378,19 @@ export default function SınıflarPage() {
 
   const cancelEdit = () => { setEditingId(null); resetForm(); };
 
-  const confirmDelete = () => {
-    setGroups((prev) => prev.filter((g) => g.id !== deleteId));
-    if (editingId === deleteId) setEditingId(null);
-    setDeleteId(null);
+  const confirmDelete = async () => {
+    if (deleteId === null) return;
+    const id = deleteId; setDeleteId(null);
+    try {
+      const res = await fetch(`/api/flexos/groups/${id}`, { method: "DELETE", headers: await authHeaders() });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(json.error || "Grup silinemedi."); return; }
+      setGroups((prev) => prev.filter((g) => g.id !== id));
+      if (editingId === id) setEditingId(null);
+      toast.success("Grup silindi.");
+    } catch {
+      toast.error("Sunucu hatası — grup silinemedi.");
+    }
   };
 
   /**
@@ -443,31 +478,33 @@ export default function SınıflarPage() {
       <main ref={mainRef} className="sg-main" style={S.main}>
         {/* header */}
         <header style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <div style={S.headerIcon}>
-              <span dangerouslySetInnerHTML={{ __html: IC.graduation }} />
-            </div>
-            <div>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Sınıflar</h1>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Grup acin, açılacak ve devam eden siniflari takip edin.</p>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <button className="sg-iconbtn" style={S.bellBtn} onClick={() => toast.info("Bu ozellik yakinda.")}>
-              <span dangerouslySetInnerHTML={{ __html: IC.bell }} />
-              <span style={S.bellDot} />
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
-              <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>Alparslan Senturk</div>
-                <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yonetici - Eğitmen</div>
+          <div style={S.headerInner}>
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <div style={S.headerIcon}>
+                <span dangerouslySetInnerHTML={{ __html: IC.graduation }} />
               </div>
-              <div style={S.avatar}>AS</div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Sınıflar</h1>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Grup acin, açılacak ve devam eden siniflari takip edin.</p>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <button className="sg-iconbtn" style={S.bellBtn} onClick={() => toast.info("Bu ozellik yakinda.")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.bell }} />
+                <span style={S.bellDot} />
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
+                <div style={{ textAlign: "right", lineHeight: 1.3 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>Alparslan Senturk</div>
+                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yonetici - Eğitmen</div>
+                </div>
+                <div style={S.avatar}>AS</div>
+              </div>
             </div>
           </div>
         </header>
 
-        <div style={{ padding: "30px 36px 72px", maxWidth: 1480, margin: "0 auto" }}>
+        <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto" }}>
 
           {/* ===== FORM CARD ===== */}
           <div style={S.card}>
@@ -751,7 +788,7 @@ export default function SınıflarPage() {
                       const endD = parseTrDate(g.bitiş);
                       const canReopen = g.status === "bitmiş" && (endD === null || endD >= todayMidnight());
                       return (
-                        <tr key={g.id} className="sg-trow" style={{ borderBottom: "1px solid #EEF0F3" }}>
+                        <tr key={g.id} className="sg-trow" onClick={() => openRoster(g)} style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}>
                           <td style={S.tdFirst}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ width: 8, height: 8, borderRadius: "50%", background: bs.dot, flex: "0 0 auto" }} />
@@ -782,7 +819,7 @@ export default function SınıflarPage() {
                               {st.label}
                             </span>
                           </td>
-                          <td style={S.tdRight}>
+                          <td style={S.tdRight} onClick={(e) => e.stopPropagation()}>
                             <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                               {g.status === "açılacak" && (
                                 <button className="sg-start-btn" disabled={!canStart} onClick={() => canStart && setStartId(g.id)}
@@ -888,8 +925,8 @@ export default function SınıflarPage() {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 9 }}>
                         <span style={{ fontSize: 12, fontWeight: 700, color: capColor }}>{capHint}</span>
-                        <button className="sg-detail-btn" style={S.detailBtn}>
-                          Detay
+                        <button className="sg-detail-btn" style={S.detailBtn} onClick={() => openRoster(g)}>
+                          Öğrenciler
                           <span dangerouslySetInnerHTML={{ __html: IC.chevRightSm }} />
                         </button>
                       </div>
@@ -1065,6 +1102,57 @@ export default function SınıflarPage() {
           </div>
         </div>
       )}
+
+      {/* Roster (sınıf listesi) drawer — salt görüntüleme */}
+      {rosterGroup && (
+        <div onClick={() => setRosterGroup(null)} style={S.drawerOverlay}>
+          <div onClick={(e) => e.stopPropagation()} style={S.drawer}>
+            {/* header */}
+            <div style={{ padding: "22px 24px", borderBottom: "1px solid #EEF0F3", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#E2EAF3", color: "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }} dangerouslySetInnerHTML={{ __html: IC.usersSmall }} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>{rosterGroup.kod} · Sınıf Listesi</h3>
+                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
+                    {rosterGroup.eğitim}{rosterGroup.şube && rosterGroup.şube !== "—" ? ` · ${rosterGroup.şube}` : ""} · {rosterGroup.dolu}/{rosterGroup.kontenjan} öğrenci
+                  </p>
+                </div>
+              </div>
+              <button className="sg-cancel" onClick={() => setRosterGroup(null)} style={S.drawerClose}>
+                <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
+              </button>
+            </div>
+            {/* body */}
+            <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+              {rosterLoading ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 20px" }}>
+                  <div className="sg-spin" />
+                  <div style={{ fontSize: 13, color: "#8E95A3" }}>Yükleniyor…</div>
+                </div>
+              ) : rosterItems.length === 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "48px 20px", textAlign: "center" }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 16, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" }} dangerouslySetInnerHTML={{ __html: IC.graduationBig }} />
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#414B59" }}>Bu grupta öğrenci yok</div>
+                  <div style={{ fontSize: 13, color: "#8E95A3", maxWidth: 260 }}>Öğrenci Havuzu&apos;ndan &quot;Gruba Ata&quot; ile bu gruba öğrenci ekleyin.</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {rosterItems.map((r, i) => (
+                    <div key={r.enrollmentId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: "1px solid #EEF0F3", background: "#fff" }}>
+                      <span style={{ width: 32, height: 32, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: "#E2EAF3", color: "#205297", fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
+                        <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.email || r.phone || "—"}</div>
+                      </div>
+                      {r.assignedAt && <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtTrDate(r.assignedAt)}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1117,7 +1205,8 @@ const pageBtnStyle = (active: boolean): CSSProperties => ({
 const S: Record<string, CSSProperties> = {
   root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#1E222B", fontFamily: "'Inter', system-ui, sans-serif", background: "#EEF0F3" },
   main: { flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3" },
-  header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" },
+  header: { position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" },
+  headerInner: { maxWidth: 1920, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" },
   headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
   bellBtn: { position: "relative" as const, width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59", transition: "all .14s" },
   bellDot: { position: "absolute" as const, top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#D93636", border: "2px solid #fff" },
@@ -1159,6 +1248,9 @@ const S: Record<string, CSSProperties> = {
 
   overlay: { position: "fixed" as const, inset: 0, zIndex: 90, background: "rgba(15,31,61,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, animation: "sgIn .14s ease" },
   modal: { width: "100%", maxWidth: 420, background: "#fff", borderRadius: 18, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden" },
+  drawerOverlay: { position: "fixed" as const, inset: 0, zIndex: 95, background: "rgba(15,31,61,.42)", display: "flex", justifyContent: "flex-end", animation: "sgIn .14s ease" },
+  drawer: { width: "100%", maxWidth: 440, height: "100%", background: "#fff", boxShadow: "-20px 0 60px -20px rgba(15,31,61,.4)", display: "flex", flexDirection: "column" as const, animation: "sgDrawer .2s cubic-bezier(.2,.8,.3,1)" },
+  drawerClose: { width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59", flex: "0 0 auto" },
   confirmStartBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#007A30", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(0,122,48,.5)", transition: "filter .14s" },
   confirmFinishBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#414B59", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(65,75,89,.5)", transition: "filter .14s" },
   confirmCancelBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#9E3A00", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(158,58,0,.5)", transition: "filter .14s" },
@@ -1215,6 +1307,7 @@ const globalCss = `
 @keyframes sgIn{from{opacity:0}to{opacity:1}}
 @keyframes sgUp{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes sgDown{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes sgDrawer{from{transform:translateX(100%)}to{transform:none}}
 .sg-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:sg-spin 1s linear infinite}@keyframes sg-spin{to{transform:rotate(360deg)}}
 .sg-main{scrollbar-gutter:stable}
 .sg-iconbtn:hover{background:#F7F8FA;color:#1E222B}

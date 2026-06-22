@@ -30,6 +30,7 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "group.assign_student", domain: "group", label: "Öğrenci Yerleştir", sensitivity: "yellow", write: true, scopable: true, audited: true },
   { key: "group.assign_trainer", domain: "group", label: "Eğitmen Ata", sensitivity: "yellow", write: true, scopable: true, audited: true },
   { key: "group.activate", domain: "group", label: "Grubu Aktif Et", sensitivity: "yellow", write: true, scopable: true, audited: true },
+  { key: "group.delete", domain: "group", label: "Grup Sil", sensitivity: "yellow", write: true, scopable: true, audited: true },
 
   // ── grade ──
   { key: "grade.read", domain: "grade", label: "Not Gör", sensitivity: "green", write: false, scopable: true, audited: false },

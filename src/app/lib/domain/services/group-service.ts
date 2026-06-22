@@ -5,6 +5,7 @@ import type { Group, GroupSchedule, GroupStatus, GroupType } from "../core/group
 import { ForbiddenError, ValidationError } from "../errors";
 import type { EducationRepo, SectionRepo, TrackRepo } from "../repo/catalog-repo";
 import type { GroupRepo } from "../repo/group-repo";
+import type { EnrollmentRepo } from "../repo/enrollment-repo";
 
 export interface CreateGroupInput {
   code: string;
@@ -103,6 +104,8 @@ export async function createGroup(
       startDate: s.startDate,
       days: s.days,
       sessionHours: s.sessionHours,
+      startTime: s.startTime,
+      endTime: s.endTime,
       endDate: s.endDate,
     },
     capacity: input.capacity,
@@ -139,4 +142,30 @@ export async function updateGroupStatus(
   const updated: Group = { ...group, status, updatedAt: nowISO(), updatedBy: actor.uid };
   await deps.groups.save(updated);
   return updated;
+}
+
+/**
+ * Grup sil — gated `group.delete`.
+ * GÜVENLİK: gruba bağlı AKTİF kayıt varsa silinmez (öğrenciler önce aktarılmalı/
+ * çıkarılmalı). İptal/transfer edilmiş kayıtlar engel değildir.
+ */
+export async function deleteGroup(
+  actor: Actor,
+  groupId: EntityId,
+  deps: { groups: GroupRepo; enrollments: EnrollmentRepo },
+): Promise<void> {
+  if (!can(actor, "group.delete", { groupId })) {
+    throw new ForbiddenError("group.delete");
+  }
+
+  const group = await deps.groups.getById(groupId, actor.tenantId);
+  if (!group) throw new ValidationError("Grup bulunamadı.");
+
+  const enrollments = await deps.enrollments.listByGroup(groupId, actor.tenantId);
+  const activeCount = enrollments.filter((e) => e.status === "active").length;
+  if (activeCount > 0) {
+    throw new ValidationError(`Bu grupta ${activeCount} aktif kayıt var. Önce öğrencileri başka gruba aktarın veya çıkarın.`);
+  }
+
+  await deps.groups.delete(groupId, actor.tenantId);
 }

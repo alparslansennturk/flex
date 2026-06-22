@@ -41,10 +41,22 @@ export const firestoreEnrollmentRepo: EnrollmentRepo = {
   },
 
   async list(tenantId) {
+    // NOT: where + orderBy(farklı alan) composite index ister → index yoksa veri
+    // olmasa bile sorgu patlar. Eşitlik-only çekip bellekte sıralıyoruz.
     const snap = await adminDb
       .collection(COLLECTION)
       .where("tenantId", "==", tenantId)
-      .orderBy("createdAt", "desc")
+      .get();
+    return snap.docs
+      .map((d) => d.data() as Enrollment)
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  },
+
+  async listByGroup(groupId, tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("groupId", "==", groupId)
       .get();
     return snap.docs.map((d) => d.data() as Enrollment);
   },

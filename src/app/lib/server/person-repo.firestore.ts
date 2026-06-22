@@ -33,11 +33,14 @@ export const firestorePersonRepo: PersonRepo = {
   },
 
   async list(tenantId) {
+    // NOT: where + orderBy(farklı alan) composite index ister → index yoksa veri
+    // olmasa bile sorgu patlar. Eşitlik-only çekip bellekte sıralıyoruz.
     const snap = await adminDb
       .collection(COLLECTION)
       .where("tenantId", "==", tenantId)
-      .orderBy("createdAt", "desc")
       .get();
-    return snap.docs.map((d) => d.data() as Person);
+    return snap.docs
+      .map((d) => d.data() as Person)
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   },
 };

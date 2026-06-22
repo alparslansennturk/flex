@@ -35,4 +35,8 @@ export const firestoreGroupRepo: GroupRepo = {
     const snap = await q.get();
     return snap.docs.map((d) => d.data() as Group);
   },
+
+  async delete(id) {
+    await adminDb.collection(COLLECTION).doc(id).delete();
+  },
 };

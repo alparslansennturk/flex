@@ -9,4 +9,6 @@ export interface GroupRepo {
   save(group: Group): Promise<void>;
   getById(id: string, tenantId: string): Promise<Group | null>;
   list(tenantId: string, trainerId?: string): Promise<Group[]>;
+  /** Grubu sil (boş grup — kayıtlı öğrenci kontrolü serviste yapılır). */
+  delete(id: string, tenantId: string): Promise<void>;
 }
