@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreEducationRepo, firestoreSectionRepo, firestoreTrackRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { createGroup, type CreateGroupInput } from "@/app/lib/domain/services/group-service";
 import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
@@ -51,17 +52,19 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
   const trainerId = req.nextUrl.searchParams.get("trainerId") ?? undefined;
 
-  const [groups, educations, branches, sections, enrollments] = await Promise.all([
+  const [groups, educations, branches, sections, enrollments, trainers] = await Promise.all([
     firestoreGroupRepo.list(actor.tenantId, trainerId),
     firestoreEducationRepo.list(actor.tenantId),
     firestoreBranchRepo.list(actor.tenantId),
     firestoreSectionRepo.list(actor.tenantId),
     firestoreEnrollmentRepo.list(actor.tenantId),
+    firestoreTrainerRepo.list(actor.tenantId),
   ]);
 
   const eduMap = new Map(educations.map((e) => [e.id, e]));
   const branchMap = new Map(branches.map((b) => [b.id, b]));
   const sectionMap = new Map(sections.map((s) => [s.id, s]));
+  const trainerMap = new Map(trainers.map((t) => [t.id, t.name]));
 
   // grup başına aktif kayıt sayısı (doluluk)
   const enrolledByGroup = new Map<string, number>();
@@ -88,6 +91,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
       branchOfficeId: g.branchOfficeId ?? null,
       branchOffice: officeName(g.branchOfficeId),
       trainerId: g.trainerId ?? "",
+      trainerName: g.trainerId ? trainerMap.get(g.trainerId) ?? "" : "",
       schedule: g.schedule,
       capacity: g.capacity ?? 0,
       enrolled: enrolledByGroup.get(g.id) ?? 0,

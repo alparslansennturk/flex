@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import { BRANCH_OFFICES, officeName } from "@/app/lib/branch-offices";
+import { formatTrPhone } from "@/app/lib/phone";
 
 // -- Katalog API tipleri --
 interface BranchDoc { id: string; name: string; order?: number }
@@ -58,7 +59,7 @@ interface GroupApiItem {
   educationId: string | null; educationName: string; branch: string;
   sectionId: string | null; sectionName: string;
   branchOfficeId: string | null; branchOffice: string;
-  trainerId: string;
+  trainerId: string; trainerName: string;
   schedule: { startDate?: string; days?: number[]; sessionHours?: number; startTime?: string; endTime?: string; endDate?: string };
   capacity: number; enrolled: number;
 }
@@ -93,7 +94,7 @@ function toDisplayGroup(g: GroupApiItem): DemoGroup {
     brans: g.branch || "—",
     eğitim: g.educationName || "—",
     şube: g.branchOffice || officeName(g.branchOfficeId) || "—",
-    eğitmen: g.trainerId || "—",
+    eğitmen: g.trainerName || "—",
     bölüm: g.sectionName || "—",
     seansGun,
     seansSaat,
@@ -148,9 +149,6 @@ const STATUS_MAP: Record<GroupStatus, { label: string; color: string; background
   iptal:    { label: "İptal",    color: "#9E3A00", background: "#FFF0E6", dot: "#D45A00" },
 };
 
-// -- Eğitmen listesi (statik demo); şube = paylaşımlı BRANCH_OFFICES --
-const EGITMEN_LIST = ["Mert Yilmaz", "Selin Aydin", "Burak Demir", "Ece Tunc", "Naz Erdem", "Onur Tas", "Gizem Avci", "Berk Acar"];
-
 const PAGE_SIZE = 15;
 
 export default function SınıflarPage() {
@@ -178,6 +176,7 @@ export default function SınıflarPage() {
   const [educations, setEducations] = useState<EducationDoc[]>([]);
   const [sections, setSections] = useState<SectionDoc[]>([]);
   const [seanslar, setSeanslar] = useState<SeansDoc[]>([]);
+  const [trainerOptions, setTrainerOptions] = useState<{ id: string; name: string }[]>([]);
   const [loadingEdu, setLoadingEdu] = useState(false);
   const [loadingSec, setLoadingSec] = useState(false);
 
@@ -252,15 +251,23 @@ export default function SınıflarPage() {
       await loadGroups(ac.signal);
       try {
         const hdrs = await authHeaders();
-        const [brRes, snRes] = await Promise.all([
+        const [brRes, snRes, trRes] = await Promise.all([
           fetch("/api/flexos/branches", { headers: hdrs, signal: ac.signal }),
           fetch("/api/flexos/seanslar", { headers: hdrs, signal: ac.signal }),
+          fetch("/api/flexos/trainers", { headers: hdrs, signal: ac.signal }),
         ]);
         const brJson = brRes.ok ? await brRes.json() : { items: [] };
         const snJson = snRes.ok ? await snRes.json() : { items: [] };
+        const trJson = trRes.ok ? await trRes.json() : { items: [] };
         if (!ac.signal.aborted) {
           setBranches(brJson.items ?? []);
           setSeanslar(snJson.items ?? []);
+          // sadece aktif eğitmenler atanabilir
+          setTrainerOptions(
+            (trJson.items ?? [])
+              .filter((t: { status?: string }) => t.status !== "pasif")
+              .map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })),
+          );
         }
       } catch (e) {
         if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
@@ -388,7 +395,7 @@ export default function SınıflarPage() {
     const raw = rawGroups.find((r) => r.id === g.id);
     setEditingId(g.id);
     setFKod(g.kod);
-    setFEğitmen(raw?.trainerId || g.eğitmen);
+    setFEğitmen(raw?.trainerId || ""); // trainerId artık eğitmen docId'si
     setFKontenjan(String(g.kontenjan));
     setFŞube(raw?.branchOfficeId || "");
     setFTarih(raw?.schedule?.startDate?.split("T")[0] || "");
@@ -974,7 +981,7 @@ export default function SınıflarPage() {
                       <span style={{ width: 32, height: 32, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: "#E2EAF3", color: "#205297", fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
-                        <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.email || r.phone || "—"}</div>
+                        <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.email || (r.phone ? formatTrPhone(r.phone) : "") || "—"}</div>
                       </div>
                       {r.assignedAt && <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtTrDate(r.assignedAt)}</span>}
                     </div>
@@ -990,12 +997,12 @@ export default function SınıflarPage() {
       <AnimatePresence>
         {showForm && (
           <>
-            <motion.div key="form-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-              onClick={() => { if (!saving) { cancelEdit(); } }} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(15,31,61,.4)" }} />
-            <motion.div key="form-sheet"
+            <motion.div key="form-overlay" className="fx-sheet-ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+              onClick={() => { if (!saving) { cancelEdit(); } }} style={{ position: "fixed", top: 0, bottom: 0, zIndex: 80, background: "rgba(15,31,61,.4)" }} />
+            <motion.div key="form-sheet" className="fx-sheet"
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 81, maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              style={{ position: "fixed", bottom: 0, zIndex: 81, maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
               {/* header */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 28px 18px", background: "#F7F8FA" }}>
@@ -1128,8 +1135,8 @@ export default function SınıflarPage() {
                         <span style={S.lbl}>Eğitmen <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
                         <SelectW>
                           <select value={fEğitmen} onChange={(e) => setFEğitmen(e.target.value)} style={S.sel}>
-                            <option value="">Eğitmen seçin</option>
-                            {EGITMEN_LIST.map((e) => <option key={e} value={e}>{e}</option>)}
+                            <option value="">{trainerOptions.length ? "Eğitmen seçin" : "Eğitmen yok — önce Eğitmenler'den ekleyin"}</option>
+                            {trainerOptions.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                           </select>
                         </SelectW>
                       </label>
@@ -1368,6 +1375,11 @@ const globalCss = `
 @keyframes sgUp{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes sgDown{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes sgDrawer{from{transform:translateX(100%)}to{transform:none}}
+/* Bottom-sheet + overlay'i içerik alanına hapset (sidebar'ı kaplamasın); geniş ekranda içerik gibi ortalanır */
+.fx-sheet{left:248px;right:0;max-width:1920px;margin-left:auto;margin-right:auto}
+.fx-sheet-ov{left:248px;right:0}
+@media(min-width:1536px){.fx-sheet,.fx-sheet-ov{left:272px}}
+@media(min-width:2560px){.fx-sheet,.fx-sheet-ov{left:300px}}
 .sg-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:sg-spin 1s linear infinite}@keyframes sg-spin{to{transform:rotate(360deg)}}
 .sg-main{scrollbar-gutter:stable}
 .sg-iconbtn:hover{background:#F7F8FA;color:#1E222B}

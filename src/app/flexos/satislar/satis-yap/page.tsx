@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
+import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
 
 // ── Katalog API tipleri (GET /api/flexos/{branches,educations,sections,tracks}) ──
@@ -463,7 +464,7 @@ export default function SatisYapPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18, marginBottom: 26 }}>
                     <div>
                       <Label>Telefon No</Label>
-                      <input type="tel" value={telefon} onChange={(e) => setTelefon(e.target.value)} placeholder="0 (5__) ___ __ __" style={S.input} />
+                      <input type="tel" inputMode="tel" value={telefon} onChange={(e) => setTelefon(formatTrPhone(e.target.value))} placeholder="0 (5__) ___ __ __" style={S.input} />
                     </div>
                     <div>
                       <Label>E-Posta Adresi</Label>

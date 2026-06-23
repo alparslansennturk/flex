@@ -20,6 +20,7 @@ import React, { useEffect, useMemo, useState, useCallback, CSSProperties } from 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
+import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
 import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 
@@ -448,7 +449,7 @@ export default function OgrenciHavuzuPage() {
                         {/* E-posta — geniş ekran */}
                         <td className="oh-wide-col" style={S.cell}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>{st.email}</span></td>
                         {/* Telefon — geniş ekran */}
-                        <td className="oh-wide-col" style={S.cell}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 600, whiteSpace: "nowrap" }}>{st.phone}</span></td>
+                        <td className="oh-wide-col" style={S.cell}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 600, whiteSpace: "nowrap" }}>{st.phone ? formatTrPhone(st.phone) : "—"}</span></td>
                         {/* Grup */}
                         <td style={S.cell} onClick={(e) => e.stopPropagation()}>
                           {groupCount === 0 ? (

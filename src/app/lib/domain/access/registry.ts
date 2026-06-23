@@ -42,6 +42,14 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "sale.create", domain: "sale", label: "Satış Yap", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "sale.read", domain: "sale", label: "Satış Gör", sensitivity: "yellow", write: false, scopable: true, audited: false },
 
+  // ── trainer (eğitmen kadrosu) — ücret alanı PII gibi alan-bazlı kapılı ──
+  { key: "trainer.create", domain: "trainer", label: "Eğitmen Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "trainer.read", domain: "trainer", label: "Eğitmen Gör", sensitivity: "green", write: false, scopable: false, audited: false },
+  { key: "trainer.edit", domain: "trainer", label: "Eğitmen Düzenle", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "trainer.delete", domain: "trainer", label: "Eğitmen Sil", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "trainer.rate.read", domain: "trainer", label: "Eğitmen Ücreti Görüntüle", sensitivity: "yellow", write: false, scopable: false, audited: true },
+  { key: "trainer.rate.write", domain: "trainer", label: "Eğitmen Ücreti Düzenle", sensitivity: "yellow", write: true, scopable: false, audited: true },
+
   // ── catalog (Branş/Eğitim/Bölüm/Track — Eğitim Op) ──
   { key: "branch.create", domain: "catalog", label: "Branş Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "education.create", domain: "catalog", label: "Eğitim Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },

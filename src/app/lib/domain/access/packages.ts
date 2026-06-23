@@ -54,6 +54,12 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "education.edit",
     "section.create",
     "track.create",
+    "trainer.create",
+    "trainer.read",
+    "trainer.edit",
+    "trainer.delete",
+    "trainer.rate.read",
+    "trainer.rate.write",
   ),
 
   // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
@@ -81,6 +87,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "grade.read",
     "grade.write",
     "grade.finalize",
+    "trainer.read", // kadroyu görür ama ücret (trainer.rate.read) YOK
   ),
 
   // Admin: tümü @org + meta yetkiler.
@@ -116,6 +123,12 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "track.create",
       "sale.create",
       "sale.read",
+      "trainer.create",
+      "trainer.read",
+      "trainer.edit",
+      "trainer.delete",
+      "trainer.rate.read",
+      "trainer.rate.write",
       "role.manage",
       "capability.grant",
     ),

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatTrPhone } from "@/app/lib/phone";
 
 /* ── Types ── */
 interface TrainerNote {
@@ -18,7 +19,8 @@ interface TrainerNote {
 interface AvailabilitySlot { gun: string; baslangic: string; bitis: string; dolu?: boolean }
 interface TrainerGroup { kod: string; egitim: string; ogrenci: number }
 interface Trainer {
-  id: number;
+  id: number; // UI içi sıralı index (palet/anahtar) — API string id'si docId'de
+  docId?: string; // Firestore doküman id'si (API çağrıları için)
   name: string;
   phone: string;
   email: string;
@@ -29,6 +31,34 @@ interface Trainer {
   notes: TrainerNote[];
   ucret?: number;
   musaitlik: AvailabilitySlot[];
+}
+
+/* Add/Edit form state — yalnızca formda düzenlenen alanlar (groups/notes/müsaitlik detayda yönetilir) */
+interface FormState {
+  name: string;
+  email: string;
+  phone: string;
+  subes: string[];
+  status: "aktif" | "pasif";
+  ucret: string; // ham input — kaydederken number'a çevrilir
+  comp: Record<string, string[]>;
+}
+const EMPTY_FORM: FormState = { name: "", email: "", phone: "", subes: [], status: "aktif", ucret: "", comp: {} };
+
+/** GET /api/flexos/trainers item şekli. */
+interface ApiTrainer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  subes: string[];
+  status: "aktif" | "pasif";
+  comp: Record<string, string[]>;
+  ucret: number | null;
+  rateLocked?: boolean;
+  musaitlik: AvailabilitySlot[];
+  notes: TrainerNote[];
+  groups: TrainerGroup[];
 }
 
 const BRANS_COLORS: Record<string, { color: string; bg: string; dot: string }> = {
@@ -43,83 +73,10 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string; dot
 const AV_PALETTES = [["#689adf", "#2867bd"], ["#FFA352", "#FF7800"], ["#67B5B6", "#1CB5AE"], ["#8B91E6", "#4D52A6"], ["#F76FA3", "#F91079"]];
 const PAGE_SIZE = 8;
 const GUNLER = ["Pts", "Sal", "Çar", "Per", "Cum", "Cts", "Paz"];
+const FORM_SUBELER = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş"];
+const FORM_BRANSLAR = ["Design", "Finance", "Software"];
 
 function initials(name: string) { return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toLocaleUpperCase("tr"); }
-
-function buildDemoTrainers(): Trainer[] {
-  const T = (name: string, phone: string, email: string, subes: string[], status: Trainer["status"], comp: Record<string, string[]>, groups: TrainerGroup[], notes: TrainerNote[], ucret?: number, musaitlik?: AvailabilitySlot[]): Omit<Trainer, "id"> =>
-    ({ name, phone, email, subes, status, comp, groups, notes, ucret, musaitlik: musaitlik || [] });
-  const d = [
-    T("Mert Yılmaz", "0532 418 22 71", "mert.yilmaz@flex.com", ["Kadıköy"], "aktif",
-      { Software: ["Full-Stack Web", "Veri Bilimi", "DevOps & Bulut"] },
-      [{ kod: "GRP-248", egitim: "Full-Stack Web Geliştirme", ogrenci: 16 }, { kod: "GRP-261", egitim: "Backend & API", ogrenci: 9 }],
-      [{ text: "Hafta içi akşam seanslarında çok verimli. Cumartesi sabahı tercih etmiyor.", author: "Alparslan Şentürk", date: "12 Haz 2026", pinned: true, sentiment: "positive" }],
-      8500, [{ gun: "Pts", baslangic: "10:00", bitis: "13:00", dolu: true }, { gun: "Pts", baslangic: "14:00", bitis: "18:00" }, { gun: "Sal", baslangic: "10:00", bitis: "18:00" }, { gun: "Çar", baslangic: "10:00", bitis: "13:00", dolu: true }, { gun: "Çar", baslangic: "14:00", bitis: "18:00" }, { gun: "Per", baslangic: "10:00", bitis: "18:00" }, { gun: "Cum", baslangic: "10:00", bitis: "17:00" }]),
-    T("Selin Aydın", "0541 903 18 44", "selin.aydin@flex.com", ["Pendik", "Kadıköy"], "aktif",
-      { Design: ["UI/UX Tasarım", "Grafik Tasarım", "Marka & Kimlik"] },
-      [{ kod: "GRP-251", egitim: "UI/UX Tasarım", ogrenci: 14 }, { kod: "GRP-262", egitim: "Marka & Kimlik", ogrenci: 6 }],
-      [{ text: "Portfolyo değerlendirmelerinde çok titiz. Yeni başlayan gruplar için ideal.", author: "Alparslan Şentürk", date: "03 Haz 2026", sentiment: "positive" }],
-      7200, [{ gun: "Pts", baslangic: "09:00", bitis: "12:00", dolu: true }, { gun: "Pts", baslangic: "12:00", bitis: "14:00" }, { gun: "Çar", baslangic: "09:00", bitis: "14:00" }, { gun: "Cum", baslangic: "09:00", bitis: "12:00", dolu: true }, { gun: "Cum", baslangic: "12:00", bitis: "14:00" }, { gun: "Cts", baslangic: "10:00", bitis: "15:00" }]),
-    T("Burak Demir", "0505 277 65 90", "burak.demir@flex.com", ["Ümraniye"], "aktif",
-      { Finance: ["Finansal Modelleme", "Kurumsal Finans", "Yatırım & Portföy"] },
-      [{ kod: "GRP-255", egitim: "Finansal Modelleme", ogrenci: 7 }],
-      [{ text: "Son dönemde ders iptalleri arttı, takip ediliyor.", author: "Alparslan Şentürk", date: "28 May 2026", pinned: true, sentiment: "negative" },
-       { text: "Mayıs ayında 2 seansı iptal etti. Eylül grubu öncesi görüşülecek.", author: "Alparslan Şentürk", date: "28 May 2026", sentiment: "negative" }],
-      9000, [{ gun: "Sal", baslangic: "13:00", bitis: "19:00" }, { gun: "Per", baslangic: "13:00", bitis: "19:00" }, { gun: "Cts", baslangic: "10:00", bitis: "16:00" }]),
-    T("Ece Tunç", "0533 612 40 07", "ece.tunc@flex.com", ["Kadıköy"], "aktif",
-      { Software: ["Veri Bilimi", "Full-Stack Web"], Design: ["UI/UX Tasarım"] },
-      [{ kod: "GRP-256", egitim: "Veri Bilimi Bootcamp", ogrenci: 4 }, { kod: "GRP-258", egitim: "Siber Güvenlik", ogrenci: 9 }],
-      [], 7800, [{ gun: "Pts", baslangic: "09:00", bitis: "17:00" }, { gun: "Sal", baslangic: "09:00", bitis: "17:00" }, { gun: "Çar", baslangic: "09:00", bitis: "17:00" }, { gun: "Per", baslangic: "09:00", bitis: "17:00" }, { gun: "Cum", baslangic: "09:00", bitis: "15:00" }]),
-    T("Naz Erdem", "0544 190 73 28", "naz.erdem@flex.com", ["Beşiktaş"], "pasif",
-      { Design: ["Motion & Animasyon", "Grafik Tasarım", "UI/UX Tasarım", "Marka & Kimlik"] },
-      [],
-      [{ text: "Doğum izninde — Eylül sonuna kadar grup atanmayacak.", author: "Alparslan Şentürk", date: "15 May 2026", pinned: true, sentiment: "neutral" },
-       { text: "İzin dönüşü Motion grubu planlanıyor. İletişim e-posta üzerinden.", author: "Alparslan Şentürk", date: "15 May 2026", sentiment: "neutral" }],
-      7500, []),
-    T("Onur Taş", "0537 845 21 60", "onur.tas@flex.com", ["Kadıköy", "Ümraniye"], "aktif",
-      { Software: ["Mobil Uygulama", "Full-Stack Web", "DevOps & Bulut"] },
-      [{ kod: "GRP-249", egitim: "React ile Frontend", ogrenci: 18 }, { kod: "GRP-238", egitim: "Mobil Uygulama", ogrenci: 17 }],
-      [{ text: "İleri seviye gruplarda çok iyi. Başlangıç gruplarında tempoyu biraz düşürmesi önerildi.", author: "Alparslan Şentürk", date: "20 May 2026", pinned: true, sentiment: "positive" }],
-      9500, [{ gun: "Pts", baslangic: "09:00", bitis: "12:00", dolu: true }, { gun: "Pts", baslangic: "13:00", bitis: "19:00" }, { gun: "Sal", baslangic: "09:00", bitis: "19:00" }, { gun: "Çar", baslangic: "09:00", bitis: "19:00" }, { gun: "Per", baslangic: "09:00", bitis: "12:00", dolu: true }, { gun: "Per", baslangic: "13:00", bitis: "19:00" }, { gun: "Cum", baslangic: "09:00", bitis: "17:00" }, { gun: "Cts", baslangic: "10:00", bitis: "15:00" }]),
-    T("Gizem Avcı", "0531 408 99 13", "gizem.avci@flex.com", ["Pendik"], "aktif",
-      { Finance: ["Yatırım & Portföy", "Muhasebe 101"] },
-      [{ kod: "GRP-250", egitim: "Bütçe & Raporlama", ogrenci: 11 }],
-      [], 6800, [{ gun: "Sal", baslangic: "11:00", bitis: "18:00" }, { gun: "Per", baslangic: "11:00", bitis: "18:00" }, { gun: "Cts", baslangic: "09:00", bitis: "14:00" }, { gun: "Paz", baslangic: "10:00", bitis: "14:00" }]),
-    T("Berk Acar", "0542 736 50 82", "berk.acar@flex.com", ["Ümraniye"], "aktif",
-      { Design: ["Motion & Animasyon", "UI/UX Tasarım"] },
-      [{ kod: "GRP-244", egitim: "Motion & Animasyon", ogrenci: 12 }, { kod: "GRP-252", egitim: "Ürün Tasarımı", ogrenci: 15 }],
-      [{ text: "After Effects içeriklerinde çok güçlü.", author: "Alparslan Şentürk", date: "10 Nis 2026", sentiment: "positive" }],
-      8000, [{ gun: "Pts", baslangic: "12:00", bitis: "20:00" }, { gun: "Çar", baslangic: "12:00", bitis: "20:00" }, { gun: "Cum", baslangic: "12:00", bitis: "20:00" }]),
-    T("Kaan Aydın", "0530 671 29 47", "kaan.aydin@flex.com", ["Beşiktaş"], "pasif",
-      { Software: ["Full-Stack Web"] },
-      [],
-      [{ text: "Sözleşme feshi sonrası yeni grup atanmayacak. Anlaşma Şubat 2026 itibarıyla sonlandı.", author: "Alparslan Şentürk", date: "02 Şub 2026", pinned: true, sentiment: "negative" }],
-      undefined, []),
-    T("Sıla Korkmaz", "0545 382 16 90", "sila.korkmaz@flex.com", ["Pendik", "Kadıköy"], "aktif",
-      { Design: ["Grafik Tasarım", "Marka & Kimlik"], Finance: ["Muhasebe 101"] },
-      [{ kod: "GRP-257", egitim: "Grafik Tasarım", ogrenci: 16 }],
-      [], 7000, [{ gun: "Pts", baslangic: "09:00", bitis: "16:00" }, { gun: "Sal", baslangic: "09:00", bitis: "16:00" }, { gun: "Çar", baslangic: "09:00", bitis: "16:00" }, { gun: "Per", baslangic: "09:00", bitis: "16:00" }, { gun: "Cum", baslangic: "09:00", bitis: "14:00" }]),
-    T("Emre Çelik", "0534 928 47 11", "emre.celik@flex.com", ["Ümraniye"], "aktif",
-      { Software: ["DevOps & Bulut", "Veri Bilimi"] },
-      [{ kod: "GRP-264", egitim: "DevOps & Bulut", ogrenci: 10 }],
-      [], 7500, [{ gun: "Sal", baslangic: "10:00", bitis: "18:00" }, { gun: "Çar", baslangic: "10:00", bitis: "18:00" }, { gun: "Per", baslangic: "10:00", bitis: "18:00" }, { gun: "Cum", baslangic: "10:00", bitis: "16:00" }]),
-    T("Deniz Koç", "0536 217 84 35", "deniz.koc@flex.com", ["Beşiktaş"], "pasif",
-      { Finance: ["Finansal Modelleme", "Yatırım & Portföy"] },
-      [],
-      [{ text: "Yurt dışında — Temmuz sonu dönüyor.", author: "Alparslan Şentürk", date: "01 Haz 2026", pinned: true, sentiment: "neutral" }],
-      8200, []),
-    T("Tolga Bulut", "0540 127 53 96", "tolga.bulut@flex.com", ["Kadıköy"], "aktif",
-      { Software: ["Full-Stack Web", "Mobil Uygulama"], Design: ["UI/UX Tasarım"] },
-      [{ kod: "GRP-253", egitim: "Veri Mühendisliği", ogrenci: 14 }],
-      [{ text: "Kurumsal taleplerde önceliklendir.", author: "Alparslan Şentürk", date: "18 May 2026", pinned: true, sentiment: "positive" }],
-      10000, [{ gun: "Pts", baslangic: "08:00", bitis: "18:00" }, { gun: "Sal", baslangic: "08:00", bitis: "18:00" }, { gun: "Çar", baslangic: "08:00", bitis: "18:00" }, { gun: "Per", baslangic: "08:00", bitis: "18:00" }, { gun: "Cum", baslangic: "08:00", bitis: "17:00" }, { gun: "Cts", baslangic: "09:00", bitis: "14:00" }]),
-    T("İrem Güneş", "0539 165 73 28", "irem.gunes@flex.com", ["Pendik"], "aktif",
-      { Finance: ["Kurumsal Finans", "Finansal Modelleme", "Muhasebe 101"] },
-      [{ kod: "GRP-254", egitim: "Finansal Analiz", ogrenci: 12 }],
-      [], 7600, [{ gun: "Pts", baslangic: "09:00", bitis: "15:00" }, { gun: "Çar", baslangic: "09:00", bitis: "15:00" }, { gun: "Cum", baslangic: "09:00", bitis: "13:00" }]),
-  ];
-  return d.map((t, i) => ({ id: i + 1, ...t } as Trainer));
-}
 
 /* ══════════════════════════════ COMPONENT ══════════════════════════════ */
 
@@ -156,15 +113,59 @@ export default function EgitmenlerPage() {
   /* ── delete modal ── */
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
+  /* ── add / edit form bottom sheet ── */
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [compDraft, setCompDraft] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const user = auth.currentUser;
+    const token = user ? await user.getIdToken() : "";
+    return { Authorization: `Bearer ${token}` };
+  }, []);
+
+  /* ── eğitmen listesini gerçek API'den yükle ── */
+  const loadTrainers = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/flexos/trainers", { headers: await authHeaders(), signal });
+      const json = res.ok ? await res.json() : { items: [] };
+      const items: ApiTrainer[] = json.items ?? [];
+      setTrainers(items.map((it, i): Trainer => ({
+        id: i + 1,
+        docId: it.id,
+        name: it.name,
+        email: it.email ?? "",
+        phone: it.phone ?? "",
+        subes: it.subes ?? [],
+        status: it.status,
+        comp: it.comp ?? {},
+        groups: it.groups ?? [],
+        notes: it.notes ?? [],
+        ucret: it.ucret ?? undefined,
+        musaitlik: it.musaitlik ?? [],
+      })));
+    } catch (e) {
+      if ((e as Error)?.name !== "AbortError") { console.error(e); toast.error("Eğitmenler yüklenemedi."); }
+    } finally {
+      setLoading(false);
+    }
+  }, [authHeaders]);
+
   /* ── auth ── */
   useEffect(() => {
+    const ac = new AbortController();
     (async () => {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
-      setTrainers(buildDemoTrainers());
+      await loadTrainers(ac.signal);
     })();
-  }, [router]);
+    return () => ac.abort();
+  }, [router, loadTrainers]);
 
   /* ── filter logic ── */
   const applyFilters = () => {
@@ -232,11 +233,109 @@ export default function EgitmenlerPage() {
     }));
   };
 
-  const confirmDelete = () => {
-    setTrainers((prev) => prev.filter((t) => t.id !== deleteId));
-    if (detailId === deleteId) setDetailId(null);
-    setDeleteId(null);
-    toast.success("Eğitmen silindi.");
+  const confirmDelete = async () => {
+    const docId = trainers.find((t) => t.id === deleteId)?.docId;
+    if (!docId) { setDeleteId(null); return; }
+    try {
+      const res = await fetch(`/api/flexos/trainers/${docId}`, { method: "DELETE", headers: await authHeaders() });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast.error(j.error ?? "Silinemedi.");
+        return;
+      }
+      if (detailId === deleteId) setDetailId(null);
+      setDeleteId(null);
+      toast.success("Eğitmen silindi.");
+      await loadTrainers();
+    } catch (e) {
+      console.error(e);
+      toast.error("Sunucu hatası.");
+    }
+  };
+
+  /* ── add / edit form ── */
+  const openAddForm = () => { setEditId(null); setForm(EMPTY_FORM); setCompDraft({}); setShowForm(true); };
+  const openEditForm = (t: Trainer) => {
+    setEditId(t.id);
+    setForm({
+      name: t.name, email: t.email, phone: formatTrPhone(t.phone),
+      subes: [...t.subes], status: t.status,
+      ucret: t.ucret != null ? String(t.ucret) : "",
+      comp: JSON.parse(JSON.stringify(t.comp)) as Record<string, string[]>,
+    });
+    setCompDraft({});
+    setDetailId(null); // detay açıksa kapat
+    setShowForm(true);
+  };
+  const closeForm = () => setShowForm(false);
+
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
+  const toggleSube = (s: string) =>
+    setForm((f) => ({ ...f, subes: f.subes.includes(s) ? f.subes.filter((x) => x !== s) : [...f.subes, s] }));
+
+  const addCompTag = (brans: string) => {
+    const v = (compDraft[brans] || "").trim();
+    if (!v) return;
+    setForm((f) => {
+      const cur = f.comp[brans] || [];
+      if (cur.some((x) => x.toLocaleLowerCase("tr") === v.toLocaleLowerCase("tr"))) return f;
+      return { ...f, comp: { ...f.comp, [brans]: [...cur, v] } };
+    });
+    setCompDraft((d) => ({ ...d, [brans]: "" }));
+  };
+  const removeCompTag = (brans: string, tag: string) =>
+    setForm((f) => {
+      const cur = (f.comp[brans] || []).filter((x) => x !== tag);
+      const nc = { ...f.comp };
+      if (cur.length) nc[brans] = cur; else delete nc[brans];
+      return { ...f, comp: nc };
+    });
+
+  const saveForm = async () => {
+    if (saving) return;
+    const name = form.name.trim();
+    const email = form.email.trim();
+    if (!name) { toast.error("Eğitmen adı zorunlu."); return; }
+    if (!email) { toast.error("E-posta zorunlu."); return; }
+    const digits = form.ucret.replace(/[^\d]/g, "");
+    const hourlyRate = digits ? Number(digits) : null; // null = ücreti temizle/boş
+    const payload = {
+      name, email,
+      phone: form.phone.trim(),
+      branchOffices: form.subes,
+      status: form.status,
+      competencies: form.comp,
+      hourlyRate,
+    };
+
+    setSaving(true);
+    try {
+      const headers = { ...(await authHeaders()), "Content-Type": "application/json" };
+      let res: Response;
+      if (editId == null) {
+        res = await fetch("/api/flexos/trainers", { method: "POST", headers, body: JSON.stringify(payload) });
+      } else {
+        const docId = trainers.find((t) => t.id === editId)?.docId;
+        if (!docId) { toast.error("Kayıt bulunamadı."); setSaving(false); return; }
+        res = await fetch(`/api/flexos/trainers/${docId}`, { method: "PATCH", headers, body: JSON.stringify(payload) });
+      }
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast.error(j.error ?? "Kaydedilemedi.");
+        setSaving(false);
+        return;
+      }
+      toast.success(editId == null ? "Eğitmen eklendi." : "Eğitmen güncellendi.");
+      setShowForm(false);
+      await loadTrainers();
+    } catch (e) {
+      console.error(e);
+      toast.error("Sunucu hatası.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const activeStudents = (t: Trainer) => t.groups.reduce((a, g) => a + g.ogrenci, 0);
@@ -285,7 +384,7 @@ export default function EgitmenlerPage() {
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Eğitmen Havuzu</h2>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{trainers.length} eğitmen</span>
             </div>
-            <button className="sg-add-btn" style={S.addBtn} onClick={() => toast.info("Eğitmen ekleme yakında.")}>
+            <button className="sg-add-btn" style={S.addBtn} onClick={openAddForm}>
               <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Eğitmen Ekle
             </button>
           </div>
@@ -470,14 +569,21 @@ export default function EgitmenlerPage() {
               </table>
             </div>
 
+            {/* loading state */}
+            {loading && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center", color: "#8E95A3", fontSize: 14, fontWeight: 600 }}>
+                Eğitmenler yükleniyor…
+              </div>
+            )}
+
             {/* empty state */}
-            {filtered.length === 0 && (
+            {!loading && filtered.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center" }}>
                 <div style={{ width: 58, height: 58, borderRadius: 16, background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" }}>
                   <span dangerouslySetInnerHTML={{ __html: IC.searchLg }} />
                 </div>
-                <div style={{ fontSize: 15.5, fontWeight: 700, color: "#414B59" }}>Eğitmen bulunamadı</div>
-                <div style={{ fontSize: 13.5, color: "#8E95A3", maxWidth: 320 }}>Seçili filtrelere uygun eğitmen yok. Filtreleri temizleyip tekrar deneyin.</div>
+                <div style={{ fontSize: 15.5, fontWeight: 700, color: "#414B59" }}>{trainers.length === 0 ? "Henüz eğitmen eklenmemiş" : "Eğitmen bulunamadı"}</div>
+                <div style={{ fontSize: 13.5, color: "#8E95A3", maxWidth: 320 }}>{trainers.length === 0 ? "Sağ üstteki “Eğitmen Ekle” ile ilk eğitmeni oluşturun." : "Seçili filtrelere uygun eğitmen yok. Filtreleri temizleyip tekrar deneyin."}</div>
               </div>
             )}
 
@@ -507,12 +613,12 @@ export default function EgitmenlerPage() {
         <AnimatePresence>
           {detailTrainer && (
             <>
-              <motion.div key="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-                onClick={closeDetail} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(15,31,61,.4)" }} />
-              <motion.div key="sheet"
+              <motion.div key="overlay" className="fx-sheet-ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+                onClick={closeDetail} style={{ position: "fixed", top: 0, bottom: 0, zIndex: 80, background: "rgba(15,31,61,.4)" }} />
+              <motion.div key="sheet" className="fx-sheet"
                 initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 81, maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                style={{ position: "fixed", bottom: 0, zIndex: 81, maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
                 {/* header */}
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 28px 18px", background: "#F7F8FA" }}>
@@ -532,9 +638,14 @@ export default function EgitmenlerPage() {
                       </div>
                     </div>
                   </div>
-                  <button onClick={closeDetail} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
+                    <button onClick={() => openEditForm(detailTrainer)} className="eg-edit-link" style={S.editLinkBtn}>
+                      <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} /> Düzenle
+                    </button>
+                    <button onClick={closeDetail} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
+                      <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* scrollable body — multi-column grid */}
@@ -551,7 +662,7 @@ export default function EgitmenlerPage() {
                             <span dangerouslySetInnerHTML={{ __html: IC.mail }} /><span>{detailTrainer.email}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 13.5, color: "#414B59" }}>
-                            <span dangerouslySetInnerHTML={{ __html: IC.phone }} /><span>{detailTrainer.phone}</span>
+                            <span dangerouslySetInnerHTML={{ __html: IC.phone }} /><span>{detailTrainer.phone ? formatTrPhone(detailTrainer.phone) : "—"}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 13.5, color: "#414B59" }}>
                             <span dangerouslySetInnerHTML={{ __html: IC.pinSm }} /><span>{detailTrainer.subes.join(", ")}</span>
@@ -568,10 +679,10 @@ export default function EgitmenlerPage() {
                         {detailTrainer.ucret != null ? (
                           <div onClick={() => setUcretRevealed(!ucretRevealed)} style={{ cursor: "pointer", userSelect: "none" }}>
                             <div style={{ fontSize: 28, fontWeight: 800, color: "#1E222B", letterSpacing: "-.5px", filter: ucretRevealed ? "none" : "blur(8px)", transition: "filter .25s" }}>
-                              {detailTrainer.ucret.toLocaleString("tr-TR")} TL
+                              {detailTrainer.ucret.toLocaleString("tr-TR")} TL<span style={{ fontSize: 15, fontWeight: 600, color: "#8E95A3" }}> / saat</span>
                             </div>
                             <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 4 }}>
-                              {ucretRevealed ? "Gizlemek için tıklayın" : "Görmek için tıklayın"} · Aylık
+                              {ucretRevealed ? "Gizlemek için tıklayın" : "Görmek için tıklayın"} · Ders saati başına
                             </div>
                           </div>
                         ) : (
@@ -736,6 +847,142 @@ export default function EgitmenlerPage() {
           )}
         </AnimatePresence>
 
+        {/* ═══════════ ADD / EDIT FORM BOTTOM SHEET ═══════════ */}
+        <AnimatePresence>
+          {showForm && (
+            <>
+              <motion.div key="form-overlay" className="fx-sheet-ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+                onClick={() => { if (!saving) closeForm(); }} style={{ position: "fixed", top: 0, bottom: 0, zIndex: 82, background: "rgba(15,31,61,.4)" }} />
+              <motion.div key="form-sheet" className="fx-sheet eg-form"
+                initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                style={{ position: "fixed", bottom: 0, zIndex: 83, maxHeight: "92vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+                {/* header */}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 28px 18px", borderBottom: "1px solid #EEF0F3", background: "#F7F8FA" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                    <div style={{ width: 46, height: 46, borderRadius: 13, background: editId == null ? "#E2EAF3" : "#FFF3DC", color: editId == null ? "#205297" : "#8A5A00", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                      <span dangerouslySetInnerHTML={{ __html: editId == null ? IC.plus : IC.pencilSm }} />
+                    </div>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>{editId == null ? "Yeni Eğitmen Ekle" : "Eğitmen Düzenle"}</h2>
+                      <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{editId == null ? "Eğitmen profilini ve ücret bilgisini girin." : "Eğitmen bilgilerini güncelleyin."}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => { if (!saving) closeForm(); }} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
+                  </button>
+                </div>
+
+                {/* body */}
+                <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px 24px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, alignItems: "start" }}>
+
+                    {/* LEFT */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                      {/* Temel Bilgiler */}
+                      <div style={S.card}>
+                        <div style={S.cardTitle}>Temel Bilgiler</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                          <label style={{ display: "block" }}>
+                            <span style={{ ...S.fieldLabel, marginBottom: 7 }}>Ad Soyad *</span>
+                            <input value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="Örn. Mert Yılmaz" style={S.formInput} />
+                          </label>
+                          <label style={{ display: "block" }}>
+                            <span style={{ ...S.fieldLabel, marginBottom: 7 }}>E-posta *</span>
+                            <input type="email" value={form.email} onChange={(e) => setField("email", e.target.value)} placeholder="ad.soyad@flex.com" style={S.formInput} />
+                          </label>
+                          <label style={{ display: "block" }}>
+                            <span style={{ ...S.fieldLabel, marginBottom: 7 }}>Telefon</span>
+                            <input value={form.phone} onChange={(e) => setField("phone", formatTrPhone(e.target.value))} inputMode="tel" placeholder="0 (5__) ___ __ __" style={S.formInput} />
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Çalışma & Ücret */}
+                      <div style={S.card}>
+                        <div style={S.cardTitle}>Çalışma & Ücret</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                          <div>
+                            <span style={S.fieldLabel}>Şube</span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                              {FORM_SUBELER.map((s) => {
+                                const on = form.subes.includes(s);
+                                return <button key={s} type="button" onClick={() => toggleSube(s)} className="eg-chip" style={on ? S.chipActive : S.chip}>{s}</button>;
+                              })}
+                            </div>
+                          </div>
+                          <div>
+                            <span style={S.fieldLabel}>Durum</span>
+                            <div style={{ display: "inline-flex", marginTop: 8, background: "#EEF0F3", borderRadius: 11, padding: 4, gap: 4 }}>
+                              {([["aktif", "Aktif"], ["pasif", "Pasif"]] as const).map(([v, l]) => (
+                                <button key={v} type="button" onClick={() => setField("status", v)} style={form.status === v ? S.segActive : S.seg}>{l}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <span style={S.fieldLabel}>Ders Saati Ücreti</span>
+                            <div style={{ position: "relative", marginTop: 8 }}>
+                              <input inputMode="numeric" value={form.ucret} onChange={(e) => setField("ucret", e.target.value)} placeholder="0" style={{ ...S.formInput, paddingRight: 64 }} />
+                              <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 700, color: "#8E95A3", pointerEvents: "none" }}>TL/saat</span>
+                            </div>
+                            <div style={{ fontSize: 11.5, color: "#AEB4C0", fontWeight: 500, marginTop: 6 }}>Ders saati başına ücret. Aylık tutar, ay içindeki ders saatine göre finans modülünde hesaplanacak.</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RIGHT — Yetkinlikler */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                      <div style={S.card}>
+                        <div style={S.cardTitle}>Yetkinlik — Girebildiği Eğitimler</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {FORM_BRANSLAR.map((b) => {
+                            const bc = BRANS_COLORS[b];
+                            const tags = form.comp[b] || [];
+                            return (
+                              <div key={b} style={{ border: "1px solid #EEF0F3", borderRadius: 12, padding: "12px 13px", background: "#FBFCFD" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: bc?.dot || "#CDD2DA", flex: "0 0 auto" }} />
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{b}</span>
+                                  {tags.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: "#8E95A3" }}>{tags.length} eğitim</span>}
+                                </div>
+                                {tags.length > 0 && (
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                                    {tags.map((tag) => (
+                                      <span key={tag} style={S.tag}>
+                                        {tag}
+                                        <button type="button" onClick={() => removeCompTag(b, tag)} className="eg-tag-x" style={S.tagX}><span dangerouslySetInnerHTML={{ __html: IC.xSmall }} /></button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <input value={compDraft[b] || ""} onChange={(e) => setCompDraft((d) => ({ ...d, [b]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCompTag(b); } }} placeholder="Eğitim adı ekle…" style={{ ...S.formInput, padding: "9px 12px", fontSize: 13 }} />
+                                  <button type="button" onClick={() => addCompTag(b)} className="eg-add-tag" style={S.addTagBtn}><span dangerouslySetInnerHTML={{ __html: IC.plusSm }} /></button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* footer */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 11, padding: "16px 28px", borderTop: "1px solid #EEF0F3", background: "#fff" }}>
+                  <button className="sg-cancel" onClick={closeForm} disabled={saving} style={{ ...S.cancelBtn, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>Vazgeç</button>
+                  <button className="eg-save" onClick={saveForm} disabled={saving} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+                    <span dangerouslySetInnerHTML={{ __html: editId == null ? IC.plus : IC.checkWhite }} /> {saving ? "Kaydediliyor…" : editId == null ? "Eğitmen Ekle" : "Değişiklikleri Kaydet"}
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
         {/* ═══════════ DELETE MODAL ═══════════ */}
         {deleteId !== null && (
           <div onClick={() => setDeleteId(null)} style={S.overlay}>
@@ -833,6 +1080,18 @@ const S: Record<string, CSSProperties> = {
   modal: { width: "100%", maxWidth: 420, background: "#fff", borderRadius: 18, boxShadow: "0 30px 70px -20px rgba(15,31,61,.5)", overflow: "hidden" },
   cancelBtn: { padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
   confirmDelBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: "#D93636", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)", transition: "filter .14s" },
+  /* add / edit form */
+  fieldLabel: { fontSize: 11.5, fontWeight: 700, color: "#6F7B87", display: "block" },
+  formInput: { width: "100%", padding: "11px 13px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 14, fontWeight: 500, fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const },
+  chip: { padding: "8px 14px", borderRadius: 999, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .13s" },
+  chipActive: { padding: "8px 14px", borderRadius: 999, border: "1px solid #2867bd", background: "#E2EAF3", color: "#205297", fontSize: 13, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", transition: "all .13s" },
+  seg: { padding: "8px 18px", borderRadius: 8, border: "none", background: "transparent", color: "#6F7B87", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .13s" },
+  segActive: { padding: "8px 18px", borderRadius: 8, border: "none", background: "#fff", color: "#1E222B", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 1px 3px rgba(15,31,61,.12)" },
+  tag: { display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 600, color: "#414B59", background: "#F2F4F7", border: "1px solid #E2E5EA", padding: "5px 6px 5px 10px", borderRadius: 8 },
+  tagX: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 5, border: "none", background: "transparent", color: "#8E95A3", cursor: "pointer", padding: 0, flex: "0 0 auto" },
+  addTagBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 42, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#205297", cursor: "pointer", flex: "0 0 auto" },
+  saveBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "12px 22px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)", transition: "filter .14s" },
+  editLinkBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#205297", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", transition: "all .13s" },
 };
 
 /* ══════════════════════════════ ICONS ══════════════════════════════ */
@@ -877,12 +1136,18 @@ const IC = {
   checkCircle: sv('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>'),
   trainerCard: sv('<path d="M14 22v-4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4"/><path d="M18 14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2"/><circle cx="9" cy="9" r="3"/>'),
   alertCard: sv('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  checkWhite: sv('<path d="M20 6 9 17l-5-5"/>', 'width="16" height="16" stroke="#fff" stroke-width="2.6"'),
 };
 
 /* ══════════════════════════════ GLOBAL CSS ══════════════════════════════ */
 
 const globalCss = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Bottom-sheet + overlay'i içerik alanına hapset (sidebar'ı kaplamasın); geniş ekranda içerik gibi ortalanır */
+.fx-sheet { left: 248px; right: 0; max-width: 1920px; margin-left: auto; margin-right: auto; }
+.fx-sheet-ov { left: 248px; right: 0; }
+@media (min-width: 1536px) { .fx-sheet, .fx-sheet-ov { left: 272px; } }
+@media (min-width: 2560px) { .fx-sheet, .fx-sheet-ov { left: 300px; } }
 @keyframes sgDdIn { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
 @keyframes sgFadeIn { from { opacity: 0; } to { opacity: 1; } }
 input::placeholder { color: #AEB4C0; }
@@ -905,4 +1170,10 @@ textarea::placeholder { color: #AEB4C0; }
 .sg-confirm-del:hover { filter: brightness(1.07); }
 .sg-add-note-btn:hover:not(:disabled) { filter: brightness(1.05); }
 .sg-pin-btn:hover { border-color: #92b6e8; color: #205297 !important; background: #EFF3FA; }
+.eg-save:hover { filter: brightness(1.06); }
+.eg-edit-link:hover { border-color: #92b6e8; background: #EFF3FA; }
+.eg-chip:hover { border-color: #CDD2DA; }
+.eg-add-tag:hover { border-color: #92b6e8; background: #EFF3FA; }
+.eg-tag-x:hover { background: #E2E5EA; color: #D93636; }
+.eg-form input:focus { border-color: #a5b4fc !important; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
 `;
