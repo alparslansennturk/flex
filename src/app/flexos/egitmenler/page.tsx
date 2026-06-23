@@ -15,6 +15,7 @@ interface TrainerNote {
   pinned?: boolean;
   sentiment?: "positive" | "negative" | "neutral";
 }
+interface AvailabilitySlot { gun: string; baslangic: string; bitis: string; dolu?: boolean }
 interface TrainerGroup { kod: string; egitim: string; ogrenci: number }
 interface Trainer {
   id: number;
@@ -22,12 +23,12 @@ interface Trainer {
   phone: string;
   email: string;
   subes: string[];
-  status: "aktif" | "pasif" | "izinli";
+  status: "aktif" | "pasif";
   comp: Record<string, string[]>;
   groups: TrainerGroup[];
   notes: TrainerNote[];
   ucret?: number;
-  musaitlik: string[];
+  musaitlik: AvailabilitySlot[];
 }
 
 const BRANS_COLORS: Record<string, { color: string; bg: string; dot: string }> = {
@@ -38,7 +39,6 @@ const BRANS_COLORS: Record<string, { color: string; bg: string; dot: string }> =
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   aktif: { label: "Aktif", color: "#007A30", bg: "#E6F5ED", dot: "#009F3E" },
   pasif: { label: "Pasif", color: "#6F7B87", bg: "#EEF0F3", dot: "#AEB4C0" },
-  izinli: { label: "İzinli", color: "#8A5A00", bg: "#FFF3DC", dot: "#FFB020" },
 };
 const AV_PALETTES = [["#689adf", "#2867bd"], ["#FFA352", "#FF7800"], ["#67B5B6", "#1CB5AE"], ["#8B91E6", "#4D52A6"], ["#F76FA3", "#F91079"]];
 const PAGE_SIZE = 8;
@@ -47,49 +47,49 @@ const GUNLER = ["Pts", "Sal", "Çar", "Per", "Cum", "Cts", "Paz"];
 function initials(name: string) { return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toLocaleUpperCase("tr"); }
 
 function buildDemoTrainers(): Trainer[] {
-  const T = (name: string, phone: string, email: string, subes: string[], status: Trainer["status"], comp: Record<string, string[]>, groups: TrainerGroup[], notes: TrainerNote[], ucret?: number, musaitlik?: string[]): Omit<Trainer, "id"> =>
-    ({ name, phone, email, subes, status, comp, groups, notes, ucret, musaitlik: musaitlik || ["Pts", "Sal", "Çar", "Per", "Cum"] });
+  const T = (name: string, phone: string, email: string, subes: string[], status: Trainer["status"], comp: Record<string, string[]>, groups: TrainerGroup[], notes: TrainerNote[], ucret?: number, musaitlik?: AvailabilitySlot[]): Omit<Trainer, "id"> =>
+    ({ name, phone, email, subes, status, comp, groups, notes, ucret, musaitlik: musaitlik || [] });
   const d = [
     T("Mert Yılmaz", "0532 418 22 71", "mert.yilmaz@flex.com", ["Kadıköy"], "aktif",
       { Software: ["Full-Stack Web", "Veri Bilimi", "DevOps & Bulut"] },
       [{ kod: "GRP-248", egitim: "Full-Stack Web Geliştirme", ogrenci: 16 }, { kod: "GRP-261", egitim: "Backend & API", ogrenci: 9 }],
       [{ text: "Hafta içi akşam seanslarında çok verimli. Cumartesi sabahı tercih etmiyor.", author: "Alparslan Şentürk", date: "12 Haz 2026", pinned: true, sentiment: "positive" }],
-      8500, ["Pts", "Sal", "Çar", "Per", "Cum"]),
+      8500, [{ gun: "Pts", baslangic: "10:00", bitis: "13:00", dolu: true }, { gun: "Pts", baslangic: "14:00", bitis: "18:00" }, { gun: "Sal", baslangic: "10:00", bitis: "18:00" }, { gun: "Çar", baslangic: "10:00", bitis: "13:00", dolu: true }, { gun: "Çar", baslangic: "14:00", bitis: "18:00" }, { gun: "Per", baslangic: "10:00", bitis: "18:00" }, { gun: "Cum", baslangic: "10:00", bitis: "17:00" }]),
     T("Selin Aydın", "0541 903 18 44", "selin.aydin@flex.com", ["Pendik", "Kadıköy"], "aktif",
       { Design: ["UI/UX Tasarım", "Grafik Tasarım", "Marka & Kimlik"] },
       [{ kod: "GRP-251", egitim: "UI/UX Tasarım", ogrenci: 14 }, { kod: "GRP-262", egitim: "Marka & Kimlik", ogrenci: 6 }],
       [{ text: "Portfolyo değerlendirmelerinde çok titiz. Yeni başlayan gruplar için ideal.", author: "Alparslan Şentürk", date: "03 Haz 2026", sentiment: "positive" }],
-      7200, ["Pts", "Çar", "Cum", "Cts"]),
+      7200, [{ gun: "Pts", baslangic: "09:00", bitis: "12:00", dolu: true }, { gun: "Pts", baslangic: "12:00", bitis: "14:00" }, { gun: "Çar", baslangic: "09:00", bitis: "14:00" }, { gun: "Cum", baslangic: "09:00", bitis: "12:00", dolu: true }, { gun: "Cum", baslangic: "12:00", bitis: "14:00" }, { gun: "Cts", baslangic: "10:00", bitis: "15:00" }]),
     T("Burak Demir", "0505 277 65 90", "burak.demir@flex.com", ["Ümraniye"], "aktif",
       { Finance: ["Finansal Modelleme", "Kurumsal Finans", "Yatırım & Portföy"] },
       [{ kod: "GRP-255", egitim: "Finansal Modelleme", ogrenci: 7 }],
       [{ text: "Son dönemde ders iptalleri arttı, takip ediliyor.", author: "Alparslan Şentürk", date: "28 May 2026", pinned: true, sentiment: "negative" },
        { text: "Mayıs ayında 2 seansı iptal etti. Eylül grubu öncesi görüşülecek.", author: "Alparslan Şentürk", date: "28 May 2026", sentiment: "negative" }],
-      9000, ["Sal", "Per", "Cts"]),
+      9000, [{ gun: "Sal", baslangic: "13:00", bitis: "19:00" }, { gun: "Per", baslangic: "13:00", bitis: "19:00" }, { gun: "Cts", baslangic: "10:00", bitis: "16:00" }]),
     T("Ece Tunç", "0533 612 40 07", "ece.tunc@flex.com", ["Kadıköy"], "aktif",
       { Software: ["Veri Bilimi", "Full-Stack Web"], Design: ["UI/UX Tasarım"] },
       [{ kod: "GRP-256", egitim: "Veri Bilimi Bootcamp", ogrenci: 4 }, { kod: "GRP-258", egitim: "Siber Güvenlik", ogrenci: 9 }],
-      [], 7800, ["Pts", "Sal", "Çar", "Per", "Cum"]),
-    T("Naz Erdem", "0544 190 73 28", "naz.erdem@flex.com", ["Beşiktaş"], "izinli",
+      [], 7800, [{ gun: "Pts", baslangic: "09:00", bitis: "17:00" }, { gun: "Sal", baslangic: "09:00", bitis: "17:00" }, { gun: "Çar", baslangic: "09:00", bitis: "17:00" }, { gun: "Per", baslangic: "09:00", bitis: "17:00" }, { gun: "Cum", baslangic: "09:00", bitis: "15:00" }]),
+    T("Naz Erdem", "0544 190 73 28", "naz.erdem@flex.com", ["Beşiktaş"], "pasif",
       { Design: ["Motion & Animasyon", "Grafik Tasarım", "UI/UX Tasarım", "Marka & Kimlik"] },
       [],
       [{ text: "Doğum izninde — Eylül sonuna kadar grup atanmayacak.", author: "Alparslan Şentürk", date: "15 May 2026", pinned: true, sentiment: "neutral" },
        { text: "İzin dönüşü Motion grubu planlanıyor. İletişim e-posta üzerinden.", author: "Alparslan Şentürk", date: "15 May 2026", sentiment: "neutral" }],
-      7500, ["Pts", "Sal", "Çar"]),
+      7500, []),
     T("Onur Taş", "0537 845 21 60", "onur.tas@flex.com", ["Kadıköy", "Ümraniye"], "aktif",
       { Software: ["Mobil Uygulama", "Full-Stack Web", "DevOps & Bulut"] },
       [{ kod: "GRP-249", egitim: "React ile Frontend", ogrenci: 18 }, { kod: "GRP-238", egitim: "Mobil Uygulama", ogrenci: 17 }],
       [{ text: "İleri seviye gruplarda çok iyi. Başlangıç gruplarında tempoyu biraz düşürmesi önerildi.", author: "Alparslan Şentürk", date: "20 May 2026", pinned: true, sentiment: "positive" }],
-      9500, ["Pts", "Sal", "Çar", "Per", "Cum", "Cts"]),
+      9500, [{ gun: "Pts", baslangic: "09:00", bitis: "12:00", dolu: true }, { gun: "Pts", baslangic: "13:00", bitis: "19:00" }, { gun: "Sal", baslangic: "09:00", bitis: "19:00" }, { gun: "Çar", baslangic: "09:00", bitis: "19:00" }, { gun: "Per", baslangic: "09:00", bitis: "12:00", dolu: true }, { gun: "Per", baslangic: "13:00", bitis: "19:00" }, { gun: "Cum", baslangic: "09:00", bitis: "17:00" }, { gun: "Cts", baslangic: "10:00", bitis: "15:00" }]),
     T("Gizem Avcı", "0531 408 99 13", "gizem.avci@flex.com", ["Pendik"], "aktif",
       { Finance: ["Yatırım & Portföy", "Muhasebe 101"] },
       [{ kod: "GRP-250", egitim: "Bütçe & Raporlama", ogrenci: 11 }],
-      [], 6800, ["Sal", "Per", "Cts", "Paz"]),
+      [], 6800, [{ gun: "Sal", baslangic: "11:00", bitis: "18:00" }, { gun: "Per", baslangic: "11:00", bitis: "18:00" }, { gun: "Cts", baslangic: "09:00", bitis: "14:00" }, { gun: "Paz", baslangic: "10:00", bitis: "14:00" }]),
     T("Berk Acar", "0542 736 50 82", "berk.acar@flex.com", ["Ümraniye"], "aktif",
       { Design: ["Motion & Animasyon", "UI/UX Tasarım"] },
       [{ kod: "GRP-244", egitim: "Motion & Animasyon", ogrenci: 12 }, { kod: "GRP-252", egitim: "Ürün Tasarımı", ogrenci: 15 }],
       [{ text: "After Effects içeriklerinde çok güçlü.", author: "Alparslan Şentürk", date: "10 Nis 2026", sentiment: "positive" }],
-      8000, ["Pts", "Çar", "Cum"]),
+      8000, [{ gun: "Pts", baslangic: "12:00", bitis: "20:00" }, { gun: "Çar", baslangic: "12:00", bitis: "20:00" }, { gun: "Cum", baslangic: "12:00", bitis: "20:00" }]),
     T("Kaan Aydın", "0530 671 29 47", "kaan.aydin@flex.com", ["Beşiktaş"], "pasif",
       { Software: ["Full-Stack Web"] },
       [],
@@ -98,12 +98,12 @@ function buildDemoTrainers(): Trainer[] {
     T("Sıla Korkmaz", "0545 382 16 90", "sila.korkmaz@flex.com", ["Pendik", "Kadıköy"], "aktif",
       { Design: ["Grafik Tasarım", "Marka & Kimlik"], Finance: ["Muhasebe 101"] },
       [{ kod: "GRP-257", egitim: "Grafik Tasarım", ogrenci: 16 }],
-      [], 7000, ["Pts", "Sal", "Çar", "Per", "Cum"]),
+      [], 7000, [{ gun: "Pts", baslangic: "09:00", bitis: "16:00" }, { gun: "Sal", baslangic: "09:00", bitis: "16:00" }, { gun: "Çar", baslangic: "09:00", bitis: "16:00" }, { gun: "Per", baslangic: "09:00", bitis: "16:00" }, { gun: "Cum", baslangic: "09:00", bitis: "14:00" }]),
     T("Emre Çelik", "0534 928 47 11", "emre.celik@flex.com", ["Ümraniye"], "aktif",
       { Software: ["DevOps & Bulut", "Veri Bilimi"] },
       [{ kod: "GRP-264", egitim: "DevOps & Bulut", ogrenci: 10 }],
-      [], 7500, ["Sal", "Çar", "Per", "Cum"]),
-    T("Deniz Koç", "0536 217 84 35", "deniz.koc@flex.com", ["Beşiktaş"], "izinli",
+      [], 7500, [{ gun: "Sal", baslangic: "10:00", bitis: "18:00" }, { gun: "Çar", baslangic: "10:00", bitis: "18:00" }, { gun: "Per", baslangic: "10:00", bitis: "18:00" }, { gun: "Cum", baslangic: "10:00", bitis: "16:00" }]),
+    T("Deniz Koç", "0536 217 84 35", "deniz.koc@flex.com", ["Beşiktaş"], "pasif",
       { Finance: ["Finansal Modelleme", "Yatırım & Portföy"] },
       [],
       [{ text: "Yurt dışında — Temmuz sonu dönüyor.", author: "Alparslan Şentürk", date: "01 Haz 2026", pinned: true, sentiment: "neutral" }],
@@ -112,11 +112,11 @@ function buildDemoTrainers(): Trainer[] {
       { Software: ["Full-Stack Web", "Mobil Uygulama"], Design: ["UI/UX Tasarım"] },
       [{ kod: "GRP-253", egitim: "Veri Mühendisliği", ogrenci: 14 }],
       [{ text: "Kurumsal taleplerde önceliklendir.", author: "Alparslan Şentürk", date: "18 May 2026", pinned: true, sentiment: "positive" }],
-      10000, ["Pts", "Sal", "Çar", "Per", "Cum", "Cts"]),
+      10000, [{ gun: "Pts", baslangic: "08:00", bitis: "18:00" }, { gun: "Sal", baslangic: "08:00", bitis: "18:00" }, { gun: "Çar", baslangic: "08:00", bitis: "18:00" }, { gun: "Per", baslangic: "08:00", bitis: "18:00" }, { gun: "Cum", baslangic: "08:00", bitis: "17:00" }, { gun: "Cts", baslangic: "09:00", bitis: "14:00" }]),
     T("İrem Güneş", "0539 165 73 28", "irem.gunes@flex.com", ["Pendik"], "aktif",
       { Finance: ["Kurumsal Finans", "Finansal Modelleme", "Muhasebe 101"] },
       [{ kod: "GRP-254", egitim: "Finansal Analiz", ogrenci: 12 }],
-      [], 7600, ["Pts", "Çar", "Cum"]),
+      [], 7600, [{ gun: "Pts", baslangic: "09:00", bitis: "15:00" }, { gun: "Çar", baslangic: "09:00", bitis: "15:00" }, { gun: "Cum", baslangic: "09:00", bitis: "13:00" }]),
   ];
   return d.map((t, i) => ({ id: i + 1, ...t } as Trainer));
 }
@@ -244,7 +244,7 @@ export default function EgitmenlerPage() {
   /* ── dropdown helpers ── */
   const subeList = ["Tümü", "Kadıköy", "Pendik", "Ümraniye", "Beşiktaş"];
   const bransList = ["Tümü", "Design", "Finance", "Software"];
-  const durumList: [string, string][] = [["Tümü", "Tümü"], ["Aktif", "aktif"], ["Pasif", "pasif"], ["İzinli", "izinli"]];
+  const durumList: [string, string][] = [["Tümü", "Tümü"], ["Aktif", "aktif"], ["Pasif", "pasif"]];
 
   if (authed === null) return null;
 
@@ -280,7 +280,7 @@ export default function EgitmenlerPage() {
 
         <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto" }}>
           {/* ── section header ── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" as const, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" as const, marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Eğitmen Havuzu</h2>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{trainers.length} eğitmen</span>
@@ -514,11 +514,8 @@ export default function EgitmenlerPage() {
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
                 style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 81, maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-                {/* drag handle + header */}
-                <div style={{ padding: "12px 28px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <div style={{ width: 40, height: 4, borderRadius: 2, background: "#CDD2DA", marginBottom: 16 }} />
-                </div>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "0 28px 18px", background: "#F7F8FA" }}>
+                {/* header */}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 28px 18px", background: "#F7F8FA" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     {(() => { const pal = AV_PALETTES[(detailTrainer.id - 1) % AV_PALETTES.length]; return (
                       <span style={{ width: 52, height: 52, borderRadius: 15, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 17, fontWeight: 700, background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>{initials(detailTrainer.name)}</span>
@@ -571,7 +568,7 @@ export default function EgitmenlerPage() {
                         {detailTrainer.ucret != null ? (
                           <div onClick={() => setUcretRevealed(!ucretRevealed)} style={{ cursor: "pointer", userSelect: "none" }}>
                             <div style={{ fontSize: 28, fontWeight: 800, color: "#1E222B", letterSpacing: "-.5px", filter: ucretRevealed ? "none" : "blur(8px)", transition: "filter .25s" }}>
-                              {detailTrainer.ucret.toLocaleString("tr-TR")} ₺
+                              {detailTrainer.ucret.toLocaleString("tr-TR")} TL
                             </div>
                             <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 4 }}>
                               {ucretRevealed ? "Gizlemek için tıklayın" : "Görmek için tıklayın"} · Aylık
@@ -609,21 +606,25 @@ export default function EgitmenlerPage() {
                         </div>
                       </div>
 
-                      {/* Müsaitlik takvimi */}
-                      <div style={S.card}>
-                        <div style={S.cardTitle}>Müsaitlik Takvimi</div>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {GUNLER.map((g) => {
-                            const active = detailTrainer.musaitlik.includes(g);
-                            return (
-                              <span key={g} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 44, height: 36, borderRadius: 10, fontSize: 12.5, fontWeight: 700, border: "1px solid",
-                                color: active ? "#007A30" : "#AEB4C0",
-                                background: active ? "#E6F5ED" : "#FBFCFD",
-                                borderColor: active ? "#A7E0BD" : "#E2E5EA" }}>{g}</span>
-                            );
-                          })}
+                      {/* Performans placeholder */}
+                      <div style={{ ...S.card, borderStyle: "dashed", padding: "22px 18px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 14 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 11, background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3", flex: "0 0 auto" }}>
+                            <span dangerouslySetInnerHTML={{ __html: IC.chart }} />
+                          </div>
+                          <div style={{ lineHeight: 1.4 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#414B59" }}>Performans & Anket Özeti</div>
+                            <div style={{ fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>Doluluk, değerlendirme ortalaması ve anket notu — yakında.</div>
+                          </div>
                         </div>
-                        {detailTrainer.musaitlik.length === 0 && <div style={{ fontSize: 13, color: "#AEB4C0", fontWeight: 500, marginTop: 6 }}>Müsaitlik bilgisi girilmemiş.</div>}
+                        <div style={{ display: "flex", gap: 12 }}>
+                          {[["Öğrenci", "—"], ["Ort. Puan", "—"], ["Anket", "—"]].map(([label, val]) => (
+                            <div key={label} style={{ flex: 1, padding: "12px 10px", borderRadius: 10, background: "#F7F8FA", textAlign: "center" as const }}>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: "#CDD2DA", letterSpacing: "-.3px" }}>{val}</div>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: "#AEB4C0", marginTop: 3 }}>{label}</div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -658,6 +659,31 @@ export default function EgitmenlerPage() {
                           </div>
                         ) : (
                           <div style={{ fontSize: 13, color: "#8E95A3", fontWeight: 500, padding: "6px 2px" }}>Bu dönem atanmış grup yok.</div>
+                        )}
+                      </div>
+
+                      {/* Müsaitlik takvimi — kompakt */}
+                      <div style={S.card}>
+                        <div style={S.cardTitle}>Müsaitlik Takvimi</div>
+                        {detailTrainer.musaitlik.length > 0 ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {GUNLER.map((g) => {
+                              const slots = detailTrainer.musaitlik.filter((s) => s.gun === g);
+                              if (slots.length === 0) return null;
+                              return slots.map((s, i) => (
+                                <span key={`${g}-${i}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 9, fontSize: 12.5, fontWeight: 600,
+                                  color: s.dolu ? "#B42318" : "#007A30",
+                                  background: s.dolu ? "#FFECEC" : "#E6F5ED",
+                                  border: s.dolu ? "1px solid #F3B0B0" : "1px solid #A7E0BD" }}>
+                                  <span style={{ fontWeight: 700, color: s.dolu ? "#B42318" : "#1E222B" }}>{g}</span>
+                                  {s.baslangic} – {s.bitis}
+                                  {s.dolu && <span style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.8 }}>Dolu</span>}
+                                </span>
+                              ));
+                            })}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 13, color: "#AEB4C0", fontWeight: 500 }}>Müsaitlik bilgisi girilmemiş.</div>
                         )}
                       </div>
 
@@ -702,18 +728,6 @@ export default function EgitmenlerPage() {
                         </div>
                       </div>
 
-                      {/* Performans placeholder */}
-                      <div style={{ ...S.card, borderStyle: "dashed" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                          <div style={{ width: 38, height: 38, borderRadius: 11, background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3", flex: "0 0 auto" }}>
-                            <span dangerouslySetInnerHTML={{ __html: IC.chart }} />
-                          </div>
-                          <div style={{ lineHeight: 1.4 }}>
-                            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#414B59" }}>Performans & Anket Özeti</div>
-                            <div style={{ fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>Doluluk, değerlendirme ortalaması ve anket notu — yakında.</div>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>

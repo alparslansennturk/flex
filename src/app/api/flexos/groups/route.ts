@@ -51,15 +51,17 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
   const trainerId = req.nextUrl.searchParams.get("trainerId") ?? undefined;
 
-  const [groups, educations, branches, enrollments] = await Promise.all([
+  const [groups, educations, branches, sections, enrollments] = await Promise.all([
     firestoreGroupRepo.list(actor.tenantId, trainerId),
     firestoreEducationRepo.list(actor.tenantId),
     firestoreBranchRepo.list(actor.tenantId),
+    firestoreSectionRepo.list(actor.tenantId),
     firestoreEnrollmentRepo.list(actor.tenantId),
   ]);
 
   const eduMap = new Map(educations.map((e) => [e.id, e]));
   const branchMap = new Map(branches.map((b) => [b.id, b]));
+  const sectionMap = new Map(sections.map((s) => [s.id, s]));
 
   // grup başına aktif kayıt sayısı (doluluk)
   const enrolledByGroup = new Map<string, number>();
@@ -72,6 +74,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const items = groups.map((g) => {
     const edu = g.educationId ? eduMap.get(g.educationId) : undefined;
     const branchName = edu?.branchId ? branchMap.get(edu.branchId)?.name : g.branch;
+    const sec = g.sectionId ? sectionMap.get(g.sectionId) : undefined;
     return {
       id: g.id,
       code: g.code,
@@ -80,6 +83,8 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
       educationId: g.educationId ?? null,
       educationName: edu?.name ?? "",
       branch: branchName ?? "",
+      sectionId: g.sectionId ?? null,
+      sectionName: sec?.name ?? "",
       branchOfficeId: g.branchOfficeId ?? null,
       branchOffice: officeName(g.branchOfficeId),
       trainerId: g.trainerId ?? "",

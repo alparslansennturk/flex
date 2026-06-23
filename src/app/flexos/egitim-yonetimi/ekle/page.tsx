@@ -105,7 +105,7 @@ const INITIAL: FormState = {
   seq: 1,
 };
 
-const SYMBOLS: Record<string, string> = { TL: "₺", USD: "$", EUR: "€" };
+const SYMBOLS: Record<string, string> = { TL: "TL", USD: "$", EUR: "€" };
 
 export default function EgitimEklePage() {
   const router = useRouter();
@@ -218,7 +218,7 @@ export default function EgitimEklePage() {
     }));
   };
 
-  const getSymbol = () => SYMBOLS[s.paraBirimi] || "₺";
+  const getSymbol = () => SYMBOLS[s.paraBirimi] || "TL";
   const fmtCurrency = (n: number) =>
     (Number(n) || 0).toLocaleString("tr-TR", { maximumFractionDigits: 0 }) + " " + getSymbol();
 

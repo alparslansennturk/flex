@@ -49,7 +49,7 @@ const STATUS = {
 };
 
 const PAGE_SIZE = 20;
-const fmtPrice = (n?: number) => (typeof n === "number" ? n.toLocaleString("tr-TR") + " ₺" : "—");
+const fmtPrice = (n?: number) => (typeof n === "number" ? n.toLocaleString("tr-TR") + " TL" : "—");
 
 export default function EgitimYonetimiPage() {
   const router = useRouter();
@@ -263,10 +263,7 @@ export default function EgitimYonetimiPage() {
               <span style={S.countChip}>{total} eğitim</span>
             </div>
             <button className="ey-addbtn" style={S.addBtn} onClick={() => router.push("/flexos/egitim-yonetimi/ekle")}>
-              <span style={S.shimmer} />
-              <span style={{ position: "relative", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.plus }} />
-              <span style={{ position: "relative" }}>Eğitim Ekle</span>
-              <span style={{ position: "relative", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.sparkle }} />
+              <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Eğitim Ekle
             </button>
           </div>
 
@@ -551,9 +548,8 @@ const S: Record<string, CSSProperties> = {
   sectionHead: { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 22 },
   h2: { margin: 0, fontSize: 18.5, fontWeight: 800, color: "#0f1f3d", letterSpacing: "-.3px", display: "flex", alignItems: "center", gap: 10 },
   countChip: { fontSize: 12.5, fontWeight: 700, color: "#4338ca", background: "#e8ecfd", padding: "3px 10px", borderRadius: 999 },
-  addBtn: { position: "relative", overflow: "hidden", display: "inline-flex", alignItems: "center", gap: 10, padding: "14px 24px", border: "none", borderRadius: 14, background: "linear-gradient(135deg,#fdba74 0%,#fb923c 36%,#f97316 68%,#ea580c 100%)", color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", animation: "ey-glow 2.8s ease-in-out infinite" },
+  addBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "11px 18px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)", transition: "filter .14s" },
   secBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "13px 18px", border: "1px solid #e3e8f0", borderRadius: 14, background: "#fff", color: "#334155", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
-  shimmer: { position: "absolute", top: 0, left: 0, width: "36%", height: "100%", background: "linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent)", animation: "ey-shimmer 3.4s ease-in-out infinite", pointerEvents: "none" },
   filterPanel: { position: "relative", zIndex: 20, background: "#fff", border: "1px solid #e9edf4", borderRadius: 16, padding: "15px 18px", boxShadow: "0 1px 2px rgba(15,31,61,.04)", marginBottom: 18 },
   filterBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "10px 15px", borderRadius: 11, border: "1px solid #e3e8f0", background: "#fff", color: "#1e293b", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
   filterBadge: { fontSize: 12, fontWeight: 700, color: "#fff", background: "#4f46e5", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center" },
@@ -622,7 +618,6 @@ const IC = {
   trashSm: sv('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 'width="14" height="14" stroke-width="2.2"'),
   chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
-  sparkle: `<svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,255,255,.9)" stroke="none"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/></svg>`,
   settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', 'width="16" height="16"'),
 };
 
@@ -630,8 +625,6 @@ const spinCss = `.ey-spin{width:40px;height:40px;border-radius:50%;border:3px so
 const globalCss = `
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @keyframes ey-ddin{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
-@keyframes ey-glow{0%,100%{box-shadow:0 10px 22px -8px rgba(234,88,12,.6),0 0 0 0 rgba(249,115,22,0)}50%{box-shadow:0 14px 30px -6px rgba(234,88,12,.72),0 0 26px 1px rgba(249,115,22,.30)}}
-@keyframes ey-shimmer{0%{transform:translateX(-130%) skewX(-18deg)}60%,100%{transform:translateX(320%) skewX(-18deg)}}
 @keyframes ey-barin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .ey-navlink:hover{background:rgba(255,255,255,.06);color:#fff!important}
 .ey-filterbtn:hover{border-color:#c7d0de;background:#f8fafc}

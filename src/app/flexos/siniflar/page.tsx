@@ -16,6 +16,7 @@
 import React, { useEffect, useState, useCallback, useMemo, CSSProperties, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import { BRANCH_OFFICES, officeName } from "@/app/lib/branch-offices";
@@ -32,7 +33,7 @@ interface SectionDoc { id: string; educationId: string; name: string; order: num
 type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
 type GroupStatus = "açılacak" | "aktif" | "bitmiş" | "iptal";
 type ViewMode = "list" | "card";
-type FilterKey = "hepsi" | "açılacak" | "aktif" | "bitmiş" | "iptal";
+type FilterKey = "hepsi" | "açılacak" | "aktif" | "bitmiş";
 
 interface DemoGroup {
   id: string;
@@ -41,6 +42,7 @@ interface DemoGroup {
   eğitim: string;
   şube: string;
   eğitmen: string;
+  bölüm: string;
   seansGun: string; // "Pts - Çrş" (saat saklanmıyor)
   seansSaat: string; // "3 saat/ders" veya ""
   tarih: string;
@@ -54,6 +56,7 @@ interface DemoGroup {
 interface GroupApiItem {
   id: string; code: string; type: string; status: string;
   educationId: string | null; educationName: string; branch: string;
+  sectionId: string | null; sectionName: string;
   branchOfficeId: string | null; branchOffice: string;
   trainerId: string;
   schedule: { startDate?: string; days?: number[]; sessionHours?: number; startTime?: string; endTime?: string; endDate?: string };
@@ -91,6 +94,7 @@ function toDisplayGroup(g: GroupApiItem): DemoGroup {
     eğitim: g.educationName || "—",
     şube: g.branchOffice || officeName(g.branchOfficeId) || "—",
     eğitmen: g.trainerId || "—",
+    bölüm: g.sectionName || "—",
     seansGun,
     seansSaat,
     tarih: fmtTrDate(g.schedule?.startDate),
@@ -179,11 +183,13 @@ export default function SınıflarPage() {
 
   // -- Liste state --
   const [groups, setGroups] = useState<DemoGroup[]>([]);
+  const [rawGroups, setRawGroups] = useState<GroupApiItem[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groupFilter, setGroupFilter] = useState<FilterKey>("hepsi");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [startId, setStartId] = useState<string | null>(null);
   const [finishId, setFinishId] = useState<string | null>(null);
@@ -211,6 +217,7 @@ export default function SınıflarPage() {
       const json = res.ok ? await res.json() : { items: [] };
       if (signal?.aborted) return;
       const items: GroupApiItem[] = json.items ?? [];
+      setRawGroups(items);
       setGroups(items.map(toDisplayGroup));
     } catch (e) {
       if ((e as Error).name !== "AbortError") toast.error("Gruplar yüklenemedi.");
@@ -338,7 +345,6 @@ export default function SınıflarPage() {
       educationId: fEğitim || undefined,
       sectionId: isSectioned && fBölüm ? fBölüm : undefined,
       branchOfficeId: fŞube || undefined,
-      status: "planned",
       trainerId: fEğitmen || undefined,
       seansId: selSeans?.id ?? undefined,
       schedule: {
@@ -354,14 +360,24 @@ export default function SınıflarPage() {
     try {
       const headers = await authHeaders();
       headers["Content-Type"] = "application/json";
-      const res = await fetch("/api/flexos/groups", { method: "POST", headers, body: JSON.stringify(body) });
+
+      let res: Response;
+      if (editingId) {
+        // Düzenleme → PATCH
+        res = await fetch(`/api/flexos/groups/${editingId}`, { method: "PATCH", headers, body: JSON.stringify(body) });
+      } else {
+        // Yeni → POST
+        res = await fetch("/api/flexos/groups", { method: "POST", headers, body: JSON.stringify({ ...body, status: "planned" }) });
+      }
+
       const json = await res.json();
-      if (!res.ok) { toast.error(json.error || "Grup oluşturulamadi."); return; }
-      toast.success("Grup basariyla oluşturuldu!");
+      if (!res.ok) { toast.error(json.error || (editingId ? "Grup güncellenemedi." : "Grup oluşturulamadı.")); return; }
+      toast.success(editingId ? "Grup başarıyla güncellendi!" : "Grup başarıyla oluşturuldu!");
       resetForm();
-      loadGroups(); // yeni grup listede görünsün
+      setShowForm(false);
+      loadGroups();
     } catch {
-      toast.error("Sunucu hatasi - grup oluşturulamadi.");
+      toast.error("Sunucu hatası.");
     } finally {
       setSaving(false);
     }
@@ -369,14 +385,57 @@ export default function SınıflarPage() {
 
   // -- edit --
   const editGroup = (g: DemoGroup) => {
+    const raw = rawGroups.find((r) => r.id === g.id);
     setEditingId(g.id);
-    setFKod(g.kod); setFEğitmen(g.eğitmen);
+    setFKod(g.kod);
+    setFEğitmen(raw?.trainerId || g.eğitmen);
     setFKontenjan(String(g.kontenjan));
-    setFSeansIdx(-1); // seans saati saklanmıyor → yeniden seçilir
-    mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    setFŞube(raw?.branchOfficeId || "");
+    setFTarih(raw?.schedule?.startDate?.split("T")[0] || "");
+    setFDersSaat(raw?.schedule?.sessionHours ? String(raw.schedule.sessionHours) : "");
+
+    // seans eşleştir (gün+saat aynı olan seans)
+    if (raw?.schedule?.days?.length && raw.schedule.startTime) {
+      const idx = seanslar.findIndex((s) =>
+        JSON.stringify(s.days) === JSON.stringify(raw.schedule.days) &&
+        s.startTime === raw.schedule.startTime && s.endTime === raw.schedule.endTime
+      );
+      setFSeansIdx(idx);
+    } else {
+      setFSeansIdx(-1);
+    }
+
+    // önce sheet'i aç, sonra async katalog verisi doldur
+    setShowForm(true);
+
+    if (raw?.educationId) {
+      (async () => {
+        try {
+          const hdrs = await authHeaders();
+          const eduRes = await fetch(`/api/flexos/educations/${raw.educationId}`, { headers: hdrs });
+          const eduJson = eduRes.ok ? await eduRes.json() : null;
+          const branchId = eduJson?.item?.branchId;
+          if (branchId) {
+            setFBrans(branchId);
+            const eduListRes = await fetch(`/api/flexos/educations?branchId=${encodeURIComponent(branchId)}`, { headers: hdrs });
+            const eduListJson = eduListRes.ok ? await eduListRes.json() : { items: [] };
+            setEducations(eduListJson.items ?? []);
+            setFEğitim(raw.educationId!);
+
+            const edu = (eduListJson.items ?? []).find((e: EducationDoc) => e.id === raw.educationId);
+            if (edu?.structure === "sectioned") {
+              const secRes = await fetch(`/api/flexos/sections?educationId=${encodeURIComponent(raw.educationId!)}`, { headers: hdrs });
+              const secJson = secRes.ok ? await secRes.json() : { items: [] };
+              setSections(secJson.items ?? []);
+              if (raw.sectionId) setFBölüm(raw.sectionId);
+            }
+          }
+        } catch { /* alanlar boş kalır */ }
+      })();
+    }
   };
 
-  const cancelEdit = () => { setEditingId(null); resetForm(); };
+  const cancelEdit = () => { setEditingId(null); resetForm(); setShowForm(false); };
 
   const confirmDelete = async () => {
     if (deleteId === null) return;
@@ -437,8 +496,10 @@ export default function SınıflarPage() {
 
   // -- filtered list --
   const filtered = useMemo(() => {
-    if (groupFilter === "hepsi") return groups;
-    return groups.filter((g) => g.status === groupFilter);
+    // iptal/archived gruplar listede gösterilmez
+    const visible = groups.filter((g) => g.status !== "iptal");
+    if (groupFilter === "hepsi") return visible;
+    return visible.filter((g) => g.status === groupFilter);
   }, [groups, groupFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -447,8 +508,9 @@ export default function SınıflarPage() {
   const pageGroups = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
   const counts = useMemo(() => {
-    const c = { hepsi: groups.length, açılacak: 0, aktif: 0, bitmiş: 0, iptal: 0 };
-    groups.forEach((g) => { c[g.status]++; });
+    const visible = groups.filter((g) => g.status !== "iptal");
+    const c = { hepsi: visible.length, açılacak: 0, aktif: 0, bitmiş: 0 };
+    visible.forEach((g) => { if (g.status in c) (c as Record<string, number>)[g.status]++; });
     return c;
   }, [groups]);
 
@@ -506,251 +568,47 @@ export default function SınıflarPage() {
 
         <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto" }}>
 
-          {/* ===== FORM CARD ===== */}
-          <div style={S.card}>
-            {/* card head */}
-            <div style={S.cardHead}>
-              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                <div style={{ ...S.headIconWrap, background: isEditing ? "#FFF3DC" : "#E2EAF3", color: isEditing ? "#8A5A00" : "#205297" }}>
-                  <span dangerouslySetInnerHTML={{ __html: isEditing ? IC.pencil : IC.plus }} />
-                </div>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>
-                    {isEditing ? "Grup Düzenle" : "Yeni Grup Oluştur"}
-                  </h2>
-                  <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
-                    {isEditing ? "Secili grubun bilgilerini guncelleyin." : "Yeni bir sinif grubu oluşturun."}
-                  </p>
-                </div>
-              </div>
-              {isEditing && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: "#FFF3DC", color: "#8A5A00", fontSize: 12.5, fontWeight: 700 }}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
-                  {fKod} düzenleniyor
-                </span>
-              )}
-            </div>
-
-            <div style={{ padding: 24 }}>
-              {/* Eğitim Formatı segmented */}
-              <div style={{ marginBottom: 24 }}>
-                <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#414B59", letterSpacing: ".04em", marginBottom: 9 }}>Eğitim Formatı</span>
-                <div style={{ display: "flex", gap: 11, flexWrap: "wrap" }}>
-                  {([
-                    { key: "standart" as EğitimTipi, label: "Grup (standart)", icon: IC.usersSmall },
-                    { key: "ozel_ders" as EğitimTipi, label: "Özel Ders", icon: IC.userSingle },
-                    { key: "kurumsal" as EğitimTipi, label: "Kurumsal Eğitim", icon: IC.buildingSm },
-                  ]).map((t) => {
-                    const active = eğitimTipi === t.key;
-                    return (
-                      <button key={t.key} onClick={() => setEğitimTipi(t.key)} style={segStyle(active)}>
-                        <span style={segCheck(active)}>{active && <span dangerouslySetInnerHTML={{ __html: IC.checkTiny }} />}</span>
-                        <span dangerouslySetInnerHTML={{ __html: t.icon }} />
-                        <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* corporate notice */}
-              {isCorporate && (
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 13, padding: "18px 20px", borderRadius: 14, background: "#FFF3DC", border: "1px solid #FFE2A8" }}>
-                  <span style={{ flex: "0 0 auto", marginTop: 1 }} dangerouslySetInnerHTML={{ __html: IC.info }} />
-                  <div>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, color: "#8A5A00" }}>Kurumsal eğitim akisi ayri tasarlanacak</div>
-                    <div style={{ fontSize: 13, color: "#8A5A00", opacity: 0.85, marginTop: 3, lineHeight: 1.5 }}>Kurumsal eğitimlerde firma bilgileri, sozlesme ve ozel fiyatlandirma alanlari farklidir. Bu form su an Grup ve Özel Ders icin hazirdir.</div>
-                  </div>
-                </div>
-              )}
-
-              {/* standard form */}
-              {!isCorporate && (
-                <div>
-                  {/* Tüm alanlar tek grid — Bölüm gelince de düzgün akar */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "18px 20px" }}>
-                    {/* Şube */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Şube</span>
-                      <SelectW>
-                        <select value={fŞube} onChange={(e) => setFŞube(e.target.value)} style={S.sel}>
-                          <option value="">Şube seçin</option>
-                          {BRANCH_OFFICES.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                        </select>
-                      </SelectW>
-                    </label>
-
-                    {/* Branş */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Branş</span>
-                      <SelectW>
-                        <select value={fBrans} onChange={(e) => onBransChange(e.target.value)} style={S.sel}>
-                          <option value="">Branş seçin</option>
-                          {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                        </select>
-                      </SelectW>
-                    </label>
-
-                    {/* Eğitim */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Eğitim</span>
-                      <SelectW>
-                        <select value={fEğitim} onChange={(e) => onEğitimChange(e.target.value)} disabled={!fBrans || loadingEdu}
-                          style={{ ...S.sel, background: !fBrans ? "#f1f5f9" : "#fff", cursor: !fBrans ? "not-allowed" : "pointer" }}>
-                          <option value="">{loadingEdu ? "Yükleniyor..." : educations.length ? "Eğitim seçin" : !fBrans ? "Önce branş seçin" : "Bu branşta eğitim yok"}</option>
-                          {educations.map((ed) => <option key={ed.id} value={ed.id}>{ed.name}</option>)}
-                        </select>
-                      </SelectW>
-                    </label>
-
-                    {/* Bölüm (conditional — sadece sectioned eğitimde görünür) */}
-                    {isSectioned && (
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Bölüm</span>
-                        <SelectW>
-                          <select value={fBölüm} onChange={(e) => setFBölüm(e.target.value)} disabled={loadingSec}
-                            style={{ ...S.sel, cursor: loadingSec ? "not-allowed" : "pointer" }}>
-                            <option value="">{loadingSec ? "Yükleniyor..." : sections.length ? "Bölüm seçin" : "Bölüm bulunamadı"}</option>
-                            {sections.sort((a, b) => a.order - b.order).map((sec) => <option key={sec.id} value={sec.id}>{sec.name}</option>)}
-                          </select>
-                        </SelectW>
-                      </label>
-                    )}
-
-                    {/* Grup Kodu */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Grup Kodu</span>
-                      <input value={fKod} onChange={(e) => setFKod(e.target.value)} placeholder="örn. GRP-251" style={S.inp} />
-                    </label>
-
-                    {/* Başlangıç Tarihi */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Başlangıç Tarihi</span>
-                      <input type="date" value={fTarih} onChange={(e) => setFTarih(e.target.value)} style={S.inp} />
-                    </label>
-
-                    {/* Eğitmen (opsiyonel) */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Eğitmen <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
-                      <SelectW>
-                        <select value={fEğitmen} onChange={(e) => setFEğitmen(e.target.value)} style={S.sel}>
-                          <option value="">Eğitmen seçin</option>
-                          {EGITMEN_LIST.map((e) => <option key={e} value={e}>{e}</option>)}
-                        </select>
-                      </SelectW>
-                    </label>
-
-                    {/* Seans (custom dropdown) */}
-                    <div ref={seansRef} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
-                      <span style={S.lbl}>Seans</span>
-                      <button onClick={() => setSeansOpen((o) => !o)} className="sg-seans-btn" style={S.seansBtn}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-                          <span dangerouslySetInnerHTML={{ __html: IC.clockGray }} />
-                          <span style={{ fontSize: 14, fontWeight: 500, color: fSeansIdx >= 0 ? "#1E222B" : "#AEB4C0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{seansDisplay}</span>
-                        </span>
-                        <span dangerouslySetInnerHTML={{ __html: IC.chevDownGray }} />
-                      </button>
-                      {seansOpen && (
-                        <div style={S.seansPopup}>
-                          {seanslar.length === 0 && (
-                            <div style={{ padding: "14px 11px", fontSize: 13, color: "#8E95A3", textAlign: "center" }}>Henüz seans eklenmemiş. Eğitim Ayarları → Seans Yönetimi&apos;nden ekleyin.</div>
-                          )}
-                          {seanslar.map((se, i) => {
-                            const active = fSeansIdx === i;
-                            const daysStr = se.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
-                            return (
-                              <div key={se.id} onClick={() => { setFSeansIdx(i); setSeansOpen(false); }}
-                                className="sg-seans-row" style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: active ? "#EFF3FA" : "transparent" }}>
-                                <span style={{ fontSize: 11.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 9px", borderRadius: 7, whiteSpace: "nowrap", flex: "0 0 auto" }}>{daysStr}</span>
-                                <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "#414B59" }}>{se.startTime} - {se.endTime}</span>
-                                {active && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Ders Saati */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Ders Saati</span>
-                      <span style={{ position: "relative", display: "flex" }}>
-                        <input type="number" value={fDersSaat} onChange={(e) => setFDersSaat(e.target.value)} placeholder="örn. 3" style={{ ...S.inp, paddingRight: 80 }} />
-                        <span style={S.suffix}>saat/ders</span>
-                      </span>
-                    </label>
-
-                    {/* Toplam Saat */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Toplam Saat</span>
-                      <span style={{ position: "relative", display: "flex" }}>
-                        <input type="number" value={fToplamSaat} onChange={(e) => setFToplamSaat(e.target.value)} placeholder="0" style={{ ...S.inp, paddingRight: 56 }} />
-                        <span style={S.suffix}>saat</span>
-                      </span>
-                    </label>
-
-                    {/* Kontenjan */}
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Kontenjan</span>
-                      <span style={{ position: "relative", display: "flex" }}>
-                        <input type="number" value={fKontenjan} onChange={(e) => setFKontenjan(e.target.value)} placeholder="0" style={{ ...S.inp, paddingRight: 52 }} />
-                        <span style={S.suffix}>kişi</span>
-                      </span>
-                    </label>
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginTop: 26, paddingTop: 20, borderTop: "1px solid #EEF0F3" }}>
-                    <button className="sg-cancel" onClick={isEditing ? cancelEdit : resetForm} style={S.cancelBtn}>
-                      {isEditing ? "Vazgeç" : "Temizle"}
-                    </button>
-                    <button className="sg-save" onClick={onSave} disabled={saving} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }}>
-                      <span dangerouslySetInnerHTML={{ __html: isEditing ? IC.saveFloppy : IC.plusWhite }} />
-                      {saving ? "Kaydediliyor..." : isEditing ? "Değişiklikleri Kaydet" : "Grubu Oluştur"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* ===== GROUP LIST HEADER ===== */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Gruplar</h2>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Gruplar</h2>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{filtered.length} grup</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              {/* Status filter */}
-              <div style={{ display: "inline-flex", padding: 4, borderRadius: 12, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-                {([
-                  { key: "hepsi" as FilterKey, label: "Tümü", dot: null },
-                  { key: "açılacak" as FilterKey, label: "Açılacak", dot: STATUS_MAP.açılacak.dot },
-                  { key: "aktif" as FilterKey, label: "Aktif", dot: STATUS_MAP.aktif.dot },
-                  { key: "bitmiş" as FilterKey, label: "Mezun", dot: STATUS_MAP.bitmiş.dot },
-                  { key: "iptal" as FilterKey, label: "İptal", dot: STATUS_MAP.iptal.dot },
-                ]).map((fd) => {
-                  const active = groupFilter === fd.key;
-                  return (
-                    <button key={fd.key} onClick={() => { setGroupFilter(fd.key); setPage(1); }} style={filterBtnStyle(active)}>
-                      {fd.dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: fd.dot, flex: "0 0 auto" }} />}
-                      <span>{fd.label}</span>
-                      <span style={{ fontSize: 11.5, fontWeight: 700, padding: "1px 7px", borderRadius: 999, color: active ? "#205297" : "#8E95A3", background: active ? "#DDE8F8" : "#EEF0F3" }}>{counts[fd.key]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {/* View toggle */}
-              <div style={{ display: "inline-flex", padding: 4, borderRadius: 11, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-                <button onClick={() => setViewMode("list")} className="sg-viewbtn" style={viewBtnStyle(viewMode === "list")}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.listIcon }} />
-                  <span>Liste</span>
-                </button>
-                <button onClick={() => setViewMode("card")} className="sg-viewbtn" style={viewBtnStyle(viewMode === "card")}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.gridIcon }} />
-                  <span>Kart</span>
-                </button>
-              </div>
+            <button className="sg-add-btn" style={S.addBtn} onClick={() => setShowForm(true)}>
+              <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Grup Ekle
+            </button>
+          </div>
+
+          {/* ===== FILTERS ===== */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+            {/* Status filter */}
+            <div style={{ display: "inline-flex", padding: 4, borderRadius: 12, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
+              {([
+                { key: "hepsi" as FilterKey, label: "Tümü", dot: null },
+                { key: "açılacak" as FilterKey, label: "Açılacak", dot: STATUS_MAP.açılacak.dot },
+                { key: "aktif" as FilterKey, label: "Aktif", dot: STATUS_MAP.aktif.dot },
+                { key: "bitmiş" as FilterKey, label: "Mezun", dot: STATUS_MAP.bitmiş.dot },
+              ]).map((fd) => {
+                const active = groupFilter === fd.key;
+                return (
+                  <button key={fd.key} onClick={() => { setGroupFilter(fd.key); setPage(1); }} style={filterBtnStyle(active)}>
+                    {fd.dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: fd.dot, flex: "0 0 auto" }} />}
+                    <span>{fd.label}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: "1px 7px", borderRadius: 999, color: active ? "#205297" : "#8E95A3", background: active ? "#DDE8F8" : "#EEF0F3" }}>{counts[fd.key]}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* View toggle */}
+            <div style={{ display: "inline-flex", padding: 4, borderRadius: 11, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
+              <button onClick={() => setViewMode("list")} className="sg-viewbtn" style={viewBtnStyle(viewMode === "list")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.listIcon }} />
+                <span>Liste</span>
+              </button>
+              <button onClick={() => setViewMode("card")} className="sg-viewbtn" style={viewBtnStyle(viewMode === "card")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.gridIcon }} />
+                <span>Kart</span>
+              </button>
             </div>
           </div>
 
@@ -765,10 +623,11 @@ export default function SınıflarPage() {
                       <th style={S.th}>Eğitim</th>
                       <th style={S.th}>Şube</th>
                       <th style={S.th}>Eğitmen</th>
-                      <th style={S.th}>Seans</th>
-                      <th style={S.th}>Başlangıç</th>
-                      <th style={S.th}>Doluluk</th>
-                      <th style={S.th}>Durum</th>
+                      <th style={S.th}>Bölüm</th>
+                      <th style={{ ...S.th, paddingLeft: 18 }}>Seans</th>
+                      <th style={{ ...S.th, paddingLeft: 18 }}>Başlangıç</th>
+                      <th style={{ ...S.th, paddingLeft: 18 }}>Doluluk</th>
+                      <th style={{ ...S.th, paddingLeft: 18 }}>Durum</th>
                       <th style={S.thRight}></th>
                     </tr>
                   </thead>
@@ -792,20 +651,21 @@ export default function SınıflarPage() {
                           <td style={S.tdFirst}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ width: 8, height: 8, borderRadius: "50%", background: bs.dot, flex: "0 0 auto" }} />
-                              <span style={{ fontSize: 13.5, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px", whiteSpace: "nowrap" }}>{g.kod}</span>
+                              <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px", whiteSpace: "nowrap" }}>{g.kod}</span>
                             </div>
                           </td>
                           <td style={S.td}><span style={{ fontSize: 13, color: "#414B59", fontWeight: 600 }}>{g.eğitim}</span></td>
                           <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.şube}</span></td>
                           <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.eğitmen}</span></td>
-                          <td style={S.td}>
+                          <td style={S.td}><span style={{ fontSize: 13, color: g.bölüm === "—" ? "#AEB4C0" : "#414B59" }}>{g.bölüm}</span></td>
+                          <td style={{ ...S.td, paddingLeft: 18 }}>
                             <div style={{ lineHeight: 1.35 }}>
                               <div style={{ fontSize: 12.5, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" }}>{seansGun}</div>
                               <div style={{ fontSize: 11.5, color: "#8E95A3", whiteSpace: "nowrap" }}>{seansSaat}</div>
                             </div>
                           </td>
-                          <td style={S.td}><span style={{ fontSize: 12.5, color: "#414B59", fontWeight: 600, whiteSpace: "nowrap" }}>{g.tarih}</span></td>
-                          <td style={S.td}>
+                          <td style={{ ...S.td, paddingLeft: 18 }}><span style={{ fontSize: 12.5, color: "#414B59", fontWeight: 600, whiteSpace: "nowrap" }}>{g.tarih}</span></td>
+                          <td style={{ ...S.td, paddingLeft: 18 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 80 }}>
                               <div style={{ width: 36, height: 5, borderRadius: 999, background: "#EEF0F3", overflow: "hidden", flex: "0 0 auto" }}>
                                 <div style={{ height: "100%", width: `${Math.min(100, pct)}%`, borderRadius: 999, background: barColor, transition: "width .3s" }} />
@@ -813,7 +673,7 @@ export default function SınıflarPage() {
                               <span style={{ fontSize: 12, fontWeight: 800, color: "#1E222B", whiteSpace: "nowrap" }}>{g.dolu}<span style={{ color: "#AEB4C0", fontWeight: 600 }}>/{g.kontenjan}</span></span>
                             </div>
                           </td>
-                          <td style={S.td}>
+                          <td style={{ ...S.td, paddingLeft: 18 }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: st.color, background: st.background, whiteSpace: "nowrap" }}>
                               <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot }} />
                               {st.label}
@@ -839,15 +699,10 @@ export default function SınıflarPage() {
                                   <button className="sg-edit-btn" onClick={() => editGroup(g)} title="Düzenle" style={S.editBtnIcon}>
                                     <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
                                   </button>
-                                  <button className="sg-del-btn" onClick={() => setCancelId(g.id)} title="İptal Et" style={S.delBtn}>
-                                    <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
+                                  <button className="sg-del-btn" onClick={() => setDeleteId(g.id)} title="Sil" style={S.delBtn}>
+                                    <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
                                   </button>
                                 </>
-                              )}
-                              {g.status === "açılacak" && g.dolu === 0 && (
-                                <button className="sg-del-btn" onClick={() => setDeleteId(g.id)} title="Sil" style={S.delBtn}>
-                                  <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                                </button>
                               )}
                               {canReopen && (
                                 <button className="sg-start-btn" onClick={() => setReopenId(g.id)} style={S.startBtn}>
@@ -1031,29 +886,6 @@ export default function SınıflarPage() {
         </div>
       )}
 
-      {/* Cancel modal */}
-      {cancelId !== null && (
-        <div onClick={() => setCancelId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
-            <div style={{ padding: "26px 26px 20px" }}>
-              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#FFF0E6", display: "flex", alignItems: "center", justifyContent: "center", color: "#9E3A00", marginBottom: 16 }}>
-                <span dangerouslySetInnerHTML={{ __html: IC.xMarkBig }} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Grubu iptal et</h3>
-              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
-                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === cancelId)?.kod}</strong> grubunu iptal etmek istediğinize emin misiniz? Kayıtlı öğrenciler başka gruplara aktarılabilir.
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button className="sg-cancel" onClick={() => setCancelId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button className="sg-confirm-del" onClick={confirmCancel} style={S.confirmCancelBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.xMarkWhite }} />
-                Evet, iptal et
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Reopen modal */}
       {reopenId !== null && (
@@ -1089,7 +921,7 @@ export default function SınıflarPage() {
               </div>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Grubu sil</h3>
               <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
-                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === deleteId)?.kod}</strong> grubunu silmek üzeresiniz. Bu islem geri alınamaz ve gruba kayitli ogrenciler gruptan çıkarılır.
+                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === deleteId)?.kod}</strong> grubunu silmek üzeresiniz. Bu işlem geri alınamaz. Gruptaki öğrenciler ilgili branşta grupsuz duruma düşer.
               </p>
             </div>
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
@@ -1153,6 +985,231 @@ export default function SınıflarPage() {
           </div>
         </div>
       )}
+
+      {/* ═══════════ GRUP EKLE / DÜZENLE BOTTOM SHEET ═══════════ */}
+      <AnimatePresence>
+        {showForm && (
+          <>
+            <motion.div key="form-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+              onClick={() => { if (!saving) { cancelEdit(); } }} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(15,31,61,.4)" }} />
+            <motion.div key="form-sheet"
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 81, maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+              {/* header */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 28px 18px", background: "#F7F8FA" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                  <div style={{ ...S.headIconWrap, background: isEditing ? "#FFF3DC" : "#E2EAF3", color: isEditing ? "#8A5A00" : "#205297" }}>
+                    <span dangerouslySetInnerHTML={{ __html: isEditing ? IC.pencil : IC.plus }} />
+                  </div>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>
+                      {isEditing ? "Grup Düzenle" : "Yeni Grup Oluştur"}
+                    </h2>
+                    <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
+                      {isEditing ? "Secili grubun bilgilerini guncelleyin." : "Yeni bir sinif grubu oluşturun."}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {isEditing && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: "#FFF3DC", color: "#8A5A00", fontSize: 12.5, fontWeight: 700 }}>
+                      <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
+                      {fKod} düzenleniyor
+                    </span>
+                  )}
+                  <button onClick={() => { if (!saving) cancelEdit(); }} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
+                  </button>
+                </div>
+              </div>
+
+              {/* scrollable body */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "0 28px 32px" }}>
+                {/* Eğitim Formatı segmented */}
+                <div style={{ marginBottom: 24 }}>
+                  <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#414B59", letterSpacing: ".04em", marginBottom: 9 }}>Eğitim Formatı</span>
+                  <div style={{ display: "flex", gap: 11, flexWrap: "wrap" }}>
+                    {([
+                      { key: "standart" as EğitimTipi, label: "Grup (standart)", icon: IC.usersSmall },
+                      { key: "ozel_ders" as EğitimTipi, label: "Özel Ders", icon: IC.userSingle },
+                      { key: "kurumsal" as EğitimTipi, label: "Kurumsal Eğitim", icon: IC.buildingSm },
+                    ]).map((t) => {
+                      const active = eğitimTipi === t.key;
+                      return (
+                        <button key={t.key} onClick={() => setEğitimTipi(t.key)} style={segStyle(active)}>
+                          <span style={segCheck(active)}>{active && <span dangerouslySetInnerHTML={{ __html: IC.checkTiny }} />}</span>
+                          <span dangerouslySetInnerHTML={{ __html: t.icon }} />
+                          <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* corporate notice */}
+                {isCorporate && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 13, padding: "18px 20px", borderRadius: 14, background: "#FFF3DC", border: "1px solid #FFE2A8" }}>
+                    <span style={{ flex: "0 0 auto", marginTop: 1 }} dangerouslySetInnerHTML={{ __html: IC.info }} />
+                    <div>
+                      <div style={{ fontSize: 14.5, fontWeight: 700, color: "#8A5A00" }}>Kurumsal eğitim akisi ayri tasarlanacak</div>
+                      <div style={{ fontSize: 13, color: "#8A5A00", opacity: 0.85, marginTop: 3, lineHeight: 1.5 }}>Kurumsal eğitimlerde firma bilgileri, sozlesme ve ozel fiyatlandirma alanlari farklidir. Bu form su an Grup ve Özel Ders icin hazirdir.</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* standard form */}
+                {!isCorporate && (
+                  <div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "18px 20px" }}>
+                      {/* Şube */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Şube</span>
+                        <SelectW>
+                          <select value={fŞube} onChange={(e) => setFŞube(e.target.value)} style={S.sel}>
+                            <option value="">Şube seçin</option>
+                            {BRANCH_OFFICES.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                          </select>
+                        </SelectW>
+                      </label>
+
+                      {/* Branş */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Branş</span>
+                        <SelectW>
+                          <select value={fBrans} onChange={(e) => onBransChange(e.target.value)} style={S.sel}>
+                            <option value="">Branş seçin</option>
+                            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                          </select>
+                        </SelectW>
+                      </label>
+
+                      {/* Eğitim */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Eğitim</span>
+                        <SelectW>
+                          <select value={fEğitim} onChange={(e) => onEğitimChange(e.target.value)} disabled={!fBrans || loadingEdu}
+                            style={{ ...S.sel, background: !fBrans ? "#f1f5f9" : "#fff", cursor: !fBrans ? "not-allowed" : "pointer" }}>
+                            <option value="">{loadingEdu ? "Yükleniyor..." : educations.length ? "Eğitim seçin" : !fBrans ? "Önce branş seçin" : "Bu branşta eğitim yok"}</option>
+                            {educations.map((ed) => <option key={ed.id} value={ed.id}>{ed.name}</option>)}
+                          </select>
+                        </SelectW>
+                      </label>
+
+                      {/* Bölüm (conditional) */}
+                      {isSectioned && (
+                        <label style={S.fieldWrap}>
+                          <span style={S.lbl}>Bölüm</span>
+                          <SelectW>
+                            <select value={fBölüm} onChange={(e) => setFBölüm(e.target.value)} disabled={loadingSec}
+                              style={{ ...S.sel, cursor: loadingSec ? "not-allowed" : "pointer" }}>
+                              <option value="">{loadingSec ? "Yükleniyor..." : sections.length ? "Bölüm seçin" : "Bölüm bulunamadı"}</option>
+                              {sections.sort((a, b) => a.order - b.order).map((sec) => <option key={sec.id} value={sec.id}>{sec.name}</option>)}
+                            </select>
+                          </SelectW>
+                        </label>
+                      )}
+
+                      {/* Grup Kodu */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Grup Kodu</span>
+                        <input value={fKod} onChange={(e) => setFKod(e.target.value)} placeholder="örn. GRP-251" style={S.inp} />
+                      </label>
+
+                      {/* Başlangıç Tarihi */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Başlangıç Tarihi</span>
+                        <input type="date" value={fTarih} onChange={(e) => setFTarih(e.target.value)} style={S.inp} />
+                      </label>
+
+                      {/* Eğitmen (opsiyonel) */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Eğitmen <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
+                        <SelectW>
+                          <select value={fEğitmen} onChange={(e) => setFEğitmen(e.target.value)} style={S.sel}>
+                            <option value="">Eğitmen seçin</option>
+                            {EGITMEN_LIST.map((e) => <option key={e} value={e}>{e}</option>)}
+                          </select>
+                        </SelectW>
+                      </label>
+
+                      {/* Seans (custom dropdown) */}
+                      <div ref={seansRef} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
+                        <span style={S.lbl}>Seans</span>
+                        <button onClick={() => setSeansOpen((o) => !o)} className="sg-seans-btn" style={S.seansBtn}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                            <span dangerouslySetInnerHTML={{ __html: IC.clockGray }} />
+                            <span style={{ fontSize: 14, fontWeight: 500, color: fSeansIdx >= 0 ? "#1E222B" : "#AEB4C0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{seansDisplay}</span>
+                          </span>
+                          <span dangerouslySetInnerHTML={{ __html: IC.chevDownGray }} />
+                        </button>
+                        {seansOpen && (
+                          <div style={S.seansPopup}>
+                            {seanslar.length === 0 && (
+                              <div style={{ padding: "14px 11px", fontSize: 13, color: "#8E95A3", textAlign: "center" }}>Henüz seans eklenmemiş. Eğitim Ayarları → Seans Yönetimi&apos;nden ekleyin.</div>
+                            )}
+                            {seanslar.map((se, i) => {
+                              const active = fSeansIdx === i;
+                              const daysStr = se.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
+                              return (
+                                <div key={se.id} onClick={() => { setFSeansIdx(i); setSeansOpen(false); }}
+                                  className="sg-seans-row" style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: active ? "#EFF3FA" : "transparent" }}>
+                                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 9px", borderRadius: 7, whiteSpace: "nowrap", flex: "0 0 auto" }}>{daysStr}</span>
+                                  <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "#414B59" }}>{se.startTime} - {se.endTime}</span>
+                                  {active && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Ders Saati */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Ders Saati</span>
+                        <span style={{ position: "relative", display: "flex" }}>
+                          <input type="number" value={fDersSaat} onChange={(e) => setFDersSaat(e.target.value)} placeholder="örn. 3" style={{ ...S.inp, paddingRight: 80 }} />
+                          <span style={S.suffix}>saat/ders</span>
+                        </span>
+                      </label>
+
+                      {/* Toplam Saat */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Toplam Saat</span>
+                        <span style={{ position: "relative", display: "flex" }}>
+                          <input type="number" value={fToplamSaat} onChange={(e) => setFToplamSaat(e.target.value)} placeholder="0" style={{ ...S.inp, paddingRight: 56 }} />
+                          <span style={S.suffix}>saat</span>
+                        </span>
+                      </label>
+
+                      {/* Kontenjan */}
+                      <label style={S.fieldWrap}>
+                        <span style={S.lbl}>Kontenjan</span>
+                        <span style={{ position: "relative", display: "flex" }}>
+                          <input type="number" value={fKontenjan} onChange={(e) => setFKontenjan(e.target.value)} placeholder="0" style={{ ...S.inp, paddingRight: 52 }} />
+                          <span style={S.suffix}>kişi</span>
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginTop: 26, paddingTop: 20, borderTop: "1px solid #EEF0F3" }}>
+                      <button className="sg-cancel" onClick={isEditing ? cancelEdit : resetForm} style={S.cancelBtn}>
+                        {isEditing ? "Vazgeç" : "Temizle"}
+                      </button>
+                      <button className="sg-save" onClick={onSave} disabled={saving} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }}>
+                        <span dangerouslySetInnerHTML={{ __html: isEditing ? IC.saveFloppy : IC.plusWhite }} />
+                        {saving ? "Kaydediliyor..." : isEditing ? "Değişiklikleri Kaydet" : "Grubu Oluştur"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1235,12 +1292,15 @@ const S: Record<string, CSSProperties> = {
   td: { padding: "12px 10px", verticalAlign: "middle" as const },
   tdFirst: { padding: "12px 10px 12px 20px", verticalAlign: "middle" as const },
   tdRight: { padding: "12px 16px 12px 10px", verticalAlign: "middle" as const, textAlign: "right" as const, whiteSpace: "nowrap" as const },
+  ellip: { display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const },
 
   startBtn: { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", transition: "all .13s", whiteSpace: "nowrap" as const },
   editBtnIcon: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontFamily: "inherit", cursor: "pointer", transition: "all .13s", flex: "0 0 auto" },
   editBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .13s", whiteSpace: "nowrap" as const },
   delBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#8E95A3", fontFamily: "inherit", cursor: "pointer", transition: "all .13s", flex: "0 0 auto" },
   detailBtn: { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .13s" },
+
+  addBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "11px 18px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)", transition: "filter .14s" },
 
   cardItem: { background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16, padding: 18, boxShadow: "0 1px 3px rgba(15,31,61,.05)", transition: "all .15s" },
 
@@ -1313,6 +1373,7 @@ const globalCss = `
 .sg-iconbtn:hover{background:#F7F8FA;color:#1E222B}
 .sg-cancel:hover{background:#F7F8FA}
 .sg-save:hover{filter:brightness(1.07)}
+.sg-add-btn:hover{filter:brightness(1.06)}
 .sg-confirm-del:hover{filter:brightness(1.07)}
 .sg-seans-btn:hover{border-color:#CDD2DA}
 .sg-seans-row:hover{background:#F7F8FA!important}
