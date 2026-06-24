@@ -1,11 +1,16 @@
 import type { Audit, EntityId, ISODateTime, TenantId } from "../base";
 
+/**
+ * Öğrenci (üyelik) durumu — TEK doğru kaynak burada (Person'da değil).
+ * Bir kişi A grubunda `active`, B grubunda `completed` olabilir → durum üyeliğe ait.
+ * Ödeme durumu AYRI bir eksendir ve SAKLANMAZ; ödeme planından türetilir ([[project-status-model]]).
+ */
 export type EnrollmentStatus =
-  | "active"
-  | "frozen" // dondurulmuş
-  | "completed" // mezun/tamamlandı
-  | "transferred"
-  | "cancelled";
+  | "active" // Aktif — satış tamamlanınca varsayılan
+  | "on_hold" // Beklemede — yalnız operasyon MANUEL alır; yoklamada görünür, gruptan ÇIKARILMAZ, aktif sayılmaz
+  | "passive" // Pasif — operasyon kalıcı pasife aldı
+  | "completed" // Mezun
+  | "cancelled"; // İptal — satış iptali cascade'i (soft, silinmez)
 
 export interface EnrollmentTransfer {
   fromGroupId: EntityId;

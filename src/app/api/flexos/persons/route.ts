@@ -71,8 +71,8 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         }
       }
 
-      // enrollment durumundan havuz durumu türet
-      const status = derivePoolStatus(p, enrs);
+      // enrollment durumundan havuz durumu türet (öğrenci durumu = üyelikten, Person'dan değil)
+      const status = derivePoolStatus(enrs);
 
       // "Gruba Ata" için atanabilir kayıt: aktif + grupsuz (ilk uygun)
       const assignable = enrs.find((e) => e.status === "active" && !e.groupId);
@@ -99,24 +99,24 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 });
 
-/** Person status + enrollment'lardan havuz durumu türet. */
-function derivePoolStatus(p: Person, enrollments: Enrollment[]): string {
-  if (p.status === "prospect") return "beklemede";
-  if (p.status === "passive") return "pasif";
-
+/**
+ * Havuz öğrenci durumu = ENROLLMENT'lardan türetilir (Person.status değil — o, lead/aday ekseni).
+ * Öğrenci durumu ≠ ödeme durumu (ayrı eksenler — [[project-status-model]]).
+ * Rollup önceliği: aktif (grupsuz öne) > beklemede > mezun > pasif > iptal.
+ */
+function derivePoolStatus(enrollments: Enrollment[]): string {
   if (enrollments.length === 0) return "grupsuz";
 
-  const hasActive = enrollments.some((e) => e.status === "active");
-  const hasFrozen = enrollments.some((e) => e.status === "frozen");
-  const allCompleted = enrollments.every((e) => e.status === "completed");
-  const hasGroupless = enrollments.some((e) => e.status === "active" && !e.groupId);
+  const active = enrollments.filter((e) => e.status === "active");
+  if (active.some((e) => !e.groupId)) return "grupsuz"; // havuzda, gruba atanmayı bekliyor
+  if (active.length > 0) return "aktif";
 
-  if (hasFrozen) return "donduruldu";
-  if (allCompleted) return "mezun";
-  if (hasGroupless) return "grupsuz";
-  if (hasActive) return "aktif";
+  if (enrollments.some((e) => e.status === "on_hold")) return "beklemede"; // op manuel; yoklamada görünür
+  if (enrollments.some((e) => e.status === "completed")) return "mezun";
+  if (enrollments.some((e) => e.status === "passive")) return "pasif";
+  if (enrollments.every((e) => e.status === "cancelled")) return "iptal";
 
-  return "beklemede";
+  return "pasif";
 }
 
 /**
