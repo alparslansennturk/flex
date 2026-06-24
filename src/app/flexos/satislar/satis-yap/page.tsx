@@ -6,12 +6,16 @@
  * Eğitim Ekle / Katalog ile aynı desen: inline S/IC, Inter, authStateReady korumalı,
  * paylaşımlı FlexSidebar.
  *
- * DURUM: 2 sekme (Genel Bilgiler · Eğitim; "Ödeme" kilitli).
+ * DURUM: 3 sekme (Genel Bilgiler · Eğitim · Ödeme).
  * Eğitim sekmesi GERÇEK KATALOĞA BAĞLI: branş/eğitim/bölüm/track GET'ten gelir
  *   (GET /api/flexos/{branches, educations?branchId, sections?educationId, tracks?educationId}).
  *   structure==="sectioned" → "Track Bazlı" satış modeli açık; "single" → Full Paket kilitli.
- * EKSİK (sonraki etap): Sale yazma yolu (createSale + POST) + ödeme + sözleşme havuzu.
- *   "Paket" (bundle eğitim) ve kampanya henüz statik/devre dışı — katalogda paket entity yok.
+ * Ödeme sekmesi (FAZ-1 = UI): brüt katalog listPrice'ından türetilir (track bazlıda seçili
+ *   track toplamı), kampanya + yönetici ek indirimi (%/TL) düşülür → NET. Çok satırlı ödeme
+ *   girişi (Nakit/KK/Havale/Senet + taksit) yereldir; Toplam/Ödenen/Kalan canlı hesaplanır.
+ *   "Tekrar Öğrencisi / Sınıf Değişimi" → 0 TL kilit. Kaydet → soldPrice=NET createSale'e gider.
+ * EKSİK (FAZ-2): Payment persist (PaymentRepo + flexos_payments + createSale wiring) — taksit
+ *   satırları henüz DB'ye yazılmaz. "Paket" (bundle eğitim) ve kampanya katalog entity'si yok (statik).
  */
 
 import React, { useEffect, useState, useCallback, useMemo, CSSProperties } from "react";
@@ -45,8 +49,16 @@ function ageFrom(dateStr: string): number | null {
   return age;
 }
 
-type Step = "genel" | "egitim";
+type Step = "genel" | "egitim" | "odeme";
 type Uyruk = "TC" | "Yabanci";
+type OdemeSatir = { tip: string; tutar: string; taksit: string };
+
+// taksit dropdown presetleri — listede olmayan değer (4, 7…) "Özel" sayı kutusunu açar
+const TAKSIT_PRESETS = ["1", "2", "3", "6", "9", "12"];
+
+function fmtTL(n: number): string {
+  return new Intl.NumberFormat("tr-TR").format(Math.round(n)) + " TL";
+}
 
 export default function SatisYapPage() {
   const router = useRouter();
@@ -77,6 +89,10 @@ export default function SatisYapPage() {
   const [satisModeli, setSatisModeli] = useState<"full" | "track">("full"); // varsayılan Full Paket
   // track bazlı seçim: trackId → seçili mi (varsayılan true = hepsi dahil)
   const [trackSel, setTrackSel] = useState<Record<string, boolean>>({});
+  // ödeme (FAZ-1 = UI): ek indirim + çok satırlı ödeme girişi
+  const [elIndirim, setElIndirim] = useState("");
+  const [elIndirimMod, setElIndirimMod] = useState<"yuzde" | "tutar">("yuzde");
+  const [odemeSatirlari, setOdemeSatirlari] = useState<OdemeSatir[]>([{ tip: "Nakit", tutar: "", taksit: "1" }]);
   const [saving, setSaving] = useState(false);
 
   // ── katalog verisi (GET'ten) ──
@@ -166,6 +182,7 @@ export default function SatisYapPage() {
 
   const isGenel = step === "genel";
   const isEgitim = step === "egitim";
+  const isOdeme = step === "odeme";
 
   const hicSecimYok = !egitim;
   const showIcerik = !!egitim;
@@ -212,9 +229,57 @@ export default function SatisYapPage() {
     ? "Bu eğitim bölümlere ayrılmıştır; her bölüm kendi grubu, yoklaması ve sertifikasıyla işlenir. Full Paket'te tüm bölümler dahildir."
     : "Bu program; alanında uzman eğitmenler eşliğinde uygulamalı projeler ve gerçek sektör örnekleriyle yürütülür.";
 
+  // ── ÖDEME (FAZ-1 = UI) hesapları ──────────────────────────────────────────────
+  // Tekrar / Sınıf Değişimi → ücretsiz işlem (0 TL kilit).
+  const sifirKilit = satisNedeni === "Tekrar Öğrencisi" || satisNedeni === "Sınıf Değişimi";
+  // Brüt = gerçek katalog listPrice'ından türetilir (sabit fiyat yok).
+  const brutBase = showTrackTree
+    ? treeTracks.filter((t) => trackOn(t.id)).reduce((s, t) => s + (t.listPrice ?? 0), 0)
+    : trackBased
+      ? (selEdu?.listPrice ?? sections.reduce((s, x) => s + (x.listPrice ?? 0), 0))
+      : (selEdu?.listPrice ?? 0);
+  const brut = sifirKilit ? 0 : brutBase;
+
+  const kampanyaPct: Record<string, number> = { ind20: 20, erken: 15, referans: 10 };
+  const kampanyaEtiketMap: Record<string, string> = { ind20: "%20", erken: "%15", referans: "%10" };
+  const pct = !sifirKilit ? (kampanyaPct[kampanya] ?? 0) : 0;
+  const kampanyaIndTutar = Math.round((brut * pct) / 100);
+  const hasKampanyaInd = pct > 0;
+  const afterKampanya = brut - kampanyaIndTutar;
+
+  const elRaw = parseFloat(elIndirim) || 0;
+  let elIndirimTutar = 0;
+  if (!sifirKilit && elRaw > 0) {
+    elIndirimTutar = elIndirimMod === "yuzde"
+      ? Math.round((afterKampanya * Math.min(elRaw, 100)) / 100)
+      : Math.min(elRaw, afterKampanya);
+  }
+  const elIndirimVar = elIndirimTutar > 0;
+  const net = Math.max(0, afterKampanya - elIndirimTutar);
+
+  const alinan = sifirKilit ? 0 : odemeSatirlari.reduce((a, o) => a + (parseFloat(o.tutar) || 0), 0);
+  const kalan = Math.max(0, net - alinan);
+  const kalanSifir = kalan <= 0;
+
+  // ödeme satır handler'ları
+  const updateOdeme = (i: number, key: keyof OdemeSatir, val: string) =>
+    setOdemeSatirlari((rows) => rows.map((o, idx) => {
+      if (idx !== i) return o;
+      const next = { ...o, [key]: val };
+      if (key === "tip" && val !== "Kredi Kartı" && val !== "Senet") next.taksit = "1";
+      return next;
+    }));
+  const addOdeme = () => setOdemeSatirlari((rows) => [...rows, { tip: "Nakit", tutar: "", taksit: "1" }]);
+  const removeOdeme = (i: number) => setOdemeSatirlari((rows) => (rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows));
+
   const onNext = () => {
     if (step === "genel") { setStep("egitim"); return; }
-    // egitim sekmesinde → kaydet
+    if (step === "egitim") {
+      if (!egitim) { toast.error("Lütfen eğitim seçin."); return; }
+      setStep("odeme");
+      return;
+    }
+    // ödeme sekmesinde → satışı tamamla
     onSave();
   };
 
@@ -263,6 +328,7 @@ export default function SatisYapPage() {
       customerType: satisTipi === "Kurumsal" ? "corporate" : "individual",
       educationId: egitim,
       trackIds: selectedTrackIds,
+      soldPrice: net, // kampanya + ek indirim sonrası net tutar (0 = ücretsiz işlem)
       guardian,
     };
 
@@ -364,11 +430,10 @@ export default function SatisYapPage() {
               <span style={tabNum(isEgitim)}>2</span>
               Eğitim
             </button>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "13px 16px", fontSize: 14.5, fontWeight: 600, color: "#b3bdcc", borderBottom: "2.5px solid transparent", marginBottom: -1, whiteSpace: "nowrap", cursor: "not-allowed" }}>
-              <span style={{ ...tabNum(false), color: "#a9b4c4" }}>3</span>
+            <button style={tabStyle(isOdeme)} onClick={() => { if (!egitim) { toast.error("Önce eğitim seçin."); setStep("egitim"); return; } setStep("odeme"); }}>
+              <span style={tabNum(isOdeme)}>3</span>
               Ödeme
-              <span style={{ marginLeft: 2 }} dangerouslySetInnerHTML={{ __html: IC.lockSm }} />
-            </div>
+            </button>
           </div>
 
           {/* CARD */}
@@ -664,24 +729,178 @@ export default function SatisYapPage() {
                   )}
                 </>
               )}
+
+              {/* ===== TAB 3: ÖDEME ===== */}
+              {isOdeme && (
+                <>
+                  <SectionTitle>Finansal Özet &amp; İndirim</SectionTitle>
+
+                  {/* 0 TL kilit uyarısı */}
+                  {sifirKilit && (
+                    <div style={S.sifirKilitBox}>
+                      <span style={S.sifirKilitIcon} dangerouslySetInnerHTML={{ __html: IC.lockBlue }} />
+                      <div>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, color: "#1e40af" }}>Ücretsiz İşlem — {satisNedeni}</div>
+                        <div style={{ fontSize: 12, color: "#3b5b8c", fontWeight: 500 }}>Bu satış nedeni için ek ücret alınmaz; tüm tutarlar 0 TL.</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* özet kartı */}
+                  <div style={{ border: "1px solid #e3e8f0", borderRadius: 14, background: "#fff", overflow: "hidden", marginBottom: 20 }}>
+                    <div style={S.ozetRow}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Brüt Eğitim Tutarı</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" }}>{fmtTL(brut)}</span>
+                    </div>
+                    <div style={S.ozetSep} />
+                    <div style={S.ozetRow}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#64748b" }}>
+                        Kampanya İndirimi
+                        {hasKampanyaInd && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 999 }}>{kampanyaEtiketMap[kampanya]}</span>}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: kampanyaIndTutar > 0 ? "#15803d" : "#0f1f3d", minWidth: 110, textAlign: "right" }}>{kampanyaIndTutar > 0 ? "− " + fmtTL(kampanyaIndTutar) : fmtTL(0)}</span>
+                    </div>
+                    <div style={S.ozetSep} />
+                    {/* yönetici / satışçı indirimi */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", background: "#fafbfd" }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Yönetici / Satışçı İndirimi</div>
+                        <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>Kampanyadan bağımsız ek indirim</div>
+                      </div>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
+                        <div style={{ display: "inline-flex", background: "#eef2f8", borderRadius: 9, padding: 3, gap: 3 }}>
+                          <button onClick={() => setElIndirimMod("yuzde")} style={segSm(elIndirimMod === "yuzde")}>%</button>
+                          <button onClick={() => setElIndirimMod("tutar")} style={segSm(elIndirimMod === "tutar")}>TL</button>
+                        </div>
+                        <div style={{ position: "relative" }}>
+                          <input type="number" value={elIndirim} onChange={(e) => setElIndirim(e.target.value)} disabled={sifirKilit} placeholder="0"
+                            style={{ width: 110, padding: "9px 32px 9px 12px", borderRadius: 10, border: "1px solid #e3e8f0", background: sifirKilit ? "#f1f5f9" : "#f8fafc", fontSize: 14, fontWeight: 700, fontFamily: "inherit", color: "#0f1f3d", outline: "none", textAlign: "right", cursor: sifirKilit ? "not-allowed" : "text" }} />
+                          <span style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "#94a3b8", pointerEvents: "none" }}>{elIndirimMod === "yuzde" ? "%" : "TL"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* uygulanan ek indirim */}
+                    {elIndirimVar && (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "9px 18px", background: "#fff8f8", borderTop: "1px dashed #f3c6c6" }}>
+                        <span style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600 }}>Uygulanan ek indirim</span>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: "#dc2626", minWidth: 110, textAlign: "right" }}>− {fmtTL(elIndirimTutar)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Parçalı Ödeme kartı */}
+                  <div style={{ border: "1px solid #e3e8f0", borderRadius: 16, background: "#fcfdfe", padding: "18px 18px 6px", marginBottom: 14, boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 15 }}>
+                      <span style={{ width: 5, height: 18, borderRadius: 3, background: "#f97316" }} />
+                      <span style={{ fontSize: 15, fontWeight: 800, color: "#0f1f3d" }}>Ödeme Girişi</span>
+                      <span style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500 }}>— Parayı bölebilir veya boş geçebilirsiniz.</span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 14 }}>
+                      {odemeSatirlari.map((o, i) => {
+                        const taksitli = o.tip === "Kredi Kartı" || o.tip === "Senet";
+                        // preset listede olmayan değer (örn. 4, 7) → "Özel" modu
+                        const isCustomTaksit = taksitli && !TAKSIT_PRESETS.includes(o.taksit);
+                        return (
+                          <div key={i} style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr auto", gap: 12, alignItems: "end", border: "1px solid #e9edf4", borderRadius: 14, padding: "14px 16px", background: "#fff" }}>
+                            <div>
+                              <label style={S.odemeLabel}>Ödeme Tipi</label>
+                              <SelectWrap small>
+                                <select value={o.tip} onChange={(e) => updateOdeme(i, "tip", e.target.value)} style={S.odemeSelect}>
+                                  <option value="Nakit">Nakit</option>
+                                  <option value="Kredi Kartı">Kredi Kartı</option>
+                                  <option value="Havale/EFT">Havale/EFT</option>
+                                  <option value="Senet">Senet</option>
+                                </select>
+                              </SelectWrap>
+                            </div>
+                            <div>
+                              <label style={S.odemeLabel}>Alınan Tutar</label>
+                              <div style={{ position: "relative" }}>
+                                <input type="number" value={o.tutar} onChange={(e) => updateOdeme(i, "tutar", e.target.value)} placeholder="0"
+                                  style={{ width: "100%", padding: "11px 42px 11px 13px", borderRadius: 11, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 14, fontWeight: 600, fontFamily: "inherit", color: "#0f1f3d", outline: "none" }} />
+                                <span style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 12.5, fontWeight: 700, color: "#94a3b8", pointerEvents: "none" }}>TL</span>
+                              </div>
+                            </div>
+                            <div style={{ opacity: taksitli ? 1 : 0.5 }}>
+                              <label style={{ ...S.odemeLabel, display: "flex", alignItems: "center", gap: 6 }}>
+                                Taksit Sayısı{!taksitli && <span dangerouslySetInnerHTML={{ __html: IC.lockTiny }} />}
+                              </label>
+                              <SelectWrap small>
+                                <select value={isCustomTaksit ? "custom" : o.taksit}
+                                  onChange={(e) => updateOdeme(i, "taksit", e.target.value === "custom" ? "" : e.target.value)}
+                                  disabled={!taksitli}
+                                  style={{ ...S.odemeSelect, background: taksitli ? "#f8fafc" : "#f1f5f9", cursor: taksitli ? "pointer" : "not-allowed" }}>
+                                  <option value="1">Tek Çekim</option>
+                                  <option value="2">2 Taksit</option>
+                                  <option value="3">3 Taksit</option>
+                                  <option value="6">6 Taksit</option>
+                                  <option value="9">9 Taksit</option>
+                                  <option value="12">12 Taksit</option>
+                                  <option value="custom">Özel taksit…</option>
+                                </select>
+                              </SelectWrap>
+                              {isCustomTaksit && (
+                                <div style={{ position: "relative", marginTop: 6 }}>
+                                  <input type="number" min={1} max={36} value={o.taksit} onChange={(e) => updateOdeme(i, "taksit", e.target.value)} placeholder="örn. 7" autoFocus
+                                    style={{ width: "100%", padding: "9px 44px 9px 12px", borderRadius: 11, border: "1px solid #c7d0de", background: "#fff", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", color: "#0f1f3d", outline: "none" }} />
+                                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 600, color: "#94a3b8", pointerEvents: "none" }}>taksit</span>
+                                </div>
+                              )}
+                            </div>
+                            <button onClick={() => removeOdeme(i)} title="Satırı kaldır"
+                              style={{ width: 42, height: 42, borderRadius: 11, border: "1px solid #e3e8f0", background: "#fff", color: odemeSatirlari.length > 1 ? "#94a3b8" : "#d8dee8", display: "flex", alignItems: "center", justifyContent: "center", cursor: odemeSatirlari.length > 1 ? "pointer" : "not-allowed", flex: "0 0 auto" }}
+                              dangerouslySetInnerHTML={{ __html: IC.trash }} />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <button onClick={addOdeme} className="sy-addpay" style={S.addPayBtn}>
+                      <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />
+                      Başka Ödeme Yöntemi Ekle
+                    </button>
+
+                    {/* finansal çıktı şeridi */}
+                    <div style={{ borderTop: "1px solid #e9edf4", margin: "0 -18px", padding: "16px 18px 18px", background: kalanSifir ? "linear-gradient(135deg,#f3fbf6,#ecfdf3)" : "linear-gradient(135deg,#fffaf4,#fff5ec)", borderRadius: "0 0 14px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 360 }}>
+                          <span style={{ flex: "0 0 auto", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.infoSm }} />
+                          <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>Satış sonrası öğrenci <strong style={{ color: "#b45309", fontWeight: 700 }}>Beklemede</strong> statüsünde havuza eklenir.</p>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 0 auto", minWidth: 220 }}>
+                          <div style={S.cikRow}><span style={S.cikLbl}>Toplam Tutar</span><span style={S.cikVal}>{fmtTL(net)}</span></div>
+                          <div style={S.cikRow}><span style={S.cikLbl}>Ödenen</span><span style={S.cikVal}>{fmtTL(alinan)}</span></div>
+                          <div style={{ height: 1, background: "rgba(0,0,0,.08)", margin: "3px 0" }} />
+                          <div style={S.cikRow}>
+                            <span style={{ fontSize: 13.5, fontWeight: 800, color: "#334155" }}>Kalan</span>
+                            <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.5px", color: kalanSifir ? "#15803d" : "#b45309" }}>{fmtTL(kalan)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* footer */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "32px", borderTop: "1px solid #eef1f6", background: "#fafbfd" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                {isEgitim && (
-                  <button className="sy-back" style={S.backLink} onClick={() => setStep("genel")}>
+                {(isEgitim || isOdeme) && (
+                  <button className="sy-back" style={S.backLink} onClick={() => setStep(isOdeme ? "egitim" : "genel")}>
                     <span dangerouslySetInnerHTML={{ __html: IC.chevLeft }} />
                     Geri
                   </button>
                 )}
                 <span style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500 }}>
-                  {isEgitim ? "Satış kapsamını onaylayıp kaydı tamamlayın." : "Kişisel bilgileri tamamlayıp sonraki adıma geçin."}
+                  {isOdeme ? "Ödeme bilgilerini girip satışı tamamlayın." : isEgitim ? "Satış kapsamını onaylayıp ödemeye geçin." : "Kişisel bilgileri tamamlayıp sonraki adıma geçin."}
                 </span>
               </div>
               <button className="sy-next" style={{ ...S.nextBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }} onClick={onNext} disabled={saving}>
-                {saving ? "Kaydediliyor…" : isEgitim ? "Satışı Kaydet" : "Devam Et — Eğitim"}
-                {!saving && <span dangerouslySetInnerHTML={{ __html: isEgitim ? IC.checkWhite : IC.arrowRight }} />}
+                {saving ? "Kaydediliyor…" : isOdeme ? "Satışı Tamamla" : isEgitim ? "Devam Et — Ödeme" : "Devam Et — Eğitim"}
+                {!saving && <span dangerouslySetInnerHTML={{ __html: isOdeme ? IC.checkWhite : IC.arrowRight }} />}
               </button>
             </div>
           </div>
@@ -740,6 +959,11 @@ const navyBox = (on: boolean, indet: boolean): CSSProperties => ({
   border: on || indet ? "1.5px solid #1e3a8a" : "1.5px solid #cbd5e1",
   background: on || indet ? "#1e3a8a" : "#fff", transition: "all .14s",
 });
+// ödeme — % / TL küçük segment butonu
+const segSm = (on: boolean): CSSProperties => ({
+  padding: "6px 13px", border: "none", borderRadius: 8, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer",
+  background: on ? "#0f1f3d" : "transparent", color: on ? "#fff" : "#64748b", transition: "all .14s",
+});
 
 // ── stiller ────────────────────────────────────────────────────────────────────
 const S: Record<string, CSSProperties> = {
@@ -768,6 +992,17 @@ const S: Record<string, CSSProperties> = {
   chip: { display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 600, color: "#475569", background: "#f1f5f9", padding: "7px 13px", borderRadius: 10 },
   backLink: { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 6px", border: "none", background: "transparent", color: "#64748b", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" },
   nextBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 22px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#fb923c,#ea580c)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 6px 14px -7px rgba(234,88,12,.7)" },
+  // ödeme sekmesi
+  sifirKilitBox: { display: "flex", alignItems: "center", gap: 12, border: "1px solid #c7d8f5", background: "linear-gradient(135deg,#f5f9ff,#eef4fd)", borderRadius: 14, padding: "13px 16px", marginBottom: 14 },
+  sifirKilitIcon: { width: 32, height: 32, borderRadius: 10, background: "#dbeafe", color: "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" },
+  ozetRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "13px 18px" },
+  ozetSep: { height: 1, background: "#f1f5f9", margin: "0 18px" },
+  odemeLabel: { display: "block", fontSize: 12.5, fontWeight: 600, color: "#334155", marginBottom: 7 },
+  odemeSelect: { width: "100%", padding: "11px 36px 11px 13px", borderRadius: 11, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 13.5, fontFamily: "inherit", color: "#1e293b", outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none", MozAppearance: "none" },
+  addPayBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 11, border: "1.5px dashed #c7d0de", background: "#fff", color: "#475569", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", marginBottom: 18, transition: "all .14s" },
+  cikRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 },
+  cikLbl: { fontSize: 12, fontWeight: 600, color: "#94a3b8" },
+  cikVal: { fontSize: 13, fontWeight: 700, color: "#64748b" },
 };
 
 // ── ikonlar (lucide, design'dan) ────────────────────────────────────────────────
@@ -794,6 +1029,10 @@ const IC = {
   chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="15" height="15" stroke="currentColor" stroke-width="2.3"'),
   arrowRight: sv('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>', 'width="16" height="16" stroke="currentColor" stroke-width="2.3"'),
   checkWhite: sv('<path d="M20 6 9 17l-5-5"/>', 'width="16" height="16" stroke="#fff" stroke-width="2.5"'),
+  lockBlue: sv('<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', 'width="17" height="17" stroke="currentColor" stroke-width="2"'),
+  trash: sv('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 'width="16" height="16" stroke="currentColor" stroke-width="2.1"'),
+  plusSm: sv('<path d="M5 12h14"/><path d="M12 5v14"/>', 'width="16" height="16" stroke="currentColor" stroke-width="2.3"'),
+  infoSm: sv('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>', 'width="15" height="15" stroke="#94a3b8" stroke-width="2"'),
 };
 
 const spinCss = `.sy-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:sy-spin 1s linear infinite}@keyframes sy-spin{to{transform:rotate(360deg)}}`;
@@ -807,5 +1046,6 @@ const globalCss = `
 .sy-iconbtn:hover{background:#f8fafc;color:#0f172a}
 .sy-back:hover{color:#0f1f3d}
 .sy-next:hover{filter:brightness(1.04)}
+.sy-addpay:hover{border-color:#94a3b8;background:#f8fafc;color:#0f1f3d}
 input:focus,select:focus,textarea:focus{border-color:#a5b4fc!important;background:#fff!important;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
 `;
