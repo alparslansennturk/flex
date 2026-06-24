@@ -5,9 +5,12 @@ import type { Person, PersonPII } from "../core/person";
 import type { Enrollment } from "../core/enrollment";
 import type { Sale, CustomerType, SaleType, Guardian, BillingParty } from "../eduos/sale";
 import { ForbiddenError, ValidationError } from "../errors";
+import type { Payment } from "../eduos/payment";
 import type { PersonRepo } from "../repo/person-repo";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
 import type { SaleRepo } from "../repo/sale-repo";
+import type { PaymentRepo } from "../repo/payment-repo";
+import { buildPayments, type PaymentPlanInput } from "./payment-service";
 
 // ── Input ──
 
@@ -31,6 +34,9 @@ export interface CreateSaleInput {
   // fatura tarafı
   billing?: BillingParty;
 
+  // ödeme planı (peşin satırları + opsiyonel senet) — net = soldPrice
+  payment?: PaymentPlanInput;
+
   branchOfficeId?: EntityId;
   date?: ISODate;
 }
@@ -39,6 +45,7 @@ export interface CreateSaleResult {
   sale: Sale;
   person: Person;
   enrollment: Enrollment;
+  payments: Payment[];
   piiDropped: boolean;
 }
 
@@ -48,6 +55,7 @@ export interface CreateSaleDeps {
   sales: SaleRepo;
   persons: PersonRepo;
   enrollments: EnrollmentRepo;
+  payments?: PaymentRepo; // ödeme planı verilirse zorunlu (standalone'da opsiyonel)
 }
 
 // ── Servis ──
@@ -146,10 +154,39 @@ export async function createSale(
     createdBy: actor.uid,
   };
 
+  // ── 4) Ödeme planı → Payment dokümanları (opsiyonel) ──
+  // Peşin (nakit/kart/havale) tahsil edilmiş; senet kalanı vadeye böler (flat vade farkı).
+  let payments: Payment[] = [];
+  const plan = input.payment;
+  const hasPlan = !!plan && ((plan.upfront?.length ?? 0) > 0 || (plan.senet?.count ?? 0) > 0);
+  if (hasPlan) {
+    if (!can(actor, "payment.create")) {
+      throw new ForbiddenError("payment.create");
+    }
+    if (!deps.payments) {
+      throw new ValidationError("Ödeme deposu (paymentRepo) sağlanmadı.");
+    }
+    const built = buildPayments({
+      saleId: sale.id,
+      personId: person.id,
+      tenantId: actor.tenantId,
+      net: input.soldPrice ?? 0,
+      plan: plan!,
+      repo: deps.payments,
+      actorUid: actor.uid,
+      ts,
+    });
+    payments = built.payments;
+    if (built.financingFee > 0) sale.financingFee = built.financingFee;
+  }
+
   // ── Yazım (sıralı — atomiklik ileride batch'e çevrilebilir) ──
   await deps.persons.save(person);
   await deps.sales.save(sale);
   await deps.enrollments.save(enrollment);
+  if (payments.length > 0) {
+    await deps.payments!.saveMany(payments);
+  }
 
-  return { sale, person, enrollment, piiDropped };
+  return { sale, person, enrollment, payments, piiDropped };
 }

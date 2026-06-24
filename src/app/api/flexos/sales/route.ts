@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
+import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
 import { createSale, type CreateSaleInput } from "@/app/lib/domain/services/sale-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
@@ -27,12 +28,15 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       sales: firestoreSaleRepo,
       persons: firestorePersonRepo,
       enrollments: firestoreEnrollmentRepo,
+      payments: firestorePaymentRepo,
     });
     return NextResponse.json(
       {
         saleId: result.sale.id,
         personId: result.person.id,
         enrollmentId: result.enrollment.id,
+        paymentCount: result.payments.length,
+        financingFee: result.sale.financingFee ?? 0,
         piiDropped: result.piiDropped,
       },
       { status: 201 },

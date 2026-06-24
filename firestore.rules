@@ -429,6 +429,9 @@ service cloud.firestore {
     // Satış kayıtları — server-only (Admin SDK), PII + finansal veri koruması.
     match /flexos_sales/{id} { allow read, write: if false; }
 
+    // Tahsilat/taksit kayıtları — server-only (Admin SDK), finansal veri koruması.
+    match /flexos_payments/{id} { allow read, write: if false; }
+
     // Eğitmen kadrosu — server-only (Admin SDK), ücret (hourlyRate) koruması gated service'te.
     match /flexos_trainers/{id} { allow read, write: if false; }
 

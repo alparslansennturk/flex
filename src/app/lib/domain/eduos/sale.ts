@@ -41,7 +41,8 @@ export interface Sale extends Audit {
   educationId: EntityId;        // hangi eğitim satıldı
   trackIds?: EntityId[];        // track bazlı satışta seçilen track'ler (boş = full paket)
 
-  soldPrice?: number; // fiilen satılan (≠ liste fiyatı) — gelir raporu bundan
+  soldPrice?: number; // fiilen satılan eğitim fiyatı (≠ liste fiyatı) — SATIŞ cirosu raporu bundan
+  financingFee?: number; // senet vade farkı (finansman geliri, AYRI kalem); toplam tahsilat = soldPrice + financingFee
 
   guardian?: Guardian;           // 18 altı → veli bilgileri
   billing?: BillingParty;       // fatura tarafı

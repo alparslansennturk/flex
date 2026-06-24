@@ -25,6 +25,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "enrollment.create",
     "sale.create",
     "sale.read",
+    "payment.create",
+    "payment.read",
   ),
 
   // Operasyon: grup + kayıt yönetimi, kişi (PII dahil) okur, rapor.
@@ -49,6 +51,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "grade.report.read",
     "sale.create",
     "sale.read",
+    "payment.create",
+    "payment.read",
     "branch.create",
     "education.create",
     "education.edit",
@@ -123,6 +127,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "track.create",
       "sale.create",
       "sale.read",
+      "payment.create",
+      "payment.read",
       "trainer.create",
       "trainer.read",
       "trainer.edit",

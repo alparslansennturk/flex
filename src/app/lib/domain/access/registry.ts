@@ -42,6 +42,10 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "sale.create", domain: "sale", label: "Satış Yap", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "sale.read", domain: "sale", label: "Satış Gör", sensitivity: "yellow", write: false, scopable: true, audited: false },
 
+  // ── payment (tahsilat/taksit) ──
+  { key: "payment.create", domain: "payment", label: "Ödeme/Tahsilat Kaydet", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "payment.read", domain: "payment", label: "Ödeme/Tahsilat Gör", sensitivity: "yellow", write: false, scopable: true, audited: false },
+
   // ── trainer (eğitmen kadrosu) — ücret alanı PII gibi alan-bazlı kapılı ──
   { key: "trainer.create", domain: "trainer", label: "Eğitmen Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "trainer.read", domain: "trainer", label: "Eğitmen Gör", sensitivity: "green", write: false, scopable: false, audited: false },
