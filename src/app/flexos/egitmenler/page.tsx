@@ -141,7 +141,8 @@ export default function EgitmenlerPage() {
         email: it.email ?? "",
         phone: it.phone ?? "",
         subes: it.subes ?? [],
-        status: it.status,
+        // API'den beklenmedik/boş status gelirse UI çökmesin → güvenli normalize
+        status: it.status === "pasif" ? "pasif" : "aktif",
         comp: it.comp ?? {},
         groups: it.groups ?? [],
         notes: it.notes ?? [],
