@@ -3,7 +3,107 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
+import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
+import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
+import { firestoreEducationRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { derivePaymentStatus, derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import type { PersonPII } from "@/app/lib/domain/core/person";
+
+/**
+ * GET /api/flexos/persons/[id] — Öğrenci detayı (drawer için).
+ * Liste ucunda OLMAYAN ağır alanları döndürür: tam PII (TC/adres/doğum) + ödeme
+ * planı (taksitler, türetilen durum) + satış/veli özeti. PII ve ödeme alan-bazlı kapılı.
+ */
+export const GET = withAuth(async (_req: NextRequest, caller, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params;
+  const actor = actorFromCaller(caller);
+
+  if (!can(actor, "person.read")) {
+    return NextResponse.json({ error: "Yetki yok: person.read" }, { status: 403 });
+  }
+
+  try {
+    const person = await firestorePersonRepo.getById(id, actor.tenantId);
+    if (!person) {
+      return NextResponse.json({ error: "Kişi bulunamadı." }, { status: 404 });
+    }
+
+    const allowPII = can(actor, "person.read.pii");
+    const allowPay = can(actor, "payment.read");
+
+    const [sales, payments, educations] = await Promise.all([
+      allowPay ? firestoreSaleRepo.listByPerson(id, actor.tenantId) : Promise.resolve([]),
+      allowPay ? firestorePaymentRepo.listByPerson(id, actor.tenantId) : Promise.resolve([]),
+      allowPay ? firestoreEducationRepo.list(actor.tenantId) : Promise.resolve([]),
+    ]);
+
+    const eduName = new Map(educations.map((e) => [e.id, e.name]));
+    const today = new Date().toISOString().slice(0, 10);
+
+    // satış özeti (en yeni önce)
+    const salesOut = sales
+      .slice()
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .map((s) => ({
+        id: s.id,
+        educationName: s.educationId ? (eduName.get(s.educationId) ?? "—") : "—",
+        status: s.status,
+        soldPrice: s.soldPrice ?? 0,
+        financingFee: s.financingFee ?? 0,
+        guardian: s.guardian ?? null,
+        date: s.date ?? (s.createdAt ?? "").slice(0, 10),
+      }));
+
+    // ödeme planı + türetilen durum (taksit sırasına göre)
+    const paymentsOut = payments
+      .slice()
+      .sort((a, b) => {
+        const da = a.dueDate ?? a.paidAt ?? "";
+        const db = b.dueDate ?? b.paidAt ?? "";
+        return da.localeCompare(db);
+      })
+      .map((p) => ({
+        id: p.id,
+        saleId: p.saleId,
+        method: p.method,
+        amount: p.amount,
+        installmentNo: p.installmentNo ?? null,
+        installmentTotal: p.installmentTotal ?? null,
+        dueDate: p.dueDate ?? null,
+        paidAt: p.paidAt ?? null,
+        status: derivePaymentStatus(p, today),
+      }));
+
+    const totalExpected = sales.reduce((a, s) => a + (s.soldPrice ?? 0) + (s.financingFee ?? 0), 0);
+    const totalPaid = payments.filter((p) => p.paidAt).reduce((a, p) => a + p.amount, 0);
+    const rollup = payments.length > 0 || totalExpected > 0
+      ? derivePaymentRollup(payments, totalExpected, today)
+      : null;
+
+    return NextResponse.json({
+      id: person.id,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      gender: person.gender ?? "",
+      birthDate: person.birthDate ?? "",
+      pii: allowPII
+        ? {
+            phone: person.pii?.phone ?? "",
+            email: person.pii?.email ?? "",
+            address: person.pii?.address ?? "",
+            idNo: person.pii?.idNo ?? "",
+            idType: person.pii?.idType ?? "tc",
+          }
+        : null,
+      sales: salesOut,
+      payments: paymentsOut,
+      totals: { expected: totalExpected, paid: totalPaid, remaining: Math.max(0, totalExpected - totalPaid), rollup },
+    });
+  } catch (e) {
+    console.error("[flexos/persons/[id] GET] hata:", e);
+    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+  }
+});
 
 /**
  * PATCH /api/flexos/persons/[id] — Kişi bilgilerini güncelle.
@@ -16,8 +116,8 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
   const { id } = await params;
   const actor = actorFromCaller(caller);
 
-  if (!can(actor, "person.write")) {
-    return NextResponse.json({ error: "Yetki yok: person.write" }, { status: 403 });
+  if (!can(actor, "person.edit")) {
+    return NextResponse.json({ error: "Yetki yok: person.edit" }, { status: 403 });
   }
 
   let body: Record<string, unknown>;

@@ -461,7 +461,6 @@ export default function EgitimEklePage() {
   if (!(mainPriceVal > 0)) publishBlockers.push("Ana paket fiyatı");
   const canPublish = publishBlockers.length === 0;
   const publishActive = canPublish || s.published;
-  const canShimmer = canPublish && !s.published;
 
   const statusText = s.published
     ? "Yayında — satış kataloğunda"
@@ -496,7 +495,7 @@ export default function EgitimEklePage() {
   const publishStyle: CSSProperties = s.published
     ? { ...S.publishBase, cursor: "pointer", background: "#fef2f2", color: "#dc2626", boxShadow: "inset 0 0 0 1px #fecaca" }
     : canPublish
-    ? { ...S.publishBase, cursor: "pointer", background: "linear-gradient(135deg,#fdba74 0%,#fb923c 36%,#f97316 68%,#ea580c 100%)", color: "#fff", animation: "ee-glow 2.8s ease-in-out infinite" }
+    ? { ...S.publishBase, cursor: "pointer", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }
     : { ...S.publishBase, cursor: "not-allowed", background: "#e8edf4", color: "#a9b4c4" };
 
   // ── DB kaydetme (Taslak / Satışa Başlat / Satışı Kapat) ──
@@ -675,7 +674,6 @@ export default function EgitimEklePage() {
               <span style={{ fontSize: 13.5, fontWeight: 600, color: "#64748b" }}>{statusText}</span>
             </div>
             <button style={publishStyle} disabled={!publishActive} onClick={() => publishActive && setModal(s.published ? "unpublish" : "publish")}>
-              {canShimmer && <span style={S.shimmer} />}
               <span style={{ position: "relative", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: s.published ? IC.stop : IC.rocket }} />
               <span style={{ position: "relative" }}>{s.published ? "Satışı Kapat" : "Satışa Başlat"}</span>
             </button>
@@ -1317,7 +1315,6 @@ const S: Record<string, CSSProperties> = {
   banner: { display: "flex", alignItems: "center", gap: 12, background: "linear-gradient(90deg,#dcfce7,#ecfdf5)", border: "1px solid #bbf7d0", borderRadius: 14, padding: "13px 18px", marginBottom: 18, animation: "ee-fadeup .25s ease" },
   bannerIcon: { width: 30, height: 30, borderRadius: 9, background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" },
   publishBase: { position: "relative", overflow: "hidden", display: "inline-flex", alignItems: "center", gap: 9, padding: "13px 22px", borderRadius: 13, border: "none", fontFamily: "inherit", fontSize: 14.5, fontWeight: 700 },
-  shimmer: { position: "absolute", top: 0, left: 0, width: "36%", height: "100%", background: "linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent)", animation: "ee-shimmer 3.4s ease-in-out infinite", pointerEvents: "none" },
   card: { background: "#fff", border: "1px solid #e9edf4", borderRadius: 18, boxShadow: "0 1px 3px rgba(15,31,61,.05)", overflow: "hidden" },
   label: { display: "block", fontSize: 13.5, fontWeight: 600, color: "#334155", marginBottom: 8 },
   input: { width: "100%", padding: "12px 15px", borderRadius: 12, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 14.5, fontFamily: "inherit", color: "#1e293b", outline: "none" },
@@ -1412,8 +1409,6 @@ const TABS: Array<{ key: TabKey; label: string; num: string }> = [
 
 const globalCss = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-@keyframes ee-glow{0%,100%{box-shadow:0 10px 22px -8px rgba(234,88,12,.6),0 0 0 0 rgba(249,115,22,0)}50%{box-shadow:0 14px 30px -6px rgba(234,88,12,.72),0 0 26px 1px rgba(249,115,22,.30)}}
-@keyframes ee-shimmer{0%{transform:translateX(-130%) skewX(-18deg)}60%,100%{transform:translateX(320%) skewX(-18deg)}}
 @keyframes ee-fadeup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes ee-fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes ee-slide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
