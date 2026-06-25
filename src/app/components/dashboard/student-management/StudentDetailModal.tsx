@@ -57,6 +57,8 @@ interface StudentDoc {
   email?: string;
   groupCode?: string;
   groupId?: string;
+  lastGroupId?: string;
+  lastGroupCode?: string;
   gradedTasks?: Record<string, GradedTaskEntry>;
   isScoreHidden?: boolean;
   grafik1Code?: string;
@@ -624,7 +626,13 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         setNoteUpdatedAt(noteAt);
       }
 
-      const groupCode = sData.groupCode ?? "";
+      // Mezun öğrenci: groupId="unassigned", groupCode="Mezun (Grup X)"
+      // → orijinal grubu lastGroupId/lastGroupCode'dan al
+      const isGraduated = sData.groupId === "unassigned" && sData.lastGroupId;
+      const effectiveGroupCode = isGraduated
+        ? (sData.lastGroupCode as string ?? "")
+        : (sData.groupCode ?? "");
+      const groupCode = effectiveGroupCode;
 
       // Lig puanını Firestore'dan gelen gerçek gradedTasks ile hesapla
       // (prop'taki score=0 veya eski değere bağımlı olmadan)
@@ -645,7 +653,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
         activeSeasonId,
       );
 
-      const groupId = sData.groupId;
+      const groupId = isGraduated ? sData.lastGroupId as string : sData.groupId;
       if (!groupId) {
         if (!cancelled) {
           const { finalScore: fs } = calcStudentFinalScore(cXP, cTasks, settings, undefined, 0, 0);
@@ -668,6 +676,7 @@ export default function StudentDetailModal({ student, isOpen, onClose, prefetchS
       }).catch(() => {});
 
       // 2b. Yoklama verisi — attGroupId set et, ayrı useEffect çeker (isOpen bağımlı, taze veri)
+      // Mezun öğrenci: orijinal grubun yoklama verisini çek
       if (!cancelled) setAttGroupId(groupId);
 
       // 3. Grup belgesi, proje notları ve G2 görevleri paralel çek

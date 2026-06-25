@@ -3,7 +3,7 @@
 import React, {
   createContext, useContext, useEffect, useState, useCallback,
 } from "react";
-import { db } from "@/app/lib/firebase";
+import { auth, db } from "@/app/lib/firebase";
 import {
   doc, onSnapshot, setDoc, getDoc, collection, getDocs, serverTimestamp, writeBatch,
 } from "firebase/firestore";
@@ -64,22 +64,34 @@ export function ScoringProvider({ children }: { children: React.ReactNode }) {
   const [loading,        setLoading]        = useState(true);
 
   useEffect(() => {
-    const unsub = onSnapshot(SCORING_DOC(), snap => {
-      if (snap.exists()) {
-        const data = snap.data() as ScoringDocData;
-        // Firestore belgesi eksik alan içerebilir (ör. sadece seasonCounter varsa)
-        // — her zaman DEFAULT_SCORING ile iç içe merge et
-        setSettings({
-          leaderboard:        { ...DEFAULT_SCORING.leaderboard,        ...(data.leaderboard        ?? {}) },
-          certificateWeights: { ...DEFAULT_SCORING.certificateWeights, ...(data.certificateWeights ?? {}) },
-          latePenalty:        { ...DEFAULT_SCORING.latePenalty,        ...(data.latePenalty        ?? {}) },
-          difficultyXP:       { ...DEFAULT_SCORING.difficultyXP,       ...(data.difficultyXP       ?? {}) },
-        });
-        setActiveSeasonId(data.activeSeasonId ?? "season_1");
+    let unsubSnap: (() => void) | null = null;
+
+    // Auth yokken (login/forgot-password) Firestore'a bağlanma → permission hatası önlenir
+    const unsubAuth = auth.onAuthStateChanged((firebaseUser) => {
+      if (firebaseUser && !unsubSnap) {
+        unsubSnap = onSnapshot(SCORING_DOC(), snap => {
+          if (snap.exists()) {
+            const data = snap.data() as ScoringDocData;
+            setSettings({
+              leaderboard:        { ...DEFAULT_SCORING.leaderboard,        ...(data.leaderboard        ?? {}) },
+              certificateWeights: { ...DEFAULT_SCORING.certificateWeights, ...(data.certificateWeights ?? {}) },
+              latePenalty:        { ...DEFAULT_SCORING.latePenalty,        ...(data.latePenalty        ?? {}) },
+              difficultyXP:       { ...DEFAULT_SCORING.difficultyXP,       ...(data.difficultyXP       ?? {}) },
+            });
+            setActiveSeasonId(data.activeSeasonId ?? "season_1");
+          }
+          setLoading(false);
+        }, () => setLoading(false));
+      } else if (!firebaseUser) {
+        if (unsubSnap) { unsubSnap(); unsubSnap = null; }
+        setLoading(false);
       }
-      setLoading(false);
-    }, () => setLoading(false));
-    return () => unsub();
+    });
+
+    return () => {
+      unsubAuth();
+      if (unsubSnap) unsubSnap();
+    };
   }, []);
 
   /**

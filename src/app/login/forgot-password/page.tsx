@@ -5,8 +5,6 @@ import React, { useState } from "react";
 import { KeyRound, ChevronRight, Loader2, ArrowLeft, Check } from "lucide-react";
 import Link from "next/link";
 import { getFlexMessage } from "../../lib/messages";
-import { auth } from "../../lib/firebase"; 
-import { sendPasswordResetEmail } from "firebase/auth";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -22,20 +20,30 @@ export default function ForgotPasswordPage() {
     setShouldShake(false);
     setIsLoading(true);
 
-    const actionCodeSettings = {
-      url: 'https://flex-five-delta.vercel.app/login/activation/', 
-      handleCodeInApp: true,
-    };
-
     try {
-      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      const res = await fetch("/api/password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Sunucu hatası");
+      }
+
       setIsLoading(false);
       setIsSent(true);
       setError("");
-    } catch {
+    } catch (err: unknown) {
       setIsLoading(false);
       setShouldShake(true);
-      setError(getFlexMessage('auth/user-not-found').text);
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("Çok fazla")) {
+        setError(msg);
+      } else {
+        setError(getFlexMessage('auth/user-not-found').text);
+      }
       setTimeout(() => setShouldShake(false), 500);
     }
   };
