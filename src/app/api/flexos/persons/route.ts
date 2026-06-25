@@ -6,11 +6,16 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
+import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
+import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { createPerson, type CreatePersonInput } from "@/app/lib/domain/services/person-service";
+import { derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import type { Person } from "@/app/lib/domain/core/person";
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
+import type { Payment } from "@/app/lib/domain/eduos/payment";
+import type { Sale } from "@/app/lib/domain/eduos/sale";
 
 /**
  * GET /api/flexos/persons — Öğrenci Havuzu listesi.
@@ -25,12 +30,14 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
-    const [persons, enrollments, educations, branches, groups] = await Promise.all([
+    const [persons, enrollments, educations, branches, groups, allPayments, allSales] = await Promise.all([
       firestorePersonRepo.list(actor.tenantId),
       firestoreEnrollmentRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
       firestoreBranchRepo.list(actor.tenantId),
       firestoreGroupRepo.list(actor.tenantId),
+      can(actor, "payment.read") ? firestorePaymentRepo.list(actor.tenantId) : Promise.resolve([] as Payment[]),
+      can(actor, "payment.read") ? firestoreSaleRepo.list(actor.tenantId) : Promise.resolve([] as Sale[]),
     ]);
 
     const eduMap = new Map(educations.map((e) => [e.id, e]));
@@ -44,6 +51,21 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       list.push(enr);
       enrollByPerson.set(enr.personId, list);
     }
+
+    // payment'ları ve sale'leri personId'ye göre grupla (ödeme rollup'ı için)
+    const paymentsByPerson = new Map<string, Payment[]>();
+    for (const pay of allPayments) {
+      const list = paymentsByPerson.get(pay.personId) ?? [];
+      list.push(pay);
+      paymentsByPerson.set(pay.personId, list);
+    }
+    const salesByPerson = new Map<string, Sale[]>();
+    for (const s of allSales) {
+      const list = salesByPerson.get(s.personId) ?? [];
+      list.push(s);
+      salesByPerson.set(s.personId, list);
+    }
+    const today = new Date().toISOString().slice(0, 10);
 
     const allowPII = can(actor, "person.read.pii");
 
@@ -77,6 +99,14 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       // "Gruba Ata" için atanabilir kayıt: aktif + grupsuz (ilk uygun)
       const assignable = enrs.find((e) => e.status === "active" && !e.groupId);
 
+      // ödeme durumu rollup'ı (payment.read yetkisiyle)
+      const personPayments = paymentsByPerson.get(p.id) ?? [];
+      const personSales = salesByPerson.get(p.id) ?? [];
+      const totalExpected = personSales.reduce((a, s) => a + (s.soldPrice ?? 0) + (s.financingFee ?? 0), 0);
+      const paymentStatus = personPayments.length > 0 || totalExpected > 0
+        ? derivePaymentRollup(personPayments, totalExpected, today)
+        : null;
+
       return {
         id: p.id,
         name: `${p.firstName} ${p.lastName}`,
@@ -87,8 +117,10 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         groups: groupList,
         subeler: [...officeNames],
         assignableEnrollmentId: assignable?.id ?? null,
+        assignableEducationId: assignable?.educationId ?? null,
         gender: p.gender ?? "",
         createdAt: p.createdAt,
+        paymentStatus,
       };
     });
 

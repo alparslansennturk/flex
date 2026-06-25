@@ -24,6 +24,14 @@ export const firestorePaymentRepo: PaymentRepo = {
     await batch.commit();
   },
 
+  async list(tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .get();
+    return snap.docs.map((d) => d.data() as Payment);
+  },
+
   async listBySale(saleId, tenantId) {
     // eşitlik-only sorgu → composite index gerekmez; sıralama bellekte
     const snap = await adminDb

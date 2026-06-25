@@ -19,11 +19,28 @@ export const firestoreSaleRepo: SaleRepo = {
     await adminDb.collection(COLLECTION).doc(sale.id).set(clean(sale));
   },
 
+  async list(tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .get();
+    return snap.docs.map((d) => d.data() as Sale);
+  },
+
   async getById(id, tenantId) {
     const snap = await adminDb.collection(COLLECTION).doc(id).get();
     if (!snap.exists) return null;
     const data = snap.data() as Sale;
     if (data.tenantId !== tenantId) return null;
     return data;
+  },
+
+  async listByPerson(personId, tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("personId", "==", personId)
+      .get();
+    return snap.docs.map((d) => d.data() as Sale);
   },
 };

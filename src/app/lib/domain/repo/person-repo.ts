@@ -13,4 +13,6 @@ export interface PersonRepo {
   getById(id: string, tenantId: string): Promise<Person | null>;
   /** Kiracıya ait tüm kişileri listele. */
   list(tenantId: string): Promise<Person[]>;
+  /** Mevcut kişiyi kısmi güncelle (merge). */
+  update(id: string, tenantId: string, data: Partial<Person>): Promise<void>;
 }

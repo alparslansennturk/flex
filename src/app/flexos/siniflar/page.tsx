@@ -32,9 +32,9 @@ interface EducationDoc {
 interface SectionDoc { id: string; educationId: string; name: string; order: number; hours?: number }
 
 type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
-type GroupStatus = "açılacak" | "aktif" | "bitmiş" | "iptal";
+type GroupStatus = "açılacak" | "aktif" | "tamamlandı" | "iptal";
 type ViewMode = "list" | "card";
-type FilterKey = "hepsi" | "açılacak" | "aktif" | "bitmiş";
+type FilterKey = "hepsi" | "açılacak" | "aktif" | "tamamlandı" | "iptal";
 
 interface DemoGroup {
   id: string;
@@ -73,10 +73,17 @@ function fmtTrDate(iso?: string): string {
   return `${d} ${TR_MONTH_ABBR[m - 1]} ${y}`;
 }
 /** Domain GroupStatus → UI durumu. */
-function mapStatus(s: string): GroupStatus {
+function mapStatus(s: string, endDate?: string): GroupStatus {
   switch (s) {
-    case "active": return "aktif";
-    case "completed": return "bitmiş";
+    case "active": {
+      // Bitiş tarihi geçmişse otomatik tamamlandı
+      if (endDate) {
+        const end = new Date(endDate.split("T")[0] + "T23:59:59");
+        if (end < new Date()) return "tamamlandı";
+      }
+      return "aktif";
+    }
+    case "completed": return "tamamlandı";
     case "archived": case "cancelled": return "iptal";
     default: return "açılacak"; // planned / enrolling / postponed
   }
@@ -100,7 +107,7 @@ function toDisplayGroup(g: GroupApiItem): DemoGroup {
     seansSaat,
     tarih: fmtTrDate(g.schedule?.startDate),
     bitiş: fmtTrDate(g.schedule?.endDate),
-    status: mapStatus(g.status),
+    status: mapStatus(g.status, g.schedule?.endDate),
     dolu: g.enrolled,
     kontenjan: g.capacity,
   };
@@ -145,7 +152,7 @@ const BRANS_FALLBACK = { color: "#414B59", background: "#EEF0F3", dot: "#AEB4C0"
 const STATUS_MAP: Record<GroupStatus, { label: string; color: string; background: string; dot: string }> = {
   açılacak: { label: "Açılacak", color: "#205297", background: "#DDE8F8", dot: "#3A7BD5" },
   aktif:    { label: "Aktif",    color: "#007A30", background: "#E6F5ED", dot: "#009F3E" },
-  bitmiş:   { label: "Mezun",    color: "#6F7B87", background: "#EEF0F3", dot: "#AEB4C0" },
+  tamamlandı: { label: "Tamamlandı", color: "#6F7B87", background: "#EEF0F3", dot: "#AEB4C0" },
   iptal:    { label: "İptal",    color: "#9E3A00", background: "#FFF0E6", dot: "#D45A00" },
 };
 
@@ -486,7 +493,7 @@ export default function SınıflarPage() {
   const confirmFinish = async () => {
     if (finishId === null) return;
     const id = finishId; setFinishId(null);
-    await patchStatus(id, "completed", "bitmiş", "Eğitim tamamlandı, grup mezun durumuna alındı.");
+    await patchStatus(id, "completed", "tamamlandı", "Eğitim tamamlandı.");
   };
 
   const confirmCancel = async () => {
@@ -503,10 +510,8 @@ export default function SınıflarPage() {
 
   // -- filtered list --
   const filtered = useMemo(() => {
-    // iptal/archived gruplar listede gösterilmez
-    const visible = groups.filter((g) => g.status !== "iptal");
-    if (groupFilter === "hepsi") return visible;
-    return visible.filter((g) => g.status === groupFilter);
+    if (groupFilter === "hepsi") return groups;
+    return groups.filter((g) => g.status === groupFilter);
   }, [groups, groupFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -515,9 +520,8 @@ export default function SınıflarPage() {
   const pageGroups = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
   const counts = useMemo(() => {
-    const visible = groups.filter((g) => g.status !== "iptal");
-    const c = { hepsi: visible.length, açılacak: 0, aktif: 0, bitmiş: 0 };
-    visible.forEach((g) => { if (g.status in c) (c as Record<string, number>)[g.status]++; });
+    const c = { hepsi: groups.length, açılacak: 0, aktif: 0, tamamlandı: 0, iptal: 0 };
+    groups.forEach((g) => { if (g.status in c) (c as Record<string, number>)[g.status]++; });
     return c;
   }, [groups]);
 
@@ -594,7 +598,8 @@ export default function SınıflarPage() {
                 { key: "hepsi" as FilterKey, label: "Tümü", dot: null },
                 { key: "açılacak" as FilterKey, label: "Açılacak", dot: STATUS_MAP.açılacak.dot },
                 { key: "aktif" as FilterKey, label: "Aktif", dot: STATUS_MAP.aktif.dot },
-                { key: "bitmiş" as FilterKey, label: "Mezun", dot: STATUS_MAP.bitmiş.dot },
+                { key: "tamamlandı" as FilterKey, label: "Tamamlandı", dot: STATUS_MAP.tamamlandı.dot },
+                { key: "iptal" as FilterKey, label: "İptal", dot: STATUS_MAP.iptal.dot },
               ]).map((fd) => {
                 const active = groupFilter === fd.key;
                 return (
@@ -643,16 +648,16 @@ export default function SınıflarPage() {
                       const bs = BRANS_COLORS[g.brans] || BRANS_FALLBACK;
                       const st = STATUS_MAP[g.status];
                       const pct = Math.round((g.dolu / g.kontenjan) * 100);
-                      const barColor = g.status === "bitmiş" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
+                      const barColor = g.status === "tamamlandı" || g.status === "iptal" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
                       /* Seans: "Pts - Crs 19.00 - 21.30" → günler + saat ayrı satır */
                       const seansGun = g.seansGun;
                       const seansSaat = g.seansSaat;
                       /* Başlat: başlangıç tarihi bugün veya geçmişse başlatılabilir */
                       const startD = parseTrDate(g.tarih);
                       const canStart = g.status === "açılacak" && startD !== null && startD <= new Date();
-                      /* Geri al: yalnız bitiş tarihi GEÇMEMİŞSE (erken/yanlış mezuniyet). Tarih geçtiyse mezuniyet meşru → buton yok. Tarih okunamazsa güvenli taraf = göster. */
+                      /* Geri al: yalnız bitiş tarihi GEÇMEMİŞSE (erken/yanlış tamamlama). Tarih geçtiyse tamamlama meşru → buton yok. Tarih okunamazsa güvenli taraf = göster. */
                       const endD = parseTrDate(g.bitiş);
-                      const canReopen = g.status === "bitmiş" && (endD === null || endD >= todayMidnight());
+                      const canReopen = g.status === "tamamlandı" && (endD === null || endD >= todayMidnight());
                       return (
                         <tr key={g.id} className="sg-trow" onClick={() => openRoster(g)} style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}>
                           <td style={S.tdFirst}>
@@ -702,14 +707,14 @@ export default function SınıflarPage() {
                                 </button>
                               )}
                               {(g.status === "açılacak" || g.status === "aktif") && (
-                                <>
-                                  <button className="sg-edit-btn" onClick={() => editGroup(g)} title="Düzenle" style={S.editBtnIcon}>
-                                    <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
-                                  </button>
-                                  <button className="sg-del-btn" onClick={() => setDeleteId(g.id)} title="Sil" style={S.delBtn}>
-                                    <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                                  </button>
-                                </>
+                                <button className="sg-edit-btn" onClick={() => editGroup(g)} title="Düzenle" style={S.editBtnIcon}>
+                                  <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
+                                </button>
+                              )}
+                              {(g.status === "açılacak" || g.status === "aktif" || g.status === "tamamlandı" || g.status === "iptal") && (
+                                <button className="sg-del-btn" onClick={() => setDeleteId(g.id)} title="Sil" style={S.delBtn}>
+                                  <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
+                                </button>
                               )}
                               {canReopen && (
                                 <button className="sg-start-btn" onClick={() => setReopenId(g.id)} style={S.startBtn}>
@@ -735,9 +740,9 @@ export default function SınıflarPage() {
                 const bs = BRANS_COLORS[g.brans] || BRANS_FALLBACK;
                 const st = STATUS_MAP[g.status];
                 const pct = Math.round((g.dolu / g.kontenjan) * 100);
-                const barColor = g.status === "bitmiş" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
+                const barColor = g.status === "tamamlandı" || g.status === "iptal" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
                 let capHint: string, capColor: string;
-                if (g.status === "bitmiş") { capHint = "Tamamlandi"; capColor = "#8E95A3"; }
+                if (g.status === "tamamlandı" || g.status === "iptal") { capHint = g.status === "tamamlandı" ? "Tamamlandı" : "İptal"; capColor = "#8E95A3"; }
                 else if (pct >= 90) { capHint = "Dolmak uzere"; capColor = "#007A30"; }
                 else if (pct < 50) { capHint = "Kontenjan acik"; capColor = "#8A5A00"; }
                 else { capHint = `${g.kontenjan - g.dolu} kisilik yer var`; capColor = "#205297"; }
@@ -879,7 +884,7 @@ export default function SınıflarPage() {
               </div>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Eğitimi bitir</h3>
               <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
-                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === finishId)?.kod}</strong> grubunun eğitimini tamamlamak istediğinize emin misiniz? Grup <strong style={{ color: "#6F7B87", fontWeight: 700 }}>Mezun</strong> durumuna alınacaktır.
+                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === finishId)?.kod}</strong> grubunun eğitimini tamamlamak istediğinize emin misiniz? Grup <strong style={{ color: "#6F7B87", fontWeight: 700 }}>Tamamlandı</strong> durumuna alınacaktır.
               </p>
             </div>
             <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>

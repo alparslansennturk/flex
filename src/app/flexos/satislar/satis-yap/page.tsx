@@ -10,12 +10,11 @@
  * Eğitim sekmesi GERÇEK KATALOĞA BAĞLI: branş/eğitim/bölüm/track GET'ten gelir
  *   (GET /api/flexos/{branches, educations?branchId, sections?educationId, tracks?educationId}).
  *   structure==="sectioned" → "Track Bazlı" satış modeli açık; "single" → Full Paket kilitli.
- * Ödeme sekmesi (FAZ-1 = UI): brüt katalog listPrice'ından türetilir (track bazlıda seçili
- *   track toplamı), kampanya + yönetici ek indirimi (%/TL) düşülür → NET. Çok satırlı ödeme
- *   girişi (Nakit/KK/Havale/Senet + taksit) yereldir; Toplam/Ödenen/Kalan canlı hesaplanır.
- *   "Tekrar Öğrencisi / Sınıf Değişimi" → 0 TL kilit. Kaydet → soldPrice=NET createSale'e gider.
- * EKSİK (FAZ-2): Payment persist (PaymentRepo + flexos_payments + createSale wiring) — taksit
- *   satırları henüz DB'ye yazılmaz. "Paket" (bundle eğitim) ve kampanya katalog entity'si yok (statik).
+ * Ödeme sekmesi: brüt katalog listPrice'ından türetilir → kampanya + ek indirim → NET.
+ *   Çok satırlı ödeme girişi (Nakit/KK/Havale/Senet + taksit); senet satırı varken
+ *   aylık vade farkı % inputu açılır (canlı önizleme: toplam vade farkı + taksit başı tutar).
+ *   Kaydet → soldPrice + payment (upfront + senet plan) backend'e gider → flexos_payments'a persist.
+ * KALAN EKSİK: kampanya katalog entity'si yok (statik); tahsilat okuma ucu + havuzda ödeme rozeti.
  */
 
 import React, { useEffect, useState, useCallback, useMemo, CSSProperties } from "react";
@@ -89,10 +88,11 @@ export default function SatisYapPage() {
   const [satisModeli, setSatisModeli] = useState<"full" | "track">("full"); // varsayılan Full Paket
   // track bazlı seçim: trackId → seçili mi (varsayılan true = hepsi dahil)
   const [trackSel, setTrackSel] = useState<Record<string, boolean>>({});
-  // ödeme (FAZ-1 = UI): ek indirim + çok satırlı ödeme girişi
+  // ödeme: ek indirim + çok satırlı ödeme girişi + senet vade farkı
   const [elIndirim, setElIndirim] = useState("");
   const [elIndirimMod, setElIndirimMod] = useState<"yuzde" | "tutar">("yuzde");
   const [odemeSatirlari, setOdemeSatirlari] = useState<OdemeSatir[]>([{ tip: "Nakit", tutar: "", taksit: "1" }]);
+  const [senetVadeFarki, setSenetVadeFarki] = useState(""); // aylık vade farkı %
   const [saving, setSaving] = useState(false);
 
   // ── katalog verisi (GET'ten) ──
@@ -259,6 +259,17 @@ export default function SatisYapPage() {
 
   const alinan = sifirKilit ? 0 : odemeSatirlari.reduce((a, o) => a + (parseFloat(o.tutar) || 0), 0);
   const kalan = Math.max(0, net - alinan);
+
+  // senet vade farkı hesabı (FLAT: kalan × aylık% × taksit sayısı)
+  const hasSenet = odemeSatirlari.some((o) => o.tip === "Senet");
+  const senetSatir = odemeSatirlari.find((o) => o.tip === "Senet");
+  const senetTaksitN = senetSatir ? (parseInt(senetSatir.taksit) || 1) : 0;
+  const vadeFarkiPct = parseFloat(senetVadeFarki) || 0;
+  const vadeFarkiTutar = hasSenet && kalan > 0 && vadeFarkiPct > 0
+    ? Math.round(kalan * (vadeFarkiPct / 100) * senetTaksitN)
+    : 0;
+  const toplamBeklenen = net + vadeFarkiTutar; // net + vade farkı (tahsil edilecek tam tutar)
+
   const kalanSifir = kalan <= 0;
 
   // ödeme satır handler'ları
@@ -318,6 +329,24 @@ export default function SatisYapPage() {
     // satış tipi map
     const saleTypeMap: Record<string, string> = { "Yeni Satış": "new_sale", "Tekrar Öğrencisi": "repeat", "Sınıf Değişimi": "transfer" };
 
+    // ödeme satırları → PaymentPlanInput
+    const methodMap: Record<string, string> = {
+      "Nakit": "cash", "Kredi Kartı": "card", "Havale/EFT": "transfer",
+    };
+    const upfrontRows = odemeSatirlari
+      .filter((o) => o.tip !== "Senet" && (parseFloat(o.tutar) || 0) > 0)
+      .map((o) => ({ method: methodMap[o.tip] || "cash", amount: parseFloat(o.tutar) }));
+    const senetRow = odemeSatirlari.find((o) => o.tip === "Senet");
+    const senetCount = senetRow ? (parseInt(senetRow.taksit) || 0) : 0;
+
+    const payment = (upfrontRows.length > 0 || senetCount > 0) ? {
+      upfront: upfrontRows.length > 0 ? upfrontRows : undefined,
+      senet: senetCount > 0 ? {
+        count: senetCount,
+        monthlyRatePct: parseFloat(senetVadeFarki) || 0,
+      } : undefined,
+    } : undefined;
+
     const body = {
       firstName: ad.trim(),
       lastName: soyad.trim(),
@@ -328,8 +357,9 @@ export default function SatisYapPage() {
       customerType: satisTipi === "Kurumsal" ? "corporate" : "individual",
       educationId: egitim,
       trackIds: selectedTrackIds,
-      soldPrice: net, // kampanya + ek indirim sonrası net tutar (0 = ücretsiz işlem)
+      soldPrice: net,
       guardian,
+      payment,
     };
 
     setSaving(true);
@@ -339,7 +369,10 @@ export default function SatisYapPage() {
       const res = await fetch("/api/flexos/sales", { method: "POST", headers, body: JSON.stringify(body) });
       const json = await res.json();
       if (!res.ok) { toast.error(json.error || "Satış kaydedilemedi."); return; }
-      toast.success("Satış başarıyla kaydedildi!");
+      const payMsg = json.paymentCount > 0
+        ? ` (${json.paymentCount} ödeme kaydı${json.financingFee > 0 ? `, vade farkı ${fmtTL(json.financingFee)}` : ""})`
+        : "";
+      toast.success(`Satış başarıyla kaydedildi!${payMsg}`);
       router.push("/flexos/ogrenciler/havuz");
     } catch {
       toast.error("Sunucu hatası — satış kaydedilemedi.");
@@ -862,15 +895,39 @@ export default function SatisYapPage() {
                       Başka Ödeme Yöntemi Ekle
                     </button>
 
+                    {/* senet vade farkı — senet satırı varken görünür */}
+                    {hasSenet && kalan > 0 && (
+                      <div style={{ border: "1px solid #e9edf4", borderRadius: 12, padding: "14px 16px", marginBottom: 14, background: "#fefce8" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <label style={{ fontSize: 13.5, fontWeight: 700, color: "#713f12", whiteSpace: "nowrap" }}>Aylık Vade Farkı</label>
+                          <div style={{ position: "relative", width: 100 }}>
+                            <input type="number" min={0} max={20} step={0.5} value={senetVadeFarki}
+                              onChange={(e) => setSenetVadeFarki(e.target.value)} placeholder="0"
+                              disabled={sifirKilit}
+                              style={{ width: "100%", padding: "9px 32px 9px 12px", borderRadius: 10, border: "1px solid #d4c090", background: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", color: "#0f1f3d", outline: "none" }} />
+                            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12.5, fontWeight: 700, color: "#94a3b8", pointerEvents: "none" }}>%</span>
+                          </div>
+                          {vadeFarkiTutar > 0 && (
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#92400e" }}>
+                              Vade farkı: {fmtTL(vadeFarkiTutar)} · Senet toplamı: {fmtTL(kalan + vadeFarkiTutar)} ({senetTaksitN} taksit × {fmtTL(Math.round((kalan + vadeFarkiTutar) / senetTaksitN))})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* finansal çıktı şeridi */}
                     <div style={{ borderTop: "1px solid #e9edf4", margin: "0 -18px", padding: "16px 18px 18px", background: kalanSifir ? "linear-gradient(135deg,#f3fbf6,#ecfdf3)" : "linear-gradient(135deg,#fffaf4,#fff5ec)", borderRadius: "0 0 14px 14px" }}>
                       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 360 }}>
                           <span style={{ flex: "0 0 auto", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.infoSm }} />
-                          <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>Satış sonrası öğrenci <strong style={{ color: "#b45309", fontWeight: 700 }}>Beklemede</strong> statüsünde havuza eklenir.</p>
+                          <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>Satış sonrası öğrenci <strong style={{ color: "#15803d", fontWeight: 700 }}>Aktif</strong> statüsünde havuza eklenir.</p>
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 0 auto", minWidth: 220 }}>
                           <div style={S.cikRow}><span style={S.cikLbl}>Toplam Tutar</span><span style={S.cikVal}>{fmtTL(net)}</span></div>
+                          {vadeFarkiTutar > 0 && (
+                            <div style={S.cikRow}><span style={{ ...S.cikLbl, color: "#92400e" }}>Vade Farkı</span><span style={{ ...S.cikVal, color: "#92400e" }}>+{fmtTL(vadeFarkiTutar)}</span></div>
+                          )}
                           <div style={S.cikRow}><span style={S.cikLbl}>Ödenen</span><span style={S.cikVal}>{fmtTL(alinan)}</span></div>
                           <div style={{ height: 1, background: "rgba(0,0,0,.08)", margin: "3px 0" }} />
                           <div style={S.cikRow}>

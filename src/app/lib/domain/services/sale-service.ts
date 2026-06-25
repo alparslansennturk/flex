@@ -126,6 +126,7 @@ export async function createSale(
     id: deps.sales.nextId(),
     tenantId: actor.tenantId,
     type: input.type ?? "new_sale",
+    status: "active",
     customerType: input.customerType ?? "individual",
     personId: person.id,
     educationId: input.educationId,

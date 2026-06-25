@@ -32,6 +32,14 @@ export const firestorePersonRepo: PersonRepo = {
     return data;
   },
 
+  async update(id, tenantId, data) {
+    const snap = await adminDb.collection(COLLECTION).doc(id).get();
+    if (!snap.exists) throw new Error("Person not found");
+    const existing = snap.data() as Person;
+    if (existing.tenantId !== tenantId) throw new Error("Tenant mismatch");
+    await adminDb.collection(COLLECTION).doc(id).update(clean(data));
+  },
+
   async list(tenantId) {
     // NOT: where + orderBy(farklı alan) composite index ister → index yoksa veri
     // olmasa bile sorgu patlar. Eşitlik-only çekip bellekte sıralıyoruz.

@@ -1,12 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import { can } from "@/app/lib/domain/access/can";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
+import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { createSale, type CreateSaleInput } from "@/app/lib/domain/services/sale-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+
+/**
+ * GET /api/flexos/sales — satış listesi.
+ * Server-side join: Sale + Person + Education + Branch.
+ */
+export const GET = withAuth(async (_req: NextRequest, caller) => {
+  const actor = actorFromCaller(caller);
+  if (!can(actor, "sale.read")) {
+    return NextResponse.json({ error: "Yetki yok: sale.read" }, { status: 403 });
+  }
+
+  try {
+    const [sales, persons, educations, branches] = await Promise.all([
+      firestoreSaleRepo.list(actor.tenantId),
+      firestorePersonRepo.list(actor.tenantId),
+      firestoreEducationRepo.list(actor.tenantId),
+      firestoreBranchRepo.list(actor.tenantId),
+    ]);
+
+    const personMap = new Map(persons.map((p) => [p.id, p]));
+    const eduMap = new Map(educations.map((e) => [e.id, e]));
+    const branchMap = new Map(branches.map((b) => [b.id, b]));
+
+    const items = sales
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .map((s) => {
+        const person = personMap.get(s.personId);
+        const edu = s.educationId ? eduMap.get(s.educationId) : undefined;
+        const branch = edu?.branchId ? branchMap.get(edu.branchId) : undefined;
+        return {
+          id: s.id,
+          date: s.date ?? s.createdAt?.slice(0, 10) ?? "",
+          studentName: person ? `${person.firstName} ${person.lastName}` : s.personId,
+          educationName: edu?.name ?? "",
+          branchName: branch?.name ?? "",
+          soldPrice: s.soldPrice ?? 0,
+          status: s.status ?? "active",
+          type: s.type,
+          customerType: s.customerType,
+          createdAt: s.createdAt,
+        };
+      });
+
+    return NextResponse.json({ items });
+  } catch (e) {
+    console.error("[flexos/sales GET] hata:", e);
+    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+  }
+});
 
 /**
  * POST /api/flexos/sales — satış yap (orchestrator).

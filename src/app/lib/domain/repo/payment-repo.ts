@@ -7,6 +7,7 @@ import type { Payment } from "../eduos/payment";
 export interface PaymentRepo {
   nextId(): string;
   saveMany(payments: Payment[]): Promise<void>;
+  list(tenantId: string): Promise<Payment[]>;
   listBySale(saleId: string, tenantId: string): Promise<Payment[]>;
   listByPerson(personId: string, tenantId: string): Promise<Payment[]>;
 }

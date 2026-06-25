@@ -8,4 +8,6 @@ export interface SaleRepo {
   nextId(): string;
   save(sale: Sale): Promise<void>;
   getById(id: string, tenantId: string): Promise<Sale | null>;
+  list(tenantId: string): Promise<Sale[]>;
+  listByPerson(personId: string, tenantId: string): Promise<Sale[]>;
 }

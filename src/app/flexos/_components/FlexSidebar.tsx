@@ -117,7 +117,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             >
               <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                 <SubItem label="Satış Yap" active={active === "satis-yap"} onClick={go("/flexos/satislar/satis-yap")} />
-                <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go(null)} />
+                <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go("/flexos/satislar/satis-liste")} />
               </div>
             </motion.div>
           )}

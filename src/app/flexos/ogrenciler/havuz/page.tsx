@@ -60,18 +60,20 @@ interface Student {
   id: string; name: string; email: string; phone: string;
   status: StatusKey; subeler: string[]; gender: string; branches: string[];
   groups: StudentGroup[];
-  assignableEnrollmentId: string | null; // grupsuz aktif kaydın id'si (Gruba Ata için)
+  assignableEnrollmentId: string | null;
+  assignableEducationId: string | null;
 }
 
 /** API'den gelen ham havuz kaydı (GET /api/flexos/persons). */
 interface PersonApiItem {
   id: string; name: string; email: string; phone: string;
   status: string; branches?: string[]; groups?: StudentGroup[];
-  assignableEnrollmentId?: string | null; gender?: string; subeler?: string[];
+  assignableEnrollmentId?: string | null; assignableEducationId?: string | null;
+  gender?: string; subeler?: string[];
 }
 
 /** Modal'daki atanabilir grup seçeneği. */
-interface GroupOption { id: string; code: string; sub: string }
+interface GroupOption { id: string; code: string; sub: string; educationId?: string }
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toLocaleUpperCase("tr");
@@ -105,6 +107,12 @@ export default function OgrenciHavuzuPage() {
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [assigning, setAssigning] = useState(false);
 
+  // ── Öğrenci Detay Drawer state ──
+  const [detailStudent, setDetailStudent] = useState<Student | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", phone: "", email: "", gender: "" });
+  const [saving, setSaving] = useState(false);
+
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const u = auth.currentUser;
     const token = u ? await u.getIdToken() : "";
@@ -130,6 +138,7 @@ export default function OgrenciHavuzuPage() {
         branches: it.branches ?? [],
         groups: it.groups ?? [],
         assignableEnrollmentId: it.assignableEnrollmentId ?? null,
+        assignableEducationId: it.assignableEducationId ?? null,
       })));
     } catch (e) {
       if ((e as Error).name !== "AbortError") toast.error("Öğrenciler yüklenemedi.");
@@ -149,11 +158,11 @@ export default function OgrenciHavuzuPage() {
     return () => ac.abort();
   }, [router, loadStudents]);
 
-  // ── Gruba Ata: modal aç + grupları çek (eğitim adıyla etiketle) ──
+  // ── Gruba Ata: modal aç + öğrencinin eğitimine ait grupları çek ──
   const openAssign = useCallback(async (st: Student) => {
     setAssignTarget(st);
     setSelectedGroupId("");
-    if (groupOptions.length) return; // bir kez çek
+    setGroupOptions([]);
     setLoadingGroups(true);
     try {
       const hdrs = await authHeaders();
@@ -164,18 +173,24 @@ export default function OgrenciHavuzuPage() {
       const gJson = gRes.ok ? await gRes.json() : { items: [] };
       const eJson = eRes.ok ? await eRes.json() : { items: [] };
       const eduName = new Map<string, string>((eJson.items ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
-      const opts: GroupOption[] = (gJson.items ?? []).map((g: { id: string; code: string; educationId?: string; branch?: string; type?: string }) => ({
+      // archived/completed grupları çıkar — öğrenci atanamaz
+      const rawGroups = (gJson.items ?? []).filter((g: { status?: string }) => g.status !== "archived" && g.status !== "completed");
+      const allGroups: GroupOption[] = rawGroups.map((g: { id: string; code: string; educationId?: string; branch?: string; type?: string }) => ({
         id: g.id,
         code: g.code,
+        educationId: g.educationId,
         sub: (g.educationId && eduName.get(g.educationId)) || g.branch || (g.type === "ozel_ders" ? "Özel Ders" : g.type === "kurumsal" ? "Kurumsal" : "Grup"),
       }));
+      // öğrencinin eğitimine ait grupları filtrele (educationId yoksa hepsini göster)
+      const eduId = st.assignableEducationId;
+      const opts = eduId ? allGroups.filter((g) => g.educationId === eduId) : allGroups;
       setGroupOptions(opts);
     } catch {
       toast.error("Gruplar yüklenemedi.");
     } finally {
       setLoadingGroups(false);
     }
-  }, [authHeaders, groupOptions.length]);
+  }, [authHeaders]);
 
   const closeAssign = () => { if (!assigning) { setAssignTarget(null); setSelectedGroupId(""); } };
 
@@ -198,6 +213,56 @@ export default function OgrenciHavuzuPage() {
       toast.error("Sunucu hatası — atama yapılamadı.");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  // ── Öğrenci Detay: aç / düzenle / kaydet ──
+  const openDetail = (st: Student) => {
+    setDetailStudent(st);
+    setEditMode(false);
+    const [firstName, ...rest] = st.name.split(" ");
+    setEditForm({ firstName, lastName: rest.join(" "), phone: st.phone, email: st.email, gender: st.gender });
+  };
+  const closeDetail = () => { if (!saving) { setDetailStudent(null); setEditMode(false); } };
+  const startEdit = () => setEditMode(true);
+  const cancelEdit = () => {
+    if (!detailStudent) return;
+    const [firstName, ...rest] = detailStudent.name.split(" ");
+    setEditForm({ firstName, lastName: rest.join(" "), phone: detailStudent.phone, email: detailStudent.email, gender: detailStudent.gender });
+    setEditMode(false);
+  };
+  const saveDetail = async () => {
+    if (!detailStudent) return;
+    setSaving(true);
+    try {
+      const headers = await authHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(`/api/flexos/persons/${detailStudent.id}`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({
+          firstName: editForm.firstName.trim(),
+          lastName: editForm.lastName.trim(),
+          gender: editForm.gender,
+          pii: { phone: editForm.phone.trim(), email: editForm.email.trim() },
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(json.error || "Güncelleme başarısız."); return; }
+      toast.success("Öğrenci bilgileri güncellendi.");
+      setEditMode(false);
+      await loadStudents();
+      // drawer'ı güncel veriyle güncelle
+      setDetailStudent((prev) => prev ? {
+        ...prev,
+        name: `${editForm.firstName.trim()} ${editForm.lastName.trim()}`,
+        phone: editForm.phone.trim(),
+        email: editForm.email.trim(),
+        gender: editForm.gender,
+      } : null);
+    } catch {
+      toast.error("Sunucu hatası — güncelleme yapılamadı.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -400,7 +465,7 @@ export default function OgrenciHavuzuPage() {
                     const hasGroup = groupCount > 0;
                     const groupPopupOpen = hoveredGroup === st.id && groupCount > 1;
                     return (
-                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => toast.info("Öğrenci detayı yakında açılacak.")}>
+                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => openDetail(st)}>
                         {/* Ad Soyad */}
                         <td style={S.cell}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -630,6 +695,134 @@ export default function OgrenciHavuzuPage() {
           </div>
         </div>
       )}
+
+      {/* ============ ÖĞRENCİ DETAY DRAWER ============ */}
+      {detailStudent && (() => {
+        const ds = detailStudent;
+        const ss = ST[ds.status];
+        const idHash = ds.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+        const pal = AV_PALETTES[idHash % AV_PALETTES.length];
+        return (
+          <div style={S.drawerOverlay} onClick={closeDetail}>
+            <div style={S.drawer} onClick={(e) => e.stopPropagation()}>
+              {/* Drawer header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px 16px", borderBottom: "1px solid #EEF0F3" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <span style={{ ...S.avatarSm, width: 48, height: 48, fontSize: 16, background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>{initials(ds.name)}</span>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>{ds.name}</h3>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <span style={{ ...S.statusBadge, color: ss.color, background: ss.background, fontSize: 11.5, padding: "3px 10px" }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: ss.dot }} />
+                        {ss.label}
+                      </span>
+                      {ds.branches.map((b) => {
+                        const c = BRANS[b] ?? BRANS_FALLBACK;
+                        return <span key={b} style={{ ...S.bransBadge, color: c.color, background: c.background, fontSize: 11.5, padding: "3px 10px" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: c.dot }} />{b}</span>;
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {!editMode && (
+                    <button className="oh-filter" onClick={startEdit} style={{ ...S.filterBtn, padding: "9px 18px", fontSize: 13 }}>
+                      <span dangerouslySetInnerHTML={{ __html: IC.pencil }} />
+                      Düzenle
+                    </button>
+                  )}
+                  <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={closeDetail}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.x }} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Drawer body */}
+              <div style={{ padding: "24px 28px 28px", overflowY: "auto", maxHeight: "calc(70vh - 140px)" }}>
+                {!editMode ? (
+                  /* ── Görüntüleme modu ── */
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 32px" }}>
+                    <div>
+                      <div style={S.fieldLabel}>Ad</div>
+                      <div style={S.fieldValue}>{editForm.firstName}</div>
+                    </div>
+                    <div>
+                      <div style={S.fieldLabel}>Soyad</div>
+                      <div style={S.fieldValue}>{editForm.lastName}</div>
+                    </div>
+                    <div>
+                      <div style={S.fieldLabel}>Telefon</div>
+                      <div style={S.fieldValue}>{ds.phone ? formatTrPhone(ds.phone) : "—"}</div>
+                    </div>
+                    <div>
+                      <div style={S.fieldLabel}>E-posta</div>
+                      <div style={S.fieldValue}>{ds.email || "—"}</div>
+                    </div>
+                    <div>
+                      <div style={S.fieldLabel}>Cinsiyet</div>
+                      <div style={S.fieldValue}>{ds.gender === "male" ? "Erkek" : ds.gender === "female" ? "Kadın" : "—"}</div>
+                    </div>
+                    <div>
+                      <div style={S.fieldLabel}>Gruplar</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 2 }}>
+                        {ds.groups.length === 0
+                          ? <span style={{ fontSize: 13.5, color: "#8E95A3", fontStyle: "italic" }}>Grup atanmamış</span>
+                          : ds.groups.map((g) => (
+                            <span key={g.label} style={S.groupChip}>
+                              <span dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
+                              {g.label}
+                            </span>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Düzenleme modu ── */
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px" }}>
+                    <div>
+                      <label style={S.fieldLabel}>Ad</label>
+                      <input style={S.input} value={editForm.firstName} onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={S.fieldLabel}>Soyad</label>
+                      <input style={S.input} value={editForm.lastName} onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={S.fieldLabel}>Telefon</label>
+                      <input style={S.input} value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} placeholder="05XX XXX XX XX" />
+                    </div>
+                    <div>
+                      <label style={S.fieldLabel}>E-posta</label>
+                      <input style={S.input} type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} placeholder="ornek@mail.com" />
+                    </div>
+                    <div>
+                      <label style={S.fieldLabel}>Cinsiyet</label>
+                      <select style={{ ...S.input, cursor: "pointer" }} value={editForm.gender} onChange={(e) => setEditForm((f) => ({ ...f, gender: e.target.value }))}>
+                        <option value="">Belirtilmemiş</option>
+                        <option value="male">Erkek</option>
+                        <option value="female">Kadın</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Drawer footer (düzenleme modunda) */}
+              {editMode && (
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "16px 28px 22px", borderTop: "1px solid #EEF0F3" }}>
+                  <button className="oh-clear" onClick={cancelEdit} disabled={saving}
+                    style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }}>Vazgeç</button>
+                  <button className="oh-filter" onClick={saveDetail}
+                    style={{ ...S.filterBtn, opacity: saving ? 0.55 : 1, pointerEvents: saving ? "none" : "auto" }}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.checkWhiteLg }} />
+                    {saving ? "Kaydediliyor…" : "Kaydet"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -671,6 +864,11 @@ const S: Record<string, CSSProperties> = {
   pageReg: { minWidth: 38, height: 38, padding: "0 12px", borderRadius: 10, border: "1px solid #e6e9f0", background: "#fff", color: "#414B59", fontWeight: 600, fontSize: 14, fontFamily: "inherit", cursor: "pointer" },
   modalOverlay: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,.45)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "oh-ddin .14s ease" },
   modal: { width: "100%", maxWidth: 440, background: "#fff", borderRadius: 18, boxShadow: "0 28px 60px -16px rgba(15,31,61,.4)", overflow: "hidden", display: "flex", flexDirection: "column" },
+  drawerOverlay: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,.35)", backdropFilter: "blur(2px)", display: "flex", alignItems: "flex-end", justifyContent: "center", animation: "oh-ddin .14s ease" },
+  drawer: { width: "100%", maxWidth: 720, maxHeight: "70vh", background: "#fff", borderRadius: "20px 20px 0 0", boxShadow: "0 -20px 60px -16px rgba(15,31,61,.35)", overflow: "hidden", display: "flex", flexDirection: "column", animation: "oh-slideup .22s cubic-bezier(.2,.8,.3,1)" },
+  fieldLabel: { fontSize: 11.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", marginBottom: 6 },
+  fieldValue: { fontSize: 14.5, fontWeight: 600, color: "#1E222B", lineHeight: 1.4 },
+  input: { width: "100%", padding: "11px 14px", borderRadius: 11, border: "1.5px solid #E2E5EA", background: "#F7F8FA", fontSize: 14, fontWeight: 600, color: "#1E222B", fontFamily: "inherit", outline: "none", transition: "border-color .14s" },
 };
 
 // ── ikonlar (lucide, design'dan birebir) ──────────────────────────────────────
@@ -693,12 +891,15 @@ const IC = {
   searchBig: sv('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', 'width="26" height="26" stroke-width="1.8"'),
   chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
+  pencil: sv('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>', 'width="14" height="14"'),
+  checkWhiteLg: sv('<path d="M20 6 9 17l-5-5"/>', 'width="15" height="15" stroke="#fff" stroke-width="2.8"'),
 };
 
 const spinCss = `.oh-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#2867bd;animation:oh-spin 1s linear infinite}@keyframes oh-spin{to{transform:rotate(360deg)}}`;
 const globalCss = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @keyframes oh-ddin{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes oh-slideup{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
 .oh-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#2867bd;animation:oh-spin 1s linear infinite}@keyframes oh-spin{to{transform:rotate(360deg)}}
 .oh-chip:hover{border-color:#CDD2DA}
 .oh-select:hover{border-color:#CDD2DA;background:#F7F8FA}

@@ -1,6 +1,7 @@
 import type { Audit, EntityId, ISODate, TenantId } from "../base";
 
 export type SaleType = "new_sale" | "transfer" | "repeat" | "placement";
+export type SaleStatus = "active" | "cancelled";
 export type CustomerType = "individual" | "corporate";
 
 /**
@@ -33,6 +34,7 @@ export interface Sale extends Audit {
   tenantId: TenantId;
 
   type: SaleType;
+  status: SaleStatus;
   customerType: CustomerType;
 
   personId: EntityId;
