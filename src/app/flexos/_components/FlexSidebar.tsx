@@ -20,11 +20,6 @@ export type FlexNavKey =
   | "satis-yap"
   | "satis-liste"
   | "ogrenci-havuzu"
-  | "kayitli-ogrenciler"
-  | "mezunlar"
-  | "grup-ekle"
-  | "tum-gruplar"
-  | "seans-takvimi"
   | "siniflar"
   | "egitmenler"
   | "yoklamalar"
@@ -40,14 +35,6 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const salesActive = active === "satis-yap" || active === "satis-liste";
   const [salesOpen, setSalesOpen] = useState(salesActive);
-
-  const studentsActive =
-    active === "ogrenci-havuzu" || active === "kayitli-ogrenciler" || active === "mezunlar";
-  const [studentsOpen, setStudentsOpen] = useState(studentsActive);
-
-  const classesActive =
-    active === "grup-ekle" || active === "tum-gruplar" || active === "seans-takvimi" || active === "siniflar";
-  const [classesOpen, setClassesOpen] = useState(classesActive);
 
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
@@ -123,65 +110,8 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           )}
         </AnimatePresence>
 
-        {/* Öğrenciler — akordiyon ana başlık */}
-        <a className="fs-navlink" style={studentsActive ? S.parentActive : S.navItem} onClick={() => setStudentsOpen((o) => !o)}>
-          <span style={{ display: "inline-flex", color: studentsActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.users }} />
-          <span style={{ flex: 1 }}>Öğrenciler</span>
-          <motion.span
-            style={{ display: "inline-flex", opacity: 0.7 }}
-            animate={{ rotate: studentsOpen ? 0 : -90 }}
-            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            dangerouslySetInnerHTML={{ __html: IC.chevDown }}
-          />
-        </a>
-        <AnimatePresence initial={false}>
-          {studentsOpen && (
-            <motion.div
-              key="students-sub"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-              style={{ overflow: "hidden" }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                <SubItem label="Öğrenci Havuzu" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />
-                <SubItem label="Kayıtlı Öğrenciler" active={active === "kayitli-ogrenciler"} onClick={go(null)} />
-                <SubItem label="Mezunlar" active={active === "mezunlar"} onClick={go(null)} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Sınıflar — akordiyon ana başlık */}
-        <a className="fs-navlink" style={classesActive ? S.parentActive : S.navItem} onClick={() => setClassesOpen((o) => !o)}>
-          <span style={{ display: "inline-flex", color: classesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.graduation }} />
-          <span style={{ flex: 1 }}>Sınıflar</span>
-          <motion.span
-            style={{ display: "inline-flex", opacity: 0.7 }}
-            animate={{ rotate: classesOpen ? 0 : -90 }}
-            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            dangerouslySetInnerHTML={{ __html: IC.chevDown }}
-          />
-        </a>
-        <AnimatePresence initial={false}>
-          {classesOpen && (
-            <motion.div
-              key="classes-sub"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-              style={{ overflow: "hidden" }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                <SubItem label="Grup Ekle" active={active === "grup-ekle"} onClick={go("/flexos/siniflar")} />
-                <SubItem label="Tüm Gruplar" active={active === "tum-gruplar"} onClick={go(null)} />
-                <SubItem label="Seans Takvimi" active={active === "seans-takvimi"} onClick={go(null)} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />
+        <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />
 
         <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />
         <Item icon={IC.calendar} label="Yoklamalar" onClick={go(null)} />

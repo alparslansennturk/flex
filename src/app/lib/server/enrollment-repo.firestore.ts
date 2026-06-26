@@ -60,4 +60,13 @@ export const firestoreEnrollmentRepo: EnrollmentRepo = {
       .get();
     return snap.docs.map((d) => d.data() as Enrollment);
   },
+
+  async listBySale(saleId, tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("saleId", "==", saleId)
+      .get();
+    return snap.docs.map((d) => d.data() as Enrollment);
+  },
 };

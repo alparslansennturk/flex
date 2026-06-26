@@ -89,6 +89,11 @@ export default function SatisListePage() {
   const [donemOpen, setDonemOpen] = useState(false);
   const [page, setPage] = useState(1);
 
+  // ── iptal modal ──
+  const [cancelTarget, setCancelTarget] = useState<SaleItem | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const u = auth.currentUser;
     const token = u ? await u.getIdToken() : "";
@@ -142,6 +147,30 @@ export default function SatisListePage() {
   // ── sayfalama ──
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageSales = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const handleCancel = useCallback(async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/flexos/sales/${cancelTarget.id}/cancel`, {
+        method: "POST",
+        headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: cancelReason.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || String(res.status));
+      }
+      toast.success("Satış iptal edildi.");
+      setCancelTarget(null);
+      setCancelReason("");
+      await loadSales();
+    } catch (e) {
+      toast.error(`İptal hatası: ${(e as Error).message}`);
+    } finally {
+      setCancelling(false);
+    }
+  }, [cancelTarget, cancelReason, authHeaders, loadSales]);
 
   useEffect(() => setPage(1), [donem, search]);
 
@@ -231,7 +260,8 @@ export default function SatisListePage() {
                       <th style={S.th}>Öğrenci</th>
                       <th style={S.th}>Branş / Eğitim</th>
                       <th style={S.thNum}>Fiyat</th>
-                      <th style={S.thRight}>Durum</th>
+                      <th style={S.th}>Durum</th>
+                      <th style={S.thRight}>İşlem</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -262,7 +292,7 @@ export default function SatisListePage() {
                             </div>
                           </td>
                           <td style={S.tdNum}><span style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{fmtTL(s.soldPrice)}</span></td>
-                          <td style={S.tdRight}>
+                          <td style={S.td}>
                             <span style={{
                               display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap",
                               color: isCancelled ? "#B42318" : "#007A30",
@@ -271,6 +301,18 @@ export default function SatisListePage() {
                               <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "0 0 auto", background: isCancelled ? "#E5484D" : "#009F3E" }} />
                               {isCancelled ? "İptal" : "Aktif"}
                             </span>
+                          </td>
+                          <td style={S.tdRight}>
+                            {!isCancelled && (
+                              <button
+                                onClick={() => { setCancelTarget(s); setCancelReason(""); }}
+                                style={{ padding: "6px 14px", borderRadius: 9, border: "1px solid #E5484D", background: "#fff", color: "#B42318", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", transition: "all .14s" }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = "#FFF1F0"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
+                              >
+                                İptal Et
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -309,6 +351,62 @@ export default function SatisListePage() {
           </div>
         </div>
       </main>
+
+      {/* ── İptal Onay Modalı ── */}
+      {cancelTarget && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div onClick={() => { if (!cancelling) { setCancelTarget(null); setCancelReason(""); } }} style={{ position: "absolute", inset: 0, background: "rgba(15,31,61,.35)", backdropFilter: "blur(4px)" }} />
+          <div style={{ position: "relative", width: 440, maxWidth: "90vw", background: "#fff", borderRadius: 20, padding: "28px 28px 22px", boxShadow: "0 20px 50px -12px rgba(15,31,61,.25)" }}>
+            {/* header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 13, background: "#FFECEC", color: "#B42318", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Satış İptali</div>
+                <div style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
+                  <strong>{cancelTarget.studentName}</strong> &mdash; {cancelTarget.educationName}
+                </div>
+              </div>
+            </div>
+
+            {/* uyarı */}
+            <div style={{ padding: "12px 14px", borderRadius: 12, background: "#FFF8E1", border: "1px solid #FFE082", fontSize: 13, color: "#795548", fontWeight: 600, lineHeight: 1.55, marginBottom: 18 }}>
+              Bu satış iptal edilecek ve buna bağlı kayıtlar (enrollment) iptal durumuna geçecektir. Kayıtlar silinmez, havuzda &quot;İptal&quot; olarak görünmeye devam eder.
+            </div>
+
+            {/* sebep */}
+            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#414B59", marginBottom: 7 }}>
+              İptal Sebebi <span style={{ color: "#8E95A3", fontWeight: 500 }}>(opsiyonel)</span>
+            </label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Neden iptal ediliyor?"
+              rows={3}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#F7F8FA", color: "#1E222B", fontSize: 13.5, fontWeight: 500, fontFamily: "inherit", outline: "none", resize: "vertical" }}
+            />
+
+            {/* butonlar */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <button
+                onClick={() => { setCancelTarget(null); setCancelReason(""); }}
+                disabled={cancelling}
+                style={{ padding: "10px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                style={{ padding: "10px 20px", borderRadius: 11, border: "none", background: cancelling ? "#D98B8B" : "#B42318", color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: cancelling ? "not-allowed" : "pointer", transition: "background .14s" }}
+              >
+                {cancelling ? "İptal Ediliyor…" : "Satışı İptal Et"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* dropdown backdrop */}
       {donemOpen && <div onClick={() => setDonemOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}

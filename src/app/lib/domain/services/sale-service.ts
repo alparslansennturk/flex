@@ -191,3 +191,73 @@ export async function createSale(
 
   return { sale, person, enrollment, payments, piiDropped };
 }
+
+// ── İptal ──
+
+export interface CancelSaleInput {
+  saleId: string;
+  reason?: string;
+}
+
+export interface CancelSaleDeps {
+  sales: SaleRepo;
+  enrollments: EnrollmentRepo;
+}
+
+export interface CancelSaleResult {
+  sale: Sale;
+  cancelledEnrollments: number;
+}
+
+/**
+ * Satış iptali — SOFT.
+ *
+ * Sale.status → cancelled + meta (cancelledAt/By/Reason).
+ * Cascade: o satışa bağlı TÜM enrollment'ları → cancelled.
+ * Person / Enrollment SİLİNMEZ (audit + remarketing).
+ * Roster aktif-only filtrelediği için öğrenci sınıftan otomatik düşer.
+ */
+export async function cancelSale(
+  actor: Actor,
+  input: CancelSaleInput,
+  deps: CancelSaleDeps,
+): Promise<CancelSaleResult> {
+  if (!can(actor, "sale.cancel")) {
+    throw new ForbiddenError("sale.cancel");
+  }
+
+  const sale = await deps.sales.getById(input.saleId, actor.tenantId);
+  if (!sale) {
+    throw new ValidationError("Satış bulunamadı.");
+  }
+  if (sale.status === "cancelled") {
+    throw new ValidationError("Bu satış zaten iptal edilmiş.");
+  }
+
+  const ts = nowISO();
+
+  // Sale → cancelled
+  sale.status = "cancelled";
+  sale.cancelledAt = ts;
+  sale.cancelledBy = actor.uid;
+  sale.cancelReason = input.reason?.trim() || undefined;
+  sale.updatedAt = ts;
+  sale.updatedBy = actor.uid;
+
+  // Cascade: enrollment'lar → cancelled
+  const enrollments = await deps.enrollments.listBySale(input.saleId, actor.tenantId);
+  let cancelledCount = 0;
+  for (const e of enrollments) {
+    if (e.status !== "cancelled") {
+      e.status = "cancelled";
+      e.updatedAt = ts;
+      e.updatedBy = actor.uid;
+      await deps.enrollments.save(e);
+      cancelledCount++;
+    }
+  }
+
+  await deps.sales.save(sale);
+
+  return { sale, cancelledEnrollments: cancelledCount };
+}

@@ -546,7 +546,7 @@ export default function SınıflarPage() {
     <div style={S.root}>
       <style>{globalCss}</style>
 
-      <FlexSidebar active="grup-ekle" />
+      <FlexSidebar active="siniflar" />
 
       <main ref={mainRef} className="sg-main" style={S.main}>
         {/* header */}

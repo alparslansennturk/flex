@@ -1024,7 +1024,7 @@ const segSm = (on: boolean): CSSProperties => ({
 
 // ── stiller ────────────────────────────────────────────────────────────────────
 const S: Record<string, CSSProperties> = {
-  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', 'Plus Jakarta Sans', system-ui, sans-serif", background: "#eef2f8" },
+  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', system-ui, sans-serif", background: "#eef2f8" },
   main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
   header: { position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 2px 6px rgba(15,31,61,.04)" },
   headerInner: { maxWidth: 1920, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" },

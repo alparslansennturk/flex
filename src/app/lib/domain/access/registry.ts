@@ -41,6 +41,7 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   // ── sale ──
   { key: "sale.create", domain: "sale", label: "Satış Yap", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "sale.read", domain: "sale", label: "Satış Gör", sensitivity: "yellow", write: false, scopable: true, audited: false },
+  { key: "sale.cancel", domain: "sale", label: "Satış İptal", sensitivity: "red", write: true, scopable: false, audited: true },
 
   // ── payment (tahsilat/taksit) ──
   { key: "payment.create", domain: "payment", label: "Ödeme/Tahsilat Kaydet", sensitivity: "yellow", write: true, scopable: false, audited: true },

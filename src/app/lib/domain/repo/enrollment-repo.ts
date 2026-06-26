@@ -18,4 +18,6 @@ export interface EnrollmentRepo {
   list(tenantId: string): Promise<Enrollment[]>;
   /** Bir grubun kayıtları (roster + silmeden önce doluluk kontrolü). */
   listByGroup(groupId: string, tenantId: string): Promise<Enrollment[]>;
+  /** Bir satışa bağlı kayıtlar (iptal cascade'i). */
+  listBySale(saleId: string, tenantId: string): Promise<Enrollment[]>;
 }

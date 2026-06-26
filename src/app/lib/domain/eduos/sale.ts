@@ -1,4 +1,4 @@
-import type { Audit, EntityId, ISODate, TenantId } from "../base";
+import type { Audit, EntityId, ISODate, ISODateTime, TenantId } from "../base";
 
 export type SaleType = "new_sale" | "transfer" | "repeat" | "placement";
 export type SaleStatus = "active" | "cancelled";
@@ -48,6 +48,11 @@ export interface Sale extends Audit {
 
   guardian?: Guardian;           // 18 altı → veli bilgileri
   billing?: BillingParty;       // fatura tarafı
+
+  // iptal (soft — silinmez, audit/remarketing korunur)
+  cancelledAt?: ISODateTime;
+  cancelledBy?: string;
+  cancelReason?: string;
 
   salespersonId?: string;
   branchOfficeId?: EntityId; // şube

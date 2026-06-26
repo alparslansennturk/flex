@@ -533,7 +533,7 @@ export default function EgitimYonetimiPage() {
 
 // ── stiller ───────────────────────────────────────────────────────────────────
 const S: Record<string, CSSProperties> = {
-  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", background: "#eef2f8" },
+  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', system-ui, sans-serif", background: "#eef2f8" },
   sidebar: { width: 252, flex: "0 0 252px", height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
   logoBox: { width: 38, height: 38, borderRadius: 11, background: "#0a1c38", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 3, padding: 8, boxShadow: "inset 0 0 0 1px rgba(255,255,255,.06)" },
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
@@ -623,7 +623,6 @@ const IC = {
 
 const spinCss = `.ey-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:ey-spin 1s linear infinite}@keyframes ey-spin{to{transform:rotate(360deg)}}`;
 const globalCss = `
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @keyframes ey-ddin{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes ey-barin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .ey-navlink:hover{background:rgba(255,255,255,.06);color:#fff!important}
