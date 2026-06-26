@@ -815,7 +815,7 @@ export default function OgrenciHavuzuPage() {
             <motion.div key="oh-detail-sheet" className="fx-sheet"
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              style={{ position: "fixed", bottom: 0, zIndex: 81, height: "50vh", maxHeight: "50vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              style={{ position: "fixed", bottom: 0, zIndex: 81, height: "70vh", maxHeight: "70vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
               {/* Sheet header */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "22px 28px 18px", background: "#F7F8FA" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
