@@ -12,6 +12,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
+import FlexModal from "../_components/FlexModal";
 
 // ── types ──
 type TabKey = "personel" | "ogrenciler";
@@ -214,6 +215,35 @@ export default function KullanicilarPage() {
   };
   const toggleStudentStatus = (id: string) => { setStudents((p) => p.map((s) => s.id !== id ? s : { ...s, status: s.status === "aktif" ? "pasif" : "aktif" })); toast.success("Durum güncellendi."); };
 
+  // ── Sil ──
+  const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
+  const [delBusy, setDelBusy] = useState(false);
+
+  const askDelete = (u: UserItem) => setDeleteModal({ id: u.id, name: `${u.name} ${u.surname}` });
+
+  const confirmDelete = async () => {
+    if (!deleteModal) return;
+    setDelBusy(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/flexos/users/${deleteModal.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Silinemedi." }));
+        throw new Error(err.error);
+      }
+      setUsers((p) => p.filter((u) => u.id !== deleteModal.id));
+      toast.success(`${deleteModal.name} silindi.`);
+      setDeleteModal(null);
+    } catch (e) {
+      toast.error((e as Error).message || "Kullanıcı silinemedi.");
+    } finally {
+      setDelBusy(false);
+    }
+  };
+
   function renderSubes(subes: string[]) {
     if (subes.length === 0) return <span style={{ fontSize: 12.5, color: "#AEB4C0", fontWeight: 500 }}>—</span>;
     if (subes.length >= ALL_SUBES.length) return <span style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "3px 10px", borderRadius: 6 }}>Tümü</span>;
@@ -320,8 +350,8 @@ export default function KullanicilarPage() {
                             <td style={S.td}>{renderSubes(u.subes)}</td>
                             <td style={S.td}><ToggleSwitch active={u.status === "aktif"} onClick={() => toggleUserStatus(u.id)} /></td>
                             <td style={S.tdRight}><div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button onClick={() => toast.info("Düzenleme yakında.")} title="Düzenle" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
-                              <button onClick={() => toast.info("Silme yakında.")} title="Sil" style={{ ...S.iconBtn, color: "#94A3B8" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+                              <button onClick={() => router.push(`/flexos/kullanicilar/${u.id}/duzenle`)} title="Düzenle" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+                              <button onClick={() => askDelete(u)} title="Sil" style={{ ...S.iconBtn, color: "#94A3B8" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
                             </div></td>
                           </tr>
                         );
@@ -392,6 +422,20 @@ export default function KullanicilarPage() {
         </div>
       </main>
       {(rolDD || subeDD || statusDD || stuStatusDD) && <div onClick={() => { setRolDD(false); setSubeDD(false); setStatusDD(false); setStuStatusDD(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+
+      <FlexModal
+        open={!!deleteModal}
+        title="Kullanıcıyı Sil"
+        message={<>
+          <strong>{deleteModal?.name}</strong> adlı kullanıcıyı silmek istediğinize emin misiniz?
+          <br />Bu işlem geri alınamaz.
+        </>}
+        confirmLabel="Sil"
+        tone="danger"
+        busy={delBusy}
+        onConfirm={confirmDelete}
+        onCancel={() => !delBusy && setDeleteModal(null)}
+      />
     </div>
   );
 }

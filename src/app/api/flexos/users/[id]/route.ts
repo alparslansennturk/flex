@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import { can } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import {
   updateFlexosUser,
@@ -10,6 +11,40 @@ import {
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+/** GET /api/flexos/users/[id] — Tek kullanıcı getir */
+export const GET = withAuth<Ctx>(async (_req: NextRequest, caller, ctx) => {
+  const { id } = await ctx.params;
+  if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
+
+  const actor = actorFromCaller(caller);
+  if (!can(actor, "role.manage")) {
+    return NextResponse.json({ error: "Yetki yok: role.manage" }, { status: 403 });
+  }
+
+  try {
+    const user = await firestoreFlexosUserRepo.getById(id, actor.tenantId);
+    if (!user) return NextResponse.json({ error: "Kullanıcı bulunamadı." }, { status: 404 });
+    return NextResponse.json({
+      id: user.id,
+      name: user.name,
+      surname: user.surname,
+      email: user.email,
+      phone: user.phone ?? "",
+      gender: user.gender,
+      birthDate: user.birthDate ?? "",
+      title: user.title ?? "",
+      roles: user.roles,
+      subes: user.subes,
+      permOverrides: user.permOverrides ?? {},
+      status: user.status,
+      createdAt: user.createdAt,
+    });
+  } catch (e) {
+    console.error("[flexos/users/:id GET]", e);
+    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+  }
+});
 
 /** PATCH /api/flexos/users/[id] — Kullanıcı güncelle */
 export const PATCH = withAuth<Ctx>(async (req: NextRequest, caller, ctx) => {
