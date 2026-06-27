@@ -1,5 +1,12 @@
 import type { Audit, EntityId, TenantId } from "../base";
 
+/** Hibrit eğitimlerde teslim modu başına fiyat + şube uygunluğu */
+export interface DeliveryOption {
+  mode: "in_person" | "online";
+  listPrice: number;
+  availableOffices?: string[]; // şube id'leri — boşsa tüm şubelerde geçerli
+}
+
 /** Sertifika koşulları — `users/{instructorId}.certSettings`'ten BURAYA taşınacak. */
 export interface CertificateRule {
   type: "participation" | "achievement" | "meb";
@@ -18,6 +25,7 @@ export interface Education extends Audit {
   tenantId: TenantId;
 
   name: string;
+  mebName?: string; // MEB kayıt adı — varsayılan = name, bağımsız düzenlenebilir
   branchId: EntityId;
 
   /**
@@ -36,9 +44,17 @@ export interface Education extends Audit {
   structure?: "single" | "sectioned";
   outline?: string[]; // konu başlıkları (entity DEĞİL — yalnız müfredat metni; "single" eğitimde içerik)
 
-  listPrice?: number; // +KDV otomatik
+  deliveryMode?: "in_person" | "online" | "hybrid"; // Eğitim ortamı
+  contractType?: string; // Sözleşme tipi
+  salesModel?: string; // Satış modeli (Grup Eğitimi / Özel Ders)
+  totalHours?: number; // Toplam eğitim süresi (saat) — full paket toplamı; bölümlüde bölümlerden türetilebilir
+
+  listPrice?: number; // +KDV otomatik (hibrit olmayanlarda tek fiyat)
   vatRate?: number;
   onSale?: boolean; // satışa açık mı
+
+  /** Hibrit eğitimlerde teslim modu başına fiyat + şube uygunluğu */
+  deliveryOptions?: DeliveryOption[];
 
   moduleIds?: EntityId[];
   bundledEducationIds?: EntityId[]; // paket ise içindeki eğitimler

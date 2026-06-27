@@ -23,10 +23,12 @@ interface EducationDoc {
   name: string;
   branchId: string;
   listPrice?: number;
+  vatRate?: number;
   onSale?: boolean;
-  totalHours?: number; // ileride (Eğitim Ekle)
-  deliveryMode?: "online" | "in_person"; // ileride
-  audience?: "individual" | "corporate"; // Eğitim Ekle'den (Bireysel/Kurumsal)
+  totalHours?: number;
+  deliveryMode?: "online" | "in_person" | "hybrid";
+  deliveryOptions?: Array<{ mode: string; listPrice: number }>;
+  audience?: "individual" | "corporate";
 }
 interface BranchDoc {
   id: string;
@@ -436,7 +438,11 @@ export default function EgitimYonetimiPage() {
                           <span style={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>{typeof e.totalHours === "number" ? `${e.totalHours} Saat` : "—"}</span>
                         </td>
                         <td style={S.cell}>
-                          {e.deliveryMode === "online" ? (
+                          {e.deliveryMode === "hybrid" ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: "#7c3aed" }}>
+                              <span dangerouslySetInnerHTML={{ __html: IC.pin }} /> Hibrit
+                            </span>
+                          ) : e.deliveryMode === "online" ? (
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: "#0369a1" }}>
                               <span dangerouslySetInnerHTML={{ __html: IC.monitorBlue }} /> Online
                             </span>
@@ -449,7 +455,13 @@ export default function EgitimYonetimiPage() {
                           )}
                         </td>
                         <td style={S.cell}>
-                          <span style={{ fontSize: 14.5, fontWeight: 700, color: "#0f1f3d" }}>{fmtPrice(e.listPrice)}</span>
+                          {(() => {
+                            const base = e.deliveryMode === "hybrid" && e.deliveryOptions?.length
+                              ? (e.deliveryOptions.find((o) => o.mode === "in_person")?.listPrice ?? e.listPrice)
+                              : e.listPrice;
+                            const kdvDahil = typeof base === "number" ? Math.round(base * (1 + (e.vatRate ?? 0) / 100)) : undefined;
+                            return <span style={{ fontSize: 14.5, fontWeight: 700, color: "#0f1f3d" }}>{fmtPrice(kdvDahil)}</span>;
+                          })()}
                         </td>
                         <td style={S.cell}>
                           <span style={{ ...S.statusChip, color: st.color, background: st.background }}>

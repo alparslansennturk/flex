@@ -42,6 +42,7 @@ interface PriceRow {
   name: string;
   kind: string;
   liste: string;
+  deliveryMode?: "in_person" | "online"; // hibrit eğitimlerde ayrı satır
 }
 type TabKey = "genel" | "icerikler" | "fiyat" | "sertifikasyon";
 
@@ -54,7 +55,9 @@ interface FormState {
   egitimYapisi: "Standart Paket" | "Track Bazlı";
   egitimTipi: "Bireysel" | "Kurumsal";
   satisModeli: string;
+  mebAdi: string;
   egitimOrtami: string;
+  egitimSuresi: string; // toplam saat
   sozlesmeTipi: string;
   kdvOrani: string;
   aciklama: string;
@@ -84,7 +87,9 @@ const INITIAL: FormState = {
   egitimYapisi: "Standart Paket",
   egitimTipi: "Bireysel",
   satisModeli: "Grup Eğitimi",
+  mebAdi: "",
   egitimOrtami: "Yüz Yüze",
+  egitimSuresi: "",
   sozlesmeTipi: "Mesafeli Satış Sözleşmesi",
   kdvOrani: "10",
   aciklama: "",
@@ -114,6 +119,7 @@ export default function EgitimEklePage() {
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [eduId, setEduId] = useState<string | null>(null); // ilk kayıttan sonra dolu → günceller
   const [busy, setBusy] = useState(false);
+  const [editReady, setEditReady] = useState(false);
   const [modal, setModal] = useState<null | "save" | "publish" | "unpublish">(null);
   const [editingTrack, setEditingTrack] = useState<{ bId: number; tId: number; name: string; hours: string; sellable: boolean } | null>(null);
   const [dragTrack, setDragTrack] = useState<{ bId: number; tId: number } | null>(null);
@@ -153,6 +159,9 @@ export default function EgitimEklePage() {
             const trkList = tRes.ok ? (await tRes.json()).items ?? [] : [];
             if (!cancelled) { prefillForm(edu, secList, trkList); setEduId(editId); }
           }
+          if (!cancelled) setEditReady(true);
+        } else {
+          if (!cancelled) setEditReady(true);
         }
       } catch (e) {
         console.error("[egitim-ekle] veri yüklenemedi:", e);
@@ -175,7 +184,7 @@ export default function EgitimEklePage() {
 
   // ── Düzenleme: API verisini forma geri doldur (server id → local id remap) ──
   const prefillForm = (
-    edu: { name?: string; branchId?: string; audience?: string; structure?: string; outline?: string[]; vatRate?: number; listPrice?: number; onSale?: boolean; certType?: string },
+    edu: { name?: string; mebName?: string; branchId?: string; audience?: string; structure?: string; outline?: string[]; deliveryMode?: string; contractType?: string; salesModel?: string; totalHours?: number; vatRate?: number; listPrice?: number; onSale?: boolean; certType?: string; deliveryOptions?: Array<{ mode: string; listPrice: number }> },
     secList: Array<{ id: string; name: string; hours?: number; listPrice?: number; sellable?: boolean }>,
     trkList: Array<{ id: string; name: string; sectionId?: string; hours?: number; listPrice?: number; sellable?: boolean }>,
   ) => {
@@ -188,7 +197,15 @@ export default function EgitimEklePage() {
     });
     const bolumByLocal = new Map(bolumler.map((b) => [b.id, b]));
     const priceRows: PriceRow[] = [];
-    if (edu.listPrice != null) priceRows.push({ id: seq++, key: "__main", name: edu.name ?? "", kind: "Ana Paket", liste: String(edu.listPrice) });
+    const isEditHibrit = edu.deliveryMode === "hybrid";
+    if (isEditHibrit && edu.deliveryOptions?.length) {
+      const yy = edu.deliveryOptions.find((o) => o.mode === "in_person");
+      const on = edu.deliveryOptions.find((o) => o.mode === "online");
+      if (yy) priceRows.push({ id: seq++, key: "__main__yy", name: (edu.name ?? "") + " — Yüz Yüze", kind: "Ana Paket · Yüz Yüze", liste: String(yy.listPrice), deliveryMode: "in_person" });
+      if (on) priceRows.push({ id: seq++, key: "__main__on", name: (edu.name ?? "") + " — Online", kind: "Ana Paket · Online", liste: String(on.listPrice), deliveryMode: "online" });
+    } else if (edu.listPrice != null) {
+      priceRows.push({ id: seq++, key: "__main", name: edu.name ?? "", kind: "Ana Paket", liste: String(edu.listPrice) });
+    }
     secList.forEach((sec) => {
       const localId = secLocal.get(sec.id);
       if (localId != null && sec.sellable && sec.listPrice != null) priceRows.push({ id: seq++, key: "b" + localId, name: sec.name, kind: "Bölüm", liste: String(sec.listPrice) });
@@ -201,13 +218,19 @@ export default function EgitimEklePage() {
         if (trk.sellable && trk.listPrice != null) priceRows.push({ id: seq++, key: "t" + localId, name: trk.name, kind: "Track", liste: String(trk.listPrice) });
       }
     });
+    const deliveryMap: Record<string, string> = { in_person: "Yüz Yüze", online: "Online", hybrid: "Hibrit" };
     setForm((f) => ({
       ...f,
       egitimAdi: edu.name ?? "",
+      mebAdi: edu.mebName ?? "",
       bransId: edu.branchId ?? "",
       egitimTipi: edu.audience === "corporate" ? "Kurumsal" : "Bireysel",
       egitimYapisi: edu.structure === "sectioned" ? "Track Bazlı" : "Standart Paket",
       icerikMetni: edu.outline?.[0] ?? "",
+      egitimOrtami: edu.deliveryMode ? (deliveryMap[edu.deliveryMode] ?? "Yüz Yüze") : f.egitimOrtami,
+      egitimSuresi: edu.totalHours != null ? String(edu.totalHours) : "",
+      sozlesmeTipi: edu.contractType ?? f.sozlesmeTipi,
+      satisModeli: edu.salesModel ?? f.satisModeli,
       kdvOrani: edu.vatRate != null ? String(edu.vatRate) : f.kdvOrani,
       sertTipi: edu.certType === "project" ? "Proje Bazlı" : "Sınav Bazlı",
       published: edu.onSale ?? false,
@@ -381,37 +404,63 @@ export default function EgitimEklePage() {
   };
 
   // ── fiyat havuzu ──
-  interface PoolOpt { value: string; label: string; kind: string; hours?: number }
+  interface PoolOpt { value: string; label: string; kind: string; hours?: number; deliveryMode?: "in_person" | "online" }
+  const isHibrit = s.egitimOrtami === "Hibrit";
   const poolList = (): PoolOpt[] => {
-    const main: PoolOpt = { value: "__main", label: (s.egitimAdi.trim() || "Ana Paket") + " (Ana Paket)", kind: "Ana Paket" };
-    const items: PoolOpt[] = [main];
+    const items: PoolOpt[] = [];
+    const mainName = s.egitimAdi.trim() || "Ana Paket";
+    if (isHibrit) {
+      items.push({ value: "__main__yy", label: mainName + " — Yüz Yüze", kind: "Ana Paket · Yüz Yüze", deliveryMode: "in_person" });
+      items.push({ value: "__main__on", label: mainName + " — Online", kind: "Ana Paket · Online", deliveryMode: "online" });
+    } else {
+      items.push({ value: "__main", label: mainName + " (Ana Paket)", kind: "Ana Paket" });
+    }
     s.bolumler.forEach((b) => {
-      items.push({ value: "b" + b.id, label: b.name + " (Bölüm)", kind: "Bölüm", hours: b.hours });
+      if (isHibrit) {
+        items.push({ value: "b" + b.id + "__yy", label: b.name + " — Yüz Yüze", kind: "Bölüm · Yüz Yüze", hours: b.hours, deliveryMode: "in_person" });
+        items.push({ value: "b" + b.id + "__on", label: b.name + " — Online", kind: "Bölüm · Online", hours: b.hours, deliveryMode: "online" });
+      } else {
+        items.push({ value: "b" + b.id, label: b.name + " (Bölüm)", kind: "Bölüm", hours: b.hours });
+      }
       b.tracks.forEach((t) => {
-        if (t.sellable) items.push({ value: "t" + t.id, label: "  " + t.name + " (Track)", kind: "Track", hours: t.hours });
+        if (t.sellable) {
+          if (isHibrit) {
+            items.push({ value: "t" + t.id + "__yy", label: "  " + t.name + " — Yüz Yüze", kind: "Track · Yüz Yüze", hours: t.hours, deliveryMode: "in_person" });
+            items.push({ value: "t" + t.id + "__on", label: "  " + t.name + " — Online", kind: "Track · Online", hours: t.hours, deliveryMode: "online" });
+          } else {
+            items.push({ value: "t" + t.id, label: "  " + t.name + " (Track)", kind: "Track", hours: t.hours });
+          }
+        }
       });
     });
     return items;
   };
   const totalHours = () => s.bolumler.reduce((sum, b) => sum + (Number(b.hours) || 0), 0);
   const sureFor = (key: string) => {
-    const isGun = s.egitimTipi === "Kurumsal";
-    if (key === "__main") return isGun ? `${s.gunSayisi} Gün` : `${totalHours()} Saat`;
-    const tid = Number(key.slice(1));
+    const isGunVal = s.egitimTipi === "Kurumsal";
+    const baseKey = key.replace(/__yy$|__on$/, "");
+    if (baseKey === "__main") return isGunVal ? `${s.gunSayisi} Gün` : `${totalHours() || s.egitimSuresi} Saat`;
+    if (baseKey.startsWith("b")) {
+      const bid = Number(baseKey.slice(1));
+      const b = s.bolumler.find((x) => x.id === bid);
+      return b ? b.hours + " Saat" : "";
+    }
+    const tid = Number(baseKey.slice(1));
     let h = 0;
     s.bolumler.forEach((b) => b.tracks.forEach((t) => { if (t.id === tid) h = t.hours; }));
     return h + " Saat";
   };
   const addPriceRow = () => {
-    if (!s.poolSel) return;
-    if (s.priceRows.some((r) => r.key === s.poolSel)) return;
-    const opt = poolList().find((o) => o.value === s.poolSel);
+    const sel = poolOptions.some((o) => o.value === s.poolSel) ? s.poolSel : (poolOptions[0]?.value ?? "");
+    if (!sel) return;
+    if (s.priceRows.some((r) => r.key === sel)) return;
+    const opt = poolOptions.find((o) => o.value === sel);
     if (!opt) return;
     setForm((f) => {
       const id = f.seq;
       return {
         ...f,
-        priceRows: [...f.priceRows, { id, key: opt.value, name: opt.label.replace(/\s*\((Ana Paket|Track)\)$/, ""), kind: opt.kind, liste: "" }],
+        priceRows: [...f.priceRows, { id, key: opt.value, name: opt.label.replace(/\s*\((Ana Paket|Track|Bölüm)\)$/, ""), kind: opt.kind, liste: "", deliveryMode: opt.deliveryMode }],
         seq: f.seq + 1,
         saved: false,
       };
@@ -438,8 +487,11 @@ export default function EgitimEklePage() {
   const days = Array.from({ length: gun }, (_, i) => i + 1);
 
   const poolOptions = poolList();
-  const alreadyAdded = s.priceRows.some((r) => r.key === s.poolSel);
-  const canAddPrice = !!s.poolSel && !alreadyAdded;
+  // poolSel havuzda yoksa ilk seçeneğe düş (hibrit ↔ tekli geçişlerinde key değişir)
+  const effectivePoolSel = poolOptions.some((o) => o.value === s.poolSel) ? s.poolSel : (poolOptions[0]?.value ?? "");
+  if (effectivePoolSel !== s.poolSel) { setTimeout(() => patch({ poolSel: effectivePoolSel }), 0); }
+  const alreadyAdded = s.priceRows.some((r) => r.key === effectivePoolSel);
+  const canAddPrice = !!effectivePoolSel && !alreadyAdded;
 
   // İçerik yeterliliği: Kurumsal → en az bir günün başlığı dolu; Bireysel+Track Bazlı → en az bir bölüm;
   // Bireysel+Standart Paket → paket başlı başına yeterli.
@@ -448,8 +500,13 @@ export default function EgitimEklePage() {
     : !yapiStd
     ? hasBolum
     : s.icerikMetni.replace(/<[^>]*>/g, "").trim().length > 0; // Standart Paket: içerik metni dolu olmalı
-  // Ana paket fiyatı (yayın için zorunlu)
+  // Ana paket fiyatı (yayın için zorunlu) — hibrit: en az bir teslim modu fiyatlı olmalı
   const mainPriceVal = (() => {
+    if (isHibrit) {
+      const yy = s.priceRows.find((x) => x.key === "__main__yy");
+      const on = s.priceRows.find((x) => x.key === "__main__on");
+      return Math.max(yy ? Number(yy.liste) || 0 : 0, on ? Number(on.liste) || 0 : 0);
+    }
     const r = s.priceRows.find((x) => x.key === "__main");
     return r ? Number(r.liste) || 0 : 0;
   })();
@@ -499,9 +556,10 @@ export default function EgitimEklePage() {
     : { ...S.publishBase, cursor: "not-allowed", background: "#e8edf4", color: "#a9b4c4" };
 
   // ── DB kaydetme (Taslak / Satışa Başlat / Satışı Kapat) ──
-  const priceForKey = (key: string): number | undefined => {
+  /** Fiyat satırı varsa sayısal değer, yoksa/boşsa null (DB'den silmek için). */
+  const priceForKey = (key: string): number | null => {
     const r = s.priceRows.find((x) => x.key === key);
-    return r && String(r.liste).trim() !== "" ? Number(r.liste) || 0 : undefined;
+    return r && String(r.liste).trim() !== "" ? Number(r.liste) || 0 : null;
   };
   const authHeaders = async (): Promise<Record<string, string>> => {
     const user = auth.currentUser;
@@ -520,12 +578,27 @@ export default function EgitimEklePage() {
       const audience = isKurumsal ? "corporate" : "individual";
       const structure = isBireysel && !yapiStd ? "sectioned" : "single";
       const outline = isBireysel && yapiStd && s.icerikMetni.trim() ? [s.icerikMetni] : undefined;
+      const deliveryModeMap: Record<string, "in_person" | "online" | "hybrid"> = { "Yüz Yüze": "in_person", "Online": "online", "Hibrit": "hybrid" };
+      const deliveryMode = deliveryModeMap[s.egitimOrtami] ?? "in_person";
+      const totalHoursNum = Number(s.egitimSuresi) || undefined;
+      // Hibrit eğitimlerde deliveryOptions dizisi oluştur
+      const yyPrice = priceForKey("__main__yy");
+      const onPrice = priceForKey("__main__on");
+      const deliveryOptions = isHibrit ? ([
+        ...(yyPrice != null ? [{ mode: "in_person" as const, listPrice: yyPrice }] : []),
+        ...(onPrice != null ? [{ mode: "online" as const, listPrice: onPrice }] : []),
+      ] as Array<{ mode: "in_person" | "online"; listPrice: number }>) : null;
+      // Hibrit'te listPrice = en yüksek fiyat (referans); tekli modlarda direkt; yoksa null (DB'den sil)
+      const mainListPrice = isHibrit
+        ? (Math.max(yyPrice ?? 0, onPrice ?? 0) || null)
+        : priceForKey("__main");
+      const sharedFields = { name: s.egitimAdi.trim(), mebName: s.mebAdi.trim() || undefined, branchId: s.bransId, audience, structure, outline, deliveryMode, contractType: s.sozlesmeTipi, salesModel: s.satisModeli, totalHours: totalHoursNum, listPrice: mainListPrice, vatRate: kdv, onSale: publish, deliveryOptions };
 
       if (!eduId) {
         const certType = s.sertTipi === "Proje Bazlı" ? "project" as const : "exam" as const;
         const res = await fetch("/api/flexos/educations", {
           method: "POST", headers,
-          body: JSON.stringify({ name: s.egitimAdi.trim(), branchId: s.bransId, audience, structure, outline, listPrice: priceForKey("__main"), vatRate: kdv, onSale: publish, certType }),
+          body: JSON.stringify({ ...sharedFields, certType }),
         });
         if (res.status !== 201) { const j = await res.json().catch(() => ({})); toast.error(j.error || "Kaydedilemedi."); return false; }
         const { id } = await res.json();
@@ -553,7 +626,7 @@ export default function EgitimEklePage() {
         const certType = s.sertTipi === "Proje Bazlı" ? "project" as const : "exam" as const;
         const res = await fetch(`/api/flexos/educations/${eduId}`, {
           method: "PATCH", headers,
-          body: JSON.stringify({ name: s.egitimAdi.trim(), branchId: s.bransId, audience, structure, outline, listPrice: priceForKey("__main"), vatRate: kdv, onSale: publish, certType }),
+          body: JSON.stringify({ ...sharedFields, certType }),
         });
         if (!res.ok) { const j = await res.json().catch(() => ({})); toast.error(j.error || "Güncellenemedi."); return false; }
         // Bölüm/Track ağacını senkronize et (Track Bazlı ise)
@@ -609,7 +682,7 @@ export default function EgitimEklePage() {
     unpublish: { title: "Satışı kapat", message: <>Eğitim satıştan kaldırılıp <strong>taslağa</strong> alınacak. Devam edilsin mi?</>, confirmLabel: "Satışı Kapat", tone: "danger" as const },
   };
 
-  if (authed === null) {
+  if (authed === null || !editReady) {
     return (
       <div style={{ display: "flex", height: "100vh", width: "100%", alignItems: "center", justifyContent: "center", background: "#eef2f8" }}>
         <div className="ee-spin" />
@@ -720,12 +793,14 @@ export default function EgitimEklePage() {
                   <div style={{ marginBottom: 22 }}>
                     <label style={{ ...S.label, display: "flex", alignItems: "center", gap: 7 }}>
                       Eğitim Adı (MEB)
-                      <span style={S.mirrorChip}>
-                        <span dangerouslySetInnerHTML={{ __html: IC.copy }} />
-                        otomatik aynalanır
-                      </span>
+                      {!s.mebAdi && (
+                        <span style={S.mirrorChip}>
+                          <span dangerouslySetInnerHTML={{ __html: IC.copy }} />
+                          varsayılan: eğitim adı
+                        </span>
+                      )}
                     </label>
-                    <input type="text" value={s.egitimAdi} readOnly placeholder="Eğitim Adı yazıldıkça buraya kopyalanır" style={S.inputMirror} />
+                    <input className="ee-input" type="text" value={s.mebAdi || s.egitimAdi} onChange={(e) => patch({ mebAdi: e.target.value })} placeholder="MEB kayıt adı (farklıysa düzenleyin)" style={S.input} />
                   </div>
 
                   {/* Eğitim Yapısı yalnız Bireysel'de anlamlı (Kurumsal = gün bazlı program). */}
@@ -777,6 +852,15 @@ export default function EgitimEklePage() {
                       <span style={S.selChev} dangerouslySetInnerHTML={{ __html: IC.selChev }} />
                     </div>
                   </div>
+
+                  {/* Eğitim Süresi — bireysel: saat, kurumsal: gün sayısı ayrıca aşağıda */}
+                  {isBireysel && (
+                    <div style={{ marginBottom: 22 }}>
+                      <label style={S.label}>Eğitim Süresi (Saat)</label>
+                      <input className="ee-input" type="number" min={1} max={9999} value={s.egitimSuresi} onChange={onChange("egitimSuresi")} placeholder="Toplam saat" style={{ ...S.input, width: 180 }} />
+                      <p style={{ margin: "7px 2px 0", fontSize: 12, color: "#94a3b8" }}>Full paket toplam süresi. Bölümlü eğitimlerde İçerikler sekmesinden bölümlere dağıtılır.</p>
+                    </div>
+                  )}
 
                   {/* Kurumsal = gün bazlı program → gün sayısı (Süre tipi Eğitim Tipi'nden türetilir). */}
                   {isKurumsal && (

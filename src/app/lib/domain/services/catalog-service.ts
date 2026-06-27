@@ -2,7 +2,7 @@ import { can } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Branch } from "../eduos/branch";
-import type { CertificateRule, Education } from "../eduos/education";
+import type { CertificateRule, DeliveryOption, Education } from "../eduos/education";
 import type { Section } from "../eduos/section";
 import type { Track } from "../eduos/track";
 import { ForbiddenError, ValidationError } from "../errors";
@@ -36,14 +36,20 @@ export async function createBranch(actor: Actor, input: CreateBranchInput, repo:
 // ── Eğitim (Grafik Tasarım Kursu) ──
 export interface CreateEducationInput {
   name: string;
+  mebName?: string;
   branchId: EntityId;
   audience?: "individual" | "corporate";
   structure?: "single" | "sectioned";
   outline?: string[];
+  deliveryMode?: "in_person" | "online" | "hybrid";
+  contractType?: string;
+  salesModel?: string;
+  totalHours?: number;
   listPrice?: number;
   vatRate?: number;
   onSale?: boolean;
   certType?: "exam" | "project";
+  deliveryOptions?: DeliveryOption[];
 }
 export async function createEducation(actor: Actor, input: CreateEducationInput, repo: EducationRepo): Promise<Education> {
   if (!can(actor, "education.create")) throw new ForbiddenError("education.create");
@@ -54,13 +60,19 @@ export async function createEducation(actor: Actor, input: CreateEducationInput,
     id: repo.nextId(),
     tenantId: actor.tenantId,
     name,
+    mebName: input.mebName?.trim() || undefined,
     branchId: input.branchId,
     audience: input.audience ?? "individual",
     structure: input.structure ?? "single",
     outline: input.outline,
+    deliveryMode: input.deliveryMode,
+    contractType: input.contractType,
+    salesModel: input.salesModel,
+    totalHours: input.totalHours,
     listPrice: input.listPrice,
     vatRate: input.vatRate,
     onSale: input.onSale,
+    deliveryOptions: input.deliveryOptions,
     certType: input.certType,
     createdAt: now(),
     createdBy: actor.uid,
@@ -72,14 +84,20 @@ export async function createEducation(actor: Actor, input: CreateEducationInput,
 // ── Eğitim güncelle (kısmi — Taslak↔Satışta dahil) ──
 export interface UpdateEducationInput {
   name?: string;
+  mebName?: string;
   branchId?: EntityId;
   audience?: "individual" | "corporate";
   structure?: "single" | "sectioned";
   outline?: string[];
-  listPrice?: number;
+  deliveryMode?: "in_person" | "online" | "hybrid";
+  contractType?: string;
+  salesModel?: string;
+  totalHours?: number | null;
+  listPrice?: number | null;
   vatRate?: number;
   onSale?: boolean;
   certType?: "exam" | "project";
+  deliveryOptions?: DeliveryOption[] | null;
 }
 export async function updateEducation(actor: Actor, id: EntityId, patch: UpdateEducationInput, repo: EducationRepo): Promise<Education> {
   if (!can(actor, "education.edit")) throw new ForbiddenError("education.edit");
@@ -90,13 +108,19 @@ export async function updateEducation(actor: Actor, id: EntityId, patch: UpdateE
   const updated: Education = {
     ...existing,
     ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+    ...(patch.mebName !== undefined ? { mebName: patch.mebName.trim() || undefined } : {}),
     ...(patch.branchId !== undefined ? { branchId: patch.branchId } : {}),
     ...(patch.audience !== undefined ? { audience: patch.audience } : {}),
     ...(patch.structure !== undefined ? { structure: patch.structure } : {}),
     ...(patch.outline !== undefined ? { outline: patch.outline } : {}),
-    ...(patch.listPrice !== undefined ? { listPrice: patch.listPrice } : {}),
+    ...(patch.deliveryMode !== undefined ? { deliveryMode: patch.deliveryMode } : {}),
+    ...(patch.contractType !== undefined ? { contractType: patch.contractType } : {}),
+    ...(patch.salesModel !== undefined ? { salesModel: patch.salesModel } : {}),
+    ...(patch.totalHours !== undefined ? { totalHours: patch.totalHours ?? undefined } : {}),
+    ...(patch.listPrice !== undefined ? { listPrice: patch.listPrice ?? undefined } : {}),
     ...(patch.vatRate !== undefined ? { vatRate: patch.vatRate } : {}),
     ...(patch.onSale !== undefined ? { onSale: patch.onSale } : {}),
+    ...(patch.deliveryOptions !== undefined ? { deliveryOptions: patch.deliveryOptions ?? undefined } : {}),
     ...(patch.certType !== undefined ? { certType: patch.certType } : {}),
     updatedAt: now(),
     updatedBy: actor.uid,

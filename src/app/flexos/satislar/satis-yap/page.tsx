@@ -32,7 +32,7 @@ interface EducationDoc {
   audience?: "individual" | "corporate";
   structure?: "single" | "sectioned"; // sectioned → Track Bazlı satışa müsait
   outline?: string[];
-  listPrice?: number; onSale?: boolean;
+  listPrice?: number; vatRate?: number; onSale?: boolean;
 }
 interface SectionDoc { id: string; educationId: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
 interface TrackDoc { id: string; educationId: string; sectionId?: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
@@ -232,14 +232,16 @@ export default function SatisYapPage() {
   // ── ÖDEME (FAZ-1 = UI) hesapları ──────────────────────────────────────────────
   // Tekrar / Sınıf Değişimi → ücretsiz işlem (0 TL kilit).
   const sifirKilit = satisNedeni === "Tekrar Öğrencisi" || satisNedeni === "Sınıf Değişimi";
-  // Brüt = gerçek katalog listPrice'ından türetilir (sabit fiyat yok).
+  // Brüt matrah (KDV HARİÇ) = gerçek katalog listPrice'ından türetilir.
   const brutBase = showTrackTree
     ? treeTracks.filter((t) => trackOn(t.id)).reduce((s, t) => s + (t.listPrice ?? 0), 0)
     : trackBased
       ? (selEdu?.listPrice ?? sections.reduce((s, x) => s + (x.listPrice ?? 0), 0))
       : (selEdu?.listPrice ?? 0);
-  const brut = sifirKilit ? 0 : brutBase;
+  const brut = sifirKilit ? 0 : brutBase; // KDV hariç matrah
+  const kdvOrani = selEdu?.vatRate ?? 0;
 
+  // İndirimler KDV HARİÇ matrah üzerinden uygulanır (KDV devletin parası, indirim yapılamaz)
   const kampanyaPct: Record<string, number> = { ind20: 20, erken: 15, referans: 10 };
   const kampanyaEtiketMap: Record<string, string> = { ind20: "%20", erken: "%15", referans: "%10" };
   const pct = !sifirKilit ? (kampanyaPct[kampanya] ?? 0) : 0;
@@ -255,7 +257,9 @@ export default function SatisYapPage() {
       : Math.min(elRaw, afterKampanya);
   }
   const elIndirimVar = elIndirimTutar > 0;
-  const net = Math.max(0, afterKampanya - elIndirimTutar);
+  const indirimliMatrah = Math.max(0, afterKampanya - elIndirimTutar); // KDV hariç, indirimli
+  const kdvTutar = Math.round(indirimliMatrah * kdvOrani / 100);
+  const net = indirimliMatrah + kdvTutar; // KDV DAHİL toplam = öğrencinin ödeyeceği
 
   const alinan = sifirKilit ? 0 : odemeSatirlari.reduce((a, o) => a + (parseFloat(o.tutar) || 0), 0);
   const kalan = Math.max(0, net - alinan);
@@ -781,11 +785,14 @@ export default function SatisYapPage() {
 
                   {/* özet kartı */}
                   <div style={{ border: "1px solid #e3e8f0", borderRadius: 14, background: "#fff", overflow: "hidden", marginBottom: 20 }}>
+                    {/* Ana fiyat */}
                     <div style={S.ozetRow}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Brüt Eğitim Tutarı</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Eğitim Tutarı (KDV Hariç)</span>
                       <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" }}>{fmtTL(brut)}</span>
                     </div>
                     <div style={S.ozetSep} />
+
+                    {/* Kampanya indirimi */}
                     <div style={S.ozetRow}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#64748b" }}>
                         Kampanya İndirimi
@@ -794,7 +801,8 @@ export default function SatisYapPage() {
                       <span style={{ fontSize: 14, fontWeight: 700, color: kampanyaIndTutar > 0 ? "#15803d" : "#0f1f3d", minWidth: 110, textAlign: "right" }}>{kampanyaIndTutar > 0 ? "− " + fmtTL(kampanyaIndTutar) : fmtTL(0)}</span>
                     </div>
                     <div style={S.ozetSep} />
-                    {/* yönetici / satışçı indirimi */}
+
+                    {/* Yönetici / satışçı indirimi */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", background: "#fafbfd" }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Yönetici / Satışçı İndirimi</div>
@@ -813,13 +821,29 @@ export default function SatisYapPage() {
                       </div>
                     </div>
 
-                    {/* uygulanan ek indirim */}
+                    {/* Uygulanan ek indirim */}
                     {elIndirimVar && (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "9px 18px", background: "#fff8f8", borderTop: "1px dashed #f3c6c6" }}>
                         <span style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600 }}>Uygulanan ek indirim</span>
                         <span style={{ fontSize: 14, fontWeight: 800, color: "#dc2626", minWidth: 110, textAlign: "right" }}>− {fmtTL(elIndirimTutar)}</span>
                       </div>
                     )}
+
+                    {/* İndirimli matrah + KDV + Toplam */}
+                    <div style={{ borderTop: "2px solid #e3e8f0", background: "#f8fafd" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 18px" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>İndirimli Matrah</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" }}>{fmtTL(indirimliMatrah)}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 18px 10px" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>KDV (%{kdvOrani})</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" }}>{fmtTL(kdvTutar)}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderTop: "1px solid #e3e8f0", background: "#eef2f8" }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: "#0f1f3d" }}>Toplam (KDV Dahil)</span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: "#0f1f3d", minWidth: 110, textAlign: "right" }}>{fmtTL(net)}</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Parçalı Ödeme kartı */}

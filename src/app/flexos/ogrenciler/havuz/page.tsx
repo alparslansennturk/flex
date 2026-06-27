@@ -27,7 +27,7 @@ import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 
 // ── Durum & Branş sözlükleri (tasarımdan) ────────────────────────────────────
 type StatusKey =
-  | "beklemede" | "aktif" | "grupsuz" | "tekrar" | "mezun" | "pasif" | "donduruldu";
+  | "beklemede" | "aktif" | "grupsuz" | "tekrar" | "mezun" | "pasif" | "donduruldu" | "iptal";
 
 const ST: Record<StatusKey, { label: string; hint: string; color: string; background: string; dot: string }> = {
   beklemede: { label: "Beklemede", hint: "Ödeme bekleniyor", color: "#8A5A00", background: "#FFF3DC", dot: "#FFB020" },
@@ -37,6 +37,7 @@ const ST: Record<StatusKey, { label: string; hint: string; color: string; backgr
   mezun: { label: "Mezun", hint: "Eğitimi tamamladı", color: "#285253", background: "#CBE6E6", dot: "#4FA3A5" },
   pasif: { label: "Pasif", hint: "Kaydı pasif", color: "#6F7B87", background: "#EEF0F3", dot: "#AEB4C0" },
   donduruldu: { label: "Donduruldu", hint: "Kayıt donduruldu", color: "#0E5D59", background: "#AFF3F0", dot: "#1CB5AE" },
+  iptal: { label: "İptal", hint: "Satış iptal edildi", color: "#991b1b", background: "#fef2f2", dot: "#dc2626" },
 };
 
 const BRANS_COLORS: Record<string, { color: string; background: string; dot: string }> = {

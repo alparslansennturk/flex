@@ -87,6 +87,8 @@ export default function SatisListePage() {
   const [search, setSearch] = useState("");
   const [donem, setDonem] = useState<DonemKey>("bu-ay");
   const [donemOpen, setDonemOpen] = useState(false);
+  const [bransFilter, setBransFilter] = useState<string>("__all__");
+  const [bransOpen, setBransOpen] = useState(false);
   const [page, setPage] = useState(1);
 
   // ── iptal modal ──
@@ -126,9 +128,19 @@ export default function SatisListePage() {
     return () => ac.abort();
   }, [router, loadSales]);
 
+  // ── benzersiz branşlar ──
+  const branchList = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of sales) if (s.branchName) set.add(s.branchName);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "tr"));
+  }, [sales]);
+
   // ── filtreli liste ──
   const filtered = useMemo(() => {
     let list = sales.filter((s) => isInRange(s.date, donem));
+    if (bransFilter !== "__all__") {
+      list = list.filter((s) => s.branchName === bransFilter);
+    }
     const q = search.trim().toLocaleLowerCase("tr");
     if (q) {
       list = list.filter((s) =>
@@ -136,7 +148,7 @@ export default function SatisListePage() {
       );
     }
     return list;
-  }, [sales, donem, search]);
+  }, [sales, donem, bransFilter, search]);
 
   // ── metrikler (filtrelenmiş dönemden) ──
   const activeSales = useMemo(() => filtered.filter((s) => s.status === "active"), [filtered]);
@@ -172,7 +184,7 @@ export default function SatisListePage() {
     }
   }, [cancelTarget, cancelReason, authHeaders, loadSales]);
 
-  useEffect(() => setPage(1), [donem, search]);
+  useEffect(() => setPage(1), [donem, search, bransFilter]);
 
   if (authed === null) return null;
 
@@ -209,6 +221,8 @@ export default function SatisListePage() {
 
           {/* ===== FİLTRE BARI ===== */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+            {/* sol grup: dönem + branş */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* dönem seçici */}
             <div style={{ display: "inline-flex", padding: 4, borderRadius: 12, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
               {(Object.keys(DONEM_LABELS) as DonemKey[]).map((k) => {
@@ -221,6 +235,65 @@ export default function SatisListePage() {
                 );
               })}
             </div>
+
+            {/* branş filtresi */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setBransOpen((p) => !p)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 11,
+                  border: "1px solid #E2E5EA", background: "#fff", color: bransFilter === "__all__" ? "#6F7B87" : "#1E222B",
+                  fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+                  boxShadow: "0 1px 2px rgba(15,31,61,.04)",
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                {bransFilter === "__all__" ? "Tüm Branşlar" : bransFilter}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              {bransOpen && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, minWidth: 200,
+                  background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, padding: "6px 0",
+                  boxShadow: "0 12px 32px -8px rgba(15,31,61,.18)",
+                }}>
+                  <button
+                    onClick={() => { setBransFilter("__all__"); setBransOpen(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 16px", border: "none",
+                      background: bransFilter === "__all__" ? "#F0F4FF" : "transparent", color: bransFilter === "__all__" ? "#205297" : "#414B59",
+                      fontSize: 13.5, fontWeight: bransFilter === "__all__" ? 700 : 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => { if (bransFilter !== "__all__") e.currentTarget.style.background = "#F7F8FA"; }}
+                    onMouseLeave={(e) => { if (bransFilter !== "__all__") e.currentTarget.style.background = "transparent"; }}
+                  >
+                    Tüm Branşlar
+                  </button>
+                  {branchList.map((b) => {
+                    const active = bransFilter === b;
+                    const br = BRANS_COLORS[b] ?? BRANS_FALLBACK;
+                    return (
+                      <button
+                        key={b}
+                        onClick={() => { setBransFilter(b); setBransOpen(false); }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 16px", border: "none",
+                          background: active ? "#F0F4FF" : "transparent", color: active ? "#205297" : "#414B59",
+                          fontSize: 13.5, fontWeight: active ? 700 : 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left",
+                        }}
+                        onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#F7F8FA"; }}
+                        onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                      >
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: br.dot, flexShrink: 0 }} />
+                        {b}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            </div>{/* /sol grup */}
 
             {/* arama */}
             <span style={{ position: "relative", display: "flex", width: 280, maxWidth: "60vw" }}>
@@ -409,7 +482,7 @@ export default function SatisListePage() {
       )}
 
       {/* dropdown backdrop */}
-      {donemOpen && <div onClick={() => setDonemOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+      {(donemOpen || bransOpen) && <div onClick={() => { setDonemOpen(false); setBransOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
     </div>
   );
 }
