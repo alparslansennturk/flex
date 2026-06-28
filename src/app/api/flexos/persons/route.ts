@@ -74,8 +74,11 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
       // branş listesi (enrollment → education → branch)
       const branchNames = new Set<string>();
-      const groupList: Array<{ label: string; branch: string }> = [];
+      const groupList: Array<{ label: string; branch: string; educationName: string }> = [];
       const officeNames = new Set<string>(); // şube = öğrencinin gruplarından türetilir
+
+      const educationList: Array<{ educationId: string; name: string; status: string }> = [];
+      const seenEduIds = new Set<string>();
 
       for (const enr of enrs) {
         const edu = enr.educationId ? eduMap.get(enr.educationId) : undefined;
@@ -87,9 +90,16 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
           groupList.push({
             label: grp?.code ? `Grup ${grp.code}` : enr.groupId,
             branch: branch?.name ?? "",
+            educationName: edu?.name ?? "",
           });
           const office = officeName(grp?.branchOfficeId);
           if (office) officeNames.add(office);
+        }
+
+        // Tüm aktif enrollment'lardan eğitim listesi (grupsuz dahil, tekrar yok)
+        if (edu && !seenEduIds.has(edu.id) && enr.status !== "cancelled") {
+          seenEduIds.add(edu.id);
+          educationList.push({ educationId: edu.id, name: edu.name, status: enr.status });
         }
       }
 
@@ -115,6 +125,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         status,
         branches: [...branchNames],
         groups: groupList,
+        educations: educationList,
         subeler: [...officeNames],
         assignableEnrollmentId: assignable?.id ?? null,
         assignableEducationId: assignable?.educationId ?? null,

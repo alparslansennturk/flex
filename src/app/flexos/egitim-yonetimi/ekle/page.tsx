@@ -521,10 +521,10 @@ export default function EgitimEklePage() {
 
   const statusText = s.published
     ? "Yayında — satış kataloğunda"
-    : canPublish
-    ? "Yayına hazır"
-    : "Taslak — eksik: " + publishBlockers.join(", ");
-  const statusDot = s.published ? "#22c55e" : canPublish ? "#f59e0b" : "#cbd5e1";
+    : publishBlockers.length > 0
+    ? "Taslak — satışa açmak için eksik: " + publishBlockers.join(", ")
+    : "Taslak";
+  const statusDot = s.published ? "#22c55e" : "#cbd5e1";
 
   const saveHints: Record<TabKey, string> = {
     genel: "Genel bilgileri kaydedin.",
@@ -571,7 +571,7 @@ export default function EgitimEklePage() {
   const saveEducation = async (publish: boolean): Promise<boolean> => {
     if (!s.egitimAdi.trim()) { toast.error("Eğitim adı zorunludur."); return false; }
     if (!s.bransId) { toast.error("Önce branş seçin."); return false; }
-    if (publish && !canPublish) { toast.error("Satışa başlatmak için eksik: " + publishBlockers.join(", ")); return false; }
+    if (publish && !s.published && !canPublish) { toast.error("Satışa başlatmak için eksik: " + publishBlockers.join(", ")); return false; }
     setBusy(true);
     try {
       const headers = await authHeaders();
@@ -677,8 +677,8 @@ export default function EgitimEklePage() {
   };
 
   const modalCfg = {
-    save: { title: "Taslak olarak kaydet", message: <>Eğitim <strong>taslak</strong> olarak kaydedilecek. Katalogda “Taslak” görünür, henüz satışa açılmaz.</>, confirmLabel: "Kaydet", tone: "primary" as const },
-    publish: { title: "Satışa başlat", message: <>Eğitim <strong>satışa açılacak</strong> ve satış kataloğunda “Satışta” görünecek. Emin misin?</>, confirmLabel: "Satışa Başlat", tone: "publish" as const },
+    save: { title: "Kaydet", message: <>Değişiklikler kaydedilecek. Satışa başlatmadığın sürece eğitim <strong>taslak</strong> olarak kalır.</>, confirmLabel: "Kaydet", tone: "primary" as const },
+    publish: { title: "Satışa başlat", message: <>Eğitim <strong>satışa açılacak</strong> ve satış kataloğunda "Satışta" görünecek. Emin misin?</>, confirmLabel: "Satışa Başlat", tone: "publish" as const },
     unpublish: { title: "Satışı kapat", message: <>Eğitim satıştan kaldırılıp <strong>taslağa</strong> alınacak. Devam edilsin mi?</>, confirmLabel: "Satışı Kapat", tone: "danger" as const },
   };
 
@@ -729,16 +729,7 @@ export default function EgitimEklePage() {
           </div>
         </header>
 
-        <div style={{ padding: "26px 36px 64px", maxWidth: 1080, margin: "0 auto", width: "100%", minWidth: 0, boxSizing: "border-box", overflowX: "hidden" }}>
-          {/* published banner */}
-          {s.published && (
-            <div style={S.banner}>
-              <span style={S.bannerIcon} dangerouslySetInnerHTML={{ __html: IC.checkBanner }} />
-              <div style={{ fontSize: 14, color: "#15803d", fontWeight: 600 }}>
-                Eğitim satış ekiplerinin kataloğuna gönderildi — şu an <strong>satışta</strong>.
-              </div>
-            </div>
-          )}
+        <div style={{ padding: "26px 36px 64px", maxWidth: 1080, margin: "0 auto", width: "100%", minWidth: 0, boxSizing: "border-box", overflowX: "clip" }}>
 
           {/* top action row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 20 }}>
@@ -1235,7 +1226,7 @@ export default function EgitimEklePage() {
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, padding: "42px 20px", textAlign: "center" }}>
                         <div style={S.emptyIconSm} dangerouslySetInnerHTML={{ __html: IC.sellBig }} />
                         <div style={{ fontSize: 14, fontWeight: 700, color: "#334155" }}>Fiyat listesi boş</div>
-                        <div style={{ fontSize: 13, color: "#94a3b8", maxWidth: 300 }}>Yukarıdaki havuzdan ürün seçip “Listeye Ekle” ile fiyatlandırmaya başlayın.</div>
+                        <div style={{ fontSize: 13, color: "#94a3b8", maxWidth: 300 }}>Yukarıdaki havuzdan ürün seçip "Listeye Ekle" ile fiyatlandırmaya başlayın.</div>
                       </div>
                     )}
                   </div>
@@ -1318,36 +1309,112 @@ export default function EgitimEklePage() {
   );
 }
 
+// ── Paste sanitizer: bold/italic/başlık/liste koru, class/style/div/span temizle ──
+const PASTE_ALLOWED = new Set(["B", "STRONG", "I", "EM", "U", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "P", "BR", "A"]);
+function sanitizePastedHtml(html: string): string {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  function process(node: Node): Node[] {
+    if (node.nodeType === Node.TEXT_NODE) return [node.cloneNode()];
+    if (node.nodeType !== Node.ELEMENT_NODE) return [];
+    const el = node as Element;
+    const tag = el.tagName;
+    const children = Array.from(el.childNodes).flatMap(process);
+    if (PASTE_ALLOWED.has(tag)) {
+      const newEl = document.createElement(tag.toLowerCase());
+      if (tag === "A") { const href = el.getAttribute("href"); if (href) newEl.setAttribute("href", href); }
+      children.forEach((c) => newEl.appendChild(c));
+      return [newEl];
+    }
+    if (tag === "DIV") {
+      const p = document.createElement("p");
+      children.forEach((c) => p.appendChild(c));
+      return [p];
+    }
+    return children; // span ve diğerleri: içeriği koru, etiketi at
+  }
+  const out = document.createElement("div");
+  Array.from(tmp.childNodes).flatMap(process).forEach((n) => out.appendChild(n));
+  return out.innerHTML;
+}
+
 // ── basit zengin-metin editörü (contentEditable + execCommand, kütüphanesiz) ──
 function RichText({ value, onChange }: { value: string; onChange: (html: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  // İçeriği yalnız ilk montajda DOM'a bas (controlled etmiyoruz → imleç zıplamaz).
+  const [floatPos, setFloatPos] = useState<{ x: number; y: number } | null>(null);
+
   useEffect(() => {
     if (ref.current && ref.current.innerHTML !== value) ref.current.innerHTML = value;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   const sync = () => { if (ref.current) onChange(ref.current.innerHTML); };
   const cmd = (c: string, arg?: string) => {
     document.execCommand(c, false, arg);
     ref.current?.focus();
     sync();
   };
-  // mousedown'da preventDefault → seçim kaybolmaz
-  const btn = (label: string, title: string, run: () => void, extra?: CSSProperties) => (
-    <span
-      className="ee-fmt"
-      title={title}
-      style={{ ...S.fmtBtn, ...extra }}
+
+  const updateFloat = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) { setFloatPos(null); return; }
+    if (!ref.current?.contains(sel.anchorNode)) { setFloatPos(null); return; }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (rect.width === 0) { setFloatPos(null); return; }
+    setFloatPos({ x: rect.left + rect.width / 2, y: rect.top });
+  };
+
+  // Float toolbar butonu (koyu arka plan, beyaz yazı)
+  const fb = (label: string, title: string, run: () => void, extra?: CSSProperties) => (
+    <span key={label + title} title={title}
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 30, height: 30, borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#f1f5f9", padding: "0 7px", userSelect: "none" as const, transition: "background .1s", ...extra }}
       onMouseDown={(e) => { e.preventDefault(); run(); }}
-    >
-      {label}
-    </span>
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,.15)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+    >{label}</span>
   );
+
+  // Üst statik toolbar butonu
+  const btn = (label: string, title: string, run: () => void, extra?: CSSProperties) => (
+    <span className="ee-fmt" title={title} style={{ ...S.fmtBtn, ...extra }} onMouseDown={(e) => { e.preventDefault(); run(); }}>{label}</span>
+  );
+
   return (
-    <div className="ee-editor" style={{ border: "1px solid #e3e8f0", borderRadius: 12, background: "#fff", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "7px 10px", borderBottom: "1px solid #eef1f6", background: "#fafbfd", flexWrap: "wrap" }}>
+    <div className="ee-editor" style={{ border: "1px solid #e3e8f0", borderRadius: 12, background: "#fff" }}>
+      {/* Float toolbar — seçim yapılınca belirir */}
+      {floatPos && (
+        <div style={{
+          position: "fixed",
+          left: Math.max(8, floatPos.x),
+          top: Math.max(8, floatPos.y - 46),
+          transform: "translateX(-50%)",
+          zIndex: 9999,
+          background: "#1e293b",
+          borderRadius: 10,
+          padding: "3px 5px",
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          boxShadow: "0 6px 24px rgba(0,0,0,.32)",
+          pointerEvents: "auto",
+        }}>
+          {fb("B", "Kalın", () => cmd("bold"), { fontWeight: 800 })}
+          {fb("Başlık", "Başlık", () => cmd("formatBlock", "h3"), { fontSize: 12, padding: "0 8px" })}
+          {fb("I", "İtalik", () => cmd("italic"), { fontStyle: "italic" })}
+          {fb("U", "Altı çizili", () => cmd("underline"), { textDecoration: "underline" })}
+          <span style={{ width: 1, height: 16, background: "#475569", margin: "0 3px", flex: "0 0 auto" }} />
+          {fb("A", "Küçük yazı", () => cmd("fontSize", "2"), { fontSize: 10, fontWeight: 700 })}
+          {fb("A", "Normal yazı", () => cmd("fontSize", "3"), { fontSize: 13, fontWeight: 700 })}
+          {fb("A", "Büyük yazı", () => cmd("fontSize", "5"), { fontSize: 16, fontWeight: 700 })}
+          <span style={{ width: 1, height: 16, background: "#475569", margin: "0 3px", flex: "0 0 auto" }} />
+          {fb("•—", "Liste", () => cmd("insertUnorderedList"), { fontSize: 15, letterSpacing: -1 })}
+          {fb("Temizle", "Biçimi temizle", () => cmd("removeFormat"), { fontSize: 11, fontWeight: 500, padding: "0 8px" })}
+        </div>
+      )}
+      {/* Üst statik toolbar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "7px 10px", borderBottom: "1px solid #eef1f6", background: "#fafbfd", borderRadius: "11px 11px 0 0", flexWrap: "wrap" }}>
         {btn("B", "Kalın", () => cmd("bold"), { fontWeight: 800 })}
-        {btn("Başlık", "Başlık (semibold)", () => cmd("formatBlock", "h3"), { width: "auto", padding: "0 9px", fontWeight: 700, fontSize: 12.5 })}
+        {btn("Başlık", "Başlık", () => cmd("formatBlock", "h3"), { width: "auto", padding: "0 9px", fontWeight: 700, fontSize: 12.5 })}
         {btn("I", "İtalik", () => cmd("italic"), { fontStyle: "italic" })}
         {btn("U", "Altı çizili", () => cmd("underline"), { textDecoration: "underline" })}
         <span style={{ width: 1, height: 18, background: "#e2e8f1", margin: "0 6px" }} />
@@ -1365,6 +1432,19 @@ function RichText({ value, onChange }: { value: string; onChange: (html: string)
         suppressContentEditableWarning
         data-ph="Eğitim içeriğini buraya yapıştırın — kazanımlar, müfredat başlıkları, modüller…"
         onInput={sync}
+        onMouseUp={updateFloat}
+        onKeyUp={updateFloat}
+        onBlur={() => setTimeout(() => setFloatPos(null), 120)}
+        onPaste={(e) => {
+          e.preventDefault();
+          const html = e.clipboardData.getData("text/html");
+          if (html) {
+            document.execCommand("insertHTML", false, sanitizePastedHtml(html));
+          } else {
+            document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
+          }
+          sync();
+        }}
         style={{ minHeight: 240, padding: "14px 16px", fontSize: 14, lineHeight: 1.6, color: "#1e293b", outline: "none", overflowY: "auto" }}
       />
     </div>
@@ -1390,7 +1470,7 @@ const S: Record<string, CSSProperties> = {
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   navActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   navActiveBar: { position: "absolute", left: 0, top: 9, bottom: 9, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
-  main: { flex: 1, minWidth: 0, height: "100%", overflowY: "scroll", overflowX: "hidden", background: "#eef2f8" },
+  main: { flex: 1, minWidth: 0, height: "100%", overflowY: "scroll", overflowX: "clip", background: "#eef2f8" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px max(36px, calc((100% - 1080px) / 2 + 36px))", background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 2px 6px rgba(15,31,61,.04)" },
   backBtn: { width: 46, height: 46, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", textDecoration: "none", transition: "all .14s" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },

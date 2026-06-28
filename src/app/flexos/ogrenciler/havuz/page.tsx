@@ -57,11 +57,13 @@ const AV_PALETTES: Array<[string, string]> = [
 const SUBE_LIST = ["Tümü", ...BRANCH_OFFICES.map((o) => o.name)];
 const PAGE_SIZE = 8;
 
-interface StudentGroup { label: string; branch: string }
+interface StudentGroup { label: string; branch: string; educationName?: string }
+interface StudentEducation { educationId: string; name: string; status: string }
 interface Student {
   id: string; name: string; email: string; phone: string;
   status: StatusKey; subeler: string[]; gender: string; branches: string[];
   groups: StudentGroup[];
+  educations: StudentEducation[];
   assignableEnrollmentId: string | null;
   assignableEducationId: string | null;
 }
@@ -70,6 +72,7 @@ interface Student {
 interface PersonApiItem {
   id: string; name: string; email: string; phone: string;
   status: string; branches?: string[]; groups?: StudentGroup[];
+  educations?: StudentEducation[];
   assignableEnrollmentId?: string | null; assignableEducationId?: string | null;
   gender?: string; subeler?: string[];
 }
@@ -131,14 +134,17 @@ export default function OgrenciHavuzuPage() {
   const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
   const [subeFilter, setSubeFilter] = useState("Tümü");
   const [bransFilter, setBransFilter] = useState("Tümü");
+  const [egitimFilter, setEgitimFilter] = useState("Tümü");
   // pending (Filtrele'ye basılana kadar)
   const [pStatus, setPStatus] = useState<StatusKey[]>([]);
   const [pSube, setPSube] = useState("Tümü");
   const [pBrans, setPBrans] = useState("Tümü");
+  const [pEgitim, setPEgitim] = useState("Tümü");
 
-  const [openDropdown, setOpenDropdown] = useState<null | "sube" | "brans">(null);
+  const [openDropdown, setOpenDropdown] = useState<null | "sube" | "brans" | "egitim">(null);
   const [hoveredBrans, setHoveredBrans] = useState<string | null>(null);
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [hoveredEdu, setHoveredEdu] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
   const [loading, setLoading] = useState(false);
@@ -185,6 +191,7 @@ export default function OgrenciHavuzuPage() {
         gender: it.gender ?? "",
         branches: it.branches ?? [],
         groups: it.groups ?? [],
+        educations: it.educations ?? [],
         assignableEnrollmentId: it.assignableEnrollmentId ?? null,
         assignableEducationId: it.assignableEducationId ?? null,
       })));
@@ -372,14 +379,14 @@ export default function OgrenciHavuzuPage() {
 
   const togglePStatus = (k: StatusKey) =>
     setPStatus((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
-  const toggleDropdown = (n: "sube" | "brans") => setOpenDropdown((o) => (o === n ? null : n));
+  const toggleDropdown = (n: "sube" | "brans" | "egitim") => setOpenDropdown((o) => (o === n ? null : n));
   const applyFilters = () => {
-    setStatusFilter([...pStatus]); setSubeFilter(pSube); setBransFilter(pBrans);
+    setStatusFilter([...pStatus]); setSubeFilter(pSube); setBransFilter(pBrans); setEgitimFilter(pEgitim);
     setPage(1); setOpenDropdown(null);
   };
   const clearFilters = () => {
-    setStatusFilter([]); setSubeFilter("Tümü"); setBransFilter("Tümü");
-    setPStatus([]); setPSube("Tümü"); setPBrans("Tümü"); setPage(1); setOpenDropdown(null);
+    setStatusFilter([]); setSubeFilter("Tümü"); setBransFilter("Tümü"); setEgitimFilter("Tümü");
+    setPStatus([]); setPSube("Tümü"); setPBrans("Tümü"); setPEgitim("Tümü"); setPage(1); setOpenDropdown(null);
   };
   const soon = () => toast.info("Bu özellik yakında.");
 
@@ -388,9 +395,10 @@ export default function OgrenciHavuzuPage() {
       if (statusFilter.length && !statusFilter.includes(st.status)) return false;
       if (subeFilter !== "Tümü" && !st.subeler.includes(subeFilter)) return false;
       if (bransFilter !== "Tümü" && !st.branches.includes(bransFilter)) return false;
+      if (egitimFilter !== "Tümü" && !st.groups.some((g) => g.educationName === egitimFilter)) return false;
       return true;
     }),
-    [students, statusFilter, subeFilter, bransFilter],
+    [students, statusFilter, subeFilter, bransFilter, egitimFilter],
   );
 
   const total = filtered.length;
@@ -406,7 +414,14 @@ export default function OgrenciHavuzuPage() {
     return ["Tümü", ...Array.from(set).sort()];
   }, [students]);
 
-  const anyFilter = pStatus.length > 0 || pSube !== "Tümü" || pBrans !== "Tümü";
+  // Eğitim listesini öğrenci gruplarından türet
+  const EGITIM_LIST = useMemo(() => {
+    const set = new Set<string>();
+    students.forEach((st) => st.groups.forEach((g) => { if (g.educationName) set.add(g.educationName); }));
+    return ["Tümü", ...Array.from(set).sort()];
+  }, [students]);
+
+  const anyFilter = pStatus.length > 0 || pSube !== "Tümü" || pBrans !== "Tümü" || pEgitim !== "Tümü";
 
   if (authed === null) {
     return (
@@ -525,6 +540,28 @@ export default function OgrenciHavuzuPage() {
                 )}
               </div>
 
+              {/* EĞİTİM */}
+              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
+                <span style={S.sectionLabel}>Eğitim</span>
+                <button className="oh-select" style={{ ...S.selectBtn, minWidth: 200 }} onClick={() => toggleDropdown("egitim")}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 9, overflow: "hidden", maxWidth: 160, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.checkSmall }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pEgitim}</span>
+                  </span>
+                  <span dangerouslySetInnerHTML={{ __html: IC.chevDown }} />
+                </button>
+                {openDropdown === "egitim" && (
+                  <div style={{ ...S.dropdown, width: 240 }}>
+                    {EGITIM_LIST.map((v) => (
+                      <div key={v} className="oh-ddrow" style={pEgitim === v ? S.ddActive : S.ddBase} onClick={() => { setPEgitim(v); setOpenDropdown(null); }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{v}</span>
+                        {pEgitim === v && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div style={{ flex: 1, minWidth: 10 }} />
 
               {anyFilter && (
@@ -549,6 +586,7 @@ export default function OgrenciHavuzuPage() {
                   <tr style={{ background: "#F7F8FA", borderBottom: "1px solid #EEF0F3" }}>
                     <th style={S.th}>Ad Soyad</th>
                     <th style={S.th}>Branş</th>
+                    <th style={{ ...S.th, minWidth: 160 }}>Eğitim</th>
                     <th style={S.th}>Durum</th>
                     <th className="oh-wide-col" style={S.th}>E-posta</th>
                     <th className="oh-wide-col" style={S.th}>Telefon</th>
@@ -607,6 +645,41 @@ export default function OgrenciHavuzuPage() {
                               </div>
                             )}
                           </div>
+                        </td>
+                        {/* Eğitim */}
+                        <td style={S.cell} onClick={(e) => e.stopPropagation()}>
+                          {st.educations.length === 0 ? (
+                            <span style={{ fontSize: 13, color: "#CDD2DA" }}>—</span>
+                          ) : (
+                            <div
+                              style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, cursor: "default" }}
+                              onMouseEnter={() => setHoveredEdu(st.id)}
+                              onMouseLeave={() => setHoveredEdu(null)}
+                            >
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "#414B59", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                                title={st.educations[0].name}>
+                                {st.educations[0].name}
+                              </span>
+                              {st.educations.length > 1 && (
+                                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, borderRadius: 10, background: "#2867bd", color: "#fff", fontSize: 11, fontWeight: 700, padding: "0 5px" }}>
+                                  +{st.educations.length - 1}
+                                </span>
+                              )}
+                              {hoveredEdu === st.id && st.educations.length > 1 && (
+                                <div style={{ ...S.branchPopup, minWidth: 200 }}>
+                                  <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", padding: "4px 9px 7px" }}>
+                                    Eğitimler ({st.educations.length})
+                                  </div>
+                                  {st.educations.map((edu, ei) => (
+                                    <div key={edu.educationId} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 9px", borderRadius: 8, background: ei === 0 ? "#EFF3FA" : "transparent" }}>
+                                      <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "0 0 auto", background: "#3A7BD5" }} />
+                                      <span style={{ fontSize: 13, fontWeight: 600, color: "#414B59" }}>{edu.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </td>
                         {/* Durum */}
                         <td style={S.cell}>

@@ -101,25 +101,45 @@ export async function createSale(
 
   const ts = nowISO();
 
-  // ── 1) Person ──
+  // ── 1) Person — TC ile mevcut kişi ara, yoksa yeni oluştur ──
   const allowPII = can(actor, "person.pii.write");
   const piiProvided = !!input.pii && Object.keys(input.pii).length > 0;
   const piiDropped = piiProvided && !allowPII;
   const pii = allowPII && piiProvided ? input.pii : undefined;
 
-  const person: Person = {
-    id: deps.persons.nextId(),
-    tenantId: actor.tenantId,
-    firstName,
-    lastName,
-    birthDate: input.birthDate,
-    gender: input.gender as Gender | undefined,
-    pii,
-    status: "active", // satış yapıldı → direkt aktif (prospect değil)
-    consentKVKK: false,
-    createdAt: ts,
-    createdBy: actor.uid,
-  };
+  const tcNo = input.pii?.idNo?.trim();
+  const existingPerson = tcNo ? await deps.persons.findByIdNo(tcNo, actor.tenantId) : null;
+
+  let person: Person;
+  if (existingPerson) {
+    // Aynı kişi — Person kaydını yeniden kullan, gerekirse güncelle
+    person = existingPerson;
+    if (allowPII && piiProvided) {
+      await deps.persons.update(existingPerson.id, actor.tenantId, {
+        firstName,
+        lastName,
+        pii,
+        birthDate: input.birthDate ?? existingPerson.birthDate,
+        gender: (input.gender as Gender | undefined) ?? existingPerson.gender,
+        status: "active",
+      });
+      person = { ...existingPerson, firstName, lastName, pii, status: "active" };
+    }
+  } else {
+    person = {
+      id: deps.persons.nextId(),
+      tenantId: actor.tenantId,
+      firstName,
+      lastName,
+      birthDate: input.birthDate,
+      gender: input.gender as Gender | undefined,
+      pii,
+      status: "active",
+      consentKVKK: false,
+      createdAt: ts,
+      createdBy: actor.uid,
+    };
+  }
 
   // ── 2) Sale ──
   const sale: Sale = {
@@ -182,7 +202,7 @@ export async function createSale(
   }
 
   // ── Yazım (sıralı — atomiklik ileride batch'e çevrilebilir) ──
-  await deps.persons.save(person);
+  if (!existingPerson) await deps.persons.save(person);
   await deps.sales.save(sale);
   await deps.enrollments.save(enrollment);
   if (payments.length > 0) {

@@ -21,10 +21,12 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 });
 
-/** GET /api/flexos/educations?branchId=... — eğitim listesi. */
+/** GET /api/flexos/educations?branchId=...&onSale=true — eğitim listesi. */
 export const GET = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
   const branchId = req.nextUrl.searchParams.get("branchId") ?? undefined;
-  const items = await firestoreEducationRepo.list(actor.tenantId, branchId);
+  const onSaleParam = req.nextUrl.searchParams.get("onSale");
+  let items = await firestoreEducationRepo.list(actor.tenantId, branchId);
+  if (onSaleParam === "true") items = items.filter((e) => e.onSale === true);
   return NextResponse.json({ items });
 });

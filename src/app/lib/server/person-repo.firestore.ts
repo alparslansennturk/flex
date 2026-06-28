@@ -40,6 +40,17 @@ export const firestorePersonRepo: PersonRepo = {
     await adminDb.collection(COLLECTION).doc(id).update(clean(data));
   },
 
+  async findByIdNo(idNo, tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("pii.idNo", "==", idNo)
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
+    return snap.docs[0].data() as Person;
+  },
+
   async list(tenantId) {
     // NOT: where + orderBy(farklı alan) composite index ister → index yoksa veri
     // olmasa bile sorgu patlar. Eşitlik-only çekip bellekte sıralıyoruz.

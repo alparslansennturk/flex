@@ -134,7 +134,7 @@ export default function SatisYapPage() {
     (async () => {
       setLoadingEdu(true);
       try {
-        const res = await fetch(`/api/flexos/educations?branchId=${encodeURIComponent(brans)}`, { headers: await authHeaders(), signal: ac.signal });
+        const res = await fetch(`/api/flexos/educations?branchId=${encodeURIComponent(brans)}&onSale=true`, { headers: await authHeaders(), signal: ac.signal });
         const json = res.ok ? await res.json() : { items: [] };
         if (!ac.signal.aborted) setEducations(json.items ?? []);
       } catch (e) {
@@ -745,21 +745,30 @@ export default function SatisYapPage() {
                         </div>
                         <p style={{ margin: "0 0 18px", fontSize: 13.5, color: "#475569", lineHeight: 1.65 }}>{icerikOzet}</p>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 10 }}>{trackBased ? "BÖLÜMLER" : "PROGRAM İÇERİĞİ"}</div>
-                        {programItems.length === 0 ? (
-                          <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500, padding: "4px 2px" }}>Bu eğitim için içerik bilgisi henüz girilmemiş.</div>
-                        ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            {programItems.map((m) => (
-                              <div key={m.no} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", background: "#f8fafc", border: "1px solid #eef1f6", borderRadius: 12 }}>
-                                <span style={{ width: 28, height: 28, borderRadius: 8, background: "#fff", border: "1px solid #e6eaf1", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 800, flex: "0 0 auto" }}>{m.no}</span>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1e293b" }}>{m.name}</div>
-                                  {m.topics && <div style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>{m.topics}</div>}
+                        {trackBased ? (
+                          programItems.length === 0 ? (
+                            <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500, padding: "4px 2px" }}>Bu eğitim için içerik bilgisi henüz girilmemiş.</div>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {programItems.map((m) => (
+                                <div key={m.no} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", background: "#f8fafc", border: "1px solid #eef1f6", borderRadius: 12 }}>
+                                  <span style={{ width: 28, height: 28, borderRadius: 8, background: "#fff", border: "1px solid #e6eaf1", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 800, flex: "0 0 auto" }}>{m.no}</span>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1e293b" }}>{m.name}</div>
+                                    {m.topics && <div style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>{m.topics}</div>}
+                                  </div>
+                                  {m.sure && <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b", background: "#eef2f8", padding: "4px 10px", borderRadius: 8, flex: "0 0 auto" }}>{m.sure}</span>}
                                 </div>
-                                {m.sure && <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b", background: "#eef2f8", padding: "4px 10px", borderRadius: 8, flex: "0 0 auto" }}>{m.sure}</span>}
-                              </div>
-                            ))}
-                          </div>
+                              ))}
+                            </div>
+                          )
+                        ) : selEdu?.outline?.[0] ? (
+                          <>
+                            <style>{`.sy-rt h1,.sy-rt h2,.sy-rt h3,.sy-rt h4,.sy-rt h5,.sy-rt h6{margin:12px 0 6px;font-weight:700;color:#0f1f3d}.sy-rt h1{font-size:17px}.sy-rt h2{font-size:15.5px}.sy-rt h3{font-size:14px}.sy-rt h4,.sy-rt h5,.sy-rt h6{font-size:13.5px}.sy-rt p{margin:0 0 10px}.sy-rt ul,.sy-rt ol{margin:6px 0 10px;padding-left:20px}.sy-rt li{margin-bottom:4px}.sy-rt strong{font-weight:700}.sy-rt em{font-style:italic}`}</style>
+                            <div className="sy-rt" style={{ fontSize: 13.5, color: "#1e293b", lineHeight: 1.65 }} dangerouslySetInnerHTML={{ __html: selEdu.outline[0] }} />
+                          </>
+                        ) : (
+                          <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500, padding: "4px 2px" }}>Bu eğitim için içerik bilgisi henüz girilmemiş.</div>
                         )}
                       </div>
                     </div>
