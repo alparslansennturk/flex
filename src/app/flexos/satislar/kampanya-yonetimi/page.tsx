@@ -64,7 +64,7 @@ const STATUS_STYLE = {
 function discountLabel(c: Campaign) {
   if (c.discountType === "percent") return `%${c.discountValue} İndirim`;
   if (c.discountType === "fixed")   return `${c.discountValue.toLocaleString("tr-TR")}₺ İndirim`;
-  return `${c.nthN}. Alışverişte %${c.discountValue}`;
+  return `${c.nthN}. Kayıtta %${c.discountValue} İndirim`;
 }
 
 function discountBadge(dt: DiscountType) {
@@ -568,7 +568,7 @@ export default function KampanyaYonetimiPage() {
                         {([
                           { t: "percent" as DiscountType, label: "Yüzde",          sub: "ör. %20 indirim" },
                           { t: "fixed"   as DiscountType, label: "Sabit Tutar",    sub: "ör. 500₺ indirim" },
-                          { t: "nth"     as DiscountType, label: "N. Alışverişte", sub: "ör. 2. eğitimde %50" },
+                          { t: "nth"     as DiscountType, label: "Ek Kayıt İndirimi", sub: "ör. 2. eğitimde %50" },
                         ]).map(({ t, label, sub }) => {
                           const active = discType === t;
                           return (
