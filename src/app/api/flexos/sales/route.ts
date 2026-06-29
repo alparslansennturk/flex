@@ -7,6 +7,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
 import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreBundleRepo } from "@/app/lib/server/bundle-repo.firestore";
 import { createSale, type CreateSaleInput } from "@/app/lib/domain/services/sale-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
@@ -21,29 +22,33 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
-    const [sales, persons, educations, branches] = await Promise.all([
+    const [sales, persons, educations, branches, bundles] = await Promise.all([
       firestoreSaleRepo.list(actor.tenantId),
       firestorePersonRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
       firestoreBranchRepo.list(actor.tenantId),
+      firestoreBundleRepo.list(actor.tenantId),
     ]);
 
     const personMap = new Map(persons.map((p) => [p.id, p]));
     const eduMap = new Map(educations.map((e) => [e.id, e]));
     const branchMap = new Map(branches.map((b) => [b.id, b]));
+    const bundleMap = new Map(bundles.map((b) => [b.id, b]));
 
     const items = sales
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
       .map((s) => {
         const person = personMap.get(s.personId);
         const edu = s.educationId ? eduMap.get(s.educationId) : undefined;
+        const bundle = s.bundleId ? bundleMap.get(s.bundleId) : undefined;
         const branch = edu?.branchId ? branchMap.get(edu.branchId) : undefined;
         return {
           id: s.id,
           date: s.date ?? s.createdAt?.slice(0, 10) ?? "",
           studentName: person ? `${person.firstName} ${person.lastName}` : s.personId,
-          educationName: edu?.name ?? "",
+          educationName: edu?.name ?? bundle?.name ?? "",
           branchName: branch?.name ?? "",
+          bundleId: s.bundleId,
           soldPrice: s.soldPrice ?? 0,
           status: s.status ?? "active",
           type: s.type,
@@ -79,13 +84,14 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       sales: firestoreSaleRepo,
       persons: firestorePersonRepo,
       enrollments: firestoreEnrollmentRepo,
+      bundles: firestoreBundleRepo,
       payments: firestorePaymentRepo,
     });
     return NextResponse.json(
       {
         saleId: result.sale.id,
         personId: result.person.id,
-        enrollmentId: result.enrollment.id,
+        enrollmentIds: result.enrollments.map((e) => e.id),
         paymentCount: result.payments.length,
         financingFee: result.sale.financingFee ?? 0,
         piiDropped: result.piiDropped,

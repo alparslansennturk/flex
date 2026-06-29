@@ -10,6 +10,7 @@ import type { PersonRepo } from "../repo/person-repo";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
 import type { SaleRepo } from "../repo/sale-repo";
 import type { PaymentRepo } from "../repo/payment-repo";
+import type { BundleRepo } from "../repo/bundle-repo";
 import { buildPayments, type PaymentPlanInput } from "./payment-service";
 
 // ── Input ──
@@ -25,7 +26,8 @@ export interface CreateSaleInput {
   // satış bilgileri
   type?: SaleType;               // varsayılan "new_sale"
   customerType?: CustomerType;   // varsayılan "individual"
-  educationId: EntityId;
+  educationId?: EntityId;        // bireysel satış
+  bundleId?: EntityId;           // paket satış (birinin olması zorunlu)
   trackIds?: EntityId[];         // track bazlı satışta seçilen track'ler (boş = full paket)
   soldPrice?: number;
 
@@ -44,7 +46,7 @@ export interface CreateSaleInput {
 export interface CreateSaleResult {
   sale: Sale;
   person: Person;
-  enrollment: Enrollment;
+  enrollments: Enrollment[];
   payments: Payment[];
   piiDropped: boolean;
 }
@@ -55,6 +57,7 @@ export interface CreateSaleDeps {
   sales: SaleRepo;
   persons: PersonRepo;
   enrollments: EnrollmentRepo;
+  bundles: BundleRepo;
   payments?: PaymentRepo; // ödeme planı verilirse zorunlu (standalone'da opsiyonel)
 }
 
@@ -95,11 +98,19 @@ export async function createSale(
   if (!firstName || !lastName) {
     throw new ValidationError("Öğrenci ad ve soyad zorunludur.");
   }
-  if (!input.educationId) {
-    throw new ValidationError("Eğitim seçimi zorunludur.");
+  if (!input.educationId && !input.bundleId) {
+    throw new ValidationError("Eğitim veya paket seçimi zorunludur.");
   }
 
   const ts = nowISO();
+
+  // ── Bundle fetch (paket satışı) ──
+  let bundle = null;
+  if (input.bundleId) {
+    bundle = await deps.bundles.getById(input.bundleId, actor.tenantId);
+    if (!bundle) throw new ValidationError("Paket bulunamadı.");
+    if (bundle.status !== "aktif") throw new ValidationError("Seçilen paket aktif değil.");
+  }
 
   // ── 1) Person — TC ile mevcut kişi ara, yoksa yeni oluştur ──
   const allowPII = can(actor, "person.pii.write");
@@ -150,6 +161,7 @@ export async function createSale(
     customerType: input.customerType ?? "individual",
     personId: person.id,
     educationId: input.educationId,
+    bundleId: input.bundleId,
     trackIds: input.trackIds?.length ? input.trackIds : undefined,
     soldPrice: input.soldPrice,
     guardian: input.guardian,
@@ -161,19 +173,36 @@ export async function createSale(
     createdBy: actor.uid,
   };
 
-  // ── 3) Enrollment (grupsuz — havuzda bekler, op yerleştirecek) ──
-  const enrollment: Enrollment = {
-    id: deps.enrollments.nextId(),
-    tenantId: actor.tenantId,
-    personId: person.id,
-    // groupId boş → Öğrenci Havuzu'nda "Grupsuz" olarak görünür
-    educationId: input.educationId,
-    trackScope: input.trackIds?.length ? input.trackIds.join(",") : undefined,
-    status: "active",
-    saleId: sale.id,
-    createdAt: ts,
-    createdBy: actor.uid,
-  };
+  // ── 3) Enrollment(lar) — grupsuz, havuzda bekler ──
+  const enrollmentsToSave: Enrollment[] = [];
+  if (bundle) {
+    // Paket satış: her BundleItem için ayrı enrollment
+    for (const item of bundle.items) {
+      enrollmentsToSave.push({
+        id: deps.enrollments.nextId(),
+        tenantId: actor.tenantId,
+        personId: person.id,
+        educationId: item.educationId,
+        status: "active",
+        saleId: sale.id,
+        createdAt: ts,
+        createdBy: actor.uid,
+      });
+    }
+  } else {
+    // Bireysel satış: tek enrollment
+    enrollmentsToSave.push({
+      id: deps.enrollments.nextId(),
+      tenantId: actor.tenantId,
+      personId: person.id,
+      educationId: input.educationId!,
+      trackScope: input.trackIds?.length ? input.trackIds.join(",") : undefined,
+      status: "active",
+      saleId: sale.id,
+      createdAt: ts,
+      createdBy: actor.uid,
+    });
+  }
 
   // ── 4) Ödeme planı → Payment dokümanları (opsiyonel) ──
   // Peşin (nakit/kart/havale) tahsil edilmiş; senet kalanı vadeye böler (flat vade farkı).
@@ -204,12 +233,14 @@ export async function createSale(
   // ── Yazım (sıralı — atomiklik ileride batch'e çevrilebilir) ──
   if (!existingPerson) await deps.persons.save(person);
   await deps.sales.save(sale);
-  await deps.enrollments.save(enrollment);
+  for (const enr of enrollmentsToSave) {
+    await deps.enrollments.save(enr);
+  }
   if (payments.length > 0) {
     await deps.payments!.saveMany(payments);
   }
 
-  return { sale, person, enrollment, payments, piiDropped };
+  return { sale, person, enrollments: enrollmentsToSave, payments, piiDropped };
 }
 
 // ── İptal ──
