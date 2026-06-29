@@ -38,7 +38,7 @@ interface SectionDoc { id: string; educationId: string; name: string; order: num
 interface TrackDoc { id: string; educationId: string; sectionId?: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
 interface BundleItem { educationId: string; name: string; brans: string; listPrice: number; vatRate?: number }
 interface BundleDoc  { id: string; name: string; status: string; bundlePrice: number; vatRate?: number; items: BundleItem[] }
-interface CampaignDoc { id: string; name: string; discountType: "percent" | "fixed" | "nth"; discountValue: number; status: string }
+interface CampaignDoc { id: string; name: string; discountType: "percent" | "fixed" | "nth"; discountValue: number; nthN?: number; startDate: string; endDate: string; status: string }
 
 const TODAY = new Date(2026, 5, 19); // 19 Haziran 2026 — tasarım referans tarihi
 function ageFrom(dateStr: string): number | null {
@@ -104,6 +104,7 @@ export default function SatisYapPage() {
   const [bundles, setBundles] = useState<BundleDoc[]>([]);
   const [loadingBundles, setLoadingBundles] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignDoc[]>([]);
+  const [nthApplied, setNthApplied] = useState(false); // ek kayıt indirimi otomatik uygulandı mı
 
   // ── katalog verisi (GET'ten) ──
   const [branches, setBranches] = useState<BranchDoc[]>([]);
@@ -166,6 +167,34 @@ export default function SatisYapPage() {
     })();
     return () => ac.abort();
   }, [authed, brans, authHeaders]);
+
+  // TC 11 hane tamamlanınca → kişi var mı? Ek Kayıt İndirimi kampanyası otomatik uygula
+  useEffect(() => {
+    const digits = tcNo.replace(/\D/g, "");
+    if (!authed || digits.length !== 11 || !campaigns.length) return;
+    const ac = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/flexos/persons/lookup?idNo=${digits}`, { headers: await authHeaders(), signal: ac.signal });
+        if (!res.ok || ac.signal.aborted) return;
+        const data: { found: boolean; saleDates?: string[] } = await res.json();
+        if (!data.found || !data.saleDates) return;
+        const today = new Date().toISOString().slice(0, 10);
+        // kampanya tarih aralığında yapılmış önceki satışları say
+        const nthCamp = campaigns.find((c) => {
+          if (c.discountType !== "nth") return false;
+          const inPeriod = data.saleDates!.filter((d) => d >= c.startDate && d <= c.endDate).length;
+          return inPeriod + 1 === c.nthN && today >= c.startDate && today <= c.endDate;
+        });
+        if (nthCamp && !kampanya) {
+          setKampanya(nthCamp.id);
+          setNthApplied(true);
+          toast.info(`Bu kişinin ${nthCamp.nthN}. eğitimi — "${nthCamp.name}" otomatik uygulandı.`);
+        }
+      } catch { /* AbortError vb. yoksay */ }
+    })();
+    return () => ac.abort();
+  }, [tcNo, authed, campaigns, authHeaders, kampanya]);
 
   // eğitim seçilince → bölüm + track ağacı (sectioned ise)
   useEffect(() => {
