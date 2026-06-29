@@ -13,7 +13,7 @@ function at(scope: Scope, ...capabilities: string[]): Grant[] {
 }
 
 export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
-  // Satış: kişi (PII dahil) + eğitime kaydet + satış. PII YAZAR.
+  // Satış: kişi (PII dahil) + eğitime kaydet + satış + CRM. PII YAZAR.
   satis: at(
     "org",
     "person.create",
@@ -36,9 +36,16 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "campaign.edit",
     "campaign.delete",
     "campaign.read",
+    "case.create",
+    "case.read",
+    "case.edit",
+    "activity.create",
+    "activity.read",
+    "appointment.create",
+    "appointment.read",
   ),
 
-  // Operasyon: grup + kayıt yönetimi, kişi (PII dahil) okur, rapor.
+  // Operasyon: grup + kayıt yönetimi, kişi (PII dahil) okur, rapor + CRM okur.
   operasyon: at(
     "org",
     "person.create",
@@ -82,6 +89,10 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "trainer.delete",
     "trainer.rate.read",
     "trainer.rate.write",
+    "case.read",
+    "case.edit",
+    "activity.read",
+    "appointment.read",
   ),
 
   // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
@@ -164,6 +175,13 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "trainer.rate.write",
       "role.manage",
       "capability.grant",
+      "case.create",
+      "case.read",
+      "case.edit",
+      "activity.create",
+      "activity.read",
+      "appointment.create",
+      "appointment.read",
     ),
   ],
 };

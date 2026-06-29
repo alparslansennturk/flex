@@ -74,6 +74,15 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "campaign.delete", domain: "sale", label: "Kampanya Sil", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "campaign.read", domain: "sale", label: "Kampanya Gör", sensitivity: "green", write: false, scopable: false, audited: false },
 
+  // ── crm (Aktivite Merkezi — Talep + Aktivite) ──
+  { key: "case.create", domain: "crm", label: "Talep Oluştur", sensitivity: "green", write: true, scopable: false, audited: false },
+  { key: "case.read", domain: "crm", label: "Talep Gör", sensitivity: "green", write: false, scopable: false, audited: false },
+  { key: "case.edit", domain: "crm", label: "Talep Düzenle / Kapat", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "activity.create", domain: "crm", label: "Aktivite Ekle", sensitivity: "green", write: true, scopable: false, audited: false },
+  { key: "activity.read", domain: "crm", label: "Aktivite Gör", sensitivity: "green", write: false, scopable: false, audited: false },
+  { key: "appointment.create", domain: "crm", label: "Randevu Oluştur", sensitivity: "green", write: true, scopable: false, audited: false },
+  { key: "appointment.read", domain: "crm", label: "Randevu Gör", sensitivity: "green", write: false, scopable: false, audited: false },
+
   // ── system ──
   { key: "role.manage", domain: "system", label: "Capability Paketlerini Düzenle", sensitivity: "red", write: true, scopable: false, audited: true },
   { key: "capability.grant", domain: "system", label: "Tekil Yetki Ver/Al", sensitivity: "red", write: true, scopable: false, audited: true },
