@@ -19,6 +19,8 @@ export type FlexNavKey =
   | "ayarlar"
   | "satis-yap"
   | "satis-liste"
+  | "paket-yonetimi"
+  | "kampanya-yonetimi"
   | "ogrenci-havuzu"
   | "siniflar"
   | "egitmenler"
@@ -34,7 +36,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const eduActive = active === "egitimler" || active === "ayarlar";
   const [eduOpen, setEduOpen] = useState(eduActive); // aktif alt sayfadaysak başta açık
 
-  const salesActive = active === "satis-yap" || active === "satis-liste";
+  const salesActive = active === "satis-yap" || active === "satis-liste" || active === "paket-yonetimi" || active === "kampanya-yonetimi";
   const [salesOpen, setSalesOpen] = useState(salesActive);
 
   return (
@@ -106,6 +108,8 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                 <SubItem label="Satış Yap" active={active === "satis-yap"} onClick={go("/flexos/satislar/satis-yap")} />
                 <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go("/flexos/satislar/satis-liste")} />
+                <SubItem label="Paket Yönetimi" active={active === "paket-yonetimi"} onClick={go("/flexos/satislar/paket-yonetimi")} />
+                <SubItem label="Kampanya Yönetimi" active={active === "kampanya-yonetimi"} onClick={go("/flexos/satislar/kampanya-yonetimi")} />
               </div>
             </motion.div>
           )}

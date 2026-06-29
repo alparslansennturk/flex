@@ -62,6 +62,18 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "section.create", domain: "catalog", label: "Bölüm Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "track.create", domain: "catalog", label: "Track Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
 
+  // ── bundle (Paket Yönetimi) ──
+  { key: "bundle.create", domain: "sale", label: "Paket Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "bundle.edit", domain: "sale", label: "Paket Düzenle", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "bundle.delete", domain: "sale", label: "Paket Sil", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "bundle.read", domain: "sale", label: "Paket Gör", sensitivity: "green", write: false, scopable: false, audited: false },
+
+  // ── campaign (Kampanya Yönetimi) ──
+  { key: "campaign.create", domain: "sale", label: "Kampanya Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "campaign.edit", domain: "sale", label: "Kampanya Düzenle", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "campaign.delete", domain: "sale", label: "Kampanya Sil", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "campaign.read", domain: "sale", label: "Kampanya Gör", sensitivity: "green", write: false, scopable: false, audited: false },
+
   // ── system ──
   { key: "role.manage", domain: "system", label: "Capability Paketlerini Düzenle", sensitivity: "red", write: true, scopable: false, audited: true },
   { key: "capability.grant", domain: "system", label: "Tekil Yetki Ver/Al", sensitivity: "red", write: true, scopable: false, audited: true },

@@ -14,7 +14,7 @@
  *   Çok satırlı ödeme girişi (Nakit/KK/Havale/Senet + taksit); senet satırı varken
  *   aylık vade farkı % inputu açılır (canlı önizleme: toplam vade farkı + taksit başı tutar).
  *   Kaydet → soldPrice + payment (upfront + senet plan) backend'e gider → flexos_payments'a persist.
- * KALAN EKSİK: kampanya katalog entity'si yok (statik); tahsilat okuma ucu + havuzda ödeme rozeti.
+ * KALAN EKSİK: kampanya katalog entity'si yok (statik); tahsilat okuma ucu Finans modülünde.
  */
 
 import React, { useEffect, useState, useCallback, useMemo, CSSProperties } from "react";
@@ -36,6 +36,8 @@ interface EducationDoc {
 }
 interface SectionDoc { id: string; educationId: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
 interface TrackDoc { id: string; educationId: string; sectionId?: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
+interface BundleItem { educationId: string; name: string; brans: string; listPrice: number; vatRate?: number }
+interface BundleDoc  { id: string; name: string; status: string; bundlePrice: number; vatRate?: number; items: BundleItem[] }
 
 const TODAY = new Date(2026, 5, 19); // 19 Haziran 2026 — tasarım referans tarihi
 function ageFrom(dateStr: string): number | null {
@@ -95,6 +97,12 @@ export default function SatisYapPage() {
   const [senetVadeFarki, setSenetVadeFarki] = useState(""); // aylık vade farkı %
   const [saving, setSaving] = useState(false);
 
+  // ── satış modu: bireysel vs paket ──
+  const [satisModu, setSatisModu] = useState<"bireysel" | "paket">("bireysel");
+  const [paketId, setPaketId] = useState("");
+  const [bundles, setBundles] = useState<BundleDoc[]>([]);
+  const [loadingBundles, setLoadingBundles] = useState(false);
+
   // ── katalog verisi (GET'ten) ──
   const [branches, setBranches] = useState<BranchDoc[]>([]);
   const [educations, setEducations] = useState<EducationDoc[]>([]);
@@ -109,7 +117,7 @@ export default function SatisYapPage() {
     return { Authorization: `Bearer ${token}` };
   }, []);
 
-  // auth + branşları yükle
+  // auth + branşlar + paketler
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
@@ -117,11 +125,19 @@ export default function SatisYapPage() {
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
       try {
-        const res = await fetch("/api/flexos/branches", { headers: await authHeaders(), signal: ac.signal });
-        const json = res.ok ? await res.json() : { items: [] };
-        if (!ac.signal.aborted) setBranches(json.items ?? []);
+        const headers = await authHeaders();
+        const [brRes, bndRes] = await Promise.all([
+          fetch("/api/flexos/branches", { headers, signal: ac.signal }),
+          fetch("/api/flexos/bundles",  { headers, signal: ac.signal }),
+        ]);
+        const brJson  = brRes.ok  ? await brRes.json()  : { items: [] };
+        const bndJson = bndRes.ok ? await bndRes.json() : { items: [] };
+        if (!ac.signal.aborted) {
+          setBranches(brJson.items ?? []);
+          setBundles((bndJson.items ?? []).filter((b: BundleDoc) => b.status === "aktif"));
+        }
       } catch (e) {
-        if ((e as Error).name !== "AbortError") toast.error("Branşlar yüklenemedi.");
+        if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
       }
     })();
     return () => ac.abort();
@@ -184,8 +200,9 @@ export default function SatisYapPage() {
   const isEgitim = step === "egitim";
   const isOdeme = step === "odeme";
 
-  const hicSecimYok = !egitim;
-  const showIcerik = !!egitim;
+  const selBundle = bundles.find((b) => b.id === paketId);
+  const hicSecimYok = satisModu === "paket" ? !paketId : !egitim;
+  const showIcerik  = satisModu === "bireysel" && !!egitim;
 
   const selEdu = educations.find((e) => e.id === egitim);
   const trackBased = selEdu?.structure === "sectioned";
@@ -233,18 +250,26 @@ export default function SatisYapPage() {
   // Tekrar / Sınıf Değişimi → ücretsiz işlem (0 TL kilit).
   const sifirKilit = satisNedeni === "Tekrar Öğrencisi" || satisNedeni === "Sınıf Değişimi";
   // Brüt matrah (KDV HARİÇ) = gerçek katalog listPrice'ından türetilir.
-  const brutBase = showTrackTree
-    ? treeTracks.filter((t) => trackOn(t.id)).reduce((s, t) => s + (t.listPrice ?? 0), 0)
-    : trackBased
-      ? (selEdu?.listPrice ?? sections.reduce((s, x) => s + (x.listPrice ?? 0), 0))
-      : (selEdu?.listPrice ?? 0);
-  const brut = sifirKilit ? 0 : brutBase; // KDV hariç matrah
-  const kdvOrani = selEdu?.vatRate ?? 0;
+  const bundleIndTotal = satisModu === "paket" ? (selBundle?.items.reduce((s, i) => s + (i.listPrice ?? 0), 0) ?? 0) : 0;
+  const bundleDisc     = bundleIndTotal - (selBundle?.bundlePrice ?? 0);
+  const bundleDiscPct  = bundleIndTotal > 0 ? Math.round((bundleDisc / bundleIndTotal) * 100) : 0;
 
-  // İndirimler KDV HARİÇ matrah üzerinden uygulanır (KDV devletin parası, indirim yapılamaz)
+  const brutBase = satisModu === "paket"
+    ? (selBundle?.bundlePrice ?? 0)
+    : showTrackTree
+      ? treeTracks.filter((t) => trackOn(t.id)).reduce((s, t) => s + (t.listPrice ?? 0), 0)
+      : trackBased
+        ? (selEdu?.listPrice ?? sections.reduce((s, x) => s + (x.listPrice ?? 0), 0))
+        : (selEdu?.listPrice ?? 0);
+  const brut = sifirKilit ? 0 : brutBase; // KDV hariç matrah
+  const kdvOrani = satisModu === "paket"
+    ? (selBundle?.vatRate ?? selBundle?.items[0]?.vatRate ?? 10)
+    : (selEdu?.vatRate ?? 0);
+
+  // Kampanya bireysel satışa özeldir — paket modunda devre dışı
   const kampanyaPct: Record<string, number> = { ind20: 20, erken: 15, referans: 10 };
   const kampanyaEtiketMap: Record<string, string> = { ind20: "%20", erken: "%15", referans: "%10" };
-  const pct = !sifirKilit ? (kampanyaPct[kampanya] ?? 0) : 0;
+  const pct = !sifirKilit && satisModu === "bireysel" ? (kampanyaPct[kampanya] ?? 0) : 0;
   const kampanyaIndTutar = Math.round((brut * pct) / 100);
   const hasKampanyaInd = pct > 0;
   const afterKampanya = brut - kampanyaIndTutar;
@@ -290,7 +315,8 @@ export default function SatisYapPage() {
   const onNext = () => {
     if (step === "genel") { setStep("egitim"); return; }
     if (step === "egitim") {
-      if (!egitim) { toast.error("Lütfen eğitim seçin."); return; }
+      if (satisModu === "paket" && !paketId) { toast.error("Lütfen bir paket seçin."); return; }
+      if (satisModu === "bireysel" && !egitim) { toast.error("Lütfen eğitim seçin."); return; }
       setStep("odeme");
       return;
     }
@@ -301,7 +327,8 @@ export default function SatisYapPage() {
   const onSave = async () => {
     // ── validasyon ──
     if (!ad.trim() || !soyad.trim()) { toast.error("Ad ve soyad zorunludur."); setStep("genel"); return; }
-    if (!egitim) { toast.error("Lütfen eğitim seçin."); setStep("egitim"); return; }
+    if (satisModu === "bireysel" && !egitim) { toast.error("Lütfen eğitim seçin."); setStep("egitim"); return; }
+    if (satisModu === "paket" && !paketId) { toast.error("Lütfen paket seçin."); setStep("egitim"); return; }
 
     // track bazlı → seçili track id'leri
     const selectedTrackIds = showTrackTree
@@ -359,7 +386,8 @@ export default function SatisYapPage() {
       pii: Object.keys(pii).length > 0 ? pii : undefined,
       type: saleTypeMap[satisNedeni] || "new_sale",
       customerType: satisTipi === "Kurumsal" ? "corporate" : "individual",
-      educationId: egitim,
+      educationId: satisModu === "bireysel" ? egitim : undefined,
+      bundleId:    satisModu === "paket"    ? paketId : undefined,
       trackIds: selectedTrackIds,
       soldPrice: net,
       guardian,
@@ -597,6 +625,26 @@ export default function SatisYapPage() {
               {/* ===== TAB 2: EĞİTİM ===== */}
               {isEgitim && (
                 <>
+                  {/* Satış Modu toggle */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 22 }}>
+                    <button
+                      onClick={() => { setSatisModu("bireysel"); setPaketId(""); }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 40, padding: "0 18px", borderRadius: 10, border: "none", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, cursor: "pointer", transition: "all .15s",
+                        ...(satisModu === "bireysel" ? { background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", boxShadow: "0 4px 12px -4px rgba(32,82,151,.4)" } : { background: "#eef2f8", color: "#64748b" }) }}>
+                      <span dangerouslySetInnerHTML={{ __html: IC.user }} />
+                      Bireysel Eğitim
+                    </button>
+                    <button
+                      onClick={() => { setSatisModu("paket"); setEgitim(""); setBrans(""); setSections([]); setTracks([]); setTrackSel({}); setKampanya(""); }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 40, padding: "0 18px", borderRadius: 10, border: "none", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, cursor: "pointer", transition: "all .15s",
+                        ...(satisModu === "paket" ? { background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", boxShadow: "0 4px 12px -4px rgba(32,82,151,.4)" } : { background: "#eef2f8", color: "#64748b" }) }}>
+                      <span dangerouslySetInnerHTML={{ __html: IC.layers }} />
+                      Paket Satışı
+                    </button>
+                  </div>
+
+                  {/* ── BİREYSEL MOD: Branş + Eğitim + Kampanya ── */}
+                  {satisModu === "bireysel" && (<>
                   <SectionTitle>Eğitim &amp; Kampanya</SectionTitle>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 16 }}>
                     <div>
@@ -631,8 +679,45 @@ export default function SatisYapPage() {
                       </SelectWrap>
                     </div>
                   </div>
+                  </>)}
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24, maxWidth: 580 }}>
+                  {/* ── PAKET MOD: Paket seçici ── */}
+                  {satisModu === "paket" && (<>
+                  <SectionTitle>Paket Seçimi</SectionTitle>
+                  <div style={{ marginBottom: 20 }}>
+                    <Label>Paket</Label>
+                    <SelectWrap small>
+                      <select value={paketId} onChange={(e) => setPaketId(e.target.value)} style={{ ...S.selectSm, maxWidth: 420 }}>
+                        <option value="">{loadingBundles ? "Yükleniyor…" : bundles.length ? "Paket Seçin" : "Aktif paket bulunamadı"}</option>
+                        {bundles.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </SelectWrap>
+                  </div>
+
+                  {/* Paket içerik kartı */}
+                  {selBundle && (
+                    <div style={{ border: "1px solid #dce6f5", borderRadius: 16, overflow: "hidden", marginBottom: 16, animation: "sy-slide .25s ease" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "15px 20px", background: "linear-gradient(135deg,#f0f5ff,#e8f0ff)", borderBottom: "1px solid #dce6f5" }}>
+                        <span style={{ ...S.boxIcon, background: "#dbe3ff", color: "#1e3a8a" }} dangerouslySetInnerHTML={{ __html: IC.layers }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14.5, fontWeight: 800, color: "#0f1f3d" }}>{selBundle.name}</div>
+                          <div style={{ fontSize: 12.5, color: "#64748b", fontWeight: 500 }}>{selBundle.items.length} eğitim dahil</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: "12px 20px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+                        {selBundle.items.map((item, idx) => (
+                          <div key={item.educationId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 11, background: "#f8fafc", border: "1px solid #eef1f6" }}>
+                            <span style={{ width: 24, height: 24, borderRadius: 6, background: "#EBF2FF", color: "#205297", fontWeight: 800, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{idx + 1}</span>
+                            <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: "#1e293b" }}>{item.name}</span>
+                            <span style={{ fontSize: 11.5, fontWeight: 600, color: "#64748b", background: "#eef2f8", padding: "2px 9px", borderRadius: 7, flexShrink: 0 }}>{item.brans}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  </>)}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24, maxWidth: 580, ...(satisModu === "paket" ? { display: "none" } : {}) }}>
                     <div>
                       <Label>Satış Tipi</Label>
                       <SelectWrap small>
@@ -795,21 +880,46 @@ export default function SatisYapPage() {
                   {/* özet kartı */}
                   <div style={{ border: "1px solid #e3e8f0", borderRadius: 14, background: "#fff", overflow: "hidden", marginBottom: 20 }}>
                     {/* Ana fiyat */}
-                    <div style={S.ozetRow}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Eğitim Tutarı (KDV Hariç)</span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" }}>{fmtTL(brut)}</span>
-                    </div>
-                    <div style={S.ozetSep} />
-
-                    {/* Kampanya indirimi */}
-                    <div style={S.ozetRow}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#64748b" }}>
-                        Kampanya İndirimi
-                        {hasKampanyaInd && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 999 }}>{kampanyaEtiketMap[kampanya]}</span>}
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: kampanyaIndTutar > 0 ? "#15803d" : "#0f1f3d", minWidth: 110, textAlign: "right" }}>{kampanyaIndTutar > 0 ? "− " + fmtTL(kampanyaIndTutar) : fmtTL(0)}</span>
-                    </div>
-                    <div style={S.ozetSep} />
+                    {/* Paket modu: bireysel satış ile birebir aynı S.ozetRow stili */}
+                    {satisModu === "paket" && selBundle ? (<>
+                      {selBundle.items.map((item) => (
+                        <React.Fragment key={item.educationId}>
+                          <div style={S.ozetRow}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>{item.name} (KDV Hariç)</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" as const }}>{fmtTL(item.listPrice ?? 0)}</span>
+                          </div>
+                          <div style={S.ozetSep} />
+                        </React.Fragment>
+                      ))}
+                      <div style={S.ozetRow}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Paket Fiyatı (KDV Hariç)</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" as const }}>{fmtTL(brut)}</span>
+                      </div>
+                      <div style={S.ozetSep} />
+                      <div style={S.ozetRow}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#64748b" }}>
+                          İndirim
+                          {bundleDiscPct > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 999 }}>%{bundleDiscPct}</span>}
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#15803d", minWidth: 110, textAlign: "right" as const }}>− {fmtTL(bundleDisc)}</span>
+                      </div>
+                      <div style={S.ozetSep} />
+                    </>) : (<>
+                      {/* Bireysel mod: tek satır eğitim tutarı */}
+                      <div style={S.ozetRow}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Eğitim Tutarı (KDV Hariç)</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" as const }}>{fmtTL(brut)}</span>
+                      </div>
+                      <div style={S.ozetSep} />
+                      <div style={S.ozetRow}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#64748b" }}>
+                          Kampanya İndirimi
+                          {hasKampanyaInd && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 999 }}>{kampanyaEtiketMap[kampanya]}</span>}
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: kampanyaIndTutar > 0 ? "#15803d" : "#0f1f3d", minWidth: 110, textAlign: "right" as const }}>{kampanyaIndTutar > 0 ? "− " + fmtTL(kampanyaIndTutar) : fmtTL(0)}</span>
+                      </div>
+                      <div style={S.ozetSep} />
+                    </>)}
 
                     {/* Yönetici / satışçı indirimi */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", background: "#fafbfd" }}>
