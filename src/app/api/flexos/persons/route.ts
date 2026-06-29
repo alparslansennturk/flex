@@ -8,6 +8,7 @@ import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/ca
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
+import { firestoreBundleRepo } from "@/app/lib/server/bundle-repo.firestore";
 import { createPerson, type CreatePersonInput } from "@/app/lib/domain/services/person-service";
 import { derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import { officeName } from "@/app/lib/branch-offices";
@@ -30,19 +31,22 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
-    const [persons, enrollments, educations, branches, groups, allPayments, allSales] = await Promise.all([
+    const [persons, enrollments, educations, branches, groups, bundles, allSales, allPayments] = await Promise.all([
       firestorePersonRepo.list(actor.tenantId),
       firestoreEnrollmentRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
       firestoreBranchRepo.list(actor.tenantId),
       firestoreGroupRepo.list(actor.tenantId),
+      firestoreBundleRepo.list(actor.tenantId),
+      firestoreSaleRepo.list(actor.tenantId),
       can(actor, "payment.read") ? firestorePaymentRepo.list(actor.tenantId) : Promise.resolve([] as Payment[]),
-      can(actor, "payment.read") ? firestoreSaleRepo.list(actor.tenantId) : Promise.resolve([] as Sale[]),
     ]);
 
     const eduMap = new Map(educations.map((e) => [e.id, e]));
     const branchMap = new Map(branches.map((b) => [b.id, b]));
     const groupMap = new Map(groups.map((g) => [g.id, g]));
+    const bundleMap = new Map(bundles.map((b) => [b.id, b]));
+    const saleMap = new Map(allSales.map((s) => [s.id, s]));
 
     // enrollment'ları personId'ye göre grupla
     const enrollByPerson = new Map<string, Enrollment[]>();
@@ -79,6 +83,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
       const educationList: Array<{ educationId: string; name: string; status: string }> = [];
       const seenEduIds = new Set<string>();
+      const seenBundleSaleIds = new Set<string>(); // paket satışı → tek satır
 
       for (const enr of enrs) {
         const edu = enr.educationId ? eduMap.get(enr.educationId) : undefined;
@@ -88,7 +93,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         if (enr.groupId) {
           const grp = groupMap.get(enr.groupId);
           groupList.push({
-            label: grp?.code ? `Grup ${grp.code}` : enr.groupId,
+            label: grp?.code ?? enr.groupId,
             branch: branch?.name ?? "",
             educationName: edu?.name ?? "",
           });
@@ -96,8 +101,19 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
           if (office) officeNames.add(office);
         }
 
-        // Tüm aktif enrollment'lardan eğitim listesi (grupsuz dahil, tekrar yok)
-        if (edu && !seenEduIds.has(edu.id) && enr.status !== "cancelled") {
+        if (enr.status === "cancelled") continue;
+
+        // Eğitim sütunu: paket satışı → paket adı (tek satır); bireysel → eğitim adı
+        const sale = enr.saleId ? saleMap.get(enr.saleId) : undefined;
+        if (sale?.bundleId) {
+          if (!seenBundleSaleIds.has(sale.id)) {
+            seenBundleSaleIds.add(sale.id);
+            const bundle = bundleMap.get(sale.bundleId);
+            if (bundle) {
+              educationList.push({ educationId: sale.bundleId, name: bundle.name, status: enr.status });
+            }
+          }
+        } else if (edu && !seenEduIds.has(edu.id)) {
           seenEduIds.add(edu.id);
           educationList.push({ educationId: edu.id, name: edu.name, status: enr.status });
         }
