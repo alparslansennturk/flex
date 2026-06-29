@@ -108,6 +108,7 @@ export default function EgitmenlerPage() {
   /* ── detail bottom sheet ── */
   const [detailId, setDetailId] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
   const [ucretRevealed, setUcretRevealed] = useState(false);
 
   /* ── delete modal ── */
@@ -216,22 +217,53 @@ export default function EgitmenlerPage() {
   const openDetail = (id: number) => { setDetailId(id); setNoteDraft(""); setUcretRevealed(false); };
   const closeDetail = () => setDetailId(null);
 
-  const addNote = () => {
-    const txt = noteDraft.trim();
-    if (!txt || !detailId) return;
-    const note: TrainerNote = { text: txt, author: "Alparslan Şentürk", date: "23 Haz 2026", sentiment: "neutral" };
-    setTrainers((prev) => prev.map((t) => t.id === detailId ? { ...t, notes: [note, ...t.notes] } : t));
-    setNoteDraft("");
-    toast.success("Not eklendi.");
+  const patchNotes = async (docId: string, notes: TrainerNote[]) => {
+    const res = await fetch(`/api/flexos/trainers/${docId}`, {
+      method: "PATCH",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j.error ?? "Kaydedilemedi.");
+    }
   };
 
-  const togglePin = (noteIdx: number) => {
-    if (!detailId) return;
-    setTrainers((prev) => prev.map((t) => {
-      if (t.id !== detailId) return t;
-      const notes = t.notes.map((n, i) => i === noteIdx ? { ...n, pinned: !n.pinned } : n);
-      return { ...t, notes };
-    }));
+  const addNote = async () => {
+    const txt = noteDraft.trim();
+    if (!txt || !detailId || noteSaving) return;
+    const trainer = trainers.find((t) => t.id === detailId);
+    if (!trainer?.docId) return;
+    const today = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
+    const note: TrainerNote = { text: txt, author: auth.currentUser?.displayName ?? "Yönetici", date: today, sentiment: "neutral" };
+    const newNotes = [note, ...trainer.notes];
+    setNoteSaving(true);
+    try {
+      await patchNotes(trainer.docId, newNotes);
+      setTrainers((prev) => prev.map((t) => t.id === detailId ? { ...t, notes: newNotes } : t));
+      setNoteDraft("");
+      toast.success("Not eklendi.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
+  const togglePin = async (noteIdx: number) => {
+    if (!detailId || noteSaving) return;
+    const trainer = trainers.find((t) => t.id === detailId);
+    if (!trainer?.docId) return;
+    const newNotes = trainer.notes.map((n, i) => i === noteIdx ? { ...n, pinned: !n.pinned } : n);
+    setNoteSaving(true);
+    try {
+      await patchNotes(trainer.docId, newNotes);
+      setTrainers((prev) => prev.map((t) => t.id === detailId ? { ...t, notes: newNotes } : t));
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setNoteSaving(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -810,8 +842,8 @@ export default function EgitmenlerPage() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 16 }}>
                           <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Yeni not ekle… (yalnızca yönetim görür)" style={S.noteTextarea} />
                           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                            <button onClick={addNote} disabled={!noteDraft.trim()} className="sg-add-note-btn" style={{ ...S.addNoteBtn, background: noteDraft.trim() ? "linear-gradient(135deg,#2867bd,#205297)" : "#CDD2DA", cursor: noteDraft.trim() ? "pointer" : "not-allowed" }}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} /> Not Ekle
+                            <button onClick={addNote} disabled={!noteDraft.trim() || noteSaving} className="sg-add-note-btn" style={{ ...S.addNoteBtn, background: (noteDraft.trim() && !noteSaving) ? "linear-gradient(135deg,#2867bd,#205297)" : "#CDD2DA", cursor: (noteDraft.trim() && !noteSaving) ? "pointer" : "not-allowed" }}>
+                              <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} /> {noteSaving ? "Kaydediliyor…" : "Not Ekle"}
                             </button>
                           </div>
                         </div>
@@ -828,7 +860,7 @@ export default function EgitmenlerPage() {
                                   <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{n.author}</span>
                                   <span style={{ fontSize: 11.5, color: "#AEB4C0", fontWeight: 500 }}>{n.date}</span>
                                   {n.pinned && <span style={{ fontSize: 10, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "1px 6px", borderRadius: 999 }}>Sabitlenmiş</span>}
-                                  <button onClick={() => togglePin(i)} className="sg-pin-btn" title={n.pinned ? "Sabiti kaldır" : "Sabitle"} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: n.pinned ? "#205297" : "#AEB4C0", flex: "0 0 auto", padding: 0 }}>
+                                  <button onClick={() => togglePin(i)} disabled={noteSaving} className="sg-pin-btn" title={n.pinned ? "Sabiti kaldır" : "Sabitle"} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: noteSaving ? "not-allowed" : "pointer", color: n.pinned ? "#205297" : "#AEB4C0", flex: "0 0 auto", padding: 0 }}>
                                     <span dangerouslySetInnerHTML={{ __html: IC.pinIcon }} />
                                   </button>
                                 </div>

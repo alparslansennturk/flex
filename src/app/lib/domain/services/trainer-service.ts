@@ -3,6 +3,7 @@ import type { Actor } from "../access/types";
 import type { ISODateTime } from "../base";
 import type { Trainer, TrainerAvailabilitySlot, TrainerNote, TrainerStatus } from "../core/trainer";
 import { ForbiddenError, ValidationError } from "../errors";
+import type { GroupRepo } from "../repo/group-repo";
 import type { TrainerRepo } from "../repo/trainer-repo";
 
 const now = (): ISODateTime => new Date().toISOString();
@@ -90,6 +91,7 @@ export interface UpdateTrainerInput {
   status?: TrainerStatus;
   competencies?: Record<string, string[]>;
   hourlyRate?: number | null; // null = açıkça temizle (yetki varsa); undefined = dokunma
+  notes?: TrainerNote[]; // tam dizi gönderilir (replace-all)
 }
 
 /**
@@ -126,6 +128,7 @@ export async function updateTrainer(
     updated.status = input.status;
   }
   if (input.competencies !== undefined) updated.competencies = sanitizeComp(input.competencies);
+  if (input.notes !== undefined) updated.notes = input.notes;
 
   // ── ücret: yalnız yetki varsa ──
   const allowRate = can(actor, "trainer.rate.write");
@@ -151,12 +154,27 @@ export async function updateTrainer(
 
 /**
  * Eğitmen sil — gated (`trainer.delete`).
- * NOT: atanmış gruplarla ilişki burada engellenmez (grupta eğitmen opsiyonel/dummy);
- * grup-eğitmen güvenliği gerekirse ileride GroupRepo deps ile eklenir.
+ * Aktif veya açılacak gruba atanmış eğitmen silinemez; önce grup ataması kaldırılmalı.
  */
-export async function deleteTrainer(actor: Actor, id: string, repo: TrainerRepo): Promise<void> {
+export async function deleteTrainer(
+  actor: Actor,
+  id: string,
+  repo: TrainerRepo,
+  deps: { groups: GroupRepo },
+): Promise<void> {
   if (!can(actor, "trainer.delete")) throw new ForbiddenError("trainer.delete");
   const existing = await repo.getById(id, actor.tenantId);
   if (!existing) throw new ValidationError("Eğitmen bulunamadı.");
+
+  const assignedGroups = await deps.groups.list(actor.tenantId, id);
+  const blocking = assignedGroups.filter(
+    (g) => g.status !== "completed" && g.status !== "archived",
+  );
+  if (blocking.length > 0) {
+    throw new ValidationError(
+      `Bu eğitmene atanmış ${blocking.length} aktif grup var. Önce grup atamasını kaldırın veya grubu iptal edin.`,
+    );
+  }
+
   await repo.delete(id, actor.tenantId);
 }

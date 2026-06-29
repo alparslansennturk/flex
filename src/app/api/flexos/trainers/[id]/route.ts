@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { updateTrainer, deleteTrainer, type UpdateTrainerInput } from "@/app/lib/domain/services/trainer-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
@@ -39,7 +40,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteTrainer(actorFromCaller(caller), id, firestoreTrainerRepo);
+    await deleteTrainer(actorFromCaller(caller), id, firestoreTrainerRepo, { groups: firestoreGroupRepo });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
