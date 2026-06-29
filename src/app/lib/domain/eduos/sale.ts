@@ -42,6 +42,7 @@ export interface Sale extends Audit {
 
   educationId?: EntityId;       // bireysel: hangi eğitim satıldı
   bundleId?: EntityId;          // paket: hangi paket satıldı (N enrollment üretir)
+  campaignId?: EntityId;        // uygulanan kampanya (raporlama için)
   trackIds?: EntityId[];        // track bazlı satışta seçilen track'ler (boş = full paket)
 
   soldPrice?: number; // fiilen satılan eğitim fiyatı (≠ liste fiyatı) — SATIŞ cirosu raporu bundan

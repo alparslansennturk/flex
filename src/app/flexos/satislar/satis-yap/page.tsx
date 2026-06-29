@@ -38,6 +38,7 @@ interface SectionDoc { id: string; educationId: string; name: string; order: num
 interface TrackDoc { id: string; educationId: string; sectionId?: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
 interface BundleItem { educationId: string; name: string; brans: string; listPrice: number; vatRate?: number }
 interface BundleDoc  { id: string; name: string; status: string; bundlePrice: number; vatRate?: number; items: BundleItem[] }
+interface CampaignDoc { id: string; name: string; discountType: "percent" | "fixed" | "nth"; discountValue: number; status: string }
 
 const TODAY = new Date(2026, 5, 19); // 19 Haziran 2026 — tasarım referans tarihi
 function ageFrom(dateStr: string): number | null {
@@ -102,6 +103,7 @@ export default function SatisYapPage() {
   const [paketId, setPaketId] = useState("");
   const [bundles, setBundles] = useState<BundleDoc[]>([]);
   const [loadingBundles, setLoadingBundles] = useState(false);
+  const [campaigns, setCampaigns] = useState<CampaignDoc[]>([]);
 
   // ── katalog verisi (GET'ten) ──
   const [branches, setBranches] = useState<BranchDoc[]>([]);
@@ -126,15 +128,18 @@ export default function SatisYapPage() {
       setAuthed(true);
       try {
         const headers = await authHeaders();
-        const [brRes, bndRes] = await Promise.all([
-          fetch("/api/flexos/branches", { headers, signal: ac.signal }),
-          fetch("/api/flexos/bundles",  { headers, signal: ac.signal }),
+        const [brRes, bndRes, campRes] = await Promise.all([
+          fetch("/api/flexos/branches",   { headers, signal: ac.signal }),
+          fetch("/api/flexos/bundles",    { headers, signal: ac.signal }),
+          fetch("/api/flexos/campaigns",  { headers, signal: ac.signal }),
         ]);
-        const brJson  = brRes.ok  ? await brRes.json()  : { items: [] };
-        const bndJson = bndRes.ok ? await bndRes.json() : { items: [] };
+        const brJson   = brRes.ok   ? await brRes.json()   : { items: [] };
+        const bndJson  = bndRes.ok  ? await bndRes.json()  : { items: [] };
+        const campJson = campRes.ok ? await campRes.json() : { items: [] };
         if (!ac.signal.aborted) {
           setBranches(brJson.items ?? []);
           setBundles((bndJson.items ?? []).filter((b: BundleDoc) => b.status === "aktif"));
+          setCampaigns((campJson.items ?? []).filter((c: CampaignDoc) => c.status === "aktif"));
         }
       } catch (e) {
         if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
@@ -267,11 +272,14 @@ export default function SatisYapPage() {
     : (selEdu?.vatRate ?? 0);
 
   // Kampanya bireysel satışa özeldir — paket modunda devre dışı
-  const kampanyaPct: Record<string, number> = { ind20: 20, erken: 15, referans: 10 };
-  const kampanyaEtiketMap: Record<string, string> = { ind20: "%20", erken: "%15", referans: "%10" };
-  const pct = !sifirKilit && satisModu === "bireysel" ? (kampanyaPct[kampanya] ?? 0) : 0;
-  const kampanyaIndTutar = Math.round((brut * pct) / 100);
-  const hasKampanyaInd = pct > 0;
+  const selCampaign = campaigns.find((c) => c.id === kampanya) ?? null;
+  const kampanyaIndTutar = (!sifirKilit && satisModu === "bireysel" && selCampaign)
+    ? selCampaign.discountType === "percent" ? Math.round((brut * selCampaign.discountValue) / 100)
+    : selCampaign.discountType === "fixed"   ? Math.min(selCampaign.discountValue, brut)
+    : 0
+    : 0;
+  const hasKampanyaInd = kampanyaIndTutar > 0;
+  const kampanyaEtiket = selCampaign?.discountType === "percent" ? `%${selCampaign.discountValue}` : selCampaign?.discountType === "fixed" ? `${fmtTL(selCampaign.discountValue)} sabit` : "";
   const afterKampanya = brut - kampanyaIndTutar;
 
   const elRaw = parseFloat(elIndirim) || 0;
@@ -388,6 +396,7 @@ export default function SatisYapPage() {
       customerType: satisTipi === "Kurumsal" ? "corporate" : "individual",
       educationId: satisModu === "bireysel" ? egitim : undefined,
       bundleId:    satisModu === "paket"    ? paketId : undefined,
+      campaignId:  satisModu === "bireysel" && kampanya ? kampanya : undefined,
       trackIds: selectedTrackIds,
       soldPrice: net,
       guardian,
@@ -671,8 +680,9 @@ export default function SatisYapPage() {
                       <SelectWrap small>
                         <select value={kampanya} onChange={(e) => setKampanya(e.target.value)} style={S.selectSm}>
                           <option value="">Kampanya Seçin</option>
-                          <option value="ind20">2. Eğitime %20 İndirim</option>
-                          <option value="yok">Kampanya Yok</option>
+                          {campaigns.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
                           <option value="erken">Erken Kayıt — %15 İndirim</option>
                           <option value="referans">Referans İndirimi — %10</option>
                         </select>
@@ -914,7 +924,7 @@ export default function SatisYapPage() {
                       <div style={S.ozetRow}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#64748b" }}>
                           Kampanya İndirimi
-                          {hasKampanyaInd && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 999 }}>{kampanyaEtiketMap[kampanya]}</span>}
+                          {hasKampanyaInd && kampanyaEtiket && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 999 }}>{kampanyaEtiket}</span>}
                         </span>
                         <span style={{ fontSize: 14, fontWeight: 700, color: kampanyaIndTutar > 0 ? "#15803d" : "#0f1f3d", minWidth: 110, textAlign: "right" as const }}>{kampanyaIndTutar > 0 ? "− " + fmtTL(kampanyaIndTutar) : fmtTL(0)}</span>
                       </div>

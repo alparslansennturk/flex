@@ -28,6 +28,7 @@ export interface CreateSaleInput {
   customerType?: CustomerType;   // varsayılan "individual"
   educationId?: EntityId;        // bireysel satış
   bundleId?: EntityId;           // paket satış (birinin olması zorunlu)
+  campaignId?: EntityId;         // uygulanan kampanya (opsiyonel, raporlama)
   trackIds?: EntityId[];         // track bazlı satışta seçilen track'ler (boş = full paket)
   soldPrice?: number;
 
@@ -162,6 +163,7 @@ export async function createSale(
     personId: person.id,
     educationId: input.educationId,
     bundleId: input.bundleId,
+    campaignId: input.campaignId,
     trackIds: input.trackIds?.length ? input.trackIds : undefined,
     soldPrice: input.soldPrice,
     guardian: input.guardian,
