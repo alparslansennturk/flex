@@ -581,17 +581,17 @@ export default function OgrenciHavuzuPage() {
           {/* ============ TABLE ============ */}
           <div style={S.tableCard}>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                 <thead>
                   <tr style={{ background: "#F7F8FA", borderBottom: "1px solid #EEF0F3" }}>
-                    <th style={S.th}>Ad Soyad</th>
-                    <th style={S.th}>Branş</th>
-                    <th style={{ ...S.th, minWidth: 160 }}>Eğitim</th>
-                    <th style={S.th}>Durum</th>
-                    <th className="oh-wide-col" style={S.th}>E-posta</th>
-                    <th className="oh-wide-col" style={S.th}>Telefon</th>
-                    <th style={S.th}>Grup</th>
-                    <th style={{ ...S.th, textAlign: "right" }}>İşlem</th>
+                    <th className="oh-col-name"  style={S.th}>Ad Soyad</th>
+                    <th className="oh-col-brans" style={{ ...S.th, paddingLeft: 8 }}>Branş</th>
+                    <th className="oh-col-edu"   style={S.th}>Eğitim</th>
+                    <th className="oh-col-stat"  style={S.th}>Durum</th>
+                    <th className="oh-wide-col oh-col-email" style={S.th}>E-posta</th>
+                    <th className="oh-wide-col oh-col-phone" style={S.th}>Telefon</th>
+                    <th className="oh-col-grup"  style={S.th}>Grup</th>
+                    <th className="oh-col-islem" style={{ ...S.th, textAlign: "right" }}>İşlem</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -616,7 +616,7 @@ export default function OgrenciHavuzuPage() {
                           </div>
                         </td>
                         {/* Branş */}
-                        <td style={S.cell}>
+                        <td style={{ ...S.cell, paddingLeft: 8 }}>
                           <div
                             style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 8, cursor: "default" }}
                             onMouseEnter={() => setHoveredBrans(st.id)}
@@ -1270,4 +1270,10 @@ const globalCss = `
 .fx-sheet-ov{left:248px;right:0}
 @media(min-width:1536px){.fx-sheet,.fx-sheet-ov{left:272px}}
 @media(min-width:2560px){.fx-sheet,.fx-sheet-ov{left:300px}}
+.oh-col-name{width:220px}.oh-col-brans{width:130px}.oh-col-edu{width:170px}.oh-col-stat{width:120px}
+.oh-col-email{width:190px}.oh-col-phone{width:155px}.oh-col-grup{width:150px}.oh-col-islem{width:115px}
+@media(max-width:1599px){
+  .oh-col-name{width:186px}.oh-col-brans{width:108px}.oh-col-edu{width:148px}.oh-col-stat{width:106px}
+  .oh-col-grup{width:126px}.oh-col-islem{width:96px}
+}
 `;
