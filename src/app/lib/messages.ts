@@ -44,7 +44,18 @@ export const FLEX_MESSAGES: Record<string, FlexMessage> = {
   'group/duplicate-code': {
     text: 'Bu şubede aynı isimde bir sınıf zaten mevcut.',
     type: 'warning'
-  }
+  },
+
+  // --- FLEXOS AKTIVITE MERKEZİ ---
+  'flexos/durum-required':       { text: 'Durum Seçiniz',                                      type: 'error' },
+  'flexos/aksiyon-saved':        { text: 'Aksiyon kaydedildi.',                                 type: 'success' },
+  'flexos/talep-created':        { text: 'Talep oluşturuldu.',                                  type: 'success' },
+  'flexos/talep-reopen-failed':  { text: 'Talep yeniden açılamadı.',                            type: 'error' },
+
+  // --- VALİDASYON (GENEL EKLENTİ) ---
+  'validation/ad-soyad-required':   { text: 'Ad ve soyad zorunlu.',                                      type: 'error' },
+  'validation/iletisim-required':   { text: 'Telefon veya e-posta\'dan en az biri gerekli.',             type: 'error' },
+  'system/save-failed':             { text: 'Kayıt başarısız.',                                          type: 'error' },
 };
 
 export const getFlexMessage = (code: string): FlexMessage => {

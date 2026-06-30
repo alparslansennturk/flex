@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
+import { FlexPageLoader, FlexSpinner } from "../_components/FlexSpinner";
 import { BRANCH_OFFICES, officeName } from "@/app/lib/branch-offices";
 import { formatTrPhone } from "@/app/lib/phone";
 
@@ -531,14 +532,7 @@ export default function SınıflarPage() {
   const isCorporate = eğitimTipi === "kurumsal";
 
   // -- loading guard --
-  if (authed === null) {
-    return (
-      <div style={{ display: "flex", height: "100vh", width: "100%", alignItems: "center", justifyContent: "center", background: "#EEF0F3" }}>
-        <div className="sg-spin" />
-        <style>{spinCss}</style>
-      </div>
-    );
-  }
+  if (authed === null) return <FlexPageLoader />;
 
   const isEditing = editingId !== null;
 
@@ -807,7 +801,7 @@ export default function SınıflarPage() {
           {/* Loading state */}
           {loadingGroups && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16 }}>
-              <div className="sg-spin" />
+              <FlexSpinner />
               <div style={{ fontSize: 13.5, color: "#8E95A3" }}>Gruplar yükleniyor…</div>
             </div>
           )}
@@ -970,7 +964,7 @@ export default function SınıflarPage() {
             <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
               {rosterLoading ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 20px" }}>
-                  <div className="sg-spin" />
+                  <FlexSpinner />
                   <div style={{ fontSize: 13, color: "#8E95A3" }}>Yükleniyor…</div>
                 </div>
               ) : rosterItems.length === 0 ? (
@@ -1373,7 +1367,6 @@ const IC = {
   undoWhite: sv('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>', 'width="16" height="16" stroke="#fff" stroke-width="2.2"'),
 };
 
-const spinCss = `.sg-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:sg-spin 1s linear infinite}@keyframes sg-spin{to{transform:rotate(360deg)}}`;
 const globalCss = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @keyframes sgIn{from{opacity:0}to{opacity:1}}

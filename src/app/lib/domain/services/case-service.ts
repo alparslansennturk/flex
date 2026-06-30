@@ -29,6 +29,7 @@ export interface CreateCaseInput {
   type: CaseType;
   note?: string;               // ilk aktivite notu
   assignedToUid?: string;
+  assignedToName?: string;
 }
 
 export interface CreateCaseDeps {
@@ -70,6 +71,7 @@ export async function createCase(
     type: input.type,
     status: "yeni",
     assignedToUid: input.assignedToUid,
+    assignedToName: input.assignedToName,
     activityCount: 1,
     lastActivityAt: ts,
     createdAt: ts,
@@ -212,6 +214,9 @@ export async function addActivity(
 export interface UpdateCaseInput {
   status?: CaseStatus;
   assignedToUid?: string;
+  assignedToName?: string;
+  uiDurum?: string;
+  uiSonrakiTip?: string;
   outcome?: CaseOutcome;
 }
 
@@ -231,6 +236,9 @@ export async function updateCase(
     ...existing,
     ...(input.status !== undefined && { status: input.status }),
     ...(input.assignedToUid !== undefined && { assignedToUid: input.assignedToUid }),
+    ...(input.assignedToName !== undefined && { assignedToName: input.assignedToName }),
+    ...(input.uiDurum !== undefined && { uiDurum: input.uiDurum }),
+    ...(input.uiSonrakiTip !== undefined && { uiSonrakiTip: input.uiSonrakiTip }),
     ...(input.outcome !== undefined && { outcome: input.outcome }),
     updatedAt: ts,
     updatedBy: actor.uid,

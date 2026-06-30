@@ -48,6 +48,15 @@ export interface Case extends Audit {
 
   status: CaseStatus;
   assignedToUid?: string;  // sorumlu personel uid
+  assignedToName?: string; // sorumlu personel adı (denormalize — email≠isim)
+
+  /**
+   * UI durum denormalizasyonu — Aktivite Merkezi'nin zengin rozet/sonraki-aksiyon
+   * sözlüğü (canonical `status`'tan daha granül: "Mesaj Gönderildi" vb.).
+   * Sadece görüntü; açık/kapalı mantığı yine canonical `status` ile yürür.
+   */
+  uiDurum?: string;
+  uiSonrakiTip?: string;
 
   activityCount: number;   // denormalize sayaç (okuma anında güncellenir)
   lastActivityAt?: ISODateTime;

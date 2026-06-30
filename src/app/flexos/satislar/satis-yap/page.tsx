@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
+import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 
 // ── Katalog API tipleri (GET /api/flexos/{branches,educations,sections,tracks}) ──
 interface BranchDoc { id: string; name: string; order?: number }
@@ -451,14 +452,7 @@ export default function SatisYapPage() {
     }
   };
 
-  if (authed === null) {
-    return (
-      <div style={{ display: "flex", height: "100vh", width: "100%", alignItems: "center", justifyContent: "center", background: "#eef2f8" }}>
-        <div className="sy-spin" />
-        <style>{spinCss}</style>
-      </div>
-    );
-  }
+  if (authed === null) return <FlexPageLoader />;
 
   const segOn = S.segOn, segOff = S.segOff;
 
@@ -791,7 +785,7 @@ export default function SatisYapPage() {
                   {/* Track ağacı yükleniyor */}
                   {showTrackTree && loadingTree && (
                     <div style={{ ...S.emptyBox, padding: "36px 20px" }}>
-                      <div className="sy-spin" />
+                      <FlexSpinner />
                       <div style={{ fontSize: 13, color: "#94a3b8" }}>İçerik yükleniyor…</div>
                     </div>
                   )}
@@ -1274,7 +1268,6 @@ const IC = {
   infoSm: sv('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>', 'width="15" height="15" stroke="#94a3b8" stroke-width="2"'),
 };
 
-const spinCss = `.sy-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:sy-spin 1s linear infinite}@keyframes sy-spin{to{transform:rotate(360deg)}}`;
 const globalCss = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @keyframes sy-slide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}

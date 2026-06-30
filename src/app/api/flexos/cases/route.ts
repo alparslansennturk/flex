@@ -28,12 +28,41 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   const personMap = new Map(persons.filter(Boolean).map((p) => [p!.id, p!]));
   const showPII = can(actor, "person.read.pii");
 
+  // Liste satırı için her talebin İLK (müşteri mesajı) + SON (özet/sonraki-aksiyon) aktivitesi.
+  const activityLists = await Promise.all(
+    cases.map((c) => firestoreActivityRepo.listByCase(c.id, actor.tenantId)),
+  );
+  type Act = (typeof activityLists)[number][number];
+  const logMap = new Map<string, Act[]>();
+  cases.forEach((c, i) => {
+    const list = [...activityLists[i]].sort((a, b) =>
+      a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0,
+    );
+    if (list.length) logMap.set(c.id, list);
+  });
+
   const items = cases.map((c) => {
     const person = personMap.get(c.personId);
+    const log = logMap.get(c.id) ?? [];
+    const first = log[0];
+    const last = log[log.length - 1];
     return {
       ...c,
       personName: person ? `${person.firstName} ${person.lastName}` : "—",
       personPhone: showPII ? (person?.pii?.phone ?? null) : null,
+      personEmail: showPII ? (person?.pii?.email ?? null) : null,
+      firstActivityNote: first?.note ?? null,  // müşteri mesajı (ilk temas)
+      lastActivityNote: last?.note ?? null,
+      lastActivityType: last?.type ?? null,
+      nextActionType: last?.nextActionType ?? null,
+      nextActionDate: last?.nextActionDate ?? null,
+      // Tam aktivite geçmişi (kronolojik) — panelde "Geçmiş Aksiyonlar".
+      activityLog: log.map((x) => ({
+        note: x.note ?? null,
+        type: x.type,
+        createdAt: x.createdAt,
+        nextActionType: x.nextActionType ?? null,
+      })),
     };
   });
 
@@ -48,12 +77,14 @@ interface PostBody {
     firstName: string;
     lastName: string;
     phone?: string;
+    email?: string;
     idNo?: string;
   };
   channel: CaseChannel;
   type: CaseType;
   note?: string;
   assignedToUid?: string;
+  assignedToName?: string;
 }
 
 function nowISO() {
@@ -103,8 +134,9 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
           lastName: pd.lastName.trim(),
           status: "prospect",
           consentKVKK: false,
-          pii: pd.phone || pd.idNo ? {
+          pii: pd.phone || pd.idNo || pd.email ? {
             phone: pd.phone,
+            email: pd.email,
             idNo: pd.idNo,
           } : undefined,
           createdAt: ts,
@@ -121,6 +153,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       type: body.type,
       note: body.note,
       assignedToUid: body.assignedToUid,
+      assignedToName: body.assignedToName,
     };
 
     const result = await createCase(actor, input, {

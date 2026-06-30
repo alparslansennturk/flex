@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import FlexModal from "../_components/FlexModal";
+import { FlexPageLoader } from "../_components/FlexSpinner";
 
 // ── API tipleri (ileride genişleyecek alanlar opsiyonel) ──────────────────────
 interface EducationDoc {
@@ -217,14 +218,7 @@ export default function EgitimYonetimiPage() {
     return arr;
   }, [curPage, totalPages]);
 
-  if (authed === null) {
-    return (
-      <div style={{ display: "flex", height: "100vh", width: "100%", alignItems: "center", justifyContent: "center", background: "#eef2f8" }}>
-        <div className="ey-spin" />
-        <style>{spinCss}</style>
-      </div>
-    );
-  }
+  if (authed === null) return <FlexPageLoader />;
 
   return (
     <div style={S.root}>
@@ -633,7 +627,6 @@ const IC = {
   settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', 'width="16" height="16"'),
 };
 
-const spinCss = `.ey-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:ey-spin 1s linear infinite}@keyframes ey-spin{to{transform:rotate(360deg)}}`;
 const globalCss = `
 @keyframes ey-ddin{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes ey-barin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}

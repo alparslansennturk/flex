@@ -11,7 +11,9 @@
  *  - TC, e-posta, eğitim dropdown'ı yok.
  *  - Expand panelde: aksiyon notu + sonraki adım + Tarih + Saat (eklendi) + Sorumlu devralma.
  *  - Randevu ekleme ayrı sayfa — ileride yapılacak.
- *  - Demo veriyle çalışıyor; API bağlantısı sonraki etapta (GET/POST /api/flexos/cases).
+ *  - Eski dummy kayıtlar flexos_prospects'te DURUR (dokunulmaz, salt görüntü/yerel düzenleme).
+ *  - YENİ "Aktivite Ekle" + backend satırlarının düzenlemesi → /api/flexos/cases & /activities
+ *    (persons + flexos_cases + flexos_activities). Liste ikisini birleştirir.
  */
 
 import React, {
@@ -21,10 +23,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { auth, db } from "@/app/lib/firebase";
 import {
-  collection, doc, addDoc, updateDoc,
+  collection, doc, updateDoc,
   getDocs, onSnapshot, writeBatch,
 } from "firebase/firestore";
 import FlexSidebar from "../_components/FlexSidebar";
+import { FlexPageLoader } from "../_components/FlexSpinner";
+import { formatTrPhone } from "@/app/lib/phone";
+import { FLEX_MESSAGES } from "@/app/lib/messages";
 
 // ─── Sözlükler ────────────────────────────────────────────────────────────────
 
@@ -92,7 +97,125 @@ const GONDERILECEK: Record<string, { tip: string; durum: DurumKey }> = {
   "Teklif Gönderilecek":   { tip: "Teklif Gönderildi",    durum: "teklif_gonderildi" },
 };
 
+// Tamamlandı versiyonu → orijinal SONRAKI değeri (expand'da geri dönüşüm için)
+const COMPLETED_TO_SONRAKI: Record<string, string> = Object.fromEntries(
+  Object.entries(GONDERILECEK).map(([k, v]) => [v.tip, k]),
+);
+
+// Checkbox işaretsiz etiket — bağlama göre
+const GONDERILECEK_LABEL: Record<string, string> = {
+  "Randevu Oluşturulacak": "Randevu oluşturuldu mu?",
+  "Mesaj Gönderilecek":    "Mesaj gönderildi mi?",
+  "Teklif Gönderilecek":   "Teklif gönderildi mi?",
+};
+
 const SORUMLU_LIST = ["Alparslan Şentürk", "Merve Kaya"]; // TODO: API'den kullanıcılar
+
+// ─── Backend (Case/Activity) ↔ UI eşlemeleri ───────────────────────────────────
+// Yeni eklenen talepler /api/flexos/cases'e (persons+flexos_cases+flexos_activities)
+// yazılır; eski dummy kayıtlar flexos_prospects'te kalır. Liste ikisini birleştirir.
+
+const KANAL_TO_CHANNEL: Record<KanalKey, string> = {
+  telefon: "telefon", websitesi: "web", instagram: "instagram",
+  whatsapp: "whatsapp", email: "email", tavsiye: "tavsiye", walkin: "yuzeyuz",
+};
+const CHANNEL_TO_KANAL: Record<string, KanalKey> = {
+  telefon: "telefon", web: "websitesi", instagram: "instagram",
+  whatsapp: "whatsapp", email: "email", tavsiye: "tavsiye", yuzeyuz: "walkin",
+};
+const ACTTYPE_TO_TIP: Record<string, TipKey> = {
+  arama: "arama", mesaj: "mesaj", randevu: "randevu", not: "not", satis_donusumu: "satis",
+};
+const CASESTATUS_TO_DURUM: Record<string, DurumKey> = {
+  yeni: "yeni", iletisimde: "iletisimde", yanit_bekleniyor: "yanit",
+  randevu_olusturuldu: "randevu", kazanildi: "kazanildi", tamamlandi: "kazanildi", vazgecti: "vazgecti",
+};
+// UI "Sonraki" etiketi → backend activity nextActionType
+const SONRAKI_TO_ACTTYPE: Record<string, string> = {
+  "Tekrar Aranacak": "arama", "Mesaj Gönderilecek": "mesaj",
+  "Randevu Oluşturulacak": "randevu", "Teklif Gönderilecek": "not",
+};
+// Zengin UI durumu (DurumKey) → canonical backend CaseStatus (açık/kapalı mantığı için).
+// Rozetin kendisi uiDurum'dan gelir; bu sadece domain status'unu korur.
+const DURUM_TO_CASESTATUS: Record<DurumKey, string> = {
+  aksiyon_alinacak: "yeni",
+  yeni:             "yeni",
+  iletisimde:       "iletisimde",
+  arandi:           "iletisimde",
+  yanit:            "yanit_bekleniyor",
+  mesaj_gonderildi: "iletisimde",
+  teklif_gonderildi:"iletisimde",
+  randevu_planli:   "iletisimde",
+  randevu:          "randevu_olusturuldu",
+  kazanildi:        "kazanildi",
+  vazgecti:         "vazgecti",
+};
+const CLOSED_DURUMS: DurumKey[] = ["kazanildi", "vazgecti"];
+
+interface CaseApiItem {
+  id: string;
+  personName: string;
+  personPhone: string | null;
+  personEmail: string | null;
+  channel: string;
+  type: TipCat;
+  status: string;
+  activityCount: number;
+  lastActivityAt?: string;
+  createdAt: string;
+  assignedToUid?: string;
+  assignedToName?: string;
+  uiDurum?: string;
+  uiSonrakiTip?: string;
+  firstActivityNote: string | null;
+  lastActivityNote: string | null;
+  lastActivityType: string | null;
+  nextActionType: string | null;
+  nextActionDate: string | null;
+  activityLog?: { note: string | null; type: string; createdAt: string; nextActionType: string | null }[];
+}
+
+interface ActLog { note: string; tarih: string; saat: string; }
+
+/** Backend Case → UI satırı. */
+function caseToRow(c: CaseApiItem): AktiviteRow {
+  const when = c.lastActivityAt || c.createdAt;
+  const d = new Date(when);
+  // Geçmiş aksiyonlar = ilk aktivite (müşteri mesajı) HARİÇ, notu olanlar.
+  const log: ActLog[] = (c.activityLog ?? []).slice(1).filter(x => x.note).map(x => {
+    const dt = new Date(x.createdAt);
+    return {
+      note: x.note as string,
+      tarih: dt.toLocaleDateString("tr-TR"),
+      saat: dt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+    };
+  });
+  return {
+    _backend: true,
+    _caseId: c.id,
+    _log: log,
+    id: Date.parse(c.createdAt) || Date.now(),
+    kanal: CHANNEL_TO_KANAL[c.channel] ?? "telefon",
+    tip: c.lastActivityType ? (ACTTYPE_TO_TIP[c.lastActivityType] ?? "not") : "not",
+    tipCat: c.type,
+    ozet: c.firstActivityNote || c.lastActivityNote || "Yeni talep",
+    ad: c.personName,
+    iletisim: c.personPhone || c.personEmail || "—",
+    // Rozet = zengin uiDurum (varsa); yoksa canonical status'tan türet.
+    durum: (c.uiDurum as DurumKey) || CASESTATUS_TO_DURUM[c.status] || "yeni",
+    tarih: d.toLocaleDateString("tr-TR"),
+    saat: d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+    sorumlu: c.assignedToName || (c.assignedToUid ? "Atanmış" : "—"),
+    // Müşteri mesajı = ilk temas (üstte). Aksiyon kutusu = yeni giriş (BOŞ). Geçmiş = _log.
+    musteriMesaji: c.firstActivityNote || "",
+    aksiyonNotu: "",
+    sonrakiTip: c.uiSonrakiTip || "",
+    sonrakiTarih: c.nextActionDate ? c.nextActionDate.slice(0, 10) : "",
+    sonrakiSaat: "",
+    gelecekRandevu: "",
+    aktiviteSayisi: c.activityCount,
+  };
+}
 
 const getInitials = (name: string) => {
   const words = name.trim().split(" ");
@@ -112,6 +235,9 @@ const PAGE_SIZE = 10;
 
 interface AktiviteRow {
   _docId?: string;
+  _backend?: boolean;
+  _caseId?: string;
+  _log?: ActLog[];       // backend: geçmiş aksiyonlar (ilk=müşteri mesajı hariç)
   id: number;
   kanal: KanalKey;
   tip: TipKey;
@@ -133,10 +259,10 @@ interface AktiviteRow {
 }
 
 interface EkleForm {
-  ad: string; soyad: string; telefon: string;
+  ad: string; soyad: string; telefon: string; email: string;
   kanal: KanalKey; not: string;
 }
-const EMPTY_EKLE: EkleForm = { ad: "", soyad: "", telefon: "", kanal: "telefon", not: "" };
+const EMPTY_EKLE: EkleForm = { ad: "", soyad: "", telefon: "", email: "", kanal: "telefon", not: "" };
 
 // ─── Demo data ────────────────────────────────────────────────────────────────
 
@@ -161,8 +287,38 @@ const DEMO: AktiviteRow[] = [
 
 export default function AktiviteMerkeziPage() {
   const [ready, setReady]           = useState(false);
-  const [acts, setActs]             = useState<AktiviteRow[]>([]);
+  const [acts, setActs]             = useState<AktiviteRow[]>([]);      // eski dummy (flexos_prospects)
+  const [backendActs, setBackendActs] = useState<AktiviteRow[]>([]);   // yeni (flexos_cases)
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [meName, setMeName] = useState("Ben");                          // giriş yapan kullanıcı adı
+
+  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const u = auth.currentUser;
+    const token = u ? await u.getIdToken() : "";
+    return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+  }, []);
+
+  const loadBackend = useCallback(async () => {
+    try {
+      const u = auth.currentUser;
+      const meUid = u?.uid;
+      const me = u?.displayName || u?.email || "Ben";
+      const res = await fetch("/api/flexos/cases", { headers: await authHeaders() });
+      if (!res.ok) return;
+      const json = await res.json();
+      const items: CaseApiItem[] = json.items ?? [];
+      setBackendActs(items.map((c) => {
+        const row = caseToRow(c);
+        // Sorumlu = kayıtlı isim > (uid bizsek adımız) > "Atanmış" > "—"
+        row.sorumlu = c.assignedToName
+          ? c.assignedToName
+          : c.assignedToUid
+            ? (c.assignedToUid === meUid ? me : "Atanmış")
+            : "—";
+        return row;
+      }));
+    } catch { /* sessiz — dummy liste yine de görünür */ }
+  }, [authHeaders]);
 
   // expand panel draft
   const [draftNote,       setDraftNote]       = useState("");
@@ -171,7 +327,17 @@ export default function AktiviteMerkeziPage() {
   const [draftSaat,       setDraftSaat]       = useState("");
   const [draftSorumlu,    setDraftSorumlu]    = useState("");
   const [draftGonderildi, setDraftGonderildi] = useState(false);
+  const [savingAct,      setSavingAct]      = useState(false);
+  const [savedAct,       setSavedAct]       = useState(false);
+  const [durumError,     setDurumError]     = useState(false);
+  const [shakeDropdown,  setShakeDropdown]  = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!shakeDropdown) return;
+    const t = setTimeout(() => setShakeDropdown(false), 500);
+    return () => clearTimeout(t);
+  }, [shakeDropdown]);
 
   useEffect(() => {
     if (draftSonrakiTip === "Randevu Oluşturulacak") {
@@ -192,7 +358,9 @@ export default function AktiviteMerkeziPage() {
   const [page, setPage] = useState(1);
 
   // "Diğer Aktiviteler" accordion (expand panel içinde)
-  const [digerOpenId, setDigerOpenId] = useState<number | null>(null);
+  const [digerOpenId,  setDigerOpenId]  = useState<number | null>(null);
+  // "Geçmiş Aksiyonlar" accordion — varsayılan kapalı
+  const [gecmisOpenId, setGecmisOpenId] = useState<number | null>(null);
 
   // "Aktivite Ekle" modal
   const [ekleOpen,   setEkleOpen]   = useState(false);
@@ -206,6 +374,25 @@ export default function AktiviteMerkeziPage() {
     const unsubAuth = auth.onAuthStateChanged(async (user) => {
       if (!user) { setReady(true); return; }
 
+      // Firebase Auth displayName genellikle boş; trainer kaydından ada bak.
+      let resolvedName = user.displayName || "";
+      if (!resolvedName && user.email) {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch("/api/flexos/trainers", {
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          });
+          if (res.ok) {
+            const data = await res.json() as { items?: { name: string; email: string }[] };
+            const match = data.items?.find(
+              (t) => t.email?.toLowerCase() === user.email!.toLowerCase(),
+            );
+            if (match) resolvedName = match.name;
+          }
+        } catch {}
+      }
+      setMeName(resolvedName || user.email || "Ben");
+
       // Seed yoksa DEMO'yu Firestore'a yaz
       const snap = await getDocs(col);
       if (snap.empty) {
@@ -217,35 +404,117 @@ export default function AktiviteMerkeziPage() {
         await batch.commit();
       }
 
-      // Gerçek zamanlı dinle — ilk snapshot gelince ekranı aç
+      // İkisi de tamamlanınca sayfayı aç (flicker önleme).
+      let backendDone = false;
+      let snapDone = false;
+      const trySetReady = () => { if (backendDone && snapDone) setReady(true); };
+
+      loadBackend()
+        .then(() => { backendDone = true; trySetReady(); })
+        .catch(() => { backendDone = true; trySetReady(); }); // hata olsa da engelleme
+
       unsubSnap = onSnapshot(col, (s) => {
         const rows = s.docs.map(d => ({ ...(d.data() as AktiviteRow), _docId: d.id }));
         rows.sort((a, b) => b.id - a.id);
         setActs(rows);
-        setReady(true);
+        if (!snapDone) { snapDone = true; trySetReady(); } // ilk snapshot'ta sinyal ver
       });
     });
 
     return () => { unsubAuth(); unsubSnap?.(); };
-  }, []);
+  }, [loadBackend]);
 
   const expand = useCallback((a: AktiviteRow) => {
     if (expandedId === a.id) { setExpandedId(null); return; }
     setExpandedId(a.id);
-    setDraftNote(a.aksiyonNotu);
-    const preAction = a.durum === "aksiyon_alinacak" || a.durum === "iletisimde";
-    setDraftSonrakiTip(preAction ? "" : (a.sonrakiTip || ""));
+    // Aksiyon = personelin alanı → her zaman BOŞ başlar (müşteri mesajı üstte ayrı gösterilir).
+    setDraftNote(a._backend ? "" : a.aksiyonNotu);
+    // Kaydedilen tip doğrudan SONRAKI'daysa kullan; tamamlandı versiyonuysa
+    // (örn. "Randevu Oluşturuldu") kaynak değere geri dön ve checkbox'ı işaretle.
+    const validSonraki = new Set(SONRAKI);
+    const mappedBack   = COMPLETED_TO_SONRAKI[a.sonrakiTip];
+    setDraftSonrakiTip(validSonraki.has(a.sonrakiTip) ? a.sonrakiTip : (mappedBack ?? ""));
+    setDraftGonderildi(!!mappedBack);
     setDraftTarih(a.sonrakiTarih || "");
     setDraftSaat(a.sonrakiSaat || "");
-    setDraftSorumlu(a.sorumlu);
-    setDraftGonderildi(false);
-  }, [expandedId]);
+    // Sorumlu atanmamışsa giriş yapan kullanıcı varsayılan.
+    setDraftSorumlu(a.sorumlu && a.sorumlu !== "—" ? a.sorumlu : meName);
+    setSavingAct(false);
+    setSavedAct(false);
+    setDurumError(false);
+    setGecmisOpenId(null);
+  }, [expandedId, meName]);
 
-  const saveAct = useCallback(async (id: number, docId?: string) => {
-    if (!draftSonrakiTip) { toast.error("Durum seçiniz."); return; }
+  const saveAct = useCallback(async (a: AktiviteRow) => {
+    if (!draftSonrakiTip) { setDurumError(true); setShakeDropdown(true); return; }
+    setDurumError(false);
+    setSavingAct(true);
     const gonderildiMap = GONDERILECEK[draftSonrakiTip];
     const effectiveTip  = draftGonderildi && gonderildiMap ? gonderildiMap.tip : draftSonrakiTip;
     const newDurum      = draftGonderildi && gonderildiMap ? gonderildiMap.durum : SONRAKI_DURUM[draftSonrakiTip];
+
+    // ── Backend talep (flexos_cases) — dummy ile BİREBİR durum davranışı ──
+    if (a._backend && a._caseId) {
+      const caseId = a._caseId;
+      const wasClosed = CLOSED_DURUMS.includes(a.durum);
+      const finalDurum: DurumKey = (newDurum as DurumKey) || a.durum;   // değişiklik yoksa mevcudu koru
+      const closing   = CLOSED_DURUMS.includes(finalDurum);
+      const canonical = DURUM_TO_CASESTATUS[finalDurum] || "iletisimde";
+      const dtEnabled = draftSonrakiTip === "Randevu Oluşturulacak";
+      const nextDate  = (dtEnabled && draftTarih)
+        ? new Date(`${draftTarih}T${draftSaat || "00:00"}`).toISOString()
+        : undefined;
+      const patchCase = async (payload: Record<string, unknown>) =>
+        fetch(`/api/flexos/cases/${caseId}`, {
+          method: "PATCH", headers: await authHeaders(), body: JSON.stringify(payload),
+        });
+      try {
+        // Kapalı talebe aktivite EKLENEMEZ → önce yeniden aç.
+        if (wasClosed) {
+          const r0 = await patchCase({ status: "iletisimde" });
+          if (!r0.ok) {
+            const j = await r0.json().catch(() => ({}));
+            throw new Error(j.error || FLEX_MESSAGES['flexos/talep-reopen-failed'].text);
+          }
+        }
+        // Aksiyon notunu + planlanan sonraki adımı kaydet (timeline + sayaç).
+        const res = await fetch("/api/flexos/activities", {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({
+            caseId,
+            type: "not",
+            note: draftNote.trim() || undefined,
+            nextActionType: SONRAKI_TO_ACTTYPE[draftSonrakiTip] || "not",
+            nextActionDate: nextDate,
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || "Kayıt başarısız.");
+        }
+        // Talebi son hale getir: canonical status + ZENGİN uiDurum/uiSonrakiTip + sorumlu (+ kapanış).
+        await patchCase({
+          status: canonical,
+          uiDurum: finalDurum,
+          uiSonrakiTip: effectiveTip,
+          assignedToUid: auth.currentUser?.uid,
+          assignedToName: draftSorumlu || meName,
+          ...(closing ? { outcome: { kind: finalDurum === "kazanildi" ? "sale" : "lost" } } : {}),
+        });
+        await loadBackend();
+        setSavingAct(false);
+        setSavedAct(true);
+        setTimeout(() => { setExpandedId(null); setSavedAct(false); }, 800);
+        toast.success(FLEX_MESSAGES['flexos/aksiyon-saved'].text);
+      } catch (e) {
+        setSavingAct(false);
+        toast.error(e instanceof Error ? e.message : FLEX_MESSAGES['system/save-failed'].text);
+      }
+      return;
+    }
+
+    // ── Eski dummy (flexos_prospects) ──
     const updates: Partial<AktiviteRow> = {
       aksiyonNotu:  draftNote,
       sonrakiTip:   effectiveTip,
@@ -254,84 +523,103 @@ export default function AktiviteMerkeziPage() {
       sorumlu:      draftSorumlu,
       ...(newDurum ? { durum: newDurum } : {}),
     };
-    if (docId) {
-      await updateDoc(doc(db, "flexos_prospects", docId), updates);
+    if (a._docId) {
+      await updateDoc(doc(db, "flexos_prospects", a._docId), updates);
     } else {
-      setActs(prev => prev.map(a => a.id !== id ? a : { ...a, ...updates }));
+      setActs(prev => prev.map(x => x.id !== a.id ? x : { ...x, ...updates }));
     }
-    setExpandedId(null);
-    toast.success("Aksiyon kaydedildi.");
-  }, [draftNote, draftSonrakiTip, draftTarih, draftSaat, draftSorumlu, draftGonderildi]);
+    setSavingAct(false);
+    setSavedAct(true);
+    setTimeout(() => { setExpandedId(null); setSavedAct(false); }, 800);
+    toast.success(FLEX_MESSAGES['flexos/aksiyon-saved'].text);
+  }, [draftNote, draftSonrakiTip, draftTarih, draftSaat, draftSorumlu, draftGonderildi, meName, authHeaders, loadBackend]);
 
   const handleEkle = async () => {
-    if (!ekleForm.ad.trim() || !ekleForm.soyad.trim() || !ekleForm.telefon.trim()) {
-      toast.error("Ad, soyad ve telefon zorunlu.");
+    if (!ekleForm.ad.trim() || !ekleForm.soyad.trim()) {
+      toast.error(FLEX_MESSAGES['validation/ad-soyad-required'].text);
+      return;
+    }
+    if (!ekleForm.telefon.trim() && !ekleForm.email.trim()) {
+      toast.error(FLEX_MESSAGES['validation/iletisim-required'].text);
       return;
     }
     setEkleSaving(true);
-    const now = new Date();
-    const newRow = {
-      id:            Date.now(),
-      kanal:         ekleForm.kanal,
-      tip:           "arama" as const,
-      tipCat:        "satis_oncesi" as const,
-      ozet:          ekleForm.not || "Yeni talep",
-      ad:            `${ekleForm.ad.trim()} ${ekleForm.soyad.trim()}`,
-      iletisim:      ekleForm.telefon.trim(),
-      durum:         "aksiyon_alinacak" as const,
-      tarih:         now.toLocaleDateString("tr-TR"),
-      saat:          now.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
-      sorumlu:       "Alparslan Şentürk",
-      musteriMesaji: "",
-      aksiyonNotu:   ekleForm.not,
-      sonrakiTip:    "",
-      sonrakiTarih:  "", sonrakiSaat: "", gelecekRandevu: "",
-      aktiviteSayisi: 1,
-    };
     try {
-      await addDoc(collection(db, "flexos_prospects"), newRow);
+      // Yeni talep → backend (persons + flexos_cases + flexos_activities)
+      const res = await fetch("/api/flexos/cases", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          personData: {
+            firstName: ekleForm.ad.trim(),
+            lastName:  ekleForm.soyad.trim(),
+            phone:     ekleForm.telefon.trim() || undefined,
+            email:     ekleForm.email.trim() || undefined,
+          },
+          channel: KANAL_TO_CHANNEL[ekleForm.kanal],
+          type:    "satis_oncesi",
+          note:    ekleForm.not.trim() || undefined,
+          assignedToUid: auth.currentUser?.uid,
+          assignedToName: meName,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Kayıt başarısız.");
+      }
+      await loadBackend();
       setEkleForm(EMPTY_EKLE);
       setEkleOpen(false);
-      toast.success("Talep oluşturuldu.");
-    } catch {
-      toast.error("Kayıt başarısız.");
+      toast.success(FLEX_MESSAGES['flexos/talep-created'].text);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : FLEX_MESSAGES['system/save-failed'].text);
     } finally {
       setEkleSaving(false);
     }
   };
 
+  // Yeni (backend) + eski (dummy) — backend en üstte, id'ye göre azalan.
+  const allActs = useMemo(
+    () => [...backendActs, ...acts].sort((a, b) => b.id - a.id),
+    [backendActs, acts],
+  );
+
+  // Badge = aynı kişinin (iletişim) kaç FARKLI yerde/talepte geçtiği (aktivite sayısı DEĞİL).
+  const personCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const a of allActs) if (a.iletisim && a.iletisim !== "—") m[a.iletisim] = (m[a.iletisim] || 0) + 1;
+    return m;
+  }, [allActs]);
+
+  // Sorumlu listesi = giriş yapan kullanıcı + sabitler (tekilleştirilmiş)
+  const sorumluList = useMemo(
+    () => Array.from(new Set([meName, ...SORUMLU_LIST])),
+    [meName],
+  );
+
   const filtered = useMemo(() => {
-    let r = acts;
+    let r = allActs;
     if (fKanal   !== "Tümü") r = r.filter(a => a.kanal   === fKanal);
     if (fTip     !== "Tümü") r = r.filter(a => a.tipCat  === fTip);
     if (fDurum   !== "Tümü") r = r.filter(a => a.durum   === fDurum);
     if (fSorumlu !== "Tümü") r = r.filter(a => a.sorumlu === fSorumlu);
     return r;
-  }, [acts, fKanal, fTip, fDurum, fSorumlu]);
+  }, [allActs, fKanal, fTip, fDurum, fSorumlu]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
   const pageActs   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const anyFilter  = fKanal !== "Tümü" || fTip !== "Tümü" || fDurum !== "Tümü" || fSorumlu !== "Tümü";
-  const showDatetime = draftSonrakiTip === "Tekrar Aranacak" || draftSonrakiTip === "Randevu Oluşturulacak";
+  const showDatetime = draftSonrakiTip === "Randevu Oluşturulacak";
 
-  if (!ready) {
-    return (
-      <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: FONT }}>
-        <FlexSidebar active="aktivite-merkezi" />
-        <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: "#EEF0F3" }}>
-          <span style={{ color: "#8E95A3", fontSize: 14 }}>Yükleniyor…</span>
-        </main>
-      </div>
-    );
-  }
+  if (!ready) return <FlexPageLoader />;
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#1E222B", fontFamily: FONT }}>
       <style>{CSS}</style>
       <FlexSidebar active="aktivite-merkezi" />
 
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3" }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3" }}>
 
         {/* ── HEADER ── */}
         <header style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
@@ -416,7 +704,7 @@ export default function AktiviteMerkeziPage() {
                 open={openDd === "sorumlu"}
                 onToggle={() => setOpenDd(d => d === "sorumlu" ? null : "sorumlu")}
               >
-                {["Tümü", ...SORUMLU_LIST].map(v => (
+                {["Tümü", ...sorumluList].map(v => (
                   <DdItem key={v} label={v === "Tümü" ? "Tüm Sorumlular" : v} active={fSorumlu === v}
                     onClick={() => { setFSorumlu(v); setOpenDd(null); setPage(1); }} />
                 ))}
@@ -432,7 +720,7 @@ export default function AktiviteMerkeziPage() {
             </div>
 
             {/* Aktivite Ekle */}
-            <button className="am-orange-btn" onClick={() => setEkleOpen(true)}
+            <button className="am-orange-btn" onClick={() => { setExpandedId(null); setEkleOpen(true); }}
               style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "11px 18px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
               Aktivite Ekle
@@ -489,7 +777,7 @@ export default function AktiviteMerkeziPage() {
                             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                                 <span style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{a.ad}</span>
-                                {a.aktiviteSayisi > 1 && (
+                                {(personCounts[a.iletisim] ?? 1) > 1 && (
                                   <span
                                     onClick={e => {
                                       e.stopPropagation();
@@ -497,8 +785,9 @@ export default function AktiviteMerkeziPage() {
                                       setDigerOpenId(id => id === a.id ? null : a.id);
                                     }}
                                     className="am-badge-btn"
+                                    title="Bu kişinin diğer kayıtları"
                                     style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: "#64748b", minWidth: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 999, padding: "0 5px", cursor: "pointer", flexShrink: 0 }}>
-                                    {a.aktiviteSayisi}
+                                    {personCounts[a.iletisim]}
                                   </span>
                                 )}
                               </div>
@@ -576,9 +865,57 @@ export default function AktiviteMerkeziPage() {
                                   </div>
                                 )}
 
-                                {/* Aksiyon notu */}
+                                {/* Geçmiş aksiyonlar (salt-okunur) — accordion, varsayılan kapalı */}
+                                {a._backend && a._log && a._log.length > 0 && (() => {
+                                  const gecmisOpen = gecmisOpenId === a.id;
+                                  return (
+                                    <div style={{ marginBottom: 16 }}>
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setGecmisOpenId(id => id === a.id ? null : a.id); }}
+                                        style={{ display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", cursor: "pointer", padding: "0 0 6px", fontFamily: FONT }}
+                                      >
+                                        <motion.span
+                                          animate={{ rotate: gecmisOpen ? 90 : 0 }}
+                                          transition={{ duration: 0.18 }}
+                                          style={{ display: "inline-flex", color: "#8E95A3" }}
+                                        >
+                                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                                        </motion.span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: "#8E95A3" }}>
+                                          Geçmiş Aksiyonlar
+                                        </span>
+                                        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: "#AEB4C0", borderRadius: 999, padding: "1px 7px" }}>
+                                          {a._log.length}
+                                        </span>
+                                      </button>
+                                      <AnimatePresence initial={false}>
+                                        {gecmisOpen && (
+                                          <motion.div
+                                            key="gecmis"
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                                            style={{ overflow: "hidden" }}
+                                          >
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 7, paddingBottom: 4 }}>
+                                              {[...a._log].reverse().map((l, i) => (
+                                                <div key={i} style={{ padding: "9px 13px", borderRadius: 11, background: "#EEF3FB", border: "1px solid #D8E3F0" }}>
+                                                  <div style={{ fontSize: 13.5, color: "#334155", lineHeight: 1.5, fontWeight: 500 }}>{l.note}</div>
+                                                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600, marginTop: 3 }}>{l.tarih} · {l.saat}</div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+                                    </div>
+                                  );
+                                })()}
+
+                                {/* Aksiyon notu (yeni giriş) */}
                                 <div style={{ marginBottom: 18 }}>
-                                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#8E95A3", marginBottom: 7 }}>Aksiyon:</div>
+                                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#8E95A3", marginBottom: 7 }}>Yeni Aksiyon:</div>
                                   <textarea
                                     value={draftNote}
                                     onChange={e => setDraftNote(e.target.value)}
@@ -595,9 +932,15 @@ export default function AktiviteMerkeziPage() {
                                   <LabeledField label="Durum">
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                       <div style={{ position: "relative" }}>
-                                        <select value={draftSonrakiTip} onChange={e => { setDraftSonrakiTip(e.target.value); setDraftGonderildi(false); }} onClick={e => e.stopPropagation()} style={{ ...S.sel, minWidth: 200, color: draftSonrakiTip ? "#1E222B" : "#8E95A3" }}>
-                                          <option value="" disabled>— Durum seçin —</option>
-                                          {SONRAKI.map(s => <option key={s} value={s}>{s}</option>)}
+                                        <select value={draftSonrakiTip} onChange={e => { setDraftSonrakiTip(e.target.value); setDraftGonderildi(false); setDurumError(false); setShakeDropdown(false); }} onClick={e => e.stopPropagation()}
+                                          className={shakeDropdown ? "error-shake" : ""}
+                                          style={{ ...S.sel, minWidth: 200, color: draftSonrakiTip ? "#1E222B" : "#6F7B87", borderColor: durumError ? "#E5484D" : undefined, background: durumError ? "#FFF5F5" : "#fff" }}>
+                                          <option value="" disabled style={{ color: "#9AA1AD" }}>— Durum seçin —</option>
+                                          {SONRAKI.map(s => {
+                                            const completed = GONDERILECEK[s];
+                                            const label = (draftSonrakiTip === s && draftGonderildi && completed) ? completed.tip : s;
+                                            return <option key={s} value={s} style={{ color: "#1E222B" }}>{label}</option>;
+                                          })}
                                         </select>
                                         <ChevIcon style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                                       </div>
@@ -619,7 +962,7 @@ export default function AktiviteMerkeziPage() {
                                               style={{ width: 15, height: 15, accentColor: "#2867bd", cursor: "pointer" }}
                                             />
                                             <span style={{ fontSize: 13, fontWeight: 600, color: draftGonderildi ? "#2867bd" : "#6B7280" }}>
-                                              {draftGonderildi ? GONDERILECEK[draftSonrakiTip]?.tip : "Gönderildi mi?"}
+                                              {draftGonderildi ? GONDERILECEK[draftSonrakiTip]?.tip : (GONDERILECEK_LABEL[draftSonrakiTip] ?? "Gönderildi mi?")}
                                             </span>
                                           </motion.label>
                                         )}
@@ -643,7 +986,7 @@ export default function AktiviteMerkeziPage() {
                                   <LabeledField label="Sorumlu">
                                     <div style={{ position: "relative" }}>
                                       <select value={draftSorumlu || a.sorumlu} onChange={e => setDraftSorumlu(e.target.value)} onClick={e => e.stopPropagation()} style={{ ...S.sel, minWidth: 150 }}>
-                                        {SORUMLU_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+                                        {sorumluList.map(s => <option key={s} value={s}>{s}</option>)}
                                       </select>
                                       <ChevIcon style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                                     </div>
@@ -651,21 +994,31 @@ export default function AktiviteMerkeziPage() {
 
                                   {/* İptal + Kaydet */}
                                   <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+                                    {durumError && (
+                                      <span className={shakeDropdown ? "error-shake" : ""} style={{ fontSize: 13, fontWeight: 600, color: "#B42318", whiteSpace: "nowrap", marginRight: 22 }}>
+                                        {FLEX_MESSAGES['flexos/durum-required'].text}
+                                      </span>
+                                    )}
                                     <button onClick={e => { e.stopPropagation(); setExpandedId(null); }} className="am-cancel-btn"
                                       style={{ padding: "10px 18px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                                       İptal
                                     </button>
-                                    <button onClick={e => { e.stopPropagation(); saveAct(a.id, a._docId); }} className="am-save-btn"
-                                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 11, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 6px 14px -6px rgba(32,82,151,.55)" }}>
-                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                                      Kaydet
+                                    <button onClick={e => { e.stopPropagation(); saveAct(a); }} disabled={savingAct || savedAct} className="am-save-btn"
+                                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 11, border: "none", background: savedAct ? "linear-gradient(135deg,#009F3E,#007A30)" : "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: (savingAct || savedAct) ? "default" : "pointer", boxShadow: savedAct ? "0 6px 14px -6px rgba(0,122,48,.55)" : "0 6px 14px -6px rgba(32,82,151,.55)", transition: "background .25s, box-shadow .25s", minWidth: 110 }}>
+                                      {savingAct ? (
+                                        <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin .7s linear infinite", flexShrink: 0 }}><path d="M12 2a10 10 0 1 0 10 10"/></svg>Kaydediliyor…</>
+                                      ) : savedAct ? (
+                                        <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M20 6 9 17l-5-5"/></svg>Kaydedildi</>
+                                      ) : (
+                                        <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M20 6 9 17l-5-5"/></svg>Kaydet</>
+                                      )}
                                     </button>
                                   </div>
                                 </div>
 
                                 {/* ── Diğer Aktiviteler ── */}
                                 {(() => {
-                                  const diger = acts.filter(x => x.iletisim === a.iletisim && x.id !== a.id);
+                                  const diger = allActs.filter(x => x.iletisim === a.iletisim && x.id !== a.id);
                                   if (diger.length === 0) return null;
                                   const digerOpen = digerOpenId === a.id;
                                   return (
@@ -817,10 +1170,17 @@ export default function AktiviteMerkeziPage() {
                     <input value={ekleForm.soyad} onChange={e => setEkleForm(f => ({ ...f, soyad: e.target.value }))} placeholder="Soyad" style={S.inp} />
                   </div>
                 </div>
-                {/* Telefon */}
+                {/* Telefon + E-posta — en az biri */}
                 <div>
-                  <label style={S.label}>Telefon <Req /></label>
-                  <input value={ekleForm.telefon} onChange={e => setEkleForm(f => ({ ...f, telefon: e.target.value }))} placeholder="0xxx xxx xx xx" style={S.inp} type="tel" />
+                  <label style={S.label}>İletişim <span style={{ color: "#AEB4C0", fontWeight: 400 }}>(telefon veya e-posta — en az biri)</span></label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <input value={ekleForm.telefon}
+                      onChange={e => setEkleForm(f => ({ ...f, telefon: formatTrPhone(e.target.value) }))}
+                      placeholder="0 (5xx) xxx xx xx" style={S.inp} type="tel" inputMode="tel" />
+                    <input value={ekleForm.email}
+                      onChange={e => setEkleForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="ornek@eposta.com" style={S.inp} type="email" inputMode="email" />
+                  </div>
                 </div>
                 {/* Kanal */}
                 <div>
@@ -928,6 +1288,9 @@ const CSS = `
   ::-webkit-scrollbar-thumb { background: #CDD2DA; border-radius: 10px; border: 2px solid #EEF0F3; }
   ::-webkit-scrollbar-thumb:hover { background: #AEB4C0; }
   @keyframes ddIn { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes am-sel-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-2px)} 75%{transform:translateX(2px)} }
+  .am-sel-shake { animation: am-sel-shake 0.18s ease-in-out; }
   textarea, select, input { font-family: 'Inter', system-ui, sans-serif; }
   input[type="date"]::-webkit-calendar-picker-indicator,
   input[type="time"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .5; }

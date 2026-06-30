@@ -25,7 +25,9 @@ export type FlexNavKey =
   | "siniflar"
   | "egitmenler"
   | "kullanicilar"
-  | "aktivite-merkezi"
+  | "aktivite-merkezi"   // eskiyle uyum (aktiviteler ile aynı davranır)
+  | "aktiviteler"
+  | "randevu-takvimi"
   | "yoklamalar"
   | "sertifikasyon";
 
@@ -39,6 +41,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const salesActive = active === "satis-yap" || active === "satis-liste" || active === "paket-yonetimi" || active === "kampanya-yonetimi";
   const [salesOpen, setSalesOpen] = useState(salesActive);
+
+  const aktiviteActive = active === "aktivite-merkezi" || active === "aktiviteler" || active === "randevu-takvimi";
+  const [aktiviteOpen, setAktiviteOpen] = useState(aktiviteActive);
 
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
@@ -121,7 +126,34 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
         <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />
         <Item icon={IC.shield} label="Kullanıcılar" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />
-        <Item icon={IC.activity} label="Aktivite Merkezi" active={active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
+        {/* Aktivite Merkezi — akordiyon */}
+        <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={() => setAktiviteOpen((o) => !o)}>
+          <span style={{ display: "inline-flex", color: aktiviteActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.activity }} />
+          <span style={{ flex: 1 }}>Aktivite Merkezi</span>
+          <motion.span
+            style={{ display: "inline-flex", opacity: 0.7 }}
+            animate={{ rotate: aktiviteOpen ? 0 : -90 }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+            dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+          />
+        </a>
+        <AnimatePresence initial={false}>
+          {aktiviteOpen && (
+            <motion.div
+              key="aktivite-sub"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+              style={{ overflow: "hidden" }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                <SubItem label="Aktiviteler" active={active === "aktiviteler" || active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
+                <SubItem label="Randevu Takvimi" active={active === "randevu-takvimi"} onClick={go("/flexos/randevu-takvimi")} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <Item icon={IC.calendar} label="Yoklamalar" onClick={go(null)} />
         <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />
       </nav>

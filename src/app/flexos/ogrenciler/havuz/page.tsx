@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
+import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 
 // ── Durum & Branş sözlükleri (tasarımdan) ────────────────────────────────────
@@ -423,14 +424,7 @@ export default function OgrenciHavuzuPage() {
 
   const anyFilter = pStatus.length > 0 || pSube !== "Tümü" || pBrans !== "Tümü" || pEgitim !== "Tümü";
 
-  if (authed === null) {
-    return (
-      <div style={{ display: "flex", height: "100vh", width: "100%", alignItems: "center", justifyContent: "center", background: "#EEF0F3" }}>
-        <div className="oh-spin" />
-        <style>{spinCss}</style>
-      </div>
-    );
-  }
+  if (authed === null) return <FlexPageLoader />;
 
   return (
     <div style={S.root}>
@@ -765,7 +759,7 @@ export default function OgrenciHavuzuPage() {
             {/* loading */}
             {loading && pageStudents.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center" }}>
-                <div className="oh-spin" />
+                <FlexSpinner />
                 <div style={{ fontSize: 13.5, color: "#8E95A3" }}>Öğrenciler yükleniyor…</div>
               </div>
             )}
@@ -831,7 +825,7 @@ export default function OgrenciHavuzuPage() {
             <div style={{ padding: 16, maxHeight: 360, overflowY: "auto" }}>
               {loadingGroups ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "40px 20px" }}>
-                  <div className="oh-spin" />
+                  <FlexSpinner />
                   <div style={{ fontSize: 13, color: "#8E95A3" }}>Gruplar yükleniyor…</div>
                 </div>
               ) : groupOptions.length === 0 ? (
@@ -1039,7 +1033,7 @@ export default function OgrenciHavuzuPage() {
                   /* ── Ödeme & Satış · salt görüntüleme ── */
                   loadingDetail && !detail ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 20px" }}>
-                      <div className="oh-spin" /><div style={{ fontSize: 13, color: "#8E95A3" }}>Ödeme bilgileri yükleniyor…</div>
+                      <FlexSpinner /><div style={{ fontSize: 13, color: "#8E95A3" }}>Ödeme bilgileri yükleniyor…</div>
                     </div>
                   ) : !detail || (detail.sales.length === 0 && detail.payments.length === 0) ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "48px 20px", textAlign: "center" }}>
@@ -1250,7 +1244,6 @@ const IC = {
   cash: sv('<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>', 'width="14" height="14" stroke="#6F7B87"'),
 };
 
-const spinCss = `.oh-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#2867bd;animation:oh-spin 1s linear infinite}@keyframes oh-spin{to{transform:rotate(360deg)}}`;
 const globalCss = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @keyframes oh-ddin{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
