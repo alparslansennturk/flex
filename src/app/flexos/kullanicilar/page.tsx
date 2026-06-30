@@ -115,6 +115,51 @@ export default function KullanicilarPage() {
   const [stuPage, setStuPage] = useState(1);
   const [stuStatusDD, setStuStatusDD] = useState(false);
 
+  // ── Sistem Modu (Eğitmen Tek Başına switch) ──
+  const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
+  const [modeBusy, setModeBusy] = useState(false);
+
+  const fetchSettings = useCallback(async (signal?: AbortSignal) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/flexos/settings", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      if (!res.ok) throw new Error("fetch failed");
+      const json = await res.json();
+      if (!signal?.aborted) setStandaloneMode(!!json.standaloneMode);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
+        console.error("[kullanicilar] sistem modu yüklenemedi:", e);
+      }
+    }
+  }, []);
+
+  const toggleStandaloneMode = async () => {
+    if (standaloneMode === null || modeBusy) return;
+    const next = !standaloneMode;
+    setModeBusy(true);
+    setStandaloneMode(next); // optimistic
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/flexos/settings", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ standaloneMode: next }),
+      });
+      if (!res.ok) throw new Error("patch failed");
+      toast.success(next ? "Eğitmen tek başına çalışma modu açıldı." : "Tam sistem moduna dönüldü.");
+    } catch {
+      setStandaloneMode(!next); // rollback
+      toast.error("Sistem modu güncellenemedi.");
+    } finally {
+      setModeBusy(false);
+    }
+  };
+
   // ── Veri yükleme ──
   const fetchUsers = useCallback(async (signal?: AbortSignal) => {
     const user = auth.currentUser;
@@ -146,9 +191,10 @@ export default function KullanicilarPage() {
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
       fetchUsers(ac.signal);
+      fetchSettings(ac.signal);
     })();
     return () => { ac.abort(); };
-  }, [router, fetchUsers]);
+  }, [router, fetchUsers, fetchSettings]);
 
   // Ekle sayfasından dönünce listeyi yenile
   useEffect(() => {
@@ -290,6 +336,26 @@ export default function KullanicilarPage() {
         </header>
 
         <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto" }}>
+
+          {/* ═══════════ SİSTEM MODU ═══════════ */}
+          <div style={{ ...S.tableCard, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px", marginBottom: 22, flexWrap: "wrap" as const }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 12, background: standaloneMode ? "#DCFCE7" : "#EDE9FE", color: standaloneMode ? "#15803D" : "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                <IconGraduation />
+              </div>
+              <div>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>Sistem Modu</div>
+                <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
+                  {standaloneMode === null
+                    ? "Yükleniyor…"
+                    : standaloneMode
+                      ? "Eğitmen Tek Başına — eğitmen kendi grubunu/öğrencisini kendi ekler, Satış/Operasyon devre dışı."
+                      : "Tam Sistem — öğrenci ve grup Satış + Operasyon üzerinden beslenir, eğitmen sadece yoklama/not girer."}
+                </div>
+              </div>
+            </div>
+            <SystemModeSegment value={standaloneMode} busy={modeBusy} onChange={(next) => { if (standaloneMode !== null && next !== standaloneMode) toggleStandaloneMode(); }} />
+          </div>
 
           {/* ═══════════ PERSONEL ═══════════ */}
           {tab === "personel" && (
@@ -446,6 +512,41 @@ function TabBtn({ label, count, active, onClick }: { label: string; count: numbe
   return <button onClick={onClick} style={{ padding: "12px 20px", border: "none", borderBottom: active ? "2.5px solid #7C3AED" : "2.5px solid transparent", background: "transparent", color: active ? "#7C3AED" : "#6F7B87", fontSize: 14, fontWeight: active ? 700 : 600, fontFamily: "inherit", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}>
     {label}<span style={{ fontSize: 11.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: active ? "#EDE9FE" : "#F2F4F7", color: active ? "#7C3AED" : "#8E95A3" }}>{count}</span>
   </button>;
+}
+
+function SystemModeSegment({ value, busy, onChange }: { value: boolean | null; busy: boolean; onChange: (standaloneMode: boolean) => void }) {
+  const items: Array<{ key: boolean; label: string }> = [
+    { key: false, label: "Tam Sistem" },
+    { key: true, label: "Eğitmen Tek Başına" },
+  ];
+  return (
+    <div style={{ display: "inline-flex", padding: 3, borderRadius: 11, background: "#F2F4F7", border: "1px solid #E2E5EA", opacity: busy ? 0.6 : 1, pointerEvents: busy ? "none" : "auto" }}>
+      {items.map((it) => {
+        const selected = value === it.key;
+        return (
+          <button
+            key={String(it.key)}
+            onClick={() => onChange(it.key)}
+            disabled={value === null}
+            style={{
+              padding: "9px 16px",
+              borderRadius: 9,
+              border: "none",
+              background: selected ? "#fff" : "transparent",
+              color: selected ? (it.key ? "#15803D" : "#7C3AED") : "#8E95A3",
+              fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+              cursor: value === null ? "default" : "pointer",
+              boxShadow: selected ? "0 1px 3px rgba(15,31,61,.12)" : "none",
+              transition: "all .15s",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {it.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function ToggleSwitch({ active, onClick }: { active: boolean; onClick: () => void }) {

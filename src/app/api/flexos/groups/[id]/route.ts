@@ -41,13 +41,13 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
 
   // Genel alan güncelleme
   try {
-    const { can } = await import("@/app/lib/domain/access/can");
-    if (!can(actor, "group.edit")) {
-      return NextResponse.json({ error: "Yetkisiz.", capability: "group.edit" }, { status: 403 });
-    }
-
     const existing = await firestoreGroupRepo.getById(id, actor.tenantId);
     if (!existing) return NextResponse.json({ error: "Grup bulunamadı." }, { status: 404 });
+
+    const { can } = await import("@/app/lib/domain/access/can");
+    if (!can(actor, "group.edit", { groupId: id, ownerUid: existing.trainerId })) {
+      return NextResponse.json({ error: "Yetkisiz.", capability: "group.edit" }, { status: 403 });
+    }
 
     // İzin verilen alanları merge et
     if (body.code !== undefined) existing.code = body.code;

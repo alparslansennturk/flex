@@ -129,15 +129,17 @@ export async function updateGroupStatus(
   status: GroupStatus,
   deps: { groups: GroupRepo },
 ): Promise<Group> {
-  if (!can(actor, "group.edit", { groupId })) {
-    throw new ForbiddenError("group.edit");
-  }
   if (!VALID_STATUSES.includes(status)) {
     throw new ValidationError("Geçersiz grup durumu.");
   }
 
   const group = await deps.groups.getById(groupId, actor.tenantId);
   if (!group) throw new ValidationError("Grup bulunamadı.");
+
+  // ownerUid: `groupIds` claim altyapısı yokken standalone eğitmen kendi grubunu (Group.trainerId) düzenleyebilsin.
+  if (!can(actor, "group.edit", { groupId, ownerUid: group.trainerId })) {
+    throw new ForbiddenError("group.edit");
+  }
 
   const updated: Group = { ...group, status, updatedAt: nowISO(), updatedBy: actor.uid };
   await deps.groups.save(updated);
@@ -154,12 +156,12 @@ export async function deleteGroup(
   groupId: EntityId,
   deps: { groups: GroupRepo; enrollments: EnrollmentRepo },
 ): Promise<void> {
-  if (!can(actor, "group.delete", { groupId })) {
-    throw new ForbiddenError("group.delete");
-  }
-
   const group = await deps.groups.getById(groupId, actor.tenantId);
   if (!group) throw new ValidationError("Grup bulunamadı.");
+
+  if (!can(actor, "group.delete", { groupId, ownerUid: group.trainerId })) {
+    throw new ForbiddenError("group.delete");
+  }
 
   const enrollments = await deps.enrollments.listByGroup(groupId, actor.tenantId);
   const activeCount = enrollments.filter((e) => e.status === "active").length;

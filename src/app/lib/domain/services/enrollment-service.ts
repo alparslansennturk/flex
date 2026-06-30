@@ -44,9 +44,6 @@ export async function createEnrollment(
   input: CreateEnrollmentInput,
   deps: CreateEnrollmentDeps,
 ): Promise<Enrollment> {
-  if (!can(actor, "enrollment.create", { groupId: input.groupId })) {
-    throw new ForbiddenError("enrollment.create");
-  }
   if (!input.personId || !input.groupId) {
     throw new ValidationError("personId ve groupId zorunludur.");
   }
@@ -56,6 +53,11 @@ export async function createEnrollment(
 
   const group = await deps.groups.getById(input.groupId, actor.tenantId);
   if (!group) throw new ValidationError("Kayıt edilecek grup bulunamadı.");
+
+  // ownerUid: `groupIds` claim altyapısı yokken standalone eğitmen kendi grubuna (Group.trainerId) kayıt açabilsin.
+  if (!can(actor, "enrollment.create", { groupId: input.groupId, ownerUid: group.trainerId })) {
+    throw new ForbiddenError("enrollment.create");
+  }
 
   const duplicate = await deps.enrollments.findActive(input.personId, input.groupId, actor.tenantId);
   if (duplicate) {
@@ -104,9 +106,6 @@ export async function assignToGroup(
   input: AssignToGroupInput,
   deps: AssignToGroupDeps,
 ): Promise<Enrollment> {
-  if (!can(actor, "group.assign_student", { groupId: input.groupId })) {
-    throw new ForbiddenError("group.assign_student");
-  }
   if (!input.enrollmentId || !input.groupId) {
     throw new ValidationError("enrollmentId ve groupId zorunludur.");
   }
@@ -114,15 +113,20 @@ export async function assignToGroup(
   const enrollment = await deps.enrollments.getById(input.enrollmentId, actor.tenantId);
   if (!enrollment) throw new ValidationError("Atanacak kayıt bulunamadı.");
 
+  const group = await deps.groups.getById(input.groupId, actor.tenantId);
+  if (!group) throw new ValidationError("Atanacak grup bulunamadı.");
+
+  // ownerUid: `groupIds` claim altyapısı yokken standalone eğitmen kendi grubuna (Group.trainerId) öğrenci yerleştirebilsin.
+  if (!can(actor, "group.assign_student", { groupId: input.groupId, ownerUid: group.trainerId })) {
+    throw new ForbiddenError("group.assign_student");
+  }
+
   if (enrollment.groupId) {
     throw new ValidationError("Bu kayıt zaten bir gruba bağlı. Grup değiştirmek için aktarım kullanın.");
   }
   if (enrollment.status !== "active") {
     throw new ValidationError("Yalnızca aktif kayıtlar gruba atanabilir.");
   }
-
-  const group = await deps.groups.getById(input.groupId, actor.tenantId);
-  if (!group) throw new ValidationError("Atanacak grup bulunamadı.");
 
   const duplicate = await deps.enrollments.findActive(enrollment.personId, input.groupId, actor.tenantId);
   if (duplicate) {
@@ -138,6 +142,37 @@ export async function assignToGroup(
     updatedBy: actor.uid,
   };
 
+  await deps.enrollments.save(updated);
+  return updated;
+}
+
+/** Gruptan çıkarma bağımlılıkları (kayıt + grup, ownerUid kontrolü için). */
+export interface RemoveFromGroupDeps {
+  enrollments: EnrollmentRepo;
+  groups: GroupRepo;
+}
+
+/**
+ * Bir kaydı gruptan çıkarır — SOFT (silinmez, `status: "cancelled"`).
+ * Gated `group.assign_student` (yerleştirmenin tersi — aynı yetki).
+ * Standalone eğitmen kendi grubundan ekleme hatası/ayrılma gibi durumlarda öğrenci çıkarabilir.
+ */
+export async function removeFromGroup(
+  actor: Actor,
+  enrollmentId: EntityId,
+  deps: RemoveFromGroupDeps,
+): Promise<Enrollment> {
+  const enrollment = await deps.enrollments.getById(enrollmentId, actor.tenantId);
+  if (!enrollment) throw new ValidationError("Kayıt bulunamadı.");
+  if (!enrollment.groupId) throw new ValidationError("Bu kayıt zaten gruba bağlı değil.");
+
+  const group = await deps.groups.getById(enrollment.groupId, actor.tenantId);
+
+  if (!can(actor, "group.assign_student", { groupId: enrollment.groupId, ownerUid: group?.trainerId })) {
+    throw new ForbiddenError("group.assign_student");
+  }
+
+  const updated: Enrollment = { ...enrollment, status: "cancelled", updatedAt: nowISO(), updatedBy: actor.uid };
   await deps.enrollments.save(updated);
   return updated;
 }

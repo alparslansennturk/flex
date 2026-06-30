@@ -446,5 +446,8 @@ service cloud.firestore {
 
     // Seans kalıpları — server-only.
     match /flexos_seanslar/{id} { allow read, write: if false; }
+
+    // Sistem anahtarları (standaloneMode switch vb.) — server-only.
+    match /flexos_settings/{id} { allow read, write: if false; }
   }
 }

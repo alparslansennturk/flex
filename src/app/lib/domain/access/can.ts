@@ -43,7 +43,11 @@ function scopeSatisfied(actor: Actor, scope: Scope, target?: AccessTarget): bool
       return !!actor.branchIds?.includes(target.branchId);
     case "assigned":
       if (!target?.groupId) return true;
-      return !!actor.groupIds?.includes(target.groupId);
+      if (actor.groupIds?.includes(target.groupId)) return true;
+      // `groupIds` claim altyapısı (Operasyon→eğitmen ataması) henüz kurulmadı —
+      // o güne kadar/onsuz da "kendi açtığı/sahip olduğu grup" sahiplik eşleşmesiyle
+      // (örn. Group.trainerId === actor.uid) "assigned" sayılır (standalone eğitmen).
+      return !!target?.ownerUid && target.ownerUid === actor.uid;
     case "self":
       // self her zaman somut bir sahip ister.
       return !!target?.ownerUid && target.ownerUid === actor.uid;

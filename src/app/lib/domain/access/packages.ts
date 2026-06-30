@@ -12,6 +12,39 @@ function at(scope: Scope, ...capabilities: string[]): Grant[] {
   return capabilities.map((capability) => ({ capability, scope }));
 }
 
+// Eğitmen yetkileri her zaman geçerli olan çekirdek + standalone-modda eklenen ekstra
+// olmak üzere ikiye ayrılır — switch kapalıyken sadece çekirdek kalır (resolvePackages bkz).
+const EGITMEN_CORE: Grant[] = at(
+  "assigned",
+  "person.read",
+  "person.search",
+  "person.note.read",
+  "person.note.write",
+  "enrollment.read",
+  "group.read", // entegre modda da kendi grubunu görmesi/yoklama alması gerekir
+  "grade.read",
+  "grade.write",
+  "grade.finalize",
+  "trainer.read", // kadroyu görür ama ücret (trainer.rate.read) YOK
+);
+
+const EGITMEN_STANDALONE_EXTRA: Grant[] = at(
+  "assigned",
+  "person.create",
+  // PII (tel/e-posta/TC) normalde eğitmende YOK (Satış yazar) — standalone'da Satış
+  // olmadığı için eğitmen kendi öğrencisinin iletişim bilgisini girebilmeli/görebilmeli.
+  "person.read.pii",
+  "person.pii.write",
+  "person.edit",
+  "enrollment.create",
+  "enrollment.transfer",
+  "group.create",
+  "group.edit",
+  "group.assign_student",
+  "group.activate",
+  "group.delete",
+);
+
 export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
   // Satış: kişi (PII dahil) + eğitime kaydet + satış + CRM. PII YAZAR.
   satis: at(
@@ -100,28 +133,10 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
   //
   // GENİŞ kurulum (Ayrılabilirlik Kısıtı — FLEXOS.md §2.1): standalone "Flex Classroom"
   // ihtimaline karşı eğitmen kendi kendine yeter → grup oluştur + öğrenci ekle + sınıfa
-  // kaydet hepsi onda. Tam FlexOS'a geçilirse grup yetkileri en sonda daraltılır (ops alır).
-  egitmen: at(
-    "assigned",
-    "person.create",
-    "person.read",
-    "person.search",
-    "person.note.read",
-    "person.note.write",
-    "enrollment.create",
-    "enrollment.read",
-    "enrollment.transfer",
-    "group.create",
-    "group.read",
-    "group.edit",
-    "group.assign_student",
-    "group.activate",
-    "group.delete",
-    "grade.read",
-    "grade.write",
-    "grade.finalize",
-    "trainer.read", // kadroyu görür ama ücret (trainer.rate.read) YOK
-  ),
+  // kaydet hepsi onda. Tam FlexOS entegre modunda (switch kapalı) bu grup/kişi-yaratma
+  // yetkileri DÜŞER — Satış/Operasyon besler, eğitmen sadece okur/yoklama-not girer.
+  // Bkz. `EGITMEN_STANDALONE_EXTRA` + `resolvePackages(packages, { standaloneMode })`.
+  egitmen: [...EGITMEN_CORE, ...EGITMEN_STANDALONE_EXTRA],
 
   // Admin: tümü @org + meta yetkiler.
   admin: [
@@ -186,7 +201,21 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
   ],
 };
 
+export interface ResolvePackagesOptions {
+  /**
+   * Eğitmen "tek başına" (standalone) çalışıyor mu? `true`/`undefined` (varsayılan,
+   * geriye dönük uyumlu) → eğitmen kendi grubunu/öğrencisini açabilir. `false`
+   * (tam FlexOS entegre modu) → bu yaratma yetkileri düşer, Satış/Operasyon besler.
+   */
+  standaloneMode?: boolean;
+}
+
 /** Paket adlarını birleştirilmiş grant listesine çözer (çift yetki = birden çok paket). */
-export function resolvePackages(packages: PackageName[]): Grant[] {
-  return packages.flatMap((p) => ROLE_PACKAGES[p] ?? []);
+export function resolvePackages(packages: PackageName[], options?: ResolvePackagesOptions): Grant[] {
+  return packages.flatMap((p) => {
+    if (p === "egitmen" && options?.standaloneMode === false) {
+      return EGITMEN_CORE;
+    }
+    return ROLE_PACKAGES[p] ?? [];
+  });
 }

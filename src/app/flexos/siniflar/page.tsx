@@ -22,6 +22,7 @@ import FlexSidebar from "../_components/FlexSidebar";
 import { FlexPageLoader, FlexSpinner } from "../_components/FlexSpinner";
 import { BRANCH_OFFICES, officeName } from "@/app/lib/branch-offices";
 import { formatTrPhone } from "@/app/lib/phone";
+import EgitmenSiniflarPanel from "./EgitmenSiniflarPanel";
 
 // -- Katalog API tipleri --
 interface BranchDoc { id: string; name: string; order?: number }
@@ -162,6 +163,7 @@ const PAGE_SIZE = 15;
 export default function SınıflarPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
 
   // -- Form state --
   const [eğitimTipi, setEğitimTipi] = useState<EğitimTipi>("standart");
@@ -256,6 +258,23 @@ export default function SınıflarPage() {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
+
+      // Sistem Modu — standaloneMode true ise Operasyon panelini hiç yüklemeden
+      // EgitmenSiniflarPanel'e devredilecek (aşağıdaki erken return). Operasyon'a
+      // özel veriler (gruplar/branş/seans/eğitmen) standalone modda hiç çekilmez.
+      let standalone = false;
+      try {
+        const hdrs0 = await authHeaders();
+        const settingsRes = await fetch("/api/flexos/settings", { headers: hdrs0, signal: ac.signal });
+        const settingsJson = settingsRes.ok ? await settingsRes.json() : { standaloneMode: false };
+        standalone = !!settingsJson.standaloneMode;
+        if (!ac.signal.aborted) setStandaloneMode(standalone);
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") setStandaloneMode(false);
+        return;
+      }
+      if (standalone || ac.signal.aborted) return;
+
       await loadGroups(ac.signal);
       try {
         const hdrs = await authHeaders();
@@ -532,7 +551,10 @@ export default function SınıflarPage() {
   const isCorporate = eğitimTipi === "kurumsal";
 
   // -- loading guard --
-  if (authed === null) return <FlexPageLoader />;
+  if (authed === null || standaloneMode === null) return <FlexPageLoader />;
+
+  // -- Eğitmen Tek Başına modu: Operasyon paneli yerine eğitmenin kendi ekranı --
+  if (standaloneMode === true) return <EgitmenSiniflarPanel />;
 
   const isEditing = editingId !== null;
 
