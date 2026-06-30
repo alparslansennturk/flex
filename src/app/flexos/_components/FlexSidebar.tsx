@@ -25,6 +25,7 @@ export type FlexNavKey =
   | "siniflar"
   | "egitmenler"
   | "kullanicilar"
+  | "aktivite-merkezi"
   | "yoklamalar"
   | "sertifikasyon";
 
@@ -120,6 +121,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
         <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />
         <Item icon={IC.shield} label="Kullanıcılar" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />
+        <Item icon={IC.activity} label="Aktivite Merkezi" active={active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
         <Item icon={IC.calendar} label="Yoklamalar" onClick={go(null)} />
         <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />
       </nav>
@@ -171,6 +173,7 @@ const IC = {
   shield: sv('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>'),
   chevDown: sv('<path d="m6 9 6 6 6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
+  activity: sv('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'),
 };
 
 const css = `

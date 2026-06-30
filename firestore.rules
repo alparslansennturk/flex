@@ -426,6 +426,15 @@ service cloud.firestore {
     match /flexos_sections/{id} { allow read, write: if false; }
     match /flexos_tracks/{id} { allow read, write: if false; }
 
+    // CRM pipeline — satış öncesi adaylar. Sadece admin ve sales rolü erişir.
+    match /flexos_prospects/{id} {
+      allow read, write: if isAdmin() ||
+        (isSignedIn() && (
+          request.auth.token.role in ['admin', 'sales'] ||
+          getUserData().get('roles', []).hasAny(['admin', 'sales'])
+        ));
+    }
+
     // Satış kayıtları — server-only (Admin SDK), PII + finansal veri koruması.
     match /flexos_sales/{id} { allow read, write: if false; }
 
