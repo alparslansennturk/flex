@@ -176,3 +176,40 @@ export async function removeFromGroup(
   await deps.enrollments.save(updated);
   return updated;
 }
+
+/** Durum güncelleme bağımlılıkları (grup opsiyonel — grupsuz kayıtlar da desteklenir). */
+export interface SetEnrollmentStatusDeps {
+  enrollments: EnrollmentRepo;
+  groups: GroupRepo;
+}
+
+const SETTABLE_STATUSES: Enrollment["status"][] = ["active", "completed", "cancelled"];
+
+/**
+ * Bir kaydın durumunu değiştirir — Mezun Et (`completed`), Sil (`cancelled`),
+ * Aktife Al (`active`). Gated `group.assign_student` (yerleştirme/çıkarmayla aynı yetki
+ * ekseni). Grupsuz kayıtlarda da çalışır (Core'da öğrenci gruba atanmadan da yönetilebilir).
+ */
+export async function setEnrollmentStatus(
+  actor: Actor,
+  enrollmentId: EntityId,
+  status: Enrollment["status"],
+  deps: SetEnrollmentStatusDeps,
+): Promise<Enrollment> {
+  if (!SETTABLE_STATUSES.includes(status)) {
+    throw new ValidationError("Geçersiz durum.");
+  }
+
+  const enrollment = await deps.enrollments.getById(enrollmentId, actor.tenantId);
+  if (!enrollment) throw new ValidationError("Kayıt bulunamadı.");
+
+  const group = enrollment.groupId ? await deps.groups.getById(enrollment.groupId, actor.tenantId) : null;
+
+  if (!can(actor, "group.assign_student", enrollment.groupId ? { groupId: enrollment.groupId, ownerUid: group?.trainerId } : undefined)) {
+    throw new ForbiddenError("group.assign_student");
+  }
+
+  const updated: Enrollment = { ...enrollment, status, updatedAt: nowISO(), updatedBy: actor.uid };
+  await deps.enrollments.save(updated);
+  return updated;
+}

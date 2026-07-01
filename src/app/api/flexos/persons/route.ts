@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
-import { can } from "@/app/lib/domain/access/can";
+import { can, widestScope } from "@/app/lib/domain/access/can";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
@@ -73,12 +73,23 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
     const allowPII = can(actor, "person.read.pii");
 
-    const items = persons.map((p: Person) => {
+    // Org-genişliğinde scope'u olmayan aktörler (örn. standalone eğitmen, @assigned)
+    // sadece KENDİ grubuna kayıtlı öğrencileri görür — havuz org-wide değil, sahiplik-bazlı.
+    const isOrgScope = widestScope(actor, "person.read") === "org";
+    const scopedPersons = isOrgScope
+      ? persons
+      : persons.filter((p) =>
+          (enrollByPerson.get(p.id) ?? []).some(
+            (enr) => enr.groupId && groupMap.get(enr.groupId)?.trainerId === actor.uid,
+          ),
+        );
+
+    const items = scopedPersons.map((p: Person) => {
       const enrs = enrollByPerson.get(p.id) ?? [];
 
       // branş listesi (enrollment → education → branch)
       const branchNames = new Set<string>();
-      const groupList: Array<{ label: string; branch: string; educationName: string }> = [];
+      const groupList: Array<{ label: string; branch: string; educationName: string; groupId: string }> = [];
       const officeNames = new Set<string>(); // şube = öğrencinin gruplarından türetilir
 
       const educationList: Array<{ educationId: string; name: string; status: string }> = [];
@@ -96,6 +107,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
             label: grp?.code ?? enr.groupId,
             branch: branch?.name ?? "",
             educationName: edu?.name ?? "",
+            groupId: enr.groupId,
           });
           const office = officeName(grp?.branchOfficeId);
           if (office) officeNames.add(office);
@@ -145,6 +157,8 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         subeler: [...officeNames],
         assignableEnrollmentId: assignable?.id ?? null,
         assignableEducationId: assignable?.educationId ?? null,
+        // Core (eğitmen) basit tablosu için tekil düzenlenebilir kayıt (Mezun Et/Sil/Aktife Al).
+        primaryEnrollmentId: enrs.find((e) => e.status === "active")?.id ?? enrs[0]?.id ?? null,
         gender: p.gender ?? "",
         createdAt: p.createdAt,
         paymentStatus,

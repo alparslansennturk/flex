@@ -118,6 +118,53 @@ export default function KullanicilarPage() {
   // ── Sistem Modu (Eğitmen Tek Başına switch) ──
   const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
   const [modeBusy, setModeBusy] = useState(false);
+  const [modeConfirm, setModeConfirm] = useState<boolean | null>(null); // onay bekleyen hedef değer (null = modal kapalı)
+
+  // ── Kişisel Görünüm PIN'i (Core/Full anahtarı, sadece owner görür) ──
+  const [canPin, setCanPin] = useState(false);
+  const [hasPin, setHasPin] = useState(false);
+  const [newPin, setNewPin] = useState("");
+  const [newPin2, setNewPin2] = useState("");
+  const [pinBusy, setPinBusy] = useState(false);
+
+  const fetchViewAccess = useCallback(async (signal?: AbortSignal) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/flexos/view-access", { headers: { Authorization: `Bearer ${token}` }, signal });
+      if (!res.ok) { if (!signal?.aborted) setCanPin(false); return; }
+      const json = await res.json();
+      if (signal?.aborted) return;
+      setCanPin(true);
+      setHasPin(!!json.hasPin);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") setCanPin(false);
+    }
+  }, []);
+
+  const savePin = async () => {
+    if (!/^\d{4}$/.test(newPin)) { toast.error("Yeni PIN 4 haneli rakam olmalı."); return; }
+    if (newPin !== newPin2) { toast.error("Yeni PIN'ler eşleşmiyor."); return; }
+    setPinBusy(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/flexos/view-access/pin", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ newPin }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(json.error || "PIN güncellenemedi."); return; }
+      toast.success(hasPin ? "PIN değiştirildi." : "PIN oluşturuldu.");
+      setNewPin(""); setNewPin2("");
+      setHasPin(true);
+    } catch {
+      toast.error("Sunucu hatası.");
+    } finally {
+      setPinBusy(false);
+    }
+  };
 
   const fetchSettings = useCallback(async (signal?: AbortSignal) => {
     const user = auth.currentUser;
@@ -138,9 +185,8 @@ export default function KullanicilarPage() {
     }
   }, []);
 
-  const toggleStandaloneMode = async () => {
-    if (standaloneMode === null || modeBusy) return;
-    const next = !standaloneMode;
+  const applyStandaloneMode = async (next: boolean) => {
+    if (modeBusy) return;
     setModeBusy(true);
     setStandaloneMode(next); // optimistic
     try {
@@ -158,6 +204,13 @@ export default function KullanicilarPage() {
     } finally {
       setModeBusy(false);
     }
+  };
+
+  const confirmModeChange = () => {
+    if (modeConfirm === null) return;
+    const next = modeConfirm;
+    setModeConfirm(null);
+    applyStandaloneMode(next);
   };
 
   // ── Veri yükleme ──
@@ -192,9 +245,10 @@ export default function KullanicilarPage() {
       setAuthed(true);
       fetchUsers(ac.signal);
       fetchSettings(ac.signal);
+      fetchViewAccess(ac.signal);
     })();
     return () => { ac.abort(); };
-  }, [router, fetchUsers, fetchSettings]);
+  }, [router, fetchUsers, fetchSettings, fetchViewAccess]);
 
   // Ekle sayfasından dönünce listeyi yenile
   useEffect(() => {
@@ -305,9 +359,9 @@ export default function KullanicilarPage() {
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3" }}>
         {/* header */}
         <header style={{ position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px 0", maxWidth: 1560, margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={{ width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#7C3AED,#5B21B6)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(91,33,182,.5)" }}>
+              <div style={{ width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}>
                 <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               </div>
               <div>
@@ -329,7 +383,7 @@ export default function KullanicilarPage() {
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 0, padding: "0 36px", marginTop: 18 }}>
+          <div style={{ display: "flex", gap: 0, padding: "0 36px", maxWidth: 1560, margin: "0 auto", marginTop: 18 }}>
             <TabBtn label="Personel" count={totalUsers} active={tab === "personel"} onClick={() => setTab("personel")} />
             <TabBtn label="Öğrenciler" count={totalStudents} active={tab === "ogrenciler"} onClick={() => setTab("ogrenciler")} />
           </div>
@@ -337,31 +391,62 @@ export default function KullanicilarPage() {
 
         <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto" }}>
 
-          {/* ═══════════ SİSTEM MODU ═══════════ */}
-          <div style={{ ...S.tableCard, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px", marginBottom: 22, flexWrap: "wrap" as const }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 12, background: standaloneMode ? "#DCFCE7" : "#EDE9FE", color: standaloneMode ? "#15803D" : "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
-                <IconGraduation />
-              </div>
-              <div>
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>Sistem Modu</div>
-                <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
-                  {standaloneMode === null
-                    ? "Yükleniyor…"
-                    : standaloneMode
-                      ? "Eğitmen Tek Başına — eğitmen kendi grubunu/öğrencisini kendi ekler, Satış/Operasyon devre dışı."
-                      : "Tam Sistem — öğrenci ve grup Satış + Operasyon üzerinden beslenir, eğitmen sadece yoklama/not girer."}
+          {/* ═══════════ SİSTEM MODU + KİŞİSEL GÖRÜNÜM PIN'İ — 2 sütun ═══════════ */}
+          <div style={{ display: "grid", gridTemplateColumns: canPin ? "1fr 1fr" : "1fr", gap: 16, marginBottom: 22, alignItems: "stretch" }}>
+            <div style={{ ...S.tableCard, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px", flexWrap: "wrap" as const }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ width: 42, height: 42, borderRadius: 12, background: standaloneMode ? "#DCFCE7" : "#EDE9FE", color: standaloneMode ? "#15803D" : "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                  <IconGraduation />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>Sistem Modu</div>
+                  <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
+                    {standaloneMode === null
+                      ? "Yükleniyor…"
+                      : standaloneMode
+                        ? "Eğitmen Tek Başına — eğitmen kendi grubunu/öğrencisini kendi ekler, Satış/Operasyon devre dışı."
+                        : "Tam Sistem — öğrenci ve grup Satış + Operasyon üzerinden beslenir, eğitmen sadece yoklama/not girer."}
+                  </div>
                 </div>
               </div>
+              <SystemModeSegment value={standaloneMode} busy={modeBusy} onChange={(next) => { if (standaloneMode !== null && next !== standaloneMode) setModeConfirm(next); }} />
             </div>
-            <SystemModeSegment value={standaloneMode} busy={modeBusy} onChange={(next) => { if (standaloneMode !== null && next !== standaloneMode) toggleStandaloneMode(); }} />
+
+            {canPin && (
+              <div style={{ ...S.tableCard, padding: "18px 22px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: "#EDE9FE", color: "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                    <IconLock />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>{"Kişisel Görünüm PIN'i"}</div>
+                    <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
+                      {"Ctrl/Cmd+Shift+M ile Eğitmen görünümünden admin ekranına geçerken sorulan 4 haneli PIN. "}{hasPin ? "Kurulu." : "Henüz kurulmadı."}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>Yeni PIN</label>
+                    <input type="password" inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4))} style={S.pinInput} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>Yeni PIN (Tekrar)</label>
+                    <input type="password" inputMode="numeric" maxLength={4} value={newPin2} onChange={(e) => setNewPin2(e.target.value.replace(/\D/g, "").slice(0, 4))} style={S.pinInput} />
+                  </div>
+                  <button onClick={savePin} disabled={pinBusy} style={{ ...S.addBtn, background: "#7C3AED", boxShadow: "none" }}>
+                    {pinBusy ? "Kaydediliyor…" : hasPin ? "PIN'i Değiştir" : "PIN Oluştur"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ═══════════ PERSONEL ═══════════ */}
           {tab === "personel" && (
             <>
               {/* section header + CTA */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginTop: 40, marginBottom: 22 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={S.countChip}>{totalUsers} personel</span>
                 </div>
@@ -502,6 +587,22 @@ export default function KullanicilarPage() {
         onConfirm={confirmDelete}
         onCancel={() => !delBusy && setDeleteModal(null)}
       />
+
+      <FlexModal
+        open={modeConfirm !== null}
+        title="Sistem Modunu Değiştir"
+        message={
+          modeConfirm
+            ? <>Eğitmenler <strong>kendi grubunu/öğrencisini kendi ekleyecek</strong>, Satış ve Operasyon devre dışı kalacak. Bu değişiklik sistemdeki HERKESİ etkiler.</>
+            : <>Öğrenci ve grup ekleme yeniden <strong>Satış/Operasyon</strong> üzerinden yapılacak, eğitmenler sadece yoklama/not girecek. Bu değişiklik sistemdeki HERKESİ etkiler.</>
+        }
+        confirmLabel={modeConfirm ? "Evet, Eğitmen Moduna Geç" : "Evet, Tam Sisteme Dön"}
+        cancelLabel="Vazgeç"
+        tone="primary"
+        busy={modeBusy}
+        onConfirm={confirmModeChange}
+        onCancel={() => !modeBusy && setModeConfirm(null)}
+      />
     </div>
   );
 }
@@ -630,4 +731,5 @@ const S: Record<string, CSSProperties> = {
   clearBtn: { padding: "9px 16px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" },
   pageBtn: { width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontFamily: "inherit" },
   iconBtn: { width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", transition: "all .14s" },
+  pinInput: { width: 90, padding: "9px 12px", borderRadius: 10, border: "1px solid #E2E5EA", fontSize: 15, letterSpacing: "4px", textAlign: "center" as const, fontFamily: "inherit", outline: "none", color: "#1E222B" },
 };

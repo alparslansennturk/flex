@@ -449,5 +449,8 @@ service cloud.firestore {
 
     // Sistem anahtarları (standaloneMode switch vb.) — server-only.
     match /flexos_settings/{id} { allow read, write: if false; }
+
+    // Admin Kişisel Görünüm Anahtarı PIN'i (Core/Full) — server-only, hash'li.
+    match /flexos_view_pins/{uid} { allow read, write: if false; }
   }
 }

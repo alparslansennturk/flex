@@ -190,6 +190,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "trainer.rate.write",
       "role.manage",
       "capability.grant",
+      "view.toggle",
       "case.create",
       "case.read",
       "case.edit",

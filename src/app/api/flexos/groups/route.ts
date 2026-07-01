@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import { can, widestScope } from "@/app/lib/domain/access/can";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreEducationRepo, firestoreSectionRepo, firestoreTrackRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
@@ -47,10 +48,21 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
  * GET /api/flexos/groups?trainerId=... — grup listesi (kiracıya göre), zenginleştirilmiş.
  * Read-time join: eğitim adı + branş adı (eğitim→branchId) + doluluk (aktif enrollment sayısı).
  * Ham alanlar (code/type/status/educationId/schedule/capacity) korunur (geriye dönük uyumlu).
+ *
+ * Kapsam: org-scope olmayan aktör (örn. standalone eğitmen) `trainerId` parametresi
+ * ne olursa olsun SADECE kendi grubunu görür — başka eğitmenin grubunu/öğrencisini
+ * göremez (client'ın gönderdiği trainerId'ye güvenilmez, sunucu kendi uid'ini zorlar).
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
-  const trainerId = req.nextUrl.searchParams.get("trainerId") ?? undefined;
+
+  if (!can(actor, "group.read")) {
+    return NextResponse.json({ error: "Yetki yok: group.read" }, { status: 403 });
+  }
+
+  const isOrgScope = widestScope(actor, "group.read") === "org";
+  const requestedTrainerId = req.nextUrl.searchParams.get("trainerId") ?? undefined;
+  const trainerId = isOrgScope ? requestedTrainerId : actor.uid;
 
   const [groups, educations, branches, sections, enrollments, trainers] = await Promise.all([
     firestoreGroupRepo.list(actor.tenantId, trainerId),

@@ -8,10 +8,18 @@
  * NOT: Görsel sonra Claude Design'da elden geçirilecek; şimdilik işlevsel/sade.
  */
 
-import React, { CSSProperties, useState } from "react";
+import React, { CSSProperties, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { auth } from "@/app/lib/firebase";
+import { getViewMode, setViewMode, type ViewMode } from "./viewMode";
+import ViewPinModal from "./ViewPinModal";
+
+// Sayfa değişince FlexSidebar yeniden mount olur (paylaşımlı layout yok) — capability
+// listesini modül-seviyesinde önbelleğe alarak her navigasyonda "menü boşal-dolsun"
+// yanıp sönmesini (flaş) önler. İlk yüklemede bir kez fetch edilir, sonrasında cache'ten okunur.
+let capsCache: Set<string> | null = null;
 
 export type FlexNavKey =
   | "ana"
@@ -45,6 +53,67 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const aktiviteActive = active === "aktivite-merkezi" || active === "aktiviteler" || active === "randevu-takvimi";
   const [aktiviteOpen, setAktiviteOpen] = useState(aktiviteActive);
 
+  // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
+  // Capability listesi yüklenene kadar boş küme = kapılı öğeler geçici gizli (kozmetik flaş yok).
+  const [uid, setUid] = useState<string | null>(null);
+  const [caps, setCaps] = useState<Set<string>>(() => capsCache ?? new Set());
+  const [mode, setMode] = useState<ViewMode>("full");
+  const [pinOpen, setPinOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await auth.authStateReady();
+      const user = auth.currentUser;
+      if (!user || cancelled) return;
+      setUid(user.uid);
+      setMode(getViewMode(user.uid));
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok && !cancelled) {
+          const json = await res.json();
+          const next = new Set<string>(json.capabilities ?? []);
+          capsCache = next;
+          setCaps(next);
+        }
+      } catch {
+        // sessiz — menüde kapılı öğeler gizli kalır, sayfa fonksiyonelliğini etkilemez
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const canToggleView = caps.has("view.toggle");
+
+  // Gizli kısayol — Ctrl/Cmd+Shift+M. Owner değilse tamamen no-op (sıfır iz).
+  useEffect(() => {
+    if (!canToggleView) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (!((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "m")) return;
+      e.preventDefault();
+      if (mode === "full") {
+        if (uid) setViewMode(uid, "core");
+        setMode("core");
+        toast.info("Görünüm: Eğitmen");
+      } else {
+        setPinOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canToggleView, mode, uid]);
+
+  const onPinVerified = () => {
+    if (uid) setViewMode(uid, "full");
+    setMode("full");
+    setPinOpen(false);
+    toast.success("Görünüm: Full");
+  };
+
+  /** cap yoksa hiç görünmez; core-grup her zaman, enterprise-grup sadece Full'de. */
+  const canSee = (cap: string, core: boolean) => caps.has(cap) && (core || mode === "full");
+
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
       <style>{css}</style>
@@ -61,102 +130,121 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.home} label="Ana Sayfa" onClick={go(null)} />
 
-        {/* Eğitim Yönetimi — akordiyon ana başlık (framer-motion geçişli) */}
-        <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={() => setEduOpen((o) => !o)}>
-          <span style={{ display: "inline-flex", color: eduActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.book }} />
-          <span style={{ flex: 1 }}>Eğitim Yönetimi</span>
-          <motion.span
-            style={{ display: "inline-flex", opacity: 0.7 }}
-            animate={{ rotate: eduOpen ? 0 : -90 }}
-            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            dangerouslySetInnerHTML={{ __html: IC.chevDown }}
-          />
-        </a>
-        <AnimatePresence initial={false}>
-          {eduOpen && (
-            <motion.div
-              key="edu-sub"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-              style={{ overflow: "hidden" }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                <SubItem label="Eğitimler" active={active === "egitimler"} onClick={go("/flexos/egitim-yonetimi")} />
-                <SubItem label="Eğitim Ayarları" active={active === "ayarlar"} onClick={go("/flexos/egitim-yonetimi/ayarlar")} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Eğitim Yönetimi — akordiyon ana başlık (framer-motion geçişli). Enterprise: sadece Full. */}
+        {canSee("education.create", false) && (
+          <>
+            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={() => setEduOpen((o) => !o)}>
+              <span style={{ display: "inline-flex", color: eduActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.book }} />
+              <span style={{ flex: 1 }}>Eğitim Yönetimi</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: eduOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {eduOpen && (
+                <motion.div
+                  key="edu-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    <SubItem label="Eğitimler" active={active === "egitimler"} onClick={go("/flexos/egitim-yonetimi")} />
+                    <SubItem label="Eğitim Ayarları" active={active === "ayarlar"} onClick={go("/flexos/egitim-yonetimi/ayarlar")} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
 
-        {/* Satışlar — akordiyon ana başlık */}
-        <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={() => setSalesOpen((o) => !o)}>
-          <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
-          <span style={{ flex: 1 }}>Satışlar</span>
-          <motion.span
-            style={{ display: "inline-flex", opacity: 0.7 }}
-            animate={{ rotate: salesOpen ? 0 : -90 }}
-            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            dangerouslySetInnerHTML={{ __html: IC.chevDown }}
-          />
-        </a>
-        <AnimatePresence initial={false}>
-          {salesOpen && (
-            <motion.div
-              key="sales-sub"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-              style={{ overflow: "hidden" }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                <SubItem label="Satış Yap" active={active === "satis-yap"} onClick={go("/flexos/satislar/satis-yap")} />
-                <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go("/flexos/satislar/satis-liste")} />
-                <SubItem label="Paket Yönetimi" active={active === "paket-yonetimi"} onClick={go("/flexos/satislar/paket-yonetimi")} />
-                <SubItem label="Kampanya Yönetimi" active={active === "kampanya-yonetimi"} onClick={go("/flexos/satislar/kampanya-yonetimi")} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Satışlar — akordiyon ana başlık. Enterprise: sadece Full. */}
+        {canSee("sale.create", false) && (
+          <>
+            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={() => setSalesOpen((o) => !o)}>
+              <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
+              <span style={{ flex: 1 }}>Satışlar</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: salesOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {salesOpen && (
+                <motion.div
+                  key="sales-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    <SubItem label="Satış Yap" active={active === "satis-yap"} onClick={go("/flexos/satislar/satis-yap")} />
+                    <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go("/flexos/satislar/satis-liste")} />
+                    <SubItem label="Paket Yönetimi" active={active === "paket-yonetimi"} onClick={go("/flexos/satislar/paket-yonetimi")} />
+                    <SubItem label="Kampanya Yönetimi" active={active === "kampanya-yonetimi"} onClick={go("/flexos/satislar/kampanya-yonetimi")} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
 
-        <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />
-        <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />
+        {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür. */}
+        {canSee("person.read", true) && <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />}
+        {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
 
-        <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />
-        <Item icon={IC.shield} label="Kullanıcılar" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />
-        {/* Aktivite Merkezi — akordiyon */}
-        <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={() => setAktiviteOpen((o) => !o)}>
-          <span style={{ display: "inline-flex", color: aktiviteActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.activity }} />
-          <span style={{ flex: 1 }}>Aktivite Merkezi</span>
-          <motion.span
-            style={{ display: "inline-flex", opacity: 0.7 }}
-            animate={{ rotate: aktiviteOpen ? 0 : -90 }}
-            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            dangerouslySetInnerHTML={{ __html: IC.chevDown }}
-          />
-        </a>
-        <AnimatePresence initial={false}>
-          {aktiviteOpen && (
-            <motion.div
-              key="aktivite-sub"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-              style={{ overflow: "hidden" }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                <SubItem label="Aktiviteler" active={active === "aktiviteler" || active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
-                <SubItem label="Randevu Takvimi" active={active === "randevu-takvimi"} onClick={go("/flexos/randevu-takvimi")} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <Item icon={IC.calendar} label="Yoklamalar" onClick={go(null)} />
-        <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />
+        {/* Enterprise: sadece Full. */}
+        {canSee("trainer.read", false) && <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />}
+        {canSee("role.manage", false) && <Item icon={IC.shield} label="Kullanıcılar" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />}
+
+        {/* Aktivite Merkezi — akordiyon. Enterprise: sadece Full. */}
+        {canSee("case.read", false) && (
+          <>
+            <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={() => setAktiviteOpen((o) => !o)}>
+              <span style={{ display: "inline-flex", color: aktiviteActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.activity }} />
+              <span style={{ flex: 1 }}>Aktivite Merkezi</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: aktiviteOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {aktiviteOpen && (
+                <motion.div
+                  key="aktivite-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    <SubItem label="Aktiviteler" active={active === "aktiviteler" || active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
+                    <SubItem label="Randevu Takvimi" active={active === "randevu-takvimi"} onClick={go("/flexos/randevu-takvimi")} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
+
+        {/* Core: eğitmenin günlük işi. */}
+        {canSee("grade.write", true) && <Item icon={IC.calendar} label="Yoklamalar" onClick={go(null)} />}
+        {canSee("grade.finalize", true) && <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />}
       </nav>
+
+      <ViewPinModal open={pinOpen} onClose={() => setPinOpen(false)} onVerified={onPinVerified} />
     </aside>
   );
 }

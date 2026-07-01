@@ -4,18 +4,25 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
+import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 
 /**
  * GET /api/flexos/groups/[id]/roster — grubun öğrenci listesi (sınıf listesi).
  * enrollment(listByGroup) → person join. PII alanları `person.read.pii` ile kapılı.
  * Sadece AKTİF kayıtlar (mevcut sınıf mevcudu) döner.
+ *
+ * Kapsam: hedef grup verilerek kontrol edilir — standalone eğitmen SADECE kendi
+ * grubunun (`Group.trainerId === actor.uid`) roster'ını çekebilir.
  */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   const actor = actorFromCaller(caller);
-  if (!can(actor, "person.read")) {
+  const group = await firestoreGroupRepo.getById(id, actor.tenantId);
+  if (!group) return NextResponse.json({ error: "Grup bulunamadı." }, { status: 404 });
+
+  if (!can(actor, "person.read", { groupId: id, ownerUid: group.trainerId })) {
     return NextResponse.json({ error: "Yetki yok: person.read" }, { status: 403 });
   }
 

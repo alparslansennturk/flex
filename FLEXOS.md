@@ -17,9 +17,9 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
-### 🔒 SIRADAKİ — KİLİTLİ SPEC: Admin Kişisel Görünüm Anahtarı (Core/Full) — 2026-07-01
+### ✅ Admin Kişisel Görünüm Anahtarı (Core/Full) — BİTTİ (2026-07-01)
 
-> Karar Opus ile kilitlendi (2026-07-01). Kodlama **Sonnet** yapacak. Bu spec repoya konuldu ki iki makinede de (Mac+PC) okunabilsin.
+> Karar Opus ile kilitlendi (2026-07-01), kullanıcıyla ekstra netleştirme sonrası Sonnet kodladı + doğruladı.
 
 **Bağlam — iki AYRI kavram (karıştırma):**
 1. **Sistem Sürümü = `standaloneMode`** (mevcut switch, Kullanıcılar sayfası, admin-only). Sistemin geneli + EĞİTMENLERİN yetkisini belirler (`EGITMEN_STANDALONE_EXTRA` = self-service grup/öğrenci ekle aç/kapa). Bir kez ayarlanır, herkesi etkiler. **KALIR, dokunulmaz.**
@@ -32,7 +32,7 @@
 - **PIN gate:** kısayola basınca ekranda **4 haneli PIN** modalı → doğru PIN → diğer moda geç (Core↔Full). PIN **server-side + hash'li** (client bundle'a gömülmez), küçük verify endpoint'i.
 - **PIN değiştirme:** owner için **ayar menüsü** (mevcut PIN doğrula → yeni PIN → hash sakla), yine owner-only.
 - **Kime açık:** SADECE owner — `view.toggle` capability'si (yalnız owner hesabında). Başkası tuşa bassa no-op, iz yok. **UID kodun içine GÖMÜLMEZ** — "owner/süper-admin" ayrımı ya da kullanıcıya tekil grant (capability-driven, ileride ortak eklenebilsin).
-- **View-state:** kişisel, uid'e bağlı saklanır (localStorage[uid] yeterli). Varsayılan **Core**, gerektiğinde Full, iş bitince Core.
+- **View-state:** kişisel, uid'e bağlı saklanır (localStorage[uid] yeterli). **Varsayılan Full** (kullanıcı kararı 2026-07-01: "default admin olsun, belki sonra değiştiririm"). Kısayol **asimetrik**: Full→Core PIN'siz direkt; Core→Full PIN ister. Full modunda hâlâ owner/admin'sin (server-side yetki değişmez) — Core sadece menüyü sadeleştirir.
 
 **Menü kuralı (tek kaynak, dağınık `if` yok):** öğe görünür ⟺ `can(actor, yetki)` **VE** (öğe core-grubu **VEYA** owner view-state = Full). Eğitmen: satış yetkisi yok → zaten görmez. Owner: view-state enterprise gruplarını (Satış/Aktivite/Kampanya/Eğitim-OP/Kullanıcılar/Eğitmenler) açıp kapatır.
 
@@ -41,7 +41,11 @@
 - ⚠️ `FlexSidebar.tsx` statik/mod-kör, tüm menüler her zaman render; 18 sayfa ayrı import.
 - ⚠️ `/flexos/layout.tsx` YOK. Modu client'a taşıyan tek yer `kullanicilar/page.tsx` (`/api/flexos/settings` fetch).
 
-**Sonnet yapılacaklar (sıra):** (1) `view.toggle` capability + owner grant; (2) client'ın {view-state, caps} bilmesi için tercihen `/flexos/layout.tsx` (server) actor+mode çözüp context ile FlexSidebar'a versin (18'li import tekrarını da toparlar); (3) gizli kısayol (gated) → PIN modalı → server verify → view-state flip+persist; (4) PIN değiştirme ayar menüsü; (5) FlexSidebar menüyü capability+view-state kuralına bağla; (6) test: eğitmen-yaratımı grup/öğrenci verisi Full'ün beklediği şekle oturuyor mu. **Sonnet karar verir:** kesin kısayol tuşu, PIN saklama yeri + ilk PIN seed akışı, ayar menüsünün yeri.
+**Sonnet uyguladı (2026-07-01):** `view.toggle` capability (`registry.ts`+`packages.ts`, admin paketine — UID hardcode yok) · PIN backend: `domain/core/view-pin.ts` + `repo/view-pin-repo.ts` + `server/view-pin-repo.firestore.ts` (koleksiyon `flexos_view_pins`, doküman id=uid, server-only rules) + `domain/services/view-access-service.ts` (`getViewAccessStatus`/`verifyViewPin`/`setViewPin`, Node `scrypt`+`timingSafeEqual`, hep `view.toggle` gated) · route'lar `GET /api/flexos/me` (capability listesi — menü kararına genel amaçlı temel), `GET /api/flexos/view-access` (hasPin), `POST /api/flexos/view-access/verify`, `POST /api/flexos/view-access/pin` · **layout.tsx yerine FlexSidebar kendi içinde self-contained** (18 sayfayı refactor etmeden `/api/flexos/me` fetch + localStorage[uid] mode + `Ctrl/Cmd+Shift+M` kısayolu + `ViewPinModal.tsx`, hepsi tek dosyada — "tek kaynak" ilkesi korunuyor) · FlexSidebar menü kuralı `canSee(cap, core)` ile bağlandı: core-grup (Ana Sayfa/Öğrenciler/Sınıflar/Yoklamalar/Sertifikasyon) her zaman, enterprise-grup (Eğitim Yönetimi/Satışlar/Eğitmenler/Kullanıcılar/Aktivite Merkezi) sadece Full · PIN kurulum/değişim UI'ı `kullanicilar/page.tsx`'e eklendi (Sistem Modu kartının altı, sadece `view.toggle` sahibi görür — sidebar/topbar'da sıfır görsel iz korundu). **16 yeni assertion** (`scripts/assert-view-access.ts`) + mevcut 24 (standalone-mode) geçti, `tsc`+ESLint temiz, `npm run build` başarılı. **Test edilmeyen:** gerçek tarayıcıda login+kısayol+PIN akışı (Firebase login gerektirir, bu oturumda yapılmadı) — bir sonraki oturumda manuel doğrulanmalı.
+
+### ✅ Sınıflar — Core/Full paylaşımlı GroupTable+RosterDrawer BİTTİ (2026-07-01)
+
+Eğitmen (Core) "Sınıflarım" ekranı kart-grid'den Full'daki (Operasyon) kaliteye çıkarıldı — kopyala-yapıştır değil, **tek paylaşımlı kod** (`src/app/flexos/siniflar/_shared/`): `groupDisplay.ts` (tipler+STATUS_MAP+initials-avatar yardımcıları), `useGroupCatalog.ts` (Branş→Eğitim→Bölüm cascade + Seans kütüphanesi fetch, `enabled` flag'li), `GroupTable.tsx` (filtre+Liste/Kart toggle+sayfalama+lifecycle: Başlat/Bitir/Sil/Geri Al, `mode="full"|"core"` ile Eğitmen/Şube/doluluk-bar kolonlarını gizler), `RosterDrawer.tsx` (`canManage` prop'uyla Full'da salt-görüntüleme, Core'da öğrenci ekle/çıkar formu — Havuz olmadığı için tek yer burası). Avatar = daire+baş harf (feedback_avatar_style, görsel avatar yok). `siniflar/page.tsx` (Full) ve `EgitmenSiniflarPanel.tsx` (Core) artık ikisi de bu bileşenleri kullanıyor. **Core'daki gerçek eksikler kapatıldı:** Bölüm dropdown'ı (sectioned eğitimde eskiden hiç yoktu) + gerçek Seans picker (`/api/flexos/seanslar`, eskiden elle gün-toggle) + Düzenle (editingId, eskiden hiç yoktu) + lifecycle butonları (eskiden capability var ama UI yoktu). `tsc`+ESLint temiz, `npm run build` başarılı, mevcut 24+14 assertion (standalone-mode + view-access) hâlâ geçiyor (regresyon yok). **Test edilmeyen:** tarayıcıda gerçek kullanım (bu oturumda login yok).
 
 #### Kararlar / Bağlam (2026-07-01, Opus ile — "neden böyle")
 
@@ -52,6 +56,24 @@ Bu bölüm yukarıdaki spec'in stratejik arka planı. İşi kodlamak için spec 
 - **Eğitmen modülü hafif/çöpe atılabilir DEĞİL** — aylarca emek (oyunlaştırılmış tasarım ödevleri, detaylı yoklama, aylık ders raporu, sertifika/ödev notu, öğrenciden ödev toplama). İki üründe de AYNI modül; **Core = Full eksi Satış/Eğitim-OP.** Tek fark: Core'da eğitmen kendi grup/öğrencisini ekler (`EGITMEN_STANDALONE_EXTRA`).
 - **`standaloneMode` runtime switch KALIR** (dün kurulan Firestore + cache). Admin-only (Kullanıcılar sayfası), eğitmen çeviremez. Esneklik + gerektiğinde geçiş için doğru mekanizma.
 - **REDDEDİLEN yollar:** (a) Gemini/GPT'nin ticari `licenseTier` + faturalandırma-sınırı katmanı → over-engineering, satılmayan ürün için gereksiz. (b) Kuruma-özel env-sabiti / per-install dağıtım → şimdilik gereksiz, runtime esneklik isteniyor. (c) Multi-tenant izolasyon → tek kurum olduğu için gereksiz. **Hepsi "ileride tamamen ticari olursa" diye ERTELENDİ**, şimdi kurulmayacak.
+
+### ✅ Sınıflarım (Core) — canlı UX'e hizalama + kritik yetki-kapsamı açıkları BİTTİ (2026-07-01)
+
+Kullanıcı canlı sistemi (`src/app/components/dashboard/class-management`+`student-management`) inceleyip Core'un davranışını ona göre düzeltmemizi istedi. Yapılanlar:
+
+- **Sidebar flaş düzeltildi:** `FlexSidebar` sayfa değişince yeniden mount oluyordu, capability listesi her seferinde boştan yükleniyordu → menü "boşalıp doluyordu". Modül-seviyeli `capsCache` eklendi (ilk yüklemede fetch, sonra cache'ten oku).
+- **Sistem Modu switch'ine onay modalı** eklendi (Kullanıcılar sayfası) — tek tıkla değişmiyor, "Evet/Vazgeç" onayı şart (FlexModal deseni).
+- **Kullanıcılar sayfası header'ı** diğer sayfalarla (mavi ikon, container genişliği) hizalandı.
+- **Core UI canlıya göre yeniden kuruldu:** Grup Ekle formu bottom-sheet'ten **akordiyona** çevrildi (sayfa içi açılıp kapanıyor, modal değil); grup kartı sol ikonu branş-rengi yerine **paylaşımlı avatar paleti** (initials+gradient, `avatarStyle`); Core'da **Liste görünümü kaldırıldı** (sadece Kart); grup filtre barı Full'un 4 durumundan (Açılacak/Aktif/Tamamlandı/İptal) canlıdaki gibi **Aktif/Arşiv** ikilisine indirildi; grup kartına tıklayınca artık sağdan drawer AÇILMIYOR — aşağıdaki **Öğrencilerim** tablosu o gruba filtreleniyor ("Mevcut Grup: X" / "Tüm Öğrenciler" toggle, canlıdaki "Mevcut Sınıf" davranışı); üst buton "+ Grup Ekle" olarak yeniden adlandırıldı.
+- **Öğrencilerim bölümü tamamlandı:** Öğrenci Havuzu tablo görseliyle (avatar/badge/tableCard stilleri) ama Core'a özel sade kolonlar; 15/sayfa + sayfalama; Aktif/Mezun tab; sağ üstte **Öğrenci Ekle** (bottom-sheet, Grup opsiyonel — **AÇIK SORUN**, aşağı bak); satır aksiyonları canlıdaki gibi **Düzenle/Mezun Et/Aktife Al/Sil** (onay modalli). Backend: `setEnrollmentStatus` yeni servis (`enrollment-service.ts`, completed/cancelled/active geçişleri, grupsuz kayıtlarda da çalışır) + `PATCH /api/flexos/enrollments/[id]` artık `{status}` body'sini de kabul ediyor. 7 yeni assertion (`scripts/assert-enrollment-status.ts`).
+- **🔒 KRİTİK yetki-kapsamı açıkları bulundu ve kapatıldı** (kullanıcı sordu: "diğer eğitmen diğer eğitmenin öğrencisini görebilir mi?" — cevap evetti, düzeltildi):
+  - `GET /api/flexos/persons` — org-scope olmayan aktör (eğitmen) artık SADECE kendi grubundaki öğrencileri görür (önceden TÜM okulu görüyordu — gerçek sızıntıydı). `primaryEnrollmentId` + `groups[].groupId` alanları eklendi (Core'un satır aksiyonları + grup filtresi için).
+  - `GET /api/flexos/groups` — `trainerId` query param'ı client'tan geliyordu, sunucu doğrulamıyordu (biri boş bırakınca/başka uid yazınca her şeyi görebilirdi). Artık `group.read` yetkisi kontrol ediliyor + org-scope olmayan aktör için `trainerId` sunucu tarafında `actor.uid`'e sabitleniyor.
+  - `GET /api/flexos/groups/[id]/roster` — hedef grup hiç kontrol edilmiyordu (herhangi bir groupId ile herhangi bir roster çekilebiliyordu). Artık grup çekilip `group.trainerId === actor.uid` (veya org-scope) doğrulanıyor.
+  - **AÇIK KALAN (düşük risk, ertelendi):** `PATCH /api/flexos/persons/[id]` (Düzenle) hâlâ hedef-bazlı sahiplik kontrolü yapmıyor — id'ler tahmin edilemez olduğu için pratik risk düşük, ama tam kapsam için sıradaki iş.
+- `tsc`+ESLint temiz, `npm run build` başarılı, tüm assertion'lar (24+14+7) geçiyor.
+
+**⏳ AÇIK — SIRADAKİ:** Core'da "Öğrenci Ekle" formunda **Grup seçimi opsiyonel** ("Grupsuz — sonra atarım") ama bu YANLIŞ/bozuk: grupsuz eklenen öğrenci hiçbir enrollment'a bağlanmıyor, üstteki kapsam filtresi (grup-sahipliği üzerinden çalıştığı için) onu Core'un kendi listesinden GÖRÜNMEZ yapıyor (Full'daki gibi bir Havuz/Gruba-Ata telafi ekranı da yok). Karar: Core'da Grup seçimi ZORUNLU olmalı (Full'da opsiyonel kalabilir, orada Havuz var). **Henüz uygulanmadı.**
 
 ---
 

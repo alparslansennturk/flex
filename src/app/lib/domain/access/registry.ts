@@ -86,6 +86,7 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   // ── system ──
   { key: "role.manage", domain: "system", label: "Capability Paketlerini Düzenle", sensitivity: "red", write: true, scopable: false, audited: true },
   { key: "capability.grant", domain: "system", label: "Tekil Yetki Ver/Al", sensitivity: "red", write: true, scopable: false, audited: true },
+  { key: "view.toggle", domain: "system", label: "Kişisel Görünüm Anahtarı (Core/Full)", sensitivity: "green", write: false, scopable: false, audited: false },
 ];
 
 /** Hızlı erişim: key → tanım. */

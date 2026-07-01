@@ -13,152 +13,21 @@
  * POST /api/flexos/groups ile grup oluşturma.
  */
 
-import React, { useEffect, useState, useCallback, useMemo, CSSProperties, useRef } from "react";
+import React, { useEffect, useState, useCallback, CSSProperties, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
-import { FlexPageLoader, FlexSpinner } from "../_components/FlexSpinner";
-import { BRANCH_OFFICES, officeName } from "@/app/lib/branch-offices";
-import { formatTrPhone } from "@/app/lib/phone";
+import { FlexPageLoader } from "../_components/FlexSpinner";
+import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 import EgitmenSiniflarPanel from "./EgitmenSiniflarPanel";
-
-// -- Katalog API tipleri --
-interface BranchDoc { id: string; name: string; order?: number }
-interface EducationDoc {
-  id: string; name: string; branchId: string;
-  audience?: "individual" | "corporate";
-  structure?: "single" | "sectioned";
-}
-interface SectionDoc { id: string; educationId: string; name: string; order: number; hours?: number }
+import GroupTable from "./_shared/GroupTable";
+import RosterDrawer from "./_shared/RosterDrawer";
+import { useGroupCatalog, type EducationDoc } from "./_shared/useGroupCatalog";
+import { type DisplayGroup, type GroupApiItem, DAY_ABBR, toDisplayGroup, formatSeansLabel } from "./_shared/groupDisplay";
 
 type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
-type GroupStatus = "açılacak" | "aktif" | "tamamlandı" | "iptal";
-type ViewMode = "list" | "card";
-type FilterKey = "hepsi" | "açılacak" | "aktif" | "tamamlandı" | "iptal";
-
-interface DemoGroup {
-  id: string;
-  kod: string;
-  brans: string;
-  eğitim: string;
-  şube: string;
-  eğitmen: string;
-  bölüm: string;
-  seansGun: string; // "Pts - Çrş" (saat saklanmıyor)
-  seansSaat: string; // "3 saat/ders" veya ""
-  tarih: string;
-  bitiş: string; // tahmini/gerçek bitiş tarihi (domain: GroupSchedule.endDate)
-  status: GroupStatus;
-  dolu: number;
-  kontenjan: number;
-}
-
-/** API'den gelen zenginleştirilmiş grup (GET /api/flexos/groups). */
-interface GroupApiItem {
-  id: string; code: string; type: string; status: string;
-  educationId: string | null; educationName: string; branch: string;
-  sectionId: string | null; sectionName: string;
-  branchOfficeId: string | null; branchOffice: string;
-  trainerId: string; trainerName: string;
-  schedule: { startDate?: string; days?: number[]; sessionHours?: number; startTime?: string; endTime?: string; endDate?: string };
-  capacity: number; enrolled: number;
-}
-
-const TR_MONTH_ABBR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-/** ISO ("2026-07-12") → "12 Tem 2026". */
-function fmtTrDate(iso?: string): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("T")[0].split("-").map(Number);
-  if (!y || !m || !d) return "";
-  return `${d} ${TR_MONTH_ABBR[m - 1]} ${y}`;
-}
-/** Domain GroupStatus → UI durumu. */
-function mapStatus(s: string, endDate?: string): GroupStatus {
-  switch (s) {
-    case "active": {
-      // Bitiş tarihi geçmişse otomatik tamamlandı
-      if (endDate) {
-        const end = new Date(endDate.split("T")[0] + "T23:59:59");
-        if (end < new Date()) return "tamamlandı";
-      }
-      return "aktif";
-    }
-    case "completed": return "tamamlandı";
-    case "archived": case "cancelled": return "iptal";
-    default: return "açılacak"; // planned / enrolling / postponed
-  }
-}
-/** API grubu → liste satırı. */
-function toDisplayGroup(g: GroupApiItem): DemoGroup {
-  const days = g.schedule?.days ?? [];
-  const seansGun = days.length ? days.map((d) => DAY_ABBR[d] ?? "?").join(" - ") : "—";
-  const { startTime, endTime, sessionHours: sh } = g.schedule ?? {};
-  // seans saati: gerçek başlangıç-bitiş varsa onu, yoksa ders saatine düş
-  const seansSaat = startTime && endTime ? `${startTime} - ${endTime}` : sh ? `${sh} saat/ders` : "";
-  return {
-    id: g.id,
-    kod: g.code,
-    brans: g.branch || "—",
-    eğitim: g.educationName || "—",
-    şube: g.branchOffice || officeName(g.branchOfficeId) || "—",
-    eğitmen: g.trainerName || "—",
-    bölüm: g.sectionName || "—",
-    seansGun,
-    seansSaat,
-    tarih: fmtTrDate(g.schedule?.startDate),
-    bitiş: fmtTrDate(g.schedule?.endDate),
-    status: mapStatus(g.status, g.schedule?.endDate),
-    dolu: g.enrolled,
-    kontenjan: g.capacity,
-  };
-}
-
-// -- Roster (grup öğrenci listesi) --
-interface RosterItem { enrollmentId: string; name: string; email: string; phone: string; assignedAt: string }
-
-// -- Seans tipi (API'den gelir) --
-interface SeansDoc { id: string; days: number[]; startTime: string; endTime: string }
-
-const DAY_ABBR = ["Pts", "Sal", "Çrş", "Prş", "Cum", "Cts", "Paz"];
-function formatSeansLabel(s: SeansDoc): string {
-  const daysStr = s.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
-  return `${daysStr} · ${s.startTime} - ${s.endTime}`;
-}
-
-// -- Türkçe tarih parse ("12 Tem 2026" → Date, yerel gece yarısı) --
-const TR_MONTHS: Record<string, number> = { Oca: 0, Şub: 1, Mar: 2, Nis: 3, May: 4, Haz: 5, Tem: 6, Ağu: 7, Eyl: 8, Eki: 9, Kas: 10, Ara: 11, Agu: 7 };
-function parseTrDate(s: string): Date | null {
-  const p = s.split(" ");
-  if (p.length < 3) return null;
-  const d = parseInt(p[0]), m = TR_MONTHS[p[1]], y = parseInt(p[2]);
-  if (isNaN(d) || m === undefined || isNaN(y)) return null;
-  return new Date(y, m, d);
-}
-function todayMidnight(): Date {
-  const t = new Date();
-  t.setHours(0, 0, 0, 0);
-  return t;
-}
-
-// -- Brans renkleri --
-const BRANS_COLORS: Record<string, { color: string; background: string; dot: string }> = {
-  Design:   { color: "#B80E57", background: "#FED7E9", dot: "#F91079" },
-  Finance:  { color: "#0E5D59", background: "#AFF3F0", dot: "#1CB5AE" },
-  Software: { color: "#4D52A6", background: "#DDE0FA", dot: "#6F74D8" },
-};
-const BRANS_FALLBACK = { color: "#414B59", background: "#EEF0F3", dot: "#AEB4C0" };
-
-// -- Durum renkleri --
-const STATUS_MAP: Record<GroupStatus, { label: string; color: string; background: string; dot: string }> = {
-  açılacak: { label: "Açılacak", color: "#205297", background: "#DDE8F8", dot: "#3A7BD5" },
-  aktif:    { label: "Aktif",    color: "#007A30", background: "#E6F5ED", dot: "#009F3E" },
-  tamamlandı: { label: "Tamamlandı", color: "#6F7B87", background: "#EEF0F3", dot: "#AEB4C0" },
-  iptal:    { label: "İptal",    color: "#9E3A00", background: "#FFF0E6", dot: "#D45A00" },
-};
-
-const PAGE_SIZE = 15;
 
 export default function SınıflarPage() {
   const router = useRouter();
@@ -181,34 +50,16 @@ export default function SınıflarPage() {
   const [seansOpen, setSeansOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // -- Katalog verisi --
-  const [branches, setBranches] = useState<BranchDoc[]>([]);
-  const [educations, setEducations] = useState<EducationDoc[]>([]);
-  const [sections, setSections] = useState<SectionDoc[]>([]);
-  const [seanslar, setSeanslar] = useState<SeansDoc[]>([]);
-  const [trainerOptions, setTrainerOptions] = useState<{ id: string; name: string }[]>([]);
-  const [loadingEdu, setLoadingEdu] = useState(false);
-  const [loadingSec, setLoadingSec] = useState(false);
-
   // -- Liste state --
-  const [groups, setGroups] = useState<DemoGroup[]>([]);
+  const [groups, setGroups] = useState<DisplayGroup[]>([]);
   const [rawGroups, setRawGroups] = useState<GroupApiItem[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
-  const [groupFilter, setGroupFilter] = useState<FilterKey>("hepsi");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [page, setPage] = useState(1);
+  const [trainerOptions, setTrainerOptions] = useState<{ id: string; name: string }[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [startId, setStartId] = useState<string | null>(null);
-  const [finishId, setFinishId] = useState<string | null>(null);
-  const [cancelId, setCancelId] = useState<string | null>(null);
-  const [reopenId, setReopenId] = useState<string | null>(null);
 
-  // -- Roster (sınıf listesi) paneli --
-  const [rosterGroup, setRosterGroup] = useState<DemoGroup | null>(null);
-  const [rosterItems, setRosterItems] = useState<RosterItem[]>([]);
-  const [rosterLoading, setRosterLoading] = useState(false);
+  // -- Roster (sınıf listesi) paneli — RosterDrawer kendi öğrenci verisini çeker --
+  const [rosterGroup, setRosterGroup] = useState<DisplayGroup | null>(null);
 
   const mainRef = useRef<HTMLElement>(null);
 
@@ -217,6 +68,10 @@ export default function SınıflarPage() {
     const token = user ? await user.getIdToken() : "";
     return { Authorization: `Bearer ${token}` };
   }, []);
+
+  // -- Katalog (Branş→Eğitim→Bölüm cascade + Seans kütüphanesi) — paylaşımlı hook. --
+  const { branches, educations, sections, seanslar, loadingEdu, loadingSec, isSectioned, setEducations, setSections } =
+    useGroupCatalog(fBrans, fEğitim, standaloneMode === false);
 
   // -- grup listesini gerçek API'den yükle --
   const loadGroups = useCallback(async (signal?: AbortSignal) => {
@@ -235,23 +90,7 @@ export default function SınıflarPage() {
     }
   }, [authHeaders]);
 
-  // -- roster (sınıf listesi) aç + çek --
-  const openRoster = useCallback(async (g: DemoGroup) => {
-    setRosterGroup(g);
-    setRosterItems([]);
-    setRosterLoading(true);
-    try {
-      const res = await fetch(`/api/flexos/groups/${g.id}/roster`, { headers: await authHeaders() });
-      const json = res.ok ? await res.json() : { items: [] };
-      setRosterItems(json.items ?? []);
-    } catch {
-      toast.error("Sınıf listesi yüklenemedi.");
-    } finally {
-      setRosterLoading(false);
-    }
-  }, [authHeaders]);
-
-  // -- auth + branslari yukle --
+  // -- auth + gruplar/eğitmenler yükle --
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
@@ -261,7 +100,7 @@ export default function SınıflarPage() {
 
       // Sistem Modu — standaloneMode true ise Operasyon panelini hiç yüklemeden
       // EgitmenSiniflarPanel'e devredilecek (aşağıdaki erken return). Operasyon'a
-      // özel veriler (gruplar/branş/seans/eğitmen) standalone modda hiç çekilmez.
+      // özel veriler (gruplar/eğitmen) standalone modda hiç çekilmez.
       let standalone = false;
       try {
         const hdrs0 = await authHeaders();
@@ -278,17 +117,9 @@ export default function SınıflarPage() {
       await loadGroups(ac.signal);
       try {
         const hdrs = await authHeaders();
-        const [brRes, snRes, trRes] = await Promise.all([
-          fetch("/api/flexos/branches", { headers: hdrs, signal: ac.signal }),
-          fetch("/api/flexos/seanslar", { headers: hdrs, signal: ac.signal }),
-          fetch("/api/flexos/trainers", { headers: hdrs, signal: ac.signal }),
-        ]);
-        const brJson = brRes.ok ? await brRes.json() : { items: [] };
-        const snJson = snRes.ok ? await snRes.json() : { items: [] };
+        const trRes = await fetch("/api/flexos/trainers", { headers: hdrs, signal: ac.signal });
         const trJson = trRes.ok ? await trRes.json() : { items: [] };
         if (!ac.signal.aborted) {
-          setBranches(brJson.items ?? []);
-          setSeanslar(snJson.items ?? []);
           // sadece aktif eğitmenler atanabilir
           setTrainerOptions(
             (trJson.items ?? [])
@@ -297,52 +128,11 @@ export default function SınıflarPage() {
           );
         }
       } catch (e) {
-        if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
+        if ((e as Error).name !== "AbortError") toast.error("Eğitmenler yüklenemedi.");
       }
     })();
     return () => ac.abort();
   }, [router, authHeaders, loadGroups]);
-
-  // -- brans secilince eğitimler --
-  useEffect(() => {
-    if (!authed || !fBrans) { setEducations([]); return; }
-    const ac = new AbortController();
-    (async () => {
-      setLoadingEdu(true);
-      try {
-        const res = await fetch(`/api/flexos/educations?branchId=${encodeURIComponent(fBrans)}`, { headers: await authHeaders(), signal: ac.signal });
-        const json = res.ok ? await res.json() : { items: [] };
-        if (!ac.signal.aborted) setEducations(json.items ?? []);
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") toast.error("Eğitimler yuklenemedi.");
-      } finally {
-        if (!ac.signal.aborted) setLoadingEdu(false);
-      }
-    })();
-    return () => ac.abort();
-  }, [authed, fBrans, authHeaders]);
-
-  // -- eğitim secilince bölümler (sadece sectioned ise) --
-  const selEdu = educations.find((e) => e.id === fEğitim);
-  const isSectioned = selEdu?.structure === "sectioned";
-
-  useEffect(() => {
-    if (!fEğitim || !isSectioned) { setSections([]); return; }
-    const ac = new AbortController();
-    (async () => {
-      setLoadingSec(true);
-      try {
-        const res = await fetch(`/api/flexos/sections?educationId=${encodeURIComponent(fEğitim)}`, { headers: await authHeaders(), signal: ac.signal });
-        const json = res.ok ? await res.json() : { items: [] };
-        if (!ac.signal.aborted) setSections(json.items ?? []);
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") toast.error("Bölümler yuklenemedi.");
-      } finally {
-        if (!ac.signal.aborted) setLoadingSec(false);
-      }
-    })();
-    return () => ac.abort();
-  }, [fEğitim, isSectioned, authHeaders]);
 
   // -- seans popup: dışarı tıklama ile kapat --
   const seansRef = useRef<HTMLDivElement>(null);
@@ -418,7 +208,7 @@ export default function SınıflarPage() {
   };
 
   // -- edit --
-  const editGroup = (g: DemoGroup) => {
+  const editGroup = (g: DisplayGroup) => {
     const raw = rawGroups.find((r) => r.id === g.id);
     setEditingId(g.id);
     setFKod(g.kod);
@@ -470,80 +260,6 @@ export default function SınıflarPage() {
   };
 
   const cancelEdit = () => { setEditingId(null); resetForm(); setShowForm(false); };
-
-  const confirmDelete = async () => {
-    if (deleteId === null) return;
-    const id = deleteId; setDeleteId(null);
-    try {
-      const res = await fetch(`/api/flexos/groups/${id}`, { method: "DELETE", headers: await authHeaders() });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(json.error || "Grup silinemedi."); return; }
-      setGroups((prev) => prev.filter((g) => g.id !== id));
-      if (editingId === id) setEditingId(null);
-      toast.success("Grup silindi.");
-    } catch {
-      toast.error("Sunucu hatası — grup silinemedi.");
-    }
-  };
-
-  /**
-   * Grup durumunu DB'ye yazar (PATCH) + başarıda yerel listeyi günceller.
-   * domainStatus = Firestore'a yazılan değer, uiStatus = listede gösterilen.
-   */
-  const patchStatus = async (id: string, domainStatus: string, uiStatus: GroupStatus, okMsg: string) => {
-    try {
-      const headers = await authHeaders();
-      headers["Content-Type"] = "application/json";
-      const res = await fetch(`/api/flexos/groups/${id}`, { method: "PATCH", headers, body: JSON.stringify({ status: domainStatus }) });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(json.error || "Durum güncellenemedi."); return; }
-      setGroups((prev) => prev.map((g) => g.id === id ? { ...g, status: uiStatus } : g));
-      toast.success(okMsg);
-    } catch {
-      toast.error("Sunucu hatası — durum güncellenemedi.");
-    }
-  };
-
-  const confirmStart = async () => {
-    if (startId === null) return;
-    const id = startId; setStartId(null);
-    await patchStatus(id, "active", "aktif", "Grup başarıyla başlatıldı!");
-  };
-
-  const confirmFinish = async () => {
-    if (finishId === null) return;
-    const id = finishId; setFinishId(null);
-    await patchStatus(id, "completed", "tamamlandı", "Eğitim tamamlandı.");
-  };
-
-  const confirmCancel = async () => {
-    if (cancelId === null) return;
-    const id = cancelId; setCancelId(null);
-    await patchStatus(id, "archived", "iptal", "Grup iptal edildi.");
-  };
-
-  const confirmReopen = async () => {
-    if (reopenId === null) return;
-    const id = reopenId; setReopenId(null);
-    await patchStatus(id, "active", "aktif", "Grup tekrar aktif duruma alındı.");
-  };
-
-  // -- filtered list --
-  const filtered = useMemo(() => {
-    if (groupFilter === "hepsi") return groups;
-    return groups.filter((g) => g.status === groupFilter);
-  }, [groups, groupFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const startIdx = (safePage - 1) * PAGE_SIZE;
-  const pageGroups = filtered.slice(startIdx, startIdx + PAGE_SIZE);
-
-  const counts = useMemo(() => {
-    const c = { hepsi: groups.length, açılacak: 0, aktif: 0, tamamlandı: 0, iptal: 0 };
-    groups.forEach((g) => { if (g.status in c) (c as Record<string, number>)[g.status]++; });
-    return c;
-  }, [groups]);
 
   // -- seans display --
   const seansDisplay = fSeansIdx >= 0 && seanslar[fSeansIdx] ? formatSeansLabel(seanslar[fSeansIdx]) : "Seans seçin";
@@ -599,420 +315,32 @@ export default function SınıflarPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Gruplar</h2>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{filtered.length} grup</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{groups.length} grup</span>
             </div>
             <button className="sg-add-btn" style={S.addBtn} onClick={() => setShowForm(true)}>
               <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Grup Ekle
             </button>
           </div>
 
-          {/* ===== FILTERS ===== */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-            {/* Status filter */}
-            <div style={{ display: "inline-flex", padding: 4, borderRadius: 12, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-              {([
-                { key: "hepsi" as FilterKey, label: "Tümü", dot: null },
-                { key: "açılacak" as FilterKey, label: "Açılacak", dot: STATUS_MAP.açılacak.dot },
-                { key: "aktif" as FilterKey, label: "Aktif", dot: STATUS_MAP.aktif.dot },
-                { key: "tamamlandı" as FilterKey, label: "Tamamlandı", dot: STATUS_MAP.tamamlandı.dot },
-                { key: "iptal" as FilterKey, label: "İptal", dot: STATUS_MAP.iptal.dot },
-              ]).map((fd) => {
-                const active = groupFilter === fd.key;
-                return (
-                  <button key={fd.key} onClick={() => { setGroupFilter(fd.key); setPage(1); }} style={filterBtnStyle(active)}>
-                    {fd.dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: fd.dot, flex: "0 0 auto" }} />}
-                    <span>{fd.label}</span>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: "1px 7px", borderRadius: 999, color: active ? "#205297" : "#8E95A3", background: active ? "#DDE8F8" : "#EEF0F3" }}>{counts[fd.key]}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {/* View toggle */}
-            <div style={{ display: "inline-flex", padding: 4, borderRadius: 11, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-              <button onClick={() => setViewMode("list")} className="sg-viewbtn" style={viewBtnStyle(viewMode === "list")}>
-                <span dangerouslySetInnerHTML={{ __html: IC.listIcon }} />
-                <span>Liste</span>
-              </button>
-              <button onClick={() => setViewMode("card")} className="sg-viewbtn" style={viewBtnStyle(viewMode === "card")}>
-                <span dangerouslySetInnerHTML={{ __html: IC.gridIcon }} />
-                <span>Kart</span>
-              </button>
-            </div>
-          </div>
+          <GroupTable
+            groups={groups}
+            loading={loadingGroups}
+            mode="full"
+            onRowClick={setRosterGroup}
+            onEdit={editGroup}
+            onChanged={loadGroups}
+            emptyHint='Yukarıdaki "Grup Ekle" ile ilk grubunuzu oluşturun.'
+          />
 
-          {/* ===== LIST VIEW ===== */}
-          {viewMode === "list" && filtered.length > 0 && (
-            <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,31,61,.05)" }}>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
-                  <thead>
-                    <tr style={{ background: "#F7F8FA", borderBottom: "1px solid #EEF0F3" }}>
-                      <th style={S.thFirst}>Grup</th>
-                      <th style={S.th}>Eğitim</th>
-                      <th style={S.th}>Şube</th>
-                      <th style={S.th}>Eğitmen</th>
-                      <th style={S.th}>Bölüm</th>
-                      <th style={{ ...S.th, paddingLeft: 18 }}>Seans</th>
-                      <th style={{ ...S.th, paddingLeft: 18 }}>Başlangıç</th>
-                      <th style={{ ...S.th, paddingLeft: 18 }}>Doluluk</th>
-                      <th style={{ ...S.th, paddingLeft: 18 }}>Durum</th>
-                      <th style={S.thRight}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageGroups.map((g) => {
-                      const bs = BRANS_COLORS[g.brans] || BRANS_FALLBACK;
-                      const st = STATUS_MAP[g.status];
-                      const pct = Math.round((g.dolu / g.kontenjan) * 100);
-                      const barColor = g.status === "tamamlandı" || g.status === "iptal" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
-                      /* Seans: "Pts - Crs 19.00 - 21.30" → günler + saat ayrı satır */
-                      const seansGun = g.seansGun;
-                      const seansSaat = g.seansSaat;
-                      /* Başlat: başlangıç tarihi bugün veya geçmişse başlatılabilir */
-                      const startD = parseTrDate(g.tarih);
-                      const canStart = g.status === "açılacak" && startD !== null && startD <= new Date();
-                      /* Geri al: yalnız bitiş tarihi GEÇMEMİŞSE (erken/yanlış tamamlama). Tarih geçtiyse tamamlama meşru → buton yok. Tarih okunamazsa güvenli taraf = göster. */
-                      const endD = parseTrDate(g.bitiş);
-                      const canReopen = g.status === "tamamlandı" && (endD === null || endD >= todayMidnight());
-                      return (
-                        <tr key={g.id} className="sg-trow" onClick={() => openRoster(g)} style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}>
-                          <td style={S.tdFirst}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: bs.dot, flex: "0 0 auto" }} />
-                              <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px", whiteSpace: "nowrap" }}>{g.kod}</span>
-                            </div>
-                          </td>
-                          <td style={S.td}><span style={{ fontSize: 13, color: "#414B59", fontWeight: 600 }}>{g.eğitim}</span></td>
-                          <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.şube}</span></td>
-                          <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.eğitmen}</span></td>
-                          <td style={S.td}><span style={{ fontSize: 13, color: g.bölüm === "—" ? "#AEB4C0" : "#414B59" }}>{g.bölüm}</span></td>
-                          <td style={{ ...S.td, paddingLeft: 18 }}>
-                            <div style={{ lineHeight: 1.35 }}>
-                              <div style={{ fontSize: 12.5, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" }}>{seansGun}</div>
-                              <div style={{ fontSize: 11.5, color: "#8E95A3", whiteSpace: "nowrap" }}>{seansSaat}</div>
-                            </div>
-                          </td>
-                          <td style={{ ...S.td, paddingLeft: 18 }}><span style={{ fontSize: 12.5, color: "#414B59", fontWeight: 600, whiteSpace: "nowrap" }}>{g.tarih}</span></td>
-                          <td style={{ ...S.td, paddingLeft: 18 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 80 }}>
-                              <div style={{ width: 36, height: 5, borderRadius: 999, background: "#EEF0F3", overflow: "hidden", flex: "0 0 auto" }}>
-                                <div style={{ height: "100%", width: `${Math.min(100, pct)}%`, borderRadius: 999, background: barColor, transition: "width .3s" }} />
-                              </div>
-                              <span style={{ fontSize: 12, fontWeight: 800, color: "#1E222B", whiteSpace: "nowrap" }}>{g.dolu}<span style={{ color: "#AEB4C0", fontWeight: 600 }}>/{g.kontenjan}</span></span>
-                            </div>
-                          </td>
-                          <td style={{ ...S.td, paddingLeft: 18 }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: st.color, background: st.background, whiteSpace: "nowrap" }}>
-                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot }} />
-                              {st.label}
-                            </span>
-                          </td>
-                          <td style={S.tdRight} onClick={(e) => e.stopPropagation()}>
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                              {g.status === "açılacak" && (
-                                <button className="sg-start-btn" disabled={!canStart} onClick={() => canStart && setStartId(g.id)}
-                                  style={{ ...S.startBtn, opacity: canStart ? 1 : 0.45, cursor: canStart ? "pointer" : "not-allowed" }}>
-                                  <span dangerouslySetInnerHTML={{ __html: IC.play }} />
-                                  Başlat
-                                </button>
-                              )}
-                              {g.status === "aktif" && (
-                                <button className="sg-start-btn" onClick={() => setFinishId(g.id)} style={S.startBtn}>
-                                  <span dangerouslySetInnerHTML={{ __html: IC.checkSm }} />
-                                  Bitir
-                                </button>
-                              )}
-                              {(g.status === "açılacak" || g.status === "aktif") && (
-                                <button className="sg-edit-btn" onClick={() => editGroup(g)} title="Düzenle" style={S.editBtnIcon}>
-                                  <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
-                                </button>
-                              )}
-                              {(g.status === "açılacak" || g.status === "aktif" || g.status === "tamamlandı" || g.status === "iptal") && (
-                                <button className="sg-del-btn" onClick={() => setDeleteId(g.id)} title="Sil" style={S.delBtn}>
-                                  <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                                </button>
-                              )}
-                              {canReopen && (
-                                <button className="sg-start-btn" onClick={() => setReopenId(g.id)} style={S.startBtn}>
-                                  <span dangerouslySetInnerHTML={{ __html: IC.undo }} />
-                                  Geri al
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ===== CARD VIEW ===== */}
-          {viewMode === "card" && filtered.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 16 }}>
-              {pageGroups.map((g) => {
-                const bs = BRANS_COLORS[g.brans] || BRANS_FALLBACK;
-                const st = STATUS_MAP[g.status];
-                const pct = Math.round((g.dolu / g.kontenjan) * 100);
-                const barColor = g.status === "tamamlandı" || g.status === "iptal" ? "#AEB4C0" : pct >= 90 ? "#009F3E" : pct < 50 ? "#FFB020" : "#3A7BD5";
-                let capHint: string, capColor: string;
-                if (g.status === "tamamlandı" || g.status === "iptal") { capHint = g.status === "tamamlandı" ? "Tamamlandı" : "İptal"; capColor = "#8E95A3"; }
-                else if (pct >= 90) { capHint = "Dolmak uzere"; capColor = "#007A30"; }
-                else if (pct < 50) { capHint = "Kontenjan acik"; capColor = "#8A5A00"; }
-                else { capHint = `${g.kontenjan - g.dolu} kisilik yer var`; capColor = "#205297"; }
-                return (
-                  <div key={g.id} className="sg-card-item" style={S.cardItem}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", background: bs.background }}>
-                          <span style={{ width: 11, height: 11, borderRadius: "50%", background: bs.dot }} />
-                        </div>
-                        <div style={{ lineHeight: 1.3 }}>
-                          <div style={{ fontSize: 15.5, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px" }}>{g.kod}</div>
-                          <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500 }}>{g.eğitim}</div>
-                        </div>
-                      </div>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700, color: st.color, background: st.background, whiteSpace: "nowrap" }}>
-                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: st.dot }} />
-                        {st.label}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 9, padding: "13px 0", borderTop: "1px solid #EEF0F3", borderBottom: "1px solid #EEF0F3" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "#414B59" }}>
-                        <span dangerouslySetInnerHTML={{ __html: IC.mapPin }} />
-                        <span style={{ fontWeight: 600 }}>{g.şube}</span>
-                        <span style={{ color: "#CDD2DA" }}>&middot;</span>
-                        <span>{g.eğitmen}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "#414B59" }}>
-                        <span dangerouslySetInnerHTML={{ __html: IC.clockGray }} />
-                        <span>{g.seansSaat ? `${g.seansGun} · ${g.seansSaat}` : g.seansGun}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "#414B59" }}>
-                        <span dangerouslySetInnerHTML={{ __html: IC.calendarGray }} />
-                        <span>Başlangıç: <strong style={{ fontWeight: 700, color: "#1E222B" }}>{g.tarih}</strong></span>
-                      </div>
-                    </div>
-
-                    {/* capacity */}
-                    <div style={{ marginTop: 14 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#6F7B87" }}>Öğrenci / Kontenjan</span>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "#1E222B" }}>{g.dolu}<span style={{ color: "#AEB4C0", fontWeight: 600 }}>/{g.kontenjan}</span></span>
-                      </div>
-                      <div style={{ height: 8, borderRadius: 999, background: "#EEF0F3", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${Math.min(100, pct)}%`, borderRadius: 999, background: barColor, transition: "width .3s" }} />
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 9 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: capColor }}>{capHint}</span>
-                        <button className="sg-detail-btn" style={S.detailBtn} onClick={() => openRoster(g)}>
-                          Öğrenciler
-                          <span dangerouslySetInnerHTML={{ __html: IC.chevRightSm }} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Loading state */}
-          {loadingGroups && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16 }}>
-              <FlexSpinner />
-              <div style={{ fontSize: 13.5, color: "#8E95A3" }}>Gruplar yükleniyor…</div>
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!loadingGroups && filtered.length === 0 && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16 }}>
-              <div style={{ width: 58, height: 58, borderRadius: 16, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" }}>
-                <span dangerouslySetInnerHTML={{ __html: IC.graduationBig }} />
-              </div>
-              <div style={{ fontSize: 15.5, fontWeight: 700, color: "#414B59" }}>{groups.length === 0 ? "Henüz grup yok" : "Bu kategoride grup yok"}</div>
-              <div style={{ fontSize: 13.5, color: "#8E95A3" }}>{groups.length === 0 ? "Yukarıdaki formdan ilk grubunuzu oluşturun." : "Farklı bir durum seçin veya yukaridan yeni bir grup oluşturun."}</div>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 18 }}>
-              <div style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>
-                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{filtered.length}</strong> gruptan <strong style={{ color: "#1E222B", fontWeight: 700 }}>{startIdx + 1}&ndash;{startIdx + pageGroups.length}</strong> arasi
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
-                  style={{ ...S.pageNav, opacity: safePage > 1 ? 1 : 0.4, cursor: safePage > 1 ? "pointer" : "not-allowed" }}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.chevLeftNav }} />
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <button key={p} onClick={() => setPage(p)} style={pageBtnStyle(p === safePage)}>{p}</button>
-                ))}
-                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
-                  style={{ ...S.pageNav, opacity: safePage < totalPages ? 1 : 0.4, cursor: safePage < totalPages ? "pointer" : "not-allowed" }}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.chevRightNav }} />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </main>
 
-      {/* Seans overlay */}
-
-      {/* Delete modal */}
-      {/* Start modal */}
-      {startId !== null && (
-        <div onClick={() => setStartId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
-            <div style={{ padding: "26px 26px 20px" }}>
-              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#E6F5ED", display: "flex", alignItems: "center", justifyContent: "center", color: "#007A30", marginBottom: 16 }}>
-                <span dangerouslySetInnerHTML={{ __html: IC.playBig }} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Eğitimi başlat</h3>
-              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
-                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === startId)?.kod}</strong> grubunun eğitimini başlatmak istediğinize emin misiniz? Grup durumu <strong style={{ color: "#007A30", fontWeight: 700 }}>Aktif</strong> olarak güncellenecektir.
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button className="sg-cancel" onClick={() => setStartId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button className="sg-save" onClick={confirmStart} style={S.confirmStartBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.playWhite }} />
-                Evet, başlat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Finish modal */}
-      {finishId !== null && (
-        <div onClick={() => setFinishId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
-            <div style={{ padding: "26px 26px 20px" }}>
-              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center", color: "#6F7B87", marginBottom: 16 }}>
-                <span dangerouslySetInnerHTML={{ __html: IC.checkBig }} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Eğitimi bitir</h3>
-              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
-                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === finishId)?.kod}</strong> grubunun eğitimini tamamlamak istediğinize emin misiniz? Grup <strong style={{ color: "#6F7B87", fontWeight: 700 }}>Tamamlandı</strong> durumuna alınacaktır.
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button className="sg-cancel" onClick={() => setFinishId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button className="sg-save" onClick={confirmFinish} style={S.confirmFinishBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />
-                Evet, bitir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* Reopen modal */}
-      {reopenId !== null && (
-        <div onClick={() => setReopenId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
-            <div style={{ padding: "26px 26px 20px" }}>
-              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#DDE8F8", display: "flex", alignItems: "center", justifyContent: "center", color: "#205297", marginBottom: 16 }}>
-                <span dangerouslySetInnerHTML={{ __html: IC.undoBig }} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Grubu geri al</h3>
-              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
-                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === reopenId)?.kod}</strong> grubunu tekrar <strong style={{ color: "#007A30", fontWeight: 700 }}>Aktif</strong> duruma almak istediğinize emin misiniz?
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button className="sg-cancel" onClick={() => setReopenId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button className="sg-save" onClick={confirmReopen} style={S.confirmStartBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.undoWhite }} />
-                Evet, geri al
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete modal */}
-      {deleteId !== null && (
-        <div onClick={() => setDeleteId(null)} style={S.overlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.modal}>
-            <div style={{ padding: "26px 26px 20px" }}>
-              <div style={{ width: 48, height: 48, borderRadius: 13, background: "#FFECEC", display: "flex", alignItems: "center", justifyContent: "center", color: "#D93636", marginBottom: 16 }}>
-                <span dangerouslySetInnerHTML={{ __html: IC.trashBig }} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>Grubu sil</h3>
-              <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.55, color: "#6F7B87" }}>
-                <strong style={{ color: "#1E222B", fontWeight: 700 }}>{groups.find((g) => g.id === deleteId)?.kod}</strong> grubunu silmek üzeresiniz. Bu işlem geri alınamaz. Gruptaki öğrenciler ilgili branşta grupsuz duruma düşer.
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 11, padding: "16px 26px 22px", justifyContent: "flex-end" }}>
-              <button className="sg-cancel" onClick={() => setDeleteId(null)} style={S.cancelBtn}>Vazgeç</button>
-              <button className="sg-confirm-del" onClick={confirmDelete} style={S.confirmDelBtn}>
-                <span dangerouslySetInnerHTML={{ __html: IC.trashWhite }} />
-                Evet, sil
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Roster (sınıf listesi) drawer — salt görüntüleme */}
-      {rosterGroup && (
-        <div onClick={() => setRosterGroup(null)} style={S.drawerOverlay}>
-          <div onClick={(e) => e.stopPropagation()} style={S.drawer}>
-            {/* header */}
-            <div style={{ padding: "22px 24px", borderBottom: "1px solid #EEF0F3", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#E2EAF3", color: "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }} dangerouslySetInnerHTML={{ __html: IC.usersSmall }} />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>{rosterGroup.kod} · Sınıf Listesi</h3>
-                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
-                    {rosterGroup.eğitim}{rosterGroup.şube && rosterGroup.şube !== "—" ? ` · ${rosterGroup.şube}` : ""} · {rosterGroup.dolu}/{rosterGroup.kontenjan} öğrenci
-                  </p>
-                </div>
-              </div>
-              <button className="sg-cancel" onClick={() => setRosterGroup(null)} style={S.drawerClose}>
-                <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
-              </button>
-            </div>
-            {/* body */}
-            <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-              {rosterLoading ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 20px" }}>
-                  <FlexSpinner />
-                  <div style={{ fontSize: 13, color: "#8E95A3" }}>Yükleniyor…</div>
-                </div>
-              ) : rosterItems.length === 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "48px 20px", textAlign: "center" }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 16, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" }} dangerouslySetInnerHTML={{ __html: IC.graduationBig }} />
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "#414B59" }}>Bu grupta öğrenci yok</div>
-                  <div style={{ fontSize: 13, color: "#8E95A3", maxWidth: 260 }}>Öğrenci Havuzu&apos;ndan &quot;Gruba Ata&quot; ile bu gruba öğrenci ekleyin.</div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {rosterItems.map((r, i) => (
-                    <div key={r.enrollmentId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: "1px solid #EEF0F3", background: "#fff" }}>
-                      <span style={{ width: 32, height: 32, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: "#E2EAF3", color: "#205297", fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
-                        <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.email || (r.phone ? formatTrPhone(r.phone) : "") || "—"}</div>
-                      </div>
-                      {r.assignedAt && <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtTrDate(r.assignedAt)}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <RosterDrawer
+        group={rosterGroup}
+        onClose={() => setRosterGroup(null)}
+        canManage={false}
+        onChanged={loadGroups}
+      />
 
       {/* ═══════════ GRUP EKLE / DÜZENLE BOTTOM SHEET ═══════════ */}
       <AnimatePresence>
@@ -1262,28 +590,6 @@ const segStyle = (active: boolean): CSSProperties => ({
 const segCheck = (active: boolean): CSSProperties => ({
   width: 15, height: 15, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto",
   background: active ? "#2867bd" : "transparent", border: active ? "none" : "1.5px solid #CDD2DA",
-});
-
-const filterBtnStyle = (active: boolean): CSSProperties => ({
-  display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 9, border: "none",
-  fontSize: 13.5, fontWeight: active ? 700 : 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s",
-  color: active ? "#1E222B" : "#6F7B87", background: active ? "#fff" : "transparent",
-  boxShadow: active ? "0 2px 6px -2px rgba(15,31,61,.2)" : "none",
-  outline: active ? "1px solid #E2E5EA" : "none",
-});
-
-const viewBtnStyle = (active: boolean): CSSProperties => ({
-  display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, border: "none",
-  fontSize: 13, fontWeight: active ? 700 : 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s",
-  color: active ? "#205297" : "#6F7B87", background: active ? "#EFF3FA" : "transparent",
-  boxShadow: active ? "inset 0 0 0 1px #cfe0f5" : "none",
-});
-
-const pageBtnStyle = (active: boolean): CSSProperties => ({
-  minWidth: 38, height: 38, padding: "0 12px", borderRadius: 10, fontWeight: active ? 700 : 600, fontSize: 14,
-  fontFamily: "inherit", cursor: "pointer", border: active ? "1px solid #2867bd" : "1px solid #E2E5EA",
-  background: active ? "#2867bd" : "#fff", color: active ? "#fff" : "#414B59",
-  boxShadow: active ? "0 6px 14px -6px rgba(40,103,189,.55)" : "none",
 });
 
 // -- Styles --
