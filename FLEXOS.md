@@ -17,6 +17,34 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### 🔒 SIRADAKİ — KİLİTLİ SPEC: Admin Kişisel Görünüm Anahtarı (Core/Full) — 2026-07-01
+
+> Karar Opus ile kilitlendi (2026-07-01). Kodlama **Sonnet** yapacak. Bu spec repoya konuldu ki iki makinede de (Mac+PC) okunabilsin.
+
+**Bağlam — iki AYRI kavram (karıştırma):**
+1. **Sistem Sürümü = `standaloneMode`** (mevcut switch, Kullanıcılar sayfası, admin-only). Sistemin geneli + EĞİTMENLERİN yetkisini belirler (`EGITMEN_STANDALONE_EXTRA` = self-service grup/öğrenci ekle aç/kapa). Bir kez ayarlanır, herkesi etkiler. **KALIR, dokunulmaz.**
+2. **Admin Kişisel Görünüm Anahtarı (YENİ):** SADECE owner'ın kendi ekranını Core/Full arası çevirir. Sistemi/eğitmenleri ETKİLEMEZ. `standaloneMode`'dan bağımsız. Presentational (güvenlik değil — owner zaten tüm yetkilere sahip, sadece göz karışmasın).
+
+**Neden gerçek/canlı iş (demo değil):** Sistem eğitmen modunda gerçekten canlıya açılacak (önce test). Admin eğitmenleri panelden ekler → tek kullanımlık kod → eğitmen kullanır. Core=Full eksi Satış/Eğitim-OP; eğitmen modülü İKİ üründe de AYNI (hafif değil, aylarca emek — ortak kalp). Tek fark: Core'da eğitmen kendi grup/öğrencisini ekler.
+
+**Görünüm Anahtarı — kesin davranış:**
+- **Tetikleme:** gizli klavye kısayolu (Sonnet mantıklı default, örn. ⌘/Ctrl+Shift+M). Üst bar/sidebar'da GÖRÜNÜR kontrol YOK (kullanıcı çirkin buluyor). Sıfır görsel iz.
+- **PIN gate:** kısayola basınca ekranda **4 haneli PIN** modalı → doğru PIN → diğer moda geç (Core↔Full). PIN **server-side + hash'li** (client bundle'a gömülmez), küçük verify endpoint'i.
+- **PIN değiştirme:** owner için **ayar menüsü** (mevcut PIN doğrula → yeni PIN → hash sakla), yine owner-only.
+- **Kime açık:** SADECE owner — `view.toggle` capability'si (yalnız owner hesabında). Başkası tuşa bassa no-op, iz yok. **UID kodun içine GÖMÜLMEZ** — "owner/süper-admin" ayrımı ya da kullanıcıya tekil grant (capability-driven, ileride ortak eklenebilsin).
+- **View-state:** kişisel, uid'e bağlı saklanır (localStorage[uid] yeterli). Varsayılan **Core**, gerektiğinde Full, iş bitince Core.
+
+**Menü kuralı (tek kaynak, dağınık `if` yok):** öğe görünür ⟺ `can(actor, yetki)` **VE** (öğe core-grubu **VEYA** owner view-state = Full). Eğitmen: satış yetkisi yok → zaten görmez. Owner: view-state enterprise gruplarını (Satış/Aktivite/Kampanya/Eğitim-OP/Kullanıcılar/Eğitmenler) açıp kapatır.
+
+**Mevcut durum (Opus kontrol etti 2026-07-01):**
+- ✅ Server-side güvenlik TAM: tüm servisler `can(actor,…)` + `ForbiddenError`. Eğitmen satış servisini çağıramaz (menü gizleme kozmetik değil, server zaten koruyor).
+- ⚠️ `FlexSidebar.tsx` statik/mod-kör, tüm menüler her zaman render; 18 sayfa ayrı import.
+- ⚠️ `/flexos/layout.tsx` YOK. Modu client'a taşıyan tek yer `kullanicilar/page.tsx` (`/api/flexos/settings` fetch).
+
+**Sonnet yapılacaklar (sıra):** (1) `view.toggle` capability + owner grant; (2) client'ın {view-state, caps} bilmesi için tercihen `/flexos/layout.tsx` (server) actor+mode çözüp context ile FlexSidebar'a versin (18'li import tekrarını da toparlar); (3) gizli kısayol (gated) → PIN modalı → server verify → view-state flip+persist; (4) PIN değiştirme ayar menüsü; (5) FlexSidebar menüyü capability+view-state kuralına bağla; (6) test: eğitmen-yaratımı grup/öğrenci verisi Full'ün beklediği şekle oturuyor mu. **Sonnet karar verir:** kesin kısayol tuşu, PIN saklama yeri + ilk PIN seed akışı, ayar menüsünün yeri.
+
+---
+
 - [x] Mimari 4 dosyadan tek `FLEXOS.md`'ye birleştirildi (2026-06-15)
 - [x] **Tip katmanı yazıldı** — `src/app/lib/domain/` (`core/`: Person, Enrollment, Group, PersonNote · `education/`: Grade · `eduos/` dikiş: Education, **Track**, Sale, Payment) · `tsc` temiz · canlıya dokunmadı
 - [x] **Hiyerarşi netleşti** — Branş → Eğitim (Grafik-1) → **Track** (Temel Photoshop, satılabilir, eski "Modül") → Grup. `Module` tipi silindi, `Group.trackId` + `Enrollment.trackScope` eklendi
