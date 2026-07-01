@@ -166,6 +166,9 @@ export default function EgitmenSiniflarPanel() {
 
   const onSaveStudent = async () => {
     if (!sAd.trim() || !sSoyad.trim()) { toast.error("Ad ve soyad zorunludur."); return; }
+    // Core'da Havuz/Gruba-Ata akışı yok — grupsuz eklenen öğrenci hiçbir listede görünmez
+    // kalırdı. Bu yüzden yeni öğrencide Grup ZORUNLU (düzenlemede alan zaten yok/gerekmiyor).
+    if (!editingStudentId && !sGroupId) { toast.error("Grup seçimi zorunludur."); return; }
     setSSaving(true);
     try {
       const headers = await authHeaders();
@@ -198,15 +201,13 @@ export default function EgitmenSiniflarPanel() {
         const personJson = await personRes.json().catch(() => ({}));
         if (!personRes.ok) { toast.error(personJson.error || "Öğrenci eklenemedi."); return; }
 
-        if (sGroupId) {
-          const enrollRes = await fetch("/api/flexos/enrollments", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ personId: personJson.id, groupId: sGroupId }),
-          });
-          const enrollJson = await enrollRes.json().catch(() => ({}));
-          if (!enrollRes.ok) { toast.error(enrollJson.error || "Öğrenci gruba eklenemedi."); return; }
-        }
+        const enrollRes = await fetch("/api/flexos/enrollments", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ personId: personJson.id, groupId: sGroupId }),
+        });
+        const enrollJson = await enrollRes.json().catch(() => ({}));
+        if (!enrollRes.ok) { toast.error(enrollJson.error || "Öğrenci gruba eklenemedi."); return; }
         toast.success("Öğrenci eklendi.");
       }
 
@@ -589,9 +590,9 @@ export default function EgitmenSiniflarPanel() {
                         </label>
                         {!editingStudentId && (
                           <label style={S.fieldWrap}>
-                            <span style={S.lbl}>Grup <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
+                            <span style={S.lbl}>Grup</span>
                             <select value={sGroupId} onChange={(e) => setSGroupId(e.target.value)} style={S.sel}>
-                              <option value="">Grupsuz — sonra atarım</option>
+                              <option value="">Grup seçin</option>
                               {groups.map((g) => <option key={g.id} value={g.id}>{g.kod} · {g.eğitim}</option>)}
                             </select>
                           </label>

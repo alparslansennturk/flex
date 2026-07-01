@@ -73,7 +73,10 @@ Kullanıcı canlı sistemi (`src/app/components/dashboard/class-management`+`stu
   - **AÇIK KALAN (düşük risk, ertelendi):** `PATCH /api/flexos/persons/[id]` (Düzenle) hâlâ hedef-bazlı sahiplik kontrolü yapmıyor — id'ler tahmin edilemez olduğu için pratik risk düşük, ama tam kapsam için sıradaki iş.
 - `tsc`+ESLint temiz, `npm run build` başarılı, tüm assertion'lar (24+14+7) geçiyor.
 
-**⏳ AÇIK — SIRADAKİ:** Core'da "Öğrenci Ekle" formunda **Grup seçimi opsiyonel** ("Grupsuz — sonra atarım") ama bu YANLIŞ/bozuk: grupsuz eklenen öğrenci hiçbir enrollment'a bağlanmıyor, üstteki kapsam filtresi (grup-sahipliği üzerinden çalıştığı için) onu Core'un kendi listesinden GÖRÜNMEZ yapıyor (Full'daki gibi bir Havuz/Gruba-Ata telafi ekranı da yok). Karar: Core'da Grup seçimi ZORUNLU olmalı (Full'da opsiyonel kalabilir, orada Havuz var). **Henüz uygulanmadı.**
+**✅ BİTTİ (2026-07-01, sonraki turda):** Core'da "Öğrenci Ekle" formunda Grup seçimi **zorunlu** yapıldı ("Grupsuz — sonra atarım" seçeneği kaldırıldı; boş bırakılırsa "Grup seçimi zorunludur" uyarısı). Enrollment artık koşulsuz oluşturuluyor (eskiden `if (sGroupId)` şartlıydı). Düzenleme modunda Grup alanı zaten yoktu, değişmedi.
+
+**✅ BİTTİ — Eğitim Ayarları artık Core'da da erişilir:** Kullanıcı sordu: eğitmen kendi grubunu açarken Branş/Eğitim seçmesi gerekiyor ama bunları oluşturma yetkisi (`branch.create`/`education.create`) sadece admin/operasyon'da — peki admin, Core görünümündeyken (Görünüm Anahtarı) bunu nasıl kurar? Çözüm: `FlexSidebar`'daki "Eğitim Yönetimi" akordiyonu ikiye ayrıldı — **"Eğitimler"** (katalog CRUD/Eğitim Ekle) Full-only kaldı, **"Eğitim Ayarları"** (Branş Havuzu + Tatil + Sertifika + Sözleşme, `/flexos/egitim-yonetimi/ayarlar`) artık **hem Core hem Full'da görünüyor** (`canSee("branch.create", true)` — core=true). Veri zaten baştan beri ortaktı (`flexos_branches` tek koleksiyon); değişen sadece sidebar görünürlük kuralı. Gerçek eğitmen hesapları `branch.create` yetkisine sahip olmadığı için onlara yine hiç görünmez — sadece admin/operasyon paketi görür.
+- `tsc`+ESLint temiz, `npm run build` başarılı.
 
 ---
 

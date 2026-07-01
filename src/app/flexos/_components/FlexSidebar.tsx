@@ -130,8 +130,12 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.home} label="Ana Sayfa" onClick={go(null)} />
 
-        {/* Eğitim Yönetimi — akordiyon ana başlık (framer-motion geçişli). Enterprise: sadece Full. */}
-        {canSee("education.create", false) && (
+        {/* Eğitim Yönetimi — akordiyon ana başlık (framer-motion geçişli).
+            "Eğitimler" (katalog CRUD) enterprise: sadece Full. "Eğitim Ayarları" (Branş
+            Havuzu+Tatil+Sertifika+Sözleşme) her iki modda da açık — katalog kurulumu
+            (en az 1 branş/eğitim) Core'daki eğitmenin grup açabilmesi için şart, admin
+            Core'dan çıkmadan halledebilsin diye. */}
+        {(canSee("education.create", false) || canSee("branch.create", true)) && (
           <>
             <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={() => setEduOpen((o) => !o)}>
               <span style={{ display: "inline-flex", color: eduActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.book }} />
@@ -154,8 +158,8 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                   style={{ overflow: "hidden" }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                    <SubItem label="Eğitimler" active={active === "egitimler"} onClick={go("/flexos/egitim-yonetimi")} />
-                    <SubItem label="Eğitim Ayarları" active={active === "ayarlar"} onClick={go("/flexos/egitim-yonetimi/ayarlar")} />
+                    {canSee("education.create", false) && <SubItem label="Eğitimler" active={active === "egitimler"} onClick={go("/flexos/egitim-yonetimi")} />}
+                    {canSee("branch.create", true) && <SubItem label="Eğitim Ayarları" active={active === "ayarlar"} onClick={go("/flexos/egitim-yonetimi/ayarlar")} />}
                   </div>
                 </motion.div>
               )}
