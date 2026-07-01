@@ -43,6 +43,16 @@
 
 **Sonnet yapılacaklar (sıra):** (1) `view.toggle` capability + owner grant; (2) client'ın {view-state, caps} bilmesi için tercihen `/flexos/layout.tsx` (server) actor+mode çözüp context ile FlexSidebar'a versin (18'li import tekrarını da toparlar); (3) gizli kısayol (gated) → PIN modalı → server verify → view-state flip+persist; (4) PIN değiştirme ayar menüsü; (5) FlexSidebar menüyü capability+view-state kuralına bağla; (6) test: eğitmen-yaratımı grup/öğrenci verisi Full'ün beklediği şekle oturuyor mu. **Sonnet karar verir:** kesin kısayol tuşu, PIN saklama yeri + ilk PIN seed akışı, ayar menüsünün yeri.
 
+#### Kararlar / Bağlam (2026-07-01, Opus ile — "neden böyle")
+
+Bu bölüm yukarıdaki spec'in stratejik arka planı. İşi kodlamak için spec yeter; bunlar "neden bu yolu seçtik" içindir.
+
+- **Core ayrı bir ticari ürün DEĞİL.** Kullanıcının niyeti: "eğitmen kısmını ticari düşünmüyorum; esas satarsam full paket satarım." Ortada tek kurum var (çalıştığı şirket), full sistemi şimdi benimsemeyecek → "bari eğitmenler kendi kısmını kullansın" diye eğitmen modu açılıyor. Nihai hedef herkes için full sistem.
+- **GERÇEK canlı kullanım, demo değil** (önce test süreçleri). Bu yüzden menü gizleme tek başına yetmez — server-side `can()` de kesmeli (zaten kesiyor, doğrulandı).
+- **Eğitmen modülü hafif/çöpe atılabilir DEĞİL** — aylarca emek (oyunlaştırılmış tasarım ödevleri, detaylı yoklama, aylık ders raporu, sertifika/ödev notu, öğrenciden ödev toplama). İki üründe de AYNI modül; **Core = Full eksi Satış/Eğitim-OP.** Tek fark: Core'da eğitmen kendi grup/öğrencisini ekler (`EGITMEN_STANDALONE_EXTRA`).
+- **`standaloneMode` runtime switch KALIR** (dün kurulan Firestore + cache). Admin-only (Kullanıcılar sayfası), eğitmen çeviremez. Esneklik + gerektiğinde geçiş için doğru mekanizma.
+- **REDDEDİLEN yollar:** (a) Gemini/GPT'nin ticari `licenseTier` + faturalandırma-sınırı katmanı → over-engineering, satılmayan ürün için gereksiz. (b) Kuruma-özel env-sabiti / per-install dağıtım → şimdilik gereksiz, runtime esneklik isteniyor. (c) Multi-tenant izolasyon → tek kurum olduğu için gereksiz. **Hepsi "ileride tamamen ticari olursa" diye ERTELENDİ**, şimdi kurulmayacak.
+
 ---
 
 - [x] Mimari 4 dosyadan tek `FLEXOS.md`'ye birleştirildi (2026-06-15)
