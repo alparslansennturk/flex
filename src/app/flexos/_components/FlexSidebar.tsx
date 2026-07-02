@@ -37,6 +37,7 @@ export type FlexNavKey =
   | "aktiviteler"
   | "randevu-takvimi"
   | "yoklamalar"
+  | "yoklama-raporu"
   | "sertifikasyon";
 
 export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
@@ -235,6 +236,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
         {/* Enterprise: sadece Full. */}
         {canSee("trainer.read", false) && <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />}
+        {/* Yoklama Raporu — Eğitim Op + Finans + Admin. Eğitmende BİLEREK YOK
+            (attendance.report.read eğitmen paketinde hiç yok, 2026-07-02 kararı). */}
+        {canSee("attendance.report.read", false) && <Item icon={IC.barChart} label="Yoklama Raporu" active={active === "yoklama-raporu"} onClick={go("/flexos/yoklama/rapor")} />}
         {canSee("role.manage", false) && <Item icon={IC.shield} label="Kullanıcılar" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />}
 
         {/* Aktivite Merkezi — akordiyon. Enterprise: sadece Full. */}
@@ -326,6 +330,7 @@ const IC = {
   chevDown: sv('<path d="m6 9 6 6 6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
   activity: sv('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'),
+  barChart: sv('<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>'),
 };
 
 const css = `
