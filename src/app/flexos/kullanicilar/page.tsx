@@ -421,7 +421,7 @@ export default function KullanicilarPage() {
                   <div>
                     <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>{"Kişisel Görünüm PIN'i"}</div>
                     <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
-                      {"Ctrl/Cmd+Alt+Shift+M ile Eğitmen görünümünden admin ekranına geçerken sorulan 4 haneli PIN. "}{hasPin ? "Kurulu." : "Henüz kurulmadı."}
+                      {"Ctrl/Cmd+Shift+K ile Eğitmen görünümünden admin ekranına geçerken sorulan 4 haneli PIN. "}{hasPin ? "Kurulu." : "Henüz kurulmadı."}
                     </div>
                   </div>
                 </div>
