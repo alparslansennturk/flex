@@ -120,8 +120,13 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   // Ctrl/Cmd+Shift+K'ye değiştirildi (Chrome'da boş; Firefox'ta konsol kısayolu ama
   // kullanılan tarayıcı Chrome).
   useEffect(() => {
-    if (!canToggleView) return;
     function onKeyDown(e: KeyboardEvent) {
+      // GEÇİCİ TEŞHİS LOGU (2026-07-02) — kısayol "hiç hareket yok" raporlandı,
+      // tuş olayı tarayıcıya ulaşıyor mu / canToggleView doğru mu ayırt etmek için.
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+        console.log("[view-toggle] keydown yakalandı:", { key: e.key, canToggleView, uid, mode });
+      }
+      if (!canToggleView) return;
       if (!((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "k")) return;
       e.preventDefault();
       if (mode === "full") {
