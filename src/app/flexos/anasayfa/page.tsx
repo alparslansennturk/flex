@@ -2,7 +2,7 @@
 
 /**
  * FlexOS · Ana Sayfa (Admin/Full) — GEÇİCİ placeholder.
- * Amaç: Görünüm Anahtarı (Cmd+Shift+K) Full'a dönünce güvenli, capability-nötr
+ * Amaç: Görünüm Anahtarı (Cmd+Alt+M) Full'a dönünce güvenli, capability-nötr
  * bir sayfaya inilsin (herhangi bir admin-only veri çekmez, asla 403 vermez).
  * İçerik ileride gerçek dashboard ile değiştirilecek.
  */

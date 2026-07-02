@@ -114,20 +114,20 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
     }
   };
 
-  // Gizli kısayol — Ctrl/Cmd+Shift+K. Owner değilse tamamen no-op (sıfır iz).
-  // NOT: Ctrl/Cmd+Shift+M, Chrome'un kendi profil değiştirme kısayoluyla çakışıyordu
-  // (tarayıcı seviyesinde yakalanıyor, preventDefault() işe yaramıyor) — 2026-07-02'de
-  // Ctrl/Cmd+Shift+K'ye değiştirildi (Chrome'da boş; Firefox'ta konsol kısayolu ama
-  // kullanılan tarayıcı Chrome).
+  // Gizli kısayol — Ctrl/Cmd+Alt+M. Owner değilse tamamen no-op (sıfır iz).
+  // NOT: Sırasıyla Ctrl+Shift+M (Chrome profil değiştirme) ve Ctrl+Shift+K
+  // (muhtemelen arka planda çalışan başka bir uygulamanın global kısayolu — teşhis
+  // logunda "k" tuşu hiç ulaşmıyordu, sadece "Shift" görünüyordu) çakıştı. 2026-07-02:
+  // Ctrl+Alt+M'ye geçildi (kullanıcı talebi).
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      // GEÇİCİ TEŞHİS LOGU (2026-07-02) — kısayol "hiç hareket yok" raporlandı,
-      // tuş olayı tarayıcıya ulaşıyor mu / canToggleView doğru mu ayırt etmek için.
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
-        console.log(`[view-toggle] key=${e.key} canToggleView=${canToggleView} uid=${uid} mode=${mode} capsSize=${caps.size}`);
+      // GEÇİCİ TEŞHİS LOGU — kısayol "hiç hareket yok" raporlandı, tuş olayı
+      // tarayıcıya ulaşıyor mu / canToggleView doğru mu ayırt etmek için.
+      if ((e.ctrlKey || e.metaKey) && e.altKey) {
+        console.log(`[view-toggle] key=${e.key} shift=${e.shiftKey} canToggleView=${canToggleView} uid=${uid} mode=${mode} capsSize=${caps.size}`);
       }
       if (!canToggleView) return;
-      if (!((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "k")) return;
+      if (!((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === "m")) return;
       e.preventDefault();
       if (mode === "full") {
         if (uid) setViewMode(uid, "core");
