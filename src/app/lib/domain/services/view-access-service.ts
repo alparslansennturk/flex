@@ -2,8 +2,10 @@ import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { can } from "../access/can";
 import type { Actor } from "../access/types";
 import type { ViewPin } from "../core/view-pin";
+import type { ViewModeState } from "../core/view-mode";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { ViewPinRepo } from "../repo/view-pin-repo";
+import type { ViewModeRepo } from "../repo/view-mode-repo";
 
 const PIN_PATTERN = /^\d{4}$/;
 
@@ -68,4 +70,20 @@ export async function setViewPin(
     updatedAt: now(),
   };
   await repo.save(pinDoc);
+}
+
+/**
+ * Görünüm modunu (Core/Full) sunucuda kalıcı hale getirir. Full→Core PIN'siz,
+ * Core→Full için client zaten `verifyViewPin` ile PIN doğrulamış olmalı — bu
+ * fonksiyon PIN'i tekrar kontrol etmez, sadece `view.toggle` capability'sini ister.
+ * Sunucudaki gerçek yetki düşüşü `auth-actor.ts`'teki cache bu kaydı okuyunca olur.
+ */
+export async function setViewMode(
+  actor: Actor,
+  mode: "core" | "full",
+  repo: ViewModeRepo,
+): Promise<void> {
+  if (!can(actor, "view.toggle")) throw new ForbiddenError("view.toggle");
+  const state: ViewModeState = { uid: actor.uid, mode, updatedAt: now() };
+  await repo.save(state);
 }

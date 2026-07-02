@@ -190,7 +190,8 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "trainer.rate.write",
       "role.manage",
       "capability.grant",
-      "view.toggle",
+      // view.toggle BİLEREK burada yok — paket-seviyeli değil, tekil grant
+      // (bkz. auth-actor.ts VIEW_TOGGLE_OWNER_EMAIL). Sadece tek bir hesaba açık.
       "case.create",
       "case.read",
       "case.edit",

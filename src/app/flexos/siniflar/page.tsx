@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import { FlexPageLoader } from "../_components/FlexSpinner";
+import { useCapabilities } from "../_components/useCapabilities";
 import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 import EgitmenSiniflarPanel from "./EgitmenSiniflarPanel";
 import GroupTable from "./_shared/GroupTable";
@@ -33,6 +34,8 @@ export default function SınıflarPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
+  const { caps } = useCapabilities();
+  const canManageGroups = caps.has("group.create");
 
   // -- Form state --
   const [eğitimTipi, setEğitimTipi] = useState<EğitimTipi>("standart");
@@ -317,9 +320,11 @@ export default function SınıflarPage() {
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Gruplar</h2>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{groups.length} grup</span>
             </div>
-            <button className="sg-add-btn" style={S.addBtn} onClick={() => setShowForm(true)}>
-              <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Grup Ekle
-            </button>
+            {canManageGroups && (
+              <button className="sg-add-btn" style={S.addBtn} onClick={() => setShowForm(true)}>
+                <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Grup Ekle
+              </button>
+            )}
           </div>
 
           <GroupTable
@@ -329,7 +334,8 @@ export default function SınıflarPage() {
             onRowClick={setRosterGroup}
             onEdit={editGroup}
             onChanged={loadGroups}
-            emptyHint='Yukarıdaki "Grup Ekle" ile ilk grubunuzu oluşturun.'
+            canManage={canManageGroups}
+            emptyHint={canManageGroups ? 'Yukarıdaki "Grup Ekle" ile ilk grubunuzu oluşturun.' : "Henüz size atanmış bir grup yok."}
           />
 
         </div>

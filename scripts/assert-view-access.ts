@@ -11,8 +11,13 @@ import { ForbiddenError, ValidationError } from "../src/app/lib/domain/errors";
 
 const TENANT = "test-tenant";
 
-function makeActor(pkg: "admin" | "egitmen"): Actor {
-  return { type: "human", uid: `user-${pkg}`, tenantId: TENANT, grants: resolvePackages([pkg]) };
+// NOT (2026-07-02): `view.toggle` artık admin PAKETİNDE değil — sadece
+// `auth-actor.ts`'teki VIEW_TOGGLE_OWNER_EMAIL'e özel tekil grant (extraGrants).
+// Burada gerçek owner'ı simüle etmek için grant'i elle ekliyoruz.
+function makeActor(pkg: "admin" | "egitmen", asViewToggleOwner = false): Actor {
+  const grants = resolvePackages([pkg]);
+  if (asViewToggleOwner) grants.push({ capability: "view.toggle", scope: "org" });
+  return { type: "human", uid: `user-${pkg}`, tenantId: TENANT, grants };
 }
 
 function makeViewPinRepo(): ViewPinRepo {
@@ -41,13 +46,19 @@ async function assertRejects(label: string, fn: () => Promise<unknown>, errType:
 async function main() {
   console.log("\n=== Admin Kişisel Görünüm Anahtarı — PIN Assertions ===\n");
 
-  const admin = makeActor("admin");
+  const admin = makeActor("admin", true); // owner simülasyonu — tekil grant eklendi
+  const plainAdmin = makeActor("admin"); // sıradan admin — view.toggle grant'i YOK
   const egitmen = makeActor("egitmen");
 
   // ── capability gating ──
   await assertRejects(
     "Eğitmen (view.toggle yok) status okuyamaz — ForbiddenError",
     () => getViewAccessStatus(egitmen, makeViewPinRepo()),
+    ForbiddenError,
+  );
+  await assertRejects(
+    "Sıradan admin (paket-seviyeli view.toggle artık yok) status okuyamaz — ForbiddenError",
+    () => getViewAccessStatus(plainAdmin, makeViewPinRepo()),
     ForbiddenError,
   );
   await assertRejects(

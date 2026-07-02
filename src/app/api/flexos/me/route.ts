@@ -10,5 +10,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
   const capabilities = Array.from(new Set(actor.grants.map((g) => g.capability)));
-  return NextResponse.json({ uid: actor.uid, capabilities });
+  // no-store: Görünüm Anahtarı sahibi mod değiştirdiğinde (admin↔eğitmen) bu uç
+  // ANINDA yeni sonucu vermeli — tarayıcı/ara katman cache'i eski yetkiyi göstermesin.
+  return NextResponse.json({ uid: actor.uid, capabilities }, { headers: { "Cache-Control": "no-store" } });
 });

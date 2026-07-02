@@ -573,7 +573,7 @@ export default function EgitmenSiniflarPanel() {
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "22px 28px 18px", background: "#F7F8FA" }}>
                       <div>
                         <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>{editingStudentId ? "Öğrenciyi Düzenle" : "Öğrenci Ekle"}</h2>
-                        <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{editingStudentId ? "Öğrencinin bilgilerini güncelleyin." : "Dersin ilk günü öğrenciye sorarak ekleyin. Grup seçimi opsiyonel — sonra da atayabilirsiniz."}</p>
+                        <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{editingStudentId ? "Öğrencinin bilgilerini güncelleyin." : "Dersin ilk günü öğrenciye sorarak ekleyin."}</p>
                       </div>
                       <button onClick={() => { if (!sSaving) cancelStudentForm(); }} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>×</button>
                     </div>

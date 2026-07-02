@@ -24,6 +24,7 @@ import { auth } from "@/app/lib/firebase";
 import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
+import { useCapabilities } from "../../_components/useCapabilities";
 import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 
 // ── Durum & Branş sözlükleri (tasarımdan) ────────────────────────────────────
@@ -130,6 +131,9 @@ export default function OgrenciHavuzuPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const { caps } = useCapabilities();
+  const canAssignGroup = caps.has("group.assign_student");
+  const canEditPerson = caps.has("person.edit");
 
   // applied filtreler
   const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
@@ -733,7 +737,7 @@ export default function OgrenciHavuzuPage() {
                         </td>
                         {/* İşlem — Gruba Ata */}
                         <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                          {(() => {
+                          {canAssignGroup ? (() => {
                             const canAssign = !!st.assignableEnrollmentId;
                             return (
                               <button
@@ -747,7 +751,9 @@ export default function OgrenciHavuzuPage() {
                                 Gruba Ata
                               </button>
                             );
-                          })()}
+                          })() : (
+                            <span style={{ fontSize: 12, color: "#AEB4C0" }}>—</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -903,7 +909,7 @@ export default function OgrenciHavuzuPage() {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {detailTab === "bilgiler" && !editMode && (
+                  {detailTab === "bilgiler" && !editMode && canEditPerson && (
                     <button className="oh-filter" onClick={startEdit} style={{ ...S.filterBtn, padding: "9px 18px", fontSize: 13 }}>
                       <span dangerouslySetInnerHTML={{ __html: IC.pencil }} />
                       Düzenle

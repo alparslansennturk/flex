@@ -452,5 +452,8 @@ service cloud.firestore {
 
     // Admin Kişisel Görünüm Anahtarı PIN'i (Core/Full) — server-only, hash'li.
     match /flexos_view_pins/{uid} { allow read, write: if false; }
+
+    // Admin Kişisel Görünüm Anahtarı — mevcut mod (Core/Full), server-only.
+    match /flexos_view_modes/{uid} { allow read, write: if false; }
   }
 }

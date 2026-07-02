@@ -40,12 +40,17 @@ interface GroupTableProps {
   onEdit: (g: DisplayGroup) => void;
   onChanged: () => void;
   emptyHint: string;
+  /** Başlat/Bitir/Düzenle/Sil/Geri-al aksiyonlarını göster (default true). Full'da
+   * grup yönetim yetkisi olmayan aktörler (ör. eğitmen) için false geçilir — veri
+   * zaten sunucuda scope'lu, bu sadece kozmetik/UI gate. */
+  canManage?: boolean;
 }
 
-export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, onChanged, emptyHint }: GroupTableProps) {
+export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, onChanged, emptyHint, canManage = true }: GroupTableProps) {
   const [groupFilter, setGroupFilter] = useState<FilterKey | CoreFilterKey>("hepsi");
-  // Core (eğitmen): kart görünümü varsayılan — "kendi sınıflarım" hissi tabloya göre daha net.
-  const [viewMode, setViewMode] = useState<ViewMode>(mode === "core" ? "card" : "list");
+  // Core (eğitmen) VE Full'da eğitmen (canManage=false, "kendi sınıflarım" hissi) için
+  // kart görünümü varsayılan — Liste toggle'ı Full'da yine seçilebilir kalıyor.
+  const [viewMode, setViewMode] = useState<ViewMode>(mode === "core" || !canManage ? "card" : "list");
   const [page, setPage] = useState(1);
   const [startId, setStartId] = useState<string | null>(null);
   const [finishId, setFinishId] = useState<string | null>(null);
@@ -231,37 +236,41 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                         </span>
                       </td>
                       <td style={S.tdRight} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                          {g.status === "açılacak" && (
-                            <button disabled={!canStart} onClick={() => canStart && setStartId(g.id)}
-                              className="gt-start-btn" style={{ ...S.startBtn, opacity: canStart ? 1 : 0.45, cursor: canStart ? "pointer" : "not-allowed" }}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.play }} />
-                              Başlat
-                            </button>
-                          )}
-                          {g.status === "aktif" && (
-                            <button onClick={() => setFinishId(g.id)} className="gt-start-btn" style={S.startBtn}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.checkSm }} />
-                              Bitir
-                            </button>
-                          )}
-                          {(g.status === "açılacak" || g.status === "aktif") && (
-                            <button onClick={() => onEdit(g)} title="Düzenle" className="gt-edit-btn" style={S.editBtnIcon}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
-                            </button>
-                          )}
-                          {(g.status === "açılacak" || g.status === "aktif" || g.status === "tamamlandı" || g.status === "iptal") && (
-                            <button onClick={() => setDeleteId(g.id)} title="Sil" className="gt-del-btn" style={S.delBtn}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                            </button>
-                          )}
-                          {canReopen && (
-                            <button onClick={() => setReopenId(g.id)} className="gt-start-btn" style={S.startBtn}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.undo }} />
-                              Geri al
-                            </button>
-                          )}
-                        </div>
+                        {canManage ? (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            {g.status === "açılacak" && (
+                              <button disabled={!canStart} onClick={() => canStart && setStartId(g.id)}
+                                className="gt-start-btn" style={{ ...S.startBtn, opacity: canStart ? 1 : 0.45, cursor: canStart ? "pointer" : "not-allowed" }}>
+                                <span dangerouslySetInnerHTML={{ __html: IC.play }} />
+                                Başlat
+                              </button>
+                            )}
+                            {g.status === "aktif" && (
+                              <button onClick={() => setFinishId(g.id)} className="gt-start-btn" style={S.startBtn}>
+                                <span dangerouslySetInnerHTML={{ __html: IC.checkSm }} />
+                                Bitir
+                              </button>
+                            )}
+                            {(g.status === "açılacak" || g.status === "aktif") && (
+                              <button onClick={() => onEdit(g)} title="Düzenle" className="gt-edit-btn" style={S.editBtnIcon}>
+                                <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
+                              </button>
+                            )}
+                            {(g.status === "açılacak" || g.status === "aktif" || g.status === "tamamlandı" || g.status === "iptal") && (
+                              <button onClick={() => setDeleteId(g.id)} title="Sil" className="gt-del-btn" style={S.delBtn}>
+                                <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
+                              </button>
+                            )}
+                            {canReopen && (
+                              <button onClick={() => setReopenId(g.id)} className="gt-start-btn" style={S.startBtn}>
+                                <span dangerouslySetInnerHTML={{ __html: IC.undo }} />
+                                Geri al
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 12, color: "#AEB4C0" }}>—</span>
+                        )}
                       </td>
                     </tr>
                   );

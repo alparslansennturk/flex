@@ -70,7 +70,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       setMode(getViewMode(user.uid));
       try {
         const token = await user.getIdToken();
-        const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
         if (res.ok && !cancelled) {
           const json = await res.json();
           const next = new Set<string>(json.capabilities ?? []);
@@ -86,6 +86,28 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const canToggleView = caps.has("view.toggle");
 
+  // Sunucudaki gerçek yetkiyi de (admin↔eğitmen) mod'a göre değiştirir — sadece
+  // görünüm anahtarı sahibinde etkili (bkz. auth-actor.ts VIEW_TOGGLE_OWNER_EMAIL).
+  // Kaydettikten sonra ilgili modun kendi ana sayfasına GİDER (reload değil) —
+  // aksi halde admin-only bir sayfadayken (ör. Kullanıcılar) eğitmene düşünce o
+  // sayfa 403 verip çirkin bir hata gösteriyordu. Yeni URL'e gitmek ayrıca her
+  // önceki cache sorununu da kökten bypass eder (hiç istenmemiş taze bir istek).
+  const persistModeAndReload = async (next: "core" | "full") => {
+    try {
+      const user = auth.currentUser;
+      const token = user ? await user.getIdToken() : "";
+      await fetch("/api/flexos/view-access/mode", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: next }),
+      });
+    } catch {
+      // sessiz — en kötü ihtimalle bir sonraki istekte kendini düzeltir
+    } finally {
+      window.location.href = next === "core" ? "/flexos/egitmen-anasayfa" : "/flexos/anasayfa";
+    }
+  };
+
   // Gizli kısayol — Ctrl/Cmd+Shift+M. Owner değilse tamamen no-op (sıfır iz).
   useEffect(() => {
     if (!canToggleView) return;
@@ -94,8 +116,8 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       e.preventDefault();
       if (mode === "full") {
         if (uid) setViewMode(uid, "core");
-        setMode("core");
         toast.info("Görünüm: Eğitmen");
+        void persistModeAndReload("core");
       } else {
         setPinOpen(true);
       }
@@ -106,9 +128,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const onPinVerified = () => {
     if (uid) setViewMode(uid, "full");
-    setMode("full");
     setPinOpen(false);
     toast.success("Görünüm: Full");
+    void persistModeAndReload("full");
   };
 
   /** cap yoksa hiç görünmez; core-grup her zaman, enterprise-grup sadece Full'de. */
@@ -128,7 +150,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Item icon={IC.home} label="Ana Sayfa" onClick={go(null)} />
+        {/* role.manage = admin-benzeri (satış/operasyon/admin) → admin ana sayfa;
+            yoksa (gerçek eğitmen veya owner'ın Core görünümü) → eğitmen ana sayfa. */}
+        <Item icon={IC.home} label="Ana Sayfa" active={active === "ana"} onClick={go(caps.has("role.manage") ? "/flexos/anasayfa" : "/flexos/egitmen-anasayfa")} />
 
         {/* Eğitim Yönetimi — akordiyon ana başlık (framer-motion geçişli).
             "Eğitimler" (katalog CRUD) enterprise: sadece Full. "Eğitim Ayarları" (Branş
@@ -202,8 +226,11 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
+        {/* Öğrenci Havuzu = admin/satış/operasyon işi — eğitmen (Full'da da Core sistem
+            modunda da) burayı hiç görmez, kendi öğrencilerini Sınıflar'daki "Öğrencilerim"
+            bölümünden ekler/görür. `sale.read` eğitmen paketinde (hiçbir modda) yok. */}
+        {canSee("sale.read", false) && <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />}
         {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür. */}
-        {canSee("person.read", true) && <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />}
         {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
 
         {/* Enterprise: sadece Full. */}

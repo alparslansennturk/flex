@@ -1,5 +1,5 @@
 import { resolvePackages, type PackageName } from "./packages";
-import type { Actor, ActorType } from "./types";
+import type { Actor, ActorType, Grant } from "./types";
 
 export interface BuildActorInput {
   uid: string;
@@ -10,6 +10,8 @@ export interface BuildActorInput {
   type?: ActorType; // varsayılan "human"
   /** bkz. `ResolvePackagesOptions.standaloneMode` — eğitmen tek-başına anahtarı. */
   standaloneMode?: boolean;
+  /** Paketten bağımsız, tekil (uid'e özel) grant'ler — ör. Görünüm Anahtarı sahibi. */
+  extraGrants?: Grant[];
 }
 
 /** Paket adları + bağlamdan etkin Actor üretir (pure). */
@@ -18,7 +20,7 @@ export function buildActor(input: BuildActorInput): Actor {
     type: input.type ?? "human",
     uid: input.uid,
     tenantId: input.tenantId,
-    grants: resolvePackages(input.packages, { standaloneMode: input.standaloneMode }),
+    grants: [...resolvePackages(input.packages, { standaloneMode: input.standaloneMode }), ...(input.extraGrants ?? [])],
     groupIds: input.groupIds,
     branchIds: input.branchIds,
   };
