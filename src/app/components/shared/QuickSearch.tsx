@@ -157,10 +157,11 @@ export default function QuickSearch() {
   const router   = useRouter();
   const { user, isAdmin } = useUser();
 
-  // ── Ctrl+K / Cmd+K ──────────────────────────────────────────────────────────
+  // ── Ctrl+K / Cmd+K (SAF — Shift/Alt basılıyken tetiklenmez, ör. FlexOS'un
+  // Ctrl+Shift+K Görünüm Anahtarı kısayoluyla çakışmasın) ─────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === 'k') {
         e.preventDefault();
         setOpen(prev => !prev);
       }
