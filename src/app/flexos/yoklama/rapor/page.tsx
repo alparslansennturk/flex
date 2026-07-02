@@ -679,7 +679,10 @@ export default function YoklamaRaporuPage() {
       <FlexSidebar active="yoklama-raporu" />
       <main style={S.main}>
         <header style={S.header}>
-          <div style={S.headerInner}>
+          <div
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}
+            className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-5"
+          >
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               <div style={S.headerIcon}><TrendingUp size={22} color="#fff" /></div>
               <div>
@@ -713,7 +716,6 @@ const S: Record<string, CSSProperties> = {
   root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" },
   main: { flex: 1, height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", background: "#fff" },
   header: { position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)", flexShrink: 0 },
-  headerInner: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" },
   headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59" },
   bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
