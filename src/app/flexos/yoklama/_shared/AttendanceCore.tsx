@@ -12,8 +12,10 @@
  * TEK GÖRSEL FARK: avatarlar — illüstrasyon/foto YOK, kurumsal daire+baş harf
  * (bkz. `initials`/`avatarStyle`, `siniflar/_shared/groupDisplay.ts` ile aynı).
  *
- * AŞAMA 1 kapsamı (kullanıcı onayıyla ertelendi — Aşama 2'de eklenecek):
- *  - Aylık planlanan/yapılan ders sayısı + kurs ilerleme donut'u (course-progress)
+ * AŞAMA 1'de ERTELENEN, 2026-07-02'de (aynı gün devam) TAMAMLANAN: "detail" modda
+ * aylık planlanan/yapılan/kalan ders 3 stat kartı + kurs ilerleme donut'u (canlıdaki
+ * `AttendancePanel.tsx` "detailed" mod bloğu, satır ~1320-1538, birebir portlandı).
+ * HÂLÂ ERTELENEN (Aşama 2, düşük öncelik):
  *  - Öğrenci detay modalı (devam donut'u)
  *  - Auto-close cron (şimdilik "Dersi Bitir" manuel)
  *
@@ -42,7 +44,7 @@ import type { ExceptionReason, ExceptionScope, LessonException } from "@/app/lib
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
   CheckCheck, Users, Wifi, CalendarOff, AlertCircle,
-  Check, X, Clock, Play, Square, RefreshCw, Lock,
+  Check, X, Clock, Play, Square, RefreshCw, Lock, Timer, CalendarClock,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -135,6 +137,19 @@ function fmtMins(mins: number) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+function toMonthKey(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+/** Verilen ay için weekDays'e uyan, tatil olmayan gün sayısı — "Bu Ay Planlanan Ders" kartı için. */
+function countWeekdaysInMonth(year: number, month: number, weekDays: number[], holidayDates: Set<string>, startDate?: string, endDate?: string): number {
+  if (!weekDays || weekDays.length === 0) return 0;
+  const d = new Date(year, month, 1, 12, 0, 0);
+  let count = 0;
+  while (d.getMonth() === month) {
+    const key = toDateKey(d);
+    if (weekDays.includes(d.getDay()) && !holidayDates.has(key) && (!startDate || key >= startDate) && (!endDate || key <= endDate)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -264,7 +279,8 @@ export default function AttendanceCore({
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [isOrgScope, setIsOrgScope] = useState(false);
   const [courseTotalHours, setCourseTotalHours] = useState<number | null>(null);
-  const [allTimeDoneCount, setAllTimeDoneCount] = useState(0);
+  const [allTimeRecords, setAllTimeRecords] = useState<AttendanceRecord[]>([]);
+  const [monthCancelledCount, setMonthCancelledCount] = useState(0);
   const [branchFilter, setBranchFilter] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [roster, setRoster] = useState<RosterPerson[]>([]);
@@ -382,9 +398,22 @@ export default function AttendanceCore({
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
   const schedule = selectedGroup?.schedule ?? {};
   const sessionHours = schedule.sessionHours ?? DEFAULT_SESSION_HOURS;
-  const selectedWeekDays = schedule.days ?? [];
+  const selectedWeekDays = useMemo(() => schedule.days ?? [], [schedule.days]);
+  const scheduleEndDateObj = schedule.endDate ? new Date(`${schedule.endDate}T12:00:00`) : null;
+  const realRecords = useMemo(() => allTimeRecords.filter((r) => Object.keys(r.entries).length > 0 || r.attendanceClosed), [allTimeRecords]);
+  const allTimeDoneCount = realRecords.length;
   const courseDoneHours = allTimeDoneCount * sessionHours;
   const courseRemainingHours = courseTotalHours !== null ? Math.max(0, courseTotalHours - courseDoneHours) : null;
+  const courseProgressPct = courseTotalHours ? Math.min(100, Math.round((courseDoneHours / courseTotalHours) * 100)) : 0;
+
+  // ── "Bu Ay" (seçili tarihin ayı) — 3 stat kartı, sadece mode="detail" ──
+  const selectedMonthKey = toMonthKey(selectedDate);
+  const monthDoneCount = useMemo(() => realRecords.filter((r) => r.month === selectedMonthKey).length, [realRecords, selectedMonthKey]);
+  const monthPlannedCount = useMemo(() => {
+    const [y, m] = selectedMonthKey.split("-").map(Number);
+    return countWeekdaysInMonth(y, m - 1, selectedWeekDays, holidayDates, schedule.startDate, schedule.endDate);
+  }, [selectedMonthKey, selectedWeekDays, holidayDates, schedule.startDate, schedule.endDate]);
+  const monthRemainingCount = Math.max(0, monthPlannedCount - monthDoneCount - monthCancelledCount);
 
   // ── Roster yükle ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -403,7 +432,7 @@ export default function AttendanceCore({
   // ders sayısı. Education'da totalHours boşsa (henüz katalogda tanımlanmadıysa)
   // "—" placeholder kalır; alan doldurulunca otomatik gerçek sayı çıkar.
   useEffect(() => {
-    if (!selectedGroupId) { setCourseTotalHours(null); setAllTimeDoneCount(0); return; }
+    if (!selectedGroupId) { setCourseTotalHours(null); setAllTimeRecords([]); return; }
     (async () => {
       const headers = await authHeaders();
       const educationId = selectedGroup?.educationId;
@@ -419,12 +448,31 @@ export default function AttendanceCore({
       }
       if (attRes.ok) {
         const j = await attRes.json();
-        const items = (j.items ?? []) as AttendanceRecord[];
-        setAllTimeDoneCount(items.filter((r) => Object.keys(r.entries).length > 0 || r.attendanceClosed).length);
+        setAllTimeRecords((j.items ?? []) as AttendanceRecord[]);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroupId]);
+    // `selectedGroup?.educationId` BİLEREK dep'te — `groups` bu effect ilk çalıştığında henüz
+    // yüklenmemiş olabilir (selectedGroupId preSelectedGroupId'den geliyorsa), o an educationId
+    // undefined kalır ve bir daha asla düzelmezdi (grup değişmeden effect tekrar tetiklenmezdi).
+    // `groups` yüklenince educationId undefined→gerçek değere döner, bu da effect'i doğru
+    // veriyle tekrar tetikler — "ilk açılışta donut yok, başka gruba geçince geliyor" bug'ının fix'i.
+  }, [selectedGroupId, selectedGroup?.educationId]);
+
+  // ── İptal ders sayısı (bu ay) — SADECE org-scope (attendance.report.read), "detail" modda.
+  useEffect(() => {
+    if (mode !== "detail" || !isOrgScope || !selectedGroupId) { setMonthCancelledCount(0); return; }
+    (async () => {
+      const headers = await authHeaders();
+      const [y, m] = selectedMonthKey.split("-");
+      const from = `${y}-${m}-01`, to = `${y}-${m}-31`;
+      const res = await fetch(`/api/flexos/lesson-exceptions?from=${from}&to=${to}`, { headers });
+      if (res.ok) {
+        const j = await res.json();
+        const count = ((j.items ?? []) as { groupId?: string }[]).filter((e) => e.groupId === selectedGroupId).length;
+        setMonthCancelledCount(count);
+      }
+    })();
+  }, [mode, isOrgScope, selectedGroupId, selectedMonthKey]);
 
   // ── Attendance kaydı yükle (grup/tarih değişince) ────────────────────────
   const loadRecord = useCallback(async () => {
@@ -656,53 +704,228 @@ export default function AttendanceCore({
             </div>
           ) : (
             <>
-              <div className="px-8 py-3 border-b border-surface-100 shrink-0 flex items-center gap-2.5">
-                <span className="text-[14px] font-bold text-text-primary">{selectedGroup?.code}</span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-base-primary-100 text-[11px] font-bold text-base-primary-500">
-                  <Clock size={10} />{formatMonthDisplay(selectedDate)}
-                </span>
-                {mode === "simple" && onViewDetail ? (
-                  <button onClick={() => onViewDetail(selectedGroupId)} className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer">
-                    Yoklama Detay <ChevronRight size={12} />
-                  </button>
-                ) : onBackToAttend ? (
-                  <button onClick={onBackToAttend} className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer">
-                    <ChevronLeft size={12} /> Yoklama Al
-                  </button>
-                ) : null}
-              </div>
+              {mode === "simple" && (
+                <div className="px-8 py-3 border-b border-surface-100 shrink-0 flex items-center gap-2.5">
+                  <span className="text-[14px] font-bold text-text-primary">{selectedGroup?.code}</span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-base-primary-100 text-[11px] font-bold text-base-primary-500">
+                    <Clock size={10} />{formatMonthDisplay(selectedDate)}
+                  </span>
+                  {onViewDetail && (
+                    <button onClick={() => onViewDetail(selectedGroupId)} className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer">
+                      Yoklama Detay <ChevronRight size={12} />
+                    </button>
+                  )}
+                </div>
+              )}
+              {mode === "simple" ? (
+                /* Lacivert özet bar — Toplam/Kalan Ders `Education.totalHours` doluysa gerçek
+                   (katalogda alan boşsa "—" kalır, sonradan otomatik dolar). Yapılan Ders
+                   tüm-zamanlı gerçek yoklama sayısından (her zaman hesaplanabilir). */
+                <div className="mx-8 h-[48px] bg-base-primary-900 rounded-2xl shrink-0 flex items-center gap-3 px-6 text-[13px] font-medium overflow-x-auto no-scrollbar">
+                  <span className="text-white/60 shrink-0">Toplam Ders:</span>
+                  <span className="font-bold text-white shrink-0">{courseTotalHours !== null ? `${courseTotalHours} saat` : "—"}</span>
+                  <span className="text-white/30 shrink-0">|</span>
+                  <span className="text-white/60 shrink-0">Yapılan Ders:</span>
+                  <span className="font-bold text-white shrink-0">{courseDoneHours} saat</span>
+                  <span className="text-white/30 shrink-0">|</span>
+                  <span className="text-white/60 shrink-0">Kalan Ders:</span>
+                  <span className="font-bold text-white shrink-0">{courseRemainingHours !== null ? `${courseRemainingHours} saat` : "—"}</span>
+                  {schedule.startDate && (
+                    <>
+                      <span className="text-white/30 shrink-0">|</span>
+                      <span className="text-white/60 shrink-0">Başlangıç:</span>
+                      <span className="font-bold text-white shrink-0">
+                        {new Date(`${schedule.startDate}T12:00:00`).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                    </>
+                  )}
+                  {schedule.endDate && (
+                    <>
+                      <span className="text-white/30 shrink-0">|</span>
+                      <span className="text-white/60 shrink-0">Bitim:</span>
+                      <span className="font-bold text-white shrink-0">
+                        {new Date(`${schedule.endDate}T12:00:00`).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                /* Detail mod — canlıdaki "detailed" bloğu (AttendancePanel.tsx satır 1320-1538) BİREBİR portlandı. */
+                <div className="px-8 pt-5 pb-5 border-b border-surface-100 shrink-0">
+                  {onBackToAttend && (
+                    <div className="flex justify-end pb-3">
+                      <button onClick={onBackToAttend} className="flex items-center gap-1 text-[13px] font-semibold text-surface-400 hover:text-surface-600 transition-colors cursor-pointer">
+                        <ChevronLeft size={12} /> Yoklama Al
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-4 items-stretch">
 
-              {/* Lacivert özet bar — Toplam/Kalan Ders `Education.totalHours` doluysa gerçek
-                  (katalogda alan boşsa "—" kalır, sonradan otomatik dolar). Yapılan Ders
-                  tüm-zamanlı gerçek yoklama sayısından (her zaman hesaplanabilir). */}
-              <div className="mx-8 h-[48px] bg-base-primary-900 rounded-2xl shrink-0 flex items-center gap-3 px-6 text-[13px] font-medium overflow-x-auto no-scrollbar">
-                <span className="text-white/60 shrink-0">Toplam Ders:</span>
-                <span className="font-bold text-white shrink-0">{courseTotalHours !== null ? `${courseTotalHours} saat` : "—"}</span>
-                <span className="text-white/30 shrink-0">|</span>
-                <span className="text-white/60 shrink-0">Yapılan Ders:</span>
-                <span className="font-bold text-white shrink-0">{courseDoneHours} saat</span>
-                <span className="text-white/30 shrink-0">|</span>
-                <span className="text-white/60 shrink-0">Kalan Ders:</span>
-                <span className="font-bold text-white shrink-0">{courseRemainingHours !== null ? `${courseRemainingHours} saat` : "—"}</span>
-                {schedule.startDate && (
-                  <>
-                    <span className="text-white/30 shrink-0">|</span>
-                    <span className="text-white/60 shrink-0">Başlangıç:</span>
-                    <span className="font-bold text-white shrink-0">
-                      {new Date(`${schedule.startDate}T12:00:00`).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
-                    </span>
-                  </>
-                )}
-                {schedule.endDate && (
-                  <>
-                    <span className="text-white/30 shrink-0">|</span>
-                    <span className="text-white/60 shrink-0">Bitim:</span>
-                    <span className="font-bold text-white shrink-0">
-                      {new Date(`${schedule.endDate}T12:00:00`).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
-                    </span>
-                  </>
-                )}
-              </div>
+                    {/* ── SOL: grup bilgi kartı üstte, 3 stat kartı altta ── */}
+                    <div className="flex-1 flex flex-col gap-3 min-w-0">
+                      <div className="border border-surface-200 rounded-2xl px-5 pt-3 pb-4 bg-white">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-3 h-3 rounded-full bg-status-success-500 shrink-0" />
+                            <span className="text-[16px] 2xl:text-[19px] font-bold text-text-primary truncate">{selectedGroup?.code}</span>
+                            {sessionHours > 0 && (
+                              <span className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder bg-surface-100 px-2 py-0.5 rounded-full shrink-0">
+                                {sessionHours} saat/ders
+                              </span>
+                            )}
+                          </div>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-base-primary-100 text-[11px] 2xl:text-[13px] font-bold text-base-primary-500 shrink-0">
+                            <Clock size={10} />
+                            {formatMonthDisplay(selectedDate)}
+                          </span>
+                        </div>
+                        {(schedule.startDate || scheduleEndDateObj) && (
+                          <div className="flex items-center gap-3 mt-2.5 text-[12px] 2xl:text-[14px] text-text-placeholder">
+                            {schedule.startDate && (
+                              <span>
+                                Başlangıç Tarihi:{" "}
+                                <span className="font-semibold text-text-secondary">
+                                  {new Date(schedule.startDate + "T12:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
+                                </span>
+                              </span>
+                            )}
+                            {schedule.startDate && scheduleEndDateObj && <span className="text-surface-300">|</span>}
+                            {scheduleEndDateObj && (
+                              <span>
+                                Tahmini Bitiş:{" "}
+                                <span className="font-semibold text-text-secondary">
+                                  {scheduleEndDateObj.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
+                                </span>
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 3 istatistik kartı */}
+                      <div className="flex gap-3 flex-1">
+                        {monthPlannedCount > 0 ? (
+                          <>
+                            <div className="flex-1 border border-surface-200 rounded-2xl px-6 pt-6 pb-2 2xl:pb-3 flex flex-col gap-1 2xl:gap-1.5 bg-white">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-[8px] bg-base-primary-100 flex items-center justify-center shrink-0">
+                                  <Timer size={15} className="text-base-primary-500 2xl:hidden" />
+                                  <Timer size={18} className="text-base-primary-500 hidden 2xl:block" />
+                                </div>
+                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                  {monthPlannedCount * sessionHours}
+                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                </p>
+                              </div>
+                              <p className="text-[14px] 2xl:text-[15px] text-text-secondary leading-snug">Bu Ay Planlanan Toplam Ders</p>
+                              <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{monthPlannedCount} gün</p>
+                            </div>
+                            <div className="flex-1 border border-surface-200 rounded-2xl px-6 pt-6 pb-2 2xl:pb-3 flex flex-col gap-1 2xl:gap-1.5 bg-white">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-[8px] bg-status-success-50 flex items-center justify-center shrink-0">
+                                  <CheckCheck size={15} className="text-status-success-600 2xl:hidden" />
+                                  <CheckCheck size={18} className="text-status-success-600 hidden 2xl:block" />
+                                </div>
+                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                  {monthDoneCount * sessionHours}
+                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                </p>
+                              </div>
+                              <p className="text-[14px] 2xl:text-[15px] text-text-secondary leading-snug">Bu Ay Yapılan Toplam Ders</p>
+                              <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{monthDoneCount} gün</p>
+                            </div>
+                            <div className="flex-1 border border-surface-200 rounded-2xl px-6 pt-6 pb-2 2xl:pb-3 flex flex-col gap-1 2xl:gap-1.5 bg-white">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-[8px] bg-amber-100 flex items-center justify-center shrink-0">
+                                  <CalendarClock size={15} className="text-amber-600 2xl:hidden" />
+                                  <CalendarClock size={18} className="text-amber-600 hidden 2xl:block" />
+                                </div>
+                                <p className="text-[22px] 2xl:text-[30px] font-bold text-text-primary leading-none">
+                                  {monthRemainingCount * sessionHours}
+                                  <span className="text-[12px] 2xl:text-[14px] font-normal text-text-placeholder ml-1">saat</span>
+                                </p>
+                              </div>
+                              <p className="text-[14px] 2xl:text-[15px] text-text-secondary leading-snug">Kalan Toplam Ders</p>
+                              <p className="text-[11px] 2xl:text-[13px] font-semibold text-text-placeholder">{monthRemainingCount} gün</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex-1 border border-surface-200 rounded-2xl px-4 py-4 bg-white">
+                            <p className="text-[13px] 2xl:text-[15px] font-bold text-text-primary">
+                              {selectedWeekDays.length === 0 ? "Esnek Seans" : "Gün bilgisi yok"}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ── SAĞ: donut kartı ── */}
+                    {courseTotalHours !== null && (
+                      <div className="w-[280px] 2xl:w-[320px] shrink-0 border border-surface-200 rounded-2xl px-5 pt-5 pb-3 flex flex-col items-center gap-2 bg-white">
+                        <div key={selectedGroupId ?? "none"} className="relative shrink-0" style={{ width: 130, height: 130 }}>
+                          <svg width="130" height="130" viewBox="0 0 164 164" style={{ display: "block" }}>
+                            <defs>
+                              <linearGradient id="fxDonutArcGrad" x1="0" y1="0" x2="164" y2="164" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stopColor={courseProgressPct === 100 ? "#006B2B" : "#1a4f9e"} />
+                                <stop offset="100%" stopColor={courseProgressPct === 100 ? "#4FA3A5" : "#92b6e8"} />
+                              </linearGradient>
+                            </defs>
+                            <circle cx="82" cy="82" r="58" fill="none" stroke="#ddeaf8" strokeWidth="24" />
+                            {courseProgressPct > 0 && (
+                              <g transform="rotate(-90 82 82)">
+                                <circle
+                                  cx="82" cy="82" r="58" fill="none"
+                                  stroke="url(#fxDonutArcGrad)" strokeWidth="24" strokeLinecap="round"
+                                  strokeDasharray={2 * Math.PI * 58}
+                                  strokeDashoffset={2 * Math.PI * 58 * (1 - courseProgressPct / 100)}
+                                  style={{ transition: "stroke-dashoffset .5s ease-out" }}
+                                />
+                              </g>
+                            )}
+                          </svg>
+                          <div className="pointer-events-none flex flex-col items-center" style={{ position: "absolute", top: 68, left: 65, transform: "translate(-50%, -50%)", gap: 3 }}>
+                            <span className="text-[24px] font-bold text-base-primary-700 leading-none">{courseDoneHours}</span>
+                            <span className="text-[12px] text-base-primary-700 leading-none">saat</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 w-full text-[11px] 2xl:text-[12px]">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-base-primary-400 shrink-0" />
+                              <span className="text-text-placeholder">Toplam Ders</span>
+                            </div>
+                            <span className="font-bold text-text-primary pl-3.5">{courseTotalHours} saat</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-status-success-500 shrink-0" />
+                              <span className="text-text-placeholder">Yapılan Ders</span>
+                            </div>
+                            <span className="font-bold text-text-primary pl-3.5">{courseDoneHours} saat</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                              <span className="text-text-placeholder">Kalan Ders</span>
+                            </div>
+                            <span className="font-bold text-text-primary pl-3.5">{courseRemainingHours} saat</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+                              <span className="text-text-placeholder">İptal Edilen</span>
+                            </div>
+                            <span className={`font-bold pl-3.5 ${monthCancelledCount > 0 ? "text-red-500" : "text-text-primary"}`}>
+                              {monthCancelledCount * sessionHours} saat
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="px-8 py-4 2xl:py-5">
                 <div className="flex flex-col bg-white rounded-2xl border border-surface-200 relative">
