@@ -116,6 +116,29 @@ Kullanıcı `Cmd+Shift+M`'i test ederken fark etti: Core moda geçince yetkisi h
 
 **✅ "Yanlış sayfada kalma" sorunu → geçici Ana Sayfa'larla çözüldü (aynı gün, devam):** Kullanıcı test ederken iki gerçek UX sorunu bulundu: (1) Kullanıcılar sayfasındayken eğitmen moduna geçince sayfa `role.manage` isteyen veri çekmeye devam edip 403+çirkin "fetch failed" hatası veriyordu; (2) Öğrenciler (Havuz) sayfasındayken mod değişince sayfa aynı URL'de kalıyor, dışarı çıkıp geri girene kadar düzelmiyordu. **Kök neden:** `persistModeAndReload` sadece `window.location.reload()` yapıyordu — mod değişse de kullanıcı capability'si olmayan bir sayfada kalabiliyordu. **Çözüm:** iki geçici (içi boş) placeholder sayfa eklendi — `/flexos/anasayfa` (admin/Full) ve `/flexos/egitmen-anasayfa` (eğitmen/Core), ikisi de hiçbir capability-gated veri çekmiyor (asla 403 vermez, sadece auth ister). `persistModeAndReload` artık `reload()` yerine ilgili moda uygun ana sayfaya **navigate** ediyor (`window.location.href`) — bu hem UX sorununu çözüyor hem de yeni URL'e gidildiği için önceki tüm cache/staleness sınıfı sorunları da bypass ediyor (aynı URL'e tekrar istek değil, hiç yapılmamış taze istek). Sidebar'daki "Ana Sayfa" linki de artık işlevsel (`role.manage` varsa admin ana sayfa, yoksa eğitmen ana sayfa) — eskiden "yakında" toast'ı gösteriyordu. **Ürün kararı (kullanıcı):** owner Core'a geçince bilerek EĞİTMENİN ana sayfasını görüyor (kendi admin ana sayfasını değil) — "eğitmenin dashboard'unu deneyimlemek istiyorum" niyetiyle. Satış/Operasyon için ayrı dashboard'lar ileride ayrı iş kalemi. `tsc`+ESLint temiz, `npm run build` başarılı (`/flexos/anasayfa` + `/flexos/egitmen-anasayfa` derlendi). **Test edilmeyen:** tarayıcıda doğrulanmadı, sıradaki oturumda kontrol edilmeli.
 
+### 📋 Yoklama v2 + Finans Modülü — Kararlar (2026-07-02, henüz kod YAZILMADI)
+
+> Kullanıcı Claude Design'da dashboard tasarımı yaptırıyor; paralelde "önce dashboard mı, önce modül taşıma mı" tartışıldı. **Karar: dashboard blocker değil** — dashboard altındaki modüllerin (yoklama/ödev/sertifika) verisini özetler, modüller yokken dashboard'a gerçek içerik konamaz. Sıra: **önce yoklama backend'i**, dashboard paralelde tasarlanabilir ama modül verisine bağlanması en sona kalır.
+
+**Canlıdaki yoklama altyapısı değerlendirmesi (kod+log incelendi):** `AttendancePanel.tsx` (2001 satır) + `attendance-report/page.tsx` (1017 satır) + cron (`auto-close-attendance`). Son kod dokunuşu 2026-06-12 (`957f06b`), o zamandan beri stabil. İş kuralları OLGUN ve defalarca bug-fix'lenmiş (3 gün düzenleme penceresi, 6 saat auto-close, zaman kilidi admin muafiyeti, race condition fix'leri, banner durumları, takvim min/max) — **bunlar yeniden yazılmayacak, referans alınıp portlanacak.** Veri modeli (`design_attendance/{groupId}_{tarih}`, eski `groups`/`students`'a bağlı) taşınamaz — `flexos_attendance` + `Enrollment`/`flexos_groups` üstünde sıfırdan kurulacak (kaçınılmaz, yeni mimari).
+
+**Kullanıcı kararları — yoklama v2 kuralları:**
+- **UI aynen taşınır, TEK fark: avatar.** Görsel/illüstrasyon avatar YOK → kurumsal standart **daire + baş harf (gradient)** ([[avatar-stili]] ile aynı kural).
+- **Görünürlük üç ayrı sayfa/kitle:**
+  - **Yoklama Al + Yoklama Detay** → eğitmen görür, kendi grubunda **3 gün içinde düzenleyebilir** (canlıdaki `withinEditWindow` mantığı aynen).
+  - **Yoklama Raporu** → **eğitmende YOK.** Sadece **Eğitim Op** (sınıf durumu + kaç saat yoklama alındı takibi; eğitmenin yetkisi olmayan girişi eğitmen talebiyle yapar/düzenler) ve **Finans** (ay sonu hakediş = yoklama saati × `Trainer.hourlyRate`, zaten `flexos_trainers`'ta var).
+- **Veri modeli — en kritik kural:** Person tek kimlik (hem müşteri hem öğrenci); ödeme/enrollment/yoklama arkada ayrı tutulur ama **Öğrenci Kartı'nda TEK ekranda birleşir** (yoklama dahil). [[project-student-card-hub]]'daki Enrollment-bazlı sekme modeliyle (eğitim seçici → alt sekmeler) birebir örtüşüyor — yoklama o sekmelerden biri olacak.
+- **İleride (şimdi kapsam dışı, vizyon notu):** Sistem devamsızlık paternini otomatik tespit edip Eğitim Op'u uyaracak ("bu öğrenci bir süredir gelmiyor"). Backend tasarımı buna kapıyı kapatmayacak (entry'ler tarih+durum bazlı sorgulanabilir kalacak) ama şimdi inşa edilmeyecek.
+
+**Finans — YENİ 5. capability paketi (KARAR):** `satis|operasyon|egitmen|admin` → **+`finans`**. Gerekçe: Op'tan ayrı iş/kişi, finansal veri (hakediş/ödeme durumu) Op'a gereksiz sızmasın; paket eklemek mimari olarak ucuz (sadece registry+grant listesi). **Kapsam (kullanıcı):**
+1. Ay sonu eğitmen hakediş hesabı (yoklama saati × `hourlyRate`).
+2. Tahsilat takibi — ödemesi geciken/yaklaşan öğrencileri görür (zaten [[fatura-billing-modeli]]'nde tanımlıydı).
+3. "Ödeme alındı" işaretleme (tık).
+4. Ödeme hiç gelmezse **Eğitim Op'a bilgi verir.**
+5. Gerekirse öğrenciyi **manuel beklemeye alır** — YENİ bir otomasyon değil, [[project-status-model]]'deki mevcut "askıya alma manuel" mekanizmasının finans tarafından da tetiklenebilir hale gelmesi.
+
+**Durum:** Sadece karar/spec — hiç kod yazılmadı. Detaylı not: Claude memory `project_attendance_v2_rules.md`. **SIRADAKİ İŞ (onay bekleniyor):** yoklama backend'i (`flexos_attendance` koleksiyonu + servis + capability + route'lar) + `finans` paketinin temel iskeleti.
+
 ---
 
 - [x] Mimari 4 dosyadan tek `FLEXOS.md`'ye birleştirildi (2026-06-15)
