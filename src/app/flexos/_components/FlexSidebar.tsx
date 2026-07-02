@@ -124,7 +124,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       // GEÇİCİ TEŞHİS LOGU (2026-07-02) — kısayol "hiç hareket yok" raporlandı,
       // tuş olayı tarayıcıya ulaşıyor mu / canToggleView doğru mu ayırt etmek için.
       if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
-        console.log("[view-toggle] keydown yakalandı:", { key: e.key, canToggleView, uid, mode });
+        console.log(`[view-toggle] key=${e.key} canToggleView=${canToggleView} uid=${uid} mode=${mode} capsSize=${caps.size}`);
       }
       if (!canToggleView) return;
       if (!((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "k")) return;
@@ -139,7 +139,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [canToggleView, mode, uid]);
+  }, [canToggleView, mode, uid, caps]);
 
   const onPinVerified = () => {
     if (uid) setViewMode(uid, "full");
