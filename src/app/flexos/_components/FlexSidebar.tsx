@@ -270,8 +270,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
-        {/* Core: eğitmenin günlük işi. */}
-        {canSee("grade.write", true) && <Item icon={IC.calendar} label="Yoklamalar" onClick={go(null)} />}
+        {/* Core: eğitmenin günlük işi. Yoklamalar YENİ SEKMEDE açılır (2026-07-02 kararı —
+            ders başladıktan sonra yanlışlıkla başka sayfaya geçip yarım bırakmasın). */}
+        {canSee("attendance.write", true) && <Item icon={IC.calendar} label="Yoklamalar" onClick={() => window.open("/flexos/yoklama/al", "_blank")} />}
         {canSee("grade.finalize", true) && <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />}
       </nav>
 

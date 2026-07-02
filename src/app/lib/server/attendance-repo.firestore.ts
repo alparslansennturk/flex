@@ -46,4 +46,8 @@ export const firestoreAttendanceRepo: AttendanceRepo = {
     const snap = await adminDb.collection(COLLECTION).where("tenantId", "==", tenantId).get();
     return snap.docs.map((d) => d.data() as Attendance);
   },
+
+  async delete(id) {
+    await adminDb.collection(COLLECTION).doc(id).delete();
+  },
 };

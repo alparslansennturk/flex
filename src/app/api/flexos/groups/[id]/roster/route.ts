@@ -45,6 +45,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
           name: p ? `${p.firstName} ${p.lastName}` : e.personId,
           email: allowPII ? (p?.pii?.email ?? "") : "",
           phone: allowPII ? (p?.pii?.phone ?? "") : "",
+          isOnlineStudent: p?.isOnlineStudent ?? false,
           assignedAt: e.createdAt,
         };
       })

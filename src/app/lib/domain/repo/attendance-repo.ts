@@ -12,4 +12,6 @@ export interface AttendanceRepo {
   listByGroup(groupId: string, tenantId: string, month?: string): Promise<Attendance[]>;
   /** Kiracının TÜM kayıtları — Yoklama Raporu (Op/Finans) için. */
   list(tenantId: string): Promise<Attendance[]>;
+  /** Kaydı sil ("İptal" — Dersi Başlat'ı geri alma, sadece kapatılmamış kayıtlarda). */
+  delete(id: string, tenantId: string): Promise<void>;
 }

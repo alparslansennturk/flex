@@ -145,3 +145,30 @@ export async function saveAttendance(
   await deps.attendance.save(updated);
   return updated;
 }
+
+/**
+ * Yoklama kaydını SİL — gated `attendance.write`. Sadece kapatılmamış (`attendanceClosed:
+ * false`) kayıtlarda çalışır ("İptal"/"Temizle" — Dersi Başlat'ı geri alma). Kapatılmış
+ * kayıt hiç silinemez (canlıdaki `handleClear` güvencesi aynen — kapalıysa sadece yerel
+ * state sıfırlanır, silme UI'da hiç tetiklenmez).
+ */
+export async function deleteAttendance(
+  actor: Actor,
+  input: { groupId: EntityId; date: string },
+  deps: AttendanceDeps,
+): Promise<void> {
+  const group = await deps.groups.getById(input.groupId, actor.tenantId);
+  if (!group) throw new ValidationError("Grup bulunamadı.");
+
+  if (!can(actor, "attendance.write", { groupId: input.groupId, ownerUid: group.trainerId })) {
+    throw new ForbiddenError("attendance.write");
+  }
+
+  const existing = await deps.attendance.getByGroupAndDate(input.groupId, input.date, actor.tenantId);
+  if (!existing) return; // zaten yok — no-op
+  if (existing.attendanceClosed) {
+    throw new ValidationError("Kapatılmış yoklama silinemez.");
+  }
+
+  await deps.attendance.delete(existing.id, actor.tenantId);
+}

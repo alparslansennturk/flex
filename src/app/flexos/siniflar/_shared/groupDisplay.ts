@@ -44,6 +44,7 @@ export interface RosterItem {
   name: string;
   email: string;
   phone: string;
+  isOnlineStudent: boolean;
   assignedAt: string;
 }
 

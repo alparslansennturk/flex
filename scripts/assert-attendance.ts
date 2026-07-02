@@ -4,7 +4,7 @@
  */
 import { resolvePackages } from "../src/app/lib/domain/access/packages";
 import { hasCapability } from "../src/app/lib/domain/access/can";
-import { startLesson, saveAttendance, isWithinEditWindow } from "../src/app/lib/domain/services/attendance-service";
+import { startLesson, saveAttendance, deleteAttendance, isWithinEditWindow } from "../src/app/lib/domain/services/attendance-service";
 import type { Actor } from "../src/app/lib/domain/access/types";
 import type { Group } from "../src/app/lib/domain/core/group";
 import type { Attendance } from "../src/app/lib/domain/core/attendance";
@@ -44,6 +44,7 @@ function makeAttendanceRepo(records: Attendance[] = []): AttendanceRepo {
       return [...map.values()].filter((r) => r.tenantId === tid && r.groupId === gid && (!month || r.month === month));
     },
     async list(tid) { return [...map.values()].filter((r) => r.tenantId === tid); },
+    async delete(id) { map.delete(id); },
   };
 }
 
@@ -231,6 +232,40 @@ async function main() {
     await assertRejects(
       "Negatif saat girişi reddedilir — ValidationError",
       () => saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: -1 } } }, { groups, attendance }),
+      ValidationError,
+    );
+  }
+
+  // ── deleteAttendance: "İptal" — kapatılmamış kaydı siler ──
+  {
+    const group = makeGroup({ trainerId: "trainer-1" });
+    const groups = makeGroupRepo([group]);
+    const date = todayStr();
+    const existing: Attendance = {
+      id: `${group.id}_${date}`, tenantId: TENANT, groupId: group.id, date, month: date.slice(0, 7),
+      trainerId: "trainer-1", sessionHours: 3, entries: {}, attendanceClosed: false,
+      createdAt: new Date().toISOString(), createdBy: "trainer-1",
+    };
+    const attendance = makeAttendanceRepo([existing]);
+    await deleteAttendance(trainer1, { groupId: group.id, date }, { groups, attendance });
+    const after = await attendance.getByGroupAndDate(group.id, date, TENANT);
+    assert("deleteAttendance: kapatılmamış kayıt silinir", after === null);
+  }
+
+  // ── deleteAttendance: kapatılmış kayıt silinemez ──
+  {
+    const group = makeGroup({ trainerId: "trainer-1" });
+    const groups = makeGroupRepo([group]);
+    const date = todayStr();
+    const existing: Attendance = {
+      id: `${group.id}_${date}`, tenantId: TENANT, groupId: group.id, date, month: date.slice(0, 7),
+      trainerId: "trainer-1", sessionHours: 3, entries: {}, attendanceClosed: true,
+      createdAt: new Date().toISOString(), createdBy: "trainer-1",
+    };
+    const attendance = makeAttendanceRepo([existing]);
+    await assertRejects(
+      "deleteAttendance: kapatılmış kayıt silinemez — ValidationError",
+      () => deleteAttendance(trainer1, { groupId: group.id, date }, { groups, attendance }),
       ValidationError,
     );
   }

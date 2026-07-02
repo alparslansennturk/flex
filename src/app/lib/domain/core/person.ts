@@ -46,4 +46,11 @@ export interface Person extends Audit {
   consentKVKK: boolean;
 
   authUid?: string; // öğrenci portalı için (varsa)
+
+  /**
+   * Kalıcı online öğrenci mi (uzaktan eğitim kaydı) — yoklamada online işareti
+   * varsayılan olarak bundan gelir. Yüz-yüze öğrencinin o dersi online katılması
+   * AYRI bir şey — `Attendance.entries[personId].online` ile o gün manuel işaretlenir.
+   */
+  isOnlineStudent?: boolean;
 }

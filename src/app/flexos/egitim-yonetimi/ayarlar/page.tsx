@@ -42,7 +42,7 @@ export default function EgitimAyarlariPage() {
 
   const cards: SettingCard[] = [
     { key: "brans", title: "Branş Havuzu", desc: "Eğitimlerin üst kategorileri (Grafik Tasarım, Yazılım…). Eğitim Ekle dropdown'ı buradan beslenir.", icon: IC.branch, to: "/flexos/egitim-yonetimi/branslar", accent: { color: "#4338ca", background: "#e6e9ff" } },
-    { key: "tatil", title: "Senelik Tatiller", desc: "Resmî tatil ve kurum tatil günleri — ders/grup takvimleri bunları atlar.", icon: IC.calendar, to: null, accent: { color: "#c2410c", background: "#ffedd5" } },
+    { key: "tatil", title: "Senelik Tatiller", desc: "Resmî tatil ve kurum tatil günleri — ders/grup takvimleri bunları atlar.", icon: IC.calendar, to: "/flexos/egitim-yonetimi/ayarlar/tatil", accent: { color: "#c2410c", background: "#ffedd5" } },
     { key: "sertifika", title: "Sertifika Ayarları", desc: "Sertifika kural ve şablonları (başarı/katılım barajları, belge tasarımı).", icon: IC.award, to: null, accent: { color: "#15803d", background: "#dcfce7" } },
     { key: "seans", title: "Seans Yönetimi", desc: "Grup açarken seçilebilecek seans kalıpları (gün + saat aralığı).", icon: IC.clock, to: "/flexos/egitim-yonetimi/seanslar", accent: { color: "#7c3aed", background: "#ede9fe" } },
     { key: "sozlesme", title: "Sözleşme Şablonları", desc: "Mesafeli satış, kurumsal hizmet vb. sözleşme metinleri.", icon: IC.file, to: null, accent: { color: "#0369a1", background: "#e0f2fe" } },

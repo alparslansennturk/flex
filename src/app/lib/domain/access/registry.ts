@@ -60,6 +60,9 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "attendance.read", domain: "attendance", label: "Yoklama Gör", sensitivity: "green", write: false, scopable: true, audited: false },
   { key: "attendance.report.read", domain: "attendance", label: "Yoklama Raporu (Eğitim Op + Finans)", sensitivity: "yellow", write: false, scopable: false, audited: true },
 
+  // ── holiday (Senelik Tatiller — Eğitim Ayarları) ──
+  { key: "holiday.manage", domain: "catalog", label: "Tatil Ekle/Düzenle/Sil", sensitivity: "yellow", write: true, scopable: false, audited: true },
+
   // ── catalog (Branş/Eğitim/Bölüm/Track — Eğitim Op) ──
   { key: "branch.create", domain: "catalog", label: "Branş Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "education.create", domain: "catalog", label: "Eğitim Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
