@@ -137,7 +137,17 @@ Kullanıcı `Cmd+Shift+M`'i test ederken fark etti: Core moda geçince yetkisi h
 4. Ödeme hiç gelmezse **Eğitim Op'a bilgi verir.**
 5. Gerekirse öğrenciyi **manuel beklemeye alır** — YENİ bir otomasyon değil, [[project-status-model]]'deki mevcut "askıya alma manuel" mekanizmasının finans tarafından da tetiklenebilir hale gelmesi.
 
-**Durum:** Sadece karar/spec — hiç kod yazılmadı. Detaylı not: Claude memory `project_attendance_v2_rules.md`. **SIRADAKİ İŞ (onay bekleniyor):** yoklama backend'i (`flexos_attendance` koleksiyonu + servis + capability + route'lar) + `finans` paketinin temel iskeleti.
+**✅ Yoklama backend BİTTİ (2026-07-02, aynı gün devam):** `domain/core/attendance.ts` (`Attendance`: `id="{groupId}_{date}"`, `entries: Record<personId, {hours, online?}>`, `attendanceClosed`) + `domain/repo/attendance-repo.ts` (port) + `server/attendance-repo.firestore.ts` (`flexos_attendance` koleksiyonu) + `domain/services/attendance-service.ts`:
+- `startLesson(actor, {groupId, date}, deps)` — gated `attendance.write`; grubun ders günü (`schedule.days`) + tarih aralığı (`startDate`/`endDate`) doğrular; mevcut kaydın üzerine ASLA yazmaz (canlıdaki `handleStartLesson` güvencesi).
+- `saveAttendance(actor, {groupId, date, entries, close?}, deps)` — gated; **org-scope aktör (Op/Finans/Admin) 3 gün penceresini HER ZAMAN bypass eder** (`widestScope(actor,"attendance.write")==="org"`, canlıdaki "admin/yönetici muafiyeti" ile birebir ama capability-driven, `if(role===x)` yok); assigned-scope (standart eğitmen) sadece kendi grubunda ve `isWithinEditWindow(date)` (3 gün, `date`'ten hesaplanır — `closedAt`'tan DEĞİL, canlı kuralı aynen) içinde.
+- 3 yeni capability: `attendance.write` (yazma/scope'lu), `attendance.read` (okuma/scope'lu), `attendance.report.read` (yellow+audited, scopable:false — Yoklama Raporu).
+- **Paket dağılımı (2026-07-02 kararına birebir):** `egitmen` → `attendance.write`+`attendance.read` (assigned) SADECE — `attendance.report.read` BİLEREK YOK (Yoklama Raporu eğitmende hiç görünmez). `operasyon`+`admin` → üçü de org-scope. **YENİ 5. paket `finans`** (`packages.ts`, `PackageName` genişledi) → `attendance.report.read` + `trainer.rate.read` (hakediş: saat×hourlyRate) + `payment.create/read` + `sale.read` + `person.read` — **`attendance.write` BİLEREK YOK** (Finans tek tek kayıt yazamaz, sadece rapor okur). Not: `person.status.suspend` (manuel beklemeye alma) henüz registry'de yok — Finans'ın bu aksiyonu ileride netleşecek (billing modülü işi, şimdi kapsam dışı).
+- Route'lar: `POST /api/flexos/attendance` (başlat), `GET /api/flexos/attendance?groupId=&date=` (tek kayıt+`withinEditWindow` bayrağı) veya `?groupId=&month=` (liste), `PATCH /api/flexos/attendance/[id]` (kaydet/kapat/yeniden aç — body `{groupId,date,entries,close?}`, id gövdeyle uyuşmazsa 400), `GET /api/flexos/attendance/report` (Op+Finans+Admin, gated `attendance.report.read`, groupId/trainerId/month filtreli, join'li — hakediş HESAPLAMASI burada YOK, sadece ham+join'li veri).
+- Firestore rules: `flexos_attendance` server-only.
+- **18 yeni assertion** (`scripts/assert-attendance.ts`) + mevcut 24+15+7+12 regresyonsuz geçti (toplam 76). `tsc`+ESLint temiz, `npm run build` başarılı (3 yeni route derlendi).
+- **HENÜZ YOK (bilerek, sıradaki iş):** UI (Yoklama Al/Detay/Raporu sayfaları — canlıdaki `AttendancePanel.tsx` referans alınıp portlanacak, avatar hariç aynı), auto-close cron (canlıdaki `auto-close-attendance` benzeri — şimdilik `close` manuel), hakediş hesaplama servisi (Finans modülü, saat×hourlyRate), Öğrenci Kartı'na yoklama entegrasyonu ([[project-student-card-hub]]).
+
+**Durum:** Backend bitti, UI YOK. Detaylı not: Claude memory `project_attendance_v2_rules.md`.
 
 ---
 

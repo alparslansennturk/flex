@@ -447,6 +447,10 @@ service cloud.firestore {
     // Seans kalıpları — server-only.
     match /flexos_seanslar/{id} { allow read, write: if false; }
 
+    // Yoklama kayıtları — server-only (Admin SDK). Görünürlük (eğitmen kendi grubu
+    // 3 gün / Op+Finans rapor tüm gruplar) gated service'te (attendance-service.ts).
+    match /flexos_attendance/{id} { allow read, write: if false; }
+
     // Sistem anahtarları (standaloneMode switch vb.) — server-only.
     match /flexos_settings/{id} { allow read, write: if false; }
 

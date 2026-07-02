@@ -5,7 +5,7 @@ import type { Grant, Scope } from "./types";
  * Kodda asla `if (role === "x")` yok — paket grant'lere çözülür, `can()` karar verir.
  * Departman→yetki eşleşmesi kuruma göre değişebilir; bu yüzden burada veri olarak durur.
  */
-export type PackageName = "satis" | "operasyon" | "egitmen" | "admin";
+export type PackageName = "satis" | "operasyon" | "egitmen" | "admin" | "finans";
 
 /** Aynı scope'lu capability listesini grant'lere çevirir (okunabilirlik için). */
 function at(scope: Scope, ...capabilities: string[]): Grant[] {
@@ -26,6 +26,9 @@ const EGITMEN_CORE: Grant[] = at(
   "grade.write",
   "grade.finalize",
   "trainer.read", // kadroyu görür ama ücret (trainer.rate.read) YOK
+  "attendance.write", // Yoklama Al + Yoklama Detay — kendi grubu, 3 gün düzenleme (assigned scope)
+  "attendance.read",
+  // attendance.report.read BİLEREK YOK — Yoklama Raporu eğitmende hiç görünmez (2026-07-02 kararı).
 );
 
 const EGITMEN_STANDALONE_EXTRA: Grant[] = at(
@@ -126,6 +129,11 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "case.edit",
     "activity.read",
     "appointment.read",
+    // Yoklama: org-scope → herhangi bir grubun yoklamasını görür/eğitmen talebiyle
+    // düzenler, 3 günlük pencere bypass (attendance.write org-scope muafiyeti).
+    "attendance.write",
+    "attendance.read",
+    "attendance.report.read",
   ),
 
   // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
@@ -188,6 +196,9 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "trainer.delete",
       "trainer.rate.read",
       "trainer.rate.write",
+      "attendance.write",
+      "attendance.read",
+      "attendance.report.read",
       "role.manage",
       "capability.grant",
       // view.toggle BİLEREK burada yok — paket-seviyeli değil, tekil grant
@@ -201,6 +212,27 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "appointment.read",
     ),
   ],
+
+  // Finans: Op'tan AYRI (2026-07-02 kararı) — ay sonu eğitmen hakediş hesabı +
+  // tahsilat takibi + ödeme işaretleme. Yoklamayı SADECE rapor olarak görür,
+  // tek tek kayıt yazamaz (attendance.write YOK) — hakediş kaynak verisi, giriş değil.
+  // payment.create/read + trainer.rate.read (hourlyRate, hakediş hesabı için) burada
+  // zaten var olan capability'lere bağlanıyor; ödeme hatırlatma/vade takibi ileride
+  // ayrı bir "billing" domain'i açılınca genişler ([[fatura-billing-modeli]]).
+  finans: at(
+    "org",
+    "person.read", // ödeme/hakediş ekranında öğrenci/eğitmen adı için
+    "person.search",
+    "attendance.report.read",
+    "trainer.read",
+    "trainer.rate.read", // hakediş hesabı: yoklama saati × hourlyRate
+    "payment.create",
+    "payment.read",
+    "sale.read",
+    // person.status.suspend henüz registry'de yok — "beklemeye alma" mevcut
+    // enrollment durum akışına (group.assign_student ekseni) bağlı, ayrı capability
+    // gerekirse backend'de netleştirilecek.
+  ),
 };
 
 export interface ResolvePackagesOptions {
