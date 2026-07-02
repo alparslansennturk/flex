@@ -8,4 +8,6 @@ export interface LessonExceptionRepo {
   save(ex: LessonException): Promise<void>;
   getById(id: string, tenantId: string): Promise<LessonException | null>;
   delete(id: string, tenantId: string): Promise<void>;
+  /** Kiracının TÜM istisnaları — Yoklama Raporu (Op/Finans) aggregate için. */
+  list(tenantId: string): Promise<LessonException[]>;
 }

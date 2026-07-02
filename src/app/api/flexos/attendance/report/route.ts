@@ -14,7 +14,8 @@ import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/ca
  * Sınıf durumu takibi (Op) + hakediş kaynak verisi (Finans, yoklama saati × hourlyRate
  * hesabı BURADA YAPILMAZ — Finans modülü ayrı iş, bu uç sadece ham+join'li kayıtları verir).
  *
- * Filtreler: `groupId`, `trainerId`, `month` (YYYY-MM) — hepsi opsiyonel.
+ * Filtreler: `groupId`, `trainerId`, `month` (YYYY-MM) veya `from`/`to` (YYYY-MM-DD
+ * tarih aralığı — Yoklama Raporu'nun çoklu-ay arama çubuğu için) — hepsi opsiyonel.
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
@@ -26,6 +27,8 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const groupIdFilter = req.nextUrl.searchParams.get("groupId") ?? undefined;
   const trainerIdFilter = req.nextUrl.searchParams.get("trainerId") ?? undefined;
   const monthFilter = req.nextUrl.searchParams.get("month") ?? undefined;
+  const fromFilter = req.nextUrl.searchParams.get("from") ?? undefined;
+  const toFilter = req.nextUrl.searchParams.get("to") ?? undefined;
 
   const [records, groups, trainers, educations, branches] = await Promise.all([
     firestoreAttendanceRepo.list(actor.tenantId),
@@ -44,6 +47,8 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
     .filter((r) => !groupIdFilter || r.groupId === groupIdFilter)
     .filter((r) => !trainerIdFilter || r.trainerId === trainerIdFilter)
     .filter((r) => !monthFilter || r.month === monthFilter)
+    .filter((r) => !fromFilter || r.date >= fromFilter)
+    .filter((r) => !toFilter || r.date <= toFilter)
     .map((r) => {
       const group = groupMap.get(r.groupId);
       const edu = group?.educationId ? eduMap.get(group.educationId) : undefined;
@@ -62,6 +67,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
         totalHours,
         studentCount: Object.keys(r.entries).length,
         attendanceClosed: r.attendanceClosed,
+        createdByException: r.createdByException ?? false,
       };
     })
     .sort((a, b) => b.date.localeCompare(a.date));

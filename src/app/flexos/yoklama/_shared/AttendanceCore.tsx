@@ -240,6 +240,8 @@ export interface AttendanceCoreProps {
   mode?: "simple" | "detail";
   autoSelectToday?: boolean;
   preSelectedGroupId?: string;
+  /** Açılışta seçili olacak tarih (YYYY-MM-DD) — Yoklama Raporu'ndan bir güne tıklandığında. */
+  initialDate?: string;
   /** true ise ders saati penceresi (15dk önce–6sa sonra) uygulanır. */
   enforceTimeWindow?: boolean;
   /** Kapatılmış yoklamada düzenleme penceresini aktif eder. */
@@ -252,6 +254,7 @@ export default function AttendanceCore({
   mode = "simple",
   autoSelectToday = false,
   preSelectedGroupId,
+  initialDate,
   enforceTimeWindow = false,
   allowEdit = false,
   onViewDetail,
@@ -265,7 +268,7 @@ export default function AttendanceCore({
   const [branchFilter, setBranchFilter] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [roster, setRoster] = useState<RosterPerson[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => (initialDate ? new Date(`${initialDate}T12:00:00`) : new Date()));
 
   const [entries, setEntries] = useState<Record<string, StudentEntry>>({});
   const [record, setRecord] = useState<AttendanceRecord | null>(null);

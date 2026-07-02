@@ -27,4 +27,9 @@ export const firestoreLessonExceptionRepo: LessonExceptionRepo = {
   async delete(id) {
     await adminDb.collection(COLLECTION).doc(id).delete();
   },
+
+  async list(tenantId) {
+    const snap = await adminDb.collection(COLLECTION).where("tenantId", "==", tenantId).get();
+    return snap.docs.map((d) => d.data() as LessonException);
+  },
 };

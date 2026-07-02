@@ -37,6 +37,8 @@ export type FlexNavKey =
   | "aktiviteler"
   | "randevu-takvimi"
   | "yoklamalar"
+  | "yoklama-al"
+  | "yoklama-detay"
   | "yoklama-raporu"
   | "sertifikasyon";
 
@@ -53,6 +55,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const aktiviteActive = active === "aktivite-merkezi" || active === "aktiviteler" || active === "randevu-takvimi";
   const [aktiviteOpen, setAktiviteOpen] = useState(aktiviteActive);
+
+  const yoklamaActive = active === "yoklamalar" || active === "yoklama-al" || active === "yoklama-detay" || active === "yoklama-raporu";
+  const [yoklamaOpen, setYoklamaOpen] = useState(yoklamaActive);
 
   // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
   // Capability listesi yüklenene kadar boş küme = kapılı öğeler geçici gizli (kozmetik flaş yok).
@@ -236,9 +241,6 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
         {/* Enterprise: sadece Full. */}
         {canSee("trainer.read", false) && <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />}
-        {/* Yoklama Raporu — Eğitim Op + Finans + Admin. Eğitmende BİLEREK YOK
-            (attendance.report.read eğitmen paketinde hiç yok, 2026-07-02 kararı). */}
-        {canSee("attendance.report.read", false) && <Item icon={IC.barChart} label="Yoklama Raporu" active={active === "yoklama-raporu"} onClick={go("/flexos/yoklama/rapor")} />}
         {canSee("role.manage", false) && <Item icon={IC.shield} label="Kullanıcılar" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />}
 
         {/* Aktivite Merkezi — akordiyon. Enterprise: sadece Full. */}
@@ -274,9 +276,43 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
-        {/* Core: eğitmenin günlük işi. Yoklamalar YENİ SEKMEDE açılır (2026-07-02 kararı —
-            ders başladıktan sonra yanlışlıkla başka sayfaya geçip yarım bırakmasın). */}
-        {canSee("attendance.write", true) && <Item icon={IC.calendar} label="Yoklamalar" onClick={() => window.open("/flexos/yoklama/al", "_blank")} />}
+        {/* Yoklamalar — akordiyon: Yoklama Al + Yoklama Detay (attendance.write, eğitmen
+            dahil Core'da da her zaman) + Yoklama Raporu (attendance.report.read, SADECE
+            Op/Finans/Admin — eğitmende BİLEREK YOK, 2026-07-02 kararı). Al/Detay YENİ
+            SEKMEDE açılır (ders başladıktan sonra yanlışlıkla başka sayfaya geçip yarım
+            bırakmasın); Rapor normal navigasyon (yönetim sayfası, FlexSidebar'lı). */}
+        {(canSee("attendance.write", true) || canSee("attendance.report.read", false)) && (
+          <>
+            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={() => setYoklamaOpen((o) => !o)}>
+              <span style={{ display: "inline-flex", color: yoklamaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.calendar }} />
+              <span style={{ flex: 1 }}>Yoklamalar</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: yoklamaOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {yoklamaOpen && (
+                <motion.div
+                  key="yoklama-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    {canSee("attendance.write", true) && <SubItem label="Yoklama Al" active={active === "yoklama-al"} onClick={() => window.open("/flexos/yoklama/al", "_blank")} />}
+                    {canSee("attendance.write", true) && <SubItem label="Yoklama Detay" active={active === "yoklama-detay"} onClick={() => window.open("/flexos/yoklama/detay", "_blank")} />}
+                    {canSee("attendance.report.read", false) && <SubItem label="Yoklama Raporu" active={active === "yoklama-raporu"} onClick={go("/flexos/yoklama/rapor")} />}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
         {canSee("grade.finalize", true) && <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />}
       </nav>
 

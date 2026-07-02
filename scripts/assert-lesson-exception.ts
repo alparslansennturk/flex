@@ -70,6 +70,7 @@ function makeExceptionRepo(items: LessonException[] = []): LessonExceptionRepo {
     async save(e) { map.set(e.id, { ...e }); },
     async getById(id, tid) { const e = map.get(id); return e && e.tenantId === tid ? e : null; },
     async delete(id) { map.delete(id); },
+    async list(tid) { return [...map.values()].filter((e) => e.tenantId === tid); },
   };
 }
 
