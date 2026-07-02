@@ -147,6 +147,8 @@ Kullanıcı `Cmd+Shift+M`'i test ederken fark etti: Core moda geçince yetkisi h
 - **18 yeni assertion** (`scripts/assert-attendance.ts`) + mevcut 24+15+7+12 regresyonsuz geçti (toplam 76). `tsc`+ESLint temiz, `npm run build` başarılı (3 yeni route derlendi).
 - **HENÜZ YOK (bilerek, sıradaki iş):** UI (Yoklama Al/Detay/Raporu sayfaları — canlıdaki `AttendancePanel.tsx` referans alınıp portlanacak, avatar hariç aynı), auto-close cron (canlıdaki `auto-close-attendance` benzeri — şimdilik `close` manuel), hakediş hesaplama servisi (Finans modülü, saat×hourlyRate), Öğrenci Kartı'na yoklama entegrasyonu ([[project-student-card-hub]]).
 
+**🔧 Netleştirme (2026-07-02, aynı gün devam):** "Yoklama Raporu eğitmende YOK" kuralı **SADECE Full sistem için**. **Core (standalone) modda eğitmenin Yoklama Raporu görüp göremeyeceği HENÜZ KARARLAŞTIRILMADI** — ileride ayrıca karara bağlanacak. Core'da yoklamanın amacı farklı: eğitmen **kendi aylık/senelik ders saati toplamını** görsün ("bu ay/bu sene kaç saat ders verdim") — Op/Finans'ın çapraz-grup `attendance.report.read` raporundan AYRI, kişisel bir özet ihtiyacı. Muhtemelen eğitmenin zaten sahip olduğu `attendance.read` (kendi grupları) üzerinden, `attendance.report.read` açmadan karşılanabilir — henüz endpoint/UI yok, UI aşamasında karar verilecek.
+
 **Durum:** Backend bitti, UI YOK. Detaylı not: Claude memory `project_attendance_v2_rules.md`.
 
 ---
