@@ -282,9 +282,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
         {/* Yoklamalar — akordiyon: Yoklama Al + Yoklama Detay (attendance.write, eğitmen
             dahil Core'da da her zaman) + Yoklama Raporu (attendance.report.read, SADECE
-            Op/Finans/Admin — eğitmende BİLEREK YOK, 2026-07-02 kararı). Al/Detay YENİ
-            SEKMEDE açılır (ders başladıktan sonra yanlışlıkla başka sayfaya geçip yarım
-            bırakmasın); Rapor normal navigasyon (yönetim sayfası, FlexSidebar'lı). */}
+            Op/Finans/Admin — eğitmende BİLEREK YOK, 2026-07-02 kararı). SADECE Yoklama Al
+            YENİ SEKMEDE açılır (ders başladıktan sonra yanlışlıkla başka sayfaya geçip
+            yarım bırakmasın); Detay + Rapor normal navigasyon (2026-07-02 düzeltmesi). */}
         {(canSee("attendance.write", true) || canSee("attendance.report.read", false)) && (
           <>
             <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={() => setYoklamaOpen((o) => !o)}>
@@ -309,7 +309,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                     {canSee("attendance.write", true) && <SubItem label="Yoklama Al" active={active === "yoklama-al"} onClick={() => window.open("/flexos/yoklama/al", "_blank")} />}
-                    {canSee("attendance.write", true) && <SubItem label="Yoklama Detay" active={active === "yoklama-detay"} onClick={() => window.open("/flexos/yoklama/detay", "_blank")} />}
+                    {canSee("attendance.write", true) && <SubItem label="Yoklama Detay" active={active === "yoklama-detay"} onClick={go("/flexos/yoklama/detay")} />}
                     {canSee("attendance.report.read", false) && <SubItem label="Yoklama Raporu" active={active === "yoklama-raporu"} onClick={go("/flexos/yoklama/rapor")} />}
                   </div>
                 </motion.div>
