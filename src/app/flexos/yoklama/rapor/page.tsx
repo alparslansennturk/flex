@@ -25,9 +25,13 @@
 import React, { useState, useEffect, useMemo, useCallback, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { auth } from "@/app/lib/firebase";
+import { TrendingUp, Clock, CheckCircle2, XCircle, Bell } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/app/lib/firebase";
+import { toast } from "sonner";
 import FlexSidebar from "../../_components/FlexSidebar";
 import AttendanceCore from "../_shared/AttendanceCore";
+import { initials, avatarStyle } from "@/app/flexos/siniflar/_shared/groupDisplay";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -487,22 +491,22 @@ function ReportContent() {
           ) : (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard label="Toplam Planlanan" value={`${totalPlannedHours} saat`} icon={<span>⏱</span>} color="bg-base-primary-50 text-base-primary-600" />
-                <StatCard label="Toplam Verilen" value={`${totalActualDoneHours} saat`} icon={<span>✓</span>} color="bg-status-success-50 text-status-success-600" />
-                <StatCard label="İptal" value={`${totalCancelledHours} saat`} sub={`(${totalCancelled} ders)`} icon={<span>✕</span>} color="bg-red-50 text-red-500" />
-                <StatCard label="Toplam Ders" value={`${totalToplamHours} saat`} icon={<span>Σ</span>} color="bg-indigo-50 text-indigo-600" />
+                <StatCard label="Toplam Planlanan" value={`${totalPlannedHours} saat`} icon={<Clock size={20} />} color="bg-base-primary-50 text-base-primary-600" />
+                <StatCard label="Toplam Verilen" value={`${totalActualDoneHours} saat`} icon={<CheckCircle2 size={20} />} color="bg-status-success-50 text-status-success-600" />
+                <StatCard label="İptal" value={`${totalCancelledHours} saat`} sub={`(${totalCancelled} ders)`} icon={<XCircle size={20} />} color="bg-red-50 text-red-500" />
+                <StatCard label="Toplam Ders" value={`${totalToplamHours} saat`} icon={<TrendingUp size={20} />} color="bg-indigo-50 text-indigo-600" />
               </div>
 
               <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <div className="flex items-center gap-4 px-6 py-3 bg-surface-50 border-b border-surface-100 min-w-[720px]">
-                    <div className="flex-1 min-w-0"><span className="text-[11px] font-bold text-surface-500 tracking-wide">EĞİTMEN</span></div>
-                    <div className="w-14 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 tracking-wide">GRUP</span></div>
-                    <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 tracking-wide">PLANLANAN</span></div>
-                    <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 tracking-wide">VERDİ</span></div>
-                    <div className="w-20 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 tracking-wide">İPTAL</span></div>
-                    <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-indigo-500 tracking-wide">TOPLAM DERS</span></div>
-                    <div className="w-36 shrink-0 hidden lg:block"><span className="text-[11px] font-bold text-surface-500 tracking-wide">TAMAMLAMA</span></div>
+                    <div className="flex-1 min-w-0"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Eğitmen</span></div>
+                    <div className="w-14 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Grup</span></div>
+                    <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Planlanan</span></div>
+                    <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Verilen</span></div>
+                    <div className="w-20 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">İptal</span></div>
+                    <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wide">Toplam Ders</span></div>
+                    <div className="w-36 shrink-0 hidden lg:block"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Tamamlama</span></div>
                     <div className="w-16 shrink-0" />
                   </div>
                   {loading ? (
@@ -619,6 +623,7 @@ export default function YoklamaRaporuPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [displayName, setDisplayName] = useState("");
 
   const checkAccess = useCallback(async () => {
     const headers = await authHeaders();
@@ -633,8 +638,18 @@ export default function YoklamaRaporuPage() {
     let cancelled = false;
     (async () => {
       await auth.authStateReady();
-      if (!auth.currentUser) { router.push("/login"); return; }
+      const u = auth.currentUser;
+      if (!u) { router.push("/login"); return; }
       if (cancelled) return;
+      // İsim canlı ile aynı kaynaktan (users/{uid}.name+surname) — bkz. Yoklama Al fix'i.
+      try {
+        const snap = await getDoc(doc(db, "users", u.uid));
+        const data = snap.exists() ? (snap.data() as { name?: string; surname?: string }) : null;
+        const full = [data?.name, data?.surname].filter(Boolean).join(" ").trim();
+        setDisplayName(full || u.displayName || u.email || "");
+      } catch {
+        setDisplayName(u.displayName ?? u.email ?? "");
+      }
       await checkAccess();
     })();
     return () => { cancelled = true; };
@@ -662,14 +677,46 @@ export default function YoklamaRaporuPage() {
   return (
     <div style={S.root}>
       <FlexSidebar active="yoklama-raporu" />
-      <main style={{ ...S.main, position: "relative" }}>
-        <ReportContent />
+      <main style={S.main}>
+        <header style={S.header}>
+          <div style={S.headerInner}>
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <div style={S.headerIcon}><TrendingUp size={22} color="#fff" /></div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Yoklama Raporu</h1>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Eğitmen bazlı ders saati özeti ve sınıf durumu takibi.</p>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <button style={S.bellBtn} onClick={() => toast.info("Bu özellik yakında.")}>
+                <Bell size={17} /><span style={S.bellDot} />
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
+                <div style={{ textAlign: "right", lineHeight: 1.3 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{displayName}</div>
+                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yönetici · Eğitmen</div>
+                </div>
+                <div style={{ ...S.avatar, ...avatarStyle(0) }}>{initials(displayName || "?")}</div>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div style={S.panelArea}>
+          <ReportContent />
+        </div>
       </main>
     </div>
   );
 }
 
 const S: Record<string, CSSProperties> = {
-  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", background: "#fff" },
-  main: { flex: 1, height: "100%", overflow: "hidden", background: "#fff" },
+  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" },
+  main: { flex: 1, height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", background: "#fff" },
+  header: { position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)", flexShrink: 0 },
+  headerInner: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" },
+  headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
+  bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59" },
+  bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
+  avatar: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15 },
+  panelArea: { flex: 1, minHeight: 0, position: "relative", overflow: "hidden" },
 };
