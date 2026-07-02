@@ -419,14 +419,12 @@ function ReportContent() {
       <motion.div animate={{ x: selectedInstructorId ? "-100%" : 0 }} transition={T} className="absolute inset-0 overflow-y-auto [scrollbar-gutter:stable]">
         <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
 
-          <div>
-            <h1 className="text-[22px] font-bold text-base-primary-900">
-              {selectedInstructor ? `${instructorOptions.find((i) => i.id === selectedInstructor)?.name ?? "Yoklama Raporu"} — Rapor`
-                : selectedBranch ? `${branches.find((b) => b.id === selectedBranch)?.name ?? "Yoklama Raporu"} — Rapor`
-                : "Yoklama Raporu"}
-            </h1>
-            <p className="text-[13px] text-surface-400">{trDate(searchFrom)} – {trDate(searchTo)}</p>
-          </div>
+          {/* Başlık zaten üst header'da — burada sadece bağlam (filtre + tarih aralığı). */}
+          <p className="text-[13px] text-surface-400">
+            {selectedInstructor && `${instructorOptions.find((i) => i.id === selectedInstructor)?.name} · `}
+            {selectedBranch && `${branches.find((b) => b.id === selectedBranch)?.name} · `}
+            {trDate(searchFrom)} – {trDate(searchTo)}
+          </p>
 
           {/* Filtre çubuğu */}
           <div className="bg-white border border-surface-100 rounded-2xl shadow-sm px-4 py-3">

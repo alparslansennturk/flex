@@ -114,11 +114,14 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
     }
   };
 
-  // Gizli kısayol — Ctrl/Cmd+Shift+M. Owner değilse tamamen no-op (sıfır iz).
+  // Gizli kısayol — Ctrl/Cmd+Alt+Shift+M. Owner değilse tamamen no-op (sıfır iz).
+  // NOT: Ctrl/Cmd+Shift+M (Alt'sız) Chrome'un kendi profil değiştirme kısayoluyla
+  // çakışıyordu (tarayıcı seviyesinde yakalanıyor, preventDefault() işe yaramıyor) —
+  // 2026-07-02'de Alt eklenerek düzeltildi (4 tuşlu kombinasyon, çakışma ihtimali düşük).
   useEffect(() => {
     if (!canToggleView) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (!((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "m")) return;
+      if (!((e.ctrlKey || e.metaKey) && e.altKey && e.shiftKey && e.key.toLowerCase() === "m")) return;
       e.preventDefault();
       if (mode === "full") {
         if (uid) setViewMode(uid, "core");

@@ -2,7 +2,7 @@
 
 /**
  * FlexOS · Ana Sayfa (Eğitmen) — GEÇİCİ placeholder.
- * Amaç: Görünüm Anahtarı (Cmd+Shift+M) Core'a geçince güvenli, capability-nötr
+ * Amaç: Görünüm Anahtarı (Cmd+Alt+Shift+M) Core'a geçince güvenli, capability-nötr
  * bir sayfaya inilsin (admin-only veri çekmez, asla 403 vermez).
  * İçerik ileride gerçek eğitmen dashboard'u ile değiştirilecek.
  */
