@@ -21,10 +21,9 @@
  * koleksiyonu, Eğitim Ayarları → Senelik Tatiller'den yönetilir) okunuyor, takvimde
  * işaretleniyor, o günlerde ders bloklanıyor (canlıdaki `holidays` mantığıyla aynı).
  *
- * Ders İstisnası ("Ders Olmadı" — sebep seç): 2026-07-02 kararıyla UI eklendi,
- * İŞLEVSELLİK (backend persist, `lesson_exceptions` koleksiyonu, öğrenci-kaynaklı
- * istisnada otomatik devamsızlık yazma) Aşama 2'de. Şimdilik SADECE yerel state
- * (`exceptions` map, `groupId_date` key) — sayfa yenilenince kaybolur, bilerek.
+ * Ders İstisnası ("Ders Olmadı" — sebep seç): 2026-07-02'de TAM BAĞLANDI —
+ * `flexos_lesson_exceptions` koleksiyonu, `POST/GET/DELETE /api/flexos/lesson-exceptions`,
+ * öğrenci-kaynaklı istisnada otomatik devamsızlık yazımı (`createdByException`) dahil.
  * `Group.schedule.endDate` zaten yapılandırılmış alan olduğu için canlıdaki
  * `estimatedEndDate` (holiday-aware hesaplama) yerine DOĞRUDAN kullanılıyor —
  * daha basit ve daha doğru (backend zaten aynı alanla doğruluyor).
@@ -39,6 +38,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { auth } from "@/app/lib/firebase";
 import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
 import { initials, avatarStyle } from "@/app/flexos/siniflar/_shared/groupDisplay";
+import type { ExceptionReason, ExceptionScope, LessonException } from "@/app/lib/domain/core/lesson-exception";
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
   CheckCheck, Users, Wifi, CalendarOff, AlertCircle,
@@ -46,14 +46,6 @@ import {
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-export type ExceptionReason = "instructor" | "student" | "technical" | "other";
-
-export interface LessonException {
-  scope: "system" | "group";
-  reason: ExceptionReason;
-  note: string;
-}
 
 const EXCEPTION_LABELS: Record<ExceptionReason, string> = {
   instructor: "Eğitmen Kaynaklı",
@@ -86,6 +78,7 @@ interface GroupItem {
   status: string;
   branch: string;
   trainerId: string;
+  educationId: string | null;
   schedule: GroupSchedule;
 }
 
@@ -151,19 +144,25 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 // ── ExceptionModal ("Ders Olmadı" — sebep seç) ─────────────────────────────────
-// UI canlıdan portlandı; kayıt SADECE yerel state'e (Aşama 2'de backend'e bağlanacak).
+// UI canlıdan portlandı; kayıt `POST/DELETE /api/flexos/lesson-exceptions` ile kalıcı.
+
+export interface SaveExceptionFormInput {
+  scope: ExceptionScope;
+  reason: ExceptionReason;
+  note: string;
+}
 
 function ExceptionModal({
   existing, onClose, onSave, onDelete, isOrgScope,
 }: {
   existing: LessonException | null;
   onClose: () => void;
-  onSave: (ex: LessonException) => void;
+  onSave: (input: SaveExceptionFormInput) => void;
   onDelete: () => void;
   isOrgScope: boolean;
 }) {
   const [reason, setReason] = useState<ExceptionReason>(existing?.reason ?? "other");
-  const [scope, setScope] = useState<"system" | "group">(existing?.scope ?? "group");
+  const [scope, setScope] = useState<ExceptionScope>(existing?.scope ?? "group");
   const [note, setNote] = useState(existing?.note ?? "");
 
   return (
@@ -261,6 +260,8 @@ export default function AttendanceCore({
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [isOrgScope, setIsOrgScope] = useState(false);
+  const [courseTotalHours, setCourseTotalHours] = useState<number | null>(null);
+  const [allTimeDoneCount, setAllTimeDoneCount] = useState(0);
   const [branchFilter, setBranchFilter] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [roster, setRoster] = useState<RosterPerson[]>([]);
@@ -278,25 +279,48 @@ export default function AttendanceCore({
   const [showStartHint, setShowStartHint] = useState(false);
   const [showReadonlyToast, setShowReadonlyToast] = useState(false);
 
-  // Ders İstisnası — SADECE yerel (Aşama 2'de backend'e bağlanacak, bkz. dosya başı not).
-  const [exceptions, setExceptions] = useState<Record<string, LessonException>>({});
+  // Ders İstisnası — `flexos_lesson_exceptions` ile kalıcı.
+  const [exception, setException] = useState<LessonException | null>(null);
   const [showExModal, setShowExModal] = useState(false);
 
   const dateKey = toDateKey(selectedDate);
   const todayKey = toDateKey(new Date());
   const isToday = dateKey === todayKey;
-  const exceptionKey = selectedGroupId ? `${selectedGroupId}_${dateKey}` : "";
-  const exception = exceptions[exceptionKey] ?? null;
 
-  const handleSaveException = (ex: LessonException) => {
-    if (!exceptionKey) return;
-    setExceptions((prev) => ({ ...prev, [exceptionKey]: ex }));
-    setShowExModal(false);
+  const loadException = useCallback(async () => {
+    if (!selectedGroupId) { setException(null); return; }
+    const headers = await authHeaders();
+    const res = await fetch(`/api/flexos/lesson-exceptions?groupId=${selectedGroupId}&date=${dateKey}`, { headers });
+    if (res.ok) {
+      const j = await res.json();
+      setException(j.exception ?? null);
+    }
+  }, [selectedGroupId, dateKey]);
+
+  useEffect(() => { loadException(); }, [loadException]);
+
+  const handleSaveException = async (input: SaveExceptionFormInput) => {
+    if (!selectedGroupId) return;
+    const headers = await authHeaders();
+    const res = await fetch("/api/flexos/lesson-exceptions", {
+      method: "POST", headers,
+      body: JSON.stringify({ groupId: selectedGroupId, date: dateKey, ...input }),
+    });
+    if (res.ok) {
+      setShowExModal(false);
+      await loadException();
+      await loadRecord(); // öğrenci-kaynaklıysa otomatik devamsızlık kaydı oluşmuş olabilir
+    }
   };
-  const handleDeleteException = () => {
-    if (!exceptionKey) return;
-    setExceptions((prev) => { const n = { ...prev }; delete n[exceptionKey]; return n; });
-    setShowExModal(false);
+  const handleDeleteException = async () => {
+    if (!exception) return;
+    const headers = await authHeaders();
+    const res = await fetch(`/api/flexos/lesson-exceptions/${exception.id}`, { method: "DELETE", headers });
+    if (res.ok) {
+      setShowExModal(false);
+      await loadException();
+      await loadRecord();
+    }
   };
 
   // ── Groups + tatiller yükle ──────────────────────────────────────────────
@@ -356,6 +380,8 @@ export default function AttendanceCore({
   const schedule = selectedGroup?.schedule ?? {};
   const sessionHours = schedule.sessionHours ?? DEFAULT_SESSION_HOURS;
   const selectedWeekDays = schedule.days ?? [];
+  const courseDoneHours = allTimeDoneCount * sessionHours;
+  const courseRemainingHours = courseTotalHours !== null ? Math.max(0, courseTotalHours - courseDoneHours) : null;
 
   // ── Roster yükle ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -368,6 +394,33 @@ export default function AttendanceCore({
         setRoster(j.items ?? []);
       }
     })();
+  }, [selectedGroupId]);
+
+  // ── Kurs ilerleme (lacivert bar) — Education.totalHours + tüm-zamanlı yapılan
+  // ders sayısı. Education'da totalHours boşsa (henüz katalogda tanımlanmadıysa)
+  // "—" placeholder kalır; alan doldurulunca otomatik gerçek sayı çıkar.
+  useEffect(() => {
+    if (!selectedGroupId) { setCourseTotalHours(null); setAllTimeDoneCount(0); return; }
+    (async () => {
+      const headers = await authHeaders();
+      const educationId = selectedGroup?.educationId;
+      const [eduRes, attRes] = await Promise.all([
+        educationId ? fetch(`/api/flexos/educations/${educationId}`, { headers }) : Promise.resolve(null),
+        fetch(`/api/flexos/attendance?groupId=${selectedGroupId}`, { headers }),
+      ]);
+      if (eduRes?.ok) {
+        const j = await eduRes.json();
+        setCourseTotalHours(j.item?.totalHours ?? null);
+      } else {
+        setCourseTotalHours(null);
+      }
+      if (attRes.ok) {
+        const j = await attRes.json();
+        const items = (j.items ?? []) as AttendanceRecord[];
+        setAllTimeDoneCount(items.filter((r) => Object.keys(r.entries).length > 0 || r.attendanceClosed).length);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroupId]);
 
   // ── Attendance kaydı yükle (grup/tarih değişince) ────────────────────────
@@ -616,18 +669,18 @@ export default function AttendanceCore({
                 ) : null}
               </div>
 
-              {/* Lacivert özet bar — canlıdaki 5 alan da başlığıyla duruyor. Toplam/Yapılan/Kalan
-                  Ders'in veri kısmı Aşama-2'de dolacak (kurs toplam saati + yapılan-ders sayacı
-                  gerektiriyor); o güne kadar "—" placeholder. Başlangıç/Bitim zaten gerçek veri. */}
+              {/* Lacivert özet bar — Toplam/Kalan Ders `Education.totalHours` doluysa gerçek
+                  (katalogda alan boşsa "—" kalır, sonradan otomatik dolar). Yapılan Ders
+                  tüm-zamanlı gerçek yoklama sayısından (her zaman hesaplanabilir). */}
               <div className="mx-8 h-[48px] bg-base-primary-900 rounded-2xl shrink-0 flex items-center gap-3 px-6 text-[13px] font-medium overflow-x-auto no-scrollbar">
                 <span className="text-white/60 shrink-0">Toplam Ders:</span>
-                <span className="font-bold text-white shrink-0">—</span>
+                <span className="font-bold text-white shrink-0">{courseTotalHours !== null ? `${courseTotalHours} saat` : "—"}</span>
                 <span className="text-white/30 shrink-0">|</span>
                 <span className="text-white/60 shrink-0">Yapılan Ders:</span>
-                <span className="font-bold text-white shrink-0">—</span>
+                <span className="font-bold text-white shrink-0">{courseDoneHours} saat</span>
                 <span className="text-white/30 shrink-0">|</span>
                 <span className="text-white/60 shrink-0">Kalan Ders:</span>
-                <span className="font-bold text-white shrink-0">—</span>
+                <span className="font-bold text-white shrink-0">{courseRemainingHours !== null ? `${courseRemainingHours} saat` : "—"}</span>
                 {schedule.startDate && (
                   <>
                     <span className="text-white/30 shrink-0">|</span>

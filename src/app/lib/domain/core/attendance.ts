@@ -32,4 +32,6 @@ export interface Attendance extends Audit {
   attendanceClosed: boolean;
   closedAt?: ISODateTime;
   lessonStartedAt?: ISODateTime;
+  /** Öğrenci-kaynaklı Ders İstisnası tarafından otomatik oluşturuldu mu — istisna silinince bu kayıt da silinir. */
+  createdByException?: boolean;
 }

@@ -454,6 +454,9 @@ service cloud.firestore {
     // Senelik tatiller — server-only (Admin SDK), yazma `holiday.manage` gated (Op+Admin).
     match /flexos_holidays/{id} { allow read, write: if false; }
 
+    // Ders istisnaları ("Ders Olmadı") — server-only (Admin SDK), gated attendance-service'te.
+    match /flexos_lesson_exceptions/{id} { allow read, write: if false; }
+
     // Sistem anahtarları (standaloneMode switch vb.) — server-only.
     match /flexos_settings/{id} { allow read, write: if false; }
 
