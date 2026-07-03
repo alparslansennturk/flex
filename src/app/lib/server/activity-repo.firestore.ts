@@ -35,4 +35,14 @@ export const firestoreActivityRepo: ActivityRepo = {
       .map((d) => d.data() as Activity)
       .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
   },
+
+  async list(tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .get();
+    return snap.docs
+      .map((d) => d.data() as Activity)
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  },
 };

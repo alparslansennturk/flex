@@ -5,4 +5,5 @@ export interface AppointmentRepo {
   save(a: Appointment): Promise<void>;
   getById(id: string, tenantId: string): Promise<Appointment | null>;
   listByCase(caseId: string, tenantId: string): Promise<Appointment[]>;
+  list(tenantId: string): Promise<Appointment[]>;
 }

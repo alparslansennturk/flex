@@ -160,9 +160,22 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {/* role.manage = admin-benzeri (satış/operasyon/admin) → admin ana sayfa;
-            yoksa (gerçek eğitmen veya owner'ın Core görünümü) → eğitmen ana sayfa. */}
-        <Item icon={IC.home} label="Ana Sayfa" active={active === "ana"} onClick={go(caps.has("role.manage") ? "/flexos/anasayfa" : "/flexos/egitmen-anasayfa")} />
+        {/* Ana Sayfa = tek nav öğesi, hedefi role'e göre değişir (menü değil, "kim girdiyse
+            onun ana sayfası" mantığı): role.manage → admin ana sayfa; sale.create (ve
+            role.manage YOK, yani gerçek satış çalışanı) → Satış Dashboard; yoksa
+            (eğitmen veya owner'ın Core görünümü) → eğitmen ana sayfa. */}
+        <Item
+          icon={IC.home}
+          label="Ana Sayfa"
+          active={active === "ana"}
+          onClick={go(
+            caps.has("role.manage")
+              ? "/flexos/anasayfa"
+              : caps.has("sale.create")
+                ? "/flexos/satislar/dashboard"
+                : "/flexos/egitmen-anasayfa",
+          )}
+        />
 
         {/* Eğitim Yönetimi — akordiyon ana başlık (framer-motion geçişli).
             "Eğitimler" (katalog CRUD) enterprise: sadece Full. "Eğitim Ayarları" (Branş

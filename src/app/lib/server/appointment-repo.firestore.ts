@@ -33,4 +33,14 @@ export const firestoreAppointmentRepo: AppointmentRepo = {
       .get();
     return snap.docs.map((d) => d.data() as Appointment);
   },
+
+  async list(tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .get();
+    return snap.docs
+      .map((d) => d.data() as Appointment)
+      .sort((a, b) => (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? ""));
+  },
 };

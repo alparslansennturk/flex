@@ -17,6 +17,24 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Satış Dashboard BİTTİ (2026-07-03)
+
+Claude Design çıktısı (`Satış Dashboard.dc.html`, demo veri) gerçek uçlara bağlanarak `flexos/satislar/dashboard/page.tsx`'e portlandı. **Donut** (bu ayki aktif satışların branş dağılımı, `/api/flexos/sales`'ten türetilir) + **hızlı aksiyon kartları** (Satış Yap / Satış Listesi, ikincisinde Bu Ay Ciro/Satış Adedi/İptal özeti) + **Aktif Satışlar havuzu** (son 3 aktif satış) + **Bugünkü Randevular** + **Canlı Aktivite Akışı** (son 30 aktivite). **Ödeme durumu rozeti YOK** (2026-06-29 kararına uyumlu — sadece Finans modülünde olacak). **Yeni backend uçları:** `GET /api/flexos/appointments` (tüm randevular, kişi adı join'li, `appointment.read` gated) + `GET /api/flexos/activities` (son 30 aktivite, kişi adı join'li, `activity.read` gated) — ikisi için de `ActivityRepo`/`AppointmentRepo` portlarına `list(tenantId)` eklendi + firestore adapter'lara implementasyon.
+
+**Routing düzeltmesi (kullanıcı geri bildirimi):** Satış Dashboard Satışlar akordiyonunda bir alt-menü DEĞİL — "Ana Sayfa" nav öğesinin **sale.create paketine düşen hedefi** (Ana Sayfa zaten role'e göre farklı sayfaya gidiyordu: `role.manage` → admin anasayfa, yoksa → eğitmen anasayfa; şimdi 3. dal eklendi). `FlexSidebar`'daki tek "Ana Sayfa" öğesi artık `role.manage` → `/flexos/anasayfa` · `sale.create` (ve role.manage YOK) → `/flexos/satislar/dashboard` · yoksa → `/flexos/egitmen-anasayfa`. Sayfa kendi `FlexSidebar active="ana"` geçiyor (Satışlar akordiyonuna eklenen link geri alındı). `tsc`+ESLint temiz, `npm run build` başarılı (route listede `○ /flexos/satislar/dashboard`).
+
+**Demo veri:** `scripts/seed-flexos-dashboard-demo.mjs` — yalnız yeni FlexOS koleksiyonlarına yazar (branş/eğitim/persons/sales/cases/activities/appointments, `seedTag` ile temizlenebilir). 8 branşlık dengesiz dağılım (Yazılım %30 → Robotik ve Kodlama %2) + bugün için 5 randevu (Case+Activity+Appointment üçlüsü, gerçek domain akışına uygun). Satış tarihleri HER ZAMAN bu ayın 1'i ile bugün arasında üretilir (ay başında -19 gün gibi sabit ofsetler geçen aya taşıp "bu ay" filtresinden düşüyordu — bulunan gerçek bug). `--n=<sayı>` flag'i ile sadece ilk N branş seed'lenir (donut'un az-branşlı davranışını test etmek için, örn. `--clean --n=1`).
+
+**Donut/legend responsive davranışı (kullanıcıyla iteratif kilitlendi 2026-07-03):**
+- Legend **top-6 + "Diğer"** kuralı: `DONUT_TOP_N=6`, en çok satan 6 branş ayrı kart, gerisi tek "Diğer"e toplanır (`DONUT_OTHER_COLOR` gri).
+- "Diğer" kartı ortalanan/ölçeklenen alanın **DIŞINDA** — karta `position:relative` + "Diğer" `position:absolute` (sağ-alt köşe, `right:24 bottom:32`), hover'da (`.sd-other-legend:hover .sd-other-tip`, CSS-only) İngilizce/Robotik gibi alt-branşları `%· kayıt` detayıyla listeleyen bir tooltip popup açılır.
+- **Donut çemberi HER ZAMAN sabit boyut** (216px, inset 50) — kullanıcı kararı: donut'a dokunulmayacak, SADECE branş kartları ölçeklenecek.
+- **Kart ölçeği (`donutScale`)** branş sayısına göre kademeli: 1 branşta `1.25x`, 6'da `1.0x` (`Math.max(1, 1.25 - (n-1)*0.05)`), font/padding/gap hep buna bağlı.
+- **Grid sütun kuralı:** 1-2 branşta **tek sütun** (alt alta, büyük kart/kartlar) · 3+ branşta **2 sütun** (yan yana; tek sayıda kalırsa son satır yanı boş — kabul edilen davranış).
+- Legend alanı `alignSelf:"center"` ile donut çemberiyle aynı satırda dikey ortalanır (veri sayısından bağımsız, sabit piksel offset YOK).
+- Bugünkü Randevular kartında da benzer "tahmin değil hesap" dersi: her randevu satırı **sabit `APPT_ROW_HEIGHT=56`**, kapsayıcı `maxHeight` bundan + `APPT_ROW_GAP`/`APPT_VISIBLE_ROWS=4` ile **matematiksel** hesaplanıyor (rastgele piksel denemesi yerine) — 5. randevu üstte `APPT_LIST_PAD=24` padding + net kesim ile TAM gizleniyor, altta ayrı (scroll dışı) 24px spacer var.
+- **Ders (feedback):** kart/alan boyutlandırmalarında rastgele piksel tahmini yerine sabit birim + formül kullanmak, kullanıcıyla defalarca "tahminle olmaz" turu dönmekten daha hızlı sonuç veriyor.
+
 ### ✅ Admin Kişisel Görünüm Anahtarı (Core/Full) — BİTTİ (2026-07-01)
 
 > Karar Opus ile kilitlendi (2026-07-01), kullanıcıyla ekstra netleştirme sonrası Sonnet kodladı + doğruladı.

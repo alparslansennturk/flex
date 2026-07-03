@@ -1,11 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import { can } from "@/app/lib/domain/access/can";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { firestoreCaseRepo } from "@/app/lib/server/case-repo.firestore";
 import { firestoreActivityRepo } from "@/app/lib/server/activity-repo.firestore";
 import { firestoreAppointmentRepo } from "@/app/lib/server/appointment-repo.firestore";
+import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { addActivity, type AddActivityInput } from "@/app/lib/domain/services/case-service";
+
+const RECENT_LIMIT = 30;
+
+/**
+ * GET /api/flexos/activities — son aktiviteler (tüm taleplerden, kişi adı join'li).
+ * Satış Dashboard'daki "Canlı Aktivite Akışı" kartı için.
+ */
+export const GET = withAuth(async (_req: NextRequest, caller) => {
+  const actor = actorFromCaller(caller);
+  if (!can(actor, "activity.read")) {
+    return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
+  }
+
+  const all = await firestoreActivityRepo.list(actor.tenantId);
+  const recent = all.slice(0, RECENT_LIMIT);
+
+  const personIds = [...new Set(recent.map((a) => a.personId))];
+  const persons = await Promise.all(
+    personIds.map((id) => firestorePersonRepo.getById(id, actor.tenantId)),
+  );
+  const personMap = new Map(persons.filter(Boolean).map((p) => [p!.id, p!]));
+
+  const items = recent.map((a) => ({
+    id: a.id,
+    caseId: a.caseId,
+    personId: a.personId,
+    personName: personMap.get(a.personId)
+      ? `${personMap.get(a.personId)!.firstName} ${personMap.get(a.personId)!.lastName}`
+      : "—",
+    type: a.type,
+    note: a.note ?? null,
+    createdAt: a.createdAt,
+  }));
+
+  return NextResponse.json({ items });
+});
 
 /**
  * POST /api/flexos/activities — mevcut talebe aktivite ekle.
