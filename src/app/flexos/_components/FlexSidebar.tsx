@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
+import FlexLogo from "@/app/components/ui/FlexLogo";
 import { getViewMode, setViewMode, type ViewMode } from "./viewMode";
 import ViewPinModal from "./ViewPinModal";
 
@@ -149,14 +150,8 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
       <style>{css}</style>
-      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 26px" }}>
-        <div style={S.logoBox}>
-          <span style={{ borderRadius: 3, background: "#5b8cff" }} />
-          <span style={{ borderRadius: 3, background: "#f97316" }} />
-          <span style={{ borderRadius: 3, background: "#22c55e" }} />
-          <span style={{ borderRadius: 3, background: "#38bdf8" }} />
-        </div>
-        <span style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-.5px" }}>flex</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 52px" }}>
+        <FlexLogo variant="white" width={72} />
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -359,7 +354,6 @@ function SubItem({ label, active, onClick }: { label: string; active: boolean; o
 
 const S: Record<string, CSSProperties> = {
   sidebar: { height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
-  logoBox: { width: 38, height: 38, borderRadius: 11, background: "#0a1c38", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 3, padding: 8, boxShadow: "inset 0 0 0 1px rgba(255,255,255,.06)" },
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
   itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },

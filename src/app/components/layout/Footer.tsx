@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import FlexLogo from "@/app/components/ui/FlexLogo";
 
-export default function Footer({ mini = false }: { mini?: boolean }) {
+export default function Footer({ mini = false, containerClassName }: { mini?: boolean; containerClassName?: string }) {
   const router = useRouter();
 
   const socialIcons = [
@@ -13,9 +13,13 @@ export default function Footer({ mini = false }: { mini?: boolean }) {
     { name: 'instagram', src: '/icons/instagram.svg' }
   ];
 
+  // Varsayılan genişlik sınıfı DEĞİŞMEDİ (mevcut ~15 canlı çağıran etkilenmez) — sadece
+  // ihtiyacı olan çağıran (ör. FlexOS, header'ıyla piksel hizalı olsun diye) override edebilir.
+  const widthClass = containerClassName ?? "w-[94%] mx-auto max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[2000px]";
+
   return (
     <footer className="w-full bg-[#10294C] border-t border-white/5 mt-auto font-inter shrink-0">
-      <div className={`w-[94%] mx-auto flex items-center justify-between max-w-[1280px] xl:max-w-[1600px] 2xl:max-w-[2000px] ${mini ? "h-14" : "py-6 min-h-[80px]"}`}>
+      <div className={`${widthClass} flex items-center justify-between ${mini ? "h-14" : "py-6 min-h-[80px]"}`}>
 
         <div
           className="flex items-center gap-1 select-none cursor-pointer"

@@ -3,8 +3,9 @@
  * Satış Dashboard'u (src/app/flexos/satislar/dashboard) test etmek için demo veri üretir:
  *   - 8 branş + 8 eğitim (Yazılım/Grafik Tasarım/.../Robotik ve Kodlama) — "Satış Dağılımı"
  *     donut'unda ilk 6 ayrı dilim, kalan 2 tek "Diğer" diliminde (hover'da popup ile detay)
- *   - Bu ay tarihli ~50 aktif satış (branşlara dağıtılmış) → donut + Aktif Satışlar havuzu dolsun
- *   - Bugün için 5 randevu (Case+Activity+Appointment üçlüsüyle, gerçek domain akışına uygun)
+ *   - Bu ay tarihli ~50 aktif satış (branşlara dağıtılmış) → donut + En Son Satışlar havuzu dolsun
+ *   - Bugün için 7 randevu (Case+Activity+Appointment üçlüsüyle, gerçek domain akışına uygun —
+ *     büyük ekranda 5'i, küçük ekranda 4'ü görünür kalıyor, geri kalanı scroll'da)
  *     → "Bugünkü Randevular" + "Canlı Aktivite Akışı" dolsun
  *
  * Yalnız YENİ FlexOS koleksiyonlarına yazar (flexos_branches / flexos_educations / persons /
@@ -120,13 +121,17 @@ async function main() {
     }
   }
 
-  // ── Bugün için 5 randevu (Case + Activity + Appointment) ──
+  // ── Bugün için 7 randevu (Case + Activity + Appointment) — büyük ekranda 5, küçük ekranda
+  // 4 tanesi görünür kalıyor (APPT_VISIBLE_ROWS_WIDE/NARROW, satış dashboard), geri kalanı
+  // scroll ile görülür; 7 tane bu iki senaryoyu da test edecek kadar (5'ten fazla) ──
   const RANDEVULAR = [
     { h: 10, m: 0, konu: "Yazılım eğitimi tanışma görüşmesi" },
     { h: 11, m: 30, konu: "UI/UX bilgilendirme" },
     { h: 13, m: 30, konu: "Dijital Pazarlama değerlendirme" },
     { h: 15, m: 0, konu: "Grafik tasarım kayıt görüşmesi" },
     { h: 16, m: 30, konu: "Bootcamp son karar görüşmesi" },
+    { h: 17, m: 30, konu: "Fotoğrafçılık kurs bilgilendirme" },
+    { h: 18, m: 30, konu: "Muhasebe eğitimi değerlendirme" },
   ];
 
   let apptCount = 0;
