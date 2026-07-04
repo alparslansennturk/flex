@@ -16,6 +16,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../../_components/FlexSidebar";
+import FlexHeader from "../../../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 
 interface HolidayDoc {
   id: string;
@@ -159,25 +161,27 @@ export default function TatilGunleriPage() {
       <FlexSidebar active="ayarlar" />
 
       <main style={S.main}>
-        <header style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <a className="th-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön" onClick={() => router.push("/flexos/egitim-yonetimi/ayarlar")}>
-              <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-            </a>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
-                <span>Eğitim Yönetimi</span>
-                <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
-                <span>Eğitim Ayarları</span>
-                <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
-                <span style={{ color: "#c2410c" }}>Senelik Tatiller</span>
+        <FlexHeader
+          left={
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <a className="th-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön" onClick={() => router.push("/flexos/egitim-yonetimi/ayarlar")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.back }} />
+              </a>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
+                  <span>Eğitim Yönetimi</span>
+                  <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
+                  <span>Eğitim Ayarları</span>
+                  <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
+                  <span style={{ color: "#c2410c" }}>Senelik Tatiller</span>
+                </div>
+                <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>Senelik Tatiller</h1>
               </div>
-              <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>Senelik Tatiller</h1>
             </div>
-          </div>
-        </header>
+          }
+        />
 
-        <div style={{ padding: "30px 36px 48px", maxWidth: 760, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ padding: "30px 36px 48px", maxWidth: 760, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
           <p style={{ margin: "0 0 20px", fontSize: 13.5, color: "#64748b", fontWeight: 500 }}>
             Resmî tatiller ve kurum kapanışları. Bu günlerde tüm gruplar için yoklama devre dışı kalır.
             Tek bir dersin anlık iptali için Yoklama panelindeki &quot;Ders Olmadı&quot; butonunu kullanın.
@@ -276,6 +280,7 @@ export default function TatilGunleriPage() {
             )}
           </div>
         </div>
+        <Footer mini />
       </main>
     </div>
   );
@@ -291,7 +296,7 @@ const addBtnStyle = (enabled: boolean): CSSProperties => ({
 
 const S: Record<string, CSSProperties> = {
   root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', system-ui, sans-serif", background: "#eef2f8" },
-  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
+  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8", display: "flex", flexDirection: "column" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px max(36px, calc((100% - 760px) / 2 + 36px))", background: "rgba(238,242,248,.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid #e2e8f1" },
   backBtn: { width: 46, height: 46, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", textDecoration: "none", transition: "all .14s" },
   card: { background: "#fff", border: "1px solid #e9edf4", borderRadius: 16, padding: 20, boxShadow: "0 1px 3px rgba(15,31,61,.05)", marginBottom: 18 },

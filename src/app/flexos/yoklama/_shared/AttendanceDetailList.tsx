@@ -119,9 +119,13 @@ function FilterSelect({ value, onChange, placeholder, children, className = "" }
 // ── Props ─────────────────────────────────────────────────────────────────────
 export interface AttendanceDetailListProps {
   onGroupDetail: (groupId: string, month: string, isClosed: boolean) => void;
+  /** Bkz. AttendanceCore'daki aynı isimli prop — FlexHeader'lı sayfalar (1920) override eder. */
+  containerClassName?: string;
 }
 
-export default function AttendanceDetailList({ onGroupDetail }: AttendanceDetailListProps) {
+const DEFAULT_CONTAINER_CLASSNAME = "w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5";
+
+export default function AttendanceDetailList({ onGroupDetail, containerClassName = DEFAULT_CONTAINER_CLASSNAME }: AttendanceDetailListProps) {
   const { caps } = useCapabilities();
   const isOrgWide = caps.has("attendance.report.read"); // admin/op/finans — eğitmende yok
 
@@ -339,7 +343,7 @@ export default function AttendanceDetailList({ onGroupDetail }: AttendanceDetail
   }, [searchResults]);
 
   return (
-    <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+    <div className={containerClassName}>
       {/* Başlık sayfa header'ında zaten var (page.tsx) — burada tekrar edilmiyor.
           Sadece filtre bağlamı (varsa) + ay seçici. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

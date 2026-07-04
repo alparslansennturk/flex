@@ -15,8 +15,10 @@ import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
+import FlexHeader from "../_components/FlexHeader";
 import FlexModal from "../_components/FlexModal";
 import { FlexPageLoader } from "../_components/FlexSpinner";
+import Footer from "@/app/components/layout/Footer";
 
 // ── API tipleri (ileride genişleyecek alanlar opsiyonel) ──────────────────────
 interface EducationDoc {
@@ -170,8 +172,6 @@ export default function EgitimYonetimiPage() {
     setSelected((s) =>
       allSelected ? s.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...s, ...pageIds])),
     );
-  const soon = () => toast.info("Bu özellik yakında.");
-
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const user = auth.currentUser;
     const token = user ? await user.getIdToken() : "";
@@ -228,31 +228,14 @@ export default function EgitimYonetimiPage() {
 
       {/* ============ MAIN ============ */}
       <main style={S.main}>
-        {/* header */}
-        <header style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <div style={S.headerIcon} dangerouslySetInnerHTML={{ __html: IC.headerBook }} />
-            <div>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>Eğitimler</h1>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#64748b", fontWeight: 500 }}>Tüm eğitim programlarını buradan yönetin.</p>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <button className="ey-iconbtn" style={S.bellBtn} onClick={soon}>
-              <span dangerouslySetInnerHTML={{ __html: IC.bell }} />
-              <span style={S.bellDot} />
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
-              <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
-                <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-              </div>
-              <div style={S.avatar}>AŞ</div>
-            </div>
-          </div>
-        </header>
+        <FlexHeader
+          icon={<span dangerouslySetInnerHTML={{ __html: IC.headerBook }} />}
+          title="Eğitimler"
+          subtitle="Tüm eğitim programlarını buradan yönetin."
+          roleLabel="Yönetici · Eğitmen"
+        />
 
-        <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto" }}>
+        <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
           {/* section header + CTA */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 22 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -513,6 +496,7 @@ export default function EgitimYonetimiPage() {
             )}
           </div>
         </div>
+        <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
 
       {/* click-away overlay */}
@@ -545,7 +529,7 @@ const S: Record<string, CSSProperties> = {
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   navActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   navActiveBar: { position: "absolute", left: 0, top: 9, bottom: 9, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
-  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
+  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8", display: "flex", flexDirection: "column" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px max(36px, calc((100% - 1920px) / 2 + 36px))", background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 1px 2px rgba(15,31,61,.04)" },
   headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },

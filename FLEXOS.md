@@ -17,6 +17,39 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Eğitim Operasyon Dashboard eklendi — Ana Sayfa'nın `education.create` rotası (2026-07-04, aynı gün devam)
+
+Kullanıcı dünkü Claude Design çıktısını (`Eğitim Operasyon Dashboard.dc.html`, demo veri) verdi — "bunu da yaparsak dashboardların çoğu biter (Finans+Genel Müdür hariç)". Satış Dashboard/Eğitmen Ana Sayfa ile aynı desende gerçek uçlara bağlanarak portlandı: **yeni sayfa `src/app/flexos/egitim-operasyon-anasayfa/page.tsx`**.
+
+- **Donut (Açık Eğitim Dağılımı):** aktif (`status==="active"`) grupların branş kırılımı, Recharts `PieChart` (Satış Dashboard'un GÜNCEL Recharts deseniyle aynı, eski conic-gradient CSS değil — yeni sayfa olduğu için doğrudan güncel yaklaşımla kuruldu). `GET /api/flexos/groups`'un zaten sunucu tarafında join'lediği `branch` adı + `enrolled` (aktif kayıt sayısı) kullanıldı, ekstra sorgu gerekmedi.
+- **Özet metrik şeridi (4 kart):** Aktif Sınıf/Aktif Öğrenci/Bu Hafta Başlayacak GERÇEK (`groups`'tan hesaplanıyor — `schedule.startDate` bugün+7 gün penceresi). **Sertifika Bekleyen = "—"** (Sertifika domain'i hâlâ kurulmadı, bkz. `certificate_scope` hafızası — dürüst placeholder).
+- **Büyük işlem kartları (2):** "Grup Oluştur"→`/flexos/siniflar`, "Yoklama Takibi"→`/flexos/yoklama/al` — ikisi de gerçek route.
+- **Hızlı işlemler (3):** Sertifikasyon/Anketler/Bildirim Merkezi — hiçbirinin backend'i yok, "yakında" toast (tasarımın kendisinde de `href="#"` — placeholder olduğu zaten belliydi).
+- **Yaklaşan Sınıflar:** henüz başlamamış (`planned`/`enrolling`) + `schedule.startDate` bugünden ileride olan gruplar, tarihe göre artan sıralı, "X gün sonra" — GERÇEK. Branş renk paleti donut ile tutarlı (`branchColor` map, aynı `DONUT_PALETTE` index'i).
+- **Eğitim Operasyon Akışı:** ⚠️ **bilinçli basitleştirme** — tasarımda 6 farklı olay tipi vardı (yoklama tamamlandı/sertifika/talep/sınıf açıldı/anket/bildirim) ama bunların çoğunun (sertifika/anket/bildirim/sınıf-açıldı-event-log/yoklama-tamamlandı-aggregate) backend'de karşılığı YOK. Panel şu an **aynı `GET /api/flexos/activities` akışını** (Satış Dashboard'un Canlı Aktivite Akışı ile birebir aynı endpoint — `activity.read` zaten Operasyon paketinde de var, CRM/talep sistemi department-agnostic) gösteriyor — uydurma ikon/tip yok, dürüst ama şimdilik Satış-ağırlıklı bir feed. Gerçek çok-domainli bir "operasyon olay logu" ileride ayrı bir iş kalemi.
+
+**Routing — `FlexSidebar.tsx` "Ana Sayfa" dallanmasına yeni kol eklendi:** `role.manage`→admin anasayfa (değişmedi) → **YENİ:** `education.create` (Operasyon paketine özgü — `packages.ts`'te satış/eğitmen'de hiç yok, standalone eğitmende de yok, admin zaten üstteki dalda yakalanıyor) → Eğitim Operasyon Dashboard → `sale.create`→Satış Dashboard (değişmedi) → yoksa Eğitmen Ana Sayfa (değişmedi). Mevcut 3 rotaya dokunulmadı, sadece aralarına 1 kol eklendi.
+
+`tsc --noEmit`, `eslint`, `npm run build` (tüm route'lar dahil `/flexos/egitim-operasyon-anasayfa`) temiz. **Test edilmeyen:** tarayıcıda gerçek bir Operasyon hesabıyla doğrulanmadı (bu ortamda giriş yapılamıyor) — sıradaki oturumda bir Operasyon kullanıcısıyla kontrol edilmeli, özellikle donut/Yaklaşan Sınıflar'ın az veri durumunda (Satış Dashboard'daki "az branş" gerilme sorunu burada da çıkabilir, henüz o düzeltme uygulanmadı).
+
+### ✅ Paylaşımlı `FlexHeader`+`Footer` TÜM FlexOS sayfalarına yayıldı (2026-07-04, aynı gün devam)
+
+Satış Dashboard + Eğitmen Ana Sayfa'da onaylanan `FlexHeader`/`Footer mini` deseni ("güzel olursa diğer sayfalara da yaparız" — 2026-07-03 notu) kullanıcı onayıyla kalan **21 sayfaya** yayıldı: Eğitim Yönetimi (katalog/Ekle/Ayarlar/Tatil/Branşlar/Seanslar), Sınıflar (Full + Core `EgitmenSiniflarPanel`), Öğrenci Havuzu, Eğitmenler, Kullanıcılar (liste/Ekle/Düzenle), Satışlar (Liste/Paket/Kampanya/Satış-Yap), Aktivite Merkezi, Randevu Takvimi (placeholder), Ana Sayfa (admin placeholder), Yoklama Detay+Raporu (header-only). Artık **sadece 2 sayfada eski desen kalmıyor** (bkz. aşağıdaki bilinçli istisna).
+
+**`FlexHeader.tsx`'e yeni `left` prop'u eklendi:** breadcrumb/geri-butonu olan sayfalar (Eğitim Ekle, Eğitim Ayarları alt-sayfaları, Kullanıcı Ekle/Düzenle, Yoklama Detay) için sol tarafı (icon+title+subtitle bloğu) TAMAMEN özel içerikle değiştirir — sağdaki bildirim+avatar bloğu (isim fetch+cache dahil) hep aynı kalır. `subtitle` prop'u da opsiyonel yapıldı (`left` kullanan sayfalarda gereksiz).
+
+**Bilinçli istisna — Yoklama Al (`/flexos/yoklama/al`) dokunulmadı:** bu sayfa kasıtlı olarak FlexSidebar'sız/bağımsız (2026-07-02 kararı — "ders başladıktan sonra yanlışlıkla başka sayfaya geçip yoklamayı yarım bırakmasın", sidebar menüden yeni sekmede açılıyor). FlexHeader/Footer eklemek bu tasarım kararını bozardı.
+
+**Yoklama Detay + Yoklama Raporu — sadece HEADER, Footer YOK:** ikisi de `position:absolute inset-0` kayan panel deseni kullanıyor (`overflow:hidden` sabit-viewport), Footer'ın doğal bir yeri yok — sadece üst header (bell/avatar/isim) `FlexHeader`'a taşındı, sayfa içindeki tekrarlı isim-fetch kodu da temizlendi (artık `FlexHeader` kendi içinde tek kaynaktan çekiyor).
+
+**🔧 Düzeltme — Yoklama Detay/Raporu içerik genişliği header'la eşitlendi (aynı gün devam):** Kullanıcı fark etti: FlexHeader 1920 genişliğinde ama içerik (`AttendanceCore`/`AttendanceDetailList` paylaşımlı bileşenleri, Yoklama Al'ın eski topBar'ıyla eşleşecek şekilde 1300/1440/1620 sabitti) dar kalıyordu. **Risk:** bu iki bileşen Yoklama Al'da da kullanılıyor, Al'ın kendi topBar'ı hâlâ 1300/1440/1620 (kasıtlı, dokunulmadı) — o yüzden bileşenlerin genişliğini direkt 1920'e sabitlemek Al'da YENİ bir uyumsuzluk yaratırdı. **Çözüm:** her iki bileşene opsiyonel `containerClassName` prop'u eklendi (varsayılan = eski 1300/1440/1620 string'i, Yoklama Al hiç değişmedi), Yoklama Detay + Yoklama Raporu'ndaki tüm çağrılar (`AttendanceDetailList`, `AttendanceCore` mode="detail" — 2 yerde: sağdan kayan grup detayı + Rapor'un iç içe 3. paneli) `"...max-w-[1920px] mx-auto px-9..."` ile override ediyor. Yoklama Raporu'nun kendi sayfa-içi Panel 1 div'i de (paylaşımlı bileşen değil, doğrudan page.tsx'te) aynı şekilde 1920'e çekildi. Panel 2 (split view) zaten `flex` tam-genişlik kullanıyordu, dokunulmadı.
+
+`tsc`+`npm run build` temiz (tüm route'lar dahil).
+
+**Yan ürün — kod temizliği:** Header değişince artık çağrılmayan `soon()`/bildirim-toast fonksiyonları (kullanılmayan değişken kalmasın diye) ilgili dosyalardan silindi (Eğitim Yönetimi, Eğitim Ekle, Seanslar, Öğrenci Havuzu).
+
+`tsc --noEmit` ve `npm run build` (tüm route'lar dahil) temiz; `eslint src/app/flexos` **21 problem sayısı değişik olmadı** (23 pre-existing warning/error, hepsi bu işten önce de vardı — stash ile doğrulandı, hiçbiri bu değişiklikle eklenmedi). **Test edilmeyen:** tarayıcıda toplu olarak gezilmedi — sıradaki oturumda görsel bir tur (özellikle breadcrumb'lı `left` sayfaları: Eğitim Ekle, Kullanıcı Ekle/Düzenle, Yoklama Detay) faydalı olur.
+
 ### ✅ Satış Dashboard — donut+kota grafikleri Recharts'a taşındı, senkron giriş animasyonu (2026-07-04)
 
 Kullanıcı iki grafiği de (donut'un conic-gradient CSS halkası, kota'nın elle-SVG burn-up eğrisi) **animasyonlu Recharts** bileşenleriyle değiştirmek istedi. Uzun bir iterasyon turu sonrası kilitlenen hâl:

@@ -25,10 +25,13 @@ interface FlexHeaderProps {
   /** true ise başlık "Hoş Geldin, {isim} 😊" olarak render edilir (title yok sayılır). */
   greeting?: boolean;
   title?: string;
-  subtitle: string;
+  subtitle?: string;
   /** Sağ üstte, isim altında (ör. "Yönetici · Satış"). */
   roleLabel?: string;
   maxWidth?: number;
+  /** Verilirse sol taraf (icon/title/subtitle) TAMAMEN bununla değişir — breadcrumb/geri
+   *  butonu gibi özel sol içeriği olan sayfalar için (bildirim+avatar bloğu hep aynı kalır). */
+  left?: React.ReactNode;
 }
 
 // Diğer FlexOS sayfalarının (Eğitim Yönetimi, Sınıflar, Eğitmenler, Satış Yap…) standart
@@ -36,7 +39,7 @@ interface FlexHeaderProps {
 // değer kullanılmalı (bu bileşenin varsayılanı ve dashboard'un içerik grid'i de 1920).
 export const FLEX_CONTENT_MAX_WIDTH = 1920;
 
-export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH }: FlexHeaderProps) {
+export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, left }: FlexHeaderProps) {
   const [displayName, setDisplayName] = useState(nameCache ?? "");
 
   useEffect(() => {
@@ -65,19 +68,21 @@ export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel 
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 2px 6px rgba(15,31,61,.04)" }}>
       <div style={{ maxWidth, margin: "0 auto", width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: icon ? 15 : 0 }}>
-          {icon && (
-            <div style={{ width: 44, height: 44, borderRadius: 13, background: "linear-gradient(135deg,#3A7BD5,#205297)", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
-              {icon}
+        {left ?? (
+          <div style={{ display: "flex", alignItems: "center", gap: icon ? 15 : 0 }}>
+            {icon && (
+              <div style={{ width: 44, height: 44, borderRadius: 13, background: "linear-gradient(135deg,#3A7BD5,#205297)", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                {icon}
+              </div>
+            )}
+            <div>
+              <h1 style={{ margin: 0, fontSize: 19, fontWeight: 630, letterSpacing: "-0.022em", color: "#1E222B" }}>
+                {greeting ? `Hoş Geldin${firstName ? `, ${firstName}` : ""} 😊` : title}
+              </h1>
+              {subtitle && <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{subtitle}</p>}
             </div>
-          )}
-          <div>
-            <h1 style={{ margin: 0, fontSize: 19, fontWeight: 630, letterSpacing: "-0.022em", color: "#1E222B" }}>
-              {greeting ? `Hoş Geldin${firstName ? `, ${firstName}` : ""} 😊` : title}
-            </h1>
-            <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{subtitle}</p>
           </div>
-        </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <button
             style={{ position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}

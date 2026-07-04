@@ -13,6 +13,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
+import FlexHeader from "../../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 
 // ── types ──
 interface SaleItem {
@@ -191,10 +193,11 @@ export default function SatisListePage() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="satis-liste" />
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3" }}>
-        {/* header */}
-        <header style={{ position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 2px 6px rgba(15,31,61,.04)" }}>
-          <div style={{ maxWidth: 1560, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+        <FlexHeader
+          roleLabel="Yönetici · Eğitmen"
+          maxWidth={1560}
+          left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               <div style={{ width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}>
                 <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg>
@@ -208,23 +211,10 @@ export default function SatisListePage() {
                 <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Satış Listesi</h1>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <button style={{ position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }} onClick={() => toast.info("Bu özellik yakında.")}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                <span style={{ position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" }} />
-              </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
-                <div style={{ textAlign: "right" as const, lineHeight: 1.3 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>Alparslan Şentürk</div>
-                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-                </div>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#fb923c,#ea580c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(234,88,12,.7)" }}>AŞ</div>
-              </div>
-            </div>
-          </div>
-        </header>
+          }
+        />
 
-        <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto" }}>
+        <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
 
           {/* ===== 4 METRİK KART ===== */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 22 }}>
@@ -438,6 +428,7 @@ export default function SatisListePage() {
             )}
           </div>
         </div>
+        <Footer mini containerClassName="w-full max-w-[1560px] mx-auto px-9" />
       </main>
 
       {/* ── İptal Onay Modalı ── */}

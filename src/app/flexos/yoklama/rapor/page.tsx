@@ -25,13 +25,11 @@
 import React, { useState, useEffect, useMemo, useCallback, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { TrendingUp, Clock, CheckCircle2, XCircle, Bell } from "lucide-react";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/app/lib/firebase";
-import { toast } from "sonner";
+import { TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
+import FlexHeader from "../../_components/FlexHeader";
 import AttendanceCore from "../_shared/AttendanceCore";
-import { initials, avatarStyle } from "@/app/flexos/siniflar/_shared/groupDisplay";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -417,7 +415,7 @@ function ReportContent() {
     <>
       {/* ── Panel 1: Ana rapor ── */}
       <motion.div animate={{ x: selectedInstructorId ? "-100%" : 0 }} transition={T} className="absolute inset-0 overflow-y-auto [scrollbar-gutter:stable]">
-        <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+        <div className="w-full max-w-[1920px] mx-auto px-9 py-8 space-y-5">
 
           {/* Başlık zaten üst header'da — burada sadece bağlam (filtre + tarih aralığı). */}
           <p className="text-[13px] text-surface-400">
@@ -607,6 +605,7 @@ function ReportContent() {
               initialDate={selectedSession.date}
               allowEdit={false}
               enforceTimeWindow={false}
+              containerClassName="flex min-h-full w-full max-w-[1920px] mx-auto px-9"
             />
           </>
         )}
@@ -621,7 +620,6 @@ export default function YoklamaRaporuPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [forbidden, setForbidden] = useState(false);
-  const [displayName, setDisplayName] = useState("");
 
   const checkAccess = useCallback(async () => {
     const headers = await authHeaders();
@@ -639,15 +637,6 @@ export default function YoklamaRaporuPage() {
       const u = auth.currentUser;
       if (!u) { router.push("/login"); return; }
       if (cancelled) return;
-      // İsim canlı ile aynı kaynaktan (users/{uid}.name+surname) — bkz. Yoklama Al fix'i.
-      try {
-        const snap = await getDoc(doc(db, "users", u.uid));
-        const data = snap.exists() ? (snap.data() as { name?: string; surname?: string }) : null;
-        const full = [data?.name, data?.surname].filter(Boolean).join(" ").trim();
-        setDisplayName(full || u.displayName || u.email || "");
-      } catch {
-        setDisplayName(u.displayName ?? u.email ?? "");
-      }
       await checkAccess();
     })();
     return () => { cancelled = true; };
@@ -676,32 +665,12 @@ export default function YoklamaRaporuPage() {
     <div style={S.root}>
       <FlexSidebar active="yoklama-raporu" />
       <main style={S.main}>
-        <header style={S.header}>
-          <div
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}
-            className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-5"
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={S.headerIcon}><TrendingUp size={22} color="#fff" /></div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Yoklama Raporu</h1>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Eğitmen bazlı ders saati özeti ve sınıf durumu takibi.</p>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <button style={S.bellBtn} onClick={() => toast.info("Bu özellik yakında.")}>
-                <Bell size={17} /><span style={S.bellDot} />
-              </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
-                <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{displayName}</div>
-                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-                </div>
-                <div style={{ ...S.avatar, ...avatarStyle(0) }}>{initials(displayName || "?")}</div>
-              </div>
-            </div>
-          </div>
-        </header>
+        <FlexHeader
+          icon={<TrendingUp size={22} color="#fff" />}
+          title="Yoklama Raporu"
+          subtitle="Eğitmen bazlı ders saati özeti ve sınıf durumu takibi."
+          roleLabel="Yönetici · Eğitmen"
+        />
         <div style={S.panelArea}>
           <ReportContent />
         </div>

@@ -16,7 +16,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
+import FlexHeader from "../../_components/FlexHeader";
 import FlexModal from "../../_components/FlexModal";
+import Footer from "@/app/components/layout/Footer";
 
 // ── model tipleri (yerel; backend'e bağlanınca DTO'ya map'lenecek) ────────────
 interface Track {
@@ -538,8 +540,6 @@ export default function EgitimEklePage() {
   const onChange = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     patch({ [key]: e.target.value } as Partial<FormState>);
 
-  const soon = () => toast.info("Bu özellik yakında — şimdilik form yerel çalışıyor (backend bağlanmadı).");
-
   // dinamik buton stili (etkin/pasif)
   const addBtn = (enabled: boolean, accent: string): CSSProperties => ({
     display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 18px", borderRadius: 11, border: "none",
@@ -699,37 +699,26 @@ export default function EgitimEklePage() {
 
       {/* ============ MAIN ============ */}
       <main style={S.main}>
-        {/* header */}
-        <header style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <a className="ee-iconbtn" style={S.backBtn} title="Kataloğa dön" onClick={() => router.push("/flexos/egitim-yonetimi")}>
-              <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-            </a>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
-                <span>Eğitim Yönetimi</span>
-                <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
-                <span style={{ color: "#f97316" }}>{eduId ? "Düzenle" : "Yeni Kayıt"}</span>
+        <FlexHeader
+          roleLabel="Yönetici · Eğitmen"
+          left={
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <a className="ee-iconbtn" style={S.backBtn} title="Kataloğa dön" onClick={() => router.push("/flexos/egitim-yonetimi")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.back }} />
+              </a>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
+                  <span>Eğitim Yönetimi</span>
+                  <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
+                  <span style={{ color: "#f97316" }}>{eduId ? "Düzenle" : "Yeni Kayıt"}</span>
+                </div>
+                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>{eduId ? "Eğitimi Düzenle" : "Yeni Eğitim Ekle"}</h1>
               </div>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>{eduId ? "Eğitimi Düzenle" : "Yeni Eğitim Ekle"}</h1>
             </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <button className="ee-iconbtn" style={S.bellBtn} onClick={soon}>
-              <span dangerouslySetInnerHTML={{ __html: IC.bell }} />
-              <span style={S.bellDot} />
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
-              <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
-                <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-              </div>
-              <div style={S.avatar}>AŞ</div>
-            </div>
-          </div>
-        </header>
+          }
+        />
 
-        <div style={{ padding: "26px 36px 64px", maxWidth: 1080, margin: "0 auto", width: "100%", minWidth: 0, boxSizing: "border-box", overflowX: "clip" }}>
+        <div style={{ padding: "26px 36px 64px", maxWidth: 1080, margin: "0 auto", width: "100%", minWidth: 0, boxSizing: "border-box", overflowX: "clip", flex: 1 }}>
 
           {/* top action row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 20 }}>
@@ -1291,6 +1280,7 @@ export default function EgitimEklePage() {
             </div>
           </div>
         </div>
+        <Footer mini />
       </main>
 
       {modal !== null && (
@@ -1470,7 +1460,7 @@ const S: Record<string, CSSProperties> = {
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   navActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   navActiveBar: { position: "absolute", left: 0, top: 9, bottom: 9, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
-  main: { flex: 1, minWidth: 0, height: "100%", overflowY: "scroll", overflowX: "clip", background: "#eef2f8" },
+  main: { flex: 1, minWidth: 0, height: "100%", overflowY: "scroll", overflowX: "clip", background: "#eef2f8", display: "flex", flexDirection: "column" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px max(36px, calc((100% - 1080px) / 2 + 36px))", background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 2px 6px rgba(15,31,61,.04)" },
   backBtn: { width: 46, height: 46, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", textDecoration: "none", transition: "all .14s" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },

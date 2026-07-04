@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
+import FlexHeader from "../../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 
 interface SettingCard {
   key: string;
@@ -65,30 +67,14 @@ export default function EgitimAyarlariPage() {
 
       {/* MAIN */}
       <main style={S.main}>
-        <header style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <div style={S.headerIcon} dangerouslySetInnerHTML={{ __html: IC.settings }} />
-            <div>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>Eğitim Ayarları</h1>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Branşlar, seanslar, tatiller ve sertifika yapılandırması.</p>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <button className="ea-iconbtn" style={S.bellBtn} onClick={soon}>
-              <span dangerouslySetInnerHTML={{ __html: IC.bell }} />
-              <span style={S.bellDot} />
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
-              <div style={{ textAlign: "right", lineHeight: 1.25 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
-                <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-              </div>
-              <div style={S.avatar}>AŞ</div>
-            </div>
-          </div>
-        </header>
+        <FlexHeader
+          icon={<span dangerouslySetInnerHTML={{ __html: IC.settings }} />}
+          title="Eğitim Ayarları"
+          subtitle="Branşlar, seanslar, tatiller ve sertifika yapılandırması."
+          roleLabel="Yönetici · Eğitmen"
+        />
 
-        <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto" }}>
+        <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
           <p style={{ margin: "0 0 22px", fontSize: 13.5, color: "#64748b", fontWeight: 500 }}>
             Eğitim modülünün yapılandırması — branşlar, tatiller, sertifika ve sözleşme ayarları.
           </p>
@@ -118,6 +104,7 @@ export default function EgitimAyarlariPage() {
             })}
           </div>
         </div>
+        <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
     </div>
   );
@@ -130,7 +117,7 @@ const S: Record<string, CSSProperties> = {
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   navActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   navActiveBar: { position: "absolute", left: 0, top: 9, bottom: 9, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
-  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
+  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8", display: "flex", flexDirection: "column" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px max(36px, calc((100% - 1920px) / 2 + 36px))", background: "rgba(238,242,248,.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid #e2e8f1" },
   headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },

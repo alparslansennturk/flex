@@ -12,7 +12,9 @@ import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
+import FlexHeader from "../_components/FlexHeader";
 import FlexModal from "../_components/FlexModal";
+import Footer from "@/app/components/layout/Footer";
 
 // ── types ──
 type TabKey = "personel" | "ogrenciler";
@@ -356,40 +358,20 @@ export default function KullanicilarPage() {
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="kullanicilar" />
       <style>{`.ku-iconbtn:hover{background:rgba(0,0,0,.04)!important}`}</style>
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3" }}>
-        {/* header */}
-        <header style={{ position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px 0", maxWidth: 1560, margin: "0 auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={{ width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}>
-                <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              </div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Kullanıcılar</h1>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Sisteme erişimi olan tüm kullanıcıları yönetin.</p>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <button className="ku-iconbtn" style={S.bellBtn} onClick={() => toast.info("Bildirimler yakında.")}>
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                <span style={S.bellDot} />
-              </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
-                <div style={{ textAlign: "right" as const, lineHeight: 1.3 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>Alparslan Şentürk</div>
-                  <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-                </div>
-                <div style={S.avatar2}>AŞ</div>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 0, padding: "0 36px", maxWidth: 1560, margin: "0 auto", marginTop: 18 }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+        <FlexHeader
+          icon={<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
+          title="Kullanıcılar"
+          subtitle="Sisteme erişimi olan tüm kullanıcıları yönetin."
+          roleLabel="Yönetici · Eğitmen"
+          maxWidth={1560}
+        />
+
+        <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
+          <div style={{ display: "flex", gap: 0, marginBottom: 20 }}>
             <TabBtn label="Personel" count={totalUsers} active={tab === "personel"} onClick={() => setTab("personel")} />
             <TabBtn label="Öğrenciler" count={totalStudents} active={tab === "ogrenciler"} onClick={() => setTab("ogrenciler")} />
           </div>
-        </header>
-
-        <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto" }}>
 
           {/* ═══════════ SİSTEM MODU + KİŞİSEL GÖRÜNÜM PIN'İ — 2 sütun ═══════════ */}
           <div style={{ display: "grid", gridTemplateColumns: canPin ? "1fr 1fr" : "1fr", gap: 16, marginBottom: 22, alignItems: "stretch" }}>
@@ -571,6 +553,7 @@ export default function KullanicilarPage() {
             </>
           )}
         </div>
+        <Footer mini containerClassName="w-full max-w-[1560px] mx-auto px-9" />
       </main>
       {(rolDD || subeDD || statusDD || stuStatusDD) && <div onClick={() => { setRolDD(false); setSubeDD(false); setStatusDD(false); setStuStatusDD(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
 

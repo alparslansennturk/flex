@@ -263,7 +263,13 @@ export interface AttendanceCoreProps {
   allowEdit?: boolean;
   onViewDetail?: (groupId: string) => void;
   onBackToAttend?: () => void;
+  /** Dış kapsayıcının genişlik sınıfı — varsayılan Yoklama Al'ın kendi topBar'ıyla
+   *  eşleşir (1300/1440/1620). Yoklama Detay/Raporu gibi FlexHeader kullanan (1920
+   *  genişlik standardı) sayfalar bunu override eder. */
+  containerClassName?: string;
 }
+
+const DEFAULT_CONTAINER_CLASSNAME = "flex min-h-full w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8";
 
 export default function AttendanceCore({
   mode = "simple",
@@ -274,6 +280,7 @@ export default function AttendanceCore({
   allowEdit = false,
   onViewDetail,
   onBackToAttend,
+  containerClassName = DEFAULT_CONTAINER_CLASSNAME,
 }: AttendanceCoreProps) {
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
@@ -657,7 +664,7 @@ export default function AttendanceCore({
         />
       )}
 
-      <div className="flex min-h-full w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={containerClassName}>
 
         {/* ── LEFT: Group list ──────────────────────────────────────────── */}
         <div className="w-[260px] shrink-0 border-r border-surface-100 flex flex-col bg-neutral-50">

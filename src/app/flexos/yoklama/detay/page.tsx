@@ -13,12 +13,10 @@
 import React, { useEffect, useState, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, BarChart2, Bell } from "lucide-react";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/app/lib/firebase";
-import { toast } from "sonner";
+import { ArrowLeft, BarChart2 } from "lucide-react";
+import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
-import { initials, avatarStyle } from "@/app/flexos/siniflar/_shared/groupDisplay";
+import FlexHeader from "../../_components/FlexHeader";
 import AttendanceCore from "../_shared/AttendanceCore";
 import AttendanceDetailList from "../_shared/AttendanceDetailList";
 
@@ -27,7 +25,6 @@ const T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as con
 export default function YoklamaDetayPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [displayName, setDisplayName] = useState("");
   const [showDetail, setShowDetail] = useState(false);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
   const [detailDate, setDetailDate] = useState<string | undefined>(undefined);
@@ -37,14 +34,6 @@ export default function YoklamaDetayPage() {
       await auth.authStateReady();
       const u = auth.currentUser;
       if (!u) { router.push("/login"); return; }
-      try {
-        const snap = await getDoc(doc(db, "users", u.uid));
-        const data = snap.exists() ? (snap.data() as { name?: string; surname?: string }) : null;
-        const full = [data?.name, data?.surname].filter(Boolean).join(" ").trim();
-        setDisplayName(full || u.displayName || u.email || "");
-      } catch {
-        setDisplayName(u.displayName ?? u.email ?? "");
-      }
       setReady(true);
     })();
   }, [router]);
@@ -64,11 +53,9 @@ export default function YoklamaDetayPage() {
     <div style={S.root}>
       <FlexSidebar active="yoklama-detay" />
       <main style={S.main}>
-        <header style={S.header}>
-          <div
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}
-            className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 py-5"
-          >
+        <FlexHeader
+          roleLabel="Yönetici · Eğitmen"
+          left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               {/* Canlıdaki Header.tsx onBack deseni — sadece grup detayı açıkken görünür,
                   listeye döner (AttendanceCore'un kendi "Yoklama Al" linki DEĞİL — bu sayfaya
@@ -84,26 +71,15 @@ export default function YoklamaDetayPage() {
                 <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Grup bazlı ders saati özeti, arama ve tekil yoklama geçmişi.</p>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <button style={S.bellBtn} onClick={() => toast.info("Bu özellik yakında.")}>
-                <Bell size={17} /><span style={S.bellDot} />
-              </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
-                <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{displayName}</div>
-                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-                </div>
-                <div style={{ ...S.avatar, ...avatarStyle(0) }}>{initials(displayName || "?")}</div>
-              </div>
-            </div>
-          </div>
-        </header>
+          }
+        />
 
         <div style={S.panelArea}>
           {/* ── Yoklama Detay — landing liste ── */}
           <motion.div animate={{ x: showDetail ? "-100%" : 0 }} transition={T}
             className="absolute inset-0 overflow-y-auto bg-white [scrollbar-gutter:stable]">
             <AttendanceDetailList
+              containerClassName="w-full max-w-[1920px] mx-auto px-9 py-8 space-y-5"
               onGroupDetail={(groupId, month) => {
                 setDetailGroupId(groupId);
                 setDetailDate(`${month}-01`);
@@ -122,6 +98,7 @@ export default function YoklamaDetayPage() {
                 initialDate={detailDate}
                 allowEdit
                 enforceTimeWindow
+                containerClassName="flex min-h-full w-full max-w-[1920px] mx-auto px-9"
               />
             )}
           </motion.div>

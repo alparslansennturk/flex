@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
+import FlexHeader from "../../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 import { formatTrPhone } from "@/app/lib/phone";
 // ROLE_PACKAGES import kaldırıldı — yetkiler artık UI'daki ROLE_DEFAULT_PERMS ile yönetiliyor
 
@@ -199,38 +201,27 @@ export default function KullaniciEklePage() {
       <style>{css}</style>
       <FlexSidebar active="kullanicilar" />
 
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3" }}>
-        {/* header */}
-        <header style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <a className="ku-iconbtn" style={S.backBtn} title="Kullanıcılara dön" onClick={() => router.push("/flexos/kullanicilar")}>
-              <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-            </a>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
-                <span>Kullanıcılar</span>
-                <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
-                <span style={{ color: "#7C3AED" }}>Yeni Kayıt</span>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+        <FlexHeader
+          roleLabel="Yönetici · Eğitmen"
+          left={
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <a className="ku-iconbtn" style={S.backBtn} title="Kullanıcılara dön" onClick={() => router.push("/flexos/kullanicilar")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.back }} />
+              </a>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 11.5, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>
+                  <span>Kullanıcılar</span>
+                  <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
+                  <span style={{ color: "#7C3AED" }}>Yeni Kayıt</span>
+                </div>
+                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Yeni Kullanıcı Ekle</h1>
               </div>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Yeni Kullanıcı Ekle</h1>
             </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <button className="ku-iconbtn" style={S.bellBtn} onClick={() => toast.info("Bildirimler yakında.")}>
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-              <span style={S.bellDot} />
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
-              <div style={{ textAlign: "right" as const, lineHeight: 1.3 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>Alparslan Şentürk</div>
-                <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-              </div>
-              <div style={S.avatarHeader}>AŞ</div>
-            </div>
-          </div>
-        </header>
+          }
+        />
 
-        <div style={{ padding: "26px 36px 64px", maxWidth: 1280, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ padding: "26px 36px 64px", maxWidth: 1280, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
 
           {/* tabs */}
           <div style={{ display: "flex", alignItems: "center", gap: 4, borderBottom: "1px solid #e2e8f1", marginBottom: 24, overflowX: "auto" }}>
@@ -412,6 +403,7 @@ export default function KullaniciEklePage() {
             </div>
           </div>
         </div>
+        <Footer mini />
       </main>
     </div>
   );

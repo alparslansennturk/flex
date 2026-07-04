@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
+import FlexHeader from "../../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* ── Types ── */
@@ -273,41 +275,16 @@ export default function PaketYonetimiPage() {
     <div style={S.root}>
       <style>{css}</style>
       <FlexSidebar active="paket-yonetimi" />
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3" }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+        <FlexHeader
+          icon={<span dangerouslySetInnerHTML={{ __html: IC.box }} />}
+          title="Paket Yönetimi"
+          subtitle="Satış Yönetimi › Paket Yönetimi"
+          roleLabel="Yönetici · Eğitmen"
+          maxWidth={1560}
+        />
 
-        {/* ── Header ── */}
-        <header style={{ position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 2px 6px rgba(15,31,61,.04)" }}>
-          <div style={{ maxWidth: 1560, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={{ width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}>
-                <span dangerouslySetInnerHTML={{ __html: IC.box }} />
-              </div>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: "#8E95A3", fontWeight: 600, marginBottom: 3 }}>
-                  <span>Satış Yönetimi</span>
-                  <span dangerouslySetInnerHTML={{ __html: IC.chevron }} />
-                  <span style={{ color: "#205297" }}>Paket Yönetimi</span>
-                </div>
-                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Paket Yönetimi</h1>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <button style={{ position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }} onClick={() => toast.info("Bu özellik yakında.")}>
-                <span dangerouslySetInnerHTML={{ __html: IC.bell }} />
-                <span style={{ position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" }} />
-              </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
-                <div style={{ textAlign: "right" as const, lineHeight: 1.3 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>Alparslan Şentürk</div>
-                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-                </div>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#fb923c,#ea580c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(234,88,12,.7)" }}>AŞ</div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div style={{ padding: "28px 36px 64px", maxWidth: 1560, margin: "0 auto" }}>
+        <div style={{ padding: "28px 36px 64px", maxWidth: 1560, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
 
           {/* ── Özet kartlar ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
@@ -403,6 +380,7 @@ export default function PaketYonetimiPage() {
             </table>
           </div>
         </div>
+        <Footer mini containerClassName="w-full max-w-[1560px] mx-auto px-9" />
 
         {/* ── Form bottom sheet — egitmenler fx-sheet pattern'ı ── */}
         <AnimatePresence>

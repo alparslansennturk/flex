@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
+import FlexHeader from "../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import GroupTable from "./_shared/GroupTable";
 import { useGroupCatalog, type EducationDoc } from "./_shared/useGroupCatalog";
@@ -385,31 +387,14 @@ export default function EgitmenSiniflarPanel() {
       <FlexSidebar active="siniflar" />
 
       <main className="es-main" style={S.main}>
-        <header style={S.header}>
-          <div style={S.headerInner}>
-            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={S.headerIcon}><span dangerouslySetInnerHTML={{ __html: IC.graduation }} /></div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Sınıflarım</h1>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Kendi sınıflarınızı açın, öğrenci ekleyin.</p>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <button className="es-iconbtn" style={S.bellBtn} onClick={() => toast.info("Bu özellik yakında.")}>
-                <span dangerouslySetInnerHTML={{ __html: IC.bell }} /><span style={S.bellDot} />
-              </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
-                <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>Alparslan Şentürk</div>
-                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-                </div>
-                <div style={S.avatar}>AŞ</div>
-              </div>
-            </div>
-          </div>
-        </header>
+        <FlexHeader
+          icon={<span dangerouslySetInnerHTML={{ __html: IC.graduation }} />}
+          title="Sınıflarım"
+          subtitle="Kendi sınıflarınızı açın, öğrenci ekleyin."
+          roleLabel="Yönetici · Eğitmen"
+        />
 
-        <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto" }}>
+        <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Sınıflarım</h2>
@@ -714,6 +699,7 @@ export default function EgitmenSiniflarPanel() {
             )}
           </div>
         </div>
+        <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
 
 
@@ -761,7 +747,7 @@ export default function EgitmenSiniflarPanel() {
 
 const S: Record<string, CSSProperties> = {
   root: { display: "flex", width: "100%", height: "100vh", overflow: "hidden", background: "#F7F8FA", fontFamily: "'Inter', sans-serif" },
-  main: { flex: 1, minWidth: 0, height: "100%", overflowY: "auto", overflowX: "hidden" },
+  main: { flex: 1, minWidth: 0, height: "100%", overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column" },
   header: { background: "#fff", borderBottom: "1px solid #E2E5EA", position: "sticky", top: 0, zIndex: 10 },
   headerInner: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 36px", maxWidth: 1920, margin: "0 auto" },
   headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },

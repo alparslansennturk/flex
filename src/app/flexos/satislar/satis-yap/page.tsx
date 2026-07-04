@@ -24,6 +24,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
+import FlexHeader from "../../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 
 // ── Katalog API tipleri (GET /api/flexos/{branches,educations,sections,tracks}) ──
@@ -463,33 +465,14 @@ export default function SatisYapPage() {
       <FlexSidebar active="satis-yap" />
 
       <main className="sy-main" style={S.main}>
-        {/* header */}
-        <header style={S.header}>
-          <div style={S.headerInner}>
-            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={S.headerIcon} dangerouslySetInnerHTML={{ __html: IC.shoppingBag }} />
-              <div>
-                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#0f1f3d" }}>Satış Yap</h1>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Yeni öğrenci kaydı oluşturun.</p>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <button className="sy-iconbtn" style={S.bellBtn} onClick={() => toast.info("Bu özellik yakında.")}>
-                <span dangerouslySetInnerHTML={{ __html: IC.bell }} />
-                <span style={S.bellDot} />
-              </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #e2e8f1" }}>
-                <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
-                  <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-                </div>
-                <div style={S.avatar}>AŞ</div>
-              </div>
-            </div>
-          </div>
-        </header>
+        <FlexHeader
+          icon={<span dangerouslySetInnerHTML={{ __html: IC.shoppingBag }} />}
+          title="Satış Yap"
+          subtitle="Yeni öğrenci kaydı oluşturun."
+          roleLabel="Yönetici · Eğitmen"
+        />
 
-        <div style={{ maxWidth: 1920, margin: "0 auto", padding: "26px 36px 64px" }}>
+        <div style={{ maxWidth: 1920, margin: "0 auto", padding: "26px 36px 64px", width: "100%", boxSizing: "border-box", flex: 1 }}>
 
           {/* 1) Satış Tipi toggle */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 20 }}>
@@ -1138,6 +1121,7 @@ export default function SatisYapPage() {
             </div>
           </div>
         </div>
+        <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
     </div>
   );
@@ -1201,7 +1185,7 @@ const segSm = (on: boolean): CSSProperties => ({
 // ── stiller ────────────────────────────────────────────────────────────────────
 const S: Record<string, CSSProperties> = {
   root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', system-ui, sans-serif", background: "#eef2f8" },
-  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
+  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8", display: "flex", flexDirection: "column" },
   header: { position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 2px 6px rgba(15,31,61,.04)" },
   headerInner: { maxWidth: 1920, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" },
   headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },

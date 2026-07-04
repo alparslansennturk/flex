@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
+import FlexHeader from "../../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 
 interface BranchDoc {
   id: string;
@@ -123,32 +125,28 @@ export default function BransHavuzuPage() {
 
       {/* MAIN */}
       <main style={S.main}>
-        <header style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <a className="bh-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön" onClick={() => router.push("/flexos/egitim-yonetimi/ayarlar")}>
-              <span dangerouslySetInnerHTML={{ __html: IC.back }} />
-            </a>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
-                <span>Eğitim Yönetimi</span>
-                <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
-                <span>Eğitim Ayarları</span>
-                <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
-                <span style={{ color: "#f97316" }}>Branş Havuzu</span>
+        <FlexHeader
+          roleLabel="Yönetici · Eğitmen"
+          left={
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <a className="bh-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön" onClick={() => router.push("/flexos/egitim-yonetimi/ayarlar")}>
+                <span dangerouslySetInnerHTML={{ __html: IC.back }} />
+              </a>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 2 }}>
+                  <span>Eğitim Yönetimi</span>
+                  <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
+                  <span>Eğitim Ayarları</span>
+                  <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.crumb }} />
+                  <span style={{ color: "#f97316" }}>Branş Havuzu</span>
+                </div>
+                <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>Branş Havuzu</h1>
               </div>
-              <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: "-.5px", color: "#0f1f3d" }}>Branş Havuzu</h1>
             </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ textAlign: "right", lineHeight: 1.25 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0f1f3d" }}>Alparslan Şentürk</div>
-              <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-            </div>
-            <div style={S.avatar}>AŞ</div>
-          </div>
-        </header>
+          }
+        />
 
-        <div style={{ padding: "30px 36px 48px", maxWidth: 760, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ padding: "30px 36px 48px", maxWidth: 760, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
           <p style={{ margin: "0 0 20px", fontSize: 13.5, color: "#64748b", fontWeight: 500 }}>
             Branşlar tüm eğitimlerin üst kategorisidir (Grafik Tasarım, Yazılım…). Buradan tanımladığınız branşlar “Eğitim Ekle” formundaki dropdown'da çıkar.
           </p>
@@ -205,6 +203,7 @@ export default function BransHavuzuPage() {
             )}
           </div>
         </div>
+        <Footer mini />
       </main>
     </div>
   );
@@ -227,7 +226,7 @@ const S: Record<string, CSSProperties> = {
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#9fb2cd", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   navActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   navActiveBar: { position: "absolute", left: 0, top: 9, bottom: 9, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
-  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8" },
+  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8", display: "flex", flexDirection: "column" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px max(36px, calc((100% - 760px) / 2 + 36px))", background: "rgba(238,242,248,.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid #e2e8f1" },
   backBtn: { width: 46, height: 46, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", textDecoration: "none", transition: "all .14s" },
   avatar: { width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#fb923c,#ea580c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(234,88,12,.7)" },

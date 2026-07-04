@@ -27,6 +27,8 @@ import {
   getDocs, onSnapshot, writeBatch,
 } from "firebase/firestore";
 import FlexSidebar from "../_components/FlexSidebar";
+import FlexHeader from "../_components/FlexHeader";
+import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import { formatTrPhone } from "@/app/lib/phone";
 import { FLEX_MESSAGES } from "@/app/lib/messages";
@@ -619,35 +621,16 @@ export default function AktiviteMerkeziPage() {
       <style>{CSS}</style>
       <FlexSidebar active="aktivite-merkezi" />
 
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3" }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+        <FlexHeader
+          icon={<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>}
+          title="Aktivite Merkezi"
+          subtitle="Tüm talepler ve aktiviteler tek ekranda."
+          roleLabel="Yönetici · Eğitmen"
+          maxWidth={1560}
+        />
 
-        {/* ── HEADER ── */}
-        <header style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px", background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <div style={{ width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}>
-              <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            </div>
-            <div>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px" }}>Aktivite Merkezi</h1>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Tüm talepler ve aktiviteler tek ekranda.</p>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <button className="am-icon-btn" style={{ position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59" }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-              <span style={{ position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" }} />
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
-              <div style={{ textAlign: "right", lineHeight: 1.3 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700 }}>Alparslan Şentürk</div>
-                <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Yönetici · Eğitmen</div>
-              </div>
-              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#FF8D28,#D66500)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(214,101,0,.5)" }}>AŞ</div>
-            </div>
-          </div>
-        </header>
-
-        <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto" }}>
+        <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
 
           {/* ── FILTER BAR ── */}
           <div style={{ position: "relative", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
@@ -1128,6 +1111,7 @@ export default function AktiviteMerkeziPage() {
             )}
           </div>
         </div>
+        <Footer mini containerClassName="w-full max-w-[1560px] mx-auto px-9" />
       </main>
 
       {/* Dropdown click-away */}
