@@ -21,13 +21,13 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
   }
 
-  // Kişi başına ayrı getById() yerine (N+1 Firestore round-trip) tek list() + bellekte join —
-  // sales/route.ts'teki desenle aynı, veri büyüdükçe fark yaratır.
-  const [all, persons] = await Promise.all([
-    firestoreActivityRepo.list(actor.tenantId),
-    firestorePersonRepo.list(actor.tenantId),
-  ]);
-  const recent = all.slice(0, RECENT_LIMIT);
+  // Query-seviyesinde limit(30) — tam koleksiyon taraması yok (önceki `list()+slice()`
+  // her poll'da tüm koleksiyonu okuyordu, 20sn'lik client polling ile maliyeti katlıyordu).
+  const recent = await firestoreActivityRepo.listRecent(actor.tenantId, RECENT_LIMIT);
+  // Kişi başına ayrı getById() yerine (N+1) ama tüm koleksiyon yerine sadece
+  // referans verilen kişiler tek "in" sorgusuyla (en fazla 30 id).
+  const personIds = [...new Set(recent.map((a) => a.personId))];
+  const persons = await firestorePersonRepo.getByIds(personIds, actor.tenantId);
   const personMap = new Map(persons.map((p) => [p.id, p]));
 
   const items = recent.map((a) => ({

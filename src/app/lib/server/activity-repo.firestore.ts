@@ -45,4 +45,14 @@ export const firestoreActivityRepo: ActivityRepo = {
       .map((d) => d.data() as Activity)
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   },
+
+  async listRecent(tenantId, limit) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+    return snap.docs.map((d) => d.data() as Activity);
+  },
 };

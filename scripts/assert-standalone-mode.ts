@@ -58,6 +58,7 @@ function makePersonRepo(persons: Person[] = []): PersonRepo {
     nextId,
     async save(p) { map.set(p.id, { ...p }); },
     async getById(id, tid) { const p = map.get(id); return p && p.tenantId === tid ? p : null; },
+    async getByIds(ids, tid) { return ids.map((id) => map.get(id)).filter((p): p is Person => !!p && p.tenantId === tid); },
     async findByIdNo() { return null; },
     async list(tid) { return [...map.values()].filter((p) => p.tenantId === tid); },
     async update(id, tid, data) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, ...data }); },

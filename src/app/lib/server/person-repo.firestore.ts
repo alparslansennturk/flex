@@ -1,5 +1,6 @@
 // NOT: Sadece server-side import edilmeli (firebase-admin client'ta çalışmaz).
 import { adminDb } from "../firebase-admin";
+import { FieldPath } from "firebase-admin/firestore";
 import type { Person } from "../domain/core/person";
 import type { PersonRepo } from "../domain/repo/person-repo";
 
@@ -30,6 +31,26 @@ export const firestorePersonRepo: PersonRepo = {
     const data = snap.data() as Person;
     if (data.tenantId !== tenantId) return null; // kiracı izolasyonu
     return data;
+  },
+
+  async getByIds(ids, tenantId) {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return [];
+    // Firestore "in" sorgusu en fazla 30 değer kabul eder → 30'luk parçalara böl.
+    const chunks: string[][] = [];
+    for (let i = 0; i < uniqueIds.length; i += 30) chunks.push(uniqueIds.slice(i, i + 30));
+
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        adminDb
+          .collection(COLLECTION)
+          .where(FieldPath.documentId(), "in", chunk)
+          .get(),
+      ),
+    );
+    return results
+      .flatMap((snap) => snap.docs.map((d) => d.data() as Person))
+      .filter((p) => p.tenantId === tenantId); // kiracı izolasyonu
   },
 
   async update(id, tenantId, data) {

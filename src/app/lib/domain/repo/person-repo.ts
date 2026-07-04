@@ -11,6 +11,8 @@ export interface PersonRepo {
   save(person: Person): Promise<void>;
   /** tenantId eşleşmezse null (kiracı izolasyonu). */
   getById(id: string, tenantId: string): Promise<Person | null>;
+  /** Belirli id'leri tek seferde çeker (tam koleksiyon taraması yerine). En fazla 30 id. */
+  getByIds(ids: string[], tenantId: string): Promise<Person[]>;
   /** TC kimlik numarasına göre ara (pii.idNo). Bulunamazsa null. */
   findByIdNo(idNo: string, tenantId: string): Promise<Person | null>;
   /** Kiracıya ait tüm kişileri listele. */

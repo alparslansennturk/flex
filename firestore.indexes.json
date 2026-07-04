@@ -56,6 +56,14 @@
         { "fieldPath": "submissionId", "order": "ASCENDING" },
         { "fieldPath": "createdAt",    "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "flexos_activities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
