@@ -91,6 +91,13 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "appointment.create", domain: "crm", label: "Randevu Oluştur", sensitivity: "green", write: true, scopable: false, audited: false },
   { key: "appointment.read", domain: "crm", label: "Randevu Gör", sensitivity: "green", write: false, scopable: false, audited: false },
 
+  // ── assignment (Ödev Verme/Alma — canlıdaki `tasks`/`templates` karşılığı) ──
+  { key: "assignment.create", domain: "assignment", label: "Ödev Oluştur/Ata", sensitivity: "green", write: true, scopable: true, audited: false },
+  { key: "assignment.edit", domain: "assignment", label: "Ödev Düzenle", sensitivity: "green", write: true, scopable: true, audited: false },
+  { key: "assignment.read", domain: "assignment", label: "Ödev Gör", sensitivity: "green", write: false, scopable: true, audited: false },
+  { key: "assignment.delete", domain: "assignment", label: "Ödev Sil", sensitivity: "yellow", write: true, scopable: true, audited: true },
+  { key: "template.manage", domain: "assignment", label: "Ödev Şablonu Yönet", sensitivity: "green", write: true, scopable: false, audited: false },
+
   // ── system ──
   { key: "role.manage", domain: "system", label: "Capability Paketlerini Düzenle", sensitivity: "red", write: true, scopable: false, audited: true },
   { key: "capability.grant", domain: "system", label: "Tekil Yetki Ver/Al", sensitivity: "red", write: true, scopable: false, audited: true },

@@ -17,6 +17,41 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Ödev Verme — Faz 1 backend (Assignment/Template domain) BİTTİ (2026-07-04, aynı gün devam)
+
+Kullanıcı: eğitmen tarafında Yoklama'dan sonra kalan 2 ciddi alan — Ödev Verme/Alma + Not Girme (Sınıflar Ligi tamamen ayrı/opsiyonel, şimdilik yok). Önce canlıdaki mevcut sistemi bir agent'a inceletmiştik: **ödev oluşturma canlıda 2 bağımsız yoldan** oluyordu (`AssignmentLibrary.tsx` + `DesignParkour.tsx`, ikisi de kendi başına `addDoc`), **submission durum/not güncelleme 3 ayrı yoldan**, eğitmen tarafı dosya yükleme öğrenciden FARKLI endpoint kullanıyordu. **Önemli bulgu: DesignParkour "oyunlaştırılmış" değil** — XP/rozet/streak yok (grep'te çıkmadı), aynı `tasks`/`templates` verisi üzerine sadece farklı bir görsel cilt. Google Drive entegrasyonu (`googledrive.ts`) ise dikkatli yazılmış, kırılganlığı kod değil tek kişisel OAuth hesabı — olduğu gibi korunacak.
+
+**Karar (plan onaylandı):** Bu dağınıklığı FlexOS'a taşımıyoruz — TEK canonical create-servis, TEK submission durum/not servisi. **Faz 1 = Assignment/Template domain, backend-only, Submission/Drive'a HİÇ dokunulmadı** (en riskli parça izole bir sonraki faza bırakıldı ki fake repo ile assert edilebilsin).
+
+**Yapılanlar:**
+- `src/app/lib/domain/core/assignment.ts` (Assignment+AssignmentAttachment) + `assignment-template.ts` (AssignmentTemplate) — canlıdaki `tasks`/`templates` karşılığı.
+- Capability'ler: `assignment.create/edit/read/delete` + `template.manage` (registry.ts). Paket kablolama: `egitmen` (assigned scope, yoklama/not gibi çekirdek iş — standalone-only DEĞİL), `operasyon`+`admin` (org scope + `template.manage` — kütüphane küratörlüğü sadece Op/Admin, eğitmen sadece okur).
+- Repo+Firestore adapter (`flexos_assignments`, `flexos_assignment_templates` — canlının `tasks`/`templates`'ına dokunulmadı).
+- `assignment-service.ts`: `assignTask` (grup sahipliği `can(actor,"assignment.create",{groupId,ownerUid:group.trainerId})` ile kontrol — `attendance-service.ts`'teki desenle birebir), `updateAssignment`, `deleteAssignment`, `createTemplate`, `listTemplates`.
+- Route'lar: `POST/GET /api/flexos/assignments` (GET'te assigned-scope aktör sunucu tarafında kendi ödevlerine daraltılır — `groups/route.ts`'teki `trainerId` zorlama deseniyle aynı), `PATCH/DELETE /api/flexos/assignments/[id]`, `GET/POST /api/flexos/assignment-templates`.
+- `scripts/assert-assignment.ts` — **18 assertion, hepsi geçti** (yetki gating, scope izolasyonu, validasyon, tenant izolasyonu, template küratörlüğü).
+
+`tsc --noEmit` + `eslint` + `npm run build` temiz (yeni 3 route dahil). **UI YOK bu fazda.**
+
+**TAM FAZ PLANI (plan dosyası makineye özel/senkronlanmıyor, o yüzden burada tam kopyası):**
+
+**Faz 2 (SIRADAKİ) — Submission + Google Drive:**
+- Domain (outline, henüz yazılmadı): `Submission extends Audit` — `id, tenantId, assignmentId, personId, groupId, status ("pending"|"submitted"|"revision_requested"|"approved"|"rejected"), grade?, gradedAt?, gradedBy?, retractedAt?`. `SubmissionFile extends Audit` — `id, tenantId, submissionId, version, actualFileName, originalFileName, driveFileId, mimeType, fileSize, uploadedBy`. `UploadSession` — `id, tenantId, submissionId, personId, actualFileName, driveSessionUri, status, expiresAt` (canlıdaki 7 günlük TTL/idempotency deseni aynen).
+- Yeni capability'ler: `submission.read`, `submission.grade`, `submission.status.write` (assignment.* ile aynı scope mantığı — egitmen assigned, operasyon/admin org).
+- Canlının 3 durum/not güncelleme yolu (`PATCH .../status`, ayrı `PATCH .../grade`, dağınık client `updateDoc`) yerine **TEK servis** (`updateSubmissionStatus`/`gradeSubmission`).
+- **Google Drive: `googledrive.ts` DEĞİŞTİRİLMEDEN reuse** — dosya zaten `ensureFolderPath(pathSegments, rootFolderId?)` opsiyonel folder-id parametresi alıyor (kod içinde doğrulandı). FlexOS servisi `ensureFolderPath(["flexos", tenantId, groupCode, personName], undefined)` ile kendi izole alt-ağacını açar, dönen folder-id'yi `uploadBufferToFolder`/`initResumableSession`'a verir. `googledrive.ts` dosyasının kendisine HİÇ dokunulmuyor.
+- Canlının trainer-side `AttachmentManager`'ının kullandığı (`/api/instructor/init-file-upload`+`complete-file-upload`) ayrı/denetlenmemiş yol PORTLANMIYOR — sadece öğrenci tarafının kanonik akışı (`init-resumable-upload`→`upload-chunk`→`complete-upload`→`delete-file`/`retract`) taşınıyor, eğitmen referans-dosya-ekleme de aynı akışı kullanacak.
+- Route'lar (Faz 2'de yazılacak): `/api/flexos/submissions/{init-resumable-upload,upload-chunk,complete-upload,delete-file,retract}` + durum/not güncelleme route'u.
+- Assertion script'te Drive gerçek network çağrısı YAPILMAYACAK — fake "drive" dependency inject edilecek (aynı Map-backed repo deseni).
+
+**Faz 3 — Öğrenci tarafı basit ekranlar:** Canlıda `/student/[studentId]/...` capability sisteminin TAMAMEN DIŞINDA, basit "uid = studentId eşleşmesi" kontrolüyle çalışıyor (staff Actor/paket sistemine hiç girmiyor). FlexOS'ta da aynı basit desen — henüz hiç FlexOS-farkında öğrenci route'u YOK (`src/app/student` sıfır FlexOS referansı içeriyor, `src/app/flexos/*` altında öğrenci-yüzü hiç yok), sıfırdan kurulacak. Kullanıcı kararı: "basitçe alsak da olur şu anda" — kapsamlı bir capability entegrasyonuna gerek yok.
+
+**Faz 4 — Eğitmen "Ödev Alma"/not verme UI'ı:** Grading workspace (canlıdaki `[groupId]/[assignmentId]/page.tsx` + `grading/page.tsx`'in TEK canonical birleşimi), yorum thread'leri (`tasks/{id}/comments`, `tasks/{id}/threads/{studentId}/comments` — canlıdaki yapı), bildirim/mail hookup. Canlıda tutarsız olan real-time davranış (bazı sayfa `onSnapshot`, bazısı one-shot fetch) FlexOS'ta HER YERDE tutarlı `onSnapshot` ile kurulacak.
+
+**Kritik referans dosyalar (Faz 2+ için de geçerli):** `src/app/lib/domain/services/attendance-service.ts` (grup-sahipliği kontrol deseni), `src/app/lib/googledrive.ts` (reuse edilecek, değiştirilmeyecek), `scripts/assert-view-access.ts`/`assert-assignment.ts` (assertion iskelet deseni).
+
+Plan dosyası (yerel makinede, senkronlanmıyor): `C:\Users\asent\.claude\plans\graceful-jumping-muffin.md` — yukarıdaki özet onun tam kopyası, ayrıca bakmaya gerek yok.
+
 ### ✅ Eğitim Operasyon Dashboard eklendi — Ana Sayfa'nın `education.create` rotası (2026-07-04, aynı gün devam)
 
 Kullanıcı dünkü Claude Design çıktısını (`Eğitim Operasyon Dashboard.dc.html`, demo veri) verdi — "bunu da yaparsak dashboardların çoğu biter (Finans+Genel Müdür hariç)". Satış Dashboard/Eğitmen Ana Sayfa ile aynı desende gerçek uçlara bağlanarak portlandı: **yeni sayfa `src/app/flexos/egitim-operasyon-anasayfa/page.tsx`**.

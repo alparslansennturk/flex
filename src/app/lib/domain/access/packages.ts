@@ -29,6 +29,13 @@ const EGITMEN_CORE: Grant[] = at(
   "attendance.write", // Yoklama Al + Yoklama Detay — kendi grubu, 3 gün düzenleme (assigned scope)
   "attendance.read",
   // attendance.report.read BİLEREK YOK — Yoklama Raporu eğitmende hiç görünmez (2026-07-02 kararı).
+  // Ödev verme/alma — yoklama/not gibi çekirdek öğretmenlik işi, standalone-only DEĞİL.
+  "assignment.create",
+  "assignment.edit",
+  "assignment.read",
+  "assignment.delete",
+  // template.manage BİLEREK YOK — kütüphane küratörlüğü sadece Operasyon/Admin'de,
+  // eğitmen şablonu SADECE okur (assignment.read yeterli, ayrı bir capability gerekmez).
 );
 
 const EGITMEN_STANDALONE_EXTRA: Grant[] = at(
@@ -135,6 +142,12 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "attendance.write",
     "attendance.read",
     "attendance.report.read",
+    // Ödev verme/alma — org-scope: herhangi bir grubun ödevini görür/yönetir + kütüphane küratörlüğü.
+    "assignment.create",
+    "assignment.edit",
+    "assignment.read",
+    "assignment.delete",
+    "template.manage",
   ),
 
   // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
@@ -201,6 +214,11 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "attendance.write",
       "attendance.read",
       "attendance.report.read",
+      "assignment.create",
+      "assignment.edit",
+      "assignment.read",
+      "assignment.delete",
+      "template.manage",
       "role.manage",
       "capability.grant",
       // view.toggle BİLEREK burada yok — paket-seviyeli değil, tekil grant

@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../_components/FlexHeader";
@@ -33,12 +34,14 @@ interface GroupItem {
   code: string;
   status: "planned" | "enrolling" | "active" | "postponed" | "completed" | "archived";
   branch: string;
+  trainerId: string;
   schedule: GroupSchedule;
   capacity: number;
   enrolled: number;
 }
 
 interface BranchDoc { id: string; name: string; order?: number }
+interface TrainerItem { id: string; name: string }
 
 type ActivityType = "arama" | "mesaj" | "randevu" | "not" | "satis_donusumu";
 
@@ -146,6 +149,7 @@ export default function EgitimOperasyonAnasayfaPage() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [branches, setBranches] = useState<BranchDoc[]>([]);
+  const [trainers, setTrainers] = useState<TrainerItem[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   // Sağ sütun (Yaklaşan Sınıflar/Operasyon Akışı) büyük ekranda daha geniş — Satış
@@ -169,14 +173,16 @@ export default function EgitimOperasyonAnasayfaPage() {
   const loadAll = useCallback(async (signal?: AbortSignal) => {
     try {
       const headers = await authHeaders();
-      const [groupsRes, branchRes, actRes] = await Promise.all([
+      const [groupsRes, branchRes, trainerRes, actRes] = await Promise.all([
         fetch("/api/flexos/groups", { headers, signal }),
         fetch("/api/flexos/branches", { headers, signal }),
+        fetch("/api/flexos/trainers", { headers, signal }),
         fetch("/api/flexos/activities", { headers, signal }),
       ]);
       if (signal?.aborted) return;
       if (groupsRes.ok) setGroups(((await groupsRes.json()).items ?? []) as GroupItem[]);
       if (branchRes.ok) setBranches(((await branchRes.json()).items ?? []) as BranchDoc[]);
+      if (trainerRes.ok) setTrainers(((await trainerRes.json()).items ?? []) as TrainerItem[]);
       if (actRes.ok) setActivities(((await actRes.json()).items ?? []) as ActivityItem[]);
     } catch (e) {
       if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
@@ -184,6 +190,23 @@ export default function EgitimOperasyonAnasayfaPage() {
       if (!signal?.aborted) setInitialLoadDone(true);
     }
   }, [authHeaders]);
+
+  // Operasyon Akışı — haber sitesi gibi: yeni aktivite gelince liste kaymadan (framer-motion
+  // `layout`) en üste eklenir. GERÇEK polling — sahte/otomatik "yeni geldi" simülasyonu yok,
+  // sadece belirli aralıkla `/api/flexos/activities` tekrar çekilip id bazlı fark alınıyor.
+  useEffect(() => {
+    if (!initialLoadDone) return;
+    const interval = setInterval(async () => {
+      try {
+        const headers = await authHeaders();
+        const res = await fetch("/api/flexos/activities", { headers });
+        if (!res.ok) return;
+        const items = ((await res.json()).items ?? []) as ActivityItem[];
+        setActivities(items);
+      } catch { /* sessizce atla, bir sonraki turda tekrar dener */ }
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [initialLoadDone, authHeaders]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -216,27 +239,62 @@ export default function EgitimOperasyonAnasayfaPage() {
   const donutTotalAnimated = Math.round(donut.total * revealProgress);
 
   // ── Yaklaşan Sınıflar: henüz başlamamış (planned/enrolling), yakın tarihten uzağa ──
-  const yaklasanSiniflar = useMemo(() => {
+  const yaklasanTumu = useMemo(() => {
     const t0 = todayStr();
     return groups
       .filter((g) => (g.status === "planned" || g.status === "enrolling") && g.schedule?.startDate && g.schedule.startDate >= t0)
       .map((g) => ({ ...g, gun: daysUntil(g.schedule.startDate!) }))
-      .sort((a, b) => a.gun - b.gun)
-      .slice(0, YAKLASAN_MAX);
+      .sort((a, b) => a.gun - b.gun);
   }, [groups]);
+  const yaklasanSiniflar = useMemo(() => yaklasanTumu.slice(0, YAKLASAN_MAX), [yaklasanTumu]);
+  // "Bu hafta" = başlangıcı bugün ile +7 gün arasında olan TÜM gruplar (durumdan bağımsız).
+  const buHaftaSinifSayisi = useMemo(() => yaklasanTumu.filter((g) => g.gun <= 7).length, [yaklasanTumu]);
+
+  // ── Eğitmen Takvimi mini-bilgi: GERÇEK — bugün dersi olan aktif grup sayısı + boşta
+  // kalan eğitmen sayısı (toplam eğitmen − bugün en az bir dersi olan eğitmen). Çakışma
+  // tespiti (aynı eğitmenin çakışan iki seansı) kullanıcı kararıyla kapsam dışı bırakıldı.
+  const egitmenTakvimiStats = useMemo(() => {
+    const todayDow = new Date().getDay();
+    const busyToday = new Set<string>();
+    let bugunDersSayisi = 0;
+    for (const g of groups) {
+      if (g.status !== "active") continue;
+      if (!g.schedule?.days?.includes(todayDow)) continue;
+      bugunDersSayisi += 1;
+      if (g.trainerId) busyToday.add(g.trainerId);
+    }
+    const bosEgitmen = Math.max(0, trainers.length - busyToday.size);
+    return { bugunDersSayisi, bosEgitmen };
+  }, [groups, trainers]);
 
   if (authed === null || !initialLoadDone) return null;
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
+      <style>{`
+        .eo-quick-card { transition: transform .15s ease, box-shadow .15s ease; }
+        .eo-quick-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px -12px rgba(15,31,61,.3); }
+        .eo-quick-icon { transition: transform .15s ease; }
+        .eo-quick-card:hover .eo-quick-icon { transform: scale(1.05); }
+        .eo-big-card { transition: transform .15s ease, box-shadow .15s ease; }
+        .eo-big-card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -14px rgba(15,31,61,.32); }
+        .eo-big-icon { transition: transform .15s ease; }
+        .eo-big-card:hover .eo-big-icon { transform: scale(1.05); }
+      `}</style>
       <FlexSidebar active="ana" />
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader title="Eğitim Operasyon Merkezi" subtitle="Sınıflar, yoklamalar ve öğrenci operasyonları tek ekranda." roleLabel="Yönetici · Operasyon" />
 
-        <div style={{ padding: "28px 36px 56px", maxWidth: FLEX_CONTENT_MAX_WIDTH, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1, display: "grid", gridTemplateColumns: isCompactRow ? "1fr 340px" : "1fr 420px", gridTemplateRows: "auto auto auto", gap: 20, alignItems: "stretch" }}>
+        {/* `flex:1` BİLEREK yok — grid'e "doldurulacak fazla boşluk" verirsek (büyük ekranda
+            içerik viewport'tan kısa kalınca) satırlar (auto auto auto) o boşluğu doldurmak
+            için esner, bu da 2-3. satırı kapsayan Operasyon Akışı (mutlak konumlu, hücresini
+            TAM dolduruyor) ile aynı satırlardaki Hızlı İşlemler'in (normal akış, esnemiyor)
+            arasında yükseklik uyuşmazlığı yaratıyordu. Footer'ın kendi `mt-auto`'su zaten
+            kısa içerikte alta yapışmayı sağlıyor — grid'in kendisi flex-grow olmasın. */}
+        <div style={{ padding: "28px 36px 56px", maxWidth: FLEX_CONTENT_MAX_WIDTH, margin: "0 auto", width: "100%", boxSizing: "border-box", display: "grid", gridTemplateColumns: isCompactRow ? "1fr 340px" : "1fr 420px", gridTemplateRows: "auto auto auto", gap: 20, alignItems: "stretch" }}>
 
           {/* DONUT + LEGEND + ÖZET ŞERİDİ */}
-          <div style={{ gridColumn: 1, gridRow: 1, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 24, padding: "24px", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)" }}>
+          <div style={{ gridColumn: 1, gridRow: 1, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 24, padding: "32px", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px" }}>Açık Eğitim Dağılımı</div>
@@ -245,7 +303,7 @@ export default function EgitimOperasyonAnasayfaPage() {
               <span style={{ fontSize: 12, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "5px 12px", borderRadius: 999 }}>Bu Dönem</span>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 40, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 40, flexWrap: "wrap", flex: 1, justifyContent: "center" }}>
               <div style={{ position: "relative", width: 216, height: 216, flex: "0 0 auto" }}>
                 <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 216, height: 216 }}>
                   <PieChart>
@@ -288,7 +346,7 @@ export default function EgitimOperasyonAnasayfaPage() {
             </div>
 
             {/* özet metrik şeridi */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginTop: 8, paddingTop: 24, borderTop: "1px solid #EEF0F3" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginTop: 8, paddingTop: 14, borderTop: "1px solid #EEF0F3" }}>
               <SummaryMetric label="Aktif Sınıf" value={String(donut.total)} bg="#DDE8F8" color="#205297" icon={IC.group} />
               <SummaryMetric label="Aktif Öğrenci" value={String(OZET_DUMMY.aktifOgrenci)} bg="#E6F5ED" color="#007A30" icon={IC.users} />
               <SummaryMetric label="Bu Hafta Başlayacak" value={String(OZET_DUMMY.buHaftaBaslayacak)} bg="#FFEAD7" color="#C2410C" icon={IC.calendar} />
@@ -297,7 +355,7 @@ export default function EgitimOperasyonAnasayfaPage() {
           </div>
 
           {/* BÜYÜK İŞLEM KARTLARI */}
-          <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             <BigActionCard
               onClick={() => router.push("/flexos/siniflar")}
               icon={IC.plus} bg="#FFEAD7" color="#C2410C"
@@ -312,6 +370,18 @@ export default function EgitimOperasyonAnasayfaPage() {
               aciklama="Aktif sınıfların günlük yoklamasını al, devamsızlıkları anında işle."
               cta="Yoklamaya Git" ctaColor="#205297"
             />
+            {/* Eğitmen Takvimi — tam takvim ekranı henüz yok ("yakında" toast), ama mini
+                bilgiler GERÇEK (groups+trainers'tan hesaplanıyor, bkz. egitmenTakvimiStats) */}
+            <BigActionCard
+              onClick={() => toast.info("Bu özellik yakında.")}
+              icon={IC.calendar} bg="#AFF3F0" color="#0E5D59"
+              baslik="Eğitmen Takvimi" alt="Ders programını gör"
+              stats={[
+                { label: "Bugün", value: `${egitmenTakvimiStats.bugunDersSayisi} ders` },
+                { label: "Boş eğitmen", value: String(egitmenTakvimiStats.bosEgitmen) },
+              ]}
+              cta="Takvimi Aç" ctaColor="#0E5D59"
+            />
           </div>
 
           {/* HIZLI İŞLEMLER */}
@@ -320,10 +390,11 @@ export default function EgitimOperasyonAnasayfaPage() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C2410C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg>
               <span style={{ fontSize: 17, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px" }}>Hızlı İşlemler</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
-              <QuickActionCard icon={IC.award} bg="#EDE4FB" color="#6B29A8" baslik="Sertifikasyon" alt="Belge hazırla" />
-              <QuickActionCard icon={IC.survey} bg="#AFF3F0" color="#0E5D59" baslik="Anketler" alt="Memnuniyet & geri bildirim" />
-              <QuickActionCard icon={IC.bell} bg="#DDE0FA" color="#4D52A6" baslik="Bildirim Merkezi" alt="SMS / e-posta gönder" />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
+              <QuickActionCard compact={isCompactRow} icon={IC.award} bg="#EDE4FB" color="#6B29A8" baslik="Sertifikasyon" alt="Belge hazırla" />
+              <QuickActionCard compact={isCompactRow} icon={IC.survey} bg="#AFF3F0" color="#0E5D59" baslik="Anketler" alt="Memnuniyet & geri bildirim" />
+              <QuickActionCard compact={isCompactRow} icon={IC.bell} bg="#DDE0FA" color="#4D52A6" baslik="Bildirim Merkezi" alt="SMS / e-posta gönder" />
+              <QuickActionCard compact={isCompactRow} icon={IC.users} bg="#E6F5ED" color="#007A30" baslik="Öğrenci Havuzu" alt="Gruba atama yap" onClick={() => router.push("/flexos/ogrenciler/havuz")} />
             </div>
           </div>
 
@@ -340,6 +411,9 @@ export default function EgitimOperasyonAnasayfaPage() {
                 </div>
               </div>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "4px 10px", borderRadius: 999 }}>{yaklasanSiniflar.length} sınıf</span>
+            </div>
+            <div style={{ fontSize: 11, color: "#AEB4C0", fontWeight: 600, marginBottom: 10, flex: "0 0 auto" }}>
+              Bu hafta: {buHaftaSinifSayisi} sınıf · Toplam bekleyen: {yaklasanTumu.length}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, overflowY: "auto", flex: 1, minHeight: 0, paddingRight: 2 }}>
               {yaklasanSiniflar.length === 0 ? (
@@ -387,33 +461,45 @@ export default function EgitimOperasyonAnasayfaPage() {
               <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1, minHeight: 0, paddingRight: 2 }}>
                 {activities.length === 0 ? (
                   <div style={{ padding: "20px 0", textAlign: "center", color: "#8E95A3", fontSize: 13, fontWeight: 600 }}>Henüz aktivite yok.</div>
-                ) : activities.map((a, i) => {
-                  const meta = ACTIVITY_META[a.type];
-                  return (
-                    <div key={a.id} style={{ position: "relative", display: "flex", gap: 12, paddingBottom: 14 }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto" }}>
-                        <span style={{ width: 32, height: 32, borderRadius: 9, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: meta.bg, color: meta.color }} dangerouslySetInnerHTML={{ __html: meta.icon }} />
-                        <span style={{ width: 2, flex: 1, background: i < activities.length - 1 ? "#EEF0F3" : "transparent", minHeight: 8, marginTop: 4 }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0, border: "1px solid #EEF0F3", borderRadius: 13, padding: "11px 12px", background: "#fff" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta.label}</span>
-                          <span style={{ fontSize: 10.5, color: "#AEB4C0", fontWeight: 600, whiteSpace: "nowrap", flex: "0 0 auto" }}>{relTime(a.createdAt)}</span>
-                        </div>
-                        <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {a.personName}{a.note ? ` — ${a.note}` : ""}
-                        </div>
-                        <button
-                          onClick={() => router.push("/flexos/aktivite-merkezi")}
-                          style={{ marginTop: 9, display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: "none", background: "#EEF0F3", color: "#205297", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                ) : (
+                  <AnimatePresence initial={false}>
+                    {activities.map((a, i) => {
+                      const meta = ACTIVITY_META[a.type];
+                      return (
+                        <motion.div
+                          key={a.id}
+                          layout
+                          initial={{ opacity: 0, y: -24 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                          style={{ position: "relative", display: "flex", gap: 12, paddingBottom: 14 }}
                         >
-                          Aktivite Gir
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto" }}>
+                            <span style={{ width: 32, height: 32, borderRadius: 9, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: meta.bg, color: meta.color }} dangerouslySetInnerHTML={{ __html: meta.icon }} />
+                            <span style={{ width: 2, flex: 1, background: i < activities.length - 1 ? "#EEF0F3" : "transparent", minHeight: 8, marginTop: 4 }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0, border: "1px solid #EEF0F3", borderRadius: 13, padding: "11px 12px", background: "#fff" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta.label}</span>
+                              <span style={{ fontSize: 10.5, color: "#AEB4C0", fontWeight: 600, whiteSpace: "nowrap", flex: "0 0 auto" }}>{relTime(a.createdAt)}</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {a.personName}{a.note ? ` — ${a.note}` : ""}
+                            </div>
+                            <button
+                              onClick={() => router.push("/flexos/aktivite-merkezi")}
+                              style={{ marginTop: 9, display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: "none", background: "#EEF0F3", color: "#205297", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                            >
+                              Aktivite Gir
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                )}
               </div>
             </div>
           </div>
@@ -438,23 +524,40 @@ function SummaryMetric({ label, value, bg, color, icon }: { label: string; value
   );
 }
 
-// ── Büyük işlem kartı (Grup Oluştur / Yoklama Takibi) ──
-function BigActionCard({ onClick, icon, bg, color, baslik, alt, aciklama, cta, ctaColor }: {
-  onClick: () => void; icon: string; bg: string; color: string; baslik: string; alt: string; aciklama: string; cta: string; ctaColor: string;
+// ── Büyük işlem kartı (Grup Oluştur / Yoklama Takibi / Eğitmen Takvimi) ──
+function BigActionCard({ onClick, icon, bg, color, baslik, alt, aciklama, stats, cta, ctaColor }: {
+  onClick: () => void; icon: string; bg: string; color: string; baslik: string; alt: string;
+  /** Sade açıklama metni — `stats` verilirse yok sayılır. */
+  aciklama?: string;
+  /** Canlı mini-bilgi satırları (ör. "Bugün: 8 ders") — verilirse `aciklama` yerine bu render edilir. */
+  stats?: Array<{ label: string; value: string }>;
+  cta: string; ctaColor: string;
 }) {
   return (
     <button
+      className="eo-big-card"
       onClick={onClick}
       style={{ textAlign: "left", textDecoration: "none", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 22, padding: "30px 26px", minHeight: 230, display: "flex", flexDirection: "column", boxShadow: "0 4px 20px -12px rgba(15,31,61,.2)", cursor: "pointer", fontFamily: "inherit" }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 14 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: bg, color }} dangerouslySetInnerHTML={{ __html: icon }} />
+        <div className="eo-big-icon" style={{ width: 42, height: 42, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: bg, color }} dangerouslySetInnerHTML={{ __html: icon }} />
         <div>
           <div style={{ fontSize: 15.5, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px" }}>{baslik}</div>
           <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500 }}>{alt}</div>
         </div>
       </div>
-      <div style={{ flex: 1, fontSize: 13, color: "#6F7B87", fontWeight: 500, lineHeight: 1.5 }}>{aciklama}</div>
+      {stats ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7, justifyContent: "center" }}>
+          {stats.map((s) => (
+            <div key={s.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 10, background: "#F7F8FA" }}>
+              <span style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 600 }}>{s.label}</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: "#1E222B" }}>{s.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ flex: 1, fontSize: 13, color: "#6F7B87", fontWeight: 500, lineHeight: 1.5 }}>{aciklama}</div>
+      )}
       <div style={{ marginTop: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "14px 18px", borderRadius: 12, background: "#fff", border: "1px solid #E2E5EA", color: ctaColor, fontSize: 13.5, fontWeight: 700 }}>
         {cta}
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
@@ -464,17 +567,36 @@ function BigActionCard({ onClick, icon, bg, color, baslik, alt, aciklama, cta, c
 }
 
 // ── Hızlı işlem kartı (Sertifikasyon/Anketler/Bildirim — hiçbirinin backend'i yok) ──
-function QuickActionCard({ icon, bg, color, baslik, alt }: { icon: string; bg: string; color: string; baslik: string; alt: string }) {
+function QuickActionCard({ icon, bg, color, baslik, alt, onClick, compact }: { icon: string; bg: string; color: string; baslik: string; alt: string; onClick?: () => void; compact?: boolean }) {
+  const iconSize = compact ? 32 : 44;
   return (
     <button
-      onClick={() => toast.info("Bu özellik yakında.")}
-      style={{ textAlign: "left", textDecoration: "none", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 20, padding: "30px 22px", minHeight: 120, display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 20px -14px rgba(15,31,61,.22)", cursor: "pointer", fontFamily: "inherit" }}
+      className="eo-quick-card"
+      onClick={onClick ?? (() => toast.info("Bu özellik yakında."))}
+      style={{
+        textAlign: "left", textDecoration: "none", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 20,
+        padding: compact ? "18px 16px" : "30px 22px", minHeight: compact ? 100 : 120, justifyContent: compact ? "center" : undefined,
+        display: "flex", flexDirection: compact ? "column" : "row", alignItems: compact ? "flex-start" : "center", gap: compact ? 8 : 14,
+        boxShadow: "0 4px 20px -14px rgba(15,31,61,.22)", cursor: "pointer", fontFamily: "inherit", width: "100%", boxSizing: "border-box",
+      }}
     >
-      <div style={{ width: 44, height: 44, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: bg, color }} dangerouslySetInnerHTML={{ __html: icon }} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px" }}>{baslik}</div>
-        <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500, marginTop: 2 }}>{alt}</div>
-      </div>
+      {compact ? (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+            <div className="eo-quick-icon" style={{ width: iconSize, height: iconSize, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: bg, color }} dangerouslySetInnerHTML={{ __html: icon }} />
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{baslik}</div>
+          </div>
+          <div style={{ fontSize: 11, color: "#8E95A3", fontWeight: 500 }}>{alt}</div>
+        </>
+      ) : (
+        <>
+          <div className="eo-quick-icon" style={{ width: iconSize, height: iconSize, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: bg, color }} dangerouslySetInnerHTML={{ __html: icon }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px" }}>{baslik}</div>
+            <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500, marginTop: 2 }}>{alt}</div>
+          </div>
+        </>
+      )}
     </button>
   );
 }
