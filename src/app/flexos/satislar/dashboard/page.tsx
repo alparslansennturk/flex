@@ -16,6 +16,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 // ── types (API şekilleri) ──
 interface SaleItem {
@@ -65,9 +66,12 @@ const DONUT_MIN_CARDS = 4; // her zaman 2 üst 2 alt (kullanıcı kararı 2026-0
 // dummy isimlerle tamamlanır — kataloğa gerçek branş eklendikçe bunların yerini otomatik alır.
 const DONUT_DUMMY_BRANCHES = ["Dijital Pazarlama", "Fotoğrafçılık", "Muhasebe ve Finans", "İngilizce", "Sistem Uzmanlığı", "Robotik ve Kodlama"];
 
-// Gerçek kota/hedef backend'i yok (ayrı iş kalemi) — dummy TL değerleri, kullanıcı onayıyla (2026-07-03)
-const SATIS_KOTASI_HEDEF_TL = 500000;
-const SATIS_KOTASI_YAPILAN_TL = 250000;
+// Gerçek kota/hedef backend'i yok (ayrı iş kalemi) — dummy TL hedefi, kullanıcı onayıyla (2026-07-03).
+// Gerçekleşen artık GERÇEK satış verisinden hesaplanıyor (bkz. `kota` useMemo).
+// 500.000'den 1.500.000'e çıkarıldı: demo seed'in gerçek toplam hacmi (~1.3-1.4M TL, ~50 satış)
+// eski hedefin çok üzerindeydi, bu da kesikli hedef çizgisini grafiğin dibine sıkıştırıp
+// kıyaslamayı anlamsızlaştırıyordu (kullanıcı fark etti).
+const SATIS_KOTASI_HEDEF_TL = 1500000;
 const ACTION_ROW_COMPACT_BREAKPOINT = "(max-width: 1600px)"; // altında 3'lü aksiyon kartı satırı daha az iç boşlukla "dik" durmasın
 
 const DONUT_PALETTE = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#F91079", "#0E5D59"];
@@ -108,6 +112,33 @@ const ACTIVITY_META: Record<ActivityType, { bg: string; color: string; label: st
 
 function fmtTL(n: number): string {
   return new Intl.NumberFormat("tr-TR").format(Math.round(n)) + " TL";
+}
+
+// Donut halkası ile ortasındaki sayının TEK bir saatten (0→1 progress) beslenmesi için —
+// Recharts'ın kendi iç animasyonuyla bizim ayrı bir sayaç animasyonumuzu senkronlamaya
+// çalışmak (onAnimationStart callback'i denendi) güvenilir olmadı: ikisi ayrı zamanlayıcı
+// olduğu için sayaç halkadan önce/sonra bitebiliyordu. Artık Pie'ın kendi animasyonu KAPALI
+// (isAnimationActive=false), açısı da bu progress'ten hesaplanıyor — matematiksel olarak
+// aynı anda hareket etmek zorundalar.
+// `active=false` iken saat HİÇ ÇALIŞMAZ (erken return) — ilk versiyonda saat mount anında
+// (sayfa henüz "boş" render olurken, initialLoadDone=false iken) çalışmaya başlıyordu; veri
+// yüklenmesi 800ms'den uzun sürünce saat arka planda tamamlanıp progress=1'de kalıyor, içerik
+// gerçekten görününce animasyon oynamadan "bitmiş" görünüyordu (kullanıcı fark etti).
+function useAnimProgress(active: boolean, duration = 800): number {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    let raf: number;
+    const start = performance.now();
+    function tick(now: number) {
+      const t = Math.min(1, (now - start) / duration);
+      setProgress(1 - Math.pow(1 - t, 3)); // ease-out cubic
+      if (t < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, duration]);
+  return progress;
 }
 
 function initials(name: string) {
@@ -157,6 +188,11 @@ export default function SatisDashboardPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [branches, setBranches] = useState<BranchDoc[]>([]);
   const [loading, setLoading] = useState(false);
+  // İlk veri yüklemesi bitene kadar (authed===null'daki "hiçbir şey render etme" pattern'iyle
+  // aynı mantık) içerik hiç mount edilmiyor — aksi halde donut/kota grafiği gibi bileşenler
+  // önce BOŞ veriyle bir kere render olup gerçek veri gelince aniden "sıçrıyor" (kullanıcı fark
+  // etti: kota grafiğinin animasyonu düz başlayıp birden yükseliyordu, donut'ta da aynı zıplama).
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   // Küçük ekranda (<=1600px) 3'lü aksiyon kartı satırı fazla "dik" durmasın diye iç boşluklar
   // daralıyor — büyük ekranda AYNI kalıyor (kullanıcı: "büyük ekranlarda aynı kalacak").
   // Lazy initializer ilk render'da doğru değeri okur (donuttaki isWideDonut fix'iyle aynı
@@ -195,7 +231,7 @@ export default function SatisDashboardPage() {
     } catch (e) {
       if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted) { setLoading(false); setInitialLoadDone(true); }
     }
   }, [authHeaders]);
 
@@ -215,27 +251,30 @@ export default function SatisDashboardPage() {
   const monthCancelled = useMemo(() => sales.filter((s) => s.status === "cancelled" && isThisMonth(s.date)).length, [sales]);
   const monthCiro = useMemo(() => monthActive.reduce((a, s) => a + s.soldPrice, 0), [monthActive]);
 
-  // ── satış kotası: günlük kümülatif satış grafiği ──
-  // Gerçek "hedef/kota" backend'i yok (ayrı bir iş kalemi) — sabit placeholder, kullanıcı onayıyla (2026-07-03).
+  // ── satış kotası: gerçek günlük kümülatif TL eğrisi — Tremor AreaChart'ın görsel tarifi
+  // (gradient dolgu %5→%95 stop, strokeWidth:2, yuvarlak uç/köşe, monotone eğri, animasyonlu)
+  // ödünç alındı; Tremor'un kendi 989 satırlık bileşeni KURULMADI, sadece stil taklit edildi.
+  // Gerçek "hedef/kota" backend'i yok (ayrı bir iş kalemi) — sadece hedefTl dummy placeholder.
+  // Gerçekleşen (yapilanTl/kalanTl/tamamlanmaOrani) GERÇEK satış verisinden (soldPrice).
   const kota = useMemo(() => {
     const now = new Date();
     const daysSoFar = now.getDate();
-    const daily = new Array(daysSoFar).fill(0);
+    const dailyTl = new Array(daysSoFar).fill(0);
     for (const s of monthActive) {
       const d = new Date(s.date + "T00:00:00");
       if (!isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
         const idx = d.getDate() - 1;
-        if (idx >= 0 && idx < daysSoFar) daily[idx]++;
+        if (idx >= 0 && idx < daysSoFar) dailyTl[idx] += s.soldPrice;
       }
     }
     let acc = 0;
-    const cumulative = daily.map((c) => (acc += c));
-    const bugunDelta = daily[daysSoFar - 1] ?? 0;
-    // Hedef/Yapılan/Kalan/Tamamlanma dummy (gerçek kota backend'i yok) — grafiğin kendisi
-    // (cumulative/daysSoFar/bugunDelta) gerçek satış verisinden, sadece TL hedef alanı dummy.
-    const tamamlanmaOrani = SATIS_KOTASI_HEDEF_TL > 0 ? Math.round((SATIS_KOTASI_YAPILAN_TL / SATIS_KOTASI_HEDEF_TL) * 100) : 0;
-    const kalanTl = Math.max(0, SATIS_KOTASI_HEDEF_TL - SATIS_KOTASI_YAPILAN_TL);
-    return { cumulative, daysSoFar, bugunDelta, hedefTl: SATIS_KOTASI_HEDEF_TL, yapilanTl: SATIS_KOTASI_YAPILAN_TL, kalanTl, tamamlanmaOrani };
+    const chartData = dailyTl.map((tl, i) => ({ day: i + 1, gerceklesen: (acc += tl) }));
+    const yapilanTl = acc;
+    const todayStr = now.toISOString().slice(0, 10);
+    const bugunDelta = monthActive.filter((s) => s.date === todayStr).length;
+    const tamamlanmaOrani = SATIS_KOTASI_HEDEF_TL > 0 ? Math.round((yapilanTl / SATIS_KOTASI_HEDEF_TL) * 100) : 0;
+    const kalanTl = Math.max(0, SATIS_KOTASI_HEDEF_TL - yapilanTl);
+    return { chartData, bugunDelta, hedefTl: SATIS_KOTASI_HEDEF_TL, yapilanTl, kalanTl, tamamlanmaOrani };
   }, [monthActive]);
 
   // ── donut: branş dağılımı ──
@@ -261,12 +300,14 @@ export default function SatisDashboardPage() {
 
     let acc = 0;
     const stops: string[] = [];
+    const pieData: Array<{ name: string; value: number; color: string }> = [];
     const legend: DonutLegendItem[] = entries.map(([label, count], i) => {
       const pct = total > 0 ? Math.round((count / total) * 100) : 0;
       const isOther = label === "Diğer" && otherCount > 0 && i === entries.length - 1;
       const color = isOther ? DONUT_OTHER_COLOR : DONUT_PALETTE[i % DONUT_PALETTE.length];
       const start = acc; const end = acc + pct; acc = end;
       stops.push(`${color} ${start}% ${end}%`);
+      pieData.push({ name: label, value: count, color });
       return { label, count, pct, color, detail: isOther ? otherDetail : undefined };
     });
 
@@ -291,8 +332,17 @@ export default function SatisDashboardPage() {
       });
     }
 
-    return { total, legend, conic: stops.length ? `conic-gradient(${stops.join(", ")})` : "conic-gradient(#EEF0F3 0% 100%)" };
+    return { total, legend, pieData, conic: stops.length ? `conic-gradient(${stops.join(", ")})` : "conic-gradient(#EEF0F3 0% 100%)" };
   }, [monthActive, branches]);
+
+  // Sayfadaki TÜM giriş animasyonları (donut halkası+sayısı, kota grafiği) bu TEK saatten
+  // besleniyor — initialLoadDone false→true olduğu anda tetiklenir (veri gelmeden önce
+  // sayaç akıp bitmesin diye `donut.total` gibi veriye bağlı bir tetikleyici DEĞİL, doğrudan
+  // yükleme durumunun kendisi kullanılıyor). Ayrı ayrı Recharts animasyonları/kendi
+  // zamanlayıcılarımız senkronsuz kalıyordu (kullanıcı fark etti) — artık matematiksel olarak
+  // aynı anda başlamak zorundalar.
+  const revealProgress = useAnimProgress(initialLoadDone);
+  const donutTotalAnimated = Math.round(donut.total * revealProgress);
 
   // ── az branş varken donut+kartlar büyür, 6'da (DONUT_TOP_N) mevcut boyuta iner ──
   const donutTopCount = donut.legend.filter((l) => !l.detail).length;
@@ -316,7 +366,7 @@ export default function SatisDashboardPage() {
       .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
   }, [appointments]);
 
-  if (authed === null) return null;
+  if (authed === null || !initialLoadDone) return null;
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
@@ -343,9 +393,29 @@ export default function SatisDashboardPage() {
             ) : (
               <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 40, flexWrap: "wrap" }}>
                 <div style={{ position: "relative", width: 216, height: 216, flex: "0 0 auto" }}>
-                  <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: donut.conic }} />
-                  <div style={{ position: "absolute", inset: 50, background: "#fff", borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 1px #F2F4F7" }}>
-                    <div style={{ fontSize: 28, fontWeight: 800, color: "#1E222B", letterSpacing: "-.7px", lineHeight: 1 }}>{donut.total}</div>
+                  {/* Eski conic-gradient CSS halkası yerine animasyonlu Recharts Pie/donut — legend/skala/"Diğer"
+                      popup mantığı (donut useMemo) hiç değişmedi, sadece görsel halka Recharts'a taşındı. */}
+                  <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 216, height: 216 }}>
+                    <PieChart>
+                      <Pie
+                        data={donut.pieData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={58}
+                        outerRadius={108}
+                        startAngle={90}
+                        endAngle={90 - 360 * revealProgress}
+                        paddingAngle={0}
+                        stroke="#fff"
+                        strokeWidth={2}
+                        isAnimationActive={false}
+                      >
+                        {donut.pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ position: "absolute", inset: 50, background: "#fff", borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 1px #F2F4F7", pointerEvents: "none" }}>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#1E222B", letterSpacing: "-.7px", lineHeight: 1 }}>{donutTotalAnimated}</div>
                     <div style={{ fontSize: 11, color: "#8E95A3", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>Aktif Kayıt</div>
                   </div>
                 </div>
@@ -444,7 +514,7 @@ export default function SatisDashboardPage() {
               </div>
             </button>
 
-            <SatisKotasiCard {...kota} compact={isCompactRow} />
+            <SatisKotasiCard {...kota} compact={isCompactRow} revealProgress={revealProgress} />
           </div>
 
           {/* ACTIVE SALES POOL */}
@@ -581,41 +651,19 @@ export default function SatisDashboardPage() {
   );
 }
 
-// Nokta dizisini düz çizgi yerine yumuşak eğriye çevirir (Catmull-Rom → kübik Bezier, tension 1/6).
-function smoothLinePath(points: Array<{ x: number; y: number }>): string {
-  if (points.length === 0) return "";
-  if (points.length === 1) return `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
-  let d = `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i === 0 ? i : i - 1];
-    const p1 = points[i];
-    const p2 = points[i + 1];
-    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
-  }
-  return d;
-}
-
-// ── Satış Kotası kartı (aksiyon kartları satırının 3.'sü) — günlük kümülatif satış grafiği ──
-function SatisKotasiCard({ cumulative, daysSoFar, bugunDelta, hedefTl, yapilanTl, kalanTl, tamamlanmaOrani, compact = false }: {
-  cumulative: number[]; daysSoFar: number; bugunDelta: number; hedefTl: number; yapilanTl: number; kalanTl: number; tamamlanmaOrani: number; compact?: boolean;
+// ── Satış Kotası kartı (aksiyon kartları satırının 3.'sü) — sade Hedef vs Gerçekleşen kıyası ──
+function SatisKotasiCard({ chartData, bugunDelta, hedefTl, yapilanTl, kalanTl, tamamlanmaOrani, compact = false, revealProgress }: {
+  chartData: Array<{ day: number; gerceklesen: number }>;
+  bugunDelta: number; hedefTl: number; yapilanTl: number; kalanTl: number; tamamlanmaOrani: number; compact?: boolean; revealProgress: number;
 }) {
-  const W = 240, H = 56;
-  // Grafik gerçek günlük satış SAYISINDAN (chart şekli için) — TL hedefinden bağımsız ölçekleniyor.
-  const maxScale = Math.max(...cumulative, 1);
-  const n = Math.max(daysSoFar, 1);
-  const points = cumulative.map((v, i) => ({
-    x: n <= 1 ? W : (i / (n - 1)) * W,
-    y: H - (v / maxScale) * (H - 4),
-  }));
-  // Referans görseldeki gibi düz çizgi değil, yumuşak eğri (Catmull-Rom → kübik Bezier, tension 1/6).
-  const linePath = smoothLinePath(points);
-  const areaPath = points.length ? `${linePath} L ${W},${H} L 0,${H} Z` : "";
-
+  const firstDay = chartData[0]?.day ?? 1;
+  const lastDay = chartData[chartData.length - 1]?.day ?? 1;
+  // Değerleri ölçekleyip dikey büyütme denendi ama bu SADECE yükseliş veriyordu — kullanıcı
+  // eskiden (Recharts'ın kendi varsayılan giriş animasyonunda) hem genişlik hem yükseklik aynı
+  // anda açılan bir görünüm hatırlıyor; o aslında bir clip-path maskesiydi. Veri hep SABİT/son
+  // haliyle çiziliyor (Y ekseni de sabit — otomatik ölçeklenip titremesin diye), üstüne
+  // donut'la PAYLAŞILAN revealProgress'e göre soldan sağa açılan bir clip-path maskesi konuyor.
+  const maxValue = Math.max(...chartData.map((d) => d.gerceklesen), 1);
   return (
     <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 22, padding: compact ? 16 : 22, display: "flex", flexDirection: "column", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: compact ? 10 : 14 }}>
@@ -634,27 +682,58 @@ function SatisKotasiCard({ cumulative, daysSoFar, bugunDelta, hedefTl, yapilanTl
         %{tamamlanmaOrani} Tamamlanma Oranı
       </span>
 
-      <svg width="100%" height={compact ? 40 : 52} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ marginTop: compact ? 8 : 12 }}>
-        <defs>
-          <linearGradient id="kotaFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6F74D8" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#6F74D8" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {areaPath && <path d={areaPath} fill="url(#kotaFill)" />}
-        {linePath && <path d={linePath} fill="none" stroke="#6F74D8" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />}
-      </svg>
+      {/* Tremor "Revenue by month" örneğinin görsel tarifi ödünç alındı (989 satırlık bileşenin
+          kendisi kurulmadı — sadece stil): açık gri yatay grid, ince üst/alt çerçeve, sade eksen
+          (sadece ilk/son gün etiketi), yumuşak eğri + gradient dolgu, animasyonlu. */}
+      <div
+        style={{
+          width: "100%", height: compact ? 72 : 96, marginTop: compact ? 10 : 14,
+          borderTop: "1px solid #EEF0F3", borderBottom: "1px solid #EEF0F3",
+          clipPath: `inset(0 ${(1 - revealProgress) * 100}% 0 0)`,
+        }}
+      >
+        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 240, height: compact ? 72 : 96 }}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 4, bottom: 4, left: 4 }} onContextMenu={(_, e) => e.preventDefault()}>
+            <defs>
+              <linearGradient id="kotaFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#6F74D8" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#6F74D8" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid horizontal vertical={false} stroke="#EEF0F3" />
+            <XAxis
+              dataKey="day"
+              type="number"
+              domain={[firstDay, lastDay]}
+              ticks={[firstDay, lastDay]}
+              tickFormatter={(d: number) => (d === firstDay ? "Ay başı" : "Bugün")}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10.5, fill: "#8E95A3", fontWeight: 600 }}
+              tickMargin={6}
+            />
+            <YAxis hide domain={[0, maxValue]} />
+            <Area
+              type="monotone"
+              dataKey="gerceklesen"
+              stroke="#6F74D8"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="url(#kotaFill)"
+              dot={false}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
 
       <div style={{ marginTop: compact ? 8 : 14, paddingTop: compact ? 8 : 12, borderTop: "1px solid #F7F8FA", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-            <span style={{ fontSize: 10.5, color: "#8E95A3", fontWeight: 600 }}>Yapılan Satış</span>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1E222B" }}>{fmtTL(yapilanTl)}</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-            <span style={{ fontSize: 10.5, color: "#8E95A3", fontWeight: 600 }}>Kalan Satış</span>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1E222B" }}>{fmtTL(kalanTl)}</span>
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "auto auto", alignItems: "baseline", rowGap: 4, columnGap: 8 }}>
+          <span style={{ fontSize: 10.5, color: "#8E95A3", fontWeight: 600 }}>Yapılan Satış</span>
+          <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1E222B", textAlign: "right", justifySelf: "end" }}>{fmtTL(yapilanTl)}</span>
+          <span style={{ fontSize: 10.5, color: "#8E95A3", fontWeight: 600 }}>Kalan Satış</span>
+          <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1E222B", textAlign: "right", justifySelf: "end" }}>{fmtTL(kalanTl)}</span>
         </div>
         <div style={{ textAlign: "right" as const }}>
           <div style={{ fontSize: 10.5, color: "#8E95A3", fontWeight: 600 }}>Dününe göre</div>

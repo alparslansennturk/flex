@@ -17,6 +17,17 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Satış Dashboard — donut+kota grafikleri Recharts'a taşındı, senkron giriş animasyonu (2026-07-04)
+
+Kullanıcı iki grafiği de (donut'un conic-gradient CSS halkası, kota'nın elle-SVG burn-up eğrisi) **animasyonlu Recharts** bileşenleriyle değiştirmek istedi. Uzun bir iterasyon turu sonrası kilitlenen hâl:
+
+- **Donut → `PieChart`/`Pie`/`Cell`.** Legend/skala/"Diğer" popup mantığı (2026-07-03'te kilitlenen) HİÇ değişmedi, sadece halkanın kendisi Recharts'a taşındı (`donut` useMemo'ya `pieData` eklendi).
+- **Kota kartı** birkaç görsel dener (burn-up → basit iki-çubuk → son karar) sonrası: gerçek günlük kümülatif TL eğrisi, **Tremor'un "Revenue by month" örneğinin görsel tarifi ödünç alındı** (açık gri yatay grid, ince çerçeve, sade eksen) — **Tremor'un kendi 989 satırlık bileşeni KURULMADI**, sadece stil taklit edildi (yeni paket/dosya yok). `SATIS_KOTASI_HEDEF_TL` 500.000→1.500.000 (seed'in gerçek hacmine yakın).
+- **Kritik ders — giriş animasyonu senkronu:** Ayrı Recharts animasyonları (`isAnimationActive`/`onAnimationStart`) birbirinden bağımsız zamanlayıcı olduğu için senkron başlamıyordu. Çözüm: TEK paylaşımlı `revealProgress` (0→1, `useAnimProgress` hook) — donut'un açısı VE kota'nın clip-path'i aynı değerden besleniyor, Recharts'ın kendi animasyonları kapatıldı (`isAnimationActive={false}`). Detaylı tuzaklar (hidden-clock erken bitme, YAxis autoscale titremesi, clip-path vs değer-ölçekleme) → hafıza: `flexos_satis_dashboard_charts_2026_07_04.md`.
+- **Yan ürün:** `appointments`/`activities` route'larındaki N+1 sorgu (kişi başına ayrı `getById`) → `sales/route.ts`'teki desenle aynı tek `list()`+Map join'ine çevrildi.
+
+`tsc`+ESLint temiz, `npm run build` başarılı, tarayıcıda kullanıcı tarafından doğrulandı ("oldu ok").
+
 ### ✅ Satış Dashboard — donut "az branş" düzeltmesi (2026-07-03, aynı gün devam)
 
 Kullanıcı 4K'da fark etti: tek branş satılmışken (`donutTopCount=1`) legend kartı `flex:1` ile kalan tüm yatay alanı dolduruyor, garip gerilmiş bir kart oluşuyordu. Merkezleme (`justifyContent:center`) alternatifi konuşuldu ama "sağda koca boşluk kalır" itirazıyla elendi — kullanıcı kararı: **kart grid'i her zaman en az 4 kart (2×2) göstersin**, satışı olmayan branşlar kataloğun geri kalanından **soluk yer tutucu** olarak eklensin (hangi branşlar olduğu önemli değil), satışı olan kart(lar) normal/aktif kalsın.

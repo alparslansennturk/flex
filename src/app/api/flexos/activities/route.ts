@@ -21,14 +21,14 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
   }
 
-  const all = await firestoreActivityRepo.list(actor.tenantId);
+  // Kişi başına ayrı getById() yerine (N+1 Firestore round-trip) tek list() + bellekte join —
+  // sales/route.ts'teki desenle aynı, veri büyüdükçe fark yaratır.
+  const [all, persons] = await Promise.all([
+    firestoreActivityRepo.list(actor.tenantId),
+    firestorePersonRepo.list(actor.tenantId),
+  ]);
   const recent = all.slice(0, RECENT_LIMIT);
-
-  const personIds = [...new Set(recent.map((a) => a.personId))];
-  const persons = await Promise.all(
-    personIds.map((id) => firestorePersonRepo.getById(id, actor.tenantId)),
-  );
-  const personMap = new Map(persons.filter(Boolean).map((p) => [p!.id, p!]));
+  const personMap = new Map(persons.map((p) => [p.id, p]));
 
   const items = recent.map((a) => ({
     id: a.id,
