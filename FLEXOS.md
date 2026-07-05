@@ -17,6 +17,17 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### 🔵 Sertifikasyon — Ödev Notu UI portlandı, backend YOK (2026-07-06, aynı gün devam)
+
+Sidebar'a **Ödev Notu** eklendi (Sertifika Notu ile Sertifika Ayarları arasına — kullanıcı sırası: "Sertifika Notu, sonra ödev notu gelecek"). Kullanıcı Claude Design çıktısı verdi (`Ödev Notu Verme.dc.html`), "sayfası hazır, hemen yap" dedi.
+
+- **`/flexos/sertifikasyon/odev-notu`** — 2 görünüm: (1) grup seç → o grubun ödevleri liste halinde (durum özeti: Bekliyor/X-Y puanlandı/Tamamlandı), (2) bir ödeve tıklayınca öğrenci bazlı puanlama tablosu (Teslim Durumu dropdown: Teslim etti/1 hafta gecikmeli/2 hafta+ gecikmeli/Teslim etmedi → gecikme cezası %0/%10/%20/%100, Ödev Puanı input, Net Puan = puan−ceza).
+- **Grup/ödev/öğrenci listesi GERÇEK veri** (`GET /api/flexos/groups` + `GET /api/flexos/assignments?groupId=` + roster) — canlıdaki gibi sahte "GRP-01" verisi yok, gerçek Faz1/2 assignment domain'i kullanıldı. Teslim Durumu her öğrenci için gerçek `Submission`'dan ÖN-DOLDURULUYOR (`GET /api/flexos/submissions?assignmentId=` — teslim var mı yok mu → "Teslim etti"/"Teslim etmedi" başlangıç değeri), ama sonrası (dropdown değişimi, puan girişi, kaydetme) sadece local state.
+- **`maxPuan` sabit 100** — Assignment entity'sinde henüz puan alanı yok.
+- Kullanıcı önemli notu (henüz UYGULANMADI, sadece kayıt): "Ödev notu puanı normalde ELLE girilmeyecek — öğrenci ödevlerini tamamladıysa otomatik hesaplanıp sabitlenecek." Yani bu manuel puanlama ekranı GEÇİCİ/ara adım; asıl hedef Submission tamamlanma oranından otomatik puan üretimi. Backend (Grade domain — zaten `education/grade.ts`'te entity var ama repo/servis yok) kurulunca bu sayfa muhtemelen büyük ölçüde otomatikleşecek ya da sadece istisna/override ekranına dönüşecek.
+
+`tsc`/`eslint`/`build` temiz.
+
 ### 🔵 Sertifikasyon — Sertifika Notu UI portlandı, backend YOK (2026-07-06)
 
 Ödev işi kullanıcı kararıyla duraklatıldı ("ödevler burada dursun, sonra devam ederiz") — yeni öncelik: **Sertifikasyon** menüsü (Sertifika Notu + Sertifika Ayarları). Kullanıcı Claude Design çıktısı verdi (`Sertifika Not Verme.dc.html`) ve "UI kısmını en önce yapalım" dedi.

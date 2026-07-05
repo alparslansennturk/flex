@@ -45,6 +45,7 @@ export type FlexNavKey =
   | "yoklama-detay"
   | "yoklama-raporu"
   | "sertifika-notu"
+  | "odev-notu"
   | "sertifika-ayarlari";
 
 export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
@@ -67,7 +68,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const odevActive = active === "odev-yonetimi" || active === "odev-teslimi" || active === "odev-degerlendirme";
   const [odevOpen, setOdevOpen] = useState(odevActive);
 
-  const sertifikaActive = active === "sertifika-notu" || active === "sertifika-ayarlari";
+  const sertifikaActive = active === "sertifika-notu" || active === "odev-notu" || active === "sertifika-ayarlari";
   const [sertifikaOpen, setSertifikaOpen] = useState(sertifikaActive);
 
   // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
@@ -400,6 +401,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                     <SubItem label="Sertifika Notu" active={active === "sertifika-notu"} onClick={go("/flexos/sertifikasyon/not")} />
+                    <SubItem label="Ödev Notu" active={active === "odev-notu"} onClick={go("/flexos/sertifikasyon/odev-notu")} />
                     <SubItem label="Sertifika Ayarları" active={active === "sertifika-ayarlari"} onClick={go(null)} />
                   </div>
                 </motion.div>
