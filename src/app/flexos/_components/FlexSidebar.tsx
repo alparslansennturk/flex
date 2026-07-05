@@ -44,7 +44,8 @@ export type FlexNavKey =
   | "yoklama-al"
   | "yoklama-detay"
   | "yoklama-raporu"
-  | "sertifikasyon";
+  | "sertifika-notu"
+  | "sertifika-ayarlari";
 
 export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const router = useRouter();
@@ -65,6 +66,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const odevActive = active === "odev-yonetimi" || active === "odev-teslimi" || active === "odev-degerlendirme";
   const [odevOpen, setOdevOpen] = useState(odevActive);
+
+  const sertifikaActive = active === "sertifika-notu" || active === "sertifika-ayarlari";
+  const [sertifikaOpen, setSertifikaOpen] = useState(sertifikaActive);
 
   // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
   // Capability listesi yüklenene kadar boş küme = kapılı öğeler geçici gizli (kozmetik flaş yok).
@@ -371,7 +375,38 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             </AnimatePresence>
           </>
         )}
-        {canSee("grade.finalize", true) && <Item icon={IC.award} label="Sertifikasyon" onClick={go(null)} />}
+        {/* Sertifikasyon — akordiyon: Sertifika Notu (grup bazlı not girişi) + Sertifika Ayarları. */}
+        {canSee("grade.finalize", true) && (
+          <>
+            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={() => setSertifikaOpen((o) => !o)}>
+              <span style={{ display: "inline-flex", color: sertifikaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.award }} />
+              <span style={{ flex: 1 }}>Sertifikasyon</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: sertifikaOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {sertifikaOpen && (
+                <motion.div
+                  key="sertifika-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    <SubItem label="Sertifika Notu" active={active === "sertifika-notu"} onClick={go("/flexos/sertifikasyon/not")} />
+                    <SubItem label="Sertifika Ayarları" active={active === "sertifika-ayarlari"} onClick={go(null)} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
       </nav>
 
       <ViewPinModal open={pinOpen} onClose={() => setPinOpen(false)} onVerified={onPinVerified} />

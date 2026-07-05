@@ -17,6 +17,17 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### 🔵 Sertifikasyon — Sertifika Notu UI portlandı, backend YOK (2026-07-06)
+
+Ödev işi kullanıcı kararıyla duraklatıldı ("ödevler burada dursun, sonra devam ederiz") — yeni öncelik: **Sertifikasyon** menüsü (Sertifika Notu + Sertifika Ayarları). Kullanıcı Claude Design çıktısı verdi (`Sertifika Not Verme.dc.html`) ve "UI kısmını en önce yapalım" dedi.
+
+- Sidebar'a **Sertifikasyon** akordiyonu: **Sertifika Notu** (`/flexos/sertifikasyon/not`, kuruldu) + **Sertifika Ayarları** (henüz "yakında" — tasarımı gelecek).
+- **Sertifika Notu** — tasarımdan BİREBİR görsel port: sol sabit grup listesi (renkli çubuk + seçili tik), sağda toolbar (grup bilgisi + "Ödev Notu" aç/kapa toggle + ağırlık rozeti `%70/%30` veya `%100`) + öğrenci not tablosu (avatar+isim, Sertifika Notu input, Ödev Notu input — toggle'a göre gizli/görünür, Toplam Not (ağırlıklı hesap, renkli rozet), Durum chip: `≥90` Başarı Sertifikası yeşil / `≥50` Katılım Sertifikası mavi / altı boş).
+- **Grup + öğrenci listesi GERÇEK veri** (`GET /api/flexos/groups` + `GET /api/flexos/groups/[id]/roster`) — sahte isim yok.
+- **Backend BİLEREK YOK bu turda** — `Grade` domain entity zaten tanımlıydı (`domain/education/grade.ts`, `id=enrollmentId`, `projectGrade`/`assignmentScore`/`components`) ama repo/servis/route hiç kurulmamıştı. Notlar şimdilik SADECE local state'te (`sayfa yenilenince kaybolur`), "Taslak Kaydet"/"Notları Gönder" butonları "yakında" toast'ı veriyor — bir sonraki adım bu domain'i (Faz 1/2 desenindeki gibi: repo+servis+capability-gated route+assertion) kurup bu UI'ı ona bağlamak.
+
+`tsc`/`eslint`/`build` temiz.
+
 ### ✅ Şablon havuzu kararı netleşti + Ana Sayfa'dan Ödev Kütüphanesi kaldırıldı (2026-07-06)
 
 Kullanıcı kararı: canlıdaki mevcut şablonlar (özellikle **oyunlaştırılmış olanlar**) global bir **template ödev kütüphanesi** olarak saklanacak; herhangi bir tasarım eğitmeni oradan kendi kütüphanesine **duplicate/kopyala** diyebilecek (`templateKind: "standard"|"system"` + deep-copy tasarımıyla örtüşüyor, [[flexos_odev_faz2_submission_2026_07_05]]). **Ama** bu kütüphane Eğitmen Ana Sayfa'da GÖSTERİLMEYECEK — kullanıcı: "anasayfada alt kütüphane kısmında kişisel ve global olmayacak, hiç bişi yazmayacak... muhtemelen Ödev Yönetimi içine ekleriz."
