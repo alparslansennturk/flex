@@ -98,6 +98,14 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "assignment.delete", domain: "assignment", label: "Ödev Sil", sensitivity: "yellow", write: true, scopable: true, audited: true },
   { key: "template.manage", domain: "assignment", label: "Ödev Şablonu Yönet", sensitivity: "green", write: true, scopable: false, audited: false },
 
+  // ── submission (Ödev Teslimi — Faz 2, canlıdaki `submissions`/`submission_files` karşılığı) ──
+  // Öğrencinin kendi teslimini yükleme/silme/geri çekmesi BU registry'nin dışında —
+  // capability sistemi yerine basit sahiplik kontrolü ile yapılır (bkz. FLEXOS.md Faz 3 notu,
+  // canlıdaki öğrenci-tarafı zaten capability/Actor sisteminin tamamen dışında).
+  { key: "submission.read", domain: "assignment", label: "Ödev Teslimi Gör", sensitivity: "green", write: false, scopable: true, audited: false },
+  { key: "submission.status.write", domain: "assignment", label: "Teslim Durumunu Güncelle", sensitivity: "green", write: true, scopable: true, audited: false },
+  { key: "submission.grade", domain: "assignment", label: "Teslimi Notlandır", sensitivity: "yellow", write: true, scopable: true, audited: true },
+
   // ── system ──
   { key: "role.manage", domain: "system", label: "Capability Paketlerini Düzenle", sensitivity: "red", write: true, scopable: false, audited: true },
   { key: "capability.grant", domain: "system", label: "Tekil Yetki Ver/Al", sensitivity: "red", write: true, scopable: false, audited: true },

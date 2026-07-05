@@ -17,6 +17,28 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Ödev Verme — Faz 2 backend (Submission + Google Drive domain) BİTTİ (2026-07-05)
+
+Faz 1'in üstüne: `Submission`/`SubmissionFile`/`UploadSession` (`src/app/lib/domain/core/submission.ts`). **Canlıdan tasarım farkı:** bir (assignment, kişi) çifti için TEK `Submission` dokümanı yaşar (canlıda her yükleme yeni doküman açıyordu, durum/not 3 dağınık yoldan değişiyordu). Dosya geçmişi `SubmissionFile` versiyonlamasında (`isLatest` bayrağı), `iteration` revizyon sonrası her yeni yüklemede artar.
+
+**Capability'ler (registry.ts + packages.ts):** `submission.read`, `submission.status.write`, `submission.grade` — eğitmen `assigned` (kendi grubu), Operasyon/Admin `org`. Öğrencinin kendi teslimini yükleme/silme/geri çekmesi BİLEREK bu registry'nin dışında — capability yerine basit sahiplik kontrolü (`person.authUid === requesterUid`), canlının öğrenci-tarafı zaten Actor sisteminin tamamen dışında olduğu için (Faz 3 notuyla tutarlı).
+
+**`submission-service.ts`** (TEK canonical servis): `initUpload`/`getSessionForChunk`/`completeUpload`/`deleteFile`/`retract` (öğrenci, sahiplik-gated) + `updateSubmissionStatus`/`gradeSubmission`/`listSubmissionsFor{Assignment,Group}` (eğitmen/op, capability-gated, `assignment-service.ts` ile birebir desen). `getMaxUploads` iş kuralı canlıyla birebir (`completed`→0, `revision`→8, diğer→5).
+
+**Google Drive: `googledrive.ts` DEĞİŞTİRİLMEDEN reuse edildi** — `lib/server/submission-drive.ts` `DriveDeps` portunu (`domain/repo/drive-deps.ts`) gerçek `ensureFolderPath`/`initResumableSession`/`setPublicReadPermission`/`findFileByActualName`/`deleteFromDrive` fonksiyonlarıyla dolduruyor, aynı OAuth2 refresh-token + `GOOGLE_DRIVE_FOLDER_ID` env değişkenleri (.env.local'den, elle uğraşılmadı). FlexOS kendi izole alt-ağacını açıyor: `flexos/{tenantId}/{groupCode}/{personName}/{assignmentTitle}`.
+
+**Route'lar (`/api/flexos/submissions/*`):** `init-resumable-upload`/`upload-chunk`(saf proxy, Firestore'a yazmaz)/`complete-upload`/`delete-file`/`retract` (öğrenci-tarafı, `withAuth` + sahiplik) + `GET /` (liste, `submission.read` gated, assigned-scope `trainerId` filtreli — `assignments/route.ts` deseniyle aynı) + `PATCH [id]/status`, `PATCH [id]/grade` (capability-gated).
+
+Firestore: `flexos_submissions`, `flexos_submission_files`, `flexos_upload_sessions` (canlının `submissions`/`submission_files`/`upload_sessions`'ına dokunulmadı). `PersonRepo`'ya `findByAuthUid` eklendi (öğrenci sahiplik çözümü için).
+
+`scripts/assert-submission.ts` — **23 assertion, hepsi geçti** (sahiplik/yetki gating, dosya boyutu/MIME validasyonu, max-upload limiti, revizyon döngüsü, org-scope bypass, retract iş kuralları, tenant izolasyonu) — gerçek Drive network çağrısı YAPILMADI, fake `DriveDeps` enjekte edildi.
+
+`tsc --noEmit` + `eslint` + `npm run build` temiz (8 yeni route dahil). **UI YOK bu fazda** (Faz 3/4'e bırakıldı, kullanıcı kararı: "Ödev UI ve havuzlarını sonra düşünelim").
+
+**Not — kullanıcıyla konuşulan ama Faz 2'ye dahil edilmeyen konular (sıradaki oturumlarda ele alınacak):**
+- **Şablon havuzu yeniden tasarımı:** şu an kişisel + global havuz var; kullanıcının 3 adet oyunlaştırılmış (kura sistemli, özel kodlanmış animasyonlu — örn. kitap kapağı) şablonu var, hiçbir branş kullanmıyor. Karar: `templateKind: "standard" | "system"` ayrımı — `system` şablonlar SADECE kod deploy'uyla eklenir/değişir (UI'dan oluşturulamaz/silinemez), eğitmenler kütüphaneden **duplicate** edip kendi kişisel havuzuna alabilir; duplicate her `system` şablonun kendine özel payload'ını (örn. kitap kapağı listesi) DEEP-COPY ile izole bir kopyaya taşır (her template-tipinin kendi `cloneData` stratejisi gerekir — genel bir clone fonksiyonu yetmez). Henüz kod yazılmadı.
+- **Öğrenci portalı:** ayrı ve kapsamlı bir modül olarak FlexOS bitince ele alınacak — ödev görme/gönderme/takip, not görme, talep, yoklama görme, sınav, anket. FlexOS içinde mi dışında mı olacağı henüz kararlaştırılmadı.
+
 ### ✅ Ödev Verme — Faz 1 backend (Assignment/Template domain) BİTTİ (2026-07-04, aynı gün devam)
 
 Kullanıcı: eğitmen tarafında Yoklama'dan sonra kalan 2 ciddi alan — Ödev Verme/Alma + Not Girme (Sınıflar Ligi tamamen ayrı/opsiyonel, şimdilik yok). Önce canlıdaki mevcut sistemi bir agent'a inceletmiştik: **ödev oluşturma canlıda 2 bağımsız yoldan** oluyordu (`AssignmentLibrary.tsx` + `DesignParkour.tsx`, ikisi de kendi başına `addDoc`), **submission durum/not güncelleme 3 ayrı yoldan**, eğitmen tarafı dosya yükleme öğrenciden FARKLI endpoint kullanıyordu. **Önemli bulgu: DesignParkour "oyunlaştırılmış" değil** — XP/rozet/streak yok (grep'te çıkmadı), aynı `tasks`/`templates` verisi üzerine sadece farklı bir görsel cilt. Google Drive entegrasyonu (`googledrive.ts`) ise dikkatli yazılmış, kırılganlığı kod değil tek kişisel OAuth hesabı — olduğu gibi korunacak.

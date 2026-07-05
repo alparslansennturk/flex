@@ -15,6 +15,8 @@ export interface PersonRepo {
   getByIds(ids: string[], tenantId: string): Promise<Person[]>;
   /** TC kimlik numarasına göre ara (pii.idNo). Bulunamazsa null. */
   findByIdNo(idNo: string, tenantId: string): Promise<Person | null>;
+  /** Firebase auth uid'ine göre ara (`Person.authUid`) — öğrenci portalı sahiplik kontrolü için. */
+  findByAuthUid(authUid: string, tenantId: string): Promise<Person | null>;
   /** Kiracıya ait tüm kişileri listele. */
   list(tenantId: string): Promise<Person[]>;
   /** Mevcut kişiyi kısmi güncelle (merge). */

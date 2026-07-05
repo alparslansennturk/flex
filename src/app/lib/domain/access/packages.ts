@@ -36,6 +36,10 @@ const EGITMEN_CORE: Grant[] = at(
   "assignment.delete",
   // template.manage BİLEREK YOK — kütüphane küratörlüğü sadece Operasyon/Admin'de,
   // eğitmen şablonu SADECE okur (assignment.read yeterli, ayrı bir capability gerekmez).
+  // Ödev teslimi (Faz 2) — eğitmen sadece kendi grubunun teslimlerini görür/notlandırır.
+  "submission.read",
+  "submission.status.write",
+  "submission.grade",
 );
 
 const EGITMEN_STANDALONE_EXTRA: Grant[] = at(
@@ -148,6 +152,9 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "assignment.read",
     "assignment.delete",
     "template.manage",
+    "submission.read",
+    "submission.status.write",
+    "submission.grade",
   ),
 
   // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
@@ -219,6 +226,9 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "assignment.read",
       "assignment.delete",
       "template.manage",
+      "submission.read",
+      "submission.status.write",
+      "submission.grade",
       "role.manage",
       "capability.grant",
       // view.toggle BİLEREK burada yok — paket-seviyeli değil, tekil grant
