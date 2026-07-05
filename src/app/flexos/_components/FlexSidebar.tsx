@@ -32,6 +32,9 @@ export type FlexNavKey =
   | "kampanya-yonetimi"
   | "ogrenci-havuzu"
   | "siniflar"
+  | "odev-yonetimi"
+  | "odev-teslimi"
+  | "odev-degerlendirme"
   | "egitmenler"
   | "kullanicilar"
   | "aktivite-merkezi"   // eskiyle uyum (aktiviteler ile aynı davranır)
@@ -59,6 +62,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const yoklamaActive = active === "yoklamalar" || active === "yoklama-al" || active === "yoklama-detay" || active === "yoklama-raporu";
   const [yoklamaOpen, setYoklamaOpen] = useState(yoklamaActive);
+
+  const odevActive = active === "odev-yonetimi" || active === "odev-teslimi" || active === "odev-degerlendirme";
+  const [odevOpen, setOdevOpen] = useState(odevActive);
 
   // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
   // Capability listesi yüklenene kadar boş küme = kapılı öğeler geçici gizli (kozmetik flaş yok).
@@ -255,6 +261,42 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür. */}
         {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
 
+        {/* Ödevler — akordiyon: Ödev Yönetimi (oluştur/düzenle) + Ödev Teslimi (öğrenci
+            teslimleri) + Ödev Değerlendirme (not/durum). Yoklama/not gibi çekirdek
+            öğretmenlik işi, standalone-only DEĞİL (packages.ts). */}
+        {canSee("assignment.read", true) && (
+          <>
+            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={() => setOdevOpen((o) => !o)}>
+              <span style={{ display: "inline-flex", color: odevActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.clipboard }} />
+              <span style={{ flex: 1 }}>Ödevler</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: odevOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {odevOpen && (
+                <motion.div
+                  key="odev-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    <SubItem label="Ödev Yönetimi" active={active === "odev-yonetimi"} onClick={go(null)} />
+                    <SubItem label="Ödev Teslimi" active={active === "odev-teslimi"} onClick={go("/flexos/odevler/teslim")} />
+                    <SubItem label="Ödev Değerlendirme" active={active === "odev-degerlendirme"} onClick={go(null)} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
+
         {/* Enterprise: sadece Full. */}
         {canSee("trainer.read", false) && <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />}
         {canSee("role.manage", false) && <Item icon={IC.shield} label="Kullanıcılar" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />}
@@ -376,6 +418,7 @@ const IC = {
   calendar: sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>'),
   award: sv('<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>'),
   graduation: sv('<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>'),
+  clipboard: sv('<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>'),
   trainer: sv('<path d="M14 22v-4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4"/><path d="M18 14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2"/><circle cx="9" cy="9" r="3"/><path d="M17 21v-1a2 2 0 0 0-2-2"/>'),
   shield: sv('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>'),
   chevDown: sv('<path d="m6 9 6 6 6-6"/>', 'width="15" height="15" stroke-width="2.3"'),

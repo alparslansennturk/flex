@@ -476,3 +476,23 @@ export async function getAssignmentForStudent(
   const files = submission ? await deps.submissionFiles.listActiveBySubmission(submission.id, tenantId) : [];
   return { assignment, submission, files };
 }
+
+/** Tek bir teslimin dosyaları + sahibi — eğitmen/op master-detail ekranı (gated `submission.read`). */
+export async function getSubmissionForStaff(
+  actor: Actor,
+  submissionId: EntityId,
+  deps: Pick<SubmissionDeps, "submissions" | "submissionFiles" | "groups" | "persons">,
+): Promise<{ submission: Submission; files: SubmissionFile[]; person: { id: string; firstName: string; lastName: string } | null }> {
+  const submission = await deps.submissions.getById(submissionId, actor.tenantId);
+  if (!submission) throw new ValidationError("Teslim bulunamadı.");
+
+  const group = await deps.groups.getById(submission.groupId, actor.tenantId);
+  if (!group) throw new ValidationError("Grup bulunamadı.");
+  if (!can(actor, "submission.read", { groupId: submission.groupId, ownerUid: group.trainerId })) {
+    throw new ForbiddenError("submission.read");
+  }
+
+  const files = await deps.submissionFiles.listActiveBySubmission(submissionId, actor.tenantId);
+  const person = await deps.persons.getById(submission.personId, actor.tenantId);
+  return { submission, files, person: person ? { id: person.id, firstName: person.firstName, lastName: person.lastName } : null };
+}

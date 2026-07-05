@@ -17,6 +17,20 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Ödev Verme — Eğitmen tarafı "Ödev Teslimi" akışı BİTTİ (2026-07-05)
+
+Sidebar'a **"Ödevler"** akordiyonu eklendi: **Ödev Yönetimi** / **Ödev Teslimi** / **Ödev Değerlendirme** (ilk ikisi henüz "yakında", kullanıcı sırayla ilerleme istedi — önce **Ödev Teslimi** seçildi). Kullanıcı kararı: "Sınıflar Ligi'ni şimdilik yapmıyoruz" (ayrı roadmap kalemi) ve "notlandırma sistemini en son yapacağız — ödev verme/alma canlı çalışsın şimdi" → bu yüzden **grading aksiyonları (Revize İste/Onayla/toplu işlem) BİLEREK YOK**, sadece görüntüleme + yorumlaşma.
+
+Canlıdaki 3 kademeli akış (`dashboard/assignment/page.tsx` → `[groupId]/page.tsx` → `[groupId]/[assignmentId]/page.tsx`) **birebir görsel** portlandı, kullanıcının "grup kartları falan orada, birebir istiyorum" talebiyle:
+
+- **`/flexos/odevler/teslim`** — Grup kartları (`GroupCard`, canlıdaki renk paleti/arşivleme modalı/hover davranışı BİREBİR — `_components/GroupCard.tsx`), filtre tabları (Aktif Sınıflar/Arşiv/Tüm Sınıflar), FAB "Yeni Ödev" (Ödev Yönetimi henüz yok → toast). `session` alanı FlexOS'ta yok, yerine `educationName` gösteriliyor.
+- **`/flexos/odevler/teslim/[groupId]`** — Öğrenciler + Ödevler tabları, ödev accordion'u (teslim edenler/bekleyenler/revize istatistikleri, `Smile`/`Meh`/`RefreshCw` ikonları canlıyla aynı). **Bilinçli eksik:** "Teslim Panosu" tab'ı yok (accordion+drill-down zaten aynı veriyi kapsıyor), eğitmenin ödeve YENİ dosya ekleme UI'ı yok (canlıdaki `AttachmentManager` `/api/instructor/init-file-upload` gibi FlexOS'a **bilerek portlanmayacağı** Faz 2 planında zaten yazılıydı — eski/denetlenmemiş yol) — mevcut ekli dosyalar salt-okunur gösteriliyor.
+- **`/flexos/odevler/teslim/[groupId]/[assignmentId]`** — Master-detail: sol öğrenci listesi (Teslim Edenler/Revize Verilenler/Teslim Etmeyenler, roster+submission join), sağ panelde öğrenci kartı + dosya listesi (Drive linki) + yorum paneli (Duyuru/özel tab, gerçek comment-service'e bağlı, Faz 3'te kurulan altyapı). **Bilinçli eksik:** notlandırma butonları yok (yukarıdaki karar), tam-ekran dosya önizleme (`/preview`, iframe Drive embed) portlanmadı.
+
+**Yeni backend parçası:** `getSubmissionForStaff` (`submission-service.ts`) + `GET /api/flexos/submissions/[id]` — tek bir teslimin dosyalarını+sahibini döner (`submission.read` gated, grup-scope kontrollü). Diğer her şey Faz 2/3'te zaten kurulan servis/route'ları reuse ediyor (submission listeleme, comment-service).
+
+`tsc --noEmit` + `eslint` + `npm run build` temiz. `assert-submission.ts` (23), `assert-comment.ts` (20), `assert-assignment.ts` (18) regresyon yok. **Test edilmeyen:** tarayıcıda gerçek veriyle uçtan uca kontrol edilmedi. **Not:** bu akışın gerçekten uçtan uca denenebilmesi için "Ödev Yönetimi" (ödev OLUŞTURMA UI'ı) hâlâ yok — sıradaki mantıklı adım.
+
 ### ✅ Ödev Verme — Faz 3 (Öğrenci ekranları) + Yorum/Bildirim domain'i BİTTİ (2026-07-05)
 
 Kullanıcı: "canlıdakini birebir alacaksın görünüm ve işleyiş olarak" — canlıdaki `/student/[studentId]/page.tsx` (651 satır) + `/student/[studentId]/[taskId]/page.tsx` (1038 satır) tam okunup FlexOS'a portlandı: `src/app/flexos/student/[personId]/page.tsx` (dashboard: filtre pilleri, accordion ödev listesi, Duyurular paneli) + `src/app/flexos/student/[personId]/[assignmentId]/page.tsx` (drag-drop + 256KB chunk'lı resumable upload, Teslim Geçmişi, geri çekme, sağda 1:1 yorum paneli). **Bilinçli farklar:** SVG karakter avatarı yerine FlexOS'un her yerdeki initials+gradient dairesi (kullanıcı kararı), Sınıf Ligi widget'ı YOK (ayrı roadmap kalemi), accordion'da ResizeObserver animasyonu yerine düz conditional render (basitleştirme).
