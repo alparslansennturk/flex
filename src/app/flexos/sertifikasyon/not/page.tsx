@@ -54,7 +54,10 @@ export default function SertifikaNotuPage() {
   const [roster, setRoster] = useState<RosterItem[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [loadingRoster, setLoadingRoster] = useState(false);
-  const [odevAktif, setOdevAktif] = useState(true);
+  // Bu sayfada AÇ/KAPA switch'i BİLEREK YOK — kullanıcı kararı: bu ayar "Sertifika
+  // Ayarları" sayfasından yönetilecek, oradan kapatılınca Ödev Notu sütunu buraya
+  // otomatik yansıyıp gizlenecek. Ayarlar sayfası henüz yok, varsayılan olarak açık.
+  const [odevAktif] = useState(true);
   const [grades, setGrades] = useState<Record<string, GradeEntry>>({});
 
   const loadGroups = useCallback(async () => {
@@ -178,19 +181,6 @@ export default function SertifikaNotuPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-5 flex-wrap">
-                  <div className="flex items-center gap-2.5">
-                    <div className="text-right leading-tight">
-                      <div className="text-[12.5px] font-bold text-[#1E222B]">Ödev Notu</div>
-                      <div className="text-[10.5px] text-[#8E95A3] font-medium">{odevAktif ? "Aktif" : "Kapalı"}</div>
-                    </div>
-                    <button
-                      onClick={() => setOdevAktif((v) => !v)}
-                      className="relative rounded-full cursor-pointer border-none p-0 transition-colors"
-                      style={{ width: 44, height: 25, background: odevAktif ? "#1F9D57" : "#CDD2DA" }}
-                    >
-                      <span className="absolute rounded-full bg-white shadow transition-all" style={{ top: 3, left: odevAktif ? 22 : 3, width: 19, height: 19 }} />
-                    </button>
-                  </div>
                   <div className="flex items-center gap-2 py-2 px-[13px] rounded-[11px] bg-[#F7F8FA] border border-[#EEF0F3]">
                     <span className="text-[11px] font-bold text-[#6F7B87]">Ağırlık</span>
                     <span className="text-[12px] font-extrabold text-[#205297]">{odevAktif ? "Sertifika %70 · Ödev %30" : "Sertifika %100"}</span>
