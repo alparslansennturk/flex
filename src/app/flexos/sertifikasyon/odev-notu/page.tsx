@@ -66,6 +66,64 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
+// ── Dummy veri — kullanıcı isteği: gerçek veri yok/boşken (veya Firestore
+// bağlantı sorununda) sayfayı görsel olarak deneyebilmek için. Gerçek veri
+// varsa hiç kullanılmaz (sadece boş/hatalı yanıtta devreye girer). ──
+const DUMMY_GROUPS: GroupItem[] = [
+  { id: "dummy-grp-01", code: "GRP-01", branch: "Grafik Tasarım", enrolled: 7 },
+  { id: "dummy-grp-02", code: "GRP-02", branch: "Yazılım", enrolled: 6 },
+  { id: "dummy-grp-03", code: "GRP-03", branch: "Veri Bilimi", enrolled: 5 },
+  { id: "dummy-grp-04", code: "GRP-04", branch: "İngilizce", enrolled: 8 },
+];
+
+const DUMMY_ASSIGNMENTS_BY_BRANCH: Record<string, { title: string; dueDate: string }[]> = {
+  "Grafik Tasarım": [
+    { title: "Kolaj Ödevi", dueDate: "2026-07-12" },
+    { title: "Kitap Kapak Ödevi", dueDate: "2026-07-19" },
+    { title: "Poster Ödevi", dueDate: "2026-07-26" },
+    { title: "Logo Tasarım Ödevi", dueDate: "2026-08-02" },
+  ],
+  "Yazılım": [
+    { title: "Algoritma Ödevi", dueDate: "2026-07-12" },
+    { title: "API Projesi", dueDate: "2026-07-20" },
+    { title: "Final Projesi", dueDate: "2026-07-28" },
+  ],
+  "Veri Bilimi": [
+    { title: "Veri Temizleme Ödevi", dueDate: "2026-07-14" },
+    { title: "Görselleştirme Ödevi", dueDate: "2026-07-22" },
+    { title: "Model Projesi", dueDate: "2026-07-30" },
+  ],
+  "İngilizce": [
+    { title: "Essay Ödevi", dueDate: "2026-07-15" },
+    { title: "Sunum Ödevi", dueDate: "2026-07-23" },
+  ],
+};
+
+const DUMMY_NAMES_BY_GROUP: Record<string, string[]> = {
+  "dummy-grp-01": ["Mert Yılmaz", "Zeynep Kaya", "Ali Demir", "Selin Arslan", "Burak Şen", "Naz Güler", "Emre Çelik"],
+  "dummy-grp-02": ["Buse Kara", "Tolga Arslan", "Elif Doğan", "Kaan Öztürk", "İrem Güneş", "Deniz Koç"],
+  "dummy-grp-03": ["Yusuf Polat", "Merve Şahin", "Ceren Aydın", "Onur Taş", "Pelin Ak"],
+  "dummy-grp-04": ["Ece Yıldız", "Barış Er", "Sude Çetin", "Mert Can", "Gizem Ünal", "Ahmet Yüce", "Leyla Bulut", "Kerem Ay"],
+};
+
+function dummyAssignmentsFor(group: GroupItem): AssignmentItem[] {
+  const list = DUMMY_ASSIGNMENTS_BY_BRANCH[group.branch] ?? [];
+  return list.map((a, i) => ({ id: `${group.id}-odev-${i}`, title: a.title, dueDate: a.dueDate, status: "published" }));
+}
+
+function dummyRosterFor(groupId: string): RosterItem[] {
+  const names = DUMMY_NAMES_BY_GROUP[groupId] ?? [];
+  return names.map((name, i) => ({
+    enrollmentId: `${groupId}-enr-${i}`,
+    personId: `${groupId}-p${i}`,
+    name,
+    email: "",
+    phone: "",
+    isOnlineStudent: false,
+    assignedAt: new Date().toISOString(),
+  }));
+}
+
 export default function OdevNotuPage() {
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -84,11 +142,13 @@ export default function OdevNotuPage() {
     try {
       const headers = await authHeaders();
       const res = await fetch("/api/flexos/groups", { headers });
-      if (res.ok) {
-        const data = await res.json() as { items: GroupItem[] };
-        setGroups(data.items);
-        if (data.items.length > 0) setSelectedGroupId((cur) => cur ?? data.items[0].id);
-      }
+      const items = res.ok ? (await res.json() as { items: GroupItem[] }).items : [];
+      const finalItems = items.length > 0 ? items : DUMMY_GROUPS;
+      setGroups(finalItems);
+      setSelectedGroupId((cur) => cur ?? finalItems[0]?.id ?? null);
+    } catch {
+      setGroups(DUMMY_GROUPS);
+      setSelectedGroupId((cur) => cur ?? DUMMY_GROUPS[0].id);
     } finally {
       setLoadingGroups(false);
     }
@@ -98,6 +158,7 @@ export default function OdevNotuPage() {
 
   useEffect(() => {
     if (!selectedGroupId) return;
+    const group = groups.find((g) => g.id === selectedGroupId) ?? null;
     setActiveAssignmentId(null);
     (async () => {
       setLoadingAssignments(true);
@@ -107,13 +168,18 @@ export default function OdevNotuPage() {
           fetch(`/api/flexos/assignments?groupId=${selectedGroupId}`, { headers }),
           fetch(`/api/flexos/groups/${selectedGroupId}/roster`, { headers }),
         ]);
-        setAssignments(assignRes.ok ? (await assignRes.json() as { items: AssignmentItem[] }).items : []);
-        setRoster(rosterRes.ok ? (await rosterRes.json() as { items: RosterItem[] }).items : []);
+        const assignItems = assignRes.ok ? (await assignRes.json() as { items: AssignmentItem[] }).items : [];
+        const rosterItems = rosterRes.ok ? (await rosterRes.json() as { items: RosterItem[] }).items : [];
+        setAssignments(assignItems.length > 0 ? assignItems : (group ? dummyAssignmentsFor(group) : []));
+        setRoster(rosterItems.length > 0 ? rosterItems : dummyRosterFor(selectedGroupId));
+      } catch {
+        setAssignments(group ? dummyAssignmentsFor(group) : []);
+        setRoster(dummyRosterFor(selectedGroupId));
       } finally {
         setLoadingAssignments(false);
       }
     })();
-  }, [selectedGroupId]);
+  }, [selectedGroupId, groups]);
 
   async function openAssignment(assignmentId: string) {
     setActiveAssignmentId(assignmentId);
@@ -121,15 +187,24 @@ export default function OdevNotuPage() {
 
     setLoadingGrading(true);
     try {
-      const headers = await authHeaders();
-      const res = await fetch(`/api/flexos/submissions?assignmentId=${assignmentId}`, { headers });
-      const submissions: SubmissionRow[] = res.ok ? (await res.json() as { items: SubmissionRow[] }).items : [];
-      const byPerson = new Map(submissions.map((s) => [s.personId, s]));
-      const initial: Record<string, StudentGradeState> = {};
-      for (const r of roster) {
-        const sub = byPerson.get(r.personId);
-        initial[r.personId] = { durum: sub ? "teslim" : "yok", puan: sub ? "" : "" };
+      const isDummy = assignmentId.startsWith("dummy-");
+      let submissions: SubmissionRow[] = [];
+      if (!isDummy) {
+        const headers = await authHeaders();
+        const res = await fetch(`/api/flexos/submissions?assignmentId=${assignmentId}`, { headers });
+        submissions = res.ok ? (await res.json() as { items: SubmissionRow[] }).items : [];
       }
+      const byPerson = new Map(submissions.map((s) => [s.personId, s]));
+      const dummyPreset: TeslimDurum[] = ["teslim", "gec1", "teslim", "gec2", "yok", "teslim", "gec1", "teslim"];
+      const initial: Record<string, StudentGradeState> = {};
+      roster.forEach((r, i) => {
+        if (isDummy) {
+          initial[r.personId] = { durum: dummyPreset[i % dummyPreset.length], puan: "" };
+        } else {
+          const sub = byPerson.get(r.personId);
+          initial[r.personId] = { durum: sub ? "teslim" : "yok", puan: "" };
+        }
+      });
       setGradesByAssignment((prev) => ({ ...prev, [assignmentId]: initial }));
     } finally {
       setLoadingGrading(false);
