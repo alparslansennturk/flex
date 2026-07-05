@@ -105,6 +105,9 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "submission.read", domain: "assignment", label: "Ödev Teslimi Gör", sensitivity: "green", write: false, scopable: true, audited: false },
   { key: "submission.status.write", domain: "assignment", label: "Teslim Durumunu Güncelle", sensitivity: "green", write: true, scopable: true, audited: false },
   { key: "submission.grade", domain: "assignment", label: "Teslimi Notlandır", sensitivity: "yellow", write: true, scopable: true, audited: true },
+  // Yorum: genel duyuru (assignment'ın grubuna) + 1:1 thread yazma — SADECE eğitmen/op.
+  // Öğrencinin kendi thread'ine yazması/düzenlemesi/silmesi capability DIŞINDA (sahiplik: authorUid).
+  { key: "assignment.comment.write", domain: "assignment", label: "Ödev Yorumu / Duyuru Yaz", sensitivity: "green", write: true, scopable: true, audited: false },
 
   // ── system ──
   { key: "role.manage", domain: "system", label: "Capability Paketlerini Düzenle", sensitivity: "red", write: true, scopable: false, audited: true },

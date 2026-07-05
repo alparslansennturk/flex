@@ -7,9 +7,9 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/app/lib/firebase";
+import NotificationBell from "@/app/components/notifications/NotificationBell";
 
 // Sayfa değişince FlexHeader yeniden mount olur (paylaşımlı layout yok) — FlexSidebar'daki
 // capsCache deseniyle aynı: isim bir kez çekilir, sonraki mount'larda cache'ten okunur.
@@ -84,13 +84,9 @@ export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel 
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <button
-            style={{ position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}
-            onClick={() => toast.info("Bu özellik yakında.")}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-            <span style={{ position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" }} />
-          </button>
+          <div style={{ width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569" }}>
+            <NotificationBell />
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
             <div style={{ textAlign: "right" as const, lineHeight: 1.3 }}>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{displayName || "…"}</div>

@@ -95,6 +95,7 @@ function makeEnrollmentRepo(seed: Enrollment[]): EnrollmentRepo {
     async list(tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId); },
     async listByGroup(groupId, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && e.groupId === groupId); },
     async listBySale(saleId, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && e.saleId === saleId); },
+    async listByPerson(personId, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && e.personId === personId); },
   };
 }
 

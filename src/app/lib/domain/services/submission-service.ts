@@ -4,6 +4,7 @@ import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Submission, SubmissionFile, SubmissionStatus, UploadSession } from "../core/submission";
 import { ForbiddenError, ValidationError } from "../errors";
+import type { Assignment } from "../core/assignment";
 import type { AssignmentRepo } from "../repo/assignment-repo";
 import type { DriveDeps } from "../repo/drive-deps";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
@@ -429,4 +430,49 @@ export async function listSubmissionsForGroup(
 ): Promise<Submission[]> {
   if (!can(actor, "submission.read")) throw new ForbiddenError("submission.read");
   return deps.submissions.listByGroup(groupId, actor.tenantId);
+}
+
+// ── Öğrenci dashboard/detay — sahiplik-gated (capability dışı) ──
+
+/** Öğrenci dashboard'u — kişinin aktif olduğu grup(lar)daki yayınlanmış ödevler + kendi teslim durumu. */
+export async function listAssignmentsForStudent(
+  requesterUid: string,
+  tenantId: string,
+  personId: EntityId,
+  deps: Pick<SubmissionDeps, "persons" | "enrollments" | "assignments" | "submissions">,
+): Promise<{ assignment: Assignment; submission: Submission | null }[]> {
+  await requireOwnedPerson(personId, requesterUid, deps, tenantId);
+
+  const enrollments = await deps.enrollments.listByPerson(personId, tenantId);
+  const groupIds = [...new Set(enrollments.filter((e) => e.status === "active" && e.groupId).map((e) => e.groupId as string))];
+  if (groupIds.length === 0) return [];
+
+  const assignmentLists = await Promise.all(groupIds.map((gid) => deps.assignments.list(tenantId, gid)));
+  const assignments = assignmentLists.flat().filter((a) => a.status === "published");
+
+  const submissions = await Promise.all(
+    assignments.map((a) => deps.submissions.findByAssignmentAndPerson(a.id, personId, tenantId)),
+  );
+  return assignments.map((assignment, i) => ({ assignment, submission: submissions[i] }));
+}
+
+/** Ödev detay + yükleme sayfası — tek ödev + kendi submission'ı + aktif dosyaları. */
+export async function getAssignmentForStudent(
+  requesterUid: string,
+  tenantId: string,
+  personId: EntityId,
+  assignmentId: EntityId,
+  deps: Pick<SubmissionDeps, "persons" | "enrollments" | "assignments" | "submissions" | "submissionFiles">,
+): Promise<{ assignment: Assignment; submission: Submission | null; files: SubmissionFile[] }> {
+  await requireOwnedPerson(personId, requesterUid, deps, tenantId);
+
+  const assignment = await deps.assignments.getById(assignmentId, tenantId);
+  if (!assignment) throw new ValidationError("Ödev bulunamadı.");
+
+  const enrollment = await deps.enrollments.findActive(personId, assignment.groupId, tenantId);
+  if (!enrollment) throw new ValidationError("Bu gruba kayıtlı değilsiniz.");
+
+  const submission = await deps.submissions.findByAssignmentAndPerson(assignmentId, personId, tenantId);
+  const files = submission ? await deps.submissionFiles.listActiveBySubmission(submission.id, tenantId) : [];
+  return { assignment, submission, files };
 }

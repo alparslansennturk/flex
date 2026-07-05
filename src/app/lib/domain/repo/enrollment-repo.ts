@@ -20,4 +20,6 @@ export interface EnrollmentRepo {
   listByGroup(groupId: string, tenantId: string): Promise<Enrollment[]>;
   /** Bir satışa bağlı kayıtlar (iptal cascade'i). */
   listBySale(saleId: string, tenantId: string): Promise<Enrollment[]>;
+  /** Bir kişinin TÜM kayıtları (öğrenci portalı — hangi gruplarda aktif olduğunu bulmak için). */
+  listByPerson(personId: string, tenantId: string): Promise<Enrollment[]>;
 }

@@ -40,6 +40,7 @@ const EGITMEN_CORE: Grant[] = at(
   "submission.read",
   "submission.status.write",
   "submission.grade",
+  "assignment.comment.write",
 );
 
 const EGITMEN_STANDALONE_EXTRA: Grant[] = at(
@@ -155,6 +156,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "submission.read",
     "submission.status.write",
     "submission.grade",
+    "assignment.comment.write",
   ),
 
   // Eğitmen: kendi grupları (@assigned). Kişi açabilir (quick-add, iskelet) ama
@@ -229,6 +231,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "submission.read",
       "submission.status.write",
       "submission.grade",
+      "assignment.comment.write",
       "role.manage",
       "capability.grant",
       // view.toggle BİLEREK burada yok — paket-seviyeli değil, tekil grant
