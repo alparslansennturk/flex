@@ -17,30 +17,23 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
-### ✅ Ödev Yönetimi (sade CRUD) BİTTİ (2026-07-05, aynı gün devam)
-
-Kullanıcı: "ödev yönetimi yapsan bile sonradan revize etmemiz gerekecek, ama istersen şimdilik yap" — canlıdaki `TaskManagementPanel.tsx` (1095 satır, iki bağımsız oluşturma yolundan biri, Faz1'de zaten "dağınık" olarak tespit edilmişti) **BİREBİR portlanmadı**, bilinçli olarak: FlexOS'un TEK canonical `assignTask`/`updateAssignment`/`deleteAssignment` servisine bağlı sade bir CRUD ekranı kuruldu.
-
-- **`/flexos/odevler/yonetim`** — grup kartları (Ödev Teslimi ile aynı `GroupCard`, submissionCount burada anlamsız olduğu için 0 sabit — düzeltilecek).
-- **`/flexos/odevler/yonetim/[groupId]`** — ödev listesi (kart, durum badge'i: Taslak/Yayında/Kapalı/Arşivde) + "Yeni Ödev" modalı (başlık/açıklama/son teslim tarihi/durum) + düzenle/sil. `POST/PATCH/DELETE /api/flexos/assignments` (Faz 1'den hazır) reuse edildi, yeni backend YOK.
-
-Artık uçtan uca döngü test edilebilir: Ödev Yönetimi'nde ödev oluştur → Ödev Teslimi'nde görün → öğrenci `/flexos/student/[personId]` üzerinden yükler → eğitmen Ödev Teslimi'nde teslimi görür + yorum yazar.
-
-`tsc`/`eslint`/`build` temiz. **Kullanıcının kendi ifadesiyle bu ekran geçici/basit — sonra revize edilecek** (özellikle şablon/kütüphane entegrasyonu, oyunlaştırılmış şablonlar konusu hâlâ [[flexos_odev_faz2_submission_2026_07_05]]'teki karara bağlı, henüz bağlanmadı).
-
 ### ✅ Ödev Verme — Eğitmen tarafı "Ödev Teslimi" akışı BİTTİ (2026-07-05)
 
-Sidebar'a **"Ödevler"** akordiyonu eklendi: **Ödev Yönetimi** / **Ödev Teslimi** / **Ödev Değerlendirme** (ilk ikisi henüz "yakında", kullanıcı sırayla ilerleme istedi — önce **Ödev Teslimi** seçildi). Kullanıcı kararı: "Sınıflar Ligi'ni şimdilik yapmıyoruz" (ayrı roadmap kalemi) ve "notlandırma sistemini en son yapacağız — ödev verme/alma canlı çalışsın şimdi" → bu yüzden **grading aksiyonları (Revize İste/Onayla/toplu işlem) BİLEREK YOK**, sadece görüntüleme + yorumlaşma.
+Sidebar'a **"Ödevler"** akordiyonu eklendi: **Ödev Teslimi** (oluşturma DAHİL) + **Ödev Değerlendirme** (henüz "yakında", en sona bırakıldı). **Düzeltme (aynı gün):** ilk denemede "Ödev Yönetimi" (oluştur/düzenle/sil) ayrı bir grup-kart sayfası olarak yapılmıştı ("Ödev Teslimi" ile neredeyse birebir aynı sayfaydı) — kullanıcı haklı olarak "aynı sayfa" diye düzeltti, canlıda da zaten TEK sayfaydı (liste+oluşturma+teslime git aynı yerde). `/flexos/odevler/yonetim` ağacı tamamen SİLİNDİ, oluştur/düzenle/sil modalı doğrudan Ödev Teslimi'nin `[groupId]` sayfasındaki "Ödevler" tabına gömüldü (her ödev kartında düzenle/sil ikonu + üstte "Yeni Ödev" butonu). Sidebar artık 2 alt-menü: Ödev Teslimi / Ödev Değerlendirme.
 
-Canlıdaki 3 kademeli akış (`dashboard/assignment/page.tsx` → `[groupId]/page.tsx` → `[groupId]/[assignmentId]/page.tsx`) **birebir görsel** portlandı, kullanıcının "grup kartları falan orada, birebir istiyorum" talebiyle:
+Kullanıcı kararları: "Sınıflar Ligi'ni şimdilik yapmıyoruz" (ayrı roadmap kalemi) ve "notlandırma sistemini en son yapacağız — ödev verme/alma canlı çalışsın şimdi" → **grading aksiyonları (Revize İste/Onayla/toplu işlem) BİLEREK YOK**, sadece görüntüleme + yorumlaşma + CRUD.
 
-- **`/flexos/odevler/teslim`** — Grup kartları (`GroupCard`, canlıdaki renk paleti/arşivleme modalı/hover davranışı BİREBİR — `_components/GroupCard.tsx`), filtre tabları (Aktif Sınıflar/Arşiv/Tüm Sınıflar), FAB "Yeni Ödev" (Ödev Yönetimi henüz yok → toast). `session` alanı FlexOS'ta yok, yerine `educationName` gösteriliyor.
-- **`/flexos/odevler/teslim/[groupId]`** — Öğrenciler + Ödevler tabları, ödev accordion'u (teslim edenler/bekleyenler/revize istatistikleri, `Smile`/`Meh`/`RefreshCw` ikonları canlıyla aynı). **Bilinçli eksik:** "Teslim Panosu" tab'ı yok (accordion+drill-down zaten aynı veriyi kapsıyor), eğitmenin ödeve YENİ dosya ekleme UI'ı yok (canlıdaki `AttachmentManager` `/api/instructor/init-file-upload` gibi FlexOS'a **bilerek portlanmayacağı** Faz 2 planında zaten yazılıydı — eski/denetlenmemiş yol) — mevcut ekli dosyalar salt-okunur gösteriliyor.
+Canlıdaki 3 kademeli akış (`dashboard/assignment/page.tsx` → `[groupId]/page.tsx` → `[groupId]/[assignmentId]/page.tsx`) **birebir görsel** portlandı ("grup kartları falan orada, birebir istiyorum" talebiyle), CRUD FlexOS'un TEK canonical `assignTask`/`updateAssignment`/`deleteAssignment` servisiyle (canlıdaki 1095 satırlık `TaskManagementPanel.tsx`'in dağınık yapısı YOK):
+
+- **`/flexos/odevler/teslim`** — Grup kartları (`GroupCard`, canlıdaki renk paleti/arşivleme modalı/hover davranışı BİREBİR — `_components/GroupCard.tsx`), filtre tabları (Aktif Sınıflar/Arşiv/Tüm Sınıflar). `session` alanı FlexOS'ta yok, yerine `educationName` gösteriliyor.
+- **`/flexos/odevler/teslim/[groupId]`** — Öğrenciler + Ödevler tabları. Ödevler tabında: filtre pilleri + "Yeni Ödev" butonu (modal: başlık/açıklama/son teslim tarihi/durum) + accordion (teslim edenler/bekleyenler/revize istatistikleri, `Smile`/`Meh`/`RefreshCw` ikonları canlıyla aynı, her kartta düzenle/sil ikonu). **Bilinçli eksik:** "Teslim Panosu" tab'ı yok (accordion+drill-down zaten aynı veriyi kapsıyor), eğitmenin ödeve YENİ dosya ekleme UI'ı yok (canlıdaki `AttachmentManager` `/api/instructor/init-file-upload` gibi FlexOS'a **bilerek portlanmayacağı** Faz 2 planında zaten yazılıydı — eski/denetlenmemiş yol) — mevcut ekli dosyalar salt-okunur gösteriliyor.
 - **`/flexos/odevler/teslim/[groupId]/[assignmentId]`** — Master-detail: sol öğrenci listesi (Teslim Edenler/Revize Verilenler/Teslim Etmeyenler, roster+submission join), sağ panelde öğrenci kartı + dosya listesi (Drive linki) + yorum paneli (Duyuru/özel tab, gerçek comment-service'e bağlı, Faz 3'te kurulan altyapı). **Bilinçli eksik:** notlandırma butonları yok (yukarıdaki karar), tam-ekran dosya önizleme (`/preview`, iframe Drive embed) portlanmadı.
 
-**Yeni backend parçası:** `getSubmissionForStaff` (`submission-service.ts`) + `GET /api/flexos/submissions/[id]` — tek bir teslimin dosyalarını+sahibini döner (`submission.read` gated, grup-scope kontrollü). Diğer her şey Faz 2/3'te zaten kurulan servis/route'ları reuse ediyor (submission listeleme, comment-service).
+**Yeni backend parçası:** `getSubmissionForStaff` (`submission-service.ts`) + `GET /api/flexos/submissions/[id]` — tek bir teslimin dosyalarını+sahibini döner (`submission.read` gated, grup-scope kontrollü). Diğer her şey Faz 1/2/3'te zaten kurulan servis/route'ları reuse ediyor (assignment CRUD, submission listeleme, comment-service).
 
-`tsc --noEmit` + `eslint` + `npm run build` temiz. `assert-submission.ts` (23), `assert-comment.ts` (20), `assert-assignment.ts` (18) regresyon yok. **Test edilmeyen:** tarayıcıda gerçek veriyle uçtan uca kontrol edilmedi. **Not:** bu akışın gerçekten uçtan uca denenebilmesi için "Ödev Yönetimi" (ödev OLUŞTURMA UI'ı) hâlâ yok — sıradaki mantıklı adım.
+Artık uçtan uca döngü test edilebilir: Ödev Teslimi'nde ödev oluştur → öğrenci `/flexos/student/[personId]` üzerinden yükler → eğitmen aynı akışta teslimi görür + yorum yazar.
+
+`tsc --noEmit` + `eslint` + `npm run build` temiz (`.next` cache temizlendi, silinen route'un stale type hatası giderildi). `assert-submission.ts` (23), `assert-comment.ts` (20), `assert-assignment.ts` (18) regresyon yok. **Test edilmeyen:** tarayıcıda gerçek veriyle uçtan uca kontrol edilmedi.
 
 ### ✅ Ödev Verme — Faz 3 (Öğrenci ekranları) + Yorum/Bildirim domain'i BİTTİ (2026-07-05)
 

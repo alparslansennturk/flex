@@ -32,7 +32,6 @@ export type FlexNavKey =
   | "kampanya-yonetimi"
   | "ogrenci-havuzu"
   | "siniflar"
-  | "odev-yonetimi"
   | "odev-teslimi"
   | "odev-degerlendirme"
   | "egitmenler"
@@ -63,7 +62,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const yoklamaActive = active === "yoklamalar" || active === "yoklama-al" || active === "yoklama-detay" || active === "yoklama-raporu";
   const [yoklamaOpen, setYoklamaOpen] = useState(yoklamaActive);
 
-  const odevActive = active === "odev-yonetimi" || active === "odev-teslimi" || active === "odev-degerlendirme";
+  const odevActive = active === "odev-teslimi" || active === "odev-degerlendirme";
   const [odevOpen, setOdevOpen] = useState(odevActive);
 
   // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
@@ -261,9 +260,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür. */}
         {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
 
-        {/* Ödevler — akordiyon: Ödev Yönetimi (oluştur/düzenle) + Ödev Teslimi (öğrenci
-            teslimleri) + Ödev Değerlendirme (not/durum). Yoklama/not gibi çekirdek
-            öğretmenlik işi, standalone-only DEĞİL (packages.ts). */}
+        {/* Ödevler — akordiyon: Ödev Teslimi (oluşturma DAHİL — canlıda da aynı ekrandı,
+            ayrı bir "yönetim" grup-kart sayfası kaldırıldı) + Ödev Değerlendirme (not/durum,
+            en sona bırakıldı). Yoklama/not gibi çekirdek öğretmenlik işi, standalone-only DEĞİL. */}
         {canSee("assignment.read", true) && (
           <>
             <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={() => setOdevOpen((o) => !o)}>
@@ -287,7 +286,6 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                   style={{ overflow: "hidden" }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                    <SubItem label="Ödev Yönetimi" active={active === "odev-yonetimi"} onClick={go("/flexos/odevler/yonetim")} />
                     <SubItem label="Ödev Teslimi" active={active === "odev-teslimi"} onClick={go("/flexos/odevler/teslim")} />
                     <SubItem label="Ödev Değerlendirme" active={active === "odev-degerlendirme"} onClick={go(null)} />
                   </div>

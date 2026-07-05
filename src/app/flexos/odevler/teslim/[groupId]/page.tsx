@@ -3,6 +3,8 @@
 /**
  * FlexOS · Ödev Teslimi — Grup Detay — canlıdaki `dashboard/assignment/[groupId]/page.tsx`
  * portu. "Öğrenciler" + "Ödevler" (accordion, teslim/bekleyen/revize istatistikleri) tabları.
+ * Ödev OLUŞTUR/DÜZENLE/SİL de burada (ayrı "Ödev Yönetimi" sayfası YOK — canlıda da aynı
+ * ekrandı, kullanıcı geri bildirimiyle ayrı grup-kart sayfası kaldırıldı).
  * BİLİNÇLİ FARKLAR: "Teslim Panosu" tab'ı yok (accordion + drill-down zaten aynı veriyi
  * kapsıyor); eğitmenin ödeve yeni dosya EKLEMESİ yok (canlıdaki `AttachmentManager`
  * `/api/instructor/init-file-upload` gibi FlexOS'a PORTLANMAYACAĞI FLEXOS.md'de zaten
@@ -13,9 +15,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { auth } from "@/app/lib/firebase";
+import { toast } from "sonner";
 import {
   ArrowLeft, Loader2, BookOpen, ClipboardList, Search, Users,
   ChevronDown, Smile, Meh, RefreshCw, ArrowRight, FileText, ExternalLink,
+  Plus, Pencil, Trash2, X,
 } from "lucide-react";
 import FlexSidebar from "../../../_components/FlexSidebar";
 import FlexHeader from "../../../_components/FlexHeader";
@@ -24,6 +28,7 @@ import type { RosterItem } from "../../../siniflar/_shared/groupDisplay";
 
 type MainTab = "students" | "assignments";
 type Filter = "all" | "active" | "completed";
+type AssignmentStatus = "draft" | "published" | "closed" | "archived";
 
 interface GroupInfo {
   code: string;
@@ -41,8 +46,12 @@ interface AssignmentItem {
   description: string;
   dueDate?: string;
   createdAt?: string;
+  status: AssignmentStatus;
   attachments: AssignmentAttachment[];
 }
+
+interface FormState { title: string; description: string; dueDate: string; status: AssignmentStatus }
+const EMPTY_FORM: FormState = { title: "", description: "", dueDate: "", status: "draft" };
 
 type SubmissionStatus = "submitted" | "reviewing" | "revision" | "completed" | "retracted";
 
@@ -89,6 +98,12 @@ export default function OdevTeslimiGroupPage() {
   const [loading, setLoading] = useState(true);
   const [studentSearch, setStudentSearch] = useState("");
 
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AssignmentItem | null>(null);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -124,6 +139,61 @@ export default function OdevTeslimiGroupPage() {
   }, [groupId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  function openCreate() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setModalOpen(true);
+  }
+  function openEdit(a: AssignmentItem) {
+    setEditingId(a.id);
+    setForm({ title: a.title, description: a.description, dueDate: a.dueDate ? a.dueDate.slice(0, 10) : "", status: a.status });
+    setModalOpen(true);
+  }
+
+  async function handleSave() {
+    if (!form.title.trim() || !form.description.trim()) {
+      toast.error("Başlık ve açıklama zorunlu.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const headers = await authHeaders();
+      const body = {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+        status: form.status,
+      };
+      const res = editingId
+        ? await fetch(`/api/flexos/assignments/${editingId}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) })
+        : await fetch("/api/flexos/assignments", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ groupId, ...body }) });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(json.error ?? "Kaydedilemedi.");
+        return;
+      }
+      toast.success(editingId ? "Ödev güncellendi." : "Ödev oluşturuldu.");
+      setModalOpen(false);
+      await loadData();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const headers = await authHeaders();
+    const res = await fetch(`/api/flexos/assignments/${deleteTarget.id}`, { method: "DELETE", headers });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({})) as { error?: string };
+      toast.error(json.error ?? "Silinemedi.");
+      return;
+    }
+    toast.success("Ödev silindi.");
+    setDeleteTarget(null);
+    await loadData();
+  }
 
   const filteredRoster = roster.filter((s) => s.name.toLowerCase().includes(studentSearch.toLowerCase()));
 
@@ -194,6 +264,9 @@ export default function OdevTeslimiGroupPage() {
               submissions={submissions}
               totalStudents={group?.enrolled ?? 0}
               groupId={groupId}
+              onCreate={openCreate}
+              onEdit={openEdit}
+              onDelete={setDeleteTarget}
             />
           ) : (
             <div className="space-y-3">
@@ -239,14 +312,96 @@ export default function OdevTeslimiGroupPage() {
 
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
+
+      {/* Oluştur/Düzenle modalı */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => !saving && setModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-bold text-base-primary-900">{editingId ? "Ödevi Düzenle" : "Yeni Ödev"}</h2>
+              <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
+            </div>
+
+            <div>
+              <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Başlık</label>
+              <input
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors"
+                placeholder="Ödev başlığı"
+              />
+            </div>
+
+            <div>
+              <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Açıklama</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                rows={4}
+                className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors resize-none"
+                placeholder="Ödev açıklaması / talimatları"
+              />
+            </div>
+
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Son Teslim Tarihi</label>
+                <input
+                  type="date"
+                  value={form.dueDate}
+                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Durum</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as AssignmentStatus }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors bg-white"
+                >
+                  <option value="draft">Taslak</option>
+                  <option value="published">Yayında</option>
+                  <option value="closed">Kapalı</option>
+                  <option value="archived">Arşivde</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setModalOpen(false)} disabled={saving} className="px-5 py-2.5 rounded-xl text-[14px] font-semibold text-surface-500 border border-surface-200 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50">
+                İptal
+              </button>
+              <button onClick={handleSave} disabled={saving} className="px-5 py-2.5 rounded-xl text-[14px] font-semibold text-white bg-base-primary-600 hover:bg-base-primary-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2">
+                {saving && <Loader2 size={14} className="animate-spin" />} Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Silme onayı */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => setDeleteTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-[16px] font-bold text-base-primary-900">Ödevi sil</h2>
+            <p className="text-[14px] text-surface-600"><span className="font-semibold">{deleteTarget.title}</span> ödevini silmek istediğine emin misin? Bu işlem geri alınamaz.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl text-[13px] font-semibold text-surface-500 border border-surface-200 hover:bg-surface-50 transition-colors cursor-pointer">İptal</button>
+              <button onClick={handleDelete} className="px-4 py-2 rounded-xl text-[13px] font-semibold text-white bg-status-danger-500 hover:bg-status-danger-600 transition-colors cursor-pointer">Sil</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ── Ödevler Tab ── */
 
-function AssignmentsTab({ assignments, submissions, totalStudents, groupId }: {
+function AssignmentsTab({ assignments, submissions, totalStudents, groupId, onCreate, onEdit, onDelete }: {
   assignments: AssignmentItem[]; submissions: SubmissionRow[]; totalStudents: number; groupId: string;
+  onCreate: () => void; onEdit: (a: AssignmentItem) => void; onDelete: (a: AssignmentItem) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -270,20 +425,28 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId }: {
     <div>
       <div className="w-full rounded-2xl mb-6" style={{ height: 220, backgroundColor: "#F91079" }} />
 
-      <div className="flex items-center gap-2 mb-7">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-4 py-1.5 rounded-full text-[13px] border transition-colors cursor-pointer
-              ${filter === f.key
-                ? "bg-white border-surface-300 text-text-primary font-semibold shadow-sm"
-                : "bg-transparent border-surface-200 text-surface-500 font-medium hover:border-surface-300 hover:text-surface-700"
-              }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between mb-7 flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-4 py-1.5 rounded-full text-[13px] border transition-colors cursor-pointer
+                ${filter === f.key
+                  ? "bg-white border-surface-300 text-text-primary font-semibold shadow-sm"
+                  : "bg-transparent border-surface-200 text-surface-500 font-medium hover:border-surface-300 hover:text-surface-700"
+                }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onCreate}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-base-primary-600 text-white text-[13px] font-semibold hover:bg-base-primary-700 transition-colors cursor-pointer"
+        >
+          <Plus size={15} /> Yeni Ödev
+        </button>
       </div>
 
       {showActive && activeAssignments.length > 0 && (
@@ -291,7 +454,7 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId }: {
           <h2 className="text-[18px] font-bold text-text-primary mb-3">Aktif Ödevler</h2>
           <div className="space-y-3">
             {activeAssignments.map((a) => (
-              <TaskAccordion key={a.id} assignment={a} submissions={submissions.filter((s) => s.assignmentId === a.id)} totalStudents={totalStudents} groupId={groupId} isActiveSection />
+              <TaskAccordion key={a.id} assignment={a} submissions={submissions.filter((s) => s.assignmentId === a.id)} totalStudents={totalStudents} groupId={groupId} isActiveSection onEdit={onEdit} onDelete={onDelete} />
             ))}
           </div>
         </section>
@@ -302,7 +465,7 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId }: {
           <h2 className="text-[18px] font-bold text-text-primary mb-3">Tamamlananlar</h2>
           <div className="space-y-3">
             {completedAssignments.map((a) => (
-              <TaskAccordion key={a.id} assignment={a} submissions={submissions.filter((s) => s.assignmentId === a.id)} totalStudents={totalStudents} groupId={groupId} isActiveSection={false} />
+              <TaskAccordion key={a.id} assignment={a} submissions={submissions.filter((s) => s.assignmentId === a.id)} totalStudents={totalStudents} groupId={groupId} isActiveSection={false} onEdit={onEdit} onDelete={onDelete} />
             ))}
           </div>
         </section>
@@ -318,8 +481,9 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId }: {
   );
 }
 
-function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActiveSection }: {
+function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActiveSection, onEdit, onDelete }: {
   assignment: AssignmentItem; submissions: SubmissionRow[]; totalStudents: number; groupId: string; isActiveSection: boolean;
+  onEdit: (a: AssignmentItem) => void; onDelete: (a: AssignmentItem) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -342,6 +506,12 @@ function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActi
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {assignment.dueDate && <span className="text-[13px] text-surface-500">Teslim: {fmtEndDate(assignment.dueDate)}</span>}
+          <button onClick={(e) => { e.stopPropagation(); onEdit(assignment); }} className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-text-secondary transition-colors cursor-pointer">
+            <Pencil size={14} />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(assignment); }} className="p-1.5 rounded-lg hover:bg-status-danger-50 text-surface-300 hover:text-status-danger-500 transition-colors cursor-pointer">
+            <Trash2 size={14} />
+          </button>
           <ChevronDown size={15} className={`text-surface-500 transition-transform duration-[320ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${open ? "rotate-180" : ""}`} />
         </div>
       </div>
