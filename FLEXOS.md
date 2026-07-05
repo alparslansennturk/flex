@@ -17,6 +17,17 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Ödev Yönetimi (sade CRUD) BİTTİ (2026-07-05, aynı gün devam)
+
+Kullanıcı: "ödev yönetimi yapsan bile sonradan revize etmemiz gerekecek, ama istersen şimdilik yap" — canlıdaki `TaskManagementPanel.tsx` (1095 satır, iki bağımsız oluşturma yolundan biri, Faz1'de zaten "dağınık" olarak tespit edilmişti) **BİREBİR portlanmadı**, bilinçli olarak: FlexOS'un TEK canonical `assignTask`/`updateAssignment`/`deleteAssignment` servisine bağlı sade bir CRUD ekranı kuruldu.
+
+- **`/flexos/odevler/yonetim`** — grup kartları (Ödev Teslimi ile aynı `GroupCard`, submissionCount burada anlamsız olduğu için 0 sabit — düzeltilecek).
+- **`/flexos/odevler/yonetim/[groupId]`** — ödev listesi (kart, durum badge'i: Taslak/Yayında/Kapalı/Arşivde) + "Yeni Ödev" modalı (başlık/açıklama/son teslim tarihi/durum) + düzenle/sil. `POST/PATCH/DELETE /api/flexos/assignments` (Faz 1'den hazır) reuse edildi, yeni backend YOK.
+
+Artık uçtan uca döngü test edilebilir: Ödev Yönetimi'nde ödev oluştur → Ödev Teslimi'nde görün → öğrenci `/flexos/student/[personId]` üzerinden yükler → eğitmen Ödev Teslimi'nde teslimi görür + yorum yazar.
+
+`tsc`/`eslint`/`build` temiz. **Kullanıcının kendi ifadesiyle bu ekran geçici/basit — sonra revize edilecek** (özellikle şablon/kütüphane entegrasyonu, oyunlaştırılmış şablonlar konusu hâlâ [[flexos_odev_faz2_submission_2026_07_05]]'teki karara bağlı, henüz bağlanmadı).
+
 ### ✅ Ödev Verme — Eğitmen tarafı "Ödev Teslimi" akışı BİTTİ (2026-07-05)
 
 Sidebar'a **"Ödevler"** akordiyonu eklendi: **Ödev Yönetimi** / **Ödev Teslimi** / **Ödev Değerlendirme** (ilk ikisi henüz "yakında", kullanıcı sırayla ilerleme istedi — önce **Ödev Teslimi** seçildi). Kullanıcı kararı: "Sınıflar Ligi'ni şimdilik yapmıyoruz" (ayrı roadmap kalemi) ve "notlandırma sistemini en son yapacağız — ödev verme/alma canlı çalışsın şimdi" → bu yüzden **grading aksiyonları (Revize İste/Onayla/toplu işlem) BİLEREK YOK**, sadece görüntüleme + yorumlaşma.
