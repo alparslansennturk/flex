@@ -17,6 +17,14 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### 🔵 Sertifikasyon — Sertifika Ayarları UI portlandı, ÜÇÜ de tamam ama HİÇBİRİ backend'e bağlı değil (2026-07-06, aynı gün devam)
+
+`/flexos/sertifikasyon/ayarlar` — Claude Design çıktısından (`Sertifika Ayarları.dc.html`) birebir port: "Ödev notu sertifika hesabında kullanılsın" toggle'ı + (açıksa) bağlı Sertifika/Ödev ağırlık slider'ları (toplam hep %100) + hızlı ön ayarlar (%100/%70-30/%60-40/%50-50) + koyu lacivert "Örnek Hesaplama" kartı (80×sertifika + 90×ödev = toplam) + kapalıyken dashed bilgi kutusu. Tamamen local state, "Ayarları Kaydet" "yakında" toast'ı.
+
+**Sertifikasyon menüsü artık 3 sayfa da UI olarak tamam** (Sertifika Notu, Ödev Notu, Sertifika Ayarları) — **hiçbiri gerçek backend'e yazmıyor/okumuyor** (grup/ödev/öğrenci listeleri gerçek, ama notlar/ayarlar local state). Bu ayarlar sayfasındaki toggle, Sertifika Notu'nda kaldırılan switch'in YERİNİ tutacak şekilde tasarlandı (kullanıcı: "sertifika ayarlarına ödev notu aç/kapa ekleyeceğiz, oradan kapatınca buraya da otomatik yansıyacak") — ama bu bağlantı henüz KURULMADI (ikisi de kendi local state'inde, ortak bir kaynağa bağlı değil). Backend kurulunca: tek bir `CertificateSettings` (tenant-level, muhtemelen `odevAktif`+`sertifikaPct`) kaydı hem Ayarlar sayfasını hem Sertifika Notu'nun sütun görünürlüğünü hem Ödev Notu'nun (otomatik puan) hesaplama mantığını beslemeli.
+
+`tsc`/`eslint`/`build` temiz.
+
 ### 🔵 Sertifikasyon — Ödev Notu UI portlandı, backend YOK (2026-07-06, aynı gün devam)
 
 Sidebar'a **Ödev Notu** eklendi (Sertifika Notu ile Sertifika Ayarları arasına — kullanıcı sırası: "Sertifika Notu, sonra ödev notu gelecek"). Kullanıcı Claude Design çıktısı verdi (`Ödev Notu Verme.dc.html`), "sayfası hazır, hemen yap" dedi.

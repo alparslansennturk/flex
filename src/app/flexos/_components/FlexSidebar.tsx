@@ -402,7 +402,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                     <SubItem label="Sertifika Notu" active={active === "sertifika-notu"} onClick={go("/flexos/sertifikasyon/not")} />
                     <SubItem label="Ödev Notu" active={active === "odev-notu"} onClick={go("/flexos/sertifikasyon/odev-notu")} />
-                    <SubItem label="Sertifika Ayarları" active={active === "sertifika-ayarlari"} onClick={go(null)} />
+                    <SubItem label="Sertifika Ayarları" active={active === "sertifika-ayarlari"} onClick={go("/flexos/sertifikasyon/ayarlar")} />
                   </div>
                 </motion.div>
               )}
