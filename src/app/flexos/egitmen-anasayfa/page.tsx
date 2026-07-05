@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   CalendarCheck, ClipboardList, Award, Activity, Users, UsersRound,
-  Route, LibraryBig, User, Globe, Plus, ChevronRight,
+  Route, Plus, ChevronRight,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
@@ -357,44 +357,9 @@ function OdevParkuru() {
   );
 }
 
-// ─── Ödev Kütüphanesi — placeholder (ödev domain FlexOS'ta henüz yok) ──────────
-type LibraryTab = "personal" | "global";
-const TAB_CONFIG: { key: LibraryTab; label: string; icon: React.ReactNode; emptyMsg: string }[] = [
-  { key: "personal", label: "Kişisel", icon: <User size={14} />, emptyMsg: "Henüz kişisel şablonunuz yok." },
-  { key: "global", label: "Global", icon: <Globe size={14} />, emptyMsg: "Henüz global şablon yok." },
-];
-
-function OdevKutuphanesi() {
-  const [activeTab, setActiveTab] = useState<LibraryTab>("personal");
-  const tabConfig = TAB_CONFIG.find((t) => t.key === activeTab)!;
-  return (
-    <section className="mt-[48px] mb-[64px] space-y-[24px]">
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-3 text-[#5C6370]">
-          <LibraryBig size={22} />
-          <h3 className="text-[22px] font-bold text-[#5C6370] cursor-default">Ödev kütüphanesi</h3>
-        </div>
-        <div className="flex items-center bg-[#F7F8FA] p-1 rounded-xl border border-[#EEF0F3] gap-0.5">
-          {TAB_CONFIG.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[10px] text-[12px] font-bold transition-all cursor-pointer outline-none select-none ${
-                activeTab === tab.key ? "bg-white text-[#10294C] shadow-sm border border-[#EEF0F3]" : "text-[#8E95A3] hover:text-[#10294C]"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-center justify-center h-32 rounded-2xl border border-dashed border-[#D0D5DE] text-[#8E95A3] text-[13px] font-medium">
-        {tabConfig.emptyMsg}
-      </div>
-    </section>
-  );
-}
+// Ödev Kütüphanesi (Kişisel/Global) BİLİNÇLİ OLARAK ana sayfada YOK — kullanıcı kararı
+// (2026-07-06): şablon kütüphanesi muhtemelen Ödev Yönetimi içine eklenecek, ana sayfa
+// bu ayrımı hiç göstermeyecek.
 
 // ─── Sayfa ────────────────────────────────────────────────────────────────────
 export default function EgitmenAnaSayfaPage() {
@@ -552,7 +517,6 @@ export default function EgitmenAnaSayfaPage() {
           </div>
 
           <OdevParkuru />
-          <OdevKutuphanesi />
         </div>
 
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />

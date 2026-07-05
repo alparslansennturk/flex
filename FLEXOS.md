@@ -17,6 +17,14 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Şablon havuzu kararı netleşti + Ana Sayfa'dan Ödev Kütüphanesi kaldırıldı (2026-07-06)
+
+Kullanıcı kararı: canlıdaki mevcut şablonlar (özellikle **oyunlaştırılmış olanlar**) global bir **template ödev kütüphanesi** olarak saklanacak; herhangi bir tasarım eğitmeni oradan kendi kütüphanesine **duplicate/kopyala** diyebilecek (`templateKind: "standard"|"system"` + deep-copy tasarımıyla örtüşüyor, [[flexos_odev_faz2_submission_2026_07_05]]). **Ama** bu kütüphane Eğitmen Ana Sayfa'da GÖSTERİLMEYECEK — kullanıcı: "anasayfada alt kütüphane kısmında kişisel ve global olmayacak, hiç bişi yazmayacak... muhtemelen Ödev Yönetimi içine ekleriz."
+
+Buna göre `egitmen-anasayfa/page.tsx`'teki placeholder "Ödev Kütüphanesi" (Kişisel/Global tab'lı) bölümü **tamamen kaldırıldı** — henüz gerçek şablon-duplicate tasarımı kodlanmadığı için (kullanıcı: "kütüphaneyi kaldırsan bile sakın canlıdakilere dokunma" — FlexOS zaten `flexos_assignment_templates` ayrı koleksiyonunu kullanıyor, canlı `templates`'a hiç dokunulmadı/dokunulmuyor). Şablon kütüphanesi ileride muhtemelen Ödev Yönetimi'ne ("Şablon Yönetimi" sekmesi olarak) eklenecek — henüz kod yok, sadece karar.
+
+`tsc`/`eslint`/`build` temiz.
+
 ### ✅ Ödev Parkuru (Eğitmen Ana Sayfa) — gerçek veriye bağlandı, GÖRÜNÜM only (2026-07-06)
 
 Kullanıcı: "Ödev Yönetimi'nde neden Yeni Ödev butonu var, orası sadece verilmiş ödevlerin listesi" → doğru, canlıda `TaskManagementPanel`'in Mevcut Ödevler/Arşiv sekmelerinde oluşturma YOK (sadece düzenle/sil/arşivle) — buton kaldırıldı. Gerçek oluşturma noktası **Eğitmen Ana Sayfa**'daki "Ödev Parkuru": sağ üstte turuncu "+Ödev Ver", altında kart grid'i.
