@@ -3,11 +3,13 @@
 /**
  * FlexOS · Eğitmen Ana Sayfa — canlı `src/app/dashboard/page.tsx`'ten BİREBİR UI portu
  * (kullanıcı: "aynen copy paste et"). Banner/Hızlı Aksiyon/Aktivite bölümleri gerçek
- * FlexOS verisine bağlı (groups/persons/attendance/holidays). "Ödev Parkuru" +
- * "Ödev kütüphanesi" bölümleri GÖRSEL olarak birebir ama FlexOS'ta henüz "ödev" domain'i
- * kurulmadığı için (ayrı bir konuşma/iş kalemi) veri her zaman BOŞ — bu da canlıdaki
- * gerçek "hiç ödev yok" durumuyla zaten aynı görünüme (PlaceholderParkourCard / boş
- * kütüphane kutusu) düşüyor, sahte veri uydurulmadı.
+ * FlexOS verisine bağlı (groups/persons/attendance/holidays).
+ *
+ * "Ödev Parkuru" artık GERÇEK veriye bağlı (canlıdaki `DesignParkour.tsx` kart mantığı,
+ * SADECE görünüm — aksiyonlar hâlâ "yakında" toast, kullanıcı kararı): gerçek aktif
+ * ödevler (en yeni solda) + kullanılmamış şablonlardan "ghost" kart (soluk/pasif stil,
+ * deterministik karıştırma) + kalan slotlar boş placeholder. "Ödev kütüphanesi"
+ * (Kişisel/Global) hâlâ placeholder — assignment-template domain'e henüz bağlanmadı.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -15,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   CalendarCheck, ClipboardList, Award, Activity, Users, UsersRound,
-  Route, LibraryBig, User, Globe, Plus,
+  Route, LibraryBig, User, Globe, Plus, ChevronRight,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
@@ -162,7 +164,96 @@ function ActivityFeedPlaceholder() {
   );
 }
 
-// ─── Ödev Parkuru — placeholder (ödev domain FlexOS'ta henüz yok) ──────────────
+// ─── Ödev Parkuru — canlıdaki `DesignParkour.tsx` kart mantığı (gerçek aktif ödev +
+// kullanılmamış şablon "ghost" kartı + boş placeholder), sadece GÖRÜNÜM portu —
+// aksiyonlar (Ödev Ver / Ödevi Başlat) kullanıcı kararıyla bu turda "yakında" toast.
+const MAX_PARKOUR_SLOTS = 4;
+
+interface ParkourAssignment { id: string; title: string; description: string; dueDate?: string; status: string; createdAt?: string; templateId?: string }
+interface ParkourTemplate { id: string; title: string; description: string }
+
+function getDuration(dueDate?: string): { text: string; expired: boolean; noDate: boolean } {
+  if (!dueDate) return { text: "Süresiz", expired: false, noDate: true };
+  const end = new Date(dueDate); end.setHours(0, 0, 0, 0);
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const diff = Math.ceil((end.getTime() - now.getTime()) / 86400000);
+  if (diff < 0) return { text: "Süresi Doldu", expired: true, noDate: false };
+  if (diff === 0) return { text: "Bugün!", expired: false, noDate: false };
+  if (diff <= 3) return { text: `Son ${diff} Gün`, expired: false, noDate: false };
+  const dd = String(end.getDate()).padStart(2, "0");
+  const mm = String(end.getMonth() + 1).padStart(2, "0");
+  return { text: `${dd}.${mm}.${end.getFullYear()}`, expired: false, noDate: false };
+}
+
+/** Gerçek aktif ödev kartı — canlıdaki `TaskParkourCard` (compact) karşılığı. */
+function ActiveParkourCard({ assignment }: { assignment: ParkourAssignment }) {
+  const dur = getDuration(assignment.dueDate);
+  return (
+    <div className="bg-white p-4 rounded-24 border border-[#CDD2DA] flex flex-col justify-between h-full transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1">
+      <div className="flex justify-between items-start mb-3">
+        <div className="w-9 h-9 bg-gradient-to-b from-pink-500 to-[#B80E57] rounded-12 flex items-center justify-center text-white shadow-lg shrink-0">
+          <ClipboardList size={16} />
+        </div>
+        <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">Ödev</span>
+      </div>
+      <div className="mb-3">
+        <h4 className="text-[17px] text-[#10294C] font-bold leading-tight truncate">{assignment.title}</h4>
+        {assignment.description && <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{assignment.description}</p>}
+      </div>
+      <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-3 border border-[#EEF0F3]">
+        <div className="flex flex-col">
+          <span className="text-[11px] text-[#8E95A3]">Durum</span>
+          <span className={`text-[13px] font-bold mt-0.5 ${dur.expired ? "text-[#AEB4C0]" : "text-[#009F3E]"}`}>{dur.expired ? "Süresi Doldu" : "Aktif"}</span>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-[11px] text-[#8E95A3]">Teslim süresi</span>
+          <span className="text-[13px] font-bold text-[#10294C] mt-0.5">{dur.text}</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-3">
+        <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Ödev Atölyesi</span>
+        <button
+          onClick={() => toast.info("Bu özellik yakında.")}
+          className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold bg-[#6F74D8] text-white hover:bg-[#5E63C2] transition-all cursor-pointer"
+        >
+          Detay <ChevronRight size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Kullanılmamış şablon "ghost" kartı — canlıdaki `GhostParkourCard` (compact, soluk stil). */
+function GhostParkourCard({ template }: { template: ParkourTemplate }) {
+  return (
+    <div className="bg-white p-4 rounded-24 border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full opacity-90">
+      <div className="flex justify-between items-start mb-3">
+        <div className="w-9 h-9 bg-gradient-to-b from-pink-500 to-[#B80E57] rounded-12 flex items-center justify-center text-white shadow-lg shrink-0">
+          <ClipboardList size={16} />
+        </div>
+        <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">Ödev</span>
+      </div>
+      <div className="mb-3">
+        <h4 className="text-[17px] text-[#10294C] font-bold leading-tight truncate">{template.title}</h4>
+        {template.description && <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{template.description}</p>}
+      </div>
+      <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-3 border border-[#EEF0F3]">
+        <div className="flex flex-col"><span className="text-[11px] text-[#8E95A3]">Durum</span><span className="text-[13px] font-bold mt-0.5 text-[#AEB4C0]">Pasif</span></div>
+        <div className="flex flex-col items-end"><span className="text-[11px] text-[#8E95A3]">Teslim süresi</span><span className="text-[13px] font-bold text-[#AEB4C0] mt-0.5">—</span></div>
+      </div>
+      <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-3">
+        <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Ödev Atölyesi</span>
+        <button
+          onClick={() => toast.info("Bu özellik yakında.")}
+          className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold bg-[#E2E5EA] text-[#AEB4C0] cursor-not-allowed"
+        >
+          Ödev ver <ChevronRight size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PlaceholderParkourCard() {
   return (
     <div className="bg-white/50 p-4 rounded-24 border border-dashed border-[#E2E5EA] flex flex-col justify-between h-full cursor-default opacity-40">
@@ -196,6 +287,46 @@ function PlaceholderParkourCard() {
 }
 
 function OdevParkuru() {
+  const [assignments, setAssignments] = useState<ParkourAssignment[]>([]);
+  const [templates, setTemplates] = useState<ParkourTemplate[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const u = auth.currentUser;
+      const token = u ? await u.getIdToken() : "";
+      const headers = { Authorization: `Bearer ${token}` };
+      try {
+        const [assignRes, tplRes] = await Promise.all([
+          fetch("/api/flexos/assignments", { headers }),
+          fetch("/api/flexos/assignment-templates", { headers }),
+        ]);
+        if (assignRes.ok) setAssignments((await assignRes.json()).items ?? []);
+        if (tplRes.ok) setTemplates((await tplRes.json()).items ?? []);
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, []);
+
+  // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması)
+  const activeAssignments = assignments
+    .filter((a) => a.status === "published")
+    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+
+  // Kullanılmamış şablonlar — deterministik karıştırma (canlıdaki id-hash %7 deseni)
+  const usedTemplateIds = new Set(assignments.filter((a) => a.templateId).map((a) => a.templateId));
+  const ghostCount = Math.max(0, MAX_PARKOUR_SLOTS - activeAssignments.length);
+  const availableTemplates = templates.filter((t) => !usedTemplateIds.has(t.id));
+  const ghostTemplates = [...availableTemplates]
+    .sort((a, b) => {
+      const ha = Array.from(a.id).reduce((s, c) => s + c.charCodeAt(0), 0);
+      const hb = Array.from(b.id).reduce((s, c) => s + c.charCodeAt(0), 0);
+      return (ha % 7) - (hb % 7);
+    })
+    .slice(0, ghostCount);
+  const placeholderCount = Math.max(0, ghostCount - ghostTemplates.length);
+
   return (
     <section className="mt-[48px] space-y-[24px]">
       <div className="flex items-center justify-between px-2">
@@ -212,7 +343,15 @@ function OdevParkuru() {
         </button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-        {Array.from({ length: 4 }).map((_, i) => <PlaceholderParkourCard key={i} />)}
+        {!loaded ? (
+          Array.from({ length: 4 }).map((_, i) => <PlaceholderParkourCard key={i} />)
+        ) : (
+          <>
+            {activeAssignments.slice(0, MAX_PARKOUR_SLOTS).map((a) => <ActiveParkourCard key={a.id} assignment={a} />)}
+            {ghostTemplates.map((t) => <GhostParkourCard key={t.id} template={t} />)}
+            {Array.from({ length: placeholderCount }).map((_, i) => <PlaceholderParkourCard key={`ph-${i}`} />)}
+          </>
+        )}
       </div>
     </section>
   );
@@ -389,8 +528,7 @@ export default function EgitmenAnaSayfaPage() {
                 <QuickActionCard
                   icon={<ClipboardList size={20} />}
                   label="Ödev Teslimi"
-                  href={null}
-                  meta="Ödev domain'i yakında"
+                  href="/flexos/odevler/teslim"
                   statusText="İncele"
                   statusColor="bg-[#FF8D28] text-white"
                   iconBg="bg-[#FFF4EB]"

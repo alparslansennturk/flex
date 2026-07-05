@@ -17,6 +17,19 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Ödev Parkuru (Eğitmen Ana Sayfa) — gerçek veriye bağlandı, GÖRÜNÜM only (2026-07-06)
+
+Kullanıcı: "Ödev Yönetimi'nde neden Yeni Ödev butonu var, orası sadece verilmiş ödevlerin listesi" → doğru, canlıda `TaskManagementPanel`'in Mevcut Ödevler/Arşiv sekmelerinde oluşturma YOK (sadece düzenle/sil/arşivle) — buton kaldırıldı. Gerçek oluşturma noktası **Eğitmen Ana Sayfa**'daki "Ödev Parkuru": sağ üstte turuncu "+Ödev Ver", altında kart grid'i.
+
+Canlıdaki `DesignParkour.tsx` (1070 satır, `dashboard/page.tsx`'te `maxSlots={4} compact`) tam okunup mantığı çözüldü: **3 kart türü, sırayla doldurulur:**
+1. Gerçek aktif ödevler (en yeni solda, `createdAt` DESC).
+2. Kalan slotlar → kullanılmamış şablonlardan "ghost" kart (GERÇEK isim/açıklama ama soluk/pasif stil — kesikli border, "Pasif" durumu, disabled buton), deterministik karıştırma (id-hash `%7`, her render'da rastgele değişmez).
+3. Hâlâ slot kalırsa tamamen boş skeleton placeholder.
+
+Kullanıcı onaylı kademeli kapsam: **bu turda SADECE kart görünümü** — `egitmen-anasayfa/page.tsx`'teki `OdevParkuru()` artık `/api/flexos/assignments` + `/api/flexos/assignment-templates`'ten gerçek veri çekiyor, 3 kart türünü doğru sırada/sayıda render ediyor. **Aksiyonlar (Ödev Ver, Ödevi Başlat, Detay) hâlâ "yakında" toast** — canlıdaki `QuickAssignModal`/`AssignActivateModal`/düzenle-bitir-iptal modalları henüz portlanmadı, ayrı bir iş kalemi. "Ödev Teslimi" hızlı aksiyon kartı da (`href={null}` idi) gerçek sayfaya bağlandı.
+
+`tsc`/`eslint`/`build` temiz.
+
 ### ✅ Ödev Verme — Eğitmen tarafı "Ödev Teslimi" + "Ödev Yönetimi" BİTTİ (2026-07-05/06)
 
 Sidebar'a **"Ödevler"** akordiyonu: **Ödev Yönetimi** / **Ödev Teslimi** / **Ödev Değerlendirme** (üçüncüsü henüz "yakında", en sona bırakıldı — notlandırma).

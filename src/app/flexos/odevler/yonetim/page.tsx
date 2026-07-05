@@ -11,11 +11,16 @@
  * henüz verilmedi (bkz. [[flexos_odev_faz2_submission_2026_07_05]] hafızası) — o karar
  * netleşince buraya sekme olarak eklenecek. "Lig Yönetimi" — kullanıcı kararıyla tamamen
  * ayrı/opsiyonel bir modül, şimdi YOK.
+ *
+ * BİLİNÇLİ OLARAK "Yeni Ödev" butonu YOK — canlıda da bu sayfada (TaskTable/TaskRow)
+ * oluşturma yok, sadece düzenle/sil/arşivle/aktife-al var. Gerçek oluşturma noktası
+ * canlıda Eğitmen Ana Sayfa'daki "Ödev Parkuru" (sağ üstte turuncu + custom ödev,
+ * altta şablon kütüphanesinden hazır ödev seçme) — o FlexOS'a AYRICA portlanacak.
  */
 
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { ClipboardList, Loader2, Plus, Pencil, Trash2, X, CalendarDays, AlertTriangle } from "lucide-react";
+import { ClipboardList, Loader2, Pencil, Trash2, X, CalendarDays, AlertTriangle } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
@@ -93,11 +98,6 @@ export default function OdevYonetimiPage() {
   const archivedList = assignments.filter((a) => a.status === "archived");
   const list = tab === "active" ? activeList : archivedList;
 
-  function openCreate() {
-    setEditingId(null);
-    setForm({ ...EMPTY_FORM, groupId: groups[0]?.id ?? "" });
-    setModalOpen(true);
-  }
   function openEdit(a: AssignmentItem) {
     setEditingId(a.id);
     setForm({ title: a.title, description: a.description, dueDate: a.dueDate ? a.dueDate.slice(0, 10) : "", status: a.status, groupId: a.groupId });
@@ -105,8 +105,8 @@ export default function OdevYonetimiPage() {
   }
 
   async function handleSave() {
+    if (!editingId) return;
     if (!form.title.trim() || !form.description.trim()) { toast.error("Başlık ve açıklama zorunlu."); return; }
-    if (!editingId && !form.groupId) { toast.error("Grup seçimi zorunlu."); return; }
     setSaving(true);
     try {
       const headers = await authHeaders();
@@ -116,15 +116,13 @@ export default function OdevYonetimiPage() {
         dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
         status: form.status,
       };
-      const res = editingId
-        ? await fetch(`/api/flexos/assignments/${editingId}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) })
-        : await fetch("/api/flexos/assignments", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ groupId: form.groupId, ...body }) });
+      const res = await fetch(`/api/flexos/assignments/${editingId}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
         toast.error(json.error ?? "Kaydedilemedi.");
         return;
       }
-      toast.success(editingId ? "Ödev güncellendi." : "Ödev oluşturuldu.");
+      toast.success("Ödev güncellendi.");
       setModalOpen(false);
       await loadData();
     } finally {
@@ -217,12 +215,6 @@ export default function OdevYonetimiPage() {
                   <Trash2 size={13} /> {selectedIds.size} Ödevi Sil
                 </button>
               )}
-              <button
-                onClick={openCreate}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-base-primary-600 text-white text-[14px] font-semibold hover:bg-base-primary-700 transition-colors cursor-pointer"
-              >
-                <Plus size={16} /> Yeni Ödev
-              </button>
             </div>
           </div>
 
@@ -305,28 +297,14 @@ export default function OdevYonetimiPage() {
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
 
-      {/* Oluştur/Düzenle modalı */}
+      {/* Düzenle modalı — oluşturma burada YOK (canlıda da yok, bkz. dosya başı not) */}
       {modalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => !saving && setModalOpen(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-[18px] font-bold text-base-primary-900">{editingId ? "Ödevi Düzenle" : "Yeni Ödev"}</h2>
+              <h2 className="text-[18px] font-bold text-base-primary-900">Ödevi Düzenle</h2>
               <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
             </div>
-
-            {!editingId && (
-              <div>
-                <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Grup</label>
-                <select
-                  value={form.groupId}
-                  onChange={(e) => setForm((f) => ({ ...f, groupId: e.target.value }))}
-                  className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors bg-white"
-                >
-                  <option value="">Grup seç…</option>
-                  {groups.map((g) => <option key={g.id} value={g.id}>{g.code}{g.branch ? ` — ${g.branch}` : ""}</option>)}
-                </select>
-              </div>
-            )}
 
             <div>
               <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Başlık</label>
