@@ -29,6 +29,10 @@ interface FlexHeaderProps {
   /** Sağ üstte, isim altında (ör. "Yönetici · Satış"). */
   roleLabel?: string;
   maxWidth?: number;
+  /** Verilirse `maxWidth` sayısal değeri yok sayılır, bunun yerine bu Tailwind sınıfı (ör.
+   *  responsive `max-w-[...]`) içerik genişliğini belirler — canlıdaki dashboard genişliğine
+   *  uyan sayfalar için (bkz. `FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS`). */
+  maxWidthClassName?: string;
   /** Verilirse sol taraf (icon/title/subtitle) TAMAMEN bununla değişir — breadcrumb/geri
    *  butonu gibi özel sol içeriği olan sayfalar için (bildirim+avatar bloğu hep aynı kalır). */
   left?: React.ReactNode;
@@ -39,7 +43,13 @@ interface FlexHeaderProps {
 // değer kullanılmalı (bu bileşenin varsayılanı ve dashboard'un içerik grid'i de 1920).
 export const FLEX_CONTENT_MAX_WIDTH = 1920;
 
-export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, left }: FlexHeaderProps) {
+// Canlı `dashboard/page.tsx` ile AYNI responsive genişlik (2026-07-06) — büyük ekranda
+// 1920'nin çok fazla yayıldığı sayfalar için (ör. Eğitmen Ana Sayfa) bu daha dar sınıf kullanılır.
+// `w-[94%]` dahil: canlıda bu genişlik yatay padding'siz kullanılıyor (boşluk padding'den değil
+// bu %94'ten geliyor) — FlexHeader bu sınıf verilince kendi 36px yatay padding'ini de sıfırlar.
+export const FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS = "w-[94%] max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]";
+
+export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, maxWidthClassName, left }: FlexHeaderProps) {
   const [displayName, setDisplayName] = useState(nameCache ?? "");
 
   useEffect(() => {
@@ -67,7 +77,10 @@ export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel 
 
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 2px 6px rgba(15,31,61,.04)" }}>
-      <div style={{ maxWidth, margin: "0 auto", width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" }}>
+      <div
+        style={{ maxWidth: maxWidthClassName ? undefined : maxWidth, margin: "0 auto", width: maxWidthClassName ? undefined : "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: maxWidthClassName ? "20px 0" : "20px 36px" }}
+        className={maxWidthClassName}
+      >
         {left ?? (
           <div style={{ display: "flex", alignItems: "center", gap: icon ? 15 : 0 }}>
             {icon && (
@@ -76,7 +89,7 @@ export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel 
               </div>
             )}
             <div>
-              <h1 style={{ margin: 0, fontSize: 19, fontWeight: 630, letterSpacing: "-0.022em", color: "#1E222B" }}>
+              <h1 style={{ margin: 0, fontSize: 20.5, fontWeight: 630, letterSpacing: "-0.022em", color: "#1E222B" }}>
                 {greeting ? `Hoş Geldin${firstName ? `, ${firstName}` : ""} 😊` : title}
               </h1>
               {subtitle && <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>{subtitle}</p>}
@@ -89,7 +102,7 @@ export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel 
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
             <div style={{ textAlign: "right" as const, lineHeight: 1.3 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{displayName || "…"}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: "#1E222B" }}>{displayName || "…"}</div>
               <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>{roleLabel}</div>
             </div>
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#FF8D28,#D66500)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(214,101,0,.5)" }}>

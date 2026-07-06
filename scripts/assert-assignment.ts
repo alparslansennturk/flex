@@ -16,6 +16,8 @@ import {
   deleteAssignment,
   createTemplate,
   listTemplates,
+  updateTemplate,
+  deleteTemplate,
 } from "../src/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "../src/app/lib/domain/errors";
 
@@ -242,6 +244,124 @@ async function main() {
     () => createTemplate(operasyon, { title: " ", description: "Y" }, makeTemplateRepo()),
     ValidationError,
   );
+
+  // ── createTemplate: visible varsayılan false + branş denormalize ──
+  {
+    const repo = makeTemplateRepo();
+    const t = await createTemplate(trainerA, { title: "X", description: "Y", branch: "Grafik Tasarım" }, repo);
+    assert("createTemplate: visible varsayılan false (Ana Sayfa'da otomatik görünmez)", t.visible === false);
+    assert("createTemplate: branch alanı kaydediliyor", t.branch === "Grafik Tasarım");
+  }
+
+  // ── createTemplate: subtitle/icon/kind (Ödev Ekle ile aynı alanlar) ──
+  {
+    const repo = makeTemplateRepo();
+    const t = await createTemplate(trainerA, { title: "X", subtitle: "Alt başlık", description: "Y", icon: "palette", kind: "proje", maxPuan: 250 }, repo);
+    assert("createTemplate: subtitle/icon/kind/maxPuan kaydediliyor", t.subtitle === "Alt başlık" && t.icon === "palette" && t.kind === "proje" && t.maxPuan === 250);
+  }
+  {
+    const repo = makeTemplateRepo();
+    const t = await createTemplate(trainerA, { title: "X", description: "Y" }, repo);
+    assert("createTemplate: maxPuan belirtilmezse varsayılan 100", t.maxPuan === 100);
+  }
+  await assertRejects(
+    "createTemplate: negatif maxPuan — ValidationError",
+    () => createTemplate(trainerA, { title: "X", description: "Y", maxPuan: -5 }, makeTemplateRepo()),
+    ValidationError,
+  );
+  {
+    const repo = makeTemplateRepo();
+    const t = await createTemplate(trainerA, { title: "X", description: "Y" }, repo);
+    assert("createTemplate: kind belirtilmezse varsayılan 'normal'", t.kind === "normal");
+  }
+  await assertRejects(
+    "createTemplate: geçersiz kind — ValidationError",
+    () => createTemplate(trainerA, { title: "X", description: "Y", kind: "gecersiz" as never }, makeTemplateRepo()),
+    ValidationError,
+  );
+
+  // ── updateTemplate — sahiplik: kişisel SADECE sahibi, global SADECE org ──
+  {
+    const repo = makeTemplateRepo();
+    const personal = await createTemplate(trainerA, { title: "Kişisel", description: "Y" }, repo);
+
+    await assertRejects(
+      "updateTemplate: BAŞKA eğitmen kişisel şablonu düzenleyemez — ForbiddenError",
+      () => updateTemplate(trainerB, personal.id, { title: "Hack" }, repo),
+      ForbiddenError,
+    );
+    await assertRejects(
+      "updateTemplate: Operasyon (org) BİLE başkasının kişisel şablonunu düzenleyemez — ForbiddenError",
+      () => updateTemplate(operasyon, personal.id, { title: "Hack" }, repo),
+      ForbiddenError,
+    );
+    await assertRejects(
+      "updateTemplate: olmayan id — ValidationError",
+      () => updateTemplate(trainerA, "no-such-id", { title: "X" }, repo),
+      ValidationError,
+    );
+
+    const updated = await updateTemplate(trainerA, personal.id, { title: "Güncellenmiş", visible: true }, repo);
+    assert(
+      "updateTemplate: sahibi eğitmen kendi kişisel şablonunu günceller (visible dahil)",
+      updated.title === "Güncellenmiş" && updated.visible === true,
+    );
+
+    const updated2 = await updateTemplate(trainerA, personal.id, { subtitle: "Yeni alt başlık", icon: "code", kind: "proje", maxPuan: 300 }, repo);
+    assert(
+      "updateTemplate: subtitle/icon/kind/maxPuan güncellenir",
+      updated2.subtitle === "Yeni alt başlık" && updated2.icon === "code" && updated2.kind === "proje" && updated2.maxPuan === 300,
+    );
+
+    await assertRejects(
+      "updateTemplate: geçersiz kind — ValidationError",
+      () => updateTemplate(trainerA, personal.id, { kind: "gecersiz" as never }, repo),
+      ValidationError,
+    );
+    await assertRejects(
+      "updateTemplate: negatif maxPuan — ValidationError",
+      () => updateTemplate(trainerA, personal.id, { maxPuan: -1 }, repo),
+      ValidationError,
+    );
+  }
+  {
+    const repo = makeTemplateRepo();
+    const global = await createTemplate(operasyon, { title: "Global", description: "Y" }, repo);
+
+    await assertRejects(
+      "updateTemplate: eğitmen (self scope) global şablonu düzenleyemez — ForbiddenError",
+      () => updateTemplate(trainerA, global.id, { title: "Hack" }, repo),
+      ForbiddenError,
+    );
+
+    const updated = await updateTemplate(admin, global.id, { branch: "Yazılım" }, repo);
+    assert("updateTemplate: Admin (org) global şablonu günceller", updated.branch === "Yazılım");
+  }
+  await assertRejects(
+    "updateTemplate: boş başlığa güncelleme — ValidationError",
+    async () => {
+      const repo = makeTemplateRepo();
+      const t = await createTemplate(trainerA, { title: "X", description: "Y" }, repo);
+      return updateTemplate(trainerA, t.id, { title: "  " }, repo);
+    },
+    ValidationError,
+  );
+
+  // ── deleteTemplate — aynı sahiplik deseni ──
+  {
+    const repo = makeTemplateRepo();
+    const personal = await createTemplate(trainerA, { title: "Silinecek", description: "Y" }, repo);
+
+    await assertRejects(
+      "deleteTemplate: BAŞKA eğitmen kişisel şablonu silemez — ForbiddenError",
+      () => deleteTemplate(trainerB, personal.id, repo),
+      ForbiddenError,
+    );
+
+    await deleteTemplate(trainerA, personal.id, repo);
+    const afterDelete = await repo.getById(personal.id, TENANT);
+    assert("deleteTemplate: başarılı silme sonrası kayıt yok", afterDelete === null);
+  }
 
   console.log(`\n=== Sonuç: ${passed} geçti, ${failed} başarısız ===\n`);
   if (failed > 0) process.exit(1);

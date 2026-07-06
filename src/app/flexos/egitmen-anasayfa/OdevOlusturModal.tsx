@@ -22,11 +22,24 @@
  *
  * **Yükseklik: `dvh` + outer scroll KALDIRILDI (2026-07-06, 2. düzeltme):** `100vh` yerine
  * `100dvh` kullanılıyor (tarayıcı chrome'u genişleyip daraldıkça `vh` değişip modalı kaydırıyordu).
- * Ayrıca backdrop'un KENDİ `overflow-y-auto`'su kaldırıldı — modal zaten `min(730px, dvh-32px)`
- * ile viewport'a sığacak şekilde sınırlı, backdrop'un scroll'a hiç ihtiyacı yok; backdrop'ta
- * scrollbar belirip kaybolması (özellikle "scrollbar'ları hep göster" ayarı açık Mac'lerde,
- * ~15px genişlik) küçük bir yatay/dikey kayma hissi yaratıyordu. İçerik taşarsa SADECE modalın
- * kendi body'si (`overflow-y-auto` + `scrollbarGutter:"stable"`) kayar, dış katman asla kaymaz.
+ * Ayrıca backdrop'un KENDİ `overflow-y-auto`'su kaldırıldı — modal zaten `dvh`'ye göre sınırlı,
+ * backdrop'un scroll'a hiç ihtiyacı yok; backdrop'ta scrollbar belirip kaybolması (özellikle
+ * "scrollbar'ları hep göster" ayarı açık Mac'lerde, ~15px genişlik) küçük bir yatay/dikey kayma
+ * hissi yaratıyordu. İçerik taşarsa SADECE modalın kendi body'si (`overflow-y-auto` +
+ * `scrollbarGutter:"stable"`) kayar, dış katman asla kaymaz.
+ *
+ * **Sabit `height` → `maxHeight` (2026-07-06, 3. düzeltme) → GERİ `height` (2026-07-06,
+ * 4. düzeltme, kullanıcı: "genişlik ve yükseklik aynen korunmalı, oynamamalı asla"):**
+ * `maxHeight` (auto-fit) denemesi yeni bir sorun açtı — ikon seçimi popup'ı açılınca
+ * içerik büyüyüp modalın TAMAMI (panel) büyüyordu, kullanıcı bunu istemiyor. Kullanıcı
+ * kararı: modal boyutu (genişlik+yükseklik) HER ZAMAN sabit kalmalı; içerik (ikon seçici
+ * gibi) sığmazsa SADECE body kendi içinde scroll etsin, panel'in kendisi asla büyümesin/
+ * küçülmesin. Çözüm: `height: min(820px, calc(100dvh-32px))` — sabit 820px (önceki 770'in
+ * yetersiz çıkmasından ders alınarak ikon picker'ı da hesaba katan bolluk payıyla), viewport
+ * gerçekten dar olduğunda hâlâ `dvh-32`'ye küçülür. Body'nin `flex-1 min-h-0 overflow-y-auto`'su
+ * KORUNDU — ikon picker açıkken içerik 820px'i aşarsa SADECE body'de scroll çıkar, panel'in
+ * boyutu değişmez. İkon picker kapalıyken normal içerik 820px'in altında kaldığı için scroll
+ * hiç görünmez.
  *
  * **"Ödev Dosyası Yükle" — BİLEREK PLACEHOLDER (2026-07-06, kullanıcı: "bu kısım sonra
  * olur"):** Sürükle-bırak + çoklu dosya + otomatik yükleme istendi ama backend (Drive
@@ -41,27 +54,19 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
-  X, PenLine, Image as ImageIcon, BookOpen, LayoutGrid, Code2, Palette, Camera, Film, Music,
-  BarChart3, Calculator, Globe, FlaskConical, Presentation, Target, Lightbulb, ChevronDown, Check, Plus,
+  X, PenLine, BookOpen, LayoutGrid, ChevronDown, Check, Plus,
   UploadCloud,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
+import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from "../odevler/_shared/assignmentIcons";
 
 interface GroupItem { id: string; code: string; branch: string }
 
-const ICONS: Record<string, typeof PenLine> = {
-  pen: PenLine, image: ImageIcon, book: BookOpen, layout: LayoutGrid, code: Code2,
-  palette: Palette, camera: Camera, film: Film, music: Music, chart: BarChart3,
-  calc: Calculator, globe: Globe, flask: FlaskConical, presentation: Presentation,
-  target: Target, lightbulb: Lightbulb,
-};
-const ICON_KEYS = Object.keys(ICONS);
+const ICONS = ASSIGNMENT_ICONS;
+const ICON_KEYS = ASSIGNMENT_ICON_KEYS;
 
 const PUAN_HIZLI = [100, 150, 200, 250, 300];
-const TURLER = [
-  { key: "normal" as const, label: "Ödev" },
-  { key: "proje" as const, label: "Proje" },
-];
+const TURLER = ASSIGNMENT_KIND_OPTIONS;
 
 async function authHeaders(): Promise<Record<string, string>> {
   const u = auth.currentUser;
@@ -69,13 +74,25 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
+/** Kütüphane'den "Ödevi Başlat" ile açılınca şablonun alanlarıyla ön-doldurma. */
+export interface AssignmentPrefill {
+  templateId: string;
+  title: string;
+  subtitle?: string;
+  description: string;
+  icon?: string;
+  kind?: "normal" | "proje";
+  maxPuan?: number;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  prefill?: AssignmentPrefill;
 }
 
-export default function OdevOlusturModal({ open, onClose, onCreated }: Props) {
+export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -94,6 +111,22 @@ export default function OdevOlusturModal({ open, onClose, onCreated }: Props) {
   const [sablonAktif, setSablonAktif] = useState(false);
   const [sablonAdi, setSablonAdi] = useState("");
   const [saving, setSaving] = useState<"draft" | "publish" | null>(null);
+
+  // Kütüphane'den bir şablonla açılınca alanları o şablondan doldur; "+Ödev Ver" ile
+  // (prefill yok) her açılışta boş forma dön.
+  useEffect(() => {
+    if (!open) return;
+    setOdevAdi(prefill?.title ?? "");
+    setAltBaslik(prefill?.subtitle ?? "");
+    setIcon(prefill?.icon ?? "pen");
+    setTur(prefill?.kind ?? "normal");
+    setAciklama(prefill?.description ?? "");
+    setPuan(prefill?.maxPuan ?? 100);
+    setBitisTarihi("");
+    setSablonAktif(false);
+    setSablonAdi("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prefill?.templateId]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,6 +159,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated }: Props) {
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({
           groupId,
+          templateId: prefill?.templateId,
           title: odevAdi.trim(),
           subtitle: altBaslik.trim() || undefined,
           description: aciklama.trim(),
@@ -143,10 +177,21 @@ export default function OdevOlusturModal({ open, onClose, onCreated }: Props) {
       }
 
       if (sablonAktif) {
+        // Şablonun branşı seçili Gruptan otomatik türetilir — Ödev Ekle'de ayrı bir
+        // branş seçici YOK (2026-07-06 kararı), branş zaten Grup seçimiyle belli.
+        const branch = groups.find((g) => g.id === groupId)?.branch;
         const tplRes = await fetch("/api/flexos/assignment-templates", {
           method: "POST",
           headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ title: sablonAdi.trim() || odevAdi.trim(), description: aciklama.trim() }),
+          body: JSON.stringify({
+            title: sablonAdi.trim() || odevAdi.trim(),
+            description: aciklama.trim(),
+            branch,
+            subtitle: altBaslik.trim() || undefined,
+            icon,
+            kind: tur,
+            maxPuan: puan,
+          }),
         });
         if (!tplRes.ok) toast.error("Ödev oluşturuldu ama şablon kaydedilemedi.");
       }
@@ -179,7 +224,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated }: Props) {
         >
           <motion.div
             className="w-full flex flex-col bg-white rounded-[22px] shadow-2xl overflow-hidden font-inter"
-            style={{ maxWidth: 860, height: "min(770px, calc(100dvh - 32px))" }}
+            style={{ maxWidth: 860, height: "min(820px, calc(100dvh - 32px))" }}
             initial={{ opacity: 0, scale: 0.98, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
@@ -196,8 +241,8 @@ export default function OdevOlusturModal({ open, onClose, onCreated }: Props) {
               <PenLine size={22} color="#fff" />
             </div>
             <div>
-              <div className="text-[17px] font-extrabold text-[#1E222B] tracking-tight">Yeni Ödev Oluştur</div>
-              <div className="text-[12px] text-[#8E95A3] font-medium mt-0.5">Ödev bilgilerini girin ve gruba başlatın</div>
+              <div className="text-[17px] font-extrabold text-[#1E222B] tracking-tight">{prefill ? "Ödevi Başlat" : "Yeni Ödev Oluştur"}</div>
+              <div className="text-[12px] text-[#8E95A3] font-medium mt-0.5">{prefill ? "Şablondan grup ve tarih seçip başlatın" : "Ödev bilgilerini girin ve gruba başlatın"}</div>
             </div>
           </div>
           <button
@@ -373,27 +418,31 @@ export default function OdevOlusturModal({ open, onClose, onCreated }: Props) {
                 <span className="text-[11.5px] font-semibold text-left">Dosyaları sürükleyin veya seçin</span>
               </button>
             </div>
-            <div className="w-[200px] shrink-0">
-              <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Şablon olarak kaydet</label>
-              <button
-                type="button" onClick={() => setSablonAktif((v) => !v)}
-                className="w-full h-[52px] flex items-center justify-between gap-2 px-3 rounded-[10px] cursor-pointer transition-all"
-                style={{ border: `1px solid ${sablonAktif ? "#D8C7EE" : "#E2E5EA"}`, background: sablonAktif ? "#FAF6FE" : "#fff" }}
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="w-[26px] h-[26px] rounded-[8px] shrink-0 flex items-center justify-center" style={{ background: "#EDE4FB", color: "#6B29A8" }}>
-                    <BookOpen size={13} />
+            {/* Zaten bir şablondan başlatılıyorsa (Kütüphane'den prefill) tekrar şablona
+                kaydetmek anlamsız — sadece "+Ödev Ver" (custom ödev) akışında gösterilir. */}
+            {!prefill && (
+              <div className="w-[200px] shrink-0">
+                <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Şablon olarak kaydet</label>
+                <button
+                  type="button" onClick={() => setSablonAktif((v) => !v)}
+                  className="w-full h-[52px] flex items-center justify-between gap-2 px-3 rounded-[10px] cursor-pointer transition-all"
+                  style={{ border: `1px solid ${sablonAktif ? "#D8C7EE" : "#E2E5EA"}`, background: sablonAktif ? "#FAF6FE" : "#fff" }}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="w-[26px] h-[26px] rounded-[8px] shrink-0 flex items-center justify-center" style={{ background: "#EDE4FB", color: "#6B29A8" }}>
+                      <BookOpen size={13} />
+                    </span>
+                    <span className="text-[11px] font-bold text-[#1E222B] text-left">Kütüphaneye ekle</span>
                   </span>
-                  <span className="text-[11px] font-bold text-[#1E222B] text-left">Kütüphaneye ekle</span>
-                </span>
-                <span className="relative rounded-full shrink-0" style={{ width: 34, height: 19, background: sablonAktif ? "#6B29A8" : "#CDD2DA" }}>
-                  <span className="absolute rounded-full bg-white shadow transition-all" style={{ top: 2, left: sablonAktif ? 17 : 2, width: 15, height: 15 }} />
-                </span>
-              </button>
-            </div>
+                  <span className="relative rounded-full shrink-0" style={{ width: 34, height: 19, background: sablonAktif ? "#6B29A8" : "#CDD2DA" }}>
+                    <span className="absolute rounded-full bg-white shadow transition-all" style={{ top: 2, left: sablonAktif ? 17 : 2, width: 15, height: 15 }} />
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
 
-          {sablonAktif && (
+          {!prefill && sablonAktif && (
             <div className="shrink-0">
               <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Şablon Adı</label>
               <input

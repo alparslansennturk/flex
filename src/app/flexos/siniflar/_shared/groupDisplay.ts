@@ -124,10 +124,17 @@ export function toDisplayGroup(g: GroupApiItem): DisplayGroup {
   };
 }
 
+// GERÇEK branş adlarıyla (2026-07-06 düzeltme) — önceki "Design/Finance/Software" İngilizce
+// placeholder anahtarları hiçbir gerçek branşla (Grafik Tasarım/Yazılım) eşleşmiyordu, bu yüzden
+// TÜM sayfalarda (Sınıflar/Eğitmenler/Şablon Yönetimi/Satış Listesi/vb.) branş çipleri sessizce
+// gri fallback'e düşüyordu. Kullanıcının verdiği Claude Design çıktısındaki (`Ödev Şablonu
+// Yönetimi.dc.html`) renkli palet buraya taşındı — gerçek isimlerle birebir eşleşiyor.
 export const BRANS_COLORS: Record<string, { color: string; background: string; dot: string }> = {
-  Design:   { color: "#B80E57", background: "#FED7E9", dot: "#F91079" },
-  Finance:  { color: "#0E5D59", background: "#AFF3F0", dot: "#1CB5AE" },
-  Software: { color: "#4D52A6", background: "#DDE0FA", dot: "#6F74D8" },
+  "Grafik Tasarım": { color: "#B80E57", background: "#FED7E9", dot: "#F91079" },
+  "Yazılım":        { color: "#4D52A6", background: "#DDE0FA", dot: "#6F74D8" },
+  "Veri Bilimi":    { color: "#0E5D59", background: "#AFF3F0", dot: "#1CB5AE" },
+  "İngilizce":      { color: "#7A3EAF", background: "#EDE0FB", dot: "#9C5DDB" },
+  "Finans":         { color: "#8A5A00", background: "#FFF0D6", dot: "#E8A20C" },
 };
 export const BRANS_FALLBACK = { color: "#414B59", background: "#EEF0F3", dot: "#AEB4C0" };
 

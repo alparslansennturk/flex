@@ -1,5 +1,5 @@
 import type { Audit, EntityId, TenantId } from "../base";
-import type { AssignmentAttachment } from "./assignment";
+import type { AssignmentAttachment, AssignmentKind } from "./assignment";
 
 /**
  * ÖDEV ŞABLONU — canlıdaki `templates` koleksiyonunun karşılığı. Eğitmenin
@@ -27,6 +27,15 @@ export interface AssignmentTemplate extends Audit {
 
   branch?: string; // denormalize — filtre kolaylığı
   title: string;
+  subtitle?: string; // "Ödev Ekle"deki Alt Başlık ile aynı alan
   description: string;
+  icon?: string; // ASSIGNMENT_ICONS anahtarı (odevler/_shared/assignmentIcons.ts)
+  kind?: AssignmentKind; // "normal" | "proje" — varsayılan "normal", gerçek Assignment'taki ile aynı iç ağırlıklandırma anlamı
+  maxPuan?: number; // "Ödev Ekle"deki Ödev Puanı ile aynı alan — varsayılan 100
   attachments: AssignmentAttachment[]; // örnek/başlangıç dosyaları
+
+  // Ana Sayfa'daki Ödev Parkuru'nun ghost-slotlarında görünsün mü (2026-07-06 kararı:
+  // eğitmen Şablon Yönetimi'nden manuel onaylamadan varsayılan GÖRÜNMEZ — kütüphaneye
+  // kaydetmekle Ana Sayfa'da göstermek ayrı adımlar). Yoksa/false = gizli.
+  visible?: boolean;
 }

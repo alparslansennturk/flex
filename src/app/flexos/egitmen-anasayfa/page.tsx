@@ -13,8 +13,18 @@
  * (`Ödev Oluştur.dc.html`) birebir port, gerçek `POST /api/flexos/assignments`'e yazar
  * (`maxPuan`+`kind` dahil). "Şablon olarak kaydet" → eğitmenin KİŞİSEL kütüphanesine
  * ekler (`template.manage` self-scope, 2026-07-06 kararı — admine özel değil).
- * Ghost kart üzerindeki "Ödev Ver" (şablonu aktive et) ve "Detay" hâlâ "yakında" —
+ * Ghost kart üzerindeki "Ödev ver" (şablonu aktive et) ve "Detay" hâlâ "yakında" —
  * ayrı, daha küçük bir iş.
+ *
+ * **Ödev Kütüphanesi EKLENDİ (2026-07-06, kullanıcı: "canlıya bak, sağa sola kaydırılabilir
+ * scrolling mantığında olan kütüphaneyi istiyorum"):** canlıdaki `AssignmentLibrary.tsx`'in
+ * portu — Ödev Parkuru'nun altında, yatay kaydırmalı kart listesi (overflow varsa sol/sağ
+ * ok butonları). Kişisel/Global sekme ayrımı YOK (kullanıcı kararı) — sadece branş seçici
+ * (>1 branş varsa). "Ödevi Başlat" butonu `OdevOlusturModal`'ı şablonun alanlarıyla ÖN-
+ * DOLU açar (`AssignmentPrefill` — modal artık hem boş "+Ödev Ver" hem şablondan başlatma
+ * için tek kod yolu), eğitmen sadece grup+tarih seçip onaylıyor. `visible` alanı burada
+ * FİLTRE DEĞİL — Kütüphane her zaman TÜM şablonları gösterir (canlıdaki gibi), visible
+ * sadece Ödev Parkuru'nun küçük ghost-slot önizlemesini etkiler.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -22,14 +32,15 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   CalendarCheck, ClipboardList, Award, Activity, Users, UsersRound,
-  Route, Plus, ChevronRight,
+  Route, Plus, ChevronRight, LibraryBig, ChevronLeft, ChevronDown, PlusCircle,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
-import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../_components/FlexHeader";
+import FlexHeader, { FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../_components/FlexHeader";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
-import OdevOlusturModal from "./OdevOlusturModal";
+import OdevOlusturModal, { type AssignmentPrefill } from "./OdevOlusturModal";
+import { ASSIGNMENT_ICONS } from "../odevler/_shared/assignmentIcons";
 
 // ── API şekilleri ──
 interface GroupItem {
@@ -176,7 +187,7 @@ function ActivityFeedPlaceholder() {
 const MAX_PARKOUR_SLOTS = 4;
 
 interface ParkourAssignment { id: string; title: string; subtitle?: string; description: string; dueDate?: string; status: string; createdAt?: string; templateId?: string }
-interface ParkourTemplate { id: string; title: string; description: string }
+interface ParkourTemplate { id: string; title: string; description: string; visible?: boolean }
 
 function getDuration(dueDate?: string): { text: string; expired: boolean; noDate: boolean } {
   if (!dueDate) return { text: "Süresiz", expired: false, noDate: true };
@@ -325,7 +336,8 @@ function OdevParkuru() {
   // Kullanılmamış şablonlar — deterministik karıştırma (canlıdaki id-hash %7 deseni)
   const usedTemplateIds = new Set(assignments.filter((a) => a.templateId).map((a) => a.templateId));
   const ghostCount = Math.max(0, MAX_PARKOUR_SLOTS - activeAssignments.length);
-  const availableTemplates = templates.filter((t) => !usedTemplateIds.has(t.id));
+  // Sadece Şablon Yönetimi'nden "Ana sayfada göster" onayı almış şablonlar ghost-slot adayı olur.
+  const availableTemplates = templates.filter((t) => t.visible === true && !usedTemplateIds.has(t.id));
   const ghostTemplates = [...availableTemplates]
     .sort((a, b) => {
       const ha = Array.from(a.id).reduce((s, c) => s + c.charCodeAt(0), 0);
@@ -344,7 +356,8 @@ function OdevParkuru() {
         </div>
         <button
           onClick={() => setModalAcik(true)}
-          className="flex items-center gap-1 h-10 px-5 rounded-xl bg-[#FF8D28] text-white text-[13px] font-semibold hover:bg-[#E67A1A] active:scale-95 transition-all cursor-pointer shadow-md shadow-[#FF8D28]/20"
+          className="flex items-center gap-1 h-10 px-5 rounded-xl text-white text-[13px] font-semibold active:scale-95 transition-all cursor-pointer"
+          style={{ background: "linear-gradient(135deg,#FF8D28,#D66500)", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)" }}
         >
           <Plus size={15} strokeWidth={2.5} />
           Ödev Ver
@@ -370,9 +383,145 @@ function OdevParkuru() {
   );
 }
 
-// Ödev Kütüphanesi (Kişisel/Global) BİLİNÇLİ OLARAK ana sayfada YOK — kullanıcı kararı
-// (2026-07-06): şablon kütüphanesi muhtemelen Ödev Yönetimi içine eklenecek, ana sayfa
-// bu ayrımı hiç göstermeyecek.
+// ─── Ödev Kütüphanesi — canlıdaki `AssignmentLibrary.tsx` portu (2026-07-06, kullanıcı:
+// "canlıya bak, sağa sola kaydırılabilir scrolling mantığında olan kütüphaneyi istiyorum").
+// Kişisel/Global sekme ayrımı YOK (kullanıcı kararı) — GET zaten eğitmenin kendi kişisel +
+// tüm global şablonlarını tek listede döndürüyor (listTemplates). Yerine sadece BRANŞ
+// seçici var (çoklu branşlı eğitmen kütüphaneler arası geçiş yapar) — şablonlarda fiilen
+// bulunan branşlardan türetilir, >1 branş varsa gösterilir. `visible` (Ana Sayfa/Ödev
+// Parkuru ghost-slot onayı) burada FİLTRE DEĞİL — Kütüphane HER ZAMAN TÜM şablonları
+// gösterir (canlıdaki gibi), visible sadece Parkuru'nun küçük önizlemesini etkiler.
+interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number }
+
+function LibraryCard({ t, onStart }: { t: LibTemplate; onStart: (t: LibTemplate) => void }) {
+  const Icon = (t.icon && ASSIGNMENT_ICONS[t.icon]) || ClipboardList;
+  return (
+    <div className="min-w-[calc((100%-80px)/4.3)] snap-start bg-white p-6 rounded-20 border border-[#EEF0F3] flex flex-col justify-between h-[210px] transition-all duration-500 hover:shadow-[15px_40px_80px_-20px_rgba(16,41,76,0.08)] hover:-translate-y-2">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 bg-[#F7F8FA] text-[#8E95A3] rounded-xl flex items-center justify-center shrink-0">
+          <Icon size={18} />
+        </div>
+        <div className="truncate flex-1 min-w-0">
+          <h5 className="text-[15px] font-bold text-[#10294C] mb-0.5 truncate">{t.title}</h5>
+          <p className="text-[11px] text-[#8E95A3] line-clamp-2">{t.subtitle || t.description || "Açıklama yok"}</p>
+        </div>
+      </div>
+      <div className="border-t border-[#EEF0F3] my-4" />
+      <div className="flex items-center justify-between gap-2">
+        {/* Oyunlaştırılmış (mor rozet) FlexOS'ta henüz yok — o özellik gelince buraya
+            canlıdaki gibi eklenecek (bkz. proje memory'si). Branş adı DÜZ metin (renksiz,
+            kullanıcı: "kütüphane kısmı renksiz olsun") — branşı yoksa "Global". */}
+        <span className="text-[10px] text-[#AEB4C0] italic font-semibold opacity-60">{t.branch || "Global"}</span>
+        <button
+          onClick={() => onStart(t)}
+          className="px-4 py-1.5 bg-[#F7F8FA] text-[#10294C] rounded-xl text-[11px] font-bold flex items-center gap-2 hover:bg-[#10294C] hover:text-white transition-all cursor-pointer shrink-0"
+        >
+          <PlusCircle size={14} /> Ödevi Başlat
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function OdevKutuphanesi() {
+  const [templates, setTemplates] = useState<LibTemplate[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [activeBranch, setActiveBranch] = useState("all");
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const [startTemplate, setStartTemplate] = useState<LibTemplate | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const loadData = useCallback(async () => {
+    const u = auth.currentUser;
+    const token = u ? await u.getIdToken() : "";
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const res = await fetch("/api/flexos/assignment-templates", { headers });
+      if (res.ok) setTemplates((await res.json()).items ?? []);
+    } finally {
+      setLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const branchOptions = Array.from(new Set(templates.map((t) => t.branch).filter((b): b is string => !!b)));
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => setHasOverflow(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [templates, activeBranch]);
+
+  function handleScroll(dir: "left" | "right") {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "left" ? -420 : 420, behavior: "smooth" });
+  }
+
+  const visibleTemplates = activeBranch === "all" ? templates : templates.filter((t) => t.branch === activeBranch);
+
+  const prefill: AssignmentPrefill | undefined = startTemplate
+    ? { templateId: startTemplate.id, title: startTemplate.title, subtitle: startTemplate.subtitle, description: startTemplate.description, icon: startTemplate.icon, kind: startTemplate.kind, maxPuan: startTemplate.maxPuan }
+    : undefined;
+
+  return (
+    <section className="mt-[48px] mb-[64px] space-y-[24px]">
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3 text-[#5C6370]">
+          <LibraryBig size={22} />
+          <h3 className="text-[22px] font-bold text-[#5C6370] cursor-default">Ödev Kütüphanesi</h3>
+        </div>
+        {branchOptions.length > 1 && (
+          <div className="relative">
+            <select
+              value={activeBranch}
+              onChange={(e) => setActiveBranch(e.target.value)}
+              className="h-9 pl-4 pr-9 rounded-[12px] border border-[#EEF0F3] bg-[#F7F8FA] text-[13px] font-semibold text-[#5C6370] outline-none focus:border-orange-400 cursor-pointer appearance-none"
+            >
+              <option value="all">Tüm Branşlar</option>
+              {branchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E95A3] pointer-events-none" />
+          </div>
+        )}
+      </div>
+
+      {!loaded ? (
+        <div className="flex items-center justify-center h-32 rounded-2xl border border-dashed border-[#D0D5DE] text-[#8E95A3] text-[13px] font-medium">
+          Yükleniyor…
+        </div>
+      ) : visibleTemplates.length === 0 ? (
+        <div className="flex items-center justify-center h-32 rounded-2xl border border-dashed border-[#D0D5DE] text-[#8E95A3] text-[13px] font-medium">
+          Henüz şablonunuz yok — Ödev Yönetimi&apos;nden şablon oluşturabilirsiniz.
+        </div>
+      ) : (
+        <div className="relative overflow-visible">
+          {hasOverflow && (
+            <>
+              <button onClick={() => handleScroll("left")} className="absolute -left-5 top-[105px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronLeft size={24} /></button>
+              <button onClick={() => handleScroll("right")} className="absolute -right-5 top-[105px] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-xl border border-[#EEF0F3] hover:scale-110 active:scale-95 transition-all cursor-pointer text-[#10294C]"><ChevronRight size={24} /></button>
+            </>
+          )}
+          <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">
+            {visibleTemplates.map((t) => <LibraryCard key={t.id} t={t} onStart={setStartTemplate} />)}
+          </div>
+        </div>
+      )}
+
+      <OdevOlusturModal
+        open={startTemplate !== null}
+        onClose={() => setStartTemplate(null)}
+        onCreated={() => setStartTemplate(null)}
+        prefill={prefill}
+      />
+    </section>
+  );
+}
 
 // ─── Sayfa ────────────────────────────────────────────────────────────────────
 export default function EgitmenAnaSayfaPage() {
@@ -480,9 +629,9 @@ export default function EgitmenAnaSayfaPage() {
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="ana" />
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
-        <FlexHeader greeting subtitle="Bugün atölyende neler oluyor? İşte son durum." roleLabel="Eğitmen" />
+        <FlexHeader greeting subtitle="Bugün atölyende neler oluyor? İşte son durum." roleLabel="Eğitmen" maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} />
 
-        <div style={{ maxWidth: FLEX_CONTENT_MAX_WIDTH, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }} className="px-9 pt-6 pb-8">
+        <div style={{ margin: "0 auto", boxSizing: "border-box", flex: 1 }} className={`${FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} pt-6 pb-8`}>
           <div className="flex flex-col xl:flex-row gap-5">
             <div className="flex-1 min-w-0 flex flex-col gap-5">
               <HomeBanner groupCount={groupCount} studentCount={studentCount} />
@@ -530,9 +679,10 @@ export default function EgitmenAnaSayfaPage() {
           </div>
 
           <OdevParkuru />
+          <OdevKutuphanesi />
         </div>
 
-        <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
+        <Footer mini containerClassName={`${FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} mx-auto`} />
       </main>
     </div>
   );

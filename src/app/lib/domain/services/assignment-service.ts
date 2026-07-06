@@ -162,7 +162,11 @@ export async function deleteAssignment(actor: Actor, id: string, repo: Assignmen
 export interface CreateTemplateInput {
   branch?: string;
   title: string;
+  subtitle?: string;
   description: string;
+  icon?: string;
+  kind?: AssignmentKind;
+  maxPuan?: number;
   attachments?: AssignmentAttachment[];
 }
 
@@ -182,6 +186,12 @@ export async function createTemplate(
   const description = input.description?.trim();
   if (!title) throw new ValidationError("Şablon başlığı zorunludur.");
   if (!description) throw new ValidationError("Şablon açıklaması zorunludur.");
+  if (input.kind != null && !VALID_KINDS.includes(input.kind)) {
+    throw new ValidationError("Geçersiz ödev türü.");
+  }
+  if (input.maxPuan != null && (!Number.isFinite(input.maxPuan) || input.maxPuan <= 0)) {
+    throw new ValidationError("Ödev puanı pozitif olmalı.");
+  }
 
   const isGlobal = scope === "org";
   const template: AssignmentTemplate = {
@@ -191,8 +201,13 @@ export async function createTemplate(
     trainerId: isGlobal ? undefined : actor.uid,
     branch: input.branch?.trim() || undefined,
     title,
+    subtitle: input.subtitle?.trim() || undefined,
     description,
+    icon: input.icon,
+    kind: input.kind ?? "normal",
+    maxPuan: input.maxPuan ?? 100,
     attachments: input.attachments ?? [],
+    visible: false, // Şablon Yönetimi'nden manuel onaylanana kadar Ana Sayfa'da görünmez
     createdAt: nowISO(),
     createdBy: actor.uid,
   };
@@ -209,4 +224,77 @@ export async function listTemplates(actor: Actor, repo: AssignmentTemplateRepo):
   if (!can(actor, "assignment.read")) throw new ForbiddenError("assignment.read");
   const all = await repo.list(actor.tenantId);
   return all.filter((t) => t.scope !== "personal" || t.trainerId === actor.uid);
+}
+
+/**
+ * Şablon sahiplik kontrolü — kişisel şablonu SADECE sahibi eğitmen (self scope),
+ * global şablonu SADECE org scope (Op/Admin) düzenleyebilir/silebilir. Kişisel şablona
+ * org-scope aktör bile erişemez (kullanıcı kararı: "sadece kendisi görür/yönetir").
+ */
+function assertTemplateOwnership(actor: Actor, template: AssignmentTemplate): void {
+  const scope = widestScope(actor, "template.manage");
+  if (!scope) throw new ForbiddenError("template.manage");
+  const isOwnPersonal = template.scope === "personal" && template.trainerId === actor.uid;
+  const isGlobalAndOrg = template.scope !== "personal" && scope === "org";
+  if (!isOwnPersonal && !isGlobalAndOrg) throw new ForbiddenError("template.manage");
+}
+
+export interface UpdateTemplateInput {
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  branch?: string;
+  icon?: string;
+  kind?: AssignmentKind;
+  maxPuan?: number;
+  visible?: boolean;
+}
+
+/** Şablon güncelle — gated (`template.manage`, sahiplik kontrolü). */
+export async function updateTemplate(
+  actor: Actor,
+  id: string,
+  input: UpdateTemplateInput,
+  repo: AssignmentTemplateRepo,
+): Promise<AssignmentTemplate> {
+  const existing = await repo.getById(id, actor.tenantId);
+  if (!existing) throw new ValidationError("Şablon bulunamadı.");
+  assertTemplateOwnership(actor, existing);
+
+  const updated: AssignmentTemplate = { ...existing };
+  if (input.title !== undefined) {
+    const t = input.title.trim();
+    if (!t) throw new ValidationError("Şablon başlığı boş olamaz.");
+    updated.title = t;
+  }
+  if (input.subtitle !== undefined) updated.subtitle = input.subtitle.trim() || undefined;
+  if (input.description !== undefined) {
+    const d = input.description.trim();
+    if (!d) throw new ValidationError("Şablon açıklaması boş olamaz.");
+    updated.description = d;
+  }
+  if (input.branch !== undefined) updated.branch = input.branch.trim() || undefined;
+  if (input.icon !== undefined) updated.icon = input.icon;
+  if (input.kind !== undefined) {
+    if (!VALID_KINDS.includes(input.kind)) throw new ValidationError("Geçersiz ödev türü.");
+    updated.kind = input.kind;
+  }
+  if (input.maxPuan !== undefined) {
+    if (!Number.isFinite(input.maxPuan) || input.maxPuan <= 0) throw new ValidationError("Ödev puanı pozitif olmalı.");
+    updated.maxPuan = input.maxPuan;
+  }
+  if (input.visible !== undefined) updated.visible = input.visible;
+
+  updated.updatedAt = nowISO();
+  updated.updatedBy = actor.uid;
+  await repo.save(updated);
+  return updated;
+}
+
+/** Şablon sil — gated (`template.manage`, sahiplik kontrolü). */
+export async function deleteTemplate(actor: Actor, id: string, repo: AssignmentTemplateRepo): Promise<void> {
+  const existing = await repo.getById(id, actor.tenantId);
+  if (!existing) throw new ValidationError("Şablon bulunamadı.");
+  assertTemplateOwnership(actor, existing);
+  await repo.delete(id, actor.tenantId);
 }
