@@ -465,5 +465,11 @@ service cloud.firestore {
 
     // Admin Kişisel Görünüm Anahtarı — mevcut mod (Core/Full), server-only.
     match /flexos_view_modes/{uid} { allow read, write: if false; }
+
+    // Sertifika/ödev notları — server-only (Admin SDK), gated grade-service.ts (grade.read/write).
+    match /flexos_grades/{id} { allow read, write: if false; }
+
+    // Sertifika hesaplama ayarı (odevAktif/sertifikaPct) — server-only, yazma `certificate.settings.write` gated.
+    match /flexos_certificate_settings/{id} { allow read, write: if false; }
   }
 }

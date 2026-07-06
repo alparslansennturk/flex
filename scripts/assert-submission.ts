@@ -25,6 +25,8 @@ import {
   retract,
   updateSubmissionStatus,
   gradeSubmission,
+  computeOdevYuzdeleri,
+  combineOdevYuzdesi,
   type SubmissionDeps,
 } from "../src/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "../src/app/lib/domain/errors";
@@ -412,6 +414,114 @@ async function main() {
     const submission = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: session.id }, deps);
     const crossTenant = await deps.submissions.getById(submission.id, OTHER_TENANT);
     assert("Tenant izolasyonu: farklı tenant'tan getById → null", crossTenant === null);
+  }
+
+  // ── maxPuan'a göre notlandırma sınırı (2026-07-06 kararı: ödevler farklı ağırlıkta) ──
+  await assertRejects("gradeSubmission: 200 puanlık ödevde 250 girilemez — ValidationError", async () => {
+    const heavyAssignment: Assignment = { ...assignmentA, id: "assignment-heavy", maxPuan: 200 };
+    const deps = makeDeps({ groups: [groupA], assignments: [heavyAssignment], persons: [student], enrollments: [enrollment] });
+    const { session } = await initUpload(
+      { requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "assignment-heavy", fileName: "kapak.pdf", fileSize: 1024, mimeType: "application/pdf" },
+      deps,
+    );
+    const submission = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: session.id }, deps);
+    return gradeSubmission(trainerA, submission.id, 250, deps);
+  }, ValidationError);
+
+  {
+    const heavyAssignment: Assignment = { ...assignmentA, id: "assignment-heavy2", maxPuan: 200 };
+    const deps = makeDeps({ groups: [groupA], assignments: [heavyAssignment], persons: [student], enrollments: [enrollment] });
+    const { session } = await initUpload(
+      { requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "assignment-heavy2", fileName: "kapak.pdf", fileSize: 1024, mimeType: "application/pdf" },
+      deps,
+    );
+    const submission = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: session.id }, deps);
+    const graded = await gradeSubmission(trainerA, submission.id, 180, deps);
+    assert("gradeSubmission: 200 puanlık ödevde 180 girilebilir", graded.grade === 180);
+  }
+
+  // ── computeOdevYuzdeleri — Ödev Notu ANLIK hesaplama (manuel giriş YOK) ──
+  {
+    const assignment100 = fakeAssignment("hw-100", "group-odev", "trainer-a");
+    assignment100.maxPuan = 100;
+    const assignment200: Assignment = { ...assignment100, id: "hw-200", maxPuan: 200 };
+    const groupOdev = fakeGroup("group-odev", "trainer-a");
+    const deps = makeDeps({ groups: [groupOdev], assignments: [assignment100, assignment200], persons: [student], enrollments: [fakeEnrollment("enr-odev", "person-1", "group-odev")] });
+
+    const { session: s1 } = await initUpload({ requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "hw-100", fileName: "a.pdf", fileSize: 1, mimeType: "application/pdf" }, deps);
+    const sub1 = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: s1.id }, deps);
+    await gradeSubmission(trainerA, sub1.id, 50, deps);
+
+    const { session: s2 } = await initUpload({ requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "hw-200", fileName: "b.pdf", fileSize: 1, mimeType: "application/pdf" }, deps);
+    const sub2 = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: s2.id }, deps);
+    await gradeSubmission(trainerA, sub2.id, 150, deps);
+
+    const result = await computeOdevYuzdeleri(TENANT, "group-odev", deps);
+    assert("computeOdevYuzdeleri: normal kategori toplam maxPuan = 300 (100+200, kind belirtilmemiş → normal)", result.normal.totalMaxPuan === 300);
+    assert("computeOdevYuzdeleri: normal kategori kazanılan toplam = 200 (50+150)", result.normal.earnedByPerson["person-1"] === 200);
+    assert("computeOdevYuzdeleri: proje kategorisi boş", result.proje.totalMaxPuan === 0);
+    const percent = combineOdevYuzdesi(result, "person-1");
+    assert("combineOdevYuzdesi: sadece normal varsa %100 ağırlığı alır (200/300=%67)", percent === 67);
+  }
+
+  // ── computeOdevYuzdeleri — grupta hiç yayınlanmış ödev yoksa her iki kategori de boş (veri yok) ──
+  {
+    const groupBos = fakeGroup("group-bos", "trainer-a");
+    const deps = makeDeps({ groups: [groupBos], assignments: [], persons: [], enrollments: [] });
+    const result = await computeOdevYuzdeleri(TENANT, "group-bos", deps);
+    assert("computeOdevYuzdeleri: ödev yoksa normal.totalMaxPuan=0", result.normal.totalMaxPuan === 0);
+    assert("computeOdevYuzdeleri: ödev yoksa proje.totalMaxPuan=0", result.proje.totalMaxPuan === 0);
+    assert("combineOdevYuzdesi: hiç ödev yoksa null (veri yok)", combineOdevYuzdesi(result, "person-1") === null);
+  }
+
+  // ── computeOdevYuzdeleri — notlanmamış/taslak ödev paydaya girmez ──
+  {
+    const published = fakeAssignment("hw-pub", "group-karisik", "trainer-a");
+    const draft: Assignment = { ...published, id: "hw-draft", status: "draft", maxPuan: 500 };
+    const groupKarisik = fakeGroup("group-karisik", "trainer-a");
+    const deps = makeDeps({ groups: [groupKarisik], assignments: [published, draft], persons: [student], enrollments: [fakeEnrollment("enr-karisik", "person-1", "group-karisik")] });
+    const result = await computeOdevYuzdeleri(TENANT, "group-karisik", deps);
+    assert("computeOdevYuzdeleri: taslak ödev paydaya girmez (sadece published'ın 100'ü)", result.normal.totalMaxPuan === 100);
+  }
+
+  // ── Ödev Notu İÇ ağırlıklandırması — normal %30 + proje %70 (2026-07-06 kararı) ──
+  {
+    const normalOdev = fakeAssignment("hw-normal", "group-agirlik", "trainer-a");
+    normalOdev.maxPuan = 100;
+    normalOdev.kind = "normal";
+    const projeOdev: Assignment = { ...normalOdev, id: "hw-proje", maxPuan: 100, kind: "proje" };
+    const groupAgirlik = fakeGroup("group-agirlik", "trainer-a");
+    const deps = makeDeps({ groups: [groupAgirlik], assignments: [normalOdev, projeOdev], persons: [student], enrollments: [fakeEnrollment("enr-agirlik", "person-1", "group-agirlik")] });
+
+    const { session: sN } = await initUpload({ requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "hw-normal", fileName: "n.pdf", fileSize: 1, mimeType: "application/pdf" }, deps);
+    const subN = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: sN.id }, deps);
+    await gradeSubmission(trainerA, subN.id, 100, deps); // normal: %100
+
+    const { session: sP } = await initUpload({ requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "hw-proje", fileName: "p.pdf", fileSize: 1, mimeType: "application/pdf" }, deps);
+    const subP = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: sP.id }, deps);
+    await gradeSubmission(trainerA, subP.id, 50, deps); // proje: %50
+
+    const result = await computeOdevYuzdeleri(TENANT, "group-agirlik", deps);
+    const percent = combineOdevYuzdesi(result, "person-1");
+    // normal %100 × 0.30 + proje %50 × 0.70 = 30 + 35 = 65
+    assert("combineOdevYuzdesi: normal %100 + proje %50 → ağırlıklı %65", percent === 65);
+  }
+
+  // ── Ödev Notu İÇ ağırlıklandırması — proje kategorisi hiç yoksa ağırlık tamamen normale kayar ──
+  {
+    const normalOdev = fakeAssignment("hw-solo-normal", "group-tekkategori", "trainer-a");
+    normalOdev.maxPuan = 100;
+    normalOdev.kind = "normal";
+    const groupTek = fakeGroup("group-tekkategori", "trainer-a");
+    const deps = makeDeps({ groups: [groupTek], assignments: [normalOdev], persons: [student], enrollments: [fakeEnrollment("enr-tek", "person-1", "group-tekkategori")] });
+
+    const { session } = await initUpload({ requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "hw-solo-normal", fileName: "s.pdf", fileSize: 1, mimeType: "application/pdf" }, deps);
+    const sub = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: session.id }, deps);
+    await gradeSubmission(trainerA, sub.id, 80, deps);
+
+    const result = await computeOdevYuzdeleri(TENANT, "group-tekkategori", deps);
+    const percent = combineOdevYuzdesi(result, "person-1");
+    assert("combineOdevYuzdesi: proje yoksa ağırlık tamamen normale kayar (%80 direkt)", percent === 80);
   }
 
   console.log(`\n=== Sonuç: ${passed} geçti, ${failed} başarısız ===\n`);

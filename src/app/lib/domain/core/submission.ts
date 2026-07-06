@@ -28,7 +28,7 @@ export interface Submission extends Audit {
   submittedAt: ISODateTime; // ilk teslim anı (iterasyonlar arası sabit kalır)
   lastSubmittedAt: ISODateTime; // en son yükleme turu
 
-  grade?: number; // 0-100
+  grade?: number; // 0..assignment.maxPuan (varsayılan 0-100) — bu ödevde kazanılan HAM puan
   gradedAt?: ISODateTime;
   gradedBy?: EntityId; // notu veren aktör uid'i
 

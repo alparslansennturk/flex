@@ -14,51 +14,63 @@ function at(scope: Scope, ...capabilities: string[]): Grant[] {
 
 // Eğitmen yetkileri her zaman geçerli olan çekirdek + standalone-modda eklenen ekstra
 // olmak üzere ikiye ayrılır — switch kapalıyken sadece çekirdek kalır (resolvePackages bkz).
-const EGITMEN_CORE: Grant[] = at(
-  "assigned",
-  "person.read",
-  "person.search",
-  "person.note.read",
-  "person.note.write",
-  "enrollment.read",
-  "group.read", // entegre modda da kendi grubunu görmesi/yoklama alması gerekir
-  "grade.read",
-  "grade.write",
-  "grade.finalize",
-  "trainer.read", // kadroyu görür ama ücret (trainer.rate.read) YOK
-  "attendance.write", // Yoklama Al + Yoklama Detay — kendi grubu, 3 gün düzenleme (assigned scope)
-  "attendance.read",
-  // attendance.report.read BİLEREK YOK — Yoklama Raporu eğitmende hiç görünmez (2026-07-02 kararı).
-  // Ödev verme/alma — yoklama/not gibi çekirdek öğretmenlik işi, standalone-only DEĞİL.
-  "assignment.create",
-  "assignment.edit",
-  "assignment.read",
-  "assignment.delete",
-  // template.manage BİLEREK YOK — kütüphane küratörlüğü sadece Operasyon/Admin'de,
-  // eğitmen şablonu SADECE okur (assignment.read yeterli, ayrı bir capability gerekmez).
-  // Ödev teslimi (Faz 2) — eğitmen sadece kendi grubunun teslimlerini görür/notlandırır.
-  "submission.read",
-  "submission.status.write",
-  "submission.grade",
-  "assignment.comment.write",
-);
+const EGITMEN_CORE: Grant[] = [
+  ...at(
+    "assigned",
+    "person.read",
+    "person.search",
+    "person.note.read",
+    "person.note.write",
+    "enrollment.read",
+    "group.read", // entegre modda da kendi grubunu görmesi/yoklama alması gerekir
+    "grade.read",
+    "grade.write",
+    "grade.finalize",
+    "trainer.read", // kadroyu görür ama ücret (trainer.rate.read) YOK
+    "attendance.write", // Yoklama Al + Yoklama Detay — kendi grubu, 3 gün düzenleme (assigned scope)
+    "attendance.read",
+    // attendance.report.read BİLEREK YOK — Yoklama Raporu eğitmende hiç görünmez (2026-07-02 kararı).
+    // Ödev verme/alma — yoklama/not gibi çekirdek öğretmenlik işi, standalone-only DEĞİL.
+    "assignment.create",
+    "assignment.edit",
+    "assignment.read",
+    "assignment.delete",
+    // Ödev teslimi (Faz 2) — eğitmen sadece kendi grubunun teslimlerini görür/notlandırır.
+    "submission.read",
+    "submission.status.write",
+    "submission.grade",
+    "assignment.comment.write",
+  ),
+  // Şablon — KİŞİSEL kütüphane (2026-07-06 kararı): her eğitmen kendi ödevini şablon
+  // olarak kaydedebilir, admine özel bir yetki DEĞİL. SELF scope: yalnız KENDİ
+  // şablonlarını yazar/görür (`listTemplates` filtreler) — global kütüphane (org scope,
+  // Op/Admin'de) ayrı ve İLERİDE admine daraltılacak (henüz yapılmadı).
+  ...at("self", "template.manage"),
+];
 
-const EGITMEN_STANDALONE_EXTRA: Grant[] = at(
-  "assigned",
-  "person.create",
-  // PII (tel/e-posta/TC) normalde eğitmende YOK (Satış yazar) — standalone'da Satış
-  // olmadığı için eğitmen kendi öğrencisinin iletişim bilgisini girebilmeli/görebilmeli.
-  "person.read.pii",
-  "person.pii.write",
-  "person.edit",
-  "enrollment.create",
-  "enrollment.transfer",
-  "group.create",
-  "group.edit",
-  "group.assign_student",
-  "group.activate",
-  "group.delete",
-);
+const EGITMEN_STANDALONE_EXTRA: Grant[] = [
+  ...at(
+    "assigned",
+    "person.create",
+    // PII (tel/e-posta/TC) normalde eğitmende YOK (Satış yazar) — standalone'da Satış
+    // olmadığı için eğitmen kendi öğrencisinin iletişim bilgisini girebilmeli/görebilmeli.
+    "person.read.pii",
+    "person.pii.write",
+    "person.edit",
+    "enrollment.create",
+    "enrollment.transfer",
+    "group.create",
+    "group.edit",
+    "group.assign_student",
+    "group.activate",
+    "group.delete",
+  ),
+  // Sertifika ayarı — standalone/Core modda merkezi Op/Admin yok, eğitmen kendi
+  // hesaplama kuralını (Ödev notu aç/kapa + ağırlık) belirler. SELF scope: yalnız
+  // kendi kişisel override'ını yazar, tenant varsayılanını/diğer eğitmenleri ETKİLEMEZ
+  // (2026-07-06 kararı — kendi kuralını vermeyen eğitmen tenant varsayılanına düşer).
+  ...at("self", "certificate.settings.write"),
+];
 
 export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
   // Satış: kişi (PII dahil) + eğitime kaydet + satış + CRM. PII YAZAR.
@@ -113,6 +125,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "group.activate",
     "group.delete",
     "grade.report.read",
+    "certificate.settings.write",
     "sale.create",
     "sale.read",
     "sale.cancel",
@@ -195,6 +208,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "grade.write",
       "grade.finalize",
       "grade.report.read",
+      "certificate.settings.write",
       "branch.create",
       "education.create",
       "education.edit",

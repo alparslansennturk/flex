@@ -2,11 +2,41 @@
 
 /**
  * FlexOS · Sertifika Notu — Claude Design çıktısından (`Sertifika Notu Verme.dc.html`)
- * BİREBİR UI portu. Kullanıcı kararı: "UI kısmını en önce yapalım" — bu turda backend
- * YOK (`Grade` domain entity zaten var — `domain/education/grade.ts` — ama repo/servis/
- * route hiç kurulmadı). Notlar SADECE local state'te tutulur, "Taslak Kaydet"/
- * "Notları Gönder" butonları backend hazır olana kadar "yakında" toast'ı verir.
- * Grup/öğrenci listesi GERÇEK veri (GET /api/flexos/groups + roster) — sahte veri yok.
+ * BİREBİR UI portu. `Grade` domain'i backend'e bağlandı (repo/servis/route/16
+ * assertion — `grade-service.ts`): grup seçilince Sertifika Notu `GET /api/flexos/grades`
+ * ile ön-dolduruluyor, "Taslak Kaydet" `POST /api/flexos/grades` ile kalıcı yazıyor
+ * (gated `grade.write`). "Notları Gönder" (finalize/kilitleme) henüz YOK — o,
+ * `Enrollment.result` snapshot'lamayı gerektiren ayrı bir iş (`grade.finalize`),
+ * bu turda "yakında" toast'ı kalıyor. Ağırlık (Sertifika/Ödev %) artık SABİT
+ * DEĞİL — `GET /api/flexos/certificate-settings`'ten okunuyor (Sertifika
+ * Ayarları'ndan değişince buraya otomatik yansır). Grup/öğrenci listesi GERÇEK
+ * veri — sahte veri yok.
+ *
+ * **`certType` (2026-07-06, DÜZELTME):** Eğitim katalogda "Sınav Bazlı"/"Proje Bazlı"
+ * seçilir (`Education.certType`). Bu alanın adı HER ZAMAN "Sertifika Notu" kalır —
+ * ayrı bir "Sınav Notu" kavramı YOK (kullanıcı kararı: sınav notu gelir, sertifika
+ * notunu OLUŞTURUR; ileride sınav modülü de aynı `Grade.projectGrade` alanına yazacak).
+ * `certType` yalnız HANGİ AĞIRLIK BLOĞUNUN (`CertificateSettings.project`/`.exam`)
+ * kullanılacağını belirler — sınav bazlı branşta varsayılan Ödev Notu KAPALI (%100),
+ * proje bazlıda AÇIK (%70/%30), ama Sertifika Ayarları'ndan ikisi de bağımsız
+ * değiştirilebilir (certType hesaplamayı KISITLAMAZ, sadece varsayılanı belirler).
+ *
+ * **Ödev Notu ARTIK MANUEL DEĞİL (2026-07-06 kararı):** eski editable "Ödev Notu"
+ * inputu ve `Grade.assignmentScore` alanı KALDIRILDI. Ödev Notu artık grup içindeki
+ * TÜM yayınlanmış ödevlerin `maxPuan` toplamına (payda) karşı öğrencinin kazandığı
+ * `Submission.grade` toplamının (pay) yüzdesi olarak OKUMA ANINDA hesaplanır
+ * (`computeOdevYuzdeleri`, `submission-service.ts`) — `GET /api/flexos/grades`'in
+ * `odev` alanından türetilir, salt-okunur rozet olarak gösterilir.
+ *
+ * **Ödev Notu'nun İÇ ağırlıklandırması (2026-07-06, ayrı karar):** ödevler `kind`'a
+ * göre `normal`/`proje` diye ikiye ayrılır — normal ödevler %30, proje ödevler %70
+ * ağırlıkla nihai Ödev Notu'na katkı yapar (`ODEV_TUR_AGIRLIK`, `submission-service.ts`
+ * — bu SABİT bir iş kuralı, Sertifika Ayarları'ndaki dışsal Sertifika/Ödev ağırlığından
+ * TAMAMEN AYRI bir eksen). Bir kategori hiç yoksa ağırlık diğerine tamamen kayar,
+ * ikisi de yoksa (grupta hiç ödev yok) Ödev Notu toplam hesaba HİÇ girmez — sadece
+ * Sertifika Notu esas alınır (`CertificateSettings` ağırlığı ne olursa olsun).
+ * `odevYuzdesi()` burada `combineOdevYuzdesi()`'nin AYNI formülünü client-side
+ * uyguluyor (saf/I/O'suz fonksiyon, tekrar yazmak import karmaşasından daha basit).
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -18,9 +48,17 @@ import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
 
-interface GroupItem { id: string; code: string; branch: string; enrolled: number }
+interface GroupItem { id: string; code: string; branch: string; enrolled: number; certType?: "exam" | "project" }
 
-interface GradeEntry { sertifika: string; odev: string }
+interface GradeDoc { personId: string; projectGrade?: number }
+interface OdevKategori { totalMaxPuan: number; earnedByPerson: Record<string, number> }
+interface OdevData { normal: OdevKategori; proje: OdevKategori }
+interface Weighting { odevAktif: boolean; sertifikaPct: number }
+
+const ODEV_KATEGORI_BOS: OdevKategori = { totalMaxPuan: 0, earnedByPerson: {} };
+const ODEV_DATA_BOS: OdevData = { normal: ODEV_KATEGORI_BOS, proje: ODEV_KATEGORI_BOS };
+// submission-service.ts::ODEV_TUR_AGIRLIK ile AYNI sabit — SABİT iş kuralı (2026-07-06).
+const ODEV_TUR_AGIRLIK = { normal: 30, proje: 70 };
 
 const GROUP_COLORS = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#1CB5AE", "#F91079"];
 const AVATAR_PALETTES: [string, string][] = [
@@ -54,11 +92,28 @@ export default function SertifikaNotuPage() {
   const [roster, setRoster] = useState<RosterItem[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [loadingRoster, setLoadingRoster] = useState(false);
-  // Bu sayfada AÇ/KAPA switch'i BİLEREK YOK — kullanıcı kararı: bu ayar "Sertifika
-  // Ayarları" sayfasından yönetilecek, oradan kapatılınca Ödev Notu sütunu buraya
-  // otomatik yansıyıp gizlenecek. Ayarlar sayfası henüz yok, varsayılan olarak açık.
-  const [odevAktif] = useState(true);
-  const [grades, setGrades] = useState<Record<string, GradeEntry>>({});
+  // Bu sayfada AÇ/KAPA switch'i BİLEREK YOK — "Sertifika Ayarları"ndan yönetilir,
+  // `CertificateSettings` kaydından okunur (gerçek backend, `certificate-settings-service.ts`).
+  // İki blok birlikte gelir (`project`/`exam`); hangisinin kullanılacağı seçili grubun
+  // `certType`'ına göre aşağıda `odevAktif`/`sertifikaPct` türetilirken belirlenir.
+  const [settings, setSettings] = useState<{ project: Weighting; exam: Weighting }>({
+    project: { odevAktif: true, sertifikaPct: 70 },
+    exam: { odevAktif: false, sertifikaPct: 100 },
+  });
+  const [sertifikaNotlari, setSertifikaNotlari] = useState<Record<string, string>>({});
+  const [odevData, setOdevData] = useState<OdevData>(ODEV_DATA_BOS);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const headers = await authHeaders();
+      const res = await fetch("/api/flexos/certificate-settings", { headers });
+      if (res.ok) {
+        const data = await res.json() as { project: Weighting; exam: Weighting };
+        setSettings({ project: data.project, exam: data.exam });
+      }
+    })();
+  }, []);
 
   const loadGroups = useCallback(async () => {
     setLoadingGroups(true);
@@ -81,34 +136,97 @@ export default function SertifikaNotuPage() {
     if (!selectedId) return;
     (async () => {
       setLoadingRoster(true);
+      setSertifikaNotlari({});
+      setOdevData(ODEV_DATA_BOS);
       try {
         const headers = await authHeaders();
-        const res = await fetch(`/api/flexos/groups/${selectedId}/roster`, { headers });
-        if (res.ok) setRoster((await res.json() as { items: RosterItem[] }).items);
-        else setRoster([]);
+        const [rosterRes, gradesRes] = await Promise.all([
+          fetch(`/api/flexos/groups/${selectedId}/roster`, { headers }),
+          fetch(`/api/flexos/grades?groupId=${selectedId}`, { headers }),
+        ]);
+        setRoster(rosterRes.ok ? (await rosterRes.json() as { items: RosterItem[] }).items : []);
+        if (gradesRes.ok) {
+          const { items, odev } = await gradesRes.json() as { items: GradeDoc[]; odev: OdevData };
+          const prefilled: Record<string, string> = {};
+          for (const g of items) {
+            if (g.projectGrade != null) prefilled[g.personId] = String(g.projectGrade);
+          }
+          setSertifikaNotlari(prefilled);
+          setOdevData(odev);
+        }
       } finally {
         setLoadingRoster(false);
       }
     })();
   }, [selectedId]);
 
-  function setGrade(personId: string, field: keyof GradeEntry, raw: string) {
-    const val = clamp100(raw);
-    setGrades((prev) => ({ ...prev, [personId]: { ...(prev[personId] ?? { sertifika: "", odev: "" }), [field]: val } }));
+  function setSertifikaNotu(personId: string, raw: string) {
+    setSertifikaNotlari((prev) => ({ ...prev, [personId]: clamp100(raw) }));
   }
 
-  function computeTotal(entry: GradeEntry | undefined): number | null {
-    const s = entry?.sertifika === "" || entry?.sertifika == null ? null : Number(entry.sertifika);
-    const o = entry?.odev === "" || entry?.odev == null ? null : Number(entry.odev);
+  /**
+   * Ödev Notu yüzdesi — hesaplanır, elle girilmez. `normal` %30 + `proje` %70
+   * ağırlıklı (`submission-service.ts::combineOdevYuzdesi` ile AYNI formül).
+   * Bir kategori hiç yoksa ağırlık diğerine kayar; ikisi de yoksa `null` (veri yok).
+   */
+  function odevYuzdesi(personId: string): number | null {
+    const { normal, proje } = odevData;
+    const normalOran = normal.totalMaxPuan > 0 ? (normal.earnedByPerson[personId] ?? 0) / normal.totalMaxPuan : null;
+    const projeOran = proje.totalMaxPuan > 0 ? (proje.earnedByPerson[personId] ?? 0) / proje.totalMaxPuan : null;
+    if (normalOran == null && projeOran == null) return null;
+    if (normalOran == null) return Math.round(projeOran! * 100);
+    if (projeOran == null) return Math.round(normalOran * 100);
+    return Math.round(normalOran * ODEV_TUR_AGIRLIK.normal + projeOran * ODEV_TUR_AGIRLIK.proje);
+  }
+
+  const odevVerisiVarMi = odevData.normal.totalMaxPuan > 0 || odevData.proje.totalMaxPuan > 0;
+
+  async function saveDraft() {
+    if (!selectedId || roster.length === 0) return;
+    setSaving(true);
+    try {
+      const entries = roster.map((r) => ({
+        enrollmentId: r.enrollmentId,
+        personId: r.personId,
+        projectGrade: sertifikaNotlari[r.personId] ? Number(sertifikaNotlari[r.personId]) : null,
+      }));
+      const headers = await authHeaders();
+      const res = await fetch("/api/flexos/grades", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId: selectedId, entries }),
+      });
+      if (res.ok) toast.success("Taslak kaydedildi.");
+      else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Kaydedilemedi.");
+      }
+    } catch {
+      toast.error("Kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const selected = groups.find((g) => g.id === selectedId) ?? null;
+  // Hangi ağırlık bloğu kullanılacak — grubun bağlı olduğu Education.certType belirler
+  // (varsayılan "project"). Etiket HER ZAMAN "Sertifika Notu" — certType sadece ağırlığı seçer.
+  const { odevAktif: odevAyarAktif, sertifikaPct } = settings[selected?.certType ?? "project"];
+  // Grupta hiç ödev yoksa (veri yok) ayar açık olsa bile Ödev Notu hesaba KATILMAZ.
+  const odevAktif = odevAyarAktif && odevVerisiVarMi;
+
+  function computeTotal(personId: string): number | null {
+    const s = sertifikaNotlari[personId] === "" || sertifikaNotlari[personId] == null ? null : Number(sertifikaNotlari[personId]);
     if (odevAktif) {
       if (s == null) return null;
-      return Math.round(s * 0.7 + (o ?? 0) * 0.3);
+      const o = odevYuzdesi(personId) ?? 0;
+      return Math.round((s * sertifikaPct + o * (100 - sertifikaPct)) / 100);
     }
     return s == null ? null : Math.round(s);
   }
 
-  const selected = groups.find((g) => g.id === selectedId) ?? null;
-  const girilenCount = roster.filter((r) => computeTotal(grades[r.personId]) != null).length;
+  const odevPct = 100 - sertifikaPct;
+  const girilenCount = roster.filter((r) => computeTotal(r.personId) != null).length;
   const gridCols = odevAktif ? "1.6fr 1fr 1fr 1fr 1fr" : "1.8fr 1.2fr 1.2fr 1.2fr";
 
   return (
@@ -118,7 +236,7 @@ export default function SertifikaNotuPage() {
         <FlexHeader
           icon={<Award size={20} color="#fff" />}
           title="Sertifika Notu"
-          subtitle="Grup seçin, öğrencilere sertifika ve ödev notu girin."
+          subtitle="Grup seçin, öğrencilere sertifika notu girin."
           roleLabel="Eğitmen"
         />
 
@@ -183,7 +301,7 @@ export default function SertifikaNotuPage() {
                 <div className="flex items-center gap-5 flex-wrap">
                   <div className="flex items-center gap-2 py-2 px-[13px] rounded-[11px] bg-[#F7F8FA] border border-[#EEF0F3]">
                     <span className="text-[11px] font-bold text-[#6F7B87]">Ağırlık</span>
-                    <span className="text-[12px] font-extrabold text-[#205297]">{odevAktif ? "Sertifika %70 · Ödev %30" : "Sertifika %100"}</span>
+                    <span className="text-[12px] font-extrabold text-[#205297]">{odevAktif ? `Sertifika %${sertifikaPct} · Ödev %${odevPct}` : "Sertifika %100"}</span>
                   </div>
                 </div>
               </div>
@@ -193,11 +311,11 @@ export default function SertifikaNotuPage() {
                 <div className="grid gap-3 items-center py-[15px] px-[22px] border-b border-[#EEF0F3] bg-[#FBFCFD]" style={{ gridTemplateColumns: gridCols }}>
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide">Öğrenci</div>
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">
-                    Sertifika Notu<br /><span className="text-[10px] font-semibold normal-case text-[#AEB4C0]">{odevAktif ? "%70" : "%100"}</span>
+                    Sertifika Notu<br /><span className="text-[10px] font-semibold normal-case text-[#AEB4C0]">{odevAktif ? `%${sertifikaPct}` : "%100"}</span>
                   </div>
                   {odevAktif && (
                     <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">
-                      Ödev Notu<br /><span className="text-[10px] font-semibold normal-case text-[#AEB4C0]">%30</span>
+                      Ödev Notu (otomatik)<br /><span className="text-[10px] font-semibold normal-case text-[#AEB4C0]">{`%${odevPct}`}</span>
                     </div>
                   )}
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">Toplam Not</div>
@@ -210,8 +328,7 @@ export default function SertifikaNotuPage() {
                   <div className="py-10 text-center text-[13px] text-[#8E95A3]">Bu grupta öğrenci yok.</div>
                 ) : (
                   roster.map((r, i) => {
-                    const entry = grades[r.personId];
-                    const total = computeTotal(entry);
+                    const total = computeTotal(r.personId);
                     const bos = total == null;
                     const gecti = !bos && total >= 50;
                     const pal = AVATAR_PALETTES[i % AVATAR_PALETTES.length];
@@ -220,6 +337,7 @@ export default function SertifikaNotuPage() {
                       if (total >= 90) { durumLabel = "Başarı Srtf."; durumColor = "#007A30"; durumBg = "#E6F5ED"; dotColor = "#009F3E"; }
                       else { durumLabel = "Katılım Srtf."; durumColor = "#205297"; durumBg = "#DDE8F8"; dotColor = "#3A7BD5"; }
                     }
+                    const odev = odevYuzdesi(r.personId);
                     return (
                       <div
                         key={r.personId}
@@ -241,18 +359,19 @@ export default function SertifikaNotuPage() {
                           <input
                             className="gradeInput w-[78px] text-center py-2 px-2 rounded-[10px] border border-[#E2E5EA] bg-white text-[14px] font-bold text-[#1E222B] outline-none"
                             type="number" min={0} max={100} placeholder="0-100"
-                            value={entry?.sertifika ?? ""}
-                            onChange={(e) => setGrade(r.personId, "sertifika", e.target.value)}
+                            value={sertifikaNotlari[r.personId] ?? ""}
+                            onChange={(e) => setSertifikaNotu(r.personId, e.target.value)}
                           />
                         </div>
                         {odevAktif && (
                           <div className="flex justify-center">
-                            <input
-                              className="gradeInput w-[78px] text-center py-2 px-2 rounded-[10px] border border-[#E2E5EA] bg-white text-[14px] font-bold text-[#1E222B] outline-none"
-                              type="number" min={0} max={100} placeholder="0-100"
-                              value={entry?.odev ?? ""}
-                              onChange={(e) => setGrade(r.personId, "odev", e.target.value)}
-                            />
+                            <span
+                              className="inline-flex items-center justify-center rounded-[10px] font-bold text-[14px]"
+                              style={{ minWidth: 60, padding: "8px 10px", color: "#6F7B87", background: "#F7F8FA" }}
+                              title="Grup içindeki tüm ödevlerden otomatik hesaplanır"
+                            >
+                              {odev == null ? "—" : `%${odev}`}
+                            </span>
                           </div>
                         )}
                         <div className="flex items-center justify-center">
@@ -286,10 +405,11 @@ export default function SertifikaNotuPage() {
                   <div className="text-[12.5px] text-[#6F7B87] font-semibold">{girilenCount} / {roster.length} öğrenciye not girildi</div>
                   <div className="flex items-center gap-2.5">
                     <button
-                      onClick={() => toast.info("Bu özellik yakında.")}
-                      className="py-[11px] px-[18px] rounded-[11px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-bold cursor-pointer hover:bg-[#F7F8FA] transition-colors"
+                      onClick={saveDraft}
+                      disabled={saving || roster.length === 0}
+                      className="py-[11px] px-[18px] rounded-[11px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-bold cursor-pointer hover:bg-[#F7F8FA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Taslak Kaydet
+                      {saving ? "Kaydediliyor…" : "Taslak Kaydet"}
                     </button>
                     <button
                       onClick={() => toast.info("Bu özellik yakında.")}

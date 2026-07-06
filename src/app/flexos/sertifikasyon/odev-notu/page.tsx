@@ -5,14 +5,20 @@
  * UI portu. İki görünüm: (1) grup seç + ödev listesi (durum özeti), (2) seçili ödev
  * için öğrenci bazlı puanlama (teslim durumu + puan + gecikme cezası + net puan).
  *
- * Kullanıcı notu: normalde bu puan elle girilmeyecek, öğrencinin gerçek teslim
- * durumuna göre OTOMATİK hesaplanıp sabitlenecek — ama bu henüz backend'e bağlı
- * değil (kullanıcı kararı: "UI kısmını en önce yapalım", Sertifika Notu'yla aynı
- * desen). Grup/ödev/öğrenci listesi GERÇEK veri (groups/assignments/roster) —
- * teslim durumu her öğrenci için gerçek Submission'dan ÖN-DOLDURULUYOR (var olan
- * teslim → "Teslim etti" başlangıç değeri, yoksa "Teslim etmedi"), ama puan/durum
- * değişiklikleri ve "Notları Kaydet" backend'e YAZMIYOR (henüz Grade domain'i yok).
- * `maxPuan` sabit 100 — Assignment'ta puan alanı henüz yok.
+ * **2026-07-06 kararı — artık PER-ASSIGNMENT gerçek saklama:** "Notları Kaydet"
+ * her öğrencinin net puanını (puan−ceza) DOĞRUDAN o öğrencinin `Submission.grade`
+ * alanına yazar (`PATCH /api/flexos/submissions/[id]/grade`, gated `submission.grade`)
+ * — eskiden `Grade.assignmentScore`'a (enrollment başına TEK alan) yazılıyordu, bu
+ * birden fazla ödevin birbirinin üzerine yazmasına sebep oluyordu; o kısıt ORTADAN
+ * KALKTI. Her ödevin kendi `maxPuan`'ı var (100/200/300 gibi, `Assignment.maxPuan`,
+ * girilmemişse 100). **Sertifika Notu'ndaki Ödev Notu artık BURADAN OTOMATİK
+ * HESAPLANIR** (`computeOdevYuzdeleri`, `submission-service.ts`) — grup içindeki TÜM
+ * yayınlanmış ödevlerin `maxPuan` toplamı payda, kazanılan puan toplamı pay; manuel
+ * giriş YOK. Sadece GERÇEK teslimi olan öğrenci notlandırılabilir (teslim yoksa
+ * puanlanacak `Submission` dokümanı da yok — kazandığı puan doğal olarak 0 sayılır).
+ * Grup/ödev/öğrenci listesi GERÇEK veri — teslim durumu her öğrenci için gerçek
+ * Submission'dan ÖN-DOLDURULUYOR (var olan teslim → "Teslim etti", yoksa "Teslim
+ * etmedi"); daha önce girilmiş puan da `Submission.grade`'den ÖN-DOLUYOR.
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -25,13 +31,12 @@ import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
-interface AssignmentItem { id: string; title: string; dueDate?: string; status: string }
-interface SubmissionRow { id: string; personId: string; status: string }
+interface AssignmentItem { id: string; title: string; dueDate?: string; status: string; maxPuan?: number; kind?: "normal" | "proje" }
+interface SubmissionRow { id: string; personId: string; status: string; grade?: number }
 
 type TeslimDurum = "teslim" | "gec1" | "gec2" | "yok";
 interface StudentGradeState { durum: TeslimDurum; puan: string }
 
-const MAX_PUAN = 100; // Assignment'ta henüz puan alanı yok — sabit varsayım
 const CEZA_ORANI: Record<TeslimDurum, number> = { teslim: 0, gec1: 0.10, gec2: 0.20, yok: 1 };
 const DURUM_META: Record<TeslimDurum, { label: string; color: string; bg: string; dot: string }> = {
   teslim: { label: "Teslim etti", color: "#007A30", bg: "#E6F5ED", dot: "#009F3E" },
@@ -134,8 +139,12 @@ export default function OdevNotuPage() {
 
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [loadingGrading, setLoadingGrading] = useState(false);
+  const [savingGrades, setSavingGrades] = useState(false);
   // assignmentId -> (personId -> state) — her ödev için ayrı, sekmeler arası korunur
   const [gradesByAssignment, setGradesByAssignment] = useState<Record<string, Record<string, StudentGradeState>>>({});
+  // assignmentId -> (personId -> submissionId) — "Notları Kaydet" hangi Submission'a
+  // yazacağını buradan bulur (teslim yoksa kişi bu haritada yoktur, notlanamaz).
+  const [submissionIdsByAssignment, setSubmissionIdsByAssignment] = useState<Record<string, Record<string, string>>>({});
 
   const loadGroups = useCallback(async () => {
     setLoadingGroups(true);
@@ -197,17 +206,67 @@ export default function OdevNotuPage() {
       const byPerson = new Map(submissions.map((s) => [s.personId, s]));
       const dummyPreset: TeslimDurum[] = ["teslim", "gec1", "teslim", "gec2", "yok", "teslim", "gec1", "teslim"];
       const initial: Record<string, StudentGradeState> = {};
+      const submissionIds: Record<string, string> = {};
       roster.forEach((r, i) => {
         if (isDummy) {
           initial[r.personId] = { durum: dummyPreset[i % dummyPreset.length], puan: "" };
         } else {
           const sub = byPerson.get(r.personId);
-          initial[r.personId] = { durum: sub ? "teslim" : "yok", puan: "" };
+          initial[r.personId] = {
+            durum: sub ? "teslim" : "yok",
+            puan: sub?.grade != null ? String(sub.grade) : "",
+          };
+          if (sub) submissionIds[r.personId] = sub.id;
         }
       });
       setGradesByAssignment((prev) => ({ ...prev, [assignmentId]: initial }));
+      setSubmissionIdsByAssignment((prev) => ({ ...prev, [assignmentId]: submissionIds }));
     } finally {
       setLoadingGrading(false);
+    }
+  }
+
+  async function saveGrades() {
+    if (!activeAssignmentId || roster.length === 0) return;
+    setSavingGrades(true);
+    try {
+      const activeGrades = gradesByAssignment[activeAssignmentId] ?? {};
+      const submissionIds = submissionIdsByAssignment[activeAssignmentId] ?? {};
+
+      const jobs = roster
+        .map((r) => {
+          const state = activeGrades[r.personId];
+          const submissionId = submissionIds[r.personId];
+          if (!state || !submissionId) return null; // teslim yoksa notlanacak Submission da yok
+          const raw = state.puan === "" ? null : Number(state.puan);
+          const net = state.durum === "yok" ? 0 : raw != null ? raw - Math.round(raw * CEZA_ORANI[state.durum]) : null;
+          if (net == null) return null;
+          return { submissionId, net };
+        })
+        .filter((j): j is { submissionId: string; net: number } => j != null);
+
+      if (jobs.length === 0) {
+        toast.info("Puanlanmış (teslimi olan) öğrenci yok.");
+        return;
+      }
+
+      const headers = await authHeaders();
+      const results = await Promise.all(
+        jobs.map(({ submissionId, net }) =>
+          fetch(`/api/flexos/submissions/${submissionId}/grade`, {
+            method: "PATCH",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({ grade: net }),
+          }),
+        ),
+      );
+      const failed = results.filter((r) => !r.ok).length;
+      if (failed === 0) toast.success("Notlar kaydedildi.");
+      else toast.error(`${failed} öğrenci kaydedilemedi.`);
+    } catch {
+      toast.error("Kaydedilemedi.");
+    } finally {
+      setSavingGrades(false);
     }
   }
 
@@ -218,7 +277,8 @@ export default function OdevNotuPage() {
     }));
   }
   function setPuan(assignmentId: string, personId: string, raw: string) {
-    const val = raw === "" ? "" : String(Math.max(0, Math.min(MAX_PUAN, parseInt(raw, 10) || 0)));
+    const maxPuan = assignments.find((a) => a.id === assignmentId)?.maxPuan ?? 100;
+    const val = raw === "" ? "" : String(Math.max(0, Math.min(maxPuan, parseInt(raw, 10) || 0)));
     setGradesByAssignment((prev) => ({
       ...prev,
       [assignmentId]: { ...prev[assignmentId], [personId]: { ...prev[assignmentId]?.[personId], puan: val, durum: prev[assignmentId]?.[personId]?.durum ?? "teslim" } },
@@ -227,6 +287,7 @@ export default function OdevNotuPage() {
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
   const activeAssignment = assignments.find((a) => a.id === activeAssignmentId) ?? null;
+  const MAX_PUAN = activeAssignment?.maxPuan ?? 100;
   const activeGrades = activeAssignmentId ? gradesByAssignment[activeAssignmentId] ?? {} : {};
 
   function assignmentStatusMeta(assignmentId: string): { label: string; color: string; bg: string; dot: string } {
@@ -337,12 +398,19 @@ export default function OdevNotuPage() {
                               <ClipboardList size={20} />
                             </div>
                             <div className="min-w-0">
-                              <div className="text-[14.5px] font-extrabold text-[#1E222B] tracking-tight truncate">{a.title}</div>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className="text-[14.5px] font-extrabold text-[#1E222B] tracking-tight truncate">{a.title}</div>
+                                {a.kind === "proje" && (
+                                  <span className="shrink-0 rounded-full text-[9.5px] font-bold uppercase tracking-wide" style={{ padding: "2px 7px", color: "#6B29A8", background: "#EDE4FB" }}>
+                                    Proje
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-[11.5px] text-[#8E95A3] font-medium mt-0.5">Son teslim: {fmtDate(a.dueDate)}</div>
                             </div>
                           </div>
                           <div className="flex items-baseline gap-1 justify-center">
-                            <span className="text-[16px] font-extrabold text-[#1E222B] tracking-tight">{MAX_PUAN}</span>
+                            <span className="text-[16px] font-extrabold text-[#1E222B] tracking-tight">{a.maxPuan ?? 100}</span>
                             <span className="text-[11px] font-bold text-[#8E95A3]">puan</span>
                           </div>
                           <div className="flex items-center">
@@ -488,12 +556,13 @@ export default function OdevNotuPage() {
                     Taslak Kaydet
                   </button>
                   <button
-                    onClick={() => toast.info("Bu özellik yakında.")}
-                    className="inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border-none text-white text-[13px] font-extrabold cursor-pointer transition-transform hover:-translate-y-0.5"
+                    onClick={saveGrades}
+                    disabled={savingGrades || activeAssignmentId?.startsWith("dummy-")}
+                    className="inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border-none text-white text-[13px] font-extrabold cursor-pointer transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ background: "linear-gradient(135deg,#1F9D57,#0E7A3E)", boxShadow: "0 10px 20px -8px rgba(14,122,62,.5)" }}
                   >
                     <Check size={16} strokeWidth={2.4} />
-                    Notları Kaydet
+                    {savingGrades ? "Kaydediliyor…" : "Notları Kaydet"}
                   </button>
                 </div>
               </div>

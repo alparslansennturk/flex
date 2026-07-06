@@ -97,6 +97,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
       status: g.status,
       educationId: g.educationId ?? null,
       educationName: edu?.name ?? "",
+      certType: edu?.certType ?? "project", // Sınav Bazlı / Proje Bazlı — Sertifika Notu etiketi/mantığı için
       branch: branchName ?? "",
       sectionId: g.sectionId ?? null,
       sectionName: sec?.name ?? "",

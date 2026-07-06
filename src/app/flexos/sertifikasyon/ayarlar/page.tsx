@@ -2,22 +2,44 @@
 
 /**
  * FlexOS · Sertifika Ayarları — Claude Design çıktısından (`Sertifika Ayarları.dc.html`)
- * BİREBİR UI portu. "Ödev notu sertifika hesabına dahil edilsin mi" toggle'ı + (açıksa)
- * Sertifika/Ödev ağırlık slider'ları (bağlı, toplam hep %100) + hızlı ön ayarlar + örnek
- * hesaplama kartı. Kapalıysa dashed bilgi kutusu.
+ * BİREBİR UI portu, ARTIK 2 SEKMELİ (2026-07-06 kararı): "Proje Bazlı Eğitimler" ve
+ * "Sınav Bazlı Eğitimler" için AYRI, BAĞIMSIZ kurallar (`Education.certType`).
+ * Proje bazlıda ödev notu genelde anlamlı → varsayılan AÇIK (%70/%30). Sınav bazlıda
+ * (Office gibi) genelde anlamsız → varsayılan KAPALI (%100) — ama ikisi de istenirse
+ * bağımsız açılıp/kapatılabilir (certType hiçbir şeyi KISITLAMAZ).
  *
- * Kullanıcı notu (Sertifika Notu sayfasından): bu ayar oraya OTOMATİK yansıyacak — açık/
- * kapalı değeri burada değişince Sertifika Notu'ndaki "Ödev Notu" sütunu görünür/gizlenecek.
- * Backend henüz YOK (Grade domain'i kurulmadı) — "Ayarları Kaydet" şimdilik "yakında" toast'ı,
- * ayarlar sayfa yenilenince sıfırlanır. Sertifika Notu/Ödev Notu sayfalarıyla AYNI desen.
+ * Gerçek `CertificateSettings` backend'ine bağlandı (`certificate-settings-service.ts`).
+ * İKİ KATMANLI SAHİPLİK: Op/Admin burada TENANT VARSAYILANINI değiştirir (kendi kuralını
+ * vermemiş her eğitmen buna düşer). **Standalone/Core modda eğitmen** de bu sayfayı
+ * görür ve KENDİ KİŞİSEL override'ını yazabilir (diğer eğitmenleri/tenant varsayılanını
+ * etkilemez) — API yanıtında `trainerId` doluysa gösterilen kayıt kişisel override'dır.
+ * Full (entegre) modda eğitmenin yazma yetkisi yoktur, "Ayarları Kaydet" 403 döner.
+ *
+ * NOT: alan adı hep "Sertifika Notu" kalır — sınav bazlı eğitimde bile ayrı bir
+ * "Sınav Notu" kavramı YOK (kullanıcı kararı: sınav notu gelir, sertifika notunu
+ * OLUŞTURUR; ileride sınav modülü de bu aynı alana yazacak).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Award, Check, AlertCircle, BarChart3 } from "lucide-react";
+import { Award, Check, AlertCircle, BarChart3, GraduationCap, FolderKanban } from "lucide-react";
+import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
+
+interface Weighting { odevAktif: boolean; sertifikaPct: number }
+type CertTab = "project" | "exam";
+
+const DEFAULTS: Record<CertTab, Weighting> = {
+  project: { odevAktif: true, sertifikaPct: 70 },
+  exam: { odevAktif: false, sertifikaPct: 100 },
+};
+
+const TABS: { key: CertTab; label: string; icon: typeof FolderKanban }[] = [
+  { key: "project", label: "Proje Bazlı Eğitimler", icon: FolderKanban },
+  { key: "exam", label: "Sınav Bazlı Eğitimler", icon: GraduationCap },
+];
 
 const PRESETS = [
   { label: "Sertifika %100", pct: 100 },
@@ -26,12 +48,68 @@ const PRESETS = [
   { label: "%50 / %50", pct: 50 },
 ];
 
-export default function SertifikaAyarlariPage() {
-  const [odevAktif, setOdevAktif] = useState(true);
-  const [sertifikaPct, setSertifikaPct] = useState(70);
-  const odevPct = 100 - sertifikaPct;
+async function authHeaders(): Promise<Record<string, string>> {
+  const u = auth.currentUser;
+  const token = u ? await u.getIdToken() : "";
+  return { Authorization: `Bearer ${token}` };
+}
 
-  const ornSertifika = Math.round((80 * sertifikaPct) / 100);
+export default function SertifikaAyarlariPage() {
+  const [activeTab, setActiveTab] = useState<CertTab>("project");
+  const [project, setProject] = useState<Weighting>(DEFAULTS.project);
+  const [exam, setExam] = useState<Weighting>(DEFAULTS.exam);
+  const [isOwn, setIsOwn] = useState(false); // true = eğitmenin kişisel override'ı gösteriliyor
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const current = activeTab === "project" ? project : exam;
+  const setCurrent = activeTab === "project" ? setProject : setExam;
+  const odevPct = 100 - current.sertifikaPct;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = await authHeaders();
+        const res = await fetch("/api/flexos/certificate-settings", { headers });
+        if (res.ok) {
+          const data = await res.json() as { project: Weighting; exam: Weighting; trainerId?: string };
+          setProject(data.project);
+          setExam(data.exam);
+          setIsOwn(!!data.trainerId);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function saveSettings() {
+    setSaving(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/flexos/certificate-settings", {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ project, exam }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { trainerId?: string };
+        setIsOwn(!!data.trainerId);
+        toast.success("Ayarlar kaydedildi.");
+      } else if (res.status === 403) {
+        toast.error("Bu ayarı değiştirme yetkiniz yok — tenant varsayılanını yalnız Operasyon/Yönetici değiştirebilir.");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Kaydedilemedi.");
+      }
+    } catch {
+      toast.error("Kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const ornSertifika = Math.round((80 * current.sertifikaPct) / 100);
   const ornOdev = Math.round((90 * odevPct) / 100);
   const ornToplam = ornSertifika + ornOdev;
 
@@ -48,6 +126,44 @@ export default function SertifikaAyarlariPage() {
 
         <div style={{ padding: "26px 30px 48px", maxWidth: 1240, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }} className="font-inter flex flex-col gap-5">
 
+          {!loading && (
+            <div
+              className="inline-flex items-center gap-2 py-2.5 px-4 rounded-[11px] self-start"
+              style={{
+                background: isOwn ? "#FFF3E9" : "#EFF5FE",
+                border: `1px solid ${isOwn ? "#F7D9BF" : "#D3E3F8"}`,
+              }}
+            >
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: isOwn ? "#FF8D28" : "#205297" }} />
+              <span className="text-[12.5px] font-bold" style={{ color: isOwn ? "#C2410C" : "#205297" }}>
+                {isOwn ? "Bu senin kişisel ayarın — yalnız senin sertifika notlarını etkiler" : "Tenant varsayılanı — kuralını vermemiş tüm eğitmenler bunu kullanır"}
+              </span>
+            </div>
+          )}
+
+          {/* sekme: Proje Bazlı / Sınav Bazlı — eğitim kataloğundaki certType'a karşılık gelir */}
+          <div className="inline-flex gap-1.5 p-1.5 rounded-[14px] bg-[#E7EAEF] self-start">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const active = t.key === activeTab;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  className="inline-flex items-center gap-2 py-2.5 px-4 rounded-[11px] text-[13px] font-bold cursor-pointer transition-all"
+                  style={{
+                    background: active ? "#fff" : "transparent",
+                    color: active ? "#1E222B" : "#6F7B87",
+                    boxShadow: active ? "0 2px 10px -4px rgba(15,31,61,.25)" : "none",
+                  }}
+                >
+                  <Icon size={16} />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* 1. Ödev notu kullanımı */}
           <div className="bg-white border border-[#E2E5EA] rounded-[20px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] overflow-hidden">
             <div className="flex items-center justify-between gap-5 py-[22px] px-[26px]">
@@ -58,27 +174,27 @@ export default function SertifikaAyarlariPage() {
                 <div className="min-w-0">
                   <div className="text-[16px] font-extrabold text-[#1E222B] tracking-tight">Ödev notu sertifika hesabında kullanılsın</div>
                   <div className="text-[12.5px] text-[#8E95A3] font-medium mt-[3px] leading-relaxed max-w-[560px]">
-                    Açık olduğunda sertifika notu, sertifika sınavı ve ödev notunun ağırlıklı ortalamasıyla hesaplanır. Kapalıysa yalnızca sertifika sınav notu esas alınır.
+                    Açık olduğunda sertifika notu, sertifika notu ve ödev notunun ağırlıklı ortalamasıyla hesaplanır. Kapalıysa yalnızca sertifika notu esas alınır.
                   </div>
                 </div>
               </div>
               <button
-                onClick={() => setOdevAktif((v) => !v)}
+                onClick={() => setCurrent({ ...current, odevAktif: !current.odevAktif })}
                 className="relative rounded-full cursor-pointer border-none p-0 shrink-0 transition-colors"
-                style={{ width: 50, height: 28, background: odevAktif ? "#1F9D57" : "#CDD2DA" }}
+                style={{ width: 50, height: 28, background: current.odevAktif ? "#1F9D57" : "#CDD2DA" }}
               >
-                <span className="absolute rounded-full bg-white shadow transition-all" style={{ top: 3, left: odevAktif ? 25 : 3, width: 22, height: 22 }} />
+                <span className="absolute rounded-full bg-white shadow transition-all" style={{ top: 3, left: current.odevAktif ? 25 : 3, width: 22, height: 22 }} />
               </button>
             </div>
-            <div className="flex items-center gap-[9px] py-[13px] px-[26px] border-t border-[#EEF0F3]" style={{ background: odevAktif ? "#F0FAF4" : "#F7F8FA" }}>
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: odevAktif ? "#1F9D57" : "#AEB4C0" }} />
-              <span className="text-[12.5px] font-bold" style={{ color: odevAktif ? "#0E7A3E" : "#8E95A3" }}>
-                {odevAktif ? "Ödev notu hesaba dahil ediliyor" : "Ödev notu hesaba dahil değil — sertifika notu %100 sınavdan"}
+            <div className="flex items-center gap-[9px] py-[13px] px-[26px] border-t border-[#EEF0F3]" style={{ background: current.odevAktif ? "#F0FAF4" : "#F7F8FA" }}>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: current.odevAktif ? "#1F9D57" : "#AEB4C0" }} />
+              <span className="text-[12.5px] font-bold" style={{ color: current.odevAktif ? "#0E7A3E" : "#8E95A3" }}>
+                {current.odevAktif ? "Ödev notu hesaba dahil ediliyor" : "Ödev notu hesaba dahil değil — sertifika notu %100 sertifika notundan"}
               </span>
             </div>
           </div>
 
-          {odevAktif && (
+          {current.odevAktif && (
             <>
               {/* 2. Ağırlık ayarı */}
               <div className="bg-white border border-[#E2E5EA] rounded-[20px] p-[26px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)]">
@@ -94,8 +210,8 @@ export default function SertifikaAyarlariPage() {
 
                 {/* oran görsel bar */}
                 <div className="flex rounded-[14px] overflow-hidden border border-[#EEF0F3]" style={{ height: 52, margin: "22px 0 8px" }}>
-                  <div className="flex items-center justify-center text-white whitespace-nowrap transition-all" style={{ width: `${sertifikaPct}%`, background: "linear-gradient(135deg,#3A7BD5,#205297)" }}>
-                    {sertifikaPct >= 12 && <span className="text-[13px] font-extrabold">Sertifika %{sertifikaPct}</span>}
+                  <div className="flex items-center justify-center text-white whitespace-nowrap transition-all" style={{ width: `${current.sertifikaPct}%`, background: "linear-gradient(135deg,#3A7BD5,#205297)" }}>
+                    {current.sertifikaPct >= 12 && <span className="text-[13px] font-extrabold">Sertifika %{current.sertifikaPct}</span>}
                   </div>
                   <div className="flex items-center justify-center text-white whitespace-nowrap transition-all" style={{ width: `${odevPct}%`, background: "linear-gradient(135deg,#FF8D28,#D66500)" }}>
                     {odevPct >= 12 && <span className="text-[13px] font-extrabold">Ödev %{odevPct}</span>}
@@ -107,18 +223,18 @@ export default function SertifikaAyarlariPage() {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-[9px]">
                       <span className="w-3 h-3 rounded-[4px]" style={{ background: "#205297" }} />
-                      <span className="text-[13.5px] font-bold text-[#1E222B]">Sertifika Sınav Notu</span>
+                      <span className="text-[13.5px] font-bold text-[#1E222B]">Sertifika Notu</span>
                     </div>
                     <span className="inline-flex items-baseline gap-0.5 py-1 px-3 rounded-full bg-[#DDE8F8]">
-                      <span className="text-[16px] font-extrabold text-[#205297] tracking-tight">%{sertifikaPct}</span>
+                      <span className="text-[16px] font-extrabold text-[#205297] tracking-tight">%{current.sertifikaPct}</span>
                     </span>
                   </div>
                   <input
                     type="range" min={0} max={100} step={5}
-                    value={sertifikaPct}
-                    onChange={(e) => setSertifikaPct(Number(e.target.value))}
+                    value={current.sertifikaPct}
+                    onChange={(e) => setCurrent({ ...current, sertifikaPct: Number(e.target.value) })}
                     className="wSlider w-full"
-                    style={{ background: `linear-gradient(90deg,#205297 0%,#205297 ${sertifikaPct}%,#E2E5EA ${sertifikaPct}%,#E2E5EA 100%)` }}
+                    style={{ background: `linear-gradient(90deg,#205297 0%,#205297 ${current.sertifikaPct}%,#E2E5EA ${current.sertifikaPct}%,#E2E5EA 100%)` }}
                   />
                 </div>
 
@@ -136,7 +252,7 @@ export default function SertifikaAyarlariPage() {
                   <input
                     type="range" min={0} max={100} step={5}
                     value={odevPct}
-                    onChange={(e) => setSertifikaPct(100 - Number(e.target.value))}
+                    onChange={(e) => setCurrent({ ...current, sertifikaPct: 100 - Number(e.target.value) })}
                     className="wSlider w-full"
                     style={{ background: `linear-gradient(90deg,#FF8D28 0%,#FF8D28 ${odevPct}%,#E2E5EA ${odevPct}%,#E2E5EA 100%)` }}
                   />
@@ -145,7 +261,7 @@ export default function SertifikaAyarlariPage() {
                 {/* toplam uyarı (slider'lar bağlı olduğu için hep geçerli) */}
                 <div className="inline-flex items-center gap-2 mt-[22px] py-2.5 px-[15px] rounded-[11px]" style={{ background: "#F0FAF4", border: "1px solid #BFE6CF" }}>
                   <Check size={17} color="#0E7A3E" strokeWidth={2.4} />
-                  <span className="text-[12.5px] font-bold text-[#0E7A3E]">Toplam ağırlık: %{sertifikaPct + odevPct} — geçerli</span>
+                  <span className="text-[12.5px] font-bold text-[#0E7A3E]">Toplam ağırlık: %{current.sertifikaPct + odevPct} — geçerli</span>
                 </div>
 
                 {/* hızlı ön ayarlar */}
@@ -153,11 +269,11 @@ export default function SertifikaAyarlariPage() {
                   <div className="text-[12px] font-bold text-[#8E95A3] mb-[11px]">Hızlı Ayar</div>
                   <div className="flex gap-2.5 flex-wrap">
                     {PRESETS.map((p) => {
-                      const active = p.pct === sertifikaPct;
+                      const active = p.pct === current.sertifikaPct;
                       return (
                         <button
                           key={p.label}
-                          onClick={() => setSertifikaPct(p.pct)}
+                          onClick={() => setCurrent({ ...current, sertifikaPct: p.pct })}
                           className="py-[9px] px-[15px] rounded-[10px] text-[12.5px] font-bold cursor-pointer transition-all"
                           style={{ border: `1px solid ${active ? "#205297" : "#E2E5EA"}`, background: active ? "#EFF5FE" : "#fff", color: active ? "#205297" : "#6F7B87" }}
                         >
@@ -174,7 +290,7 @@ export default function SertifikaAyarlariPage() {
                 <div className="text-[12px] font-bold text-[#9fb2cd] tracking-wide mb-4">ÖRNEK HESAPLAMA</div>
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex flex-col gap-[3px]">
-                    <span className="text-[11.5px] text-[#9fb2cd] font-semibold">Sertifika: 80 × %{sertifikaPct}</span>
+                    <span className="text-[11.5px] text-[#9fb2cd] font-semibold">Sertifika: 80 × %{current.sertifikaPct}</span>
                     <span className="text-[22px] font-extrabold text-white tracking-tight">{ornSertifika}</span>
                   </div>
                   <span className="text-[22px] font-bold text-[#5b7aa8]">+</span>
@@ -192,14 +308,14 @@ export default function SertifikaAyarlariPage() {
             </>
           )}
 
-          {!odevAktif && (
+          {!current.odevAktif && (
             <div className="bg-white rounded-[20px] py-7 px-[26px] flex items-center gap-[15px]" style={{ border: "1px dashed #D3D8E0" }}>
               <div className="w-[46px] h-[46px] rounded-[13px] shrink-0 bg-[#F2F4F7] text-[#8E95A3] flex items-center justify-center">
                 <AlertCircle size={22} />
               </div>
               <div>
-                <div className="text-[14.5px] font-extrabold text-[#1E222B]">Sertifika notu yalnızca sınav notundan hesaplanıyor</div>
-                <div className="text-[12.5px] text-[#8E95A3] font-medium mt-[3px]">Ödev ağırlığı devre dışı — sertifika notu doğrudan sertifika sınav notuna eşittir (%100).</div>
+                <div className="text-[14.5px] font-extrabold text-[#1E222B]">Sertifika notu yalnızca sertifika notundan hesaplanıyor</div>
+                <div className="text-[12.5px] text-[#8E95A3] font-medium mt-[3px]">Ödev ağırlığı devre dışı — sertifika notu doğrudan sertifika notuna eşittir (%100).</div>
               </div>
             </div>
           )}
@@ -207,18 +323,19 @@ export default function SertifikaAyarlariPage() {
           {/* kaydet barı */}
           <div className="flex items-center justify-end gap-3 pt-1">
             <button
-              onClick={() => { setOdevAktif(true); setSertifikaPct(70); toast.success("Varsayılana dönüldü."); }}
+              onClick={() => { setCurrent(DEFAULTS[activeTab]); toast.success("Varsayılana dönüldü."); }}
               className="py-3 px-5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[13.5px] font-bold cursor-pointer hover:bg-[#F7F8FA] transition-colors"
             >
               Varsayılana Dön
             </button>
             <button
-              onClick={() => toast.info("Bu özellik yakında.")}
-              className="inline-flex items-center gap-2 py-3 px-6 rounded-xl border-none text-white text-[13.5px] font-extrabold cursor-pointer transition-transform hover:-translate-y-0.5"
+              onClick={saveSettings}
+              disabled={saving || loading}
+              className="inline-flex items-center gap-2 py-3 px-6 rounded-xl border-none text-white text-[13.5px] font-extrabold cursor-pointer transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: "linear-gradient(135deg,#1F9D57,#0E7A3E)", boxShadow: "0 10px 20px -8px rgba(14,122,62,.5)" }}
             >
               <Check size={17} strokeWidth={2.3} />
-              Ayarları Kaydet
+              {saving ? "Kaydediliyor…" : "Ayarları Kaydet"}
             </button>
           </div>
         </div>

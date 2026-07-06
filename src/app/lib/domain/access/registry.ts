@@ -37,6 +37,7 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "grade.write", domain: "grade", label: "Not Gir", sensitivity: "green", write: true, scopable: true, audited: false },
   { key: "grade.finalize", domain: "grade", label: "Modülü Bitir (not donar)", sensitivity: "red", write: true, scopable: true, audited: true },
   { key: "grade.report.read", domain: "grade", label: "Not Raporu", sensitivity: "green", write: false, scopable: true, audited: false },
+  { key: "certificate.settings.write", domain: "grade", label: "Sertifika Ayarlarını Düzenle", sensitivity: "yellow", write: true, scopable: true, audited: true },
 
   // ── sale ──
   { key: "sale.create", domain: "sale", label: "Satış Yap", sensitivity: "yellow", write: true, scopable: false, audited: true },
@@ -96,7 +97,7 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "assignment.edit", domain: "assignment", label: "Ödev Düzenle", sensitivity: "green", write: true, scopable: true, audited: false },
   { key: "assignment.read", domain: "assignment", label: "Ödev Gör", sensitivity: "green", write: false, scopable: true, audited: false },
   { key: "assignment.delete", domain: "assignment", label: "Ödev Sil", sensitivity: "yellow", write: true, scopable: true, audited: true },
-  { key: "template.manage", domain: "assignment", label: "Ödev Şablonu Yönet", sensitivity: "green", write: true, scopable: false, audited: false },
+  { key: "template.manage", domain: "assignment", label: "Ödev Şablonu Yönet", sensitivity: "green", write: true, scopable: true, audited: false },
 
   // ── submission (Ödev Teslimi — Faz 2, canlıdaki `submissions`/`submission_files` karşılığı) ──
   // Öğrencinin kendi teslimini yükleme/silme/geri çekmesi BU registry'nin dışında —

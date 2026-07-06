@@ -1,7 +1,7 @@
-import { can } from "../access/can";
+import { can, widestScope } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
-import type { Assignment, AssignmentAttachment, AssignmentStatus } from "../core/assignment";
+import type { Assignment, AssignmentAttachment, AssignmentKind, AssignmentStatus } from "../core/assignment";
 import type { AssignmentTemplate } from "../core/assignment-template";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { AssignmentRepo } from "../repo/assignment-repo";
@@ -20,12 +20,18 @@ export interface AssignTaskInput {
   groupId: EntityId;
   templateId?: EntityId;
   title: string;
+  subtitle?: string;
   description: string;
   dueDate?: ISODateTime;
   status?: AssignmentStatus; // varsayılan "draft"
+  maxPuan?: number; // varsayılan 100 — "özel" ödevler 200/300 gibi ağırlıklı olabilir
+  kind?: AssignmentKind; // varsayılan "normal" — Ödev Notu iç ağırlıklandırması (bkz. submission-service.ts)
+  icon?: string;
   attachments?: AssignmentAttachment[];
   targetPersonIds?: EntityId[];
 }
+
+const VALID_KINDS: AssignmentKind[] = ["normal", "proje"];
 
 /**
  * Ödev oluştur/ata — gated (`assignment.create`). Canlıdaki `AssignmentLibrary.tsx`
@@ -49,6 +55,12 @@ export async function assignTask(
   const description = input.description?.trim();
   if (!title) throw new ValidationError("Ödev başlığı zorunludur.");
   if (!description) throw new ValidationError("Ödev açıklaması zorunludur.");
+  if (input.maxPuan != null && (!Number.isFinite(input.maxPuan) || input.maxPuan <= 0)) {
+    throw new ValidationError("Ödev puanı pozitif olmalı.");
+  }
+  if (input.kind != null && !VALID_KINDS.includes(input.kind)) {
+    throw new ValidationError("Geçersiz ödev türü.");
+  }
 
   const assignment: Assignment = {
     id: repo.nextId(),
@@ -57,9 +69,13 @@ export async function assignTask(
     templateId: input.templateId,
     trainerId: group.trainerId || actor.uid,
     title,
+    subtitle: input.subtitle?.trim() || undefined,
     description,
     dueDate: input.dueDate,
     status: input.status ?? "draft",
+    maxPuan: input.maxPuan ?? 100,
+    kind: input.kind ?? "normal",
+    icon: input.icon,
     attachments: input.attachments ?? [],
     targetPersonIds: input.targetPersonIds,
     createdAt: nowISO(),
@@ -75,6 +91,8 @@ export interface UpdateAssignmentInput {
   description?: string;
   dueDate?: ISODateTime;
   status?: AssignmentStatus;
+  maxPuan?: number;
+  kind?: AssignmentKind;
   attachments?: AssignmentAttachment[];
   targetPersonIds?: EntityId[];
 }
@@ -106,6 +124,14 @@ export async function updateAssignment(
   }
   if (input.dueDate !== undefined) updated.dueDate = input.dueDate;
   if (input.status !== undefined) updated.status = input.status;
+  if (input.maxPuan !== undefined) {
+    if (!Number.isFinite(input.maxPuan) || input.maxPuan <= 0) throw new ValidationError("Ödev puanı pozitif olmalı.");
+    updated.maxPuan = input.maxPuan;
+  }
+  if (input.kind !== undefined) {
+    if (!VALID_KINDS.includes(input.kind)) throw new ValidationError("Geçersiz ödev türü.");
+    updated.kind = input.kind;
+  }
   if (input.attachments !== undefined) updated.attachments = input.attachments;
   if (input.targetPersonIds !== undefined) updated.targetPersonIds = input.targetPersonIds;
 
@@ -127,7 +153,11 @@ export async function deleteAssignment(actor: Actor, id: string, repo: Assignmen
   await repo.delete(id, actor.tenantId);
 }
 
-// ── Şablon (kütüphane) — küratörlük sadece Operasyon/Admin (`template.manage`) ──
+// ── Şablon (kütüphane) — İKİ KAPSAM, AYNI capability farklı scope (2026-07-06) ──
+// `template.manage` **self** scope (eğitmen, her modda — EGITMEN_CORE) → KİŞİSEL şablon
+// (kendi kütüphanesi, sadece kendisi görür). **org** scope (Op/Admin) → GLOBAL şablon
+// (tenant genelinde herkese açık) — kullanıcı kararı: global kütüphane ileride admine
+// özel daraltılacak, henüz YAPILMADI (bu turun kapsamı dışında, "sonra yapacağız").
 
 export interface CreateTemplateInput {
   branch?: string;
@@ -136,22 +166,29 @@ export interface CreateTemplateInput {
   attachments?: AssignmentAttachment[];
 }
 
-/** Şablon oluştur — gated (`template.manage`). Eğitmen şablon OLUŞTURAMAZ, sadece okur. */
+/**
+ * Şablon oluştur — gated (`template.manage`). Aktörün en geniş scope'una göre
+ * kişisel (`self`) veya global (`org`) şablon üretir.
+ */
 export async function createTemplate(
   actor: Actor,
   input: CreateTemplateInput,
   repo: AssignmentTemplateRepo,
 ): Promise<AssignmentTemplate> {
-  if (!can(actor, "template.manage")) throw new ForbiddenError("template.manage");
+  const scope = widestScope(actor, "template.manage");
+  if (!scope) throw new ForbiddenError("template.manage");
 
   const title = input.title?.trim();
   const description = input.description?.trim();
   if (!title) throw new ValidationError("Şablon başlığı zorunludur.");
   if (!description) throw new ValidationError("Şablon açıklaması zorunludur.");
 
+  const isGlobal = scope === "org";
   const template: AssignmentTemplate = {
     id: repo.nextId(),
     tenantId: actor.tenantId,
+    scope: isGlobal ? "global" : "personal",
+    trainerId: isGlobal ? undefined : actor.uid,
     branch: input.branch?.trim() || undefined,
     title,
     description,
@@ -164,8 +201,12 @@ export async function createTemplate(
   return template;
 }
 
-/** Şablon listesi — okuma `assignment.read` ile serbest (eğitmen kütüphaneyi görebilir, düzenleyemez). */
+/**
+ * Şablon listesi — okuma `assignment.read` ile serbest. Kişisel (`scope==="personal"`)
+ * şablonlar SADECE sahibine görünür; global (veya scope'suz eski kayıt) herkese açık.
+ */
 export async function listTemplates(actor: Actor, repo: AssignmentTemplateRepo): Promise<AssignmentTemplate[]> {
   if (!can(actor, "assignment.read")) throw new ForbiddenError("assignment.read");
-  return repo.list(actor.tenantId);
+  const all = await repo.list(actor.tenantId);
+  return all.filter((t) => t.scope !== "personal" || t.trainerId === actor.uid);
 }

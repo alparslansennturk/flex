@@ -5,11 +5,16 @@
  * (kullanıcı: "aynen copy paste et"). Banner/Hızlı Aksiyon/Aktivite bölümleri gerçek
  * FlexOS verisine bağlı (groups/persons/attendance/holidays).
  *
- * "Ödev Parkuru" artık GERÇEK veriye bağlı (canlıdaki `DesignParkour.tsx` kart mantığı,
- * SADECE görünüm — aksiyonlar hâlâ "yakında" toast, kullanıcı kararı): gerçek aktif
- * ödevler (en yeni solda) + kullanılmamış şablonlardan "ghost" kart (soluk/pasif stil,
- * deterministik karıştırma) + kalan slotlar boş placeholder. "Ödev kütüphanesi"
- * (Kişisel/Global) hâlâ placeholder — assignment-template domain'e henüz bağlanmadı.
+ * "Ödev Parkuru" GERÇEK veriye bağlı (canlıdaki `DesignParkour.tsx` kart mantığı):
+ * gerçek aktif ödevler (en yeni solda) + kullanılmamış şablonlardan "ghost" kart
+ * (soluk/pasif stil, deterministik karıştırma) + kalan slotlar boş placeholder.
+ *
+ * **"+Ödev Ver" BAĞLANDI (2026-07-06):** `OdevOlusturModal` — Claude Design çıktısından
+ * (`Ödev Oluştur.dc.html`) birebir port, gerçek `POST /api/flexos/assignments`'e yazar
+ * (`maxPuan`+`kind` dahil). "Şablon olarak kaydet" → eğitmenin KİŞİSEL kütüphanesine
+ * ekler (`template.manage` self-scope, 2026-07-06 kararı — admine özel değil).
+ * Ghost kart üzerindeki "Ödev Ver" (şablonu aktive et) ve "Detay" hâlâ "yakında" —
+ * ayrı, daha küçük bir iş.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -24,6 +29,7 @@ import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../_components/FlexHeader";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
+import OdevOlusturModal from "./OdevOlusturModal";
 
 // ── API şekilleri ──
 interface GroupItem {
@@ -169,7 +175,7 @@ function ActivityFeedPlaceholder() {
 // aksiyonlar (Ödev Ver / Ödevi Başlat) kullanıcı kararıyla bu turda "yakında" toast.
 const MAX_PARKOUR_SLOTS = 4;
 
-interface ParkourAssignment { id: string; title: string; description: string; dueDate?: string; status: string; createdAt?: string; templateId?: string }
+interface ParkourAssignment { id: string; title: string; subtitle?: string; description: string; dueDate?: string; status: string; createdAt?: string; templateId?: string }
 interface ParkourTemplate { id: string; title: string; description: string }
 
 function getDuration(dueDate?: string): { text: string; expired: boolean; noDate: boolean } {
@@ -198,7 +204,8 @@ function ActiveParkourCard({ assignment }: { assignment: ParkourAssignment }) {
       </div>
       <div className="mb-3">
         <h4 className="text-[17px] text-[#10294C] font-bold leading-tight truncate">{assignment.title}</h4>
-        {assignment.description && <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2">{assignment.description}</p>}
+        {assignment.subtitle && <p className="text-[12.5px] text-[#6F7B87] font-semibold truncate mt-0.5">{assignment.subtitle}</p>}
+        {assignment.description && <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2 mt-1">{assignment.description}</p>}
       </div>
       <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-3 border border-[#EEF0F3]">
         <div className="flex flex-col">
@@ -290,24 +297,25 @@ function OdevParkuru() {
   const [assignments, setAssignments] = useState<ParkourAssignment[]>([]);
   const [templates, setTemplates] = useState<ParkourTemplate[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [modalAcik, setModalAcik] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const u = auth.currentUser;
-      const token = u ? await u.getIdToken() : "";
-      const headers = { Authorization: `Bearer ${token}` };
-      try {
-        const [assignRes, tplRes] = await Promise.all([
-          fetch("/api/flexos/assignments", { headers }),
-          fetch("/api/flexos/assignment-templates", { headers }),
-        ]);
-        if (assignRes.ok) setAssignments((await assignRes.json()).items ?? []);
-        if (tplRes.ok) setTemplates((await tplRes.json()).items ?? []);
-      } finally {
-        setLoaded(true);
-      }
-    })();
+  const loadData = useCallback(async () => {
+    const u = auth.currentUser;
+    const token = u ? await u.getIdToken() : "";
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const [assignRes, tplRes] = await Promise.all([
+        fetch("/api/flexos/assignments", { headers }),
+        fetch("/api/flexos/assignment-templates", { headers }),
+      ]);
+      if (assignRes.ok) setAssignments((await assignRes.json()).items ?? []);
+      if (tplRes.ok) setTemplates((await tplRes.json()).items ?? []);
+    } finally {
+      setLoaded(true);
+    }
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması)
   const activeAssignments = assignments
@@ -335,7 +343,7 @@ function OdevParkuru() {
           <h3 className="text-[22px] font-bold cursor-default">Ödev Parkuru</h3>
         </div>
         <button
-          onClick={() => toast.info("Bu özellik yakında.")}
+          onClick={() => setModalAcik(true)}
           className="flex items-center gap-1 h-10 px-5 rounded-xl bg-[#FF8D28] text-white text-[13px] font-semibold hover:bg-[#E67A1A] active:scale-95 transition-all cursor-pointer shadow-md shadow-[#FF8D28]/20"
         >
           <Plus size={15} strokeWidth={2.5} />
@@ -353,6 +361,11 @@ function OdevParkuru() {
           </>
         )}
       </div>
+      <OdevOlusturModal
+        open={modalAcik}
+        onClose={() => setModalAcik(false)}
+        onCreated={loadData}
+      />
     </section>
   );
 }

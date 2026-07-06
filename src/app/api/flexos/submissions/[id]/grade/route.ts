@@ -3,6 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firestore";
+import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { gradeSubmission } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
@@ -25,6 +26,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     const submission = await gradeSubmission(actor, id, body.grade, {
       submissions: firestoreSubmissionRepo,
       groups: firestoreGroupRepo,
+      assignments: firestoreAssignmentRepo,
     });
     return NextResponse.json({ id: submission.id, grade: submission.grade });
   } catch (e) {

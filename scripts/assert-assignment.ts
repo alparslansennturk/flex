@@ -212,19 +212,30 @@ async function main() {
     assert("Tenant izolasyonu: farklı tenant'tan getById → null", crossTenant === null);
   }
 
-  // ── şablon (template) — küratörlük sadece Operasyon/Admin ──
-  await assertRejects(
-    "createTemplate: eğitmen şablon oluşturamaz — ForbiddenError",
-    () => createTemplate(trainerA, { title: "Şablon", description: "Açıklama" }, makeTemplateRepo()),
-    ForbiddenError,
-  );
+  // ── şablon (template) — İKİ KAPSAM: kişisel (eğitmen, self) + global (Op/Admin, org) ──
+  {
+    const repo = makeTemplateRepo();
+    const t = await createTemplate(trainerA, { title: "Kendi Şablonum", description: "Açıklama" }, repo);
+    assert("createTemplate: eğitmen KİŞİSEL şablon oluşturabilir", t.scope === "personal" && t.trainerId === "trainer-a");
+  }
   {
     const repo = makeTemplateRepo();
     const t = await createTemplate(operasyon, { title: "Poster Tasarımı", description: "Etkinlik posteri hazırla." }, repo);
-    assert("createTemplate: Operasyon şablon oluşturabilir", t.title === "Poster Tasarımı");
+    assert("createTemplate: Operasyon GLOBAL şablon oluşturabilir", t.scope === "global" && t.trainerId === undefined);
 
     const list = await listTemplates(trainerA, repo);
-    assert("listTemplates: eğitmen kütüphaneyi okuyabilir (assignment.read yeterli)", list.length === 1);
+    assert("listTemplates: eğitmen global şablonu okuyabilir", list.length === 1);
+  }
+  {
+    const repo = makeTemplateRepo();
+    await createTemplate(trainerA, { title: "A'nın şablonu", description: "Y" }, repo);
+    await createTemplate(operasyon, { title: "Global şablon", description: "Y" }, repo);
+
+    const listA = await listTemplates(trainerA, repo);
+    assert("listTemplates: eğitmen kendi kişisel + tüm global şablonları görür (2)", listA.length === 2);
+
+    const listB = await listTemplates(trainerB, repo);
+    assert("listTemplates: BAŞKA eğitmen A'nın kişisel şablonunu GÖREMEZ (sadece global, 1)", listB.length === 1 && listB[0].title === "Global şablon");
   }
   await assertRejects(
     "createTemplate: boş başlık — ValidationError",

@@ -4,7 +4,7 @@ import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Submission, SubmissionFile, SubmissionStatus, UploadSession } from "../core/submission";
 import { ForbiddenError, ValidationError } from "../errors";
-import type { Assignment } from "../core/assignment";
+import type { Assignment, AssignmentKind } from "../core/assignment";
 import type { AssignmentRepo } from "../repo/assignment-repo";
 import type { DriveDeps } from "../repo/drive-deps";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
@@ -387,17 +387,24 @@ export async function updateSubmissionStatus(
   return updated;
 }
 
-/** Teslimi notlandır — gated (`submission.grade`). 0-100 aralığı. */
+/**
+ * Teslimi notlandır — gated (`submission.grade`). Aralık `0..assignment.maxPuan`
+ * (belirtilmemişse 100) — ödevler farklı ağırlıkta olabilir (100/200/300).
+ */
 export async function gradeSubmission(
   actor: Actor,
   submissionId: EntityId,
   grade: number,
-  deps: Pick<SubmissionDeps, "submissions" | "groups">,
+  deps: Pick<SubmissionDeps, "submissions" | "groups" | "assignments">,
 ): Promise<Submission> {
-  if (!Number.isFinite(grade) || grade < 0 || grade > 100) throw new ValidationError("Not 0-100 aralığında olmalı.");
-
   const existing = await deps.submissions.getById(submissionId, actor.tenantId);
   if (!existing) throw new ValidationError("Teslim bulunamadı.");
+
+  const assignment = await deps.assignments.getById(existing.assignmentId, actor.tenantId);
+  const maxPuan = assignment?.maxPuan ?? 100;
+  if (!Number.isFinite(grade) || grade < 0 || grade > maxPuan) {
+    throw new ValidationError(`Not 0-${maxPuan} aralığında olmalı.`);
+  }
 
   await requireGroupScope(actor, "submission.grade", existing.groupId, deps, actor.tenantId);
 
@@ -411,6 +418,88 @@ export async function gradeSubmission(
   };
   await deps.submissions.save(updated);
   return updated;
+}
+
+/**
+ * Ödev Notu'nun İÇ ağırlıklandırması (2026-07-06 kararı, SABİT iş kuralı — Sertifika
+ * Ayarları'ndaki dışsal Sertifika/Ödev ağırlığından TAMAMEN AYRI bir eksen):
+ * `normal` ödevler nihai Ödev Notu'na %30, `proje` ödevler %70 ağırlıkla katkı yapar.
+ * Bir kategori hiç yoksa (o türde yayınlanmış ödev yok) ağırlık diğer kategoriye
+ * TAMAMEN kayar (100%) — eksik kategori kimseyi cezalandırmaz.
+ */
+export const ODEV_TUR_AGIRLIK: Record<AssignmentKind, number> = { normal: 30, proje: 70 };
+
+export interface OdevKategoriSonucu {
+  /** Bu kategorideki yayınlanmış ödevlerin toplam `maxPuan`'ı — 0 ise bu kategoride hiç ödev yok. */
+  totalMaxPuan: number;
+  /** personId → bu kategoride kazanılan toplam ham puan. */
+  earnedByPerson: Record<string, number>;
+}
+
+export interface OdevYuzdeleriResult {
+  normal: OdevKategoriSonucu;
+  proje: OdevKategoriSonucu;
+}
+
+function bosKategori(): OdevKategoriSonucu {
+  return { totalMaxPuan: 0, earnedByPerson: {} };
+}
+
+/**
+ * Ödev Notu hesabının ham girdisi — grup içindeki TÜM yayınlanmış ödevler `kind`'a göre
+ * `normal`/`proje` diye ikiye ayrılır, her kategori için ayrı ayrı `maxPuan` toplamı
+ * (payda) + kazanılan `Submission.grade` toplamı (pay) OKUMA ANINDA hesaplanır
+ * (manuel giriş YOK, teslim/not değiştikçe otomatik güncellenir). Nihai yüzdeye
+ * çevirme + ağırlıklandırma `combineOdevYuzdesi()`'ye bırakılır.
+ */
+export async function computeOdevYuzdeleri(
+  tenantId: string,
+  groupId: EntityId,
+  deps: Pick<SubmissionDeps, "assignments" | "submissions">,
+): Promise<OdevYuzdeleriResult> {
+  const [assignments, submissions] = await Promise.all([
+    deps.assignments.list(tenantId, groupId),
+    deps.submissions.listByGroup(groupId, tenantId),
+  ]);
+
+  const published = assignments.filter((a) => a.status === "published");
+  const result: OdevYuzdeleriResult = { normal: bosKategori(), proje: bosKategori() };
+  const kindByAssignmentId = new Map<string, AssignmentKind>();
+
+  for (const a of published) {
+    const kind: AssignmentKind = a.kind ?? "normal";
+    kindByAssignmentId.set(a.id, kind);
+    result[kind].totalMaxPuan += a.maxPuan ?? 100;
+  }
+
+  for (const s of submissions) {
+    const kind = kindByAssignmentId.get(s.assignmentId);
+    if (!kind || s.grade == null) continue;
+    const kategori = result[kind];
+    kategori.earnedByPerson[s.personId] = (kategori.earnedByPerson[s.personId] ?? 0) + s.grade;
+  }
+
+  return result;
+}
+
+/**
+ * Ödev Notu'nun nihai yüzdesi — `normal` %30 + `proje` %70 ağırlıklı (bkz. `ODEV_TUR_AGIRLIK`).
+ * Bir kategori hiç yoksa ağırlık tamamen diğerine kayar. İkisi de yoksa `null` (veri yok —
+ * sertifika hesabı bu durumda yalnız Sertifika Notu'na düşer, `CertificateSettings` ağırlığı
+ * ne olursa olsun).
+ */
+export function combineOdevYuzdesi(result: OdevYuzdeleriResult, personId: string): number | null {
+  const normalOran = result.normal.totalMaxPuan > 0
+    ? (result.normal.earnedByPerson[personId] ?? 0) / result.normal.totalMaxPuan
+    : null;
+  const projeOran = result.proje.totalMaxPuan > 0
+    ? (result.proje.earnedByPerson[personId] ?? 0) / result.proje.totalMaxPuan
+    : null;
+
+  if (normalOran == null && projeOran == null) return null;
+  if (normalOran == null) return Math.round(projeOran! * 100);
+  if (projeOran == null) return Math.round(normalOran * 100);
+  return Math.round(normalOran * ODEV_TUR_AGIRLIK.normal + projeOran * ODEV_TUR_AGIRLIK.proje);
 }
 
 /** Teslim listesi (eğitmen/op) — gated (`submission.read`). Assigned-scope filtre route'ta (trainerId). */
