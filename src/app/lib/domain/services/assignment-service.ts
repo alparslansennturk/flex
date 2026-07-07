@@ -170,7 +170,7 @@ export async function deleteAssignment(actor: Actor, id: string, repo: Assignmen
 // (tenant genelinde herkese açık) — kullanıcı kararı: global kütüphane ileride admine
 // özel daraltılacak, henüz YAPILMADI (bu turun kapsamı dışında, "sonra yapacağız").
 
-const VALID_GAMIFIED_TYPES: GamifiedAssignmentType[] = ["kolaj"];
+const VALID_GAMIFIED_TYPES: GamifiedAssignmentType[] = ["kolaj", "kitap"];
 
 export interface CreateTemplateInput {
   branch?: string;

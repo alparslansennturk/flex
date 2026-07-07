@@ -44,6 +44,7 @@ import { BRANS_FALLBACK } from "../../siniflar/_shared/groupDisplay";
 import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from "../_shared/assignmentIcons";
 import { useCapabilities } from "../../_components/useCapabilities";
 import CollagePoolPanel from "../_shared/CollagePoolPanel";
+import BookPoolPanel from "../_shared/BookPoolPanel";
 import GlobalLibraryPanel from "../_shared/GlobalLibraryPanel";
 
 type AssignmentStatus = "draft" | "published" | "closed" | "archived";
@@ -60,7 +61,7 @@ interface TemplateItem {
   kind?: TemplateKind;
   maxPuan?: number;
   visible?: boolean;
-  gamifiedType?: "kolaj";
+  gamifiedType?: "kolaj" | "kitap";
 }
 
 interface BranchOption { id: string; name: string }
@@ -105,6 +106,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 export default function OdevYonetimiPage() {
   const [tab, setTab] = useState<MgmtTab>("templates");
+  const [poolSubTab, setPoolSubTab] = useState<"kolaj" | "kitap">("kolaj");
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,9 +135,10 @@ export default function OdevYonetimiPage() {
   const [tplIconPickerOpen, setTplIconPickerOpen] = useState(false);
   const [tplKind, setTplKind] = useState<TemplateKind>("normal");
   const [tplPuan, setTplPuan] = useState(100);
-  // Global Kütüphane'ye ekle (2026-07-07 kararı) — SADECE org scope aktöre (Op/Admin)
-  // gösterilir, self-scope eğitmenin kişisel şablonunda anlamsız/sunucu reddeder.
-  const [tplGamified, setTplGamified] = useState(false);
+  // Global Kütüphane'ye ekle (2026-07-07 kararı, 2026-07-08'de Kitap Dünyası ile
+  // 3'lü seçiciye genişledi) — SADECE org scope aktöre (Op/Admin) gösterilir,
+  // self-scope eğitmenin kişisel şablonunda anlamsız/sunucu reddeder.
+  const [tplGamifiedType, setTplGamifiedType] = useState<"kolaj" | "kitap" | null>(null);
   const { templateManageScope } = useCapabilities();
   const canPromoteGlobal = templateManageScope === "org";
   const [tplSaving, setTplSaving] = useState(false);
@@ -187,7 +190,7 @@ export default function OdevYonetimiPage() {
     setTplIconPickerOpen(false);
     setTplKind("normal");
     setTplPuan(100);
-    setTplGamified(false);
+    setTplGamifiedType(null);
     setTplFormOpen(true);
   }
   function openTplEdit(t: TemplateItem) {
@@ -201,7 +204,7 @@ export default function OdevYonetimiPage() {
     setTplIconPickerOpen(false);
     setTplKind(t.kind ?? "normal");
     setTplPuan(t.maxPuan ?? 100);
-    setTplGamified(t.gamifiedType === "kolaj");
+    setTplGamifiedType(t.gamifiedType ?? null);
     setTplFormOpen(true);
   }
   function closeTplForm() {
@@ -223,7 +226,7 @@ export default function OdevYonetimiPage() {
       // org-scope aktör için checkbox durumu HER ZAMAN gönderilir (false → null = "temizle",
       // JSON.stringify undefined key'i düşürür ama null'ı korur); self-scope eğitmende alan
       // hiç dahil edilmez (dokunmasın, kendi kişisel şablonunda zaten anlamsız).
-      const gamifiedType = canPromoteGlobal ? (tplGamified ? "kolaj" : null) : undefined;
+      const gamifiedType = canPromoteGlobal ? (tplGamifiedType ?? null) : undefined;
       const body = JSON.stringify({ title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan, gamifiedType });
       if (tplEditingId) {
         const res = await fetch(`/api/flexos/assignment-templates/${tplEditingId}`, { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body });
@@ -234,7 +237,7 @@ export default function OdevYonetimiPage() {
         }
         toast.success("Şablon güncellendi.");
         const id = tplEditingId;
-        const savedGamifiedType = gamifiedType === "kolaj" ? "kolaj" as const : undefined;
+        const savedGamifiedType = gamifiedType ?? undefined;
         setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan, gamifiedType: savedGamifiedType } : t)));
       } else {
         const res = await fetch("/api/flexos/assignment-templates", { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body });
@@ -247,7 +250,7 @@ export default function OdevYonetimiPage() {
         toast.success("Şablon oluşturuldu.");
         // visible varsayılan false (server-side default) — yeni oluşturulan şablon bilinen
         // alanlarla yerel state'e eklenir, koca liste yeniden çekilmez.
-        setTemplates((prev) => [{ id, title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan, visible: false, gamifiedType: gamifiedType === "kolaj" ? "kolaj" as const : undefined }, ...prev]);
+        setTemplates((prev) => [{ id, title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan, visible: false, gamifiedType: gamifiedType ?? undefined }, ...prev]);
       }
       setTplFormOpen(false);
     } finally {
@@ -617,7 +620,27 @@ export default function OdevYonetimiPage() {
             </div>
           ))}
 
-          {tab === "pool" && <CollagePoolPanel />}
+          {tab === "pool" && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-1 bg-surface-50 w-fit p-1 rounded-xl border border-surface-100 shadow-sm">
+                {([
+                  { key: "kolaj", label: "Kolaj Bahçesi" },
+                  { key: "kitap", label: "Kitap Dünyası" },
+                ] as const).map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setPoolSubTab(t.key)}
+                    className={`px-4 py-2 rounded-[10px] text-[12.5px] font-bold transition-all cursor-pointer outline-none ${
+                      poolSubTab === t.key ? "bg-white text-base-primary-900 shadow-sm border border-surface-100" : "text-surface-400 hover:text-surface-600 border border-transparent"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              {poolSubTab === "kolaj" ? <CollagePoolPanel /> : <BookPoolPanel />}
+            </div>
+          )}
           {tab === "globalLibrary" && <GlobalLibraryPanel />}
         </div>
 
@@ -905,26 +928,30 @@ export default function OdevYonetimiPage() {
                   </div>
 
                   {canPromoteGlobal && (
-                    <button
-                      type="button"
-                      onClick={() => setTplGamified((v) => !v)}
-                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all text-left"
-                      style={{ border: `1px solid ${tplGamified ? "#AECBF2" : "#E2E5EA"}`, background: tplGamified ? "#EFF5FE" : "#FBFCFD" }}
-                    >
-                      <div>
-                        <p className="text-[13px] font-bold text-[#1E222B]">Global Kütüphane&apos;ye ekle (Kolaj Bahçesi)</p>
-                        <p className="text-[11.5px] text-[#8E95A3] mt-0.5">Eğitmenler bu şablonu kendi kütüphanelerine ekleyip çekiliş ödevini başlatabilir.</p>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[12.5px] font-bold text-[#414B59]">Global Kütüphane&apos;ye ekle</p>
+                      <p className="text-[11.5px] text-[#8E95A3] -mt-1.5">Eğitmenler bu şablonu kendi kütüphanelerine ekleyip çekiliş ödevini başlatabilir.</p>
+                      <div className="flex items-center gap-2">
+                        {([
+                          { key: null, label: "Yok" },
+                          { key: "kolaj", label: "Kolaj Bahçesi" },
+                          { key: "kitap", label: "Kitap Dünyası" },
+                        ] as const).map((opt) => {
+                          const active = tplGamifiedType === opt.key;
+                          return (
+                            <button
+                              key={String(opt.key)}
+                              type="button"
+                              onClick={() => setTplGamifiedType(opt.key)}
+                              className="px-3.5 py-2 rounded-xl text-[12.5px] font-bold cursor-pointer transition-all"
+                              style={{ border: `1px solid ${active ? "#AECBF2" : "#E2E5EA"}`, background: active ? "#EFF5FE" : "#FBFCFD", color: active ? "#205297" : "#6F7B87" }}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <span
-                        className="w-10 h-6 rounded-full shrink-0 relative transition-colors"
-                        style={{ background: tplGamified ? "#205297" : "#D0D5DE" }}
-                      >
-                        <span
-                          className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
-                          style={{ left: tplGamified ? 18 : 2 }}
-                        />
-                      </span>
-                    </button>
+                    </div>
                   )}
 
                   <div>

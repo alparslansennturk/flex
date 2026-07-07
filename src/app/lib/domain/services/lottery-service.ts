@@ -81,7 +81,7 @@ export async function saveDraw(actor: Actor, input: SaveDrawInput, deps: Lottery
     assignmentId: input.assignmentId,
     groupId: assignment.groupId,
     taskName: assignment.title,
-    type: "kolaj",
+    type: assignment.gamifiedType ?? "kolaj",
     draws: newAllDraws,
     students,
     completedAt: now(),

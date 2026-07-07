@@ -85,7 +85,7 @@ export interface AssignmentPrefill {
   kind?: "normal" | "proje";
   maxPuan?: number;
   /** Doluysa "Ödevi Başlat" normal teslim akışı yerine çekiliş ekranına yönlendirir. */
-  gamifiedType?: "kolaj";
+  gamifiedType?: "kolaj" | "kitap";
 }
 
 interface Props {
@@ -204,7 +204,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
       toast.success(status === "draft" ? "Taslak kaydedildi." : "Ödev başlatıldı.");
       onClose();
       if (prefill?.gamifiedType && created.id) {
-        router.push(`/flexos/kolaj?assignmentId=${created.id}`);
+        router.push(`/flexos/${prefill.gamifiedType}?assignmentId=${created.id}`);
       } else {
         onCreated();
       }

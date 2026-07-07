@@ -17,6 +17,32 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Kitap Dünyası — 2/3 oyunlaştırılmış ödev birebir port edildi (2026-07-08)
+
+Kolaj Bahçesi'nin ardından ikinci oyunlaştırılmış ödev (`assignmentType:"kitap"` canlı karşılığı) aynı desenle taşındı — havuz+çekiliş mekaniği+PDF+mail, ama kategori kavramı YOK (Kolaj'ın Gök/Yer/Obje 1/Obje 2'sinin aksine tek düz "deste").
+
+**Yeni domain modeli:** `BookPool`/`BookItem` (`src/app/lib/domain/core/book-pool.ts`) — `CollagePool` ile AYNI iki-katmanlı sahiplik deseni (tenant varsayılanı `${tenantId}_default` / eğitmen kişisel kopyası `${tenantId}_${trainerId}`, izole, "Kütüphaneme Ekle" ile tohumlanır). `LotteryResult.draws[].item` tipi `CollageItem | BookItem` union'a genişletildi — kitabın zengin alanları (author/genre/isbn/publisher/pageCount/dimensions/backCover) snapshot semantiğiyle kayıpsız saklanıyor. `GamifiedAssignmentType` = `"kolaj" | "kitap"`, `LotteryArchive.type` de aynı şekilde genişledi ve `lottery-service.ts::saveDraw` artık `assignment.gamifiedType`'tan türetiyor (hardcode "kolaj" kaldırıldı).
+
+**Backend (aynı repo→servis→route deseni):** `book-pool-repo.ts`/`.firestore.ts` (`flexos_book_pools` koleksiyonu), `book-pool-service.ts` (`getMyBookPool`/`updateMyBookPool`/`addBookTemplateToPersonalLibrary`[idempotent, gamifiedType:"kitap" olmayan şablonu reddeder]/`getDefaultBookPool`/`updateDefaultBookPool`). Route'lar: `GET/PATCH /api/flexos/book-pool`, `POST /api/flexos/book-pool/add-to-library`. Ortak `lottery-results`/`lottery-results/mail` route'ları REUSE edildi — mail route artık `type:"kolaj"|"kitap"` parametresiyle metin/dosya adını değiştiriyor (`MAIL_COPY` map'i), item tipi `{name?,title?,emoji?}` gevşetildi (Kolaj `.name`, Kitap `.title` kullanıyor). **25 yeni assertion** (`scripts/assert-book-pool.ts`) — self/org izolasyon, idempotency, tür karışmama (Kolaj şablonu Kitap havuzuna eklenemiyor), zengin alan kayıpsız saklama, saveDraw sahiplik/status-flip/arşiv `type:"kitap"`. Toplam assertion takımı (15 script, 274 assertion) regresyonsuz yeşil.
+
+**Frontend:** `/flexos/kitap` (yeni route — EntryScreen→BookGameScreen, `/flexos/kolaj/page.tsx` ile birebir aynı iskelet). En riskli parça **`BookCarousel`** (`flexos/kitap/BookCarousel.tsx`) — canlıdaki RAF tabanlı "kitaplık rulet" animasyonu (5-kopya sonsuz şerit, `ResizeObserver` responsive merkezleme, 4800ms ease-out, 3 tam tur + kazanan offset'e kilitleme, `spinStatus: spinning→slowing→stopped`) birebir taşındı — Kolaj'ın 4-kategori slot mekaniğinden tamamen farklı, kategori kavramı yok (`catCount={1}`). `OdevOlusturModal`/`GlobalLibraryPanel`/Ödev Yönetimi admin formu artık `gamifiedType: "kolaj"|"kitap"` genelinde çalışıyor — admin "Global Kütüphane'ye ekle" toggle'ı ikili switch'ten **3'lü seçiciye** (Yok/Kolaj Bahçesi/Kitap Dünyası) evrildi, Havuz Yönetimi sekmesi Kolaj/Kitap sub-tab'ı ile ikisini de barındırıyor (`BookPoolPanel.tsx`).
+
+**PDF şablonu:** `generateKitapPdf.tsx` — canlının tek-sütun düz sayfa şablonu (bookId 72pt üstte, başlık/yazar/yayınevi/tür, arka kapak justify metin, "Teknik Özellikler" tablosu) Inter font'a geçirilerek (Kolaj kararıyla aynı gerekçe) birebir taşındı.
+
+**Basitleştirme (Kolaj'daki kararla AYNI, kapsam gereği):** canlıdaki ayrı "Arşive Kaydet"/"Ödevi Tamamla" overlay sekansı sadeleştirildi (toast+yönlendirme).
+
+`tsc --noEmit` + `npm run build` temiz. Seed script (`scripts/seed-book-pool-default.mjs --commit`) çalıştırıldı — canlıdaki **30 kitap** + global "Kitap Dünyası" katalog girdisi (branch: Grafik Tasarım — canlıdaki `template.branch` alanının aslında ŞUBE adı ["Kadıköy Şb"] olduğu fark edilip Kolaj'daki gibi hardcode edildi) FlexOS'a taşındı.
+
+**SIRADAKİ (kullanıcı onayı bekliyor):** Reklam Tasarımı (Sosyal Medya) aynı desenle — son (3/3), "ayrı ayrı alalım" kararına göre.
+
+**Reklam Tasarımı — ön araştırma tamamlandı (2026-07-08, Explore agent), koda henüz DOKUNULMADI:**
+- Canlı dosyalar: `src/app/components/dashboard/assignment/social/SocialGameScreen.tsx` (1051 satır), `.../pool/SocialMediaPoolPanel.tsx` (1045 satır), `.../pool/poolTypes.ts`'teki `SocialMediaPool`/`SMBrand`/`SMSector`/`SMFormat` tipleri (`templateType:"grid"`), `src/app/api/send-sosyal/route.ts`, `generateSocialPdf.tsx`.
+- **Mekanik:** Kolaj/Kitap'tan farklı — hiyerarşik 3 seviyeli zincir seçim (Ana Sektör→Alt Sektör→Marka, **string eşleşmesiyle** bağlı, foreign-key değil). 3 slot-reel görsel olarak dönüyor (Kolaj'a benzer, farklı gecikmeler: 1800/3200/4600ms, 7400ms kilitleniyor) ama arka planda SESSİZCE iki alan daha ekleniyor: markanın `purposes`'undan (boşsa ortak `globalPurposes`'tan) bir amaç + bağımsız rastgele bir format (platform+boyut). Yani çekilen şey görünenden zengin: Marka+Sektör+Amaç+Format.
+- **Havuz modeli (en riskli/karmaşık kısım):** 4 ayrı iç içe koleksiyon — Brands (kendi `purposes` listesiyle), Sectors (alt sektör listesi), Formats (düz liste), ortak `globalPurposes`+`sharedRule` (paylaşılan kural metni, PDF'de bullet-list). Kolaj/Kitap'ın tek-liste yapısından belirgin daha karmaşık.
+- **PDF/Mail:** Aynı genel desen (react-pdf + mail altyapısı reuse edilebilir), PDF'e ekstra "Yapılacaklar" bullet bölümü var; mail Drive linkini `sosyalDriveFiles.{studentId}` alanına yazıyor.
+- **Havuz yönetimi:** 4 sekmeli CRUD (Sektörler/Markalar/Formatlar/Amaç&Kural) — Kolaj/Kitap'ın tek-liste panellerinden çok daha ağır, muhtemelen bu turun en zaman alan kısmı.
+- **Kapsam tahmini:** oyun ekranı+animasyon Kolaj/Kitap ile benzer boyutta; havuz veri modeli+yönetim paneli belirgin daha büyük iş. Muhtemelen bu tur öncekilerden (Kitap ~30-45dk) daha uzun sürer.
+
 ### ✅ Kolaj Bahçesi — 1/3 oyunlaştırılmış ödev birebir port edildi (2026-07-07)
 
 Canlıdaki 3 oyunlaştırılmış ödev şablonundan (Kolaj Bahçesi/kolaj, Kitap Dünyası/kitap, Reklam Tasarımı/sosyal medya) **ilki tam kapsam FlexOS'a taşındı** — kullanıcı kararı: "ayrı ayrı alalım", Kitap ve Sosyal Medya AYRI turlarda gelecek (henüz yok).
@@ -39,7 +65,7 @@ Canlıdaki 3 oyunlaştırılmış ödev şablonundan (Kolaj Bahçesi/kolaj, Kita
 
 `tsc`/ESLint/`npm run build` temiz. Seed script (`scripts/seed-collage-pool-default.mjs --commit`) çalıştırıldı — canlıdaki 88 öğe (4×22) + gerçek "Kolaj Bahçesi" başlık/açıklama FlexOS'a taşındı.
 
-**SIRADAKİ (kullanıcı onayı bekliyor):** Kitap Dünyası ve Reklam Tasarımı aynı desenle (havuz+draw mekaniği+PDF+mail) — ayrı turlarda, "ayrı ayrı alalım" kararına göre.
+Kitap Dünyası (2/3) 2026-07-08'de aynı desenle tamamlandı — bkz. yukarıdaki blok. Reklam Tasarımı (3/3, Sosyal Medya) hâlâ kullanıcı onayı bekliyor.
 
 ### ✅ Ödev Şablon Göçü + Kütüphane/Parkuru semantik düzeltmesi (2026-07-07)
 

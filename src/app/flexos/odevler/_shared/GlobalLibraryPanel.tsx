@@ -23,8 +23,13 @@ interface TemplateItem {
   scope?: "personal" | "global";
   trainerId?: string;
   sourceTemplateId?: string;
-  gamifiedType?: "kolaj";
+  gamifiedType?: "kolaj" | "kitap";
 }
+
+const ADD_TO_LIBRARY_ENDPOINT: Record<"kolaj" | "kitap", string> = {
+  kolaj: "/api/flexos/collage-pool/add-to-library",
+  kitap: "/api/flexos/book-pool/add-to-library",
+};
 
 async function authHeaders(): Promise<Record<string, string>> {
   const u = auth.currentUser;
@@ -59,10 +64,11 @@ export default function GlobalLibraryPanel() {
   const available = templates.filter((t) => t.scope === "global" && t.gamifiedType && !clonedSourceIds.has(t.id));
 
   async function handleAdd(t: TemplateItem) {
+    if (!t.gamifiedType) return;
     setAddingId(t.id);
     try {
       const headers = await authHeaders();
-      const res = await fetch("/api/flexos/collage-pool/add-to-library", {
+      const res = await fetch(ADD_TO_LIBRARY_ENDPOINT[t.gamifiedType], {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({ globalTemplateId: t.id }),
