@@ -46,6 +46,10 @@ const EGITMEN_CORE: Grant[] = [
   // şablonlarını yazar/görür (`listTemplates` filtreler) — global kütüphane (org scope,
   // Op/Admin'de) ayrı ve İLERİDE admine daraltılacak (henüz yapılmadı).
   ...at("self", "template.manage"),
+  // Oyunlaştırılmış ödev havuzu (Kolaj Bahçesi vb., 2026-07-07 kararı) — her eğitmenin
+  // NORMAL yetkisi (standalone-only DEĞİL, template.manage self ile aynı mantık): kendi
+  // kişisel havuz kopyasını yönetir, org varsayılanına/başka eğitmene DOKUNAMAZ.
+  ...at("self", "assignment.pool.manage"),
 ];
 
 const EGITMEN_STANDALONE_EXTRA: Grant[] = [
@@ -166,6 +170,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "assignment.read",
     "assignment.delete",
     "template.manage",
+    "assignment.pool.manage",
     "submission.read",
     "submission.status.write",
     "submission.grade",
@@ -242,6 +247,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "assignment.read",
       "assignment.delete",
       "template.manage",
+      "assignment.pool.manage",
       "submission.read",
       "submission.status.write",
       "submission.grade",

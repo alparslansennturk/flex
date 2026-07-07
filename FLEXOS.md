@@ -17,6 +17,30 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Kolaj Bahçesi — 1/3 oyunlaştırılmış ödev birebir port edildi (2026-07-07)
+
+Canlıdaki 3 oyunlaştırılmış ödev şablonundan (Kolaj Bahçesi/kolaj, Kitap Dünyası/kitap, Reklam Tasarımı/sosyal medya) **ilki tam kapsam FlexOS'a taşındı** — kullanıcı kararı: "ayrı ayrı alalım", Kitap ve Sosyal Medya AYRI turlarda gelecek (henüz yok).
+
+**Sahiplik/görünürlük modeli (kullanıcı kararıyla netleşti, canlıdan farklı bir kural):** Kolaj Bahçesi **global bir katalog girdisi** (branş="Grafik Tasarım" filtreli), ama eğitmen ondan DİREKT başlatamıyor — önce Ödev Yönetimi'nin yeni **"Global Kütüphane"** sekmesinden **"Kütüphaneme Ekle"** ile kendi KİŞİSEL kütüphanesine klonluyor. Klonlamayla birlikte kendi **bağımsız havuz kopyası** (tenant varsayılanından deep-copy tohumlanır) oluşuyor — kullanıcının açık endişesi ("herkes bir ekleme yaparsa karışır, kaos olur") üzerine her eğitmenin havuzu TAMAMEN İZOLE, birbirini etkilemiyor. Kendi havuzunu (Gök/Yer/Obje 1/Obje 2 kategorileri) yeni **"Havuz Yönetimi"** sekmesinden (Ödev Yönetimi artık 5 sekmeli) CRUD'luyor.
+
+**Yeni veri modeli:** `AssignmentTemplate.gamifiedType?/sourceTemplateId?`, `Assignment.gamifiedType?`, yeni `CollagePool` (`flexos_collage_pools`, `CertificateSettings` ile aynı iki-katmanlı doküman id deseni: `${tenantId}_default` org varsayılanı / `${tenantId}_${trainerId}` kişisel kopya), yeni `LotteryResult`+`LotteryArchive` (`flexos_lottery_results`/`flexos_lottery_archive`, doküman id=assignmentId, snapshot semantiği — havuz sonradan değişse de geçmiş çekilişler değişmez).
+
+**Yeni capability: `assignment.pool.manage`** (self→her eğitmenin normal yetkisi EGITMEN_CORE'da, standalone-only DEĞİL; org→Op/Admin, tenant varsayılanını yönetir ama bu turda ayrı bir admin ekranı YOK). "Kütüphaneme Ekle" ayrı capability gerektirmedi — mevcut `template.manage` self scope reuse edildi.
+
+**Admin promote akışı (kullanıcı: "ben admin olarak oluşturduğum bir ödevi istersem global kütüphaneye ekleyebilirim"):** Şablon Yönetimi'nin global şablon formuna (SADECE org-scope aktöre görünür, `/api/flexos/me`'ye eklenen `templateManageScope` alanıyla tespit edilir) "Global Kütüphane'ye ekle (Kolaj Bahçesi)" toggle'ı eklendi — seed script'e bağımlılık kalmadı, admin istediği an istediği global şablonu işaretleyebilir.
+
+**Backend (repo→servis→route→assertion deseni, tam):** `collage-pool-service.ts` (`getMyCollagePool`/`updateMyCollagePool`/`addTemplateToPersonalLibrary`[idempotent, org-default'tan tohumlar]/`getDefaultCollagePool`/`updateDefaultCollagePool`), `lottery-service.ts` (`saveDraw`[assigned-scope, LotteryResult+Archive+roster-tam-olunca-Assignment.status→"published" flip — tek route'ta, canlıdaki 3 ayrı client Firestore yazımı yerine], `getLotteryResult`). Route'lar: `GET/PATCH /api/flexos/collage-pool`, `POST /api/flexos/collage-pool/add-to-library`, `GET/POST /api/flexos/lottery-results`, `POST /api/flexos/lottery-results/mail` (canlının `/api/send-kolaj/route.ts`'i ile birebir — `sendMail`/`uploadBufferToFolder`/`setPublicReadPermission`/`createFolderStructure` REUSE edildi, yeni altyapı yok). **21 yeni assertion** (`scripts/assert-collage-pool.ts`) — self-scope izolasyon, idempotency, org/self karışmama, draw+status-flip. Toplam mevcut assertion takımı (13 script) regresyonsuz yeşil.
+
+**Önemli güvenlik düzeltmesi (plan aşamasında yakalandı):** Live'da öğrenci e-postası client'tan mail route'una gönderiliyordu; FlexOS'ta email PII alanı ve eğitmen `person.read.pii` yetkisine sahip olmayabilir (Full modda hiç yok) — `/api/flexos/lottery-results/mail` artık `to` parametresini client'tan HİÇ ALMIYOR, `Person.pii.email`'i server-side resolve ediyor. Roster/EntryScreen client'ta öğrenci email'i hiç göstermiyor.
+
+**Frontend:** `/flexos/kolaj` (yeni route — EntryScreen[katılımcı seç]→GameScreen[picking→4-kategori slot çekilişi→sonuç modalı→PDF indir/mail gönder], `usePickingEngine` hook'u BAŞTAN DOĞRU kullanıldı — canlıda Kolaj bunu kullanmıyordu, kendi kopyasını elle yazmıştı, bu tekrar yaratılmadı). PDF fontu **Inter** (kullanıcı kararı, Roboto yerine) — gerçek çalışan gstatic TTF URL'leri `curl` ile doğrulanarak bulundu. `OdevOlusturModal` prefill'e `gamifiedType` eklendi, "Ödevi Başlat" gamified şablonda normal oluşturma yerine `/flexos/kolaj`'a yönlendiriyor. Ödev Yönetimi 3→5 sekme (+Havuz Yönetimi +Global Kütüphane).
+
+**Bilinçli basitleştirme:** canlıdaki ayrı "Arşive Kaydet"/"Ödevi Tamamla" siyah-overlay animasyon sekansı sadeleştirildi (toast+yönlendirme) — mekanik/veri/kurallar birebir, sadece bu kozmetik geçiş daha basit.
+
+`tsc`/ESLint/`npm run build` temiz. Seed script (`scripts/seed-collage-pool-default.mjs --commit`) çalıştırıldı — canlıdaki 88 öğe (4×22) + gerçek "Kolaj Bahçesi" başlık/açıklama FlexOS'a taşındı.
+
+**SIRADAKİ (kullanıcı onayı bekliyor):** Kitap Dünyası ve Reklam Tasarımı aynı desenle (havuz+draw mekaniği+PDF+mail) — ayrı turlarda, "ayrı ayrı alalım" kararına göre.
+
 ### ✅ Ödev Şablon Göçü + Kütüphane/Parkuru semantik düzeltmesi (2026-07-07)
 
 Canlıdaki (`templates` koleksiyonu) 15 normal şablon `scripts/migrate-my-templates.mjs` ile `flexos_assignment_templates`'e taşındı — hepsi `scope:"personal"`, `trainerId=kYG8N01PTudh1VT1uvy2vg8vmAR2`. **"Benim şablonlarım" `createdBy` ile sınırlı değildi:** canlıda 18 toplam şablonun 11'i kullanıcının kendi uid'i, 7'si `flexos.platform@gmail.com` ("Sistem Destek" admin hesabı) tarafından oluşturulmuştu ama kullanıcı hepsini "bana ait" saydı — 3 oyunlaştırılmış (`scope==="gamified"`: Kolaj Bahçesi, Reklam Tasarımı, Kitap Dünyası) bu turda HARİÇ tutuldu, ayrı ele alınacak. Detay: [[flexos_odev_sablon_migration_2026_07_07]].

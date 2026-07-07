@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import { can } from "@/app/lib/domain/access/can";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { updateAssignment, deleteAssignment, type UpdateAssignmentInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+
+/**
+ * GET /api/flexos/assignments/[id] — tekil ödev (ör. `/flexos/kolaj` çekiliş ekranının
+ * ihtiyaç duyduğu groupId/gamifiedType/status gibi alanlar için).
+ */
+export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
+  const { id } = await ctx.params;
+  if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
+
+  const actor = actorFromCaller(caller);
+  const assignment = await firestoreAssignmentRepo.getById(id, actor.tenantId);
+  if (!assignment) return NextResponse.json({ error: "Ödev bulunamadı." }, { status: 404 });
+
+  if (!can(actor, "assignment.read", { groupId: assignment.groupId, ownerUid: assignment.trainerId })) {
+    return NextResponse.json({ error: "Yetki yok: assignment.read" }, { status: 403 });
+  }
+  return NextResponse.json({ item: assignment });
+});
 
 /**
  * PATCH /api/flexos/assignments/[id] — ödev güncelle (gated `assignment.edit`).

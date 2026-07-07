@@ -98,6 +98,7 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "assignment.read", domain: "assignment", label: "Ödev Gör", sensitivity: "green", write: false, scopable: true, audited: false },
   { key: "assignment.delete", domain: "assignment", label: "Ödev Sil", sensitivity: "yellow", write: true, scopable: true, audited: true },
   { key: "template.manage", domain: "assignment", label: "Ödev Şablonu Yönet", sensitivity: "green", write: true, scopable: true, audited: false },
+  { key: "assignment.pool.manage", domain: "assignment", label: "Oyunlaştırılmış Ödev Havuzunu Yönet", sensitivity: "green", write: true, scopable: true, audited: false },
 
   // ── submission (Ödev Teslimi — Faz 2, canlıdaki `submissions`/`submission_files` karşılığı) ──
   // Öğrencinin kendi teslimini yükleme/silme/geri çekmesi BU registry'nin dışında —

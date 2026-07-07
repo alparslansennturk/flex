@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can, widestScope } from "@/app/lib/domain/access/can";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
+import { firestoreAssignmentTemplateRepo } from "@/app/lib/server/assignment-template-repo.firestore";
 import { assignTask, type AssignTaskInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
@@ -45,7 +46,10 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
 
   try {
-    const assignment = await assignTask(actor, body, firestoreAssignmentRepo, { groups: firestoreGroupRepo });
+    const assignment = await assignTask(actor, body, firestoreAssignmentRepo, {
+      groups: firestoreGroupRepo,
+      templates: firestoreAssignmentTemplateRepo,
+    });
     return NextResponse.json({ id: assignment.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

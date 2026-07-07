@@ -19,6 +19,15 @@ export type AssignmentStatus = "draft" | "published" | "closed" | "archived";
  */
 export type AssignmentKind = "normal" | "proje";
 
+/**
+ * Oyunlaştırılmış çekiliş türü — canlıdaki `Task.assignmentType` karşılığı. Bu,
+ * yukarıdaki docstring'te bahsedilen DesignParkour'un görsel cildiyle İLGİSİZ:
+ * gerçek bir mekanik (havuzdan rastgele materyal çekilişi) tetikler, `/flexos/kolaj`
+ * ekranına yönlendirir. Oluşturma anında şablondan (`AssignmentTemplate.gamifiedType`)
+ * kopyalanır.
+ */
+export type GamifiedAssignmentType = "kolaj";
+
 /** Eğitmenin ödeve eklediği referans/başlangıç dosyası (Google Drive). */
 export interface AssignmentAttachment {
   id: EntityId;
@@ -57,6 +66,9 @@ export interface Assignment extends Audit {
 
   /** Belirtilmezse "normal" — Ödev Notu'nun iç ağırlıklandırmasında kullanılır. */
   kind?: AssignmentKind;
+
+  /** Şablondan kopyalanır — doluysa bu ödev normal teslim akışı yerine çekiliş ekranına yönlendirir. */
+  gamifiedType?: GamifiedAssignmentType;
 
   attachments: AssignmentAttachment[];
   /** Boşsa/tanımsızsa hedef = grubun tamamı. */

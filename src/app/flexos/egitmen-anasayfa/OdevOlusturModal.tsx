@@ -51,6 +51,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -83,6 +84,8 @@ export interface AssignmentPrefill {
   icon?: string;
   kind?: "normal" | "proje";
   maxPuan?: number;
+  /** Doluysa "Ödevi Başlat" normal teslim akışı yerine çekiliş ekranına yönlendirir. */
+  gamifiedType?: "kolaj";
 }
 
 interface Props {
@@ -93,6 +96,7 @@ interface Props {
 }
 
 export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: Props) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -175,6 +179,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
         toast.error(data.error ?? "Ödev oluşturulamadı.");
         return;
       }
+      const created = await res.json() as { id: string };
 
       if (sablonAktif) {
         // Şablonun branşı seçili Gruptan otomatik türetilir — Ödev Ekle'de ayrı bir
@@ -197,8 +202,12 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
       }
 
       toast.success(status === "draft" ? "Taslak kaydedildi." : "Ödev başlatıldı.");
-      onCreated();
       onClose();
+      if (prefill?.gamifiedType && created.id) {
+        router.push(`/flexos/kolaj?assignmentId=${created.id}`);
+      } else {
+        onCreated();
+      }
     } catch {
       toast.error("Ödev oluşturulamadı.");
     } finally {

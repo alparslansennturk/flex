@@ -10,10 +10,12 @@ import { useEffect, useState } from "react";
 import { auth } from "@/app/lib/firebase";
 
 let capsCache: Set<string> | null = null;
+let templateManageScopeCache: string | null | undefined; // undefined = henüz çekilmedi
 
-export function useCapabilities(): { caps: Set<string>; loaded: boolean } {
+export function useCapabilities(): { caps: Set<string>; loaded: boolean; templateManageScope: string | null } {
   const [caps, setCaps] = useState<Set<string>>(() => capsCache ?? new Set());
   const [loaded, setLoaded] = useState(capsCache !== null);
+  const [templateManageScope, setTemplateManageScope] = useState<string | null>(() => templateManageScopeCache ?? null);
 
   useEffect(() => {
     if (capsCache) return; // lazy initializer yukarıda zaten caps/loaded'ı doldurdu
@@ -25,10 +27,11 @@ export function useCapabilities(): { caps: Set<string>; loaded: boolean } {
         if (!user) return;
         const token = await user.getIdToken();
         const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-        const json = res.ok ? await res.json() : { capabilities: [] };
+        const json = res.ok ? await res.json() : { capabilities: [], templateManageScope: null };
         const next = new Set<string>(json.capabilities ?? []);
         capsCache = next;
-        if (!cancelled) { setCaps(next); setLoaded(true); }
+        templateManageScopeCache = json.templateManageScope ?? null;
+        if (!cancelled) { setCaps(next); setTemplateManageScope(templateManageScopeCache ?? null); setLoaded(true); }
       } catch {
         if (!cancelled) setLoaded(true);
       }
@@ -36,5 +39,5 @@ export function useCapabilities(): { caps: Set<string>; loaded: boolean } {
     return () => { cancelled = true; };
   }, []);
 
-  return { caps, loaded };
+  return { caps, loaded, templateManageScope };
 }

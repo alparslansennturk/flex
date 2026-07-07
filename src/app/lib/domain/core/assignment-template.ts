@@ -1,5 +1,5 @@
 import type { Audit, EntityId, TenantId } from "../base";
-import type { AssignmentAttachment, AssignmentKind } from "./assignment";
+import type { AssignmentAttachment, AssignmentKind, GamifiedAssignmentType } from "./assignment";
 
 /**
  * ÖDEV ŞABLONU — canlıdaki `templates` koleksiyonunun karşılığı. Eğitmenin
@@ -38,4 +38,17 @@ export interface AssignmentTemplate extends Audit {
   // eğitmen Şablon Yönetimi'nden manuel onaylamadan varsayılan GÖRÜNMEZ — kütüphaneye
   // kaydetmekle Ana Sayfa'da göstermek ayrı adımlar). Yoksa/false = gizli.
   visible?: boolean;
+
+  /**
+   * OYUNLAŞTIRILMIŞ ŞABLON (2026-07-07 kararı) — doluysa bu şablon "Ödevi Başlat"
+   * yerine çekiliş akışını (`/flexos/kolaj` vb.) tetikler. Global katalog girdisi
+   * (`scope:"global"`, `trainerId` yok) sadece Ödev Yönetimi'nin "Global Kütüphane"
+   * sekmesinden görülür/eklenir — direkt başlatılamaz. Bir eğitmen "Kütüphaneme Ekle"
+   * dediğinde bu alan + içerik aynen KİŞİSEL bir klona kopyalanır (`sourceTemplateId`
+   * ile orijinaline işaret eder), o kişisel klon normal "Ödevi Başlat" akışına girebilir.
+   */
+  gamifiedType?: GamifiedAssignmentType;
+
+  /** Kişisel klonun türediği global katalog şablonunun id'si — "zaten eklenmiş mi" tespiti için. */
+  sourceTemplateId?: EntityId;
 }

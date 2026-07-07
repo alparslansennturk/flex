@@ -1,7 +1,7 @@
 import { can, widestScope } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
-import type { Assignment, AssignmentAttachment, AssignmentKind, AssignmentStatus } from "../core/assignment";
+import type { Assignment, AssignmentAttachment, AssignmentKind, AssignmentStatus, GamifiedAssignmentType } from "../core/assignment";
 import type { AssignmentTemplate } from "../core/assignment-template";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { AssignmentRepo } from "../repo/assignment-repo";
@@ -14,6 +14,8 @@ function nowISO(): ISODateTime {
 
 export interface AssignmentDeps {
   groups: GroupRepo;
+  /** `templateId` verilirse `gamifiedType`'ı kopyalamak için opsiyonel — sağlanmazsa kopyalama atlanır. */
+  templates?: AssignmentTemplateRepo;
 }
 
 export interface AssignTaskInput {
@@ -62,6 +64,14 @@ export async function assignTask(
     throw new ValidationError("Geçersiz ödev türü.");
   }
 
+  // Şablondan oluşturuluyorsa gamifiedType kopyalanır — doluysa bu ödev normal teslim
+  // yerine çekiliş ekranına yönlendirir (2026-07-07 kararı).
+  let gamifiedType: GamifiedAssignmentType | undefined;
+  if (input.templateId && deps.templates) {
+    const template = await deps.templates.getById(input.templateId, actor.tenantId);
+    gamifiedType = template?.gamifiedType;
+  }
+
   const assignment: Assignment = {
     id: repo.nextId(),
     tenantId: actor.tenantId,
@@ -75,6 +85,7 @@ export async function assignTask(
     status: input.status ?? "draft",
     maxPuan: input.maxPuan ?? 100,
     kind: input.kind ?? "normal",
+    gamifiedType,
     icon: input.icon,
     attachments: input.attachments ?? [],
     targetPersonIds: input.targetPersonIds,
@@ -159,6 +170,8 @@ export async function deleteAssignment(actor: Actor, id: string, repo: Assignmen
 // (tenant genelinde herkese açık) — kullanıcı kararı: global kütüphane ileride admine
 // özel daraltılacak, henüz YAPILMADI (bu turun kapsamı dışında, "sonra yapacağız").
 
+const VALID_GAMIFIED_TYPES: GamifiedAssignmentType[] = ["kolaj"];
+
 export interface CreateTemplateInput {
   branch?: string;
   title: string;
@@ -168,6 +181,8 @@ export interface CreateTemplateInput {
   kind?: AssignmentKind;
   maxPuan?: number;
   attachments?: AssignmentAttachment[];
+  /** Yalnız org scope (global şablon) — Global Kütüphane katalog girdisi işaretler. */
+  gamifiedType?: GamifiedAssignmentType;
 }
 
 /**
@@ -192,8 +207,15 @@ export async function createTemplate(
   if (input.maxPuan != null && (!Number.isFinite(input.maxPuan) || input.maxPuan <= 0)) {
     throw new ValidationError("Ödev puanı pozitif olmalı.");
   }
+  if (input.gamifiedType != null && !VALID_GAMIFIED_TYPES.includes(input.gamifiedType)) {
+    throw new ValidationError("Geçersiz oyunlaştırılmış tür.");
+  }
 
   const isGlobal = scope === "org";
+  if (input.gamifiedType != null && !isGlobal) {
+    throw new ValidationError("Oyunlaştırılmış tür yalnız global şablonda ayarlanabilir.");
+  }
+
   const template: AssignmentTemplate = {
     id: repo.nextId(),
     tenantId: actor.tenantId,
@@ -206,6 +228,7 @@ export async function createTemplate(
     icon: input.icon,
     kind: input.kind ?? "normal",
     maxPuan: input.maxPuan ?? 100,
+    gamifiedType: input.gamifiedType,
     attachments: input.attachments ?? [],
     visible: false, // Şablon Yönetimi'nden manuel onaylanana kadar Ana Sayfa'da görünmez
     createdAt: nowISO(),
@@ -248,6 +271,8 @@ export interface UpdateTemplateInput {
   kind?: AssignmentKind;
   maxPuan?: number;
   visible?: boolean;
+  /** Yalnız global şablonda + org scope aktörle ayarlanabilir (admin "Global Kütüphane'ye ekle"). */
+  gamifiedType?: GamifiedAssignmentType | null;
 }
 
 /** Şablon güncelle — gated (`template.manage`, sahiplik kontrolü). */
@@ -284,6 +309,15 @@ export async function updateTemplate(
     updated.maxPuan = input.maxPuan;
   }
   if (input.visible !== undefined) updated.visible = input.visible;
+  if (input.gamifiedType !== undefined) {
+    if (input.gamifiedType != null) {
+      if (!VALID_GAMIFIED_TYPES.includes(input.gamifiedType)) throw new ValidationError("Geçersiz oyunlaştırılmış tür.");
+      if (existing.scope === "personal" || widestScope(actor, "template.manage") !== "org") {
+        throw new ValidationError("Oyunlaştırılmış tür yalnız global şablonda, org yetkisiyle ayarlanabilir.");
+      }
+    }
+    updated.gamifiedType = input.gamifiedType ?? undefined;
+  }
 
   updated.updatedAt = nowISO();
   updated.updatedBy = actor.uid;

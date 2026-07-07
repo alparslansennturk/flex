@@ -401,7 +401,7 @@ function OdevParkuru() {
 // Parkuru ghost-slot'u ARTIK `visible`e bakmıyor (otomatik/rastgele doldurma,
 // 2026-07-07 kararıyla değişti) — `visible` ŞİMDİ Kütüphane'nin filtresi: eğitmen
 // Şablon Yönetimi'nden onaylamadan (Check) şablon Kütüphane'de listelenmez.
-interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number; visible?: boolean }
+interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number; visible?: boolean; gamifiedType?: "kolaj" }
 
 function LibraryCard({ t, onStart }: { t: LibTemplate; onStart: (t: LibTemplate) => void }) {
   const Icon = (t.icon && ASSIGNMENT_ICONS[t.icon]) || ClipboardList;
@@ -510,7 +510,7 @@ function OdevKutuphanesi() {
   const visibleTemplates = activeBranch === "all" ? approvedTemplates : approvedTemplates.filter((t) => t.branch === activeBranch);
 
   const prefill: AssignmentPrefill | undefined = startTemplate
-    ? { templateId: startTemplate.id, title: startTemplate.title, subtitle: startTemplate.subtitle, description: startTemplate.description, icon: startTemplate.icon, kind: startTemplate.kind, maxPuan: startTemplate.maxPuan }
+    ? { templateId: startTemplate.id, title: startTemplate.title, subtitle: startTemplate.subtitle, description: startTemplate.description, icon: startTemplate.icon, kind: startTemplate.kind, maxPuan: startTemplate.maxPuan, gamifiedType: startTemplate.gamifiedType }
     : undefined;
 
   return (

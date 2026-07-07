@@ -42,9 +42,12 @@ import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { BRANS_FALLBACK } from "../../siniflar/_shared/groupDisplay";
 import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from "../_shared/assignmentIcons";
+import { useCapabilities } from "../../_components/useCapabilities";
+import CollagePoolPanel from "../_shared/CollagePoolPanel";
+import GlobalLibraryPanel from "../_shared/GlobalLibraryPanel";
 
 type AssignmentStatus = "draft" | "published" | "closed" | "archived";
-type MgmtTab = "templates" | "active" | "archive";
+type MgmtTab = "templates" | "active" | "archive" | "pool" | "globalLibrary";
 type TemplateKind = "normal" | "proje";
 
 interface TemplateItem {
@@ -57,6 +60,7 @@ interface TemplateItem {
   kind?: TemplateKind;
   maxPuan?: number;
   visible?: boolean;
+  gamifiedType?: "kolaj";
 }
 
 interface BranchOption { id: string; name: string }
@@ -129,6 +133,11 @@ export default function OdevYonetimiPage() {
   const [tplIconPickerOpen, setTplIconPickerOpen] = useState(false);
   const [tplKind, setTplKind] = useState<TemplateKind>("normal");
   const [tplPuan, setTplPuan] = useState(100);
+  // Global Kütüphane'ye ekle (2026-07-07 kararı) — SADECE org scope aktöre (Op/Admin)
+  // gösterilir, self-scope eğitmenin kişisel şablonunda anlamsız/sunucu reddeder.
+  const [tplGamified, setTplGamified] = useState(false);
+  const { templateManageScope } = useCapabilities();
+  const canPromoteGlobal = templateManageScope === "org";
   const [tplSaving, setTplSaving] = useState(false);
   const [tplDeleteTarget, setTplDeleteTarget] = useState<TemplateItem | null>(null);
   const [tplMounted, setTplMounted] = useState(false);
@@ -178,6 +187,7 @@ export default function OdevYonetimiPage() {
     setTplIconPickerOpen(false);
     setTplKind("normal");
     setTplPuan(100);
+    setTplGamified(false);
     setTplFormOpen(true);
   }
   function openTplEdit(t: TemplateItem) {
@@ -191,6 +201,7 @@ export default function OdevYonetimiPage() {
     setTplIconPickerOpen(false);
     setTplKind(t.kind ?? "normal");
     setTplPuan(t.maxPuan ?? 100);
+    setTplGamified(t.gamifiedType === "kolaj");
     setTplFormOpen(true);
   }
   function closeTplForm() {
@@ -209,7 +220,11 @@ export default function OdevYonetimiPage() {
     setTplSaving(true);
     try {
       const headers = await authHeaders();
-      const body = JSON.stringify({ title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan });
+      // org-scope aktör için checkbox durumu HER ZAMAN gönderilir (false → null = "temizle",
+      // JSON.stringify undefined key'i düşürür ama null'ı korur); self-scope eğitmende alan
+      // hiç dahil edilmez (dokunmasın, kendi kişisel şablonunda zaten anlamsız).
+      const gamifiedType = canPromoteGlobal ? (tplGamified ? "kolaj" : null) : undefined;
+      const body = JSON.stringify({ title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan, gamifiedType });
       if (tplEditingId) {
         const res = await fetch(`/api/flexos/assignment-templates/${tplEditingId}`, { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body });
         if (!res.ok) {
@@ -219,7 +234,8 @@ export default function OdevYonetimiPage() {
         }
         toast.success("Şablon güncellendi.");
         const id = tplEditingId;
-        setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan } : t)));
+        const savedGamifiedType = gamifiedType === "kolaj" ? "kolaj" as const : undefined;
+        setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan, gamifiedType: savedGamifiedType } : t)));
       } else {
         const res = await fetch("/api/flexos/assignment-templates", { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body });
         if (!res.ok) {
@@ -231,7 +247,7 @@ export default function OdevYonetimiPage() {
         toast.success("Şablon oluşturuldu.");
         // visible varsayılan false (server-side default) — yeni oluşturulan şablon bilinen
         // alanlarla yerel state'e eklenir, koca liste yeniden çekilmez.
-        setTemplates((prev) => [{ id, title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan, visible: false }, ...prev]);
+        setTemplates((prev) => [{ id, title, subtitle, description, branch, icon: tplIcon, kind: tplKind, maxPuan: tplPuan, visible: false, gamifiedType: gamifiedType === "kolaj" ? "kolaj" as const : undefined }, ...prev]);
       }
       setTplFormOpen(false);
     } finally {
@@ -369,6 +385,8 @@ export default function OdevYonetimiPage() {
                 { key: "templates", label: "Şablon Yönetimi" },
                 { key: "active", label: "Mevcut Ödevler" },
                 { key: "archive", label: "Arşiv" },
+                { key: "pool", label: "Havuz Yönetimi" },
+                { key: "globalLibrary", label: "Global Kütüphane" },
               ] as const).map((t) => (
                 <button
                   key={t.key}
@@ -377,7 +395,9 @@ export default function OdevYonetimiPage() {
                     tab === t.key ? "bg-white text-base-primary-900 shadow-sm border border-surface-100" : "text-surface-400 hover:text-surface-600 border border-transparent"
                   }`}
                 >
-                  {t.label} ({t.key === "templates" ? templates.length : t.key === "active" ? activeList.length : archivedList.length})
+                  {t.label}
+                  {(t.key === "templates" || t.key === "active" || t.key === "archive") &&
+                    ` (${t.key === "templates" ? templates.length : t.key === "active" ? activeList.length : archivedList.length})`}
                 </button>
               ))}
             </div>
@@ -522,7 +542,7 @@ export default function OdevYonetimiPage() {
             </>
           )}
 
-          {tab !== "templates" && (loading ? (
+          {(tab === "active" || tab === "archive") && (loading ? (
             <div className="flex items-center justify-center py-24 text-surface-400">
               <Loader2 size={22} className="animate-spin" />
             </div>
@@ -596,6 +616,9 @@ export default function OdevYonetimiPage() {
               })}
             </div>
           ))}
+
+          {tab === "pool" && <CollagePoolPanel />}
+          {tab === "globalLibrary" && <GlobalLibraryPanel />}
         </div>
 
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
@@ -880,6 +903,29 @@ export default function OdevYonetimiPage() {
                       </div>
                     </div>
                   </div>
+
+                  {canPromoteGlobal && (
+                    <button
+                      type="button"
+                      onClick={() => setTplGamified((v) => !v)}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all text-left"
+                      style={{ border: `1px solid ${tplGamified ? "#AECBF2" : "#E2E5EA"}`, background: tplGamified ? "#EFF5FE" : "#FBFCFD" }}
+                    >
+                      <div>
+                        <p className="text-[13px] font-bold text-[#1E222B]">Global Kütüphane&apos;ye ekle (Kolaj Bahçesi)</p>
+                        <p className="text-[11.5px] text-[#8E95A3] mt-0.5">Eğitmenler bu şablonu kendi kütüphanelerine ekleyip çekiliş ödevini başlatabilir.</p>
+                      </div>
+                      <span
+                        className="w-10 h-6 rounded-full shrink-0 relative transition-colors"
+                        style={{ background: tplGamified ? "#205297" : "#D0D5DE" }}
+                      >
+                        <span
+                          className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
+                          style={{ left: tplGamified ? 18 : 2 }}
+                        />
+                      </span>
+                    </button>
+                  )}
 
                   <div>
                     <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Açıklama</label>
