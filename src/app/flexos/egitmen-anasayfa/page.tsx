@@ -22,9 +22,15 @@
  * ok butonları). Kişisel/Global sekme ayrımı YOK (kullanıcı kararı) — sadece branş seçici
  * (>1 branş varsa). "Ödevi Başlat" butonu `OdevOlusturModal`'ı şablonun alanlarıyla ÖN-
  * DOLU açar (`AssignmentPrefill` — modal artık hem boş "+Ödev Ver" hem şablondan başlatma
- * için tek kod yolu), eğitmen sadece grup+tarih seçip onaylıyor. `visible` alanı burada
- * FİLTRE DEĞİL — Kütüphane her zaman TÜM şablonları gösterir (canlıdaki gibi), visible
- * sadece Ödev Parkuru'nun küçük ghost-slot önizlemesini etkiler.
+ * için tek kod yolu), eğitmen sadece grup+tarih seçip onaylıyor.
+ *
+ * **Semantik DEĞİŞTİ (2026-07-07):** `visible` artık Kütüphane'nin filtresi — Şablon
+ * Yönetimi'nden onaylanmayan (X) şablon Kütüphane'de listelenmez. Ödev Parkuru'nun
+ * ghost-slot'u ise artık `visible`e bakmıyor, TÜM şablonlardan otomatik/deterministik-
+ * rastgele dolduruluyor (bir satır gerçek/aktif ödevle dolmuyorsa). Branş dropdown'ı da
+ * artık şablonlarda GEÇEN branşlardan değil, eğitmenin KENDİ gruplarından (canlıdaki
+ * `user.branches` deseninin karşılığı) türetiliyor — henüz o branşta şablon yoksa da
+ * seçenek görünür.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -336,8 +342,11 @@ function OdevParkuru() {
   // Kullanılmamış şablonlar — deterministik karıştırma (canlıdaki id-hash %7 deseni)
   const usedTemplateIds = new Set(assignments.filter((a) => a.templateId).map((a) => a.templateId));
   const ghostCount = Math.max(0, MAX_PARKOUR_SLOTS - activeAssignments.length);
-  // Sadece Şablon Yönetimi'nden "Ana sayfada göster" onayı almış şablonlar ghost-slot adayı olur.
-  const availableTemplates = templates.filter((t) => t.visible === true && !usedTemplateIds.has(t.id));
+  // Bir satır (MAX_PARKOUR_SLOTS) gerçek/aktif ödevle dolmuyorsa kalan slotlar
+  // TÜM şablonlardan otomatik/deterministik-rastgele doldurulur (2026-07-07 kararı —
+  // artık manuel bir "Ana sayfada göster" onayına bağlı değil, `visible` Kütüphane'nin
+  // filtresi oldu).
+  const availableTemplates = templates.filter((t) => !usedTemplateIds.has(t.id));
   const ghostTemplates = [...availableTemplates]
     .sort((a, b) => {
       const ha = Array.from(a.id).reduce((s, c) => s + c.charCodeAt(0), 0);
@@ -389,9 +398,10 @@ function OdevParkuru() {
 // tüm global şablonlarını tek listede döndürüyor (listTemplates). Yerine sadece BRANŞ
 // seçici var (çoklu branşlı eğitmen kütüphaneler arası geçiş yapar) — şablonlarda fiilen
 // bulunan branşlardan türetilir, >1 branş varsa gösterilir. `visible` (Ana Sayfa/Ödev
-// Parkuru ghost-slot onayı) burada FİLTRE DEĞİL — Kütüphane HER ZAMAN TÜM şablonları
-// gösterir (canlıdaki gibi), visible sadece Parkuru'nun küçük önizlemesini etkiler.
-interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number }
+// Parkuru ghost-slot'u ARTIK `visible`e bakmıyor (otomatik/rastgele doldurma,
+// 2026-07-07 kararıyla değişti) — `visible` ŞİMDİ Kütüphane'nin filtresi: eğitmen
+// Şablon Yönetimi'nden onaylamadan (Check) şablon Kütüphane'de listelenmez.
+interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number; visible?: boolean }
 
 function LibraryCard({ t, onStart }: { t: LibTemplate; onStart: (t: LibTemplate) => void }) {
   const Icon = (t.icon && ASSIGNMENT_ICONS[t.icon]) || ClipboardList;
@@ -425,6 +435,7 @@ function LibraryCard({ t, onStart }: { t: LibTemplate; onStart: (t: LibTemplate)
 
 function OdevKutuphanesi() {
   const [templates, setTemplates] = useState<LibTemplate[]>([]);
+  const [myBranches, setMyBranches] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [activeBranch, setActiveBranch] = useState("all");
   const [hasOverflow, setHasOverflow] = useState(false);
@@ -436,16 +447,49 @@ function OdevKutuphanesi() {
     const token = u ? await u.getIdToken() : "";
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      const res = await fetch("/api/flexos/assignment-templates", { headers });
-      if (res.ok) setTemplates((await res.json()).items ?? []);
+      // trainerId=kendi uid'i EXPLICIT gönderiliyor — org-scope aktör (admin/owner)
+      // parametresiz istekte TÜM tenant'ın gruplarını görür, ama bu widget "eğitmenin
+      // KENDİ kütüphanesi" kavramı; kim görüntülüyorsa sadece kendi branşlarını görmeli.
+      const [tplRes, groupsRes] = await Promise.all([
+        fetch("/api/flexos/assignment-templates", { headers }),
+        fetch(`/api/flexos/groups?trainerId=${u?.uid ?? ""}`, { headers }),
+      ]);
+      const templateItems: LibTemplate[] = tplRes.ok ? (await tplRes.json()).items ?? [] : [];
+      setTemplates(templateItems);
+
+      const groupBranches: string[] = groupsRes.ok
+        ? ((await groupsRes.json()).items ?? []).map((g: { branch?: string }) => g.branch).filter((b: string | undefined): b is string => !!b)
+        : [];
+      // Branş filtresi: gerçek gruplarım ∪ şablonlarımın branşları (canlıdaki sabit
+      // user.branches listesine en yakın karşılık — FlexOS'ta öyle bir alan yok, henüz
+      // gerçek grubu olmayan ama şablonu olan bir branş da filtrede görünmeli).
+      const templateBranches = templateItems.map((t) => t.branch).filter((b): b is string => !!b);
+      setMyBranches(Array.from(new Set([...groupBranches, ...templateBranches])));
     } finally {
       setLoaded(true);
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Şablon Yönetimi'nde onay/kaldır değişikliği başka bir sekme/sayfada yapılabiliyor —
+  // client Firestore listener'ı yok (bkz. flexos_* server-only rules), o yüzden
+  // egitim-operasyon-anasayfa'daki aynı desen: 60sn polling + sekmeye geri dönünce anında
+  // yenile (activities polling ile aynı desen).
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => { if (!interval) interval = setInterval(loadData, 60000); };
+    const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
+    const onVisibilityChange = () => {
+      if (document.hidden) stop();
+      else { loadData(); start(); }
+    };
+    loadData();
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => { stop(); document.removeEventListener("visibilitychange", onVisibilityChange); };
+  }, [loadData]);
 
-  const branchOptions = Array.from(new Set(templates.map((t) => t.branch).filter((b): b is string => !!b)));
+  const approvedTemplates = templates.filter((t) => t.visible === true);
+  const branchOptions = myBranches;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -463,7 +507,7 @@ function OdevKutuphanesi() {
     el.scrollBy({ left: dir === "left" ? -420 : 420, behavior: "smooth" });
   }
 
-  const visibleTemplates = activeBranch === "all" ? templates : templates.filter((t) => t.branch === activeBranch);
+  const visibleTemplates = activeBranch === "all" ? approvedTemplates : approvedTemplates.filter((t) => t.branch === activeBranch);
 
   const prefill: AssignmentPrefill | undefined = startTemplate
     ? { templateId: startTemplate.id, title: startTemplate.title, subtitle: startTemplate.subtitle, description: startTemplate.description, icon: startTemplate.icon, kind: startTemplate.kind, maxPuan: startTemplate.maxPuan }

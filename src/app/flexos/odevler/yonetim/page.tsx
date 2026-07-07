@@ -40,7 +40,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
-import { BRANS_COLORS, BRANS_FALLBACK } from "../../siniflar/_shared/groupDisplay";
+import { BRANS_FALLBACK } from "../../siniflar/_shared/groupDisplay";
 import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from "../_shared/assignmentIcons";
 
 type AssignmentStatus = "draft" | "published" | "closed" | "archived";
@@ -64,9 +64,11 @@ interface BranchOption { id: string; name: string }
 const TUMU = "Tümü";
 const PUAN_HIZLI = [100, 150, 200, 250, 300];
 
-function branchColorFor(name?: string) {
-  if (!name) return BRANS_FALLBACK;
-  return BRANS_COLORS[name] ?? BRANS_FALLBACK;
+function branchColorFor(_name?: string) {
+  // Kullanıcı kararı (2026-07-07): bu sayfada branş çipi nötr gri — eğitmen tek
+  // branşta çalıştığında BRANS_COLORS'ın renkli paleti anlamsız/monoton kalıyordu.
+  // Diğer sayfalardaki BRANS_COLORS kullanımına dokunulmadı.
+  return BRANS_FALLBACK;
 }
 
 interface AssignmentItem {
@@ -392,7 +394,7 @@ export default function OdevYonetimiPage() {
               {tab === "templates" && (
                 <>
                   <span className="text-[12px] font-bold text-[#007A30] bg-[#E6F5ED] px-2.5 py-1.5 rounded-full whitespace-nowrap">
-                    {visibleTemplateCount} şablon ana sayfada
+                    {visibleTemplateCount} şablon kütüphanede
                   </span>
                   <div className="relative">
                     <button
@@ -484,7 +486,7 @@ export default function OdevYonetimiPage() {
                         <div className="w-32 shrink-0 flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => toggleTplVisible(t)}
-                            title={t.visible ? "Ana sayfadan kaldır" : "Ana sayfada göster"}
+                            title={t.visible ? "Kütüphaneden kaldır" : "Kütüphanede göster"}
                             className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all cursor-pointer ${
                               t.visible ? "border-[#A7E0BD] bg-[#E6F5ED] text-[#007A30]" : "border-[#F3B0B0] bg-[#FFECEC] text-[#D93636]"
                             }`}

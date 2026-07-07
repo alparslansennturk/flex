@@ -17,6 +17,22 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Ödev Şablon Göçü + Kütüphane/Parkuru semantik düzeltmesi (2026-07-07)
+
+Canlıdaki (`templates` koleksiyonu) 15 normal şablon `scripts/migrate-my-templates.mjs` ile `flexos_assignment_templates`'e taşındı — hepsi `scope:"personal"`, `trainerId=kYG8N01PTudh1VT1uvy2vg8vmAR2`. **"Benim şablonlarım" `createdBy` ile sınırlı değildi:** canlıda 18 toplam şablonun 11'i kullanıcının kendi uid'i, 7'si `flexos.platform@gmail.com` ("Sistem Destek" admin hesabı) tarafından oluşturulmuştu ama kullanıcı hepsini "bana ait" saydı — 3 oyunlaştırılmış (`scope==="gamified"`: Kolaj Bahçesi, Reklam Tasarımı, Kitap Dünyası) bu turda HARİÇ tutuldu, ayrı ele alınacak. Detay: [[flexos_odev_sablon_migration_2026_07_07]].
+
+**Bilinçli yaklaşık eşlemeler:** canlının `points` alanı (3-5 gibi küçük değerler, FlexOS'un 100-ölçekli `maxPuan`ıyla örtüşmüyor) taşınmadı, hepsi varsayılan 100. İkon eşlemesi yaklaşık (16 whitelist'e). Branş: canlının `discipline` alanı (`branches` koleksiyonu ID→isim) kullanıldı, "Grafik-1"→FlexOS "Grafik Tasarım"a eşlendi.
+
+**Kullanıcı geri bildirimiyle Kütüphane/Parkuru semantiği TERSİNE ÇEVRİLDİ** (önceki 2026-07-06 kararının tam tersi):
+- **Ödev Parkuru ghost-slot** artık `visible` alanına HİÇ bakmıyor — sınıflara gerçekten verilip başlatılan (aktif) ödev sayısı bir satırı (4) doldurmuyorsa kalan slotlar TÜM şablonlardan otomatik/deterministik-rastgele dolduruluyor (id-hash %7 karıştırma, zaten vardı, sadece `visible` filtresi kaldırıldı).
+- **Ödev Kütüphanesi** artık `visible===true` filtresi uyguluyor — Şablon Yönetimi'nde onaylanmayan (X) şablon Kütüphane'de listelenmiyor. Tooltip/rozet metinleri "Ana sayfada" → "Kütüphanede" güncellendi.
+- **Kütüphane'nin branş dropdown'ı** artık şablonlarda geçen branşlardan DEĞİL, "eğitmenin kendi gruplarının branşları ∪ eğitmenin kendi şablonlarının branşları" birleşiminden türetiliyor (canlıdaki sabit `user.branches` listesine en yakın karşılık — FlexOS'ta öyle bir alan yok). `GET /api/flexos/groups` çağrısına `?trainerId=<kendi-uid>` EXPLICIT eklendi — org-scope aktör (admin/owner) parametresiz istekte TÜM tenant'ın gruplarını görüyordu, bu widget'ta kim görüntülüyorsa sadece kendi branşlarını görmeli.
+- **"Web Tasarım" branşı** FlexOS Branş Havuzu'na eklendi (önceden sadece "Grafik Tasarım"/"Yazılım" vardı), Web-Test şablonu ona bağlandı.
+- **Şablon Yönetimi branş çipi nötr gri** yapıldı (`odevler/yonetim/page.tsx`'e özel, `BRANS_COLORS` paylaşımlı dosyasına dokunulmadı) — eğitmen tek branşta çalışınca renkli palet monoton/anlamsız kalıyordu.
+- **Gerçek-zamanlıya-yakın yenileme:** Ödev Kütüphanesi artık `egitim-operasyon-anasayfa`'daki activities polling ile AYNI desen — 60sn interval + `visibilitychange`'de anında yenile (client Firestore listener YOK, `flexos_*` server-only rules kararına uygun — bkz. [[flexos_firestore_client_access_pattern]]).
+
+`tsc`/ESLint temiz.
+
 ### ✅ Şablon Yönetimi — Ödev Yönetimi'nin İLK sekmesi, canlı-birebir, BİTTİ (2026-07-06, aynı gün devam)
 
 Kullanıcı düzeltti: bu iş "ileride eklenir" değil, **çekirdek/olmazsa-olmaz** ("şablon ödevin kalbi, olmazsa canlıya alamam") — kademeli/minimal öneri geri çevrildi, doğrudan canlı-birebir tam kapsam istendi. Kullanıcı Claude Design çıktısı verdi (`Ödev Şablonu Yönetimi.dc.html`), `/flexos/odevler/yonetim` sayfasına **İLK sekme** olarak (Şablon Yönetimi → Mevcut Ödevler → Arşiv) portlandı.
