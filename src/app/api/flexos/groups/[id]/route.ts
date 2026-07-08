@@ -22,7 +22,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   // Sadece status varsa → lifecycle güncelleme (mevcut davranış)
   const keys = Object.keys(body).filter((k) => body[k] !== undefined);
@@ -77,7 +77,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteGroup(actorFromCaller(caller), id, { groups: firestoreGroupRepo, enrollments: firestoreEnrollmentRepo });
+    await deleteGroup((await actorFromCaller(caller)), id, { groups: firestoreGroupRepo, enrollments: firestoreEnrollmentRepo });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

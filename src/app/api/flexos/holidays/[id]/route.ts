@@ -15,7 +15,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
 
   try {
-    const holiday = await updateHoliday(actorFromCaller(caller), id, body, firestoreHolidayRepo);
+    const holiday = await updateHoliday((await actorFromCaller(caller)), id, body, firestoreHolidayRepo);
     return NextResponse.json({ id: holiday.id });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -31,7 +31,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteHoliday(actorFromCaller(caller), id, firestoreHolidayRepo);
+    await deleteHoliday((await actorFromCaller(caller)), id, firestoreHolidayRepo);
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

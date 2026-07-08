@@ -11,7 +11,7 @@ import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
  * Satış-Yap'ta "Ek Kayıt İndirimi" otomatik uygulaması için kullanılır.
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "person.read")) {
     return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
   }

@@ -9,7 +9,7 @@ import type { CollageItem } from "@/app/lib/domain/core/collage-pool";
 /** GET /api/flexos/collage-pool — eğitmenin KENDİ havuz kopyası (yoksa `pool: null`). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   try {
-    const pool = await getMyCollagePool(actorFromCaller(caller), firestoreCollagePoolRepo);
+    const pool = await getMyCollagePool((await actorFromCaller(caller)), firestoreCollagePoolRepo);
     return NextResponse.json({ pool });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -28,7 +28,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const pool = await updateMyCollagePool(actorFromCaller(caller), body.items ?? [], firestoreCollagePoolRepo);
+    const pool = await updateMyCollagePool((await actorFromCaller(caller)), body.items ?? [], firestoreCollagePoolRepo);
     return NextResponse.json({ pool });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

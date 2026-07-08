@@ -12,7 +12,7 @@ import { derivePaymentStatus, derivePaymentRollup } from "@/app/lib/domain/servi
  */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id: saleId } = await ctx.params;
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   if (!can(actor, "payment.read")) {
     return NextResponse.json({ error: "Yetki yok: payment.read" }, { status: 403 });

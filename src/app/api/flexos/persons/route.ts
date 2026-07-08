@@ -24,7 +24,7 @@ import type { Sale } from "@/app/lib/domain/eduos/sale";
  * PII alanları `person.read.pii` yetkisiyle kapılıdır.
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   if (!can(actor, "person.read")) {
     return NextResponse.json({ error: "Yetki yok: person.read" }, { status: 403 });
@@ -207,7 +207,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const result = await createPerson(actor, body, firestorePersonRepo);

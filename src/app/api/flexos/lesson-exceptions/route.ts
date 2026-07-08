@@ -19,7 +19,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
 
   try {
-    const ex = await saveLessonException(actorFromCaller(caller), body, {
+    const ex = await saveLessonException((await actorFromCaller(caller)), body, {
       groups: firestoreGroupRepo,
       exceptions: firestoreLessonExceptionRepo,
       attendance: firestoreAttendanceRepo,
@@ -43,7 +43,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
  * `attendance.report.read` — eğitmende YOK, sadece Op/Finans/Admin.
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const groupId = req.nextUrl.searchParams.get("groupId");
   const date = req.nextUrl.searchParams.get("date");
 

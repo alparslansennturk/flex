@@ -8,7 +8,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 /** GET /api/flexos/social-pool — eğitmenin KENDİ havuz kopyası (yoksa `pool: null`). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   try {
-    const pool = await getMySocialPool(actorFromCaller(caller), firestoreSocialPoolRepo);
+    const pool = await getMySocialPool((await actorFromCaller(caller)), firestoreSocialPoolRepo);
     return NextResponse.json({ pool });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -34,7 +34,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
       globalPurposes: body.globalPurposes ?? [],
       sharedRule: body.sharedRule ?? "",
     };
-    const pool = await updateMySocialPool(actorFromCaller(caller), data, firestoreSocialPoolRepo);
+    const pool = await updateMySocialPool((await actorFromCaller(caller)), data, firestoreSocialPoolRepo);
     return NextResponse.json({ pool });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

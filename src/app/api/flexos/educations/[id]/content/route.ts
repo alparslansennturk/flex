@@ -24,7 +24,7 @@ export const PUT = withAuth(async (req: NextRequest, caller, ctx: { params: Prom
 
   try {
     const result = await syncEducationContent(
-      actorFromCaller(caller),
+      await actorFromCaller(caller),
       id,
       body.sections,
       { sections: firestoreSectionRepo, tracks: firestoreTrackRepo, educations: firestoreEducationRepo },

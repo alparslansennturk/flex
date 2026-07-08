@@ -64,7 +64,7 @@ const MAIL_COPY: Record<"kolaj" | "kitap" | "sosyal", { label: string; intro: st
  *      yoktu ama FlexOS'ta email PII alanı, trainer'a asla client tarafında gösterilmez).
  */
 export const POST = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   if (await isRateLimited(`flexos-send-kolaj:${actor.uid}`, 20, 60 * 60 * 1000)) {
     return NextResponse.json({ error: "Çok fazla istek. Lütfen bekleyin." }, { status: 429 });

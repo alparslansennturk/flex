@@ -16,7 +16,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
   if (!body.newPin) return NextResponse.json({ error: "newPin zorunludur." }, { status: 400 });
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   try {
     await setViewPin(actor, { newPin: body.newPin }, firestoreViewPinRepo);
     return NextResponse.json({ ok: true });

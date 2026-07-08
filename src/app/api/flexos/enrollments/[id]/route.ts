@@ -24,7 +24,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   try {
     if (body.status) {
       const enrollment = await setEnrollmentStatus(
-        actorFromCaller(caller),
+        await actorFromCaller(caller),
         id,
         body.status,
         { enrollments: firestoreEnrollmentRepo, groups: firestoreGroupRepo },
@@ -35,7 +35,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     if (!body.groupId) return NextResponse.json({ error: "groupId veya status zorunludur." }, { status: 400 });
 
     const enrollment = await assignToGroup(
-      actorFromCaller(caller),
+      await actorFromCaller(caller),
       { enrollmentId: id, groupId: body.groupId },
       { enrollments: firestoreEnrollmentRepo, groups: firestoreGroupRepo },
     );
@@ -58,7 +58,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
 
   try {
     const enrollment = await removeFromGroup(
-      actorFromCaller(caller),
+      await actorFromCaller(caller),
       id,
       { enrollments: firestoreEnrollmentRepo, groups: firestoreGroupRepo },
     );

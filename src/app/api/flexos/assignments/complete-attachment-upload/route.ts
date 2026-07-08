@@ -22,7 +22,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
   try {
     const assignment = await completeAttachmentUpload(
-      actorFromCaller(caller),
+      await actorFromCaller(caller),
       body,
       {
         assignments: firestoreAssignmentRepo,

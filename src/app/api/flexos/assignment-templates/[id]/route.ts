@@ -21,7 +21,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   }
 
   try {
-    const template = await updateTemplate(actorFromCaller(caller), id, body, firestoreAssignmentTemplateRepo);
+    const template = await updateTemplate((await actorFromCaller(caller)), id, body, firestoreAssignmentTemplateRepo);
     return NextResponse.json({ id: template.id });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -40,7 +40,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteTemplate(actorFromCaller(caller), id, firestoreAssignmentTemplateRepo);
+    await deleteTemplate((await actorFromCaller(caller)), id, firestoreAssignmentTemplateRepo);
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

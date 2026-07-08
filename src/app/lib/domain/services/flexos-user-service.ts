@@ -43,6 +43,8 @@ export interface CreateFlexosUserInput {
   subes?: string[];
   permOverrides?: Record<string, boolean>;
   status?: string;
+  /** Route katmanında Firebase Auth hesabı önceden oluşturulup buraya geçirilir — domain katmanı Firebase'i bilmez. */
+  authUid?: string;
 }
 
 export interface UpdateFlexosUserInput {
@@ -107,6 +109,7 @@ export async function createFlexosUser(
       ? input.permOverrides
       : undefined,
     status,
+    authUid: input.authUid,
     createdAt: now(),
     createdBy: actor.uid,
   };
@@ -179,19 +182,24 @@ export async function updateFlexosUser(
   return updated;
 }
 
+/** Silinen kaydı döner — route katmanı `authUid`'i kullanıp Firebase Auth hesabını da silsin diye. */
 export async function deleteFlexosUser(
   actor: Actor,
   id: string,
   repo: FlexosUserRepo,
-): Promise<void> {
+): Promise<FlexosUser> {
   if (!can(actor, "role.manage")) throw new ForbiddenError("role.manage");
 
   const existing = await repo.getById(id, actor.tenantId);
   if (!existing) throw new ValidationError("Kullanıcı bulunamadı.");
 
-  if (existing.id === actor.uid) {
+  // `existing.id` Firestore doc id'si, `actor.uid` Firebase Auth uid'i — farklı id
+  // uzayları, `authUid` üzerinden karşılaştırılmalı (eskiden hiç eşleşmeyen, hiçbir
+  // zaman tetiklenmeyen bir kontroldü).
+  if (existing.authUid && existing.authUid === actor.uid) {
     throw new ValidationError("Kendi hesabınızı silemezsiniz.");
   }
 
   await repo.delete(id, actor.tenantId);
+  return existing;
 }

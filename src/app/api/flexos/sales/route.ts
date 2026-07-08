@@ -16,7 +16,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  * Server-side join: Sale + Person + Education + Branch.
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "sale.read")) {
     return NextResponse.json({ error: "Yetki yok: sale.read" }, { status: 403 });
   }
@@ -77,7 +77,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const result = await createSale(actor, body, {

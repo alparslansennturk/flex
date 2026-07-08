@@ -27,7 +27,7 @@ export const GET = withAuth(async (req: NextRequest, caller, ctx: { params: Prom
   const personId = req.nextUrl.searchParams.get("personId");
   if (!personId) return NextResponse.json({ error: "personId zorunlu." }, { status: 400 });
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   try {
     const items = await listThreadCommentsForStaff(actor, id, personId, deps);
     return NextResponse.json({ items });
@@ -49,7 +49,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   try {
     const comment = await postThreadCommentAsStaff(actor, id, body.personId, body.text, deps);
     return NextResponse.json({ id: comment.id }, { status: 201 });

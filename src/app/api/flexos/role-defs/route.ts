@@ -8,7 +8,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 /** GET /api/flexos/role-defs — rol listesi (gated `role.manage`, ilk çağrıda 6 yerleşik rol tohumlanır). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   try {
-    const items = await listRoleDefs(actorFromCaller(caller), firestoreRoleDefRepo);
+    const items = await listRoleDefs((await actorFromCaller(caller)), firestoreRoleDefRepo);
     return NextResponse.json({ items });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -27,7 +27,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const roleDef = await createRoleDef(actorFromCaller(caller), body, firestoreRoleDefRepo);
+    const roleDef = await createRoleDef((await actorFromCaller(caller)), body, firestoreRoleDefRepo);
     return NextResponse.json({ item: roleDef }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

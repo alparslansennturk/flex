@@ -9,7 +9,7 @@ import type { BookItem } from "@/app/lib/domain/core/book-pool";
 /** GET /api/flexos/book-pool — eğitmenin KENDİ havuz kopyası (yoksa `pool: null`). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   try {
-    const pool = await getMyBookPool(actorFromCaller(caller), firestoreBookPoolRepo);
+    const pool = await getMyBookPool((await actorFromCaller(caller)), firestoreBookPoolRepo);
     return NextResponse.json({ pool });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -28,7 +28,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const pool = await updateMyBookPool(actorFromCaller(caller), body.items ?? [], firestoreBookPoolRepo);
+    const pool = await updateMyBookPool((await actorFromCaller(caller)), body.items ?? [], firestoreBookPoolRepo);
     return NextResponse.json({ pool });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

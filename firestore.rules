@@ -471,5 +471,11 @@ service cloud.firestore {
 
     // Sertifika hesaplama ayarı (odevAktif/sertifikaPct) — server-only, yazma `certificate.settings.write` gated.
     match /flexos_certificate_settings/{id} { allow read, write: if false; }
+
+    // Kullanıcı/rol yönetimi (Kullanıcılar + Kullanıcı Ayarları) — server-only (Admin SDK).
+    match /flexos_users/{id} { allow read, write: if false; }
+    match /flexos_role_defs/{id} { allow read, write: if false; }
+    // Aktivasyon kodları — server-only; public `activation/verify` route'u bile Admin SDK üzerinden okur.
+    match /flexos_codes/{id} { allow read, write: if false; }
   }
 }

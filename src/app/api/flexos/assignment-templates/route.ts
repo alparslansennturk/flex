@@ -11,7 +11,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   try {
-    const items = await listTemplates(actorFromCaller(caller), firestoreAssignmentTemplateRepo);
+    const items = await listTemplates((await actorFromCaller(caller)), firestoreAssignmentTemplateRepo);
     return NextResponse.json({ items });
   } catch (e) {
     if (e instanceof ForbiddenError) {
@@ -35,7 +35,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const template = await createTemplate(actorFromCaller(caller), body, firestoreAssignmentTemplateRepo);
+    const template = await createTemplate((await actorFromCaller(caller)), body, firestoreAssignmentTemplateRepo);
     return NextResponse.json({ id: template.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

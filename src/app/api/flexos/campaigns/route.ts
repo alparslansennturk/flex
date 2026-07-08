@@ -8,7 +8,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 /** GET /api/flexos/campaigns — kampanya listesi. */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "campaign.read")) return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
   const items = await firestoreCampaignRepo.list(actor.tenantId);
   return NextResponse.json({ items });
@@ -24,7 +24,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const campaign = await createCampaign(actorFromCaller(caller), body, firestoreCampaignRepo);
+    const campaign = await createCampaign((await actorFromCaller(caller)), body, firestoreCampaignRepo);
     return NextResponse.json({ id: campaign.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

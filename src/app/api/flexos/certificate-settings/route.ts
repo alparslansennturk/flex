@@ -12,7 +12,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 /** GET /api/flexos/certificate-settings — sertifika hesaplama ayarını okur (herkes okuyabilir). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   try {
-    const settings = await getCertificateSettings(actorFromCaller(caller), firestoreCertificateSettingsRepo);
+    const settings = await getCertificateSettings((await actorFromCaller(caller)), firestoreCertificateSettingsRepo);
     return NextResponse.json(settings);
   } catch (e) {
     console.error("[flexos/certificate-settings GET] hata:", e);
@@ -30,7 +30,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const settings = await updateCertificateSettings(actorFromCaller(caller), body, firestoreCertificateSettingsRepo);
+    const settings = await updateCertificateSettings((await actorFromCaller(caller)), body, firestoreCertificateSettingsRepo);
     return NextResponse.json(settings);
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

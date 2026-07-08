@@ -16,7 +16,7 @@ import type { Guardian } from "@/app/lib/domain/eduos/sale";
  */
 export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   if (!can(actor, "person.pii.write")) {
     return NextResponse.json({ error: "Yetki yok: person.pii.write" }, { status: 403 });

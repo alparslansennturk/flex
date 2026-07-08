@@ -10,7 +10,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
  * Satış Dashboard'daki "Bugünkü Randevular" kartı için.
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "appointment.read")) {
     return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
   }

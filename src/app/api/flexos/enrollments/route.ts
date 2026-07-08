@@ -20,7 +20,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const enrollment = await createEnrollment(actor, body, {

@@ -13,7 +13,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteLessonException(actorFromCaller(caller), id, {
+    await deleteLessonException((await actorFromCaller(caller)), id, {
       groups: firestoreGroupRepo,
       exceptions: firestoreLessonExceptionRepo,
       attendance: firestoreAttendanceRepo,

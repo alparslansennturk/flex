@@ -12,7 +12,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
 
   try {
-    const holiday = await createHoliday(actorFromCaller(caller), body, firestoreHolidayRepo);
+    const holiday = await createHoliday((await actorFromCaller(caller)), body, firestoreHolidayRepo);
     return NextResponse.json({ id: holiday.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -27,7 +27,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
  * yoklama takvimi dahil tüm aktörlerin görmesi gerekiyor, sadece yazma kapılı).
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const items = await firestoreHolidayRepo.list(actor.tenantId);
   return NextResponse.json({ items });
 });

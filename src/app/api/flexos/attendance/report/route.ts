@@ -18,7 +18,7 @@ import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/ca
  * tarih aralığı — Yoklama Raporu'nun çoklu-ay arama çubuğu için) — hepsi opsiyonel.
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   if (!can(actor, "attendance.report.read")) {
     return NextResponse.json({ error: "Yetki yok: attendance.report.read" }, { status: 403 });

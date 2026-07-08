@@ -11,7 +11,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   try { body = (await req.json()) as CreateTrackInput; }
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
   try {
-    const track = await createTrack(actorFromCaller(caller), body, { tracks: firestoreTrackRepo, sections: firestoreSectionRepo });
+    const track = await createTrack((await actorFromCaller(caller)), body, { tracks: firestoreTrackRepo, sections: firestoreSectionRepo });
     return NextResponse.json({ id: track.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -23,7 +23,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
 /** GET /api/flexos/tracks?educationId=... — track listesi. */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const educationId = req.nextUrl.searchParams.get("educationId") ?? undefined;
   const items = await firestoreTrackRepo.list(actor.tenantId, educationId);
   return NextResponse.json({ items });

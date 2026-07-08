@@ -22,7 +22,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   }
 
   try {
-    const result = await updateTrainer(actorFromCaller(caller), id, body, firestoreTrainerRepo);
+    const result = await updateTrainer((await actorFromCaller(caller)), id, body, firestoreTrainerRepo);
     return NextResponse.json({ id: result.trainer.id, rateDropped: result.rateDropped });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -40,7 +40,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteTrainer(actorFromCaller(caller), id, firestoreTrainerRepo, { groups: firestoreGroupRepo });
+    await deleteTrainer((await actorFromCaller(caller)), id, firestoreTrainerRepo, { groups: firestoreGroupRepo });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

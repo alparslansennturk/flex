@@ -16,7 +16,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   }
 
   try {
-    const roleDef = await updateRoleDef(actorFromCaller(caller), id, body, firestoreRoleDefRepo);
+    const roleDef = await updateRoleDef((await actorFromCaller(caller)), id, body, firestoreRoleDefRepo);
     return NextResponse.json({ item: roleDef });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

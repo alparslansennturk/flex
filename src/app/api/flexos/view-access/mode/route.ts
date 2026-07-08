@@ -19,7 +19,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "mode 'core' veya 'full' olmalı." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   try {
     await setViewMode(actor, body.mode, firestoreViewModeRepo);
     primeViewModeCache(body.mode); // TTL beklemeden bu instance'ta anında yansısın

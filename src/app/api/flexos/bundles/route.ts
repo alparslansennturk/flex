@@ -8,7 +8,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 /** GET /api/flexos/bundles — paket listesi. */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "bundle.read")) return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
   const items = await firestoreBundleRepo.list(actor.tenantId);
   return NextResponse.json({ items });
@@ -24,7 +24,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const bundle = await createBundle(actorFromCaller(caller), body, firestoreBundleRepo);
+    const bundle = await createBundle((await actorFromCaller(caller)), body, firestoreBundleRepo);
     return NextResponse.json({ id: bundle.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

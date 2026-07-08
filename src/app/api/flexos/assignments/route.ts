@@ -14,7 +14,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  * `groups/route.ts`'teki `trainerId` zorlama deseniyle aynı (client'a güvenilmez).
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "assignment.read")) {
     return NextResponse.json({ error: "Yetki yok: assignment.read" }, { status: 403 });
   }
@@ -43,7 +43,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const assignment = await assignTask(actor, body, firestoreAssignmentRepo, {

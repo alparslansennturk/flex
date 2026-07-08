@@ -23,7 +23,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const clone = await addSocialTemplateToPersonalLibrary(actorFromCaller(caller), body.globalTemplateId, {
+    const clone = await addSocialTemplateToPersonalLibrary((await actorFromCaller(caller)), body.globalTemplateId, {
       pools: firestoreSocialPoolRepo,
       templates: firestoreAssignmentTemplateRepo,
     });

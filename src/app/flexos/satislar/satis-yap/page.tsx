@@ -254,7 +254,8 @@ export default function SatisYapPage() {
   // Hibrit eğitim: Full Paket alınırken teslim şekline (Yüz Yüze/Online) göre ayrı fiyat.
   // Track Bazlı satışta her track'in kendi teslim fiyatı yok (kapsam dışı) — sadece Full Paket'i etkiler.
   const hybridOptions = selEdu?.deliveryMode === "hybrid" ? (selEdu.deliveryOptions ?? []) : [];
-  const showTeslimSekli = hybridOptions.length > 0 && effModel === "full";
+  // Diğer eğitimlerde de aynı seçici görünür kalır (disabled) — "Satış Modeli" ile aynı desen, sığmaz kaygısı yok.
+  const teslimLocked = !egitim || hybridOptions.length === 0 || effModel !== "full";
   const selDeliveryOption = hybridOptions.find((o) => o.mode === teslimSekli);
   const eduFullPrice = selDeliveryOption ? selDeliveryOption.listPrice : selEdu?.listPrice;
 
@@ -752,7 +753,7 @@ export default function SatisYapPage() {
                   )}
                   </>)}
 
-                  <div style={{ display: "grid", gridTemplateColumns: showTeslimSekli ? "1fr 1fr 1fr" : "1fr 1fr", gap: 16, marginBottom: 24, maxWidth: showTeslimSekli ? 860 : 580, ...(satisModu === "paket" ? { display: "none" } : {}) }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24, maxWidth: 860, ...(satisModu === "paket" ? { display: "none" } : {}) }}>
                     <div>
                       <Label>Satış Tipi</Label>
                       <SelectWrap small>
@@ -773,17 +774,16 @@ export default function SatisYapPage() {
                         </select>
                       </SelectWrap>
                     </div>
-                    {showTeslimSekli && (
-                      <div>
-                        <Label>Teslim Şekli</Label>
-                        <SelectWrap small>
-                          <select value={teslimSekli} onChange={(e) => setTeslimSekli(e.target.value as "in_person" | "online")} style={S.selectSm}>
-                            {hybridOptions.some((o) => o.mode === "in_person") && <option value="in_person">Yüz Yüze</option>}
-                            {hybridOptions.some((o) => o.mode === "online") && <option value="online">Online</option>}
-                          </select>
-                        </SelectWrap>
-                      </div>
-                    )}
+                    <div style={{ opacity: teslimLocked ? 0.6 : 1 }}>
+                      <Label withLock={teslimLocked}>Eğitim Modeli</Label>
+                      <SelectWrap small>
+                        <select value={teslimSekli} onChange={(e) => setTeslimSekli(e.target.value as "in_person" | "online")} disabled={teslimLocked}
+                          style={{ ...S.selectSm, background: teslimLocked ? "#f1f5f9" : "#f8fafc", cursor: teslimLocked ? "not-allowed" : "pointer" }}>
+                          {(teslimLocked || hybridOptions.some((o) => o.mode === "in_person")) && <option value="in_person">Yüz Yüze</option>}
+                          {(teslimLocked || hybridOptions.some((o) => o.mode === "online")) && <option value="online">Online</option>}
+                        </select>
+                      </SelectWrap>
+                    </div>
                   </div>
 
                   {/* Empty state */}
@@ -951,9 +951,11 @@ export default function SatisYapPage() {
                       </div>
                       <div style={S.ozetSep} />
                     </>) : (<>
-                      {/* Bireysel mod: tek satır eğitim tutarı */}
+                      {/* Bireysel mod: tek satır eğitim tutarı — hibrit ise hangi modelin fiyatı olduğu belli olsun */}
                       <div style={S.ozetRow}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Eğitim Tutarı (KDV Hariç)</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>
+                          Eğitim Tutarı{!teslimLocked && (teslimSekli === "online" ? " (Online)" : " (Yüz Yüze)")} (KDV Hariç)
+                        </span>
                         <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" as const }}>{fmtTL(brut)}</span>
                       </div>
                       <div style={S.ozetSep} />

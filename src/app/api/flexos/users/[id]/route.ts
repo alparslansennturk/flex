@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
+import { adminAuth } from "@/app/lib/firebase-admin";
 import {
   updateFlexosUser,
   deleteFlexosUser,
@@ -18,7 +19,7 @@ export const GET = withAuth<Ctx>(async (_req: NextRequest, caller, ctx) => {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "role.manage")) {
     return NextResponse.json({ error: "Yetki yok: role.manage" }, { status: 403 });
   }
@@ -60,7 +61,7 @@ export const PATCH = withAuth<Ctx>(async (req: NextRequest, caller, ctx) => {
   }
 
   try {
-    const user = await updateFlexosUser(actorFromCaller(caller), id, body, firestoreFlexosUserRepo, firestoreRoleDefRepo);
+    const user = await updateFlexosUser((await actorFromCaller(caller)), id, body, firestoreFlexosUserRepo, firestoreRoleDefRepo);
     return NextResponse.json({ id: user.id });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -70,13 +71,18 @@ export const PATCH = withAuth<Ctx>(async (req: NextRequest, caller, ctx) => {
   }
 });
 
-/** DELETE /api/flexos/users/[id] — Kullanıcı sil */
+/** DELETE /api/flexos/users/[id] — Kullanıcı sil (Firestore doc + gerçek Firebase hesabı). */
 export const DELETE = withAuth<Ctx>(async (_req: NextRequest, caller, ctx) => {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteFlexosUser(actorFromCaller(caller), id, firestoreFlexosUserRepo);
+    const deleted = await deleteFlexosUser((await actorFromCaller(caller)), id, firestoreFlexosUserRepo);
+    if (deleted.authUid) {
+      await adminAuth.deleteUser(deleted.authUid).catch((e) => {
+        console.error("[flexos/users/:id DELETE] Firebase hesabı silinemedi:", e);
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

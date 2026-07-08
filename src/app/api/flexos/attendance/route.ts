@@ -19,7 +19,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const record = await startLesson(actor, body, {
@@ -45,7 +45,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
  * Gated `attendance.read`, hedef gruba göre kapsam kontrolü (kendi grubu / org).
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const groupId = req.nextUrl.searchParams.get("groupId");
   if (!groupId) return NextResponse.json({ error: "groupId zorunludur." }, { status: 400 });
 

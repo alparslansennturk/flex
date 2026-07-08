@@ -16,7 +16,7 @@ const RECENT_LIMIT = 30;
  * Satış Dashboard'daki "Canlı Aktivite Akışı" kartı için.
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "activity.read")) {
     return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
   }
@@ -58,7 +58,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const result = await addActivity(actorFromCaller(caller), body, {
+    const result = await addActivity((await actorFromCaller(caller)), body, {
       cases: firestoreCaseRepo,
       activities: firestoreActivityRepo,
       appointments: firestoreAppointmentRepo,

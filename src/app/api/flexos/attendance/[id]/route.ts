@@ -31,7 +31,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     return NextResponse.json({ error: "id, groupId/date ile uyuşmuyor." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const record = await saveAttendance(actor, body, {
@@ -64,7 +64,7 @@ export const DELETE = withAuth(async (req: NextRequest, caller, ctx: { params: P
     return NextResponse.json({ error: "id, groupId/date ile uyuşmuyor." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     await deleteAttendance(actor, { groupId, date }, { groups: firestoreGroupRepo, attendance: firestoreAttendanceRepo });

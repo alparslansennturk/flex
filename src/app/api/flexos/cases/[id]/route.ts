@@ -11,7 +11,7 @@ import { updateCase, type UpdateCaseInput } from "@/app/lib/domain/services/case
  * GET /api/flexos/cases/[id] — tekil talep + aktivite zaman çizelgesi.
  */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "case.read")) {
     return NextResponse.json({ error: "Yetersiz yetki." }, { status: 403 });
   }
@@ -38,7 +38,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   const { id } = await ctx.params;
 
   try {
-    const updated = await updateCase(actorFromCaller(caller), id, body, firestoreCaseRepo);
+    const updated = await updateCase((await actorFromCaller(caller)), id, body, firestoreCaseRepo);
     return NextResponse.json({ id: updated.id, status: updated.status });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

@@ -16,7 +16,7 @@ import type { PersonPII } from "@/app/lib/domain/core/person";
  */
 export const GET = withAuth(async (_req: NextRequest, caller, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   if (!can(actor, "person.read")) {
     return NextResponse.json({ error: "Yetki yok: person.read" }, { status: 403 });
@@ -114,7 +114,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, { params }: { para
  */
 export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   if (!can(actor, "person.edit")) {
     return NextResponse.json({ error: "Yetki yok: person.edit" }, { status: 403 });

@@ -7,7 +7,7 @@ import { ForbiddenError } from "@/app/lib/domain/errors";
 
 /** GET /api/flexos/view-access — owner mı + PIN kurulu mu (`view.toggle` gated). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   try {
     const status = await getViewAccessStatus(actor, firestoreViewPinRepo);
     return NextResponse.json(status);

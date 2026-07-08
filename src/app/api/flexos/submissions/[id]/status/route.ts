@@ -23,7 +23,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const submission = await updateSubmissionStatus(actor, id, body.status, {

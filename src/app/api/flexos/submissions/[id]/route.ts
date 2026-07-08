@@ -11,7 +11,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 /** GET /api/flexos/submissions/[id] — teslim + dosyaları + kişi (gated `submission.read`). */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const result = await getSubmissionForStaff(actor, id, {

@@ -7,7 +7,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 /** GET /api/flexos/settings — sistem anahtarlarını okur (standaloneMode dahil). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   try {
     const settings = await getSettings(actor, firestoreSettingsRepo);
     return NextResponse.json(settings);
@@ -26,7 +26,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const settings = await updateSettings(actor, body, firestoreSettingsRepo);

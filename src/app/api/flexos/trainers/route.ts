@@ -15,7 +15,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  * `hourlyRate` (ücret) yalnız `trainer.rate.read` yetkisiyle döner, yoksa null (maskeli).
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   if (!can(actor, "trainer.read")) {
     return NextResponse.json({ error: "Yetki yok: trainer.read" }, { status: 403 });
   }
@@ -87,7 +87,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const result = await createTrainer(actor, body, firestoreTrainerRepo);

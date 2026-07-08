@@ -21,7 +21,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   if (!assignmentId) return NextResponse.json({ error: "assignmentId zorunludur." }, { status: 400 });
 
   try {
-    const result = await getLotteryResult(actorFromCaller(caller), assignmentId, deps);
+    const result = await getLotteryResult((await actorFromCaller(caller)), assignmentId, deps);
     return NextResponse.json({ result });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -41,7 +41,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const result = await saveDraw(actorFromCaller(caller), body, deps);
+    const result = await saveDraw((await actorFromCaller(caller)), body, deps);
     return NextResponse.json({ result });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

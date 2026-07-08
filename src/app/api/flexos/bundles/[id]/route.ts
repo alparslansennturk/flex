@@ -18,7 +18,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   }
 
   try {
-    const bundle = await updateBundle(actorFromCaller(caller), id, body, firestoreBundleRepo);
+    const bundle = await updateBundle((await actorFromCaller(caller)), id, body, firestoreBundleRepo);
     return NextResponse.json({ id: bundle.id });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -34,7 +34,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteBundle(actorFromCaller(caller), id, firestoreBundleRepo);
+    await deleteBundle((await actorFromCaller(caller)), id, firestoreBundleRepo);
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

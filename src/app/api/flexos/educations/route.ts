@@ -11,7 +11,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   try { body = (await req.json()) as CreateEducationInput; }
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
   try {
-    const education = await createEducation(actorFromCaller(caller), body, firestoreEducationRepo);
+    const education = await createEducation((await actorFromCaller(caller)), body, firestoreEducationRepo);
     return NextResponse.json({ id: education.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -23,7 +23,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
 /** GET /api/flexos/educations?branchId=...&onSale=true — eğitim listesi. */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const branchId = req.nextUrl.searchParams.get("branchId") ?? undefined;
   const onSaleParam = req.nextUrl.searchParams.get("onSale");
   let items = await firestoreEducationRepo.list(actor.tenantId, branchId);

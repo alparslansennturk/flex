@@ -18,7 +18,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const group = await firestoreGroupRepo.getById(id, actor.tenantId);
   if (!group) return NextResponse.json({ error: "Grup bulunamadı." }, { status: 404 });
 

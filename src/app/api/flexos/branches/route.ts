@@ -11,7 +11,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   try { body = (await req.json()) as CreateBranchInput; }
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
   try {
-    const branch = await createBranch(actorFromCaller(caller), body, firestoreBranchRepo);
+    const branch = await createBranch((await actorFromCaller(caller)), body, firestoreBranchRepo);
     return NextResponse.json({ id: branch.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -23,7 +23,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
 /** GET /api/flexos/branches — branş listesi (kiracıya göre). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const items = await firestoreBranchRepo.list(actor.tenantId);
   return NextResponse.json({ items });
 });

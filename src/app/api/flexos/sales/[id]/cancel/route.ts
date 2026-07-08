@@ -15,7 +15,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  */
 export const POST = withAuth(async (req: NextRequest, caller, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   let body: { reason?: string } = {};
   try {

@@ -1,0 +1,165 @@
+"use client";
+
+/**
+ * FlexOS · Şifremi Unuttum — canlı `src/app/login/forgot-password/page.tsx` UI birebir
+ * portu. Tek fark: `/api/flexos/password-reset`'e istek atar (aktivasyon linki
+ * `/flexos/giris/aktivasyon`'a gider).
+ */
+
+import FlexLogo from "@/app/components/ui/FlexLogo";
+import React, { useState } from "react";
+import { KeyRound, ChevronRight, Loader2, ArrowLeft, Check } from "lucide-react";
+import Link from "next/link";
+import { getFlexMessage } from "@/app/lib/messages";
+
+export default function FlexosSifremiUnuttumPage() {
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSent, setIsSent] = useState(false);
+  const [error, setError] = useState("");
+  const [shouldShake, setShouldShake] = useState(false);
+
+  const handleResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsSent(false);
+    setShouldShake(false);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/flexos/password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Sunucu hatası");
+      }
+
+      setIsLoading(false);
+      setIsSent(true);
+      setError("");
+    } catch (err: unknown) {
+      setIsLoading(false);
+      setShouldShake(true);
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("Çok fazla")) {
+        setError(msg);
+      } else {
+        setError(getFlexMessage("auth/user-not-found").text);
+      }
+      setTimeout(() => setShouldShake(false), 500);
+    }
+  };
+
+  return (
+    <div
+      className="min-h-screen w-full flex items-center justify-center p-6 font-inter antialiased"
+      style={{ background: "linear-gradient(160deg, var(--color-base-primary-300) 0%, var(--color-base-secondary-300) 75%)" }}
+    >
+      <div className={`w-full max-w-[614px] bg-surface-white p-[56px] radius-16 shadow-2xl flex flex-col relative transition-all duration-300 origin-center min-[1440px]:scale-105 2xl:scale-110 ${shouldShake ? "error-shake" : ""}`}>
+
+        <div className="flex justify-between items-center mb-10">
+          <div className="flex items-center gap-2">
+            <KeyRound size={24} style={{ color: "var(--color-neutral-900)" }} />
+            <h2 className="text-2xl font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
+              Şifremi Unuttum
+            </h2>
+          </div>
+          <FlexLogo />
+        </div>
+
+        <form onSubmit={handleResetRequest} noValidate className="w-full flex flex-col font-inter">
+          <div style={{ position: "absolute", opacity: 0, height: 0, width: 0, zIndex: -1, overflow: "hidden" }} aria-hidden="true">
+            <input type="text" name="mac-autofill-trap-email" tabIndex={-1} />
+            <input type="password" name="mac-autofill-trap-password" tabIndex={-1} />
+          </div>
+
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-end h-5">
+                <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>E-Posta</label>
+                {error && (
+                  <span className="ui-helper-sm animate-in fade-in duration-200 font-semibold" style={{ color: "var(--color-status-danger-500)" }}>
+                    {error}
+                  </span>
+                )}
+              </div>
+              <input
+                autoComplete="new-password"
+                data-lpignore="true"
+                spellCheck="false"
+                autoFocus
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="E-Posta Giriniz"
+                className="w-full h-12 px-4 border radius-8 text-[14px] outline-none transition-all duration-200"
+                style={{
+                  borderColor: error ? "var(--color-status-danger-500)" : "var(--color-surface-200)",
+                  backgroundColor: error ? "var(--color-status-danger-50)" : "var(--color-surface-50)",
+                  color: "var(--color-text-primary)",
+                }}
+                required
+              />
+            </div>
+
+            <div className="flex flex-col pt-2">
+              <button
+                type="submit"
+                disabled={isLoading || isSent}
+                className="w-full h-12 radius-8 font-bold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-80 shadow-lg"
+                style={{
+                  backgroundColor: "var(--color-designstudio-primary-500)",
+                  color: "var(--color-text-inverse)",
+                  boxShadow: "0 10px 15px -3px var(--color-designstudio-primary-500-20)",
+                }}
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="animate-spin" size={20} />
+                    <span className="ui-helper-sm tracking-wide font-semibold">Kontrol Ediliyor...</span>
+                  </div>
+                ) : isSent ? (
+                  <div className="flex items-center gap-2 animate-in zoom-in duration-300">
+                    <Check size={20} strokeWidth={3} />
+                    <span className="ui-helper-sm tracking-wide">E-Posta Gönderildi</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>Devam Et</span>
+                    <ChevronRight size={18} />
+                  </>
+                )}
+              </button>
+
+              <div className="mt-6 flex justify-between items-center w-full">
+                <Link
+                  href="/flexos/giris"
+                  className="flex items-center gap-2 text-[13px] font-semibold transition-colors hover:opacity-80"
+                  style={{ color: "#3A7BD5" }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>Giriş Ekranına Geri Dön</span>
+                </Link>
+
+                {isSent && (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-300 text-nowrap">
+                    <Check size={16} strokeWidth={3} style={{ color: "var(--color-status-success-500)" }} />
+                    <span className="text-[13px] font-semibold tracking-tight" style={{ color: "var(--color-status-success-500)" }}>
+                      {getFlexMessage("auth/reset-email-sent").text}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </form>
+
+        <div className="absolute right-[56px] bottom-[16px] text-[11px] font-bold opacity-40 uppercase tracking-widest italic" style={{ color: "var(--color-text-placeholder)" }}>FlexOS</div>
+      </div>
+    </div>
+  );
+}

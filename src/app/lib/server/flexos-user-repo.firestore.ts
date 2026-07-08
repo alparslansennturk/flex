@@ -36,6 +36,17 @@ export const firestoreFlexosUserRepo: FlexosUserRepo = {
     return snap.docs[0].data() as FlexosUser;
   },
 
+  async findByAuthUid(authUid, tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("authUid", "==", authUid)
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
+    return snap.docs[0].data() as FlexosUser;
+  },
+
   async list(tenantId) {
     const snap = await adminDb
       .collection(COLLECTION)

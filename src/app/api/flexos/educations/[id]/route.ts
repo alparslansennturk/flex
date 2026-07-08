@@ -8,7 +8,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 /** GET /api/flexos/educations/[id] — tek eğitim (düzenleme için ön-doldurma). */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const item = await firestoreEducationRepo.getById(id, actor.tenantId);
   if (!item) return NextResponse.json({ error: "Eğitim bulunamadı." }, { status: 404 });
   return NextResponse.json({ item });
@@ -24,7 +24,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
 
   try {
-    const edu = await updateEducation(actorFromCaller(caller), id, body, firestoreEducationRepo);
+    const edu = await updateEducation((await actorFromCaller(caller)), id, body, firestoreEducationRepo);
     return NextResponse.json({ id: edu.id, onSale: edu.onSale ?? false });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -39,7 +39,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
   try {
-    await deleteEducation(actorFromCaller(caller), id, { educations: firestoreEducationRepo, sections: firestoreSectionRepo, tracks: firestoreTrackRepo });
+    await deleteEducation((await actorFromCaller(caller)), id, { educations: firestoreEducationRepo, sections: firestoreSectionRepo, tracks: firestoreTrackRepo });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

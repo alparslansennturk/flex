@@ -22,7 +22,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   if (!groupId) return NextResponse.json({ error: "groupId zorunlu." }, { status: 400 });
 
   try {
-    const actor = actorFromCaller(caller);
+    const actor = await actorFromCaller(caller);
     const [items, odev] = await Promise.all([
       getGradesByGroup(actor, groupId, { grades: firestoreGradeRepo, groups: firestoreGroupRepo }),
       computeOdevYuzdeleri(actor.tenantId, groupId, { assignments: firestoreAssignmentRepo, submissions: firestoreSubmissionRepo }),
@@ -54,7 +54,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const items = await saveGrades(actorFromCaller(caller), body, {
+    const items = await saveGrades((await actorFromCaller(caller)), body, {
       grades: firestoreGradeRepo,
       groups: firestoreGroupRepo,
     });

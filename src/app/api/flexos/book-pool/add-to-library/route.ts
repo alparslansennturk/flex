@@ -23,7 +23,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const clone = await addBookTemplateToPersonalLibrary(actorFromCaller(caller), body.globalTemplateId, {
+    const clone = await addBookTemplateToPersonalLibrary((await actorFromCaller(caller)), body.globalTemplateId, {
       pools: firestoreBookPoolRepo,
       templates: firestoreAssignmentTemplateRepo,
     });

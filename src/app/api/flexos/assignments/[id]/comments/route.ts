@@ -24,7 +24,7 @@ const deps = {
 /** GET /api/flexos/assignments/[id]/comments — genel duyurular (gated `assignment.read`). */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   try {
     const items = await listGeneralCommentsForStaff(actor, id, deps);
     return NextResponse.json({ items });
@@ -46,7 +46,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   try {
     const comment = await postGeneralComment(actor, id, body.text, deps);
     return NextResponse.json({ id: comment.id }, { status: 201 });

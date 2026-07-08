@@ -22,7 +22,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   try {
     const group = await createGroup(actor, body, {
@@ -54,7 +54,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
  * göremez (client'ın gönderdiği trainerId'ye güvenilmez, sunucu kendi uid'ini zorlar).
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
 
   if (!can(actor, "group.read")) {
     return NextResponse.json({ error: "Yetki yok: group.read" }, { status: 403 });

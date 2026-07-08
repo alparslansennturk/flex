@@ -16,7 +16,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  * `assignments/route.ts`'teki `trainerId` zorlama deseniyle aynı (client'a güvenilmez).
  */
 export const GET = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const assignmentId = req.nextUrl.searchParams.get("assignmentId") ?? undefined;
   const groupId = req.nextUrl.searchParams.get("groupId") ?? undefined;
 

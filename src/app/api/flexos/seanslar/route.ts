@@ -6,7 +6,7 @@ import type { Seans } from "@/app/lib/domain/eduos/seans";
 
 /** POST /api/flexos/seanslar — seans oluştur. */
 export const POST = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   let body: { days: number[]; startTime: string; endTime: string };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
@@ -34,14 +34,14 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
 /** GET /api/flexos/seanslar — seans listesi. */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const items = await firestoreSeansRepo.list(actor.tenantId);
   return NextResponse.json({ items });
 });
 
 /** DELETE /api/flexos/seanslar?id=xxx — seans sil. */
 export const DELETE = withAuth(async (req: NextRequest, caller) => {
-  const actor = actorFromCaller(caller);
+  const actor = await actorFromCaller(caller);
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id parametresi gerekli." }, { status: 400 });
   const ok = await firestoreSeansRepo.delete(id, actor.tenantId);

@@ -26,7 +26,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
 
   try {
     const session = await initAttachmentUpload(
-      actorFromCaller(caller),
+      await actorFromCaller(caller),
       { assignmentId, fileName: body.fileName, fileSize: body.fileSize, mimeType: body.mimeType },
       {
         assignments: firestoreAssignmentRepo,
