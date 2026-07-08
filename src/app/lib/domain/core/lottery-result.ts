@@ -1,6 +1,7 @@
 import type { EntityId, ISODateTime, TenantId } from "../base";
 import type { CollageItem } from "./collage-pool";
 import type { BookItem } from "./book-pool";
+import type { SocialDrawItem } from "./social-pool";
 
 /**
  * ÇEKİLİŞ SONUCU — canlıdaki `lottery_results/{taskId}` dokümanının karşılığı.
@@ -9,11 +10,11 @@ import type { BookItem } from "./book-pool";
  * **Snapshot semantiği** (canlıdaki davranışla birebir): `item` burada tam kopya
  * olarak saklanır, referans (id) değil — havuz sonradan düzenlense bile geçmiş
  * çekilişler DEĞİŞMEZ. `item` türü havuz türüne göre değişir (Kolaj→`CollageItem`,
- * Kitap→`BookItem` — zengin alanları [author/genre/isbn vb.] kayıpsız saklamak için).
+ * Kitap→`BookItem`, Sosyal→`SocialDrawItem` — zengin alanları kayıpsız saklamak için).
  */
 export interface StudentDraw {
   studentId: EntityId;
-  draws: { category: string; item: CollageItem | BookItem }[];
+  draws: { category: string; item: CollageItem | BookItem | SocialDrawItem }[];
 }
 
 export interface LotteryResult {
@@ -37,7 +38,7 @@ export interface LotteryArchive {
   assignmentId: EntityId;
   groupId: EntityId;
   taskName: string;
-  type: "kolaj" | "kitap";
+  type: "kolaj" | "kitap" | "sosyal";
   draws: StudentDraw[];
   students: { id: EntityId; name: string; lastName: string }[];
   completedAt: ISODateTime;

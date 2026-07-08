@@ -401,7 +401,7 @@ function OdevParkuru() {
 // Parkuru ghost-slot'u ARTIK `visible`e bakmıyor (otomatik/rastgele doldurma,
 // 2026-07-07 kararıyla değişti) — `visible` ŞİMDİ Kütüphane'nin filtresi: eğitmen
 // Şablon Yönetimi'nden onaylamadan (Check) şablon Kütüphane'de listelenmez.
-interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number; visible?: boolean; gamifiedType?: "kolaj" | "kitap" }
+interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number; visible?: boolean; gamifiedType?: "kolaj" | "kitap" | "sosyal" }
 
 function LibraryCard({ t, onStart }: { t: LibTemplate; onStart: (t: LibTemplate) => void }) {
   const Icon = (t.icon && ASSIGNMENT_ICONS[t.icon]) || ClipboardList;

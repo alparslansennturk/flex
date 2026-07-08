@@ -85,7 +85,7 @@ export interface AssignmentPrefill {
   kind?: "normal" | "proje";
   maxPuan?: number;
   /** Doluysa "Ödevi Başlat" normal teslim akışı yerine çekiliş ekranına yönlendirir. */
-  gamifiedType?: "kolaj" | "kitap";
+  gamifiedType?: "kolaj" | "kitap" | "sosyal";
 }
 
 interface Props {

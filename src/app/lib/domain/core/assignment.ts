@@ -26,7 +26,7 @@ export type AssignmentKind = "normal" | "proje";
  * ekranına yönlendirir. Oluşturma anında şablondan (`AssignmentTemplate.gamifiedType`)
  * kopyalanır.
  */
-export type GamifiedAssignmentType = "kolaj" | "kitap";
+export type GamifiedAssignmentType = "kolaj" | "kitap" | "sosyal";
 
 /** Eğitmenin ödeve eklediği referans/başlangıç dosyası (Google Drive). */
 export interface AssignmentAttachment {

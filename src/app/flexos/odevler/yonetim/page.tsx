@@ -45,6 +45,7 @@ import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from 
 import { useCapabilities } from "../../_components/useCapabilities";
 import CollagePoolPanel from "../_shared/CollagePoolPanel";
 import BookPoolPanel from "../_shared/BookPoolPanel";
+import SocialPoolPanel from "../_shared/SocialPoolPanel";
 import GlobalLibraryPanel from "../_shared/GlobalLibraryPanel";
 
 type AssignmentStatus = "draft" | "published" | "closed" | "archived";
@@ -61,7 +62,7 @@ interface TemplateItem {
   kind?: TemplateKind;
   maxPuan?: number;
   visible?: boolean;
-  gamifiedType?: "kolaj" | "kitap";
+  gamifiedType?: "kolaj" | "kitap" | "sosyal";
 }
 
 interface BranchOption { id: string; name: string }
@@ -106,7 +107,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 export default function OdevYonetimiPage() {
   const [tab, setTab] = useState<MgmtTab>("templates");
-  const [poolSubTab, setPoolSubTab] = useState<"kolaj" | "kitap">("kolaj");
+  const [poolSubTab, setPoolSubTab] = useState<"kolaj" | "kitap" | "sosyal">("kolaj");
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +139,7 @@ export default function OdevYonetimiPage() {
   // Global Kütüphane'ye ekle (2026-07-07 kararı, 2026-07-08'de Kitap Dünyası ile
   // 3'lü seçiciye genişledi) — SADECE org scope aktöre (Op/Admin) gösterilir,
   // self-scope eğitmenin kişisel şablonunda anlamsız/sunucu reddeder.
-  const [tplGamifiedType, setTplGamifiedType] = useState<"kolaj" | "kitap" | null>(null);
+  const [tplGamifiedType, setTplGamifiedType] = useState<"kolaj" | "kitap" | "sosyal" | null>(null);
   const { templateManageScope } = useCapabilities();
   const canPromoteGlobal = templateManageScope === "org";
   const [tplSaving, setTplSaving] = useState(false);
@@ -626,6 +627,7 @@ export default function OdevYonetimiPage() {
                 {([
                   { key: "kolaj", label: "Kolaj Bahçesi" },
                   { key: "kitap", label: "Kitap Dünyası" },
+                  { key: "sosyal", label: "Reklam Tasarımı" },
                 ] as const).map((t) => (
                   <button
                     key={t.key}
@@ -638,7 +640,7 @@ export default function OdevYonetimiPage() {
                   </button>
                 ))}
               </div>
-              {poolSubTab === "kolaj" ? <CollagePoolPanel /> : <BookPoolPanel />}
+              {poolSubTab === "kolaj" ? <CollagePoolPanel /> : poolSubTab === "kitap" ? <BookPoolPanel /> : <SocialPoolPanel />}
             </div>
           )}
           {tab === "globalLibrary" && <GlobalLibraryPanel />}
@@ -936,6 +938,7 @@ export default function OdevYonetimiPage() {
                           { key: null, label: "Yok" },
                           { key: "kolaj", label: "Kolaj Bahçesi" },
                           { key: "kitap", label: "Kitap Dünyası" },
+                          { key: "sosyal", label: "Reklam Tasarımı" },
                         ] as const).map((opt) => {
                           const active = tplGamifiedType === opt.key;
                           return (

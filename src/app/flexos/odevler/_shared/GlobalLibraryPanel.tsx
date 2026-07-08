@@ -23,12 +23,13 @@ interface TemplateItem {
   scope?: "personal" | "global";
   trainerId?: string;
   sourceTemplateId?: string;
-  gamifiedType?: "kolaj" | "kitap";
+  gamifiedType?: "kolaj" | "kitap" | "sosyal";
 }
 
-const ADD_TO_LIBRARY_ENDPOINT: Record<"kolaj" | "kitap", string> = {
+const ADD_TO_LIBRARY_ENDPOINT: Record<"kolaj" | "kitap" | "sosyal", string> = {
   kolaj: "/api/flexos/collage-pool/add-to-library",
   kitap: "/api/flexos/book-pool/add-to-library",
+  sosyal: "/api/flexos/social-pool/add-to-library",
 };
 
 async function authHeaders(): Promise<Record<string, string>> {

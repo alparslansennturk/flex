@@ -17,6 +17,26 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Reklam Tasarımı — 3/3 oyunlaştırılmış ödev birebir port edildi, ÜÇLÜ TAMAMLANDI (2026-07-08)
+
+Kolaj Bahçesi + Kitap Dünyası'nın ardından üçüncü ve SON oyunlaştırılmış ödev (`assignmentType:"sosyal_medya"` canlı karşılığı, kullanıcıya "Reklam Bulucu" olarak görünüyor) aynı desenle taşındı — en karmaşık kısım: hiyerarşik 3 seviyeli çekiliş (Sektör→Alt Sektör→Marka→Amaç, **string eşleşmesiyle** bağlı, foreign-key değil) + arka planda sessizce bağımsız bir Format seçimi, 3 paralel slot-reel (1800/3200/4600ms gecikme, 7400ms'de kilitleniyor).
+
+**Yeni domain modeli:** `SocialPool`/`SMBrand`/`SMSector`/`SMFormat`/`SocialDrawItem` (`src/app/lib/domain/core/social-pool.ts`) — Collage/Book ile AYNI iki-katmanlı sahiplik deseni. `SocialDrawItem` diğerlerinden FARKLI: `CollageItem`/`BookItem` gibi havuzdan bire-bir kopyalanan bir öğe değil, hiyerarşik seçimin SONUCU (brandName/sectorDisplay/brandRule/purpose/platform/contentType düz alanlar) — `LotteryResult.draws[].item` union'ı `CollageItem | BookItem | SocialDrawItem`'a genişledi, `LotteryArchive.type`/`GamifiedAssignmentType` `"sosyal"` ile genişledi. `assignment-service.ts`'teki `VALID_GAMIFIED_TYPES` hardcode listesine de `"sosyal"` eklenmesi gerekti (unutulsaydı org-scope admin bile şablon oluşturamazdı — assertion bunu yakaladı).
+
+**Backend:** `social-pool-repo.ts`/`.firestore.ts` (`flexos_social_pools`), `social-pool-service.ts` (`getMySocialPool`/`updateMySocialPool`/`addSocialTemplateToPersonalLibrary`[gamifiedType≠"sosyal" şablonu reddeder]/`getDefaultSocialPool`/`updateDefaultSocialPool` — items array yerine tüm havuz nesnesi `{brands,sectors,formats,globalPurposes,sharedRule}` tek seferde rewrite ediliyor). Route'lar: `GET/PATCH /api/flexos/social-pool`, `POST /api/flexos/social-pool/add-to-library`. `lottery-results/mail` route'u `type:"sosyal"` için AYRI dallandı — `SocialDrawItem` düz-alan modeli `{category,item:{name,title}}` şemasına uymadığı için mail tablosu Marka Kuralı/Amaç/Platform/İçerik Türü 4 satırıyla ayrı render ediliyor. **26 yeni assertion** (`scripts/assert-social-pool.ts`) — self/org izolasyon, idempotency, tür karışmama (Kitap şablonu Sosyal havuzuna eklenemiyor), saveDraw sahiplik/status-flip/arşiv `type:"sosyal"`. Toplam assertion takımı (16 script, 300 assertion) regresyonsuz yeşil.
+
+**Frontend:** `/flexos/sosyal` (EntryScreen→SocialGameScreen, aynı iskelet). `SlotReel.tsx` canlıdan birebir (RAF değil setInterval tabanlı, 60ms/100+40ms yavaşlama). Hiyerarşik seçim algoritması (sektörleri karıştır→geçerli alt sektörleri filtrele→marka seç→amaç seç, boşsa `globalPurposes` fallback) birebir port edildi. `OdevOlusturModal`/`GlobalLibraryPanel`/Ödev Yönetimi admin formu `gamifiedType: "kolaj"|"kitap"|"sosyal"` genelinde çalışıyor, "Global Kütüphane'ye ekle" seçici **4'lü** oldu (Yok/Kolaj/Kitap/Reklam Tasarımı), Havuz Yönetimi 3 sub-tab (`SocialPoolPanel.tsx` — Sektörler/Markalar/Reklam Ölçüleri/Amaç&Kural, en ağır admin paneli çünkü 3 iç içe koleksiyon).
+
+**PDF şablonu:** `generateSocialPdf.tsx` — canlının tablo+"Yapılacaklar" bullet şablonu Inter font'a geçirilerek birebir taşındı.
+
+**Basitleştirme (Kolaj/Kitap'taki kararla AYNI, kapsam gereği):** canlıdaki ayrı "Arşive Kaydet"/"Ödevi Tamamla" akışı tek "Ödevi Tamamla" butonuna sadeleştirildi.
+
+`tsc --noEmit` + `npm run build` temiz. Seed script (`scripts/seed-social-pool-default.mjs --commit`) çalıştırıldı — canlıdaki **10 sektör, 122 marka, 7 ortak amaç** + global "Reklam Tasarımı" katalog girdisi FlexOS'a taşındı. **Not:** canlıdaki `formats` öğelerinde `id` alanı YOK (client-side normalize ediliyordu) — seed script'te sentetik id üretilerek **5 format** taşındı.
+
+**⚠️ Tarayıcıda test edilmedi** (bu oturumda authenticated session yoktu) — PC'de/canlı ortamda `/flexos/sosyal` akışının (picking→spin→PDF/mail→sonuç kartı) uçtan uca denenmesi gerekiyor.
+
+**3 oyunlaştırılmış ödev turu TAMAMLANDI** — Kolaj Bahçesi + Kitap Dünyası + Reklam Tasarımı hepsi FlexOS'ta canlı-birebir çalışıyor.
+
 ### ✅ Kitap Dünyası — 2/3 oyunlaştırılmış ödev birebir port edildi (2026-07-08)
 
 Kolaj Bahçesi'nin ardından ikinci oyunlaştırılmış ödev (`assignmentType:"kitap"` canlı karşılığı) aynı desenle taşındı — havuz+çekiliş mekaniği+PDF+mail, ama kategori kavramı YOK (Kolaj'ın Gök/Yer/Obje 1/Obje 2'sinin aksine tek düz "deste").
@@ -33,9 +53,9 @@ Kolaj Bahçesi'nin ardından ikinci oyunlaştırılmış ödev (`assignmentType:
 
 `tsc --noEmit` + `npm run build` temiz. Seed script (`scripts/seed-book-pool-default.mjs --commit`) çalıştırıldı — canlıdaki **30 kitap** + global "Kitap Dünyası" katalog girdisi (branch: Grafik Tasarım — canlıdaki `template.branch` alanının aslında ŞUBE adı ["Kadıköy Şb"] olduğu fark edilip Kolaj'daki gibi hardcode edildi) FlexOS'a taşındı.
 
-**SIRADAKİ (kullanıcı onayı bekliyor):** Reklam Tasarımı (Sosyal Medya) aynı desenle — son (3/3), "ayrı ayrı alalım" kararına göre.
+**(GÜNCEL DURUM: Reklam Tasarımı [3/3] de tamamlandı — bkz. yukarıdaki en güncel blok. Aşağıdaki ön araştırma notu tarihsel referans olarak bırakıldı.)**
 
-**Reklam Tasarımı — ön araştırma tamamlandı (2026-07-08, Explore agent), koda henüz DOKUNULMADI:**
+**Reklam Tasarımı — ön araştırma notu (2026-07-08, Explore agent, artık uygulandı):**
 - Canlı dosyalar: `src/app/components/dashboard/assignment/social/SocialGameScreen.tsx` (1051 satır), `.../pool/SocialMediaPoolPanel.tsx` (1045 satır), `.../pool/poolTypes.ts`'teki `SocialMediaPool`/`SMBrand`/`SMSector`/`SMFormat` tipleri (`templateType:"grid"`), `src/app/api/send-sosyal/route.ts`, `generateSocialPdf.tsx`.
 - **Mekanik:** Kolaj/Kitap'tan farklı — hiyerarşik 3 seviyeli zincir seçim (Ana Sektör→Alt Sektör→Marka, **string eşleşmesiyle** bağlı, foreign-key değil). 3 slot-reel görsel olarak dönüyor (Kolaj'a benzer, farklı gecikmeler: 1800/3200/4600ms, 7400ms kilitleniyor) ama arka planda SESSİZCE iki alan daha ekleniyor: markanın `purposes`'undan (boşsa ortak `globalPurposes`'tan) bir amaç + bağımsız rastgele bir format (platform+boyut). Yani çekilen şey görünenden zengin: Marka+Sektör+Amaç+Format.
 - **Havuz modeli (en riskli/karmaşık kısım):** 4 ayrı iç içe koleksiyon — Brands (kendi `purposes` listesiyle), Sectors (alt sektör listesi), Formats (düz liste), ortak `globalPurposes`+`sharedRule` (paylaşılan kural metni, PDF'de bullet-list). Kolaj/Kitap'ın tek-liste yapısından belirgin daha karmaşık.

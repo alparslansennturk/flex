@@ -11,11 +11,19 @@ import { adminDb } from "@/app/lib/firebase-admin";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 
-// item: Kolaj → {name,emoji}, Kitap → {title,...} (BookItem) — mail satırı `name ?? title` ile üretilir.
-interface DrawResult { category: string; item: { name?: string; title?: string; emoji?: string } }
+// item: Kolaj → {name,emoji}, Kitap → {title,...} (BookItem), Sosyal → SocialDrawItem
+// (brandName/sectorDisplay/brandRule/purpose/platform/contentType) — düz-alan snapshot,
+// {category,item} şekline uymadığı için mail HTML'i `type==="sosyal"` iken ayrı dallanır.
+interface DrawResult {
+  category: string;
+  item: {
+    name?: string; title?: string; emoji?: string;
+    brandName?: string; sectorDisplay?: string; brandRule?: string; purpose?: string; platform?: string; contentType?: string;
+  };
+}
 
 interface KolajMailRequest {
-  type?: "kolaj" | "kitap"; // yoksa "kolaj" (geriye dönük uyumlu)
+  type?: "kolaj" | "kitap" | "sosyal"; // yoksa "kolaj" (geriye dönük uyumlu)
   studentName: string;
   studentLastName: string;
   studentId: string;
@@ -27,7 +35,7 @@ interface KolajMailRequest {
   pdfBase64: string;
 }
 
-const MAIL_COPY: Record<"kolaj" | "kitap", { label: string; intro: string; fileLabel: string }> = {
+const MAIL_COPY: Record<"kolaj" | "kitap" | "sosyal", { label: string; intro: string; fileLabel: string }> = {
   kolaj: {
     label: "Kolaj Bahçesi",
     intro: "Kolaj bahçesi çekilişinden elde ettiğin materyaller ekteki PDF dosyasında yer alıyor.",
@@ -37,6 +45,11 @@ const MAIL_COPY: Record<"kolaj" | "kitap", { label: string; intro: string; fileL
     label: "Kitap Dünyası",
     intro: "Kitap kapağı ödevin ekteki PDF dosyasında yer alıyor. Teslim tarihine dikkat ederek eksiksiz tamamla.",
     fileLabel: "kitap",
+  },
+  sosyal: {
+    label: "Sosyal Medya Yönetimi",
+    intro: "Reklam tasarımı çekilişinden elde ettiğin marka/hedef bilgileri ekteki PDF dosyasında yer alıyor.",
+    fileLabel: "sosyal",
   },
 };
 
@@ -83,7 +96,24 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const rows = draws.map((dr) => `
+    // Sosyal: FullSMDraw düz-alan snapshot'ı {category,item:{name,title}} şekline uymuyor —
+    // kategori/materyal yerine Marka Kuralı/Amaç/Platform/İçerik Türü 4 satırlık tablo.
+    const rows = type === "sosyal"
+      ? (() => {
+          const sm = draws[0]?.item ?? {};
+          const smRows: { key: string; val: string }[] = [
+            { key: "Marka Kuralı", val: sm.brandRule || "—" },
+            { key: "Amaç / Hedef", val: sm.purpose || "—" },
+            { key: "Platform", val: sm.platform || "—" },
+            { key: "İçerik Türü", val: sm.contentType || "—" },
+          ];
+          return smRows.map((row) => `
+            <tr>
+              <td style="padding:10px 16px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280">${row.key}</td>
+              <td style="padding:10px 16px;border-bottom:1px solid #f3f4f6;font-size:13px;font-weight:700;color:#111">${row.val}</td>
+            </tr>`).join("");
+        })()
+      : draws.map((dr) => `
       <tr>
         <td style="padding:10px 16px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280">${dr.category}</td>
         <td style="padding:10px 16px;border-bottom:1px solid #f3f4f6;font-size:13px;font-weight:700;color:#111">${dr.item.emoji || ""} ${dr.item.name ?? dr.item.title ?? ""}</td>
@@ -99,8 +129,8 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
         </p>
         <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
           <thead><tr>
-            <th style="padding:10px 16px;background:#f9fafb;text-align:left;font-size:11px;color:#9ca3af;border-bottom:1px solid #e5e7eb;text-transform:uppercase">Kategori</th>
-            <th style="padding:10px 16px;background:#f9fafb;text-align:left;font-size:11px;color:#9ca3af;border-bottom:1px solid #e5e7eb;text-transform:uppercase">Materyal</th>
+            <th style="padding:10px 16px;background:#f9fafb;text-align:left;font-size:11px;color:#9ca3af;border-bottom:1px solid #e5e7eb;text-transform:uppercase">${type === "sosyal" ? "Alan" : "Kategori"}</th>
+            <th style="padding:10px 16px;background:#f9fafb;text-align:left;font-size:11px;color:#9ca3af;border-bottom:1px solid #e5e7eb;text-transform:uppercase">${type === "sosyal" ? "Değer" : "Materyal"}</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
