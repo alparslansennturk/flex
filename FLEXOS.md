@@ -17,6 +17,16 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 > Branch: `flexos` · Canlı `main` ETKİLENMİYOR · yeni koleksiyonlar (`persons`/`enrollments`), eskilere yazılmıyor.
 
+### ✅ Backfill (canlı → FlexOS) YAPILDI — `scripts/backfill-live-to-flexos.mjs` (2026-07-08, 4. oturum)
+
+Tek gerçek eğitmen kullanıcı (Alparslan Şentürk), başka gerçek eğitmen yok → sahiplik ayrımı sorunu olmadan TÜM canlı veri taşındı (kapsam: tüm geçmiş, sadece aktif değil). Script idempotent (id'ler canlıdan deterministik korunur), sadece OKUR canlı `students`/`groups`/`branches`'tan, hiç yazmaz. `--dry-run` bayrağı var.
+
+- **`flexos_users`**: Kendi kaydı oluşturuldu — YENİ Firebase Auth hesabı AÇILMADI, mevcut uid (`kYG8N01PTudh1VT1uvy2vg8vmAR2`) yeniden kullanıldı. Rol: **sadece "Eğitmen"** — "Genel Müdür" gibi yeni-sistem rolü BİLİNÇLİ OLARAK eklenmedi, çünkü admin erişimi zaten eski canlı-claim'den (`users/{uid}.roles:["admin","instructor"]`) geliyor, additive tasarım gereği yeni sistem ona dokunmuyor.
+- **`flexos_groups`**: 4 grup taşındı. `branch` = canlı `branches` lookup'tan isim (denormalize string, katalog bağlama YOK — `educationId`/`sectionId`/`trackId` boş, Group modeli bunları optional tutuyor). `trainerId` = canlı `instructorId` aynen taşındı. `schedule.days` HER ZAMAN `[]` (canlıda yapılandırılmış gün verisi yok, bilinen sınır).
+- **`persons` + `enrollments`**: 28 öğrenci taşındı (3'ü grupsuz — canlıda `groupId:"unassigned"` sentinel'i tespit edilip grupsuz sayıldı). `pii` sadece `email` dolu (TC/telefon/adres canlıda hiç yok, fabrikasyon YAPILMADI). `saleId`/`result` boş (satış/final not verisi yok). Kişi başı tek enrollment (canlı modelde çoklu enrollment kavramı yok), enrollment id = person id (deterministik).
+
+**Doğrulandı:** `--dry-run` + gerçek çalıştırma sonrası birkaç `flexos_users`/`flexos_groups`/`persons`/`enrollments` dokümanı manuel kontrol edildi, alanlar beklendiği gibi.
+
 ### ✅ Gerçek hesap/aktivasyon akışı + Gerçek yetki bağlama BİTTİ (2026-07-08, aynı gün, 3. oturum)
 
 Bir önceki girdideki "ÖNEMLİ AÇIK NOKTA"nın HER İKİ ön koşulu da bugün kapandı — roller/yetkiler artık gerçekten çalışıyor (kod tamam, TARAYICI TESTİ HENÜZ YAPILMADI — kullanıcı: "testi toplu olarak yapacağım, canlıya almadan önce").
