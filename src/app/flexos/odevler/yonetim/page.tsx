@@ -47,6 +47,7 @@ import CollagePoolPanel from "../_shared/CollagePoolPanel";
 import BookPoolPanel from "../_shared/BookPoolPanel";
 import SocialPoolPanel from "../_shared/SocialPoolPanel";
 import GlobalLibraryPanel from "../_shared/GlobalLibraryPanel";
+import EditAssignmentModal, { type EditableAssignment, type EditableAttachment } from "../_shared/EditAssignmentModal";
 
 type AssignmentStatus = "draft" | "published" | "closed" | "archived";
 type MgmtTab = "templates" | "active" | "archive" | "pool" | "globalLibrary";
@@ -85,12 +86,10 @@ interface AssignmentItem {
   dueDate?: string;
   status: AssignmentStatus;
   createdAt?: string;
+  attachments?: EditableAttachment[];
 }
 
 interface GroupOption { id: string; code: string; branch: string }
-
-interface FormState { title: string; description: string; dueDate: string; status: AssignmentStatus; groupId: string }
-const EMPTY_FORM: FormState = { title: "", description: "", dueDate: "", status: "draft", groupId: "" };
 
 function fmtDate(iso?: string): string {
   if (!iso) return "";
@@ -112,10 +111,7 @@ export default function OdevYonetimiPage() {
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<EditableAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AssignmentItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -295,34 +291,7 @@ export default function OdevYonetimiPage() {
   const visibleTemplateCount = templates.filter((t) => t.visible).length;
 
   function openEdit(a: AssignmentItem) {
-    setEditingId(a.id);
-    setForm({ title: a.title, description: a.description, dueDate: a.dueDate ? a.dueDate.slice(0, 10) : "", status: a.status, groupId: a.groupId });
-    setModalOpen(true);
-  }
-
-  async function handleSave() {
-    if (!editingId) return;
-    if (!form.title.trim() || !form.description.trim()) { toast.error("Başlık ve açıklama zorunlu."); return; }
-    setSaving(true);
-    try {
-      const headers = await authHeaders();
-      const title = form.title.trim();
-      const description = form.description.trim();
-      const dueDate = form.dueDate ? new Date(form.dueDate).toISOString() : undefined;
-      const body = { title, description, dueDate, status: form.status };
-      const res = await fetch(`/api/flexos/assignments/${editingId}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        toast.error(json.error ?? "Kaydedilemedi.");
-        return;
-      }
-      toast.success("Ödev güncellendi.");
-      setModalOpen(false);
-      // Sunucudan tekrar çekmek yerine (koca liste + spinner flaşı) sadece bu satırı güncelle.
-      setAssignments((prev) => prev.map((a) => (a.id === editingId ? { ...a, title, description, dueDate, status: form.status } : a)));
-    } finally {
-      setSaving(false);
-    }
+    setEditingAssignment({ id: a.id, title: a.title, description: a.description, dueDate: a.dueDate, status: a.status, attachments: a.attachments });
   }
 
   async function handleDelete() {
@@ -649,72 +618,18 @@ export default function OdevYonetimiPage() {
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
 
-      {/* Düzenle modalı — oluşturma burada YOK (canlıda da yok, bkz. dosya başı not) */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => !saving && setModalOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-[18px] font-bold text-base-primary-900">Ödevi Düzenle</h2>
-              <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
-            </div>
-
-            <div>
-              <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Başlık</label>
-              <input
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors"
-                placeholder="Ödev başlığı"
-              />
-            </div>
-
-            <div>
-              <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Açıklama</label>
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                rows={4}
-                className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors resize-none"
-                placeholder="Ödev açıklaması / talimatları"
-              />
-            </div>
-
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Son Teslim Tarihi</label>
-                <input
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-                  className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-[12px] font-semibold text-surface-500 mb-1 block">Durum</label>
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as AssignmentStatus }))}
-                  className="w-full px-3 py-2.5 rounded-xl border border-surface-200 text-[14px] outline-none focus:border-base-primary-400 transition-colors bg-white"
-                >
-                  <option value="draft">Taslak</option>
-                  <option value="published">Yayında</option>
-                  <option value="closed">Kapalı</option>
-                  <option value="archived">Arşivde</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setModalOpen(false)} disabled={saving} className="px-5 py-2.5 rounded-xl text-[14px] font-semibold text-surface-500 border border-surface-200 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50">
-                İptal
-              </button>
-              <button onClick={handleSave} disabled={saving} className="px-5 py-2.5 rounded-xl text-[14px] font-semibold text-white bg-base-primary-600 hover:bg-base-primary-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2">
-                {saving && <Loader2 size={14} className="animate-spin" />} Kaydet
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Düzenle modalı — paylaşımlı `EditAssignmentModal` (2026-07-08'de Eğitmen Ana
+          Sayfa'nın Ödev Parkuru kartıyla ORTAK hale getirildi, bkz. o dosyanın notu).
+          Oluşturma burada YOK (canlıda da yok, bkz. dosya başı not). */}
+      <EditAssignmentModal
+        assignment={editingAssignment}
+        onClose={() => setEditingAssignment(null)}
+        onSaved={(updated) => {
+          setEditingAssignment(null);
+          // Sunucudan tekrar çekmek yerine (koca liste + spinner flaşı) sadece bu satırı güncelle.
+          setAssignments((prev) => prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)));
+        }}
+      />
 
       {/* Silme onayı */}
       {deleteTarget && (

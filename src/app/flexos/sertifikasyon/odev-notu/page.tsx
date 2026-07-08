@@ -3,22 +3,33 @@
 /**
  * FlexOS · Ödev Notu — Claude Design çıktısından (`Ödev Notu Verme.dc.html`) BİREBİR
  * UI portu. İki görünüm: (1) grup seç + ödev listesi (durum özeti), (2) seçili ödev
- * için öğrenci bazlı puanlama (teslim durumu + puan + gecikme cezası + net puan).
+ * için öğrenci bazlı puanlama (teslim durumu + gecikme cezası + net puan).
  *
- * **2026-07-06 kararı — artık PER-ASSIGNMENT gerçek saklama:** "Notları Kaydet"
- * her öğrencinin net puanını (puan−ceza) DOĞRUDAN o öğrencinin `Submission.grade`
- * alanına yazar (`PATCH /api/flexos/submissions/[id]/grade`, gated `submission.grade`)
- * — eskiden `Grade.assignmentScore`'a (enrollment başına TEK alan) yazılıyordu, bu
- * birden fazla ödevin birbirinin üzerine yazmasına sebep oluyordu; o kısıt ORTADAN
- * KALKTI. Her ödevin kendi `maxPuan`'ı var (100/200/300 gibi, `Assignment.maxPuan`,
- * girilmemişse 100). **Sertifika Notu'ndaki Ödev Notu artık BURADAN OTOMATİK
- * HESAPLANIR** (`computeOdevYuzdeleri`, `submission-service.ts`) — grup içindeki TÜM
- * yayınlanmış ödevlerin `maxPuan` toplamı payda, kazanılan puan toplamı pay; manuel
- * giriş YOK. Sadece GERÇEK teslimi olan öğrenci notlandırılabilir (teslim yoksa
- * puanlanacak `Submission` dokümanı da yok — kazandığı puan doğal olarak 0 sayılır).
- * Grup/ödev/öğrenci listesi GERÇEK veri — teslim durumu her öğrenci için gerçek
- * Submission'dan ÖN-DOLDURULUYOR (var olan teslim → "Teslim etti", yoksa "Teslim
- * etmedi"); daha önce girilmiş puan da `Submission.grade`'den ÖN-DOLUYOR.
+ * Sidebar konumu (2026-07-08 kararı): eski ölü "Ödev Değerlendirme" linki KALDIRILDI —
+ * "Ödev Değerlendirme" zaten bu ekranın kendisi, o yüzden bu sayfa Sertifikasyon
+ * menüsünden "Ödevler" akordiyonuna TAŞINDI (bkz. `FlexSidebar.tsx`). URL değişmedi.
+ *
+ * **2026-07-06 kararı — PER-ASSIGNMENT gerçek saklama:** "Notları Kaydet" her
+ * öğrencinin net puanını DOĞRUDAN o öğrencinin `Submission.grade` alanına yazar
+ * (`PATCH /api/flexos/submissions/[id]/grade`, gated `submission.grade`) — eskiden
+ * `Grade.assignmentScore`'a (enrollment başına TEK alan) yazılıyordu, bu birden fazla
+ * ödevin birbirinin üzerine yazmasına sebep oluyordu; o kısıt ORTADAN KALKTI. Her
+ * ödevin kendi `maxPuan`'ı var (100/200/300 gibi, `Assignment.maxPuan`, girilmemişse
+ * 100). **Sertifika Notu'ndaki Ödev Notu BURADAN OTOMATİK HESAPLANIR**
+ * (`computeOdevYuzdeleri`, `submission-service.ts`) — grup içindeki TÜM yayınlanmış
+ * ödevlerin `maxPuan` toplamı payda, kazanılan puan toplamı pay; bir öğrencinin
+ * notlanmamış/teslim etmediği ödev payda'ya girer ama pay'a katkı YAPMAZ (0 sayılır),
+ * yani ortalamayı düşürür — hariç TUTULMAZ.
+ *
+ * **2026-07-08 kararı — taban puan artık HİÇ elle girilmiyor:** eski serbest "Ödev
+ * Puanı" input'u (0-`maxPuan` arası elle yazılan sayı) TAMAMEN KALDIRILDI. Taban puan
+ * HER ZAMAN `Assignment.maxPuan` — net puan = `maxPuan × (1 − gecikme cezası%)`
+ * (`CEZA_ORANI`: teslim=%0, 1 hafta=%10, 2 hafta+=%20, teslim etmedi=%100→0 puan).
+ * Teslim durumu gerçek `Submission`'dan ön-doluyor (var olan teslim → "Teslim etti",
+ * yoksa "Teslim etmedi") — eğitmen SADECE istisnai durumlar (tatil/mazeret gecikmesi
+ * vb.) için durumu elle düzeltebilir, kullanıcı kararı: "sonradan gerekirse
+ * düzeltebileyim". Sadece GERÇEK teslimi olan öğrenci notlandırılabilir (teslim yoksa
+ * puanlanacak `Submission` dokümanı da yok).
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -32,10 +43,23 @@ import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface AssignmentItem { id: string; title: string; dueDate?: string; status: string; maxPuan?: number; kind?: "normal" | "proje" }
-interface SubmissionRow { id: string; personId: string; status: string; grade?: number }
+interface SubmissionRow { id: string; personId: string; status: string; grade?: number; submittedAt: string; isLate: boolean }
+
+/** Teslim durumunu GERÇEK teslim zamanından otomatik türetir — `Submission.isLate` +
+ * `submittedAt` ile `Assignment.dueDate` arasındaki gün farkına göre 1/2+ hafta kademesi
+ * belirlenir (2026-07-08 kararı: eskiden HERHANGİ bir teslim varsa körlemesine "teslim etti"
+ * yazılıyordu, gerçek gecikme hiç hesaba katılmıyordu). */
+function durumFromSubmission(sub: SubmissionRow | undefined, dueDate?: string): TeslimDurum {
+  if (!sub) return "yok";
+  if (!sub.isLate || !dueDate) return "teslim";
+  const diffDays = Math.ceil((new Date(sub.submittedAt).getTime() - new Date(dueDate).getTime()) / 86400000);
+  return diffDays > 7 ? "gec2" : "gec1";
+}
 
 type TeslimDurum = "teslim" | "gec1" | "gec2" | "yok";
-interface StudentGradeState { durum: TeslimDurum; puan: string }
+/** Taban puan artık BURADA girilmiyor — her zaman `Assignment.maxPuan` (2026-07-08 kararı,
+ * eski serbest "puan" alanı KALDIRILDI). Tek değişken teslim durumu; net puan = maxPuan × (1 − ceza%). */
+interface StudentGradeState { durum: TeslimDurum }
 
 const CEZA_ORANI: Record<TeslimDurum, number> = { teslim: 0, gec1: 0.10, gec2: 0.20, yok: 1 };
 const DURUM_META: Record<TeslimDurum, { label: string; color: string; bg: string; dot: string }> = {
@@ -204,18 +228,16 @@ export default function OdevNotuPage() {
         submissions = res.ok ? (await res.json() as { items: SubmissionRow[] }).items : [];
       }
       const byPerson = new Map(submissions.map((s) => [s.personId, s]));
+      const dueDate = assignments.find((a) => a.id === assignmentId)?.dueDate;
       const dummyPreset: TeslimDurum[] = ["teslim", "gec1", "teslim", "gec2", "yok", "teslim", "gec1", "teslim"];
       const initial: Record<string, StudentGradeState> = {};
       const submissionIds: Record<string, string> = {};
       roster.forEach((r, i) => {
         if (isDummy) {
-          initial[r.personId] = { durum: dummyPreset[i % dummyPreset.length], puan: "" };
+          initial[r.personId] = { durum: dummyPreset[i % dummyPreset.length] };
         } else {
           const sub = byPerson.get(r.personId);
-          initial[r.personId] = {
-            durum: sub ? "teslim" : "yok",
-            puan: sub?.grade != null ? String(sub.grade) : "",
-          };
+          initial[r.personId] = { durum: durumFromSubmission(sub, dueDate) };
           if (sub) submissionIds[r.personId] = sub.id;
         }
       });
@@ -232,15 +254,15 @@ export default function OdevNotuPage() {
     try {
       const activeGrades = gradesByAssignment[activeAssignmentId] ?? {};
       const submissionIds = submissionIdsByAssignment[activeAssignmentId] ?? {};
+      const assignmentMaxPuan = assignments.find((a) => a.id === activeAssignmentId)?.maxPuan ?? 100;
 
       const jobs = roster
         .map((r) => {
           const state = activeGrades[r.personId];
           const submissionId = submissionIds[r.personId];
           if (!state || !submissionId) return null; // teslim yoksa notlanacak Submission da yok
-          const raw = state.puan === "" ? null : Number(state.puan);
-          const net = state.durum === "yok" ? 0 : raw != null ? raw - Math.round(raw * CEZA_ORANI[state.durum]) : null;
-          if (net == null) return null;
+          // Taban puan artık HER ZAMAN ödevin maxPuan'ı — elle giriş yok (2026-07-08 kararı).
+          const net = Math.round(assignmentMaxPuan * (1 - CEZA_ORANI[state.durum]));
           return { submissionId, net };
         })
         .filter((j): j is { submissionId: string; net: number } => j != null);
@@ -273,15 +295,7 @@ export default function OdevNotuPage() {
   function setDurum(assignmentId: string, personId: string, durum: TeslimDurum) {
     setGradesByAssignment((prev) => ({
       ...prev,
-      [assignmentId]: { ...prev[assignmentId], [personId]: { ...prev[assignmentId]?.[personId], durum, puan: prev[assignmentId]?.[personId]?.puan ?? "" } },
-    }));
-  }
-  function setPuan(assignmentId: string, personId: string, raw: string) {
-    const maxPuan = assignments.find((a) => a.id === assignmentId)?.maxPuan ?? 100;
-    const val = raw === "" ? "" : String(Math.max(0, Math.min(maxPuan, parseInt(raw, 10) || 0)));
-    setGradesByAssignment((prev) => ({
-      ...prev,
-      [assignmentId]: { ...prev[assignmentId], [personId]: { ...prev[assignmentId]?.[personId], puan: val, durum: prev[assignmentId]?.[personId]?.durum ?? "teslim" } },
+      [assignmentId]: { ...prev[assignmentId], [personId]: { durum } },
     }));
   }
 
@@ -468,10 +482,9 @@ export default function OdevNotuPage() {
             </div>
 
             <div className="bg-white border border-[#E2E5EA] rounded-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] overflow-hidden">
-              <div className="grid gap-3 items-center py-[15px] px-[22px] border-b border-[#EEF0F3] bg-[#FBFCFD]" style={{ gridTemplateColumns: "1.7fr 1.5fr 1fr 0.9fr 1fr" }}>
+              <div className="grid gap-3 items-center py-[15px] px-[22px] border-b border-[#EEF0F3] bg-[#FBFCFD]" style={{ gridTemplateColumns: "1.9fr 1.7fr 1fr 1fr" }}>
                 <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide">Öğrenci</div>
                 <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide">Teslim Durumu</div>
-                <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">Ödev Puanı</div>
                 <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">Gecikme Cezası</div>
                 <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">Net Puan</div>
               </div>
@@ -482,19 +495,17 @@ export default function OdevNotuPage() {
                 <div className="py-10 text-center text-[13px] text-[#8E95A3]">Bu grupta öğrenci yok.</div>
               ) : (
                 roster.map((r, i) => {
-                  const state = activeGrades[r.personId] ?? { durum: "teslim" as TeslimDurum, puan: "" };
+                  const state = activeGrades[r.personId] ?? { durum: "teslim" as TeslimDurum };
                   const dm = DURUM_META[state.durum];
                   const teslimEtmedi = state.durum === "yok";
-                  const raw = state.puan === "" ? null : Number(state.puan);
                   const oran = CEZA_ORANI[state.durum];
-                  let net: number | null = null;
-                  let ceza: number | null = null;
-                  if (teslimEtmedi) { net = 0; ceza = null; }
-                  else if (raw != null) { ceza = Math.round(raw * oran); net = raw - ceza; }
+                  // Taban puan HER ZAMAN ödevin maxPuan'ı — elle giriş yok (2026-07-08 kararı).
+                  const ceza = teslimEtmedi ? null : Math.round(MAX_PUAN * oran);
+                  const net = Math.round(MAX_PUAN * (1 - oran));
                   const pal = AVATAR_PALETTES[i % AVATAR_PALETTES.length];
 
                   return (
-                    <div key={r.personId} className="grid gap-3 items-center py-[13px] px-[22px]" style={{ gridTemplateColumns: "1.7fr 1.5fr 1fr 0.9fr 1fr", borderBottom: i < roster.length - 1 ? "1px solid #F2F4F7" : "none" }}>
+                    <div key={r.personId} className="grid gap-3 items-center py-[13px] px-[22px]" style={{ gridTemplateColumns: "1.9fr 1.7fr 1fr 1fr", borderBottom: i < roster.length - 1 ? "1px solid #F2F4F7" : "none" }}>
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white text-[13.5px] font-bold" style={{ background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>
                           {initials(r.name)}
@@ -517,28 +528,17 @@ export default function OdevNotuPage() {
                         </select>
                         <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none rotate-90" color="#8E95A3" />
                       </div>
-                      <div className="flex justify-center">
-                        <input
-                          className="gradeInput w-[84px] text-center py-2 px-2 rounded-[10px] border border-[#E2E5EA] text-[14px] font-bold outline-none"
-                          type="number" min={0} max={MAX_PUAN}
-                          disabled={teslimEtmedi}
-                          placeholder={teslimEtmedi ? "—" : `0-${MAX_PUAN}`}
-                          value={teslimEtmedi ? "" : state.puan}
-                          onChange={(e) => setPuan(activeAssignmentId, r.personId, e.target.value)}
-                          style={{ background: teslimEtmedi ? "#F2F4F7" : "#fff", color: teslimEtmedi ? "#CDD2DA" : "#1E222B", cursor: teslimEtmedi ? "not-allowed" : "text" }}
-                        />
-                      </div>
                       <div className="flex items-center justify-center">
                         <span className="text-[12.5px] font-bold" style={{ color: teslimEtmedi ? "#C22B2B" : ceza ? "#C2410C" : "#AEB4C0" }}>
-                          {teslimEtmedi ? "Teslim yok" : ceza == null ? "—" : ceza === 0 ? "Ceza yok" : `−${ceza}`}
+                          {teslimEtmedi ? "Teslim yok" : ceza === 0 ? "Ceza yok" : `−${ceza}`}
                         </span>
                       </div>
                       <div className="flex items-center justify-center">
                         <span
                           className="inline-flex items-baseline gap-0.5 justify-center rounded-[10px] font-extrabold"
-                          style={{ minWidth: 58, padding: "7px 12px", fontSize: 15, letterSpacing: "-.3px", color: net == null ? "#AEB4C0" : teslimEtmedi ? "#C22B2B" : "#1E222B", background: net == null ? "#F7F8FA" : teslimEtmedi ? "#FDE1E1" : "#EFF5FE" }}
+                          style={{ minWidth: 58, padding: "7px 12px", fontSize: 15, letterSpacing: "-.3px", color: teslimEtmedi ? "#C22B2B" : "#1E222B", background: teslimEtmedi ? "#FDE1E1" : "#EFF5FE" }}
                         >
-                          {net == null ? "—" : net}
+                          {net}
                         </span>
                       </div>
                     </div>

@@ -4,15 +4,18 @@ import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Submission, SubmissionFile, SubmissionStatus, UploadSession } from "../core/submission";
 import { ForbiddenError, ValidationError } from "../errors";
-import type { Assignment, AssignmentKind } from "../core/assignment";
+import type { Assignment, AssignmentAttachment, AssignmentKind } from "../core/assignment";
 import type { AssignmentRepo } from "../repo/assignment-repo";
 import type { DriveDeps } from "../repo/drive-deps";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
+import type { Group } from "../core/group";
 import type { GroupRepo } from "../repo/group-repo";
 import type { PersonRepo } from "../repo/person-repo";
 import type { SubmissionFileRepo } from "../repo/submission-file-repo";
 import type { SubmissionRepo } from "../repo/submission-repo";
+import type { TrainerRepo } from "../repo/trainer-repo";
 import type { UploadSessionRepo } from "../repo/upload-session-repo";
+import type { NotifyInput } from "./comment-service";
 
 function nowISO(): ISODateTime {
   return new Date().toISOString();
@@ -26,7 +29,27 @@ export interface SubmissionDeps {
   submissions: SubmissionRepo;
   submissionFiles: SubmissionFileRepo;
   uploadSessions: UploadSessionRepo;
+  trainers: TrainerRepo;
   drive: DriveDeps;
+  notify: (uid: string, input: NotifyInput) => Promise<void>;
+}
+
+/**
+ * Drive klasör hiyerarşisi — TÜM upload akışları (öğrenci teslimi + eğitmen eki) için TEK
+ * kaynak (2026-07-08 kararı, kullanıcı: "çok eğitmen kullanacaksa ayırt edebilmeliyiz"):
+ * `{eğitmenAdı}/{branş}/{grupKodu}/{ödevAdı}/{leaf}` — `leaf` öğrenci teslimi için
+ * öğrencinin adı, eğitmen eki için sabit `"Eğitmen"`. Eğitmen atanmamışsa/branş yoksa
+ * okunabilir bir yer tutucuya düşer (Drive'da boş segment olamaz).
+ */
+async function resolveAssignmentFolderSegments(
+  group: Group,
+  assignmentTitle: string,
+  leaf: string,
+  tenantId: string,
+  deps: Pick<SubmissionDeps, "trainers">,
+): Promise<string[]> {
+  const trainer = group.trainerId ? await deps.trainers.getById(group.trainerId, tenantId) : null;
+  return [trainer?.name ?? "Atanmamış Eğitmen", group.branch ?? "Branşsız", group.code, assignmentTitle, leaf];
 }
 
 /**
@@ -115,18 +138,16 @@ export async function initUpload(input: InitUploadInput, deps: SubmissionDeps): 
   }
 
   const actualFileName = generateActualFileName(currentUploads + 1, input.fileName);
-  const folderId = await deps.drive.ensureFolderPath([
-    "flexos",
-    tenantId,
-    group.code,
-    `${person.firstName} ${person.lastName}`,
-    assignment.title,
-  ]);
+  const folderSegments = await resolveAssignmentFolderSegments(
+    group, assignment.title, `${person.firstName} ${person.lastName}`, tenantId, deps,
+  );
+  const folderId = await deps.drive.ensureFolderPath(folderSegments);
   const sessionUri = await deps.drive.initResumableSession(actualFileName, input.fileSize, input.mimeType, folderId);
 
   const session: UploadSession = {
     id: deps.uploadSessions.nextId(),
     tenantId,
+    kind: "submission",
     assignmentId: input.assignmentId,
     groupId: assignment.groupId,
     personId: input.personId,
@@ -137,7 +158,7 @@ export async function initUpload(input: InitUploadInput, deps: SubmissionDeps): 
     mimeType: input.mimeType,
     sessionUri,
     folderId,
-    folderPath: `flexos/${tenantId}/${group.code}/${person.firstName} ${person.lastName}/${assignment.title}`,
+    folderPath: folderSegments.join("/"),
     status: "uploading",
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     createdAt: nowISO(),
@@ -186,11 +207,13 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
     { requesterUid: input.requesterUid, tenantId, uploadId: input.uploadId },
     deps,
   );
+  if (session.kind !== "submission" || !session.personId) throw new ValidationError("Geçersiz teslim oturumu.");
+  const personId = session.personId;
 
   const assignment = await deps.assignments.getById(session.assignmentId, tenantId);
   if (!assignment) throw new ValidationError("Ödev bulunamadı.");
 
-  let existing = await deps.submissions.findByAssignmentAndPerson(session.assignmentId, session.personId, tenantId);
+  let existing = await deps.submissions.findByAssignmentAndPerson(session.assignmentId, personId, tenantId);
   const currentUploads = await currentActiveFileCount(existing, deps, tenantId);
   const maxUploads = getMaxUploads(existing?.status ?? null);
   if (currentUploads >= maxUploads) {
@@ -210,7 +233,7 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
       tenantId,
       assignmentId: session.assignmentId,
       groupId: session.groupId,
-      personId: session.personId,
+      personId,
       status: "submitted",
       iteration: 1,
       isLate: assignment.dueDate ? Date.now() > new Date(assignment.dueDate).getTime() : false,
@@ -264,6 +287,125 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
   });
 
   return existing;
+}
+
+const MAX_ASSIGNMENT_ATTACHMENTS = 10;
+
+export interface InitAttachmentUploadInput {
+  assignmentId: EntityId;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
+
+/**
+ * Eğitmenin ödeve referans/başlangıç dosyası eklemesi — gated `assignment.edit`
+ * (2026-07-08 eklendi). Öğrenci teslimiyle AYNI resumable-upload altyapısı (chunk
+ * proxy `submissions/upload-chunk` route'u ikisi için de ortak) ama farklı hedef:
+ * `Submission` değil, doğrudan `Assignment.attachments`. Klasör: `.../Eğitmen`
+ * (bkz. `resolveAssignmentFolderSegments`).
+ */
+export async function initAttachmentUpload(
+  actor: Actor,
+  input: InitAttachmentUploadInput,
+  deps: Pick<SubmissionDeps, "assignments" | "groups" | "trainers" | "drive" | "uploadSessions">,
+): Promise<UploadSession> {
+  const assignment = await deps.assignments.getById(input.assignmentId, actor.tenantId);
+  if (!assignment) throw new ValidationError("Ödev bulunamadı.");
+  const group = await deps.groups.getById(assignment.groupId, actor.tenantId);
+  if (!group) throw new ValidationError("Grup bulunamadı.");
+  if (!can(actor, "assignment.edit", { groupId: assignment.groupId, ownerUid: group.trainerId })) {
+    throw new ForbiddenError("assignment.edit");
+  }
+
+  if (input.fileSize > MAX_RESUMABLE_FILE_SIZE_BYTES) {
+    throw new ValidationError(`Dosya boyutu ${MAX_RESUMABLE_FILE_SIZE_LABEL} sınırını aşıyor.`);
+  }
+  if (!(ALLOWED_MIME_TYPES as readonly string[]).includes(input.mimeType)) {
+    throw new ValidationError(`İzin verilmeyen dosya türü: ${input.mimeType}`);
+  }
+  const currentCount = assignment.attachments?.length ?? 0;
+  if (currentCount >= MAX_ASSIGNMENT_ATTACHMENTS) {
+    throw new ValidationError(`En fazla ${MAX_ASSIGNMENT_ATTACHMENTS} dosya eklenebilir.`);
+  }
+
+  const actualFileName = generateActualFileName(currentCount + 1, input.fileName);
+  const folderSegments = await resolveAssignmentFolderSegments(group, assignment.title, "Eğitmen", actor.tenantId, deps);
+  const folderId = await deps.drive.ensureFolderPath(folderSegments);
+  const sessionUri = await deps.drive.initResumableSession(actualFileName, input.fileSize, input.mimeType, folderId);
+
+  const session: UploadSession = {
+    id: deps.uploadSessions.nextId(),
+    tenantId: actor.tenantId,
+    kind: "attachment",
+    assignmentId: input.assignmentId,
+    groupId: assignment.groupId,
+    uploaderUid: actor.uid,
+    originalFileName: input.fileName,
+    actualFileName,
+    fileSize: input.fileSize,
+    mimeType: input.mimeType,
+    sessionUri,
+    folderId,
+    folderPath: folderSegments.join("/"),
+    status: "uploading",
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: nowISO(),
+    createdBy: actor.uid,
+  };
+  await deps.uploadSessions.save(session);
+  return session;
+}
+
+export interface CompleteAttachmentUploadInput {
+  uploadId: string;
+  driveFileId?: string;
+}
+
+/** Eğitmen eki yükleme oturumunu tamamlar — `Assignment.attachments`'a ekler. */
+export async function completeAttachmentUpload(
+  actor: Actor,
+  input: CompleteAttachmentUploadInput,
+  deps: Pick<SubmissionDeps, "assignments" | "groups" | "uploadSessions" | "drive">,
+): Promise<Assignment> {
+  const session = await getSessionForChunk(
+    { requesterUid: actor.uid, tenantId: actor.tenantId, uploadId: input.uploadId },
+    deps,
+  );
+  if (session.kind !== "attachment") throw new ValidationError("Geçersiz ek yükleme oturumu.");
+
+  const assignment = await deps.assignments.getById(session.assignmentId, actor.tenantId);
+  if (!assignment) throw new ValidationError("Ödev bulunamadı.");
+  const group = await deps.groups.getById(assignment.groupId, actor.tenantId);
+  if (!group) throw new ValidationError("Grup bulunamadı.");
+  if (!can(actor, "assignment.edit", { groupId: assignment.groupId, ownerUid: group.trainerId })) {
+    throw new ForbiddenError("assignment.edit");
+  }
+
+  const driveFileId =
+    input.driveFileId ?? (await deps.drive.findFileByActualName(session.actualFileName, session.folderId))?.id;
+  if (!driveFileId) throw new ValidationError("Yüklenen dosya Drive'da bulunamadı.");
+  await deps.drive.setPublicReadPermission(driveFileId);
+
+  const attachment: AssignmentAttachment = {
+    id: globalThis.crypto.randomUUID(),
+    driveFileId,
+    fileName: session.originalFileName,
+    mimeType: session.mimeType,
+    fileSize: session.fileSize,
+    webViewLink: `https://drive.google.com/file/d/${driveFileId}/view`,
+  };
+  const now = nowISO();
+  const updated: Assignment = {
+    ...assignment,
+    attachments: [...(assignment.attachments ?? []), attachment],
+    updatedAt: now,
+    updatedBy: actor.uid,
+  };
+  await deps.assignments.save(updated);
+
+  await deps.uploadSessions.save({ ...session, status: "completed", driveFileId, updatedAt: now, updatedBy: actor.uid });
+  return updated;
 }
 
 export interface DeleteFileInput {
@@ -368,12 +510,20 @@ async function requireGroupScope(
 /**
  * Teslim durumunu güncelle — gated (`submission.status.write`). Canlıdaki 3 dağınık
  * yoldan (status route / grade route / oyun ekranlarındaki `tasks` updateDoc) TEK servise.
+ *
+ * **"Revize İste"/"Onayla" bildirimi (2026-07-08 kararı, canlı `assignment-test/
+ * submissions/[id]/status` route'uyla birebir):** `revision`/`completed` durumuna
+ * geçince öğrenciye (varsa `authUid`) bildirim gider — revizyonda "Revize İstendi",
+ * onayda "Ödeviniz Onaylandı! 🎉". `revision`'a geçince öğrencinin yükleme hakkı
+ * otomatik 8'e çıkar (`getMaxUploads`, davranış zaten vardı — burada sadece TETİKLEYİCİ
+ * eklendi). Bildirim non-fatal (`notifyUser` zaten try/catch'li) — başarısız olsa da
+ * durum güncellemesi geri alınmaz.
  */
 export async function updateSubmissionStatus(
   actor: Actor,
   submissionId: EntityId,
   status: SubmissionStatus,
-  deps: Pick<SubmissionDeps, "submissions" | "groups">,
+  deps: Pick<SubmissionDeps, "submissions" | "groups" | "persons" | "assignments" | "notify">,
 ): Promise<Submission> {
   if (!VALID_STAFF_STATUSES.includes(status)) throw new ValidationError("Geçersiz durum.");
 
@@ -384,6 +534,26 @@ export async function updateSubmissionStatus(
 
   const updated: Submission = { ...existing, status, updatedAt: nowISO(), updatedBy: actor.uid };
   await deps.submissions.save(updated);
+
+  if (status === "revision" || status === "completed") {
+    const [person, assignment] = await Promise.all([
+      deps.persons.getById(existing.personId, actor.tenantId),
+      deps.assignments.getById(existing.assignmentId, actor.tenantId),
+    ]);
+    if (person?.authUid) {
+      const title = assignment?.title ?? "Ödeviniz";
+      const isRevision = status === "revision";
+      await deps.notify(person.authUid, {
+        type: isRevision ? "message" : "assignment",
+        entityId: existing.assignmentId,
+        senderId: actor.uid,
+        title: isRevision ? "Revize İstendi" : "Ödeviniz Onaylandı! 🎉",
+        preview: isRevision ? `"${title}" için revize istendi.` : `"${title}" tamamlandı, tebrikler!`,
+        actionUrl: `/flexos/student/${existing.personId}/${existing.assignmentId}`,
+      });
+    }
+  }
+
   return updated;
 }
 

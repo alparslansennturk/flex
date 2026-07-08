@@ -17,6 +17,7 @@ import type { GroupRepo } from "../src/app/lib/domain/repo/group-repo";
 import type { PersonRepo } from "../src/app/lib/domain/repo/person-repo";
 import type { SubmissionFileRepo } from "../src/app/lib/domain/repo/submission-file-repo";
 import type { SubmissionRepo } from "../src/app/lib/domain/repo/submission-repo";
+import type { TrainerRepo } from "../src/app/lib/domain/repo/trainer-repo";
 import type { UploadSessionRepo } from "../src/app/lib/domain/repo/upload-session-repo";
 import {
   initUpload,
@@ -53,6 +54,16 @@ function makeGroupRepo(seed: Group[]): GroupRepo {
       return Array.from(map.values()).filter((g) => g.tenantId === tenantId && (!trainerId || g.trainerId === trainerId));
     },
     async delete(id) { map.delete(id); },
+  };
+}
+
+function makeTrainerRepo(): TrainerRepo {
+  return {
+    nextId: nextId("trainer"),
+    async save() {},
+    async getById() { return null; }, // testlerde eğitmen adı önemsiz — klasör yolu ölçülmüyor
+    async list() { return []; },
+    async delete() {},
   };
 }
 
@@ -207,7 +218,9 @@ function makeDeps(overrides: {
     submissions: makeSubmissionRepo(),
     submissionFiles: makeSubmissionFileRepo(),
     uploadSessions: makeUploadSessionRepo(),
+    trainers: makeTrainerRepo(),
     drive: makeFakeDrive(),
+    notify: async () => {},
   };
 }
 

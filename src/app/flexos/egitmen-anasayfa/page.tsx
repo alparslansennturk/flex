@@ -16,6 +16,11 @@
  * Ghost kart üzerindeki "Ödev ver" (şablonu aktive et) ve "Detay" hâlâ "yakında" —
  * ayrı, daha küçük bir iş.
  *
+ * **"Ödevi Düzenle" BİTTİ (2026-07-08):** aktif ödev kartının 3-nokta menüsünden artık
+ * gerçek bir düzenleme modalı açılıyor — `EditAssignmentModal` (`odevler/_shared/`),
+ * Ödev Yönetimi'nin kendi düzenleme modalıyla AYNI paylaşımlı bileşen (tek kaynak, iki
+ * giriş noktası).
+ *
  * **Ödev Kütüphanesi EKLENDİ (2026-07-06, kullanıcı: "canlıya bak, sağa sola kaydırılabilir
  * scrolling mantığında olan kütüphaneyi istiyorum"):** canlıdaki `AssignmentLibrary.tsx`'in
  * portu — Ödev Parkuru'nun altında, yatay kaydırmalı kart listesi (overflow varsa sol/sağ
@@ -39,13 +44,15 @@ import { toast } from "sonner";
 import {
   CalendarCheck, ClipboardList, Award, Activity, Users, UsersRound,
   Route, Plus, ChevronRight, LibraryBig, ChevronLeft, ChevronDown, PlusCircle,
+  MoreHorizontal,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
-import FlexHeader, { FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../_components/FlexHeader";
+import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../_components/FlexHeader";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
 import OdevOlusturModal, { type AssignmentPrefill } from "./OdevOlusturModal";
+import EditAssignmentModal, { type EditableAssignment, type EditableAttachment } from "../odevler/_shared/EditAssignmentModal";
 import { ASSIGNMENT_ICONS } from "../odevler/_shared/assignmentIcons";
 
 // ── API şekilleri ──
@@ -192,8 +199,12 @@ function ActivityFeedPlaceholder() {
 // aksiyonlar (Ödev Ver / Ödevi Başlat) kullanıcı kararıyla bu turda "yakında" toast.
 const MAX_PARKOUR_SLOTS = 4;
 
-interface ParkourAssignment { id: string; title: string; subtitle?: string; description: string; dueDate?: string; status: string; createdAt?: string; templateId?: string }
-interface ParkourTemplate { id: string; title: string; description: string; visible?: boolean }
+interface ParkourAssignment { id: string; groupId: string; title: string; subtitle?: string; description: string; dueDate?: string; status: string; createdAt?: string; templateId?: string; attachments?: EditableAttachment[] }
+interface ParkourTemplate {
+  id: string; title: string; description: string; visible?: boolean;
+  subtitle?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number;
+  gamifiedType?: "kolaj" | "kitap" | "sosyal";
+}
 
 function getDuration(dueDate?: string): { text: string; expired: boolean; noDate: boolean } {
   if (!dueDate) return { text: "Süresiz", expired: false, noDate: true };
@@ -208,16 +219,115 @@ function getDuration(dueDate?: string): { text: string; expired: boolean; noDate
   return { text: `${dd}.${mm}.${end.getFullYear()}`, expired: false, noDate: false };
 }
 
+/** `assignment.edit` gated — canlıdaki "Ödevi İptal Et" (arşive taşı) karşılığı, Ödev Yönetimi'nin "Arşivle" aksiyonuyla aynı servisi kullanır. */
+async function archiveAssignment(id: string): Promise<boolean> {
+  const u = auth.currentUser;
+  const token = u ? await u.getIdToken() : "";
+  const res = await fetch(`/api/flexos/assignments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status: "archived" }),
+  });
+  if (!res.ok) { toast.error("Ödev iptal edilemedi."); return false; }
+  toast.success("Ödev iptal edildi, arşive taşındı.");
+  return true;
+}
+
+/**
+ * `assignment.edit` gated — canlıdaki "Ödevi Bitir" karşılığı (`DesignParkour.tsx::handleComplete`).
+ * `AssignmentStatus`'a yeni bir değer EKLEMEDİM — domain'de zaten var ama hiçbir aksiyonun
+ * set etmediği `"closed"` değerini kullanıyor (Ödev Yönetimi'nde sadece filtre seçeneği
+ * olarak duruyordu). Canlıyla birebir: bitiş tarihi ileri tarihliyse bugüne çekilir (geçmiş/
+ * bugünse dokunulmaz) — kartın "Bekliyor/Not Girişi" görünümüne hemen geçmesi için.
+ */
+async function finishAssignment(id: string, currentDueDate?: string): Promise<{ ok: boolean; dueDate?: string }> {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const pullToToday = !currentDueDate || currentDueDate > todayStr;
+  const body: { status: "closed"; dueDate?: string } = { status: "closed" };
+  if (pullToToday) body.dueDate = todayStr;
+
+  const u = auth.currentUser;
+  const token = u ? await u.getIdToken() : "";
+  const res = await fetch(`/api/flexos/assignments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) { toast.error("Ödev bitirilemedi."); return { ok: false }; }
+  toast.success("Ödev bitirildi — not girişi bekliyor.");
+  return { ok: true, dueDate: pullToToday ? todayStr : currentDueDate };
+}
+
 /** Gerçek aktif ödev kartı — canlıdaki `TaskParkourCard` (compact) karşılığı. */
-function ActiveParkourCard({ assignment }: { assignment: ParkourAssignment }) {
+function ActiveParkourCard({ assignment, onArchived, onFinished, onEdit }: {
+  assignment: ParkourAssignment;
+  onArchived: (id: string) => void;
+  onFinished: (id: string, dueDate?: string) => void;
+  onEdit: (a: ParkourAssignment) => void;
+}) {
+  const router = useRouter();
   const dur = getDuration(assignment.dueDate);
+  const isCompleted = assignment.status === "closed"; // canlıdaki `task.status === "completed"` karşılığı
+  const needsGrading = isCompleted || dur.expired; // grading domain'i yok — ikisi de aynı "bekliyor" görünümü
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
   return (
     <div className="bg-white p-4 rounded-24 border border-[#CDD2DA] flex flex-col justify-between h-full transition-all duration-300 hover:shadow-[15px_30px_60px_-15px_rgba(16,41,76,0.08)] hover:-translate-y-1">
       <div className="flex justify-between items-start mb-3">
         <div className="w-9 h-9 bg-gradient-to-b from-pink-500 to-[#B80E57] rounded-12 flex items-center justify-center text-white shadow-lg shrink-0">
           <ClipboardList size={16} />
         </div>
-        <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">Ödev</span>
+        <div className="flex items-center gap-2">
+          <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">Ödev</span>
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
+            >
+              <MoreHorizontal size={15} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-8 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[165px]">
+                {!isCompleted && (
+                  <button
+                    onClick={async () => {
+                      setMenuOpen(false);
+                      const r = await finishAssignment(assignment.id, assignment.dueDate);
+                      if (r.ok) onFinished(assignment.id, r.dueDate);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-[#009F3E] hover:bg-green-50 transition-colors cursor-pointer"
+                  >
+                    Ödevi Bitir
+                  </button>
+                )}
+                {!isCompleted && (
+                  <button
+                    onClick={() => { setMenuOpen(false); onEdit(assignment); }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer border-t border-[#EEF0F3]"
+                  >
+                    Ödevi Düzenle
+                  </button>
+                )}
+                <button
+                  onClick={async () => { setMenuOpen(false); if (await archiveAssignment(assignment.id)) onArchived(assignment.id); }}
+                  className={`w-full px-4 py-2.5 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer ${!isCompleted ? "border-t border-[#EEF0F3]" : ""}`}
+                >
+                  Ödevi İptal Et
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <div className="mb-3">
         <h4 className="text-[17px] text-[#10294C] font-bold leading-tight truncate">{assignment.title}</h4>
@@ -227,35 +337,99 @@ function ActiveParkourCard({ assignment }: { assignment: ParkourAssignment }) {
       <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-3 border border-[#EEF0F3]">
         <div className="flex flex-col">
           <span className="text-[11px] text-[#8E95A3]">Durum</span>
-          <span className={`text-[13px] font-bold mt-0.5 ${dur.expired ? "text-[#AEB4C0]" : "text-[#009F3E]"}`}>{dur.expired ? "Süresi Doldu" : "Aktif"}</span>
+          <span className={`text-[13px] font-bold mt-0.5 ${isCompleted ? "text-[#009F3E]" : dur.expired ? "text-[#AEB4C0]" : "text-[#009F3E]"}`}>
+            {isCompleted ? "Tamamlandı" : dur.expired ? "Süresi Doldu" : "Aktif"}
+          </span>
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-[11px] text-[#8E95A3]">Teslim süresi</span>
-          <span className="text-[13px] font-bold text-[#10294C] mt-0.5">{dur.text}</span>
+          {needsGrading ? (
+            <>
+              <span className="text-[11px] text-[#8E95A3]">Bekliyor</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <ClipboardList size={12} className="text-[#009F3E]" />
+                <span className="text-[13px] font-bold text-[#009F3E]">Not Girişi</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-[11px] text-[#8E95A3]">Teslim süresi</span>
+              <span className="text-[13px] font-bold text-[#10294C] mt-0.5">{dur.text}</span>
+            </>
+          )}
         </div>
       </div>
       <div className="flex items-center justify-between border-t border-[#F7F8FA] pt-3">
         <span className="text-[11px] text-[#AEB4C0] italic font-semibold">Ödev Atölyesi</span>
-        <button
-          onClick={() => toast.info("Bu özellik yakında.")}
-          className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold bg-[#6F74D8] text-white hover:bg-[#5E63C2] transition-all cursor-pointer"
-        >
-          Detay <ChevronRight size={13} />
-        </button>
+        {needsGrading ? (
+          <div className="relative flex items-center gap-1.5">
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
+            <button
+              onClick={() => router.push(`/flexos/odevler/teslim/${assignment.groupId}/${assignment.id}`)}
+              className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] transition-all cursor-pointer"
+            >
+              Detay
+            </button>
+            <button
+              onClick={() => router.push("/flexos/sertifikasyon/odev-notu")}
+              className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold bg-[#009F3E] text-white hover:bg-[#007F32] transition-all cursor-pointer"
+            >
+              Not Ver
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => router.push(`/flexos/odevler/teslim/${assignment.groupId}/${assignment.id}`)}
+            className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold bg-[#6F74D8] text-white hover:bg-[#5E63C2] transition-all cursor-pointer"
+          >
+            Detay <ChevronRight size={13} />
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
 /** Kullanılmamış şablon "ghost" kartı — canlıdaki `GhostParkourCard` (compact, soluk stil). */
-function GhostParkourCard({ template }: { template: ParkourTemplate }) {
+function GhostParkourCard({ template, onStart }: { template: ParkourTemplate; onStart: (t: ParkourTemplate) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
   return (
     <div className="bg-white p-4 rounded-24 border border-dashed border-[#D0D5DE] flex flex-col justify-between h-full opacity-90">
       <div className="flex justify-between items-start mb-3">
         <div className="w-9 h-9 bg-gradient-to-b from-pink-500 to-[#B80E57] rounded-12 flex items-center justify-center text-white shadow-lg shrink-0">
           <ClipboardList size={16} />
         </div>
-        <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">Ödev</span>
+        <div className="flex items-center gap-2">
+          <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">Ödev</span>
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
+            >
+              <MoreHorizontal size={15} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-8 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[155px]">
+                <button
+                  onClick={() => { setMenuOpen(false); onStart(template); }}
+                  className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
+                >
+                  Ödevi Başlat
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <div className="mb-3">
         <h4 className="text-[17px] text-[#10294C] font-bold leading-tight truncate">{template.title}</h4>
@@ -315,6 +489,8 @@ function OdevParkuru() {
   const [templates, setTemplates] = useState<ParkourTemplate[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [modalAcik, setModalAcik] = useState(false);
+  const [startTemplate, setStartTemplate] = useState<ParkourTemplate | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<EditableAssignment | null>(null);
 
   const loadData = useCallback(async () => {
     const u = auth.currentUser;
@@ -334,9 +510,11 @@ function OdevParkuru() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması)
+  // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması). "closed" (Ödevi
+  // Bitir sonrası, not girişi bekleyen) da burada kalır — kart kaybolmaz, sadece görünümü
+  // "Bekliyor/Not Girişi" ikili butona döner (canlıdaki `task.status === "completed"` davranışı).
   const activeAssignments = assignments
-    .filter((a) => a.status === "published")
+    .filter((a) => a.status === "published" || a.status === "closed")
     .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 
   // Kullanılmamış şablonlar — deterministik karıştırma (canlıdaki id-hash %7 deseni)
@@ -355,6 +533,10 @@ function OdevParkuru() {
     })
     .slice(0, ghostCount);
   const placeholderCount = Math.max(0, ghostCount - ghostTemplates.length);
+
+  const startPrefill: AssignmentPrefill | undefined = startTemplate
+    ? { templateId: startTemplate.id, title: startTemplate.title, subtitle: startTemplate.subtitle, description: startTemplate.description, icon: startTemplate.icon, kind: startTemplate.kind, maxPuan: startTemplate.maxPuan, gamifiedType: startTemplate.gamifiedType }
+    : undefined;
 
   return (
     <section className="mt-[48px] space-y-[24px]">
@@ -377,16 +559,33 @@ function OdevParkuru() {
           Array.from({ length: 4 }).map((_, i) => <PlaceholderParkourCard key={i} />)
         ) : (
           <>
-            {activeAssignments.slice(0, MAX_PARKOUR_SLOTS).map((a) => <ActiveParkourCard key={a.id} assignment={a} />)}
-            {ghostTemplates.map((t) => <GhostParkourCard key={t.id} template={t} />)}
+            {activeAssignments.slice(0, MAX_PARKOUR_SLOTS).map((a) => (
+              <ActiveParkourCard
+                key={a.id}
+                assignment={a}
+                onArchived={(id) => setAssignments((prev) => prev.filter((x) => x.id !== id))}
+                onFinished={(id, dueDate) => setAssignments((prev) => prev.map((x) => (x.id === id ? { ...x, status: "closed", dueDate: dueDate ?? x.dueDate } : x)))}
+                onEdit={(edited) => setEditingAssignment({ id: edited.id, title: edited.title, description: edited.description, dueDate: edited.dueDate, status: edited.status as EditableAssignment["status"], attachments: edited.attachments })}
+              />
+            ))}
+            {ghostTemplates.map((t) => <GhostParkourCard key={t.id} template={t} onStart={setStartTemplate} />)}
             {Array.from({ length: placeholderCount }).map((_, i) => <PlaceholderParkourCard key={`ph-${i}`} />)}
           </>
         )}
       </div>
       <OdevOlusturModal
-        open={modalAcik}
-        onClose={() => setModalAcik(false)}
-        onCreated={loadData}
+        open={modalAcik || startTemplate !== null}
+        onClose={() => { setModalAcik(false); setStartTemplate(null); }}
+        onCreated={() => { setModalAcik(false); setStartTemplate(null); loadData(); }}
+        prefill={startPrefill}
+      />
+      <EditAssignmentModal
+        assignment={editingAssignment}
+        onClose={() => setEditingAssignment(null)}
+        onSaved={(updated) => {
+          setEditingAssignment(null);
+          setAssignments((prev) => prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)));
+        }}
       />
     </section>
   );
@@ -401,10 +600,35 @@ function OdevParkuru() {
 // Parkuru ghost-slot'u ARTIK `visible`e bakmıyor (otomatik/rastgele doldurma,
 // 2026-07-07 kararıyla değişti) — `visible` ŞİMDİ Kütüphane'nin filtresi: eğitmen
 // Şablon Yönetimi'nden onaylamadan (Check) şablon Kütüphane'de listelenmez.
-interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number; visible?: boolean; gamifiedType?: "kolaj" | "kitap" | "sosyal" }
+interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number; visible?: boolean; gamifiedType?: "kolaj" | "kitap" | "sosyal"; scope?: "personal" | "global" }
 
-function LibraryCard({ t, onStart }: { t: LibTemplate; onStart: (t: LibTemplate) => void }) {
+/** `template.manage` gated — canlıdaki kütüphane kartının "Kaldır" aksiyonu (kişisel şablonu sil). */
+async function removeTemplate(id: string): Promise<boolean> {
+  const u = auth.currentUser;
+  const token = u ? await u.getIdToken() : "";
+  const res = await fetch(`/api/flexos/assignment-templates/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) { toast.error("Şablon kaldırılamadı."); return false; }
+  toast.success("Şablon kütüphaneden kaldırıldı.");
+  return true;
+}
+
+function LibraryCard({ t, onStart, onRemoved }: { t: LibTemplate; onStart: (t: LibTemplate) => void; onRemoved: (id: string) => void }) {
   const Icon = (t.icon && ASSIGNMENT_ICONS[t.icon]) || ClipboardList;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
   return (
     <div className="min-w-[calc((100%-80px)/4.3)] snap-start bg-white p-6 rounded-20 border border-[#EEF0F3] flex flex-col justify-between h-[210px] transition-all duration-500 hover:shadow-[15px_40px_80px_-20px_rgba(16,41,76,0.08)] hover:-translate-y-2">
       <div className="flex items-start gap-3">
@@ -414,6 +638,32 @@ function LibraryCard({ t, onStart }: { t: LibTemplate; onStart: (t: LibTemplate)
         <div className="truncate flex-1 min-w-0">
           <h5 className="text-[15px] font-bold text-[#10294C] mb-0.5 truncate">{t.title}</h5>
           <p className="text-[11px] text-[#8E95A3] line-clamp-2">{t.subtitle || t.description || "Açıklama yok"}</p>
+        </div>
+        <div className="relative shrink-0" ref={menuRef}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#F7F8FA] text-[#AEB4C0] hover:text-[#10294C] transition-all cursor-pointer"
+          >
+            <MoreHorizontal size={15} />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-8 z-50 bg-white border border-[#E2E5EA] rounded-2xl shadow-xl overflow-hidden min-w-[155px]">
+              <button
+                onClick={() => { setMenuOpen(false); onStart(t); }}
+                className="w-full px-4 py-3 text-left text-[13px] font-bold text-[#10294C] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
+              >
+                Ödevi Başlat
+              </button>
+              {t.scope === "personal" && (
+                <button
+                  onClick={async () => { setMenuOpen(false); if (await removeTemplate(t.id)) onRemoved(t.id); }}
+                  className="w-full px-4 py-3 text-left text-[13px] font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer border-t border-[#EEF0F3]"
+                >
+                  Kaldır
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="border-t border-[#EEF0F3] my-4" />
@@ -552,7 +802,9 @@ function OdevKutuphanesi() {
             </>
           )}
           <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">
-            {visibleTemplates.map((t) => <LibraryCard key={t.id} t={t} onStart={setStartTemplate} />)}
+            {visibleTemplates.map((t) => (
+              <LibraryCard key={t.id} t={t} onStart={setStartTemplate} onRemoved={(id) => setTemplates((prev) => prev.filter((x) => x.id !== id))} />
+            ))}
           </div>
         </div>
       )}
@@ -675,7 +927,7 @@ export default function EgitmenAnaSayfaPage() {
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader greeting subtitle="Bugün atölyende neler oluyor? İşte son durum." roleLabel="Eğitmen" maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} />
 
-        <div style={{ margin: "0 auto", boxSizing: "border-box", flex: 1 }} className={`${FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} pt-6 pb-8`}>
+        <FlexPageContent className="pt-6 pb-8">
           <div className="flex flex-col xl:flex-row gap-5">
             <div className="flex-1 min-w-0 flex flex-col gap-5">
               <HomeBanner groupCount={groupCount} studentCount={studentCount} />
@@ -724,9 +976,9 @@ export default function EgitmenAnaSayfaPage() {
 
           <OdevParkuru />
           <OdevKutuphanesi />
-        </div>
+        </FlexPageContent>
 
-        <Footer mini containerClassName={`${FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} mx-auto`} />
+        <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
     </div>
   );

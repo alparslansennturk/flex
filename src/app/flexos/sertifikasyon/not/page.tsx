@@ -4,13 +4,26 @@
  * FlexOS · Sertifika Notu — Claude Design çıktısından (`Sertifika Notu Verme.dc.html`)
  * BİREBİR UI portu. `Grade` domain'i backend'e bağlandı (repo/servis/route/16
  * assertion — `grade-service.ts`): grup seçilince Sertifika Notu `GET /api/flexos/grades`
- * ile ön-dolduruluyor, "Taslak Kaydet" `POST /api/flexos/grades` ile kalıcı yazıyor
- * (gated `grade.write`). "Notları Gönder" (finalize/kilitleme) henüz YOK — o,
- * `Enrollment.result` snapshot'lamayı gerektiren ayrı bir iş (`grade.finalize`),
- * bu turda "yakında" toast'ı kalıyor. Ağırlık (Sertifika/Ödev %) artık SABİT
- * DEĞİL — `GET /api/flexos/certificate-settings`'ten okunuyor (Sertifika
- * Ayarları'ndan değişince buraya otomatik yansır). Grup/öğrenci listesi GERÇEK
- * veri — sahte veri yok.
+ * ile ön-dolduruluyor, "Notu Kaydet" `POST /api/flexos/grades` ile kalıcı yazıyor
+ * (gated `grade.write`). Ağırlık (Sertifika/Ödev %) SABİT DEĞİL — `GET /api/flexos/
+ * certificate-settings`'ten okunuyor (Sertifika Ayarları'ndan değişince buraya otomatik
+ * yansır). Grup/öğrenci listesi GERÇEK veri — sahte veri yok.
+ *
+ * **Kilit KİŞİ-bazlı, GRUP-genelinde DEĞİL (2026-07-08, kararla iki kez düzeltildi):**
+ * ilk denemede grup-genelinde bir "Notları Gönder" (toplu kilitleme) butonu vardı —
+ * kullanıcı düzeltti: "biz sertifika notlarını topluca girmiyoruz ki, biri bugün öteki
+ * 6 ay sonra getiriyor" — grup-genelinde kilit YANLIŞ model. Doğrusu: kilidin tetikleyicisi
+ * Eğitim Op'un o KİŞİYE özel "Sertifika Bastır" aksiyonu (henüz YOK, ayrı/ertelenmiş iş —
+ * bkz. proje hafızası) — sadece o kişinin `Grade.locked` alanı true olur, roster'daki
+ * diğerleri etkilenmez. `Enrollment.result` snapshot'lama da YOK (kullanıcı kararı: "notu
+ * kaydet desek bile admin/yetkili düzenleyebilir" — ayrı bir donmuş/mezuniyet kaydı
+ * gerekmiyor). Kilitliyken **assigned scope (eğitmen) o KİŞİYİ düzenleyemez** (`saveGrades`
+ * o kaydı sessizce atlar, roster'daki DİĞERLERİNİ engellemez), **org scope (admin/yetkili)
+ * her zaman düzenleyebilir**. Satırda yeşil onay tiki gösterilir (input GRİLEŞTİRİLMEZ,
+ * sadece `readOnly` — kullanıcı: "silik falan olmasın, tik koyarız, eğitmen anlar süreç
+ * tamamlanmış"), tıklanınca "Bu kişiye sertifikası basıldı..." bilgi toast'ı çıkar. Bugün
+ * hiçbir `Grade.locked` true olamaz (tetikleyici Sertifika Bastır henüz yok) — mimari
+ * hazır, gerçek kilitleme o özellik gelince devreye girecek.
  *
  * **`certType` (2026-07-06, DÜZELTME):** Eğitim katalogda "Sınav Bazlı"/"Proje Bazlı"
  * seçilir (`Education.certType`). Bu alanın adı HER ZAMAN "Sertifika Notu" kalır —
@@ -44,13 +57,13 @@ import { toast } from "sonner";
 import { Award, BookOpen, Check } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
-import FlexHeader from "../../_components/FlexHeader";
+import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number; certType?: "exam" | "project" }
 
-interface GradeDoc { personId: string; projectGrade?: number }
+interface GradeDoc { personId: string; projectGrade?: number; locked?: boolean }
 interface OdevKategori { totalMaxPuan: number; earnedByPerson: Record<string, number> }
 interface OdevData { normal: OdevKategori; proje: OdevKategori }
 interface Weighting { odevAktif: boolean; sertifikaPct: number }
@@ -103,6 +116,15 @@ export default function SertifikaNotuPage() {
   const [sertifikaNotlari, setSertifikaNotlari] = useState<Record<string, string>>({});
   const [odevData, setOdevData] = useState<OdevData>(ODEV_DATA_BOS);
   const [saving, setSaving] = useState(false);
+  const [odevWarnOpen, setOdevWarnOpen] = useState(false);
+  const [disablingOdev, setDisablingOdev] = useState(false);
+  // Kilit KİŞİ-bazlı (2026-07-08 kararı, ileride "Sertifika Bastır" tetikleyecek — henüz
+  // o özellik yok, bu yüzden `lockedByPerson` bugün her zaman boş çıkar ama mimari hazır):
+  // roster gerçekte tek seferde değil kişi kişi doldurulur (biri bugün, öteki 6 ay sonra),
+  // o yüzden kilit GRUP-genelinde değil sadece o kişiye özel. `canOverrideLock` (org
+  // scope/yetkili) true ise kilit bu aktörü hiç bağlamaz.
+  const [lockedByPerson, setLockedByPerson] = useState<Record<string, boolean>>({});
+  const [canOverrideLock, setCanOverrideLock] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -138,6 +160,8 @@ export default function SertifikaNotuPage() {
       setLoadingRoster(true);
       setSertifikaNotlari({});
       setOdevData(ODEV_DATA_BOS);
+      setLockedByPerson({});
+      setCanOverrideLock(false);
       try {
         const headers = await authHeaders();
         const [rosterRes, gradesRes] = await Promise.all([
@@ -146,13 +170,17 @@ export default function SertifikaNotuPage() {
         ]);
         setRoster(rosterRes.ok ? (await rosterRes.json() as { items: RosterItem[] }).items : []);
         if (gradesRes.ok) {
-          const { items, odev } = await gradesRes.json() as { items: GradeDoc[]; odev: OdevData };
+          const { items, odev, canOverrideLock: override } = await gradesRes.json() as { items: GradeDoc[]; odev: OdevData; canOverrideLock: boolean };
           const prefilled: Record<string, string> = {};
+          const lockedMap: Record<string, boolean> = {};
           for (const g of items) {
             if (g.projectGrade != null) prefilled[g.personId] = String(g.projectGrade);
+            if (g.locked) lockedMap[g.personId] = true;
           }
           setSertifikaNotlari(prefilled);
           setOdevData(odev);
+          setLockedByPerson(lockedMap);
+          setCanOverrideLock(override);
         }
       } finally {
         setLoadingRoster(false);
@@ -179,17 +207,28 @@ export default function SertifikaNotuPage() {
     return Math.round(normalOran * ODEV_TUR_AGIRLIK.normal + projeOran * ODEV_TUR_AGIRLIK.proje);
   }
 
+  const selected = groups.find((g) => g.id === selectedId) ?? null;
+  // Hangi ağırlık bloğu kullanılacak — grubun bağlı olduğu Education.certType belirler
+  // (varsayılan "project"). Etiket HER ZAMAN "Sertifika Notu" — certType sadece ağırlığı seçer.
+  // 2026-07-08 kararı: ayar açıksa (odevAktif) kolon HER ZAMAN görünür ve hesaba katılır —
+  // bir öğrencinin KENDİ ödevi yoksa `odevYuzdesi` onun için `null`→0 sayılır (haklı ceza,
+  // "ödev yapmadı" anlamına gelir). Ama GRUBUN TAMAMINDA hiç ödev notu girilmemişse
+  // (`odevVerisiVarMi` false) bu 0'lar YANLIŞ bir sinyal olabilir — eğitmen ayarı yanlışlıkla
+  // açık unutmuş/hiç ödev vermemiş olabilir; bu durumda `saveDraft` sessizce 0'layıp
+  // kaydetmek yerine uyarı modalı açar (aşağıda).
+  const { odevAktif, sertifikaPct } = settings[selected?.certType ?? "project"];
   const odevVerisiVarMi = odevData.normal.totalMaxPuan > 0 || odevData.proje.totalMaxPuan > 0;
 
-  async function saveDraft() {
-    if (!selectedId || roster.length === 0) return;
+  async function performSaveDraft() {
     setSaving(true);
     try {
-      const entries = roster.map((r) => ({
-        enrollmentId: r.enrollmentId,
-        personId: r.personId,
-        projectGrade: sertifikaNotlari[r.personId] ? Number(sertifikaNotlari[r.personId]) : null,
-      }));
+      const entries = roster
+        .filter((r) => canOverrideLock || !lockedByPerson[r.personId]) // kilitliyi client'ta da gönderme (server zaten atlar)
+        .map((r) => ({
+          enrollmentId: r.enrollmentId,
+          personId: r.personId,
+          projectGrade: sertifikaNotlari[r.personId] ? Number(sertifikaNotlari[r.personId]) : null,
+        }));
       const headers = await authHeaders();
       const res = await fetch("/api/flexos/grades", {
         method: "POST",
@@ -208,12 +247,37 @@ export default function SertifikaNotuPage() {
     }
   }
 
-  const selected = groups.find((g) => g.id === selectedId) ?? null;
-  // Hangi ağırlık bloğu kullanılacak — grubun bağlı olduğu Education.certType belirler
-  // (varsayılan "project"). Etiket HER ZAMAN "Sertifika Notu" — certType sadece ağırlığı seçer.
-  const { odevAktif: odevAyarAktif, sertifikaPct } = settings[selected?.certType ?? "project"];
-  // Grupta hiç ödev yoksa (veri yok) ayar açık olsa bile Ödev Notu hesaba KATILMAZ.
-  const odevAktif = odevAyarAktif && odevVerisiVarMi;
+  function saveDraft() {
+    if (!selectedId || roster.length === 0) return;
+    // Ayar açık ama bu grupta HİÇ KİMSEDE ödev notu yoksa — muhtemelen yanlışlıkla açık
+    // unutulmuş, sessizce herkesi 0'layıp kaydetme; eğitmene sor.
+    if (odevAktif && !odevVerisiVarMi) { setOdevWarnOpen(true); return; }
+    void performSaveDraft();
+  }
+
+  async function disableOdevNotu() {
+    if (!selected) return;
+    setDisablingOdev(true);
+    try {
+      const certType = selected.certType ?? "project";
+      const nextSettings = { ...settings, [certType]: { ...settings[certType], odevAktif: false } };
+      const headers = await authHeaders();
+      const res = await fetch("/api/flexos/certificate-settings", {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(nextSettings),
+      });
+      if (res.ok) {
+        setSettings(nextSettings);
+        toast.success("Ödev Notu ayarı devre dışı bırakıldı.");
+        setOdevWarnOpen(false);
+      } else {
+        toast.error("Ayar güncellenemedi.");
+      }
+    } finally {
+      setDisablingOdev(false);
+    }
+  }
 
   function computeTotal(personId: string): number | null {
     const s = sertifikaNotlari[personId] === "" || sertifikaNotlari[personId] == null ? null : Number(sertifikaNotlari[personId]);
@@ -227,7 +291,12 @@ export default function SertifikaNotuPage() {
 
   const odevPct = 100 - sertifikaPct;
   const girilenCount = roster.filter((r) => computeTotal(r.personId) != null).length;
-  const gridCols = odevAktif ? "1.6fr 1fr 1fr 1fr 1fr" : "1.8fr 1.2fr 1.2fr 1.2fr";
+  // Diğer kolonlar SABİT genişlikte (px) — sadece "Öğrenci" (1fr) esnek. Eskiden hepsi
+  // `fr` idi: Ödev Notu kolonu kapanınca kalan kolonlar orantılı büyüyüp küçük input/rozet
+  // kutularının etrafında büyük boşluklar bırakıyordu ("boşluk" şikayeti, 2026-07-08).
+  // Şimdi Ödev Notu açılıp kapansa da diğer kolonların genişliği DEĞİŞMİYOR, sadece
+  // "Öğrenci" kolonu boşalan/dolan alanı alıyor.
+  const gridCols = odevAktif ? "minmax(0,1fr) 96px 96px 84px 150px 44px" : "minmax(0,1fr) 96px 84px 150px 44px";
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", background: "#EEF0F3" }}>
@@ -238,10 +307,11 @@ export default function SertifikaNotuPage() {
           title="Sertifika Notu"
           subtitle="Grup seçin, öğrencilere sertifika notu girin."
           roleLabel="Eğitmen"
+          maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
         />
 
-        <div style={{ padding: "26px 30px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }} className="font-inter">
-          <div className="grid gap-5" style={{ gridTemplateColumns: "280px 1fr", alignItems: "start" }}>
+        <FlexPageContent className="font-inter" style={{ padding: "26px 0 48px" }}>
+          <div className="grid gap-5" style={{ gridTemplateColumns: "280px minmax(0,1fr)", alignItems: "start" }}>
 
             {/* ===== SOL: Grup seçimi ===== */}
             <div className="bg-white border border-[#E2E5EA] rounded-[20px] p-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] sticky" style={{ top: 96 }}>
@@ -308,7 +378,7 @@ export default function SertifikaNotuPage() {
 
               {/* table */}
               <div className="bg-white border border-[#E2E5EA] rounded-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] overflow-hidden">
-                <div className="grid gap-3 items-center py-[15px] px-[22px] border-b border-[#EEF0F3] bg-[#FBFCFD]" style={{ gridTemplateColumns: gridCols }}>
+                <div className="grid gap-10 items-center py-[15px] px-[22px] border-b border-[#EEF0F3] bg-[#FBFCFD]" style={{ gridTemplateColumns: gridCols }}>
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide">Öğrenci</div>
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">
                     Sertifika Notu<br /><span className="text-[10px] font-semibold normal-case text-[#AEB4C0]">{odevAktif ? `%${sertifikaPct}` : "%100"}</span>
@@ -320,6 +390,7 @@ export default function SertifikaNotuPage() {
                   )}
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">Toplam Not</div>
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-left">Durum</div>
+                  <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center" title="Sertifikası basılmış öğrenciler kilitli olarak işaretlenir">Srtf.</div>
                 </div>
 
                 {loadingRoster ? (
@@ -338,10 +409,12 @@ export default function SertifikaNotuPage() {
                       else { durumLabel = "Katılım Srtf."; durumColor = "#205297"; durumBg = "#DDE8F8"; dotColor = "#3A7BD5"; }
                     }
                     const odev = odevYuzdesi(r.personId);
+                    const rowLocked = lockedByPerson[r.personId] === true;
+                    const rowReadOnly = rowLocked && !canOverrideLock;
                     return (
                       <div
                         key={r.personId}
-                        className="grid gap-3 items-center py-[13px] px-[22px]"
+                        className="grid gap-10 items-center py-[13px] px-[22px]"
                         style={{ gridTemplateColumns: gridCols, borderBottom: i < roster.length - 1 ? "1px solid #F2F4F7" : "none" }}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -361,6 +434,9 @@ export default function SertifikaNotuPage() {
                             type="number" min={0} max={100} placeholder="0-100"
                             value={sertifikaNotlari[r.personId] ?? ""}
                             onChange={(e) => setSertifikaNotu(r.personId, e.target.value)}
+                            readOnly={rowReadOnly}
+                            onClick={() => { if (rowReadOnly) toast.info("Bu kişiye sertifikası basıldı, bu nedenle not artık girilemez."); }}
+                            style={rowReadOnly ? { cursor: "not-allowed" } : undefined}
                           />
                         </div>
                         {odevAktif && (
@@ -370,7 +446,7 @@ export default function SertifikaNotuPage() {
                               style={{ minWidth: 60, padding: "8px 10px", color: "#6F7B87", background: "#F7F8FA" }}
                               title="Grup içindeki tüm ödevlerden otomatik hesaplanır"
                             >
-                              {odev == null ? "—" : `%${odev}`}
+                              {`%${odev ?? 0}`}
                             </span>
                           </div>
                         )}
@@ -396,6 +472,16 @@ export default function SertifikaNotuPage() {
                             <span className="w-[22px] h-[3px] rounded-[2px] bg-[#CDD2DA] shrink-0" />
                           )}
                         </div>
+                        <div className="flex items-center justify-center">
+                          {rowLocked && (
+                            <span
+                              className="w-6 h-6 rounded-full flex items-center justify-center bg-[#E6F5ED] text-[#009F3E] shrink-0"
+                              title="Sertifikası basıldı — bu kişinin notu tamamlandı, artık girilemez"
+                            >
+                              <Check size={13} strokeWidth={3} />
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })
@@ -409,25 +495,50 @@ export default function SertifikaNotuPage() {
                       disabled={saving || roster.length === 0}
                       className="py-[11px] px-[18px] rounded-[11px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-bold cursor-pointer hover:bg-[#F7F8FA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {saving ? "Kaydediliyor…" : "Taslak Kaydet"}
-                    </button>
-                    <button
-                      onClick={() => toast.info("Bu özellik yakında.")}
-                      className="inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border-none text-white text-[13px] font-extrabold cursor-pointer transition-transform hover:-translate-y-0.5"
-                      style={{ background: "linear-gradient(135deg,#1F9D57,#0E7A3E)", boxShadow: "0 10px 20px -8px rgba(14,122,62,.5)" }}
-                    >
-                      <Check size={16} strokeWidth={2.4} />
-                      Notları Gönder
+                      {saving ? "Kaydediliyor…" : "Notu Kaydet"}
                     </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </FlexPageContent>
 
-        <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
+        <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
+
+      {odevWarnOpen && (
+        <div className="fixed inset-0 z-[700] flex items-center justify-center p-6 bg-base-primary-900/40 backdrop-blur-md" onClick={() => setOdevWarnOpen(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-4 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
+              <BookOpen size={26} className="text-orange-500" />
+            </div>
+            <div>
+              <p className="text-[16px] font-bold text-[#1E222B] mb-1.5">Bu grupta hiç ödev notu verilmemiş</p>
+              <p className="text-[13px] text-[#6F7B87] leading-relaxed">
+                Eğer ödev vermediyseniz ya da ödev notunun sertifika puanı hesabında kullanılmasını
+                istemiyorsanız lütfen Ödev Notu ayarını devre dışı bırakın.
+              </p>
+            </div>
+            <div className="flex gap-2.5 w-full mt-2">
+              <button
+                onClick={() => setOdevWarnOpen(false)}
+                className="flex-1 h-11 rounded-xl border border-[#E2E5EA] text-[13px] font-bold text-[#414B59] hover:bg-[#F7F8FA] transition-all cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={disableOdevNotu}
+                disabled={disablingOdev}
+                className="flex-1 h-11 rounded-xl text-white text-[13px] font-bold cursor-pointer disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg,#FF8D28,#D66500)" }}
+              >
+                {disablingOdev ? "Kaydediliyor…" : "Devre Dışı Bırak"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

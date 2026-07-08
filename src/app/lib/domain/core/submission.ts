@@ -57,6 +57,14 @@ export interface SubmissionFile extends Audit {
 export type UploadSessionStatus = "uploading" | "completed" | "failed" | "expired";
 
 /**
+ * Hangi akış bu oturumu açtı — `"submission"` (öğrenci teslimi) ya da `"attachment"`
+ * (eğitmenin ödeve referans dosyası eklemesi, 2026-07-08 eklendi). `upload-chunk`
+ * route'u ikisi için de AYNI (genel proxy, farkı umursamaz) — sadece `completeUpload`
+ * (`kind:"submission"`) / `completeAttachmentUpload` (`kind:"attachment"`) ayrışır.
+ */
+export type UploadTargetKind = "submission" | "attachment";
+
+/**
  * Resumable upload state machine — canlıdaki `upload_sessions` (7 günlük TTL) karşılığı.
  * `sessionUri` Drive'ın resumable upload URL'idir, İÇ ALAN — hiçbir response'ta client'a dönmez.
  */
@@ -64,10 +72,11 @@ export interface UploadSession extends Audit {
   id: EntityId;
   tenantId: TenantId;
 
+  kind: UploadTargetKind;
   assignmentId: EntityId;
   groupId: EntityId;
-  personId: EntityId;
-  uploaderUid: string; // isteği yapan firebase uid (öğrenci — Faz 2 kapsamı SADECE bu)
+  personId?: EntityId; // sadece kind==="submission" için dolu (öğrenci)
+  uploaderUid: string; // isteği yapan firebase uid (öğrenci VEYA eğitmen)
 
   originalFileName: string;
   actualFileName: string; // "01-dosya.pdf" gibi sıralı+güvenli ad (Drive'a bu adla yazılır)
@@ -76,11 +85,11 @@ export interface UploadSession extends Audit {
 
   sessionUri: string;
   folderId: string;
-  folderPath: string; // "flexos/{tenantId}/{groupCode}/{personName}/{assignmentTitle}"
+  folderPath: string; // "{eğitmenAdı}/{branş}/{grupKodu}/{ödevAdı}/{Eğitmen|öğrenciAdı}"
 
   status: UploadSessionStatus;
   expiresAt: ISODateTime;
 
   driveFileId?: string; // complete-upload sonrası
-  submissionId?: EntityId; // complete-upload sonrası bağlanan/oluşturulan submission
+  submissionId?: EntityId; // complete-upload sonrası bağlanan/oluşturulan submission (sadece kind==="submission")
 }

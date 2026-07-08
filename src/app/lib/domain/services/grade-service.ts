@@ -1,4 +1,4 @@
-import { can } from "../access/can";
+import { can, widestScope } from "../access/can";
 import type { Actor } from "../access/types";
 import type { ISODateTime } from "../base";
 import type { Grade } from "../education/grade";
@@ -44,6 +44,13 @@ export async function saveGrades(actor: Actor, input: SaveGradesInput, deps: Gra
   }
   if (!input.entries?.length) throw new ValidationError("Not girişi boş olamaz.");
 
+  // Kilitli not — org scope (admin/yetkili) her zaman düzenleyebilir, assigned scope
+  // (eğitmen) kilitli KİŞİYİ düzenleyemez (2026-07-08 kararı: kilit KİŞİ-bazlı, örn.
+  // sertifikası basılmış biri — bkz. `grade.ts` docstring). Roster genelde TEK seferde
+  // topluca gönderilir (bir kişi bugün, öteki 6 ay sonra not girilebiliyor gerçek
+  // kullanımda) — kilitli biri diğerlerinin kaydını ENGELLEMEMELİ, sessizce atlanır.
+  const canOverrideLock = widestScope(actor, "grade.write") === "org";
+
   const ts = nowISO();
   const results: Grade[] = [];
   for (const entry of input.entries) {
@@ -51,6 +58,7 @@ export async function saveGrades(actor: Actor, input: SaveGradesInput, deps: Gra
     if (!validScore(entry.projectGrade)) throw new ValidationError("Sertifika notu 0-100 arası olmalı.");
 
     const existing = await deps.grades.getById(entry.enrollmentId, actor.tenantId);
+    if (existing?.locked && !canOverrideLock) continue; // kilitli — sessizce atla, diğerlerini engelleme
     const grade: Grade = {
       id: entry.enrollmentId,
       tenantId: actor.tenantId,
@@ -58,6 +66,9 @@ export async function saveGrades(actor: Actor, input: SaveGradesInput, deps: Gra
       personId: entry.personId,
       groupId: input.groupId,
       projectGrade: entry.projectGrade == null ? undefined : entry.projectGrade,
+      locked: existing?.locked,
+      lockedAt: existing?.lockedAt,
+      lockedBy: existing?.lockedBy,
       createdAt: existing?.createdAt ?? ts,
       createdBy: existing?.createdBy ?? actor.uid,
       updatedAt: existing ? ts : undefined,

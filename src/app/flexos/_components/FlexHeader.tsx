@@ -49,6 +49,31 @@ export const FLEX_CONTENT_MAX_WIDTH = 1920;
 // bu %94'ten geliyor) — FlexHeader bu sınıf verilince kendi 36px yatay padding'ini de sıfırlar.
 export const FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS = "w-[94%] max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px]";
 
+// `Footer`'ın `containerClassName`'i için hazır sınıf — sayfa başına elle birleştirmek yerine
+// tek kaynaktan (aşağıdaki `FlexPageContent` ile AYNI genişlik/ortalama mantığı).
+export const FLEX_PAGE_FOOTER_CLASS = `${FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} mx-auto`;
+
+/**
+ * Paylaşımlı sayfa içerik wrapper'ı — `FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS`'ı DOĞRU
+ * ortalamak için TEK kaynak (2026-07-08 kararı). Satış Dashboard + Sertifika Notu'na ayrı
+ * ayrı elle `mx-auto w-full ${FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}` eklenmişti — `w-full`
+ * compact class'ın kendi `w-[94%]`'ünü eziyordu (aynı hata iki sayfada ayrı ayrı çıktı,
+ * "sıfıra yapışma" bug'ı). Doğrusu: className'de SADECE compact class, ortalama inline
+ * `margin:"0 auto"` ile (`w-full`/`mx-auto` class'ı EKLEME — width çakışması yaratır).
+ * Bu bileşen o deseni tek yerde kilitler; sayfa kendi grid/flex düzenini `style`/`className`
+ * ile üstüne ekler (`children` her zaman bu kurallara uyar).
+ */
+export function FlexPageContent({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  return (
+    <div
+      className={className ? `${FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} ${className}` : FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
+      style={{ margin: "0 auto", boxSizing: "border-box", flex: 1, ...style }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, maxWidthClassName, left }: FlexHeaderProps) {
   const [displayName, setDisplayName] = useState(nameCache ?? "");
 

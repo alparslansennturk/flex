@@ -3,6 +3,9 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firestore";
+import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
+import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
+import { notifyUser } from "@/app/lib/server/flexos-notify";
 import { updateSubmissionStatus } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import type { SubmissionStatus } from "@/app/lib/domain/core/submission";
@@ -26,6 +29,9 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     const submission = await updateSubmissionStatus(actor, id, body.status, {
       submissions: firestoreSubmissionRepo,
       groups: firestoreGroupRepo,
+      persons: firestorePersonRepo,
+      assignments: firestoreAssignmentRepo,
+      notify: notifyUser,
     });
     return NextResponse.json({ id: submission.id, status: submission.status });
   } catch (e) {

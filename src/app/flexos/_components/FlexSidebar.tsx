@@ -34,7 +34,6 @@ export type FlexNavKey =
   | "siniflar"
   | "odev-yonetimi"
   | "odev-teslimi"
-  | "odev-degerlendirme"
   | "egitmenler"
   | "kullanicilar"
   | "aktivite-merkezi"   // eskiyle uyum (aktiviteler ile aynı davranır)
@@ -65,10 +64,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const yoklamaActive = active === "yoklamalar" || active === "yoklama-al" || active === "yoklama-detay" || active === "yoklama-raporu";
   const [yoklamaOpen, setYoklamaOpen] = useState(yoklamaActive);
 
-  const odevActive = active === "odev-yonetimi" || active === "odev-teslimi" || active === "odev-degerlendirme";
+  const odevActive = active === "odev-yonetimi" || active === "odev-teslimi" || active === "odev-notu";
   const [odevOpen, setOdevOpen] = useState(odevActive);
 
-  const sertifikaActive = active === "sertifika-notu" || active === "odev-notu" || active === "sertifika-ayarlari";
+  const sertifikaActive = active === "sertifika-notu" || active === "sertifika-ayarlari";
   const [sertifikaOpen, setSertifikaOpen] = useState(sertifikaActive);
 
   // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
@@ -267,8 +266,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
 
         {/* Ödevler — akordiyon: Ödev Teslimi (oluşturma DAHİL — canlıda da aynı ekrandı,
-            ayrı bir "yönetim" grup-kart sayfası kaldırıldı) + Ödev Değerlendirme (not/durum,
-            en sona bırakıldı). Yoklama/not gibi çekirdek öğretmenlik işi, standalone-only DEĞİL. */}
+            ayrı bir "yönetim" grup-kart sayfası kaldırıldı) + Ödev Notu (en sona bırakıldı —
+            "Ödev Değerlendirme" ölü linki KALDIRILDI, aynı kavram olduğu için Sertifikasyon'daki
+            gerçek "Ödev Notu" sayfası buraya TAŞINDI, 2026-07-08 kullanıcı kararı). Yoklama/not
+            gibi çekirdek öğretmenlik işi, standalone-only DEĞİL. */}
         {canSee("assignment.read", true) && (
           <>
             <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={() => setOdevOpen((o) => !o)}>
@@ -294,7 +295,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                     <SubItem label="Ödev Yönetimi" active={active === "odev-yonetimi"} onClick={go("/flexos/odevler/yonetim")} />
                     <SubItem label="Ödev Teslimi" active={active === "odev-teslimi"} onClick={go("/flexos/odevler/teslim")} />
-                    <SubItem label="Ödev Değerlendirme" active={active === "odev-degerlendirme"} onClick={go(null)} />
+                    <SubItem label="Ödev Notu" active={active === "odev-notu"} onClick={go("/flexos/sertifikasyon/odev-notu")} />
                   </div>
                 </motion.div>
               )}
@@ -401,7 +402,6 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                     <SubItem label="Sertifika Notu" active={active === "sertifika-notu"} onClick={go("/flexos/sertifikasyon/not")} />
-                    <SubItem label="Ödev Notu" active={active === "odev-notu"} onClick={go("/flexos/sertifikasyon/odev-notu")} />
                     <SubItem label="Sertifika Ayarları" active={active === "sertifika-ayarlari"} onClick={go("/flexos/sertifikasyon/ayarlar")} />
                   </div>
                 </motion.div>

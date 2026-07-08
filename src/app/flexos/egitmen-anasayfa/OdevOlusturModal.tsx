@@ -41,12 +41,12 @@
  * boyutu değişmez. İkon picker kapalıyken normal içerik 820px'in altında kaldığı için scroll
  * hiç görünmez.
  *
- * **"Ödev Dosyası Yükle" — BİLEREK PLACEHOLDER (2026-07-06, kullanıcı: "bu kısım sonra
- * olur"):** Sürükle-bırak + çoklu dosya + otomatik yükleme istendi ama backend (Drive
- * resumable session akışı, submission-service.ts'teki `initUpload`/`completeUpload`
- * deseninin ödev-eki için genellenmesi) bilerek ERTELENDİ. Kullanıcının belirttiği
- * hedef klasör yapısı (ileride kurulunca): `Grup Adı > Eğitmen Adı > Ödev Adı`. Şimdilik
- * kutu sadece "yakında" toast'ı veriyor, `Assignment.attachments` boş kalıyor.
+ * **"Ödev Dosyası Yükle" BİTTİ (2026-07-08):** Classroom'daki gibi — dosya(lar) burada
+ * SEÇİLİR ama HENÜZ yüklenmez (assignmentId henüz yok, ödev kaydedilmedi). "Taslak
+ * Kaydet"/"Ödevi Başlat"a basınca SIRAYLA: (1) `POST /api/flexos/assignments` ödevi
+ * oluşturur, (2) dönen `id` ile seçili dosyalar `uploadAssignmentAttachment` (paylaşımlı,
+ * `EditAssignmentModal`'la AYNI fonksiyon) üzerinden Drive'a yüklenir. Kullanıcı tek bir
+ * "Ödevi Başlat" tıklamasıyla hem ödevi hem dosyalarını göndermiş olur.
  */
 
 import { useEffect, useState } from "react";
@@ -56,10 +56,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   X, PenLine, BookOpen, LayoutGrid, ChevronDown, Check, Plus,
-  UploadCloud,
+  UploadCloud, FileText, Loader2,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from "../odevler/_shared/assignmentIcons";
+import { uploadAssignmentAttachment, ATTACHMENT_MAX_MB } from "../odevler/_shared/uploadAssignmentAttachment";
 
 interface GroupItem { id: string; code: string; branch: string }
 
@@ -115,6 +116,9 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
   const [sablonAktif, setSablonAktif] = useState(false);
   const [sablonAdi, setSablonAdi] = useState("");
   const [saving, setSaving] = useState<"draft" | "publish" | null>(null);
+  const [pickedFiles, setPickedFiles] = useState<File[]>([]);
+  const [dosyaDragOver, setDosyaDragOver] = useState(false);
+  const [uploadingLabel, setUploadingLabel] = useState<string | null>(null);
 
   // Kütüphane'den bir şablonla açılınca alanları o şablondan doldur; "+Ödev Ver" ile
   // (prefill yok) her açılışta boş forma dön.
@@ -129,6 +133,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
     setBitisTarihi("");
     setSablonAktif(false);
     setSablonAdi("");
+    setPickedFiles([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, prefill?.templateId]);
 
@@ -199,6 +204,22 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           }),
         });
         if (!tplRes.ok) toast.error("Ödev oluşturuldu ama şablon kaydedilemedi.");
+      }
+
+      // Dosyalar SEÇİLDİĞİ anda değil, ödev gerçekten oluşturulup bir `id` alınca yüklenir
+      // (Classroom'daki gibi tek adımmış hissi verir — kullanıcı: "aynı anda yüklüyorum").
+      if (pickedFiles.length > 0 && created.id) {
+        let failed = 0;
+        for (let i = 0; i < pickedFiles.length; i++) {
+          setUploadingLabel(`Dosya yükleniyor (${i + 1}/${pickedFiles.length})…`);
+          try {
+            await uploadAssignmentAttachment(created.id, pickedFiles[i]);
+          } catch {
+            failed++;
+          }
+        }
+        setUploadingLabel(null);
+        if (failed > 0) toast.error(`${failed} dosya yüklenemedi, ödevi Düzenle'den tekrar deneyebilirsiniz.`);
       }
 
       toast.success(status === "draft" ? "Taslak kaydedildi." : "Ödev başlatıldı.");
@@ -413,19 +434,42 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
             />
           </div>
 
-          {/* Ödev Dosyası Yükle (sol, placeholder — backend sonra) + Şablon olarak kaydet (sağda) */}
+          {/* Ödev Dosyası Yükle (sol — seçilir, ödev kaydedilince yüklenir) + Şablon olarak kaydet (sağda) */}
           <div className="flex gap-2.5 items-stretch shrink-0">
             <div className="flex-1 min-w-0">
               <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Dosyası Yükle</label>
-              <button
-                type="button"
-                onClick={() => toast.info("Dosya yükleme yakında.")}
+              <label
+                onDragOver={(e) => { e.preventDefault(); setDosyaDragOver(true); }}
+                onDragLeave={() => setDosyaDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault(); setDosyaDragOver(false);
+                  setPickedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
+                }}
                 className="w-full h-[52px] rounded-[10px] border border-dashed flex items-center justify-start gap-2 px-3.5 cursor-pointer transition-all"
-                style={{ borderColor: "#D3D8E0", background: "#FBFCFD", color: "#8E95A3" }}
+                style={{ borderColor: dosyaDragOver ? "#6F74D8" : "#D3D8E0", background: dosyaDragOver ? "#F2F2FC" : "#FBFCFD", color: dosyaDragOver ? "#6F74D8" : "#8E95A3" }}
               >
                 <UploadCloud size={16} className="shrink-0" />
-                <span className="text-[11.5px] font-semibold text-left">Dosyaları sürükleyin veya seçin</span>
-              </button>
+                <span className="text-[11.5px] font-semibold text-left">
+                  {pickedFiles.length > 0 ? `${pickedFiles.length} dosya seçildi — daha ekleyin` : `Dosyaları sürükleyin veya seçin (${ATTACHMENT_MAX_MB}MB'a kadar)`}
+                </span>
+                <input
+                  type="file" multiple className="hidden"
+                  onChange={(e) => { if (e.target.files) setPickedFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }}
+                />
+              </label>
+              {pickedFiles.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {pickedFiles.map((f, i) => (
+                    <span key={`${f.name}-${i}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold" style={{ background: "#F2F4F7", color: "#414B59" }}>
+                      <FileText size={11} className="shrink-0" />
+                      <span className="max-w-[140px] truncate">{f.name}</span>
+                      <button type="button" onClick={() => setPickedFiles((prev) => prev.filter((_, idx) => idx !== i))} className="cursor-pointer text-[#AEB4C0] hover:text-[#414B59]">
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             {/* Zaten bir şablondan başlatılıyorsa (Kütüphane'den prefill) tekrar şablona
                 kaydetmek anlamsız — sadece "+Ödev Ver" (custom ödev) akışında gösterilir. */}
@@ -470,6 +514,11 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           >
             İptal
           </button>
+          {uploadingLabel && (
+            <span className="text-[12px] font-semibold text-[#8E95A3] flex items-center gap-1.5">
+              <Loader2 size={13} className="animate-spin" /> {uploadingLabel}
+            </span>
+          )}
           <div className="flex items-center gap-2.5">
             <button
               type="button" onClick={() => submit("draft")} disabled={saving !== null}

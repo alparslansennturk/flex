@@ -9,12 +9,12 @@
  * Ödeme durumu rozeti burada YOK (karar 2026-06-29: ödeme rozeti yalnız Finans modülünde).
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
-import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../../_components/FlexHeader";
+import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
@@ -207,6 +207,29 @@ export default function SatisDashboardPage() {
     return () => mq.removeEventListener("change", update);
   }, []);
 
+  // Sol sütunun (aksiyon kartları + En Son Satışlar, birlikte gridRow "2/span 2") GERÇEK
+  // render yüksekliği — "Canlı Aktivite Akışı" paneli buna JS ile eşitlenir (2026-07-08
+  // düzeltmesi: CSS grid'in "auto" satır hesaplamasına + `position:absolute` hilesine
+  // güvenmek geniş ekranlarda hâlâ birkaç piksel fark bırakıyordu, kullanıcı ekran
+  // görüntüsüyle gösterdi — ölçülmüş piksel değeri kesin/tartışmasız bir eşleşme sağlar).
+  const leftBlockRef = useRef<HTMLDivElement>(null);
+  const [leftBlockHeight, setLeftBlockHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = leftBlockRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect.height;
+      if (h != null) setLeftBlockHeight(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // `initialLoadDone` bağımlılığı ŞART: bu grid (leftBlockRef dahil) `initialLoadDone`
+    // true olana kadar hiç mount edilmiyor (yukarıdaki not) — sadece `[]` ile efekt sayfa
+    // AÇILIR AÇILMAZ çalışıyor, ref o an hâlâ null, ResizeObserver hiç kurulmuyordu ve
+    // `leftBlockHeight` sonsuza dek null kalıyordu (Aktivite paneli "auto"ya düşüp satırın
+    // TAMAMINA geriliyordu — "daha da aşağı gitti" bug'ının gerçek sebebi buydu).
+  }, [initialLoadDone]);
+
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const u = auth.currentUser;
     const token = u ? await u.getIdToken() : "";
@@ -372,9 +395,11 @@ export default function SatisDashboardPage() {
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="ana" />
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
-        <FlexHeader greeting subtitle="Bugün satışlarda neler oluyor? İşte son durum." roleLabel="Yönetici · Satış" />
+        <FlexHeader greeting subtitle="Bugün satışlarda neler oluyor? İşte son durum." roleLabel="Yönetici · Satış" maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} />
 
-        <div style={{ padding: "28px 36px 56px", maxWidth: FLEX_CONTENT_MAX_WIDTH, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1, display: "grid", gridTemplateColumns: isCompactRow ? "1fr 340px" : "1fr 420px", gridTemplateRows: "auto auto auto", gap: 20, alignItems: "stretch" }}>
+        <FlexPageContent
+          style={{ padding: "28px 0 56px", display: "grid", gridTemplateColumns: isCompactRow ? "minmax(0,1fr) 340px" : "minmax(0,1fr) 420px", gridTemplateRows: "auto auto auto", gap: 20, alignItems: "stretch" }}
+        >
 
           {/* DONUT + LEGEND */}
           <div style={{ gridColumn: 1, gridRow: 1, position: "relative", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 24, padding: "24px 28px 32px", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)", minHeight: 252, display: "flex", flexDirection: "column" }}>
@@ -462,8 +487,15 @@ export default function SatisDashboardPage() {
             .sd-other-legend:hover .sd-other-tip { opacity: 1 !important; visibility: visible !important; transform: translateY(0) !important; }
           `}</style>
 
+          {/* Sol sütun: aksiyon kartları + En Son Satışlar — TEK flex-column wrapper, gerçek
+              yüksekliği `leftBlockRef` ile ölçülüp Aktivite paneline JS'le uygulanıyor. */}
+          {/* `alignSelf:"start"` ŞART — üst grid container'da `alignItems:"stretch"` var,
+              bu olmadan bu wrapper satırın (uzun ekranda büyüyen) TAM yüksekliğine gerilir
+              ve `leftBlockRef`in ölçtüğü yükseklik kartların gerçek bittiği yer değil, boş
+              gerilme payını da içerir — Aktivite paneli de o şişmiş değere eşitlenip taşardı. */}
+          <div ref={leftBlockRef} style={{ gridColumn: 1, gridRow: "2 / span 2", alignSelf: "start", display: "flex", flexDirection: "column", gap: 20 }}>
           {/* DIRECT ACTION CARDS */}
-          <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 16 }}>
             <button
               onClick={() => router.push("/flexos/satislar/satis-yap")}
               style={{ textAlign: "left" as const, textDecoration: "none", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 22, padding: isCompactRow ? 16 : 22, display: "flex", flexDirection: "column", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)", cursor: "pointer", fontFamily: "inherit" }}
@@ -518,7 +550,7 @@ export default function SatisDashboardPage() {
           </div>
 
           {/* ACTIVE SALES POOL */}
-          <div style={{ gridColumn: 1, gridRow: 3 }}>
+          <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#007A30" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
@@ -532,7 +564,7 @@ export default function SatisDashboardPage() {
                 Henüz aktif satış kaydı yok.
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 16 }}>
                 {recentActive.map((s, i) => {
                   const pal = AV_PALETTES[i % AV_PALETTES.length];
                   return (
@@ -558,6 +590,7 @@ export default function SatisDashboardPage() {
                 })}
               </div>
             )}
+          </div>
           </div>
 
           {/* RIGHT: BUGÜNKÜ RANDEVULAR */}
@@ -590,62 +623,63 @@ export default function SatisDashboardPage() {
             {todayAppointments.length > 0 && <div style={{ flex: "0 0 auto", height: APPT_LIST_PAD }} />}
           </div>
 
-          {/* RIGHT: CANLI AKTİVİTE AKIŞI */}
-          <div style={{ gridColumn: 2, gridRow: "2 / span 2", position: "relative", minHeight: 0 }}>
-            <div style={{ position: "absolute", inset: 0, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 24, padding: "20px 20px 12px", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#FF8D28,#D66500)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 14px -6px rgba(214,101,0,.5)" }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 800, color: "#1E222B" }}>Canlı Aktivite Akışı</div>
-                    <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Son satış hareketleri</div>
-                  </div>
+          {/* RIGHT: CANLI AKTİVİTE AKIŞI — yüksekliği CSS grid'e/`position:absolute` hilesine
+              bırakmak yerine `leftBlockHeight` (yukarıda ResizeObserver'la ÖLÇÜLEN, sol
+              sütunun gerçek render yüksekliği) ile PİKSEL BİREBİR eşitleniyor (2026-07-08,
+              son düzeltme — grid "auto" satır hesabı + abspos denemeleri geniş ekranda hâlâ
+              birkaç piksel fark bırakıyordu, kullanıcı ekran görüntüsüyle gösterdi). */}
+          <div style={{ gridColumn: 2, gridRow: "2 / span 2", height: leftBlockHeight ?? undefined, minHeight: 0, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 24, padding: "20px 20px 12px", boxShadow: "0 4px 20px -12px rgba(15,31,61,.15)", display: "flex", flexDirection: "column", overflow: "hidden", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, flex: "0 0 auto" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#FF8D28,#D66500)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 14px -6px rgba(214,101,0,.5)" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                 </div>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: "#E6F5ED", fontSize: 11, fontWeight: 700, color: "#007A30" }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#009F3E" }} />
-                  Canlı
-                </span>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#1E222B" }}>Canlı Aktivite Akışı</div>
+                  <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Son satış hareketleri</div>
+                </div>
               </div>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: "#E6F5ED", fontSize: 11, fontWeight: 700, color: "#007A30" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#009F3E" }} />
+                Canlı
+              </span>
+            </div>
 
-              <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1, minHeight: 0, paddingRight: 2 }}>
-                {activities.length === 0 ? (
-                  <div style={{ padding: "20px 0", textAlign: "center", color: "#8E95A3", fontSize: 13, fontWeight: 600 }}>Henüz aktivite yok.</div>
-                ) : activities.map((a, i) => {
-                  const meta = ACTIVITY_META[a.type];
-                  return (
-                    <div key={a.id} style={{ position: "relative", display: "flex", gap: 12, paddingBottom: 14 }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto" }}>
-                        <span style={{ width: 32, height: 32, borderRadius: 9, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: meta.bg, color: meta.color }} dangerouslySetInnerHTML={{ __html: meta.icon }} />
-                        <span style={{ width: 2, flex: 1, background: i < activities.length - 1 ? "#EEF0F3" : "transparent", minHeight: 8, marginTop: 4 }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0, border: "1px solid #EEF0F3", borderRadius: 13, padding: "11px 12px", background: "#fff" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta.label}</span>
-                          <span style={{ fontSize: 10.5, color: "#AEB4C0", fontWeight: 600, whiteSpace: "nowrap", flex: "0 0 auto" }}>{relTime(a.createdAt)}</span>
-                        </div>
-                        <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {a.personName}{a.note ? ` — ${a.note}` : ""}
-                        </div>
-                        <button
-                          onClick={() => router.push("/flexos/aktivite-merkezi")}
-                          style={{ marginTop: 9, display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: "none", background: "#EEF0F3", color: "#205297", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
-                        >
-                          Aktivite Gir
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                        </button>
-                      </div>
+            <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1, minHeight: 0, paddingRight: 2 }}>
+              {activities.length === 0 ? (
+                <div style={{ padding: "20px 0", textAlign: "center", color: "#8E95A3", fontSize: 13, fontWeight: 600 }}>Henüz aktivite yok.</div>
+              ) : activities.map((a, i) => {
+                const meta = ACTIVITY_META[a.type];
+                return (
+                  <div key={a.id} style={{ position: "relative", display: "flex", gap: 12, paddingBottom: 14 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto" }}>
+                      <span style={{ width: 32, height: 32, borderRadius: 9, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: meta.bg, color: meta.color }} dangerouslySetInnerHTML={{ __html: meta.icon }} />
+                      <span style={{ width: 2, flex: 1, background: i < activities.length - 1 ? "#EEF0F3" : "transparent", minHeight: 8, marginTop: 4 }} />
                     </div>
-                  );
-                })}
-              </div>
+                    <div style={{ flex: 1, minWidth: 0, border: "1px solid #EEF0F3", borderRadius: 13, padding: "11px 12px", background: "#fff" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta.label}</span>
+                        <span style={{ fontSize: 10.5, color: "#AEB4C0", fontWeight: 600, whiteSpace: "nowrap", flex: "0 0 auto" }}>{relTime(a.createdAt)}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {a.personName}{a.note ? ` — ${a.note}` : ""}
+                      </div>
+                      <button
+                        onClick={() => router.push("/flexos/aktivite-merkezi")}
+                        style={{ marginTop: 9, display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: "none", background: "#EEF0F3", color: "#205297", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                      >
+                        Aktivite Gir
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-        </div>
-        {/* Tailwind JIT dinamik interpolasyonu build-time'da göremez — FLEX_CONTENT_MAX_WIDTH (1920) burada BİLEREK sabit yazılı, değişirse elle senkron tutulmalı. */}
-        <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
+        </FlexPageContent>
+        <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
     </div>
   );

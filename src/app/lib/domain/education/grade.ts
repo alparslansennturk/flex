@@ -1,12 +1,14 @@
-import type { Audit, EntityId, TenantId } from "../base";
+import type { Audit, EntityId, ISODateTime, TenantId } from "../base";
 
 /**
- * Canlı not — Enrollment'a bağlı, finalize'a kadar MUTABLE (Education pack).
+ * Canlı not — Enrollment'a bağlı, KİŞİ-bazlı kilitlenene kadar MUTABLE (Education pack).
+ * Sadece `projectGrade` (Sertifika/Proje/Sınav notu, `Education.certType`'a göre etiketlenir
+ * ama HER ZAMAN bu tek alana yazılır) tutar.
  *
- * Kaynak-of-truth ayrımı:
- *  - Canlı düzenleme burada (`grades`) — sadece `projectGrade` (Sertifika/Proje/Sınav notu,
- *    `Education.certType`'a göre etiketlenir ama HER ZAMAN bu tek alana yazılır).
- *  - `grade.finalize` → hesaplanır, `Enrollment.result`'a SNAPSHOT'lanır, orası kilitlenir.
+ * **`Enrollment.result` snapshot'lama YOK (2026-07-08 kararı, önceki tasarımdan vazgeçildi):**
+ * kullanıcı: "notu kaydet desek bile admin ve yetkili düzenleyebilir" — ayrı bir donmuş/
+ * mezuniyet kaydı gerekmiyor, kilit doğrudan bu dokümanın `locked` alanında tutulur (bkz.
+ * aşağı).
  *
  * **Ödev notu ARTIK BURADA SAKLANMIYOR** (2026-07-06 kararı, eski `assignmentScore`
  * alanı KALDIRILDI) — enrollment başına tek alan olması, birden fazla ödevin
@@ -28,4 +30,17 @@ export interface Grade extends Audit {
 
   projectGrade?: number;
   components?: Record<string, number>; // ağırlık bileşenleri
+
+  /**
+   * Kilitleme (2026-07-08 kararı) — KİŞİ-bazlı, grup-genelinde DEĞİL. Tetikleyici Eğitim
+   * Op'un o kişiye özel "Sertifika Bastır" aksiyonu (HENÜZ YOK, ertelendi — bkz. proje
+   * hafızası); o özellik gelince sadece o kişinin kaydını kilitleyecek. Kilitliyken
+   * `grade.write` **assigned** scope'lu aktör (eğitmen) o kaydı DÜZENLEYEMEZ (`saveGrades`
+   * sessizce atlar, roster'daki diğerlerini engellemez); **org** scope'lu aktör (admin/
+   * yetkili) her zaman düzenleyebilir (kilit onu bağlamaz). Ayrı bir "unlock" aksiyonu YOK
+   * — yetkili düzenlerse kilit durumu aynen kalır.
+   */
+  locked?: boolean;
+  lockedAt?: ISODateTime;
+  lockedBy?: string; // uid
 }

@@ -3,10 +3,19 @@
 /**
  * FlexOS · Ödev Teslimi — Teslim Detayı — canlıdaki
  * `dashboard/assignment/[groupId]/[assignmentId]/page.tsx` portu (master-detail).
- * BİLİNÇLİ FARK: notlandırma aksiyonları (Revize İste/Onayla, toplu işlem) YOK —
- * kullanıcı kararı: "notlandırma sistemini en son yapacağız, ödev verme/alma canlı
- * çalışsın şimdi." Bu sayfa SADECE görüntüleme + yorumlaşma. Ayrıca tam-ekran dosya
- * önizleme (`/preview` sayfası) portlanmadı — dosyalar Drive linkiyle açılıyor.
+ *
+ * **"Revize İste"/"Onayla" BİTTİ (2026-07-08):** canlıdaki `handleSingleStatus`'un
+ * karşılığı — `PATCH /api/flexos/submissions/[id]/status` (zaten Faz 2'den beri var
+ * olan endpoint, sadece bu UI'dan hiç çağrılmıyordu). "Revize İste" → `status:"revision"`
+ * (öğrencinin yükleme hakkı otomatik 8'e çıkar, `getMaxUploads` zaten böyleydi) + öğrenciye
+ * bildirim ("Revize İstendi"). "Onayla" → `status:"completed"` + bildirim ("Ödeviniz
+ * Onaylandı! 🎉"). **Toplu işlem de eklendi** (aynı gün) — canlıdaki checkbox+dropdown
+ * (`bulkSetStatus`) birebir: sol paneldeki öğrenci satırlarına checkbox, üstte "Toplu
+ * İşlem" dropdown'ı (Teslim Edildi/Tamamlandı/Revize — seçili tüm öğrencilere paralel
+ * `PATCH .../status`).
+ *
+ * Ayrıca tam-ekran dosya önizleme (`/preview` sayfası) portlanmadı — dosyalar Drive
+ * linkiyle açılıyor.
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -14,7 +23,7 @@ import { useParams, useRouter } from "next/navigation";
 import { auth } from "@/app/lib/firebase";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Loader2, FileText, ExternalLink, Send, Megaphone, MessageSquare,
+  ArrowLeft, Loader2, FileText, ExternalLink, Send, Megaphone, MessageSquare, RotateCcw, CheckCircle2, ChevronDown,
 } from "lucide-react";
 import FlexSidebar from "../../../../_components/FlexSidebar";
 import FlexHeader from "../../../../_components/FlexHeader";
@@ -70,6 +79,19 @@ export default function OdevTeslimDetayPage() {
   const [threadComments, setThreadComments] = useState<CommentItem[]>([]);
   const [commentText, setCommentText] = useState("");
   const commentsEndRef = useRef<HTMLDivElement>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const bulkMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!bulkMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (bulkMenuRef.current && !bulkMenuRef.current.contains(e.target as Node)) setBulkMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [bulkMenuOpen]);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -155,6 +177,70 @@ export default function OdevTeslimDetayPage() {
     }
   }
 
+  /** "Revize İste"/"Onayla" — canlıdaki `handleSingleStatus`'un karşılığı
+   * (`PATCH /api/flexos/submissions/[id]/status`, zaten var olan endpoint). */
+  async function updateStatus(submissionId: string, status: SubmissionStatus) {
+    if (actionLoading) return;
+    setActionLoading(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/submissions/${submissionId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(json.error ?? "Durum güncellenemedi.");
+        return;
+      }
+      toast.success(status === "revision" ? "Revize istendi." : "Ödev onaylandı.");
+      await loadOverview();
+    } catch {
+      toast.error("Bağlantı hatası, tekrar dene.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function toggleCheck(personId: string) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(personId)) next.delete(personId); else next.add(personId);
+      return next;
+    });
+  }
+
+  /** Toplu işlem — canlıdaki `bulkSetStatus`'un karşılığı (seçili öğrencilerin
+   * teslimlerine aynı durumu paralel uygular). */
+  async function bulkSetStatus(status: SubmissionStatus) {
+    if (checkedIds.size === 0) return;
+    setBulkMenuOpen(false);
+    setActionLoading(true);
+    try {
+      const headers = await authHeaders();
+      const targets = [...checkedIds]
+        .map((personId) => submissions.find((s) => s.personId === personId))
+        .filter((s): s is SubmissionRow => !!s);
+      await Promise.all(
+        targets.map((sub) =>
+          fetch(`/api/flexos/submissions/${sub.id}/status`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", ...headers },
+            body: JSON.stringify({ status }),
+          }),
+        ),
+      );
+      setCheckedIds(new Set());
+      await loadOverview();
+      toast.success(`${targets.length} teslim güncellendi.`);
+    } catch {
+      toast.error("Bağlantı hatası, tekrar dene.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   const rows = roster.map((r) => ({ roster: r, submission: submissions.find((s) => s.personId === r.personId) ?? null }));
   const teslimEdenler = rows.filter((r) => r.submission && (r.submission.status === "submitted" || r.submission.status === "reviewing" || r.submission.status === "completed"));
   const revizeVerilenler = rows.filter((r) => r.submission?.status === "revision");
@@ -194,10 +280,41 @@ export default function OdevTeslimDetayPage() {
         <div className="flex-1 flex min-h-0 overflow-hidden font-inter">
           {/* Sol: öğrenci listesi */}
           <div className="w-[360px] shrink-0 border-r border-surface-200 bg-white flex flex-col overflow-hidden">
+            {/* Toplu işlem — canlıdaki dropdown'ın birebir karşılığı (2026-07-08 eklendi). */}
+            <div className="shrink-0 px-4 py-3 border-b border-surface-100 flex justify-end">
+              <div className="relative" ref={bulkMenuRef}>
+                <button
+                  onClick={() => setBulkMenuOpen((v) => !v)}
+                  disabled={checkedIds.size === 0 || actionLoading}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold border transition-colors cursor-pointer ${checkedIds.size > 0 ? "border-base-primary-300 text-base-primary-700 bg-base-primary-50 hover:bg-base-primary-100" : "border-surface-200 text-surface-400 bg-surface-50 cursor-not-allowed"}`}
+                >
+                  {checkedIds.size > 0 ? `${checkedIds.size} seçili` : "Seçiniz"}
+                  <ChevronDown size={12} />
+                </button>
+                {bulkMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-surface-200 rounded-2xl shadow-xl z-50 overflow-hidden py-1.5">
+                    <p className="px-4 pt-2 pb-1.5 text-[10px] font-bold text-surface-500 uppercase tracking-widest">Toplu İşlem</p>
+                    {([
+                      { label: "Teslim Edildi İşaretle", status: "submitted" as SubmissionStatus },
+                      { label: "Tamamlandı İşaretle", status: "completed" as SubmissionStatus },
+                      { label: "Revize Gönder", status: "revision" as SubmissionStatus },
+                    ]).map(({ label, status }) => (
+                      <button
+                        key={status}
+                        onClick={() => bulkSetStatus(status)}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="flex-1 overflow-y-auto">
-              <StudentGroup title="Teslim Edenler" rows={teslimEdenler} viewingPersonId={viewingPersonId} onSelect={selectPerson} />
-              <StudentGroup title="Revize Verilenler" rows={revizeVerilenler} viewingPersonId={viewingPersonId} onSelect={selectPerson} />
-              <StudentGroup title="Teslim Etmeyenler" rows={teslimEtmeyenler} viewingPersonId={viewingPersonId} onSelect={selectPerson} />
+              <StudentGroup title="Teslim Edenler" rows={teslimEdenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} />
+              <StudentGroup title="Revize Verilenler" rows={revizeVerilenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} />
+              <StudentGroup title="Teslim Etmeyenler" rows={teslimEtmeyenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} />
             </div>
           </div>
 
@@ -220,6 +337,24 @@ export default function OdevTeslimDetayPage() {
                     <span className={`text-[11px] font-semibold px-3 py-1 rounded-full ${viewingRow.submission ? STATUS_META[viewingRow.submission.status].cls : "bg-surface-100 text-surface-500"}`}>
                       {viewingRow.submission ? STATUS_META[viewingRow.submission.status].label : "Teslim Edilmedi"}
                     </span>
+                    {/* "Revize İste"/"Onayla" — canlıdaki handleSingleStatus'un birebir karşılığı
+                        (2026-07-08 kararı: bilerek ertelenen notlandırma aksiyonu şimdi eklendi). */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => viewingRow.submission && updateStatus(viewingRow.submission.id, "revision")}
+                        disabled={!viewingRow.submission || actionLoading || viewingRow.submission.status === "completed" || viewingRow.submission.status === "revision"}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-[12px] font-bold hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <RotateCcw size={13} /> Revize İste
+                      </button>
+                      <button
+                        onClick={() => viewingRow.submission && updateStatus(viewingRow.submission.id, "completed")}
+                        disabled={!viewingRow.submission || actionLoading || viewingRow.submission.status === "completed"}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-status-success-500 text-white text-[12px] font-bold hover:bg-status-success-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <CheckCircle2 size={13} /> Onayla
+                      </button>
+                    </div>
                   </div>
 
                   {/* Dosyalar */}
@@ -313,22 +448,31 @@ export default function OdevTeslimDetayPage() {
   );
 }
 
-function StudentGroup({ title, rows, viewingPersonId, onSelect }: {
+function StudentGroup({ title, rows, viewingPersonId, checkedIds, onSelect, onToggleCheck }: {
   title: string;
   rows: { roster: RosterItem; submission: SubmissionRow | null }[];
   viewingPersonId: string | null;
+  checkedIds: Set<string>;
   onSelect: (personId: string) => void;
+  onToggleCheck: (personId: string) => void;
 }) {
   if (rows.length === 0) return null;
   return (
     <div className="py-2">
       <p className="px-4 py-2 text-[11px] font-bold text-surface-400 uppercase tracking-wide">{title} ({rows.length})</p>
       {rows.map(({ roster, submission }) => (
-        <button
+        <div
           key={roster.personId}
           onClick={() => onSelect(roster.personId)}
           className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer ${viewingPersonId === roster.personId ? "bg-base-primary-50" : "hover:bg-surface-50"}`}
         >
+          <input
+            type="checkbox"
+            checked={checkedIds.has(roster.personId)}
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => onToggleCheck(roster.personId)}
+            className="shrink-0 w-4 h-4 rounded cursor-pointer accent-base-primary-600"
+          />
           <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ background: "linear-gradient(135deg,#6F74D8,#5E63C2)" }}>
             {initials(roster.name)}
           </div>
@@ -336,7 +480,7 @@ function StudentGroup({ title, rows, viewingPersonId, onSelect }: {
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${submission ? STATUS_META[submission.status].cls : "bg-surface-100 text-surface-500"}`}>
             {submission ? STATUS_META[submission.status].label : "Teslim Edilmedi"}
           </span>
-        </button>
+        </div>
       ))}
     </div>
   );
