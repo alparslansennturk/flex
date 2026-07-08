@@ -36,6 +36,8 @@ interface EducationDoc {
   structure?: "single" | "sectioned"; // sectioned → Track Bazlı satışa müsait
   outline?: string[];
   listPrice?: number; vatRate?: number; onSale?: boolean;
+  deliveryMode?: "in_person" | "online" | "hybrid";
+  deliveryOptions?: { mode: "in_person" | "online"; listPrice: number }[]; // hibrit eğitimde teslim şekli başına fiyat
 }
 interface SectionDoc { id: string; educationId: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
 interface TrackDoc { id: string; educationId: string; sectionId?: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
@@ -92,6 +94,7 @@ export default function SatisYapPage() {
   const [kampanya, setKampanya] = useState("");
   const [satisNedeni, setSatisNedeni] = useState("Yeni Satış");
   const [satisModeli, setSatisModeli] = useState<"full" | "track">("full"); // varsayılan Full Paket
+  const [teslimSekli, setTeslimSekli] = useState<"in_person" | "online">("in_person"); // hibrit eğitimde Full Paket fiyatı için
   // track bazlı seçim: trackId → seçili mi (varsayılan true = hepsi dahil)
   const [trackSel, setTrackSel] = useState<Record<string, boolean>>({});
   // ödeme: ek indirim + çok satırlı ödeme girişi + senet vade farkı
@@ -224,8 +227,8 @@ export default function SatisYapPage() {
   }, [egitim, authHeaders]);
 
   // branş değişince eğitim + seçimleri sıfırla
-  const onBransChange = (id: string) => { setBrans(id); setEgitim(""); setSections([]); setTracks([]); setTrackSel({}); setSatisModeli("full"); };
-  const onEgitimChange = (id: string) => { setEgitim(id); setTrackSel({}); setSatisModeli("full"); };
+  const onBransChange = (id: string) => { setBrans(id); setEgitim(""); setSections([]); setTracks([]); setTrackSel({}); setSatisModeli("full"); setTeslimSekli("in_person"); };
+  const onEgitimChange = (id: string) => { setEgitim(id); setTrackSel({}); setSatisModeli("full"); setTeslimSekli("in_person"); };
 
   // ── türetilmiş değerler ──
   const isTc = uyruk === "TC";
@@ -247,6 +250,22 @@ export default function SatisYapPage() {
   const modelLocked = !egitim || !trackBased;
   const effModel: "full" | "track" = modelLocked ? "full" : satisModeli;
   const showTrackTree = trackBased && effModel === "track";
+
+  // Hibrit eğitim: Full Paket alınırken teslim şekline (Yüz Yüze/Online) göre ayrı fiyat.
+  // Track Bazlı satışta her track'in kendi teslim fiyatı yok (kapsam dışı) — sadece Full Paket'i etkiler.
+  const hybridOptions = selEdu?.deliveryMode === "hybrid" ? (selEdu.deliveryOptions ?? []) : [];
+  const showTeslimSekli = hybridOptions.length > 0 && effModel === "full";
+  const selDeliveryOption = hybridOptions.find((o) => o.mode === teslimSekli);
+  const eduFullPrice = selDeliveryOption ? selDeliveryOption.listPrice : selEdu?.listPrice;
+
+  // Seçili teslim şekli bu eğitimde yoksa (ör. sadece "online" tanımlı), mevcut olana düş.
+  useEffect(() => {
+    if (hybridOptions.length === 0) return;
+    if (!hybridOptions.some((o) => o.mode === teslimSekli)) {
+      setTeslimSekli(hybridOptions[0].mode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [egitim, hybridOptions.length]);
 
   // bölüm → track ağacı (order'a göre, gerçek GET verisinden)
   const tree = useMemo(
@@ -296,8 +315,8 @@ export default function SatisYapPage() {
     : showTrackTree
       ? treeTracks.filter((t) => trackOn(t.id)).reduce((s, t) => s + (t.listPrice ?? 0), 0)
       : trackBased
-        ? (selEdu?.listPrice ?? sections.reduce((s, x) => s + (x.listPrice ?? 0), 0))
-        : (selEdu?.listPrice ?? 0);
+        ? (eduFullPrice ?? sections.reduce((s, x) => s + (x.listPrice ?? 0), 0))
+        : (eduFullPrice ?? 0);
   const brut = sifirKilit ? 0 : brutBase; // KDV hariç matrah
   const kdvOrani = satisModu === "paket"
     ? (selBundle?.vatRate ?? selBundle?.items[0]?.vatRate ?? 10)
@@ -733,7 +752,7 @@ export default function SatisYapPage() {
                   )}
                   </>)}
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24, maxWidth: 580, ...(satisModu === "paket" ? { display: "none" } : {}) }}>
+                  <div style={{ display: "grid", gridTemplateColumns: showTeslimSekli ? "1fr 1fr 1fr" : "1fr 1fr", gap: 16, marginBottom: 24, maxWidth: showTeslimSekli ? 860 : 580, ...(satisModu === "paket" ? { display: "none" } : {}) }}>
                     <div>
                       <Label>Satış Tipi</Label>
                       <SelectWrap small>
@@ -754,6 +773,17 @@ export default function SatisYapPage() {
                         </select>
                       </SelectWrap>
                     </div>
+                    {showTeslimSekli && (
+                      <div>
+                        <Label>Teslim Şekli</Label>
+                        <SelectWrap small>
+                          <select value={teslimSekli} onChange={(e) => setTeslimSekli(e.target.value as "in_person" | "online")} style={S.selectSm}>
+                            {hybridOptions.some((o) => o.mode === "in_person") && <option value="in_person">Yüz Yüze</option>}
+                            {hybridOptions.some((o) => o.mode === "online") && <option value="online">Online</option>}
+                          </select>
+                        </SelectWrap>
+                      </div>
+                    )}
                   </div>
 
                   {/* Empty state */}

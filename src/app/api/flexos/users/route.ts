@@ -3,6 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
+import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
 import {
   createFlexosUser,
   type CreateFlexosUserInput,
@@ -52,7 +53,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   const actor = actorFromCaller(caller);
 
   try {
-    const user = await createFlexosUser(actor, body, firestoreFlexosUserRepo);
+    const user = await createFlexosUser(actor, body, firestoreFlexosUserRepo, firestoreRoleDefRepo);
     return NextResponse.json({ id: user.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

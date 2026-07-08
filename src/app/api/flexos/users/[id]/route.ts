@@ -3,6 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
+import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
 import {
   updateFlexosUser,
   deleteFlexosUser,
@@ -59,7 +60,7 @@ export const PATCH = withAuth<Ctx>(async (req: NextRequest, caller, ctx) => {
   }
 
   try {
-    const user = await updateFlexosUser(actorFromCaller(caller), id, body, firestoreFlexosUserRepo);
+    const user = await updateFlexosUser(actorFromCaller(caller), id, body, firestoreFlexosUserRepo, firestoreRoleDefRepo);
     return NextResponse.json({ id: user.id });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

@@ -36,6 +36,7 @@ export type FlexNavKey =
   | "odev-teslimi"
   | "egitmenler"
   | "kullanicilar"
+  | "kullanici-ayarlari"
   | "aktivite-merkezi"   // eskiyle uyum (aktiviteler ile aynı davranır)
   | "aktiviteler"
   | "randevu-takvimi"
@@ -69,6 +70,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const sertifikaActive = active === "sertifika-notu" || active === "sertifika-ayarlari";
   const [sertifikaOpen, setSertifikaOpen] = useState(sertifikaActive);
+
+  const kullanicilarActive = active === "kullanicilar" || active === "kullanici-ayarlari";
+  const [kullanicilarOpen, setKullanicilarOpen] = useState(kullanicilarActive);
 
   // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
   // Capability listesi yüklenene kadar boş küme = kapılı öğeler geçici gizli (kozmetik flaş yok).
@@ -305,7 +309,38 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
         {/* Enterprise: sadece Full. */}
         {canSee("trainer.read", false) && <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />}
-        {canSee("role.manage", false) && <Item icon={IC.shield} label="Kullanıcılar" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />}
+        {/* Kullanıcılar — akordiyon: Kullanıcı Listesi + Kullanıcı Ayarları (rol/yetki tanımları). */}
+        {canSee("role.manage", false) && (
+          <>
+            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={() => setKullanicilarOpen((o) => !o)}>
+              <span style={{ display: "inline-flex", color: kullanicilarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.shield }} />
+              <span style={{ flex: 1 }}>Kullanıcılar</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: kullanicilarOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {kullanicilarOpen && (
+                <motion.div
+                  key="kullanicilar-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    <SubItem label="Kullanıcı Listesi" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />
+                    <SubItem label="Kullanıcı Ayarları" active={active === "kullanici-ayarlari"} onClick={go("/flexos/kullanicilar/ayarlar")} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
 
         {/* Aktivite Merkezi — akordiyon. Enterprise: sadece Full. */}
         {canSee("case.read", false) && (

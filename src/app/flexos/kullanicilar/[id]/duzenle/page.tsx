@@ -13,10 +13,15 @@ import FlexSidebar from "../../../_components/FlexSidebar";
 import FlexHeader from "../../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { formatTrPhone } from "@/app/lib/phone";
+import { ToggleSwitch, ChipToggle, SENS_COLORS } from "../../_shared/toggles";
+import { useRoleDefs } from "../../_shared/useRoleDefs";
+import { PERM_MODULES } from "../../_shared/permModules";
+import { RoleMultiSelect } from "../../_shared/RoleMultiSelect";
+// Roller artık backend'den (`useRoleDefs`) geliyor — sabit ROLE_META/ROLE_DEFAULT_PERMS
+// kaldırıldı, "Kullanıcı Ayarları" sayfası tek doğruluk kaynağı.
 
 // ── types ──
 type TabKey = "bilgiler" | "yetkiler";
-type RoleKey = "genel_mudur" | "egitim_koordinatoru" | "ogrenci_isleri" | "satis_temsilcisi" | "finans" | "egitmen";
 
 const TABS: { key: TabKey; num: string; label: string }[] = [
   { key: "bilgiler", num: "1", label: "Genel Bilgiler" },
@@ -24,52 +29,6 @@ const TABS: { key: TabKey; num: string; label: string }[] = [
 ];
 
 const ALL_SUBES = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş", "Şirinevler"];
-
-const ROLE_META: Record<RoleKey, { label: string; color: string; bg: string; desc: string }> = {
-  genel_mudur: { label: "Genel Müdür", color: "#7C3AED", bg: "#EDE9FE", desc: "Tüm yetkiler, tam erişim" },
-  egitim_koordinatoru: { label: "Eğitim Koordinatörü", color: "#0369A1", bg: "#E0F2FE", desc: "Eğitim operasyonunun başı" },
-  ogrenci_isleri: { label: "Öğrenci İşleri", color: "#0E7490", bg: "#CFFAFE", desc: "Öğrenci sorunları, sertifika, SMS, eğitmen iletişimi" },
-  satis_temsilcisi: { label: "Satış Temsilcisi", color: "#C2410C", bg: "#FFEDD5", desc: "Satış ve ödeme işlemleri" },
-  finans: { label: "Finans Sorumlusu", color: "#B45309", bg: "#FEF3C7", desc: "Ödeme, tahsilat, mali takip" },
-  egitmen: { label: "Eğitmen", color: "#15803D", bg: "#DCFCE7", desc: "Atanmış gruplarda sınırlı yetki" },
-};
-
-/** Düzenlemede tüm roller seçilebilir (eğitmen dahil — mevcut eğitmene admin eklemek gibi) */
-const ALL_ROLES: RoleKey[] = ["genel_mudur", "egitim_koordinatoru", "ogrenci_isleri", "satis_temsilcisi", "finans", "egitmen"];
-
-interface PermModule {
-  key: string;
-  label: string;
-  desc: string;
-  sensitivity: "green" | "yellow" | "red";
-}
-
-const PERM_MODULES: PermModule[] = [
-  { key: "kisi", label: "Kişi Yönetimi", desc: "Kişi oluşturma, düzenleme, PII erişimi", sensitivity: "yellow" },
-  { key: "kayit", label: "Kayıt İşlemleri", desc: "Eğitime kayıt, grup değiştirme", sensitivity: "yellow" },
-  { key: "sinif", label: "Sınıf / Grup", desc: "Grup oluşturma, düzenleme, silme, öğrenci/eğitmen atama", sensitivity: "green" },
-  { key: "not", label: "Not / Değerlendirme", desc: "Not girme, görüntüleme, modül bitirme", sensitivity: "green" },
-  { key: "satis", label: "Satış", desc: "Satış yapma, görüntüleme, iptal etme", sensitivity: "yellow" },
-  { key: "odeme", label: "Ödeme / Tahsilat", desc: "Ödeme kaydetme, tahsilat takibi", sensitivity: "yellow" },
-  { key: "egitmen", label: "Eğitmen Kadrosu", desc: "Eğitmen CRUD, ücret görüntüleme/düzenleme", sensitivity: "yellow" },
-  { key: "katalog", label: "Eğitim Kataloğu", desc: "Branş, eğitim, bölüm, track yönetimi", sensitivity: "yellow" },
-  { key: "sistem", label: "Sistem Yönetimi", desc: "Yetki paketleri düzenleme, tekil yetki atama", sensitivity: "red" },
-];
-
-const ROLE_DEFAULT_PERMS: Record<RoleKey, string[]> = {
-  genel_mudur: PERM_MODULES.map((m) => m.key),
-  egitim_koordinatoru: ["kisi", "kayit", "sinif", "not", "egitmen", "katalog"],
-  ogrenci_isleri: ["kisi", "kayit", "not"],
-  satis_temsilcisi: ["kisi", "kayit", "satis", "odeme"],
-  finans: ["odeme", "satis"],
-  egitmen: ["not"],
-};
-
-const SENS_COLORS: Record<string, { color: string; bg: string }> = {
-  green: { color: "#15803D", bg: "#DCFCE7" },
-  yellow: { color: "#B45309", bg: "#FEF3C7" },
-  red: { color: "#DC2626", bg: "#FEE2E2" },
-};
 
 export default function KullaniciDuzenlePage() {
   const router = useRouter();
@@ -88,10 +47,14 @@ export default function KullaniciDuzenlePage() {
   const [gender, setGender] = useState<"male" | "female" | "">("");
   const [birthDate, setBirthDate] = useState("");
   const [title, setTitle] = useState("");
-  const [roles, setRoles] = useState<RoleKey[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
   const [subes, setSubes] = useState<string[]>([]);
   const [permOverrides, setPermOverrides] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const { roleDefs } = useRoleDefs();
+  const roleDefsById = useMemo(() => Object.fromEntries((roleDefs ?? []).map((r) => [r.id, r])), [roleDefs]);
+  // Düzenlemede tüm roller seçilebilir (eğitmen dahil — mevcut eğitmene admin eklemek gibi)
+  const allRoleDefs = roleDefs ?? [];
 
   useEffect(() => {
     (async () => {
@@ -133,11 +96,12 @@ export default function KullaniciDuzenlePage() {
 
   const defaultPerms = useMemo(() => {
     const set = new Set<string>();
-    roles.forEach((r) => (ROLE_DEFAULT_PERMS[r] ?? []).forEach((p) => set.add(p)));
+    roles.forEach((r) => (roleDefsById[r]?.permModules ?? []).forEach((p: string) => set.add(p)));
     return set;
-  }, [roles]);
+  }, [roles, roleDefsById]);
 
-  const hasAdmin = roles.includes("genel_mudur");
+  // tüm yetki modüllerine varsayılan sahip bir rol (ör. Genel Müdür) seçiliyse tekil değişiklik kilitlenir
+  const hasAdmin = roles.some((r) => (roleDefsById[r]?.permModules.length ?? 0) >= PERM_MODULES.length);
 
   const isPermActive = (key: string): boolean => {
     if (key in permOverrides) return permOverrides[key];
@@ -159,7 +123,7 @@ export default function KullaniciDuzenlePage() {
     }
   };
 
-  const toggleRole = (r: RoleKey) => {
+  const toggleRole = (r: string) => {
     setRoles((prev) => prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]);
     setPermOverrides({});
   };
@@ -220,7 +184,7 @@ export default function KullaniciDuzenlePage() {
       <style>{css}</style>
       <FlexSidebar active="kullanicilar" />
 
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
           roleLabel="Yönetici · Eğitmen"
           left={
@@ -298,39 +262,20 @@ export default function KullaniciDuzenlePage() {
                       <FormField label="Doğum Tarihi" value={birthDate} onChange={setBirthDate} placeholder="" type="date" />
                     </div>
 
-                    <div style={{ marginBottom: 24 }}>
+                    {/* Ünvan + Rol seçimi — yan yana (rol dropdown olduğu için artık sığar) */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
                       <FormField label="Ünvan" value={title} onChange={setTitle} placeholder="Örn: Grafik Tasarım Eğitmeni" />
+                      <div>
+                        <label style={{ ...S.label, marginBottom: 7, display: "block" }}>Rol * <span style={{ fontWeight: 500, color: "#8E95A3" }}>(birden fazla seçilebilir)</span></label>
+                        <RoleMultiSelect options={allRoleDefs} selected={roles} onToggle={toggleRole} />
+                      </div>
                     </div>
 
-                    {/* Rol seçimi — düzenlemede tüm roller seçilebilir */}
-                    <div style={{ marginBottom: 24 }}>
-                      <label style={{ ...S.label, marginBottom: 10, display: "block" }}>Rol * <span style={{ fontWeight: 500, color: "#8E95A3" }}>(birden fazla seçilebilir)</span></label>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        {ALL_ROLES.map((r) => {
-                          const m = ROLE_META[r];
-                          const sel = roles.includes(r);
-                          return (
-                            <button key={r} onClick={() => toggleRole(r)} style={{
-                              padding: "10px 20px", borderRadius: 12, border: "2px solid",
-                              borderColor: sel ? m.color : "#E2E5EA",
-                              background: sel ? m.bg : "#fff",
-                              cursor: "pointer", fontFamily: "inherit", transition: "all .15s",
-                              display: "flex", alignItems: "center", gap: 8,
-                            }}>
-                              <span style={{ width: 18, height: 18, borderRadius: 5, border: sel ? `2px solid ${m.color}` : "2px solid #D1D5DB", background: sel ? m.color : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                {sel && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>}
-                              </span>
-                              <span style={{ fontSize: 14, fontWeight: sel ? 700 : 500, color: sel ? m.color : "#414B59" }}>{m.label}</span>
-                            </button>
-                          );
-                        })}
+                    {roles.length > 0 && (
+                      <div style={{ fontSize: 11, color: "#8E95A3", fontWeight: 500, marginBottom: 24 }}>
+                        {roles.map((r) => roleDefsById[r]?.description).filter(Boolean).join(" · ")}
                       </div>
-                      {roles.length > 0 && (
-                        <div style={{ fontSize: 11, color: "#8E95A3", fontWeight: 500, marginTop: 8 }}>
-                          {roles.map((r) => ROLE_META[r].desc).join(" · ")}
-                        </div>
-                      )}
-                    </div>
+                    )}
 
                     <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 12 }}>
                       <button onClick={() => setActiveTab("yetkiler")} style={S.nextBtn}>
@@ -347,7 +292,7 @@ export default function KullaniciDuzenlePage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, padding: "14px 18px", borderRadius: 14, background: "#F7F8FA", border: "1.5px solid #E2E5EA" }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: "#8E95A3" }}>Roller:</span>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {roles.map((r) => { const m = ROLE_META[r]; return <span key={r} style={{ padding: "4px 12px", borderRadius: 8, fontSize: 13, fontWeight: 700, color: m.color, background: m.bg }}>{m.label}</span>; })}
+                        {roles.map((r) => { const m = roleDefsById[r]; const color = m?.color || "#475569"; return <span key={r} style={{ padding: "4px 12px", borderRadius: 8, fontSize: 13, fontWeight: 700, color, background: `${color}1A` }}>{m?.label ?? r}</span>; })}
                         {roles.length === 0 && <span style={{ fontSize: 13, color: "#AEB4C0" }}>Seçilmedi</span>}
                       </div>
                       <span style={{ marginLeft: "auto", fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>Rol değiştirmek için Genel Bilgiler sekmesine gidin</span>
@@ -426,27 +371,6 @@ export default function KullaniciDuzenlePage() {
         <Footer mini />
       </main>
     </div>
-  );
-}
-
-function ToggleSwitch({ active, onClick }: { active: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} title={active ? "Kapat" : "Aç"} style={{
-      position: "relative", width: 44, height: 24, borderRadius: 999, border: "none", flex: "0 0 auto",
-      background: active ? "#22C55E" : "#D1D5DB", cursor: "pointer", transition: "background .2s", padding: 0,
-    }}>
-      <span style={{ position: "absolute", top: 2, left: active ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.2)", transition: "left .2s" }} />
-    </button>
-  );
-}
-
-function ChipToggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: "9px 18px", borderRadius: 11, border: "1.5px solid", borderColor: active ? "#7C3AED" : "#E2E5EA",
-      background: active ? "#EDE9FE" : "#fff", color: active ? "#7C3AED" : "#414B59",
-      fontSize: 13.5, fontWeight: active ? 700 : 500, fontFamily: "inherit", cursor: "pointer", transition: "all .15s",
-    }}>{label}</button>
   );
 }
 

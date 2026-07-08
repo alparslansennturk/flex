@@ -15,10 +15,11 @@ import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader from "../_components/FlexHeader";
 import FlexModal from "../_components/FlexModal";
 import Footer from "@/app/components/layout/Footer";
+import { useRoleDefs } from "./_shared/useRoleDefs";
 
 // ── types ──
 type TabKey = "personel" | "ogrenciler";
-type RoleKey = "genel_mudur" | "egitim_koordinatoru" | "ogrenci_isleri" | "satis_temsilcisi" | "finans" | "egitmen";
+type RoleKey = string;
 
 interface UserItem {
   id: string; name: string; surname: string; email: string; phone: string;
@@ -31,15 +32,6 @@ interface StudentUserItem {
 }
 
 const ALL_SUBES = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş", "Şirinevler"];
-
-const ROLE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  genel_mudur: { label: "Genel Müdür", color: "#7C3AED", bg: "#EDE9FE" },
-  egitim_koordinatoru: { label: "Eğitim Koordinatörü", color: "#0369A1", bg: "#E0F2FE" },
-  ogrenci_isleri: { label: "Öğrenci İşleri", color: "#0E7490", bg: "#CFFAFE" },
-  satis_temsilcisi: { label: "Satış Temsilcisi", color: "#C2410C", bg: "#FFEDD5" },
-  finans: { label: "Finans", color: "#B45309", bg: "#FEF3C7" },
-  egitmen: { label: "Eğitmen", color: "#15803D", bg: "#DCFCE7" },
-};
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   aktif: { label: "Aktif", color: "#007A30", bg: "#E6F5ED", dot: "#009F3E" },
@@ -90,8 +82,6 @@ const DUMMY_STUDENTS: StudentUserItem[] = [
 ];
 
 const SUBE_OPTIONS = ["Tümü", ...ALL_SUBES];
-const ROL_OPTIONS = ["Tümü", "genel_mudur", "egitim_koordinatoru", "ogrenci_isleri", "satis_temsilcisi", "finans", "egitmen"];
-const ROL_LABELS_MAP: Record<string, string> = { Tümü: "Tümü", genel_mudur: "Genel Müdür", egitim_koordinatoru: "Eğitim Koordinatörü", ogrenci_isleri: "Öğrenci İşleri", satis_temsilcisi: "Satış Temsilcisi", finans: "Finans", egitmen: "Eğitmen" };
 
 export default function KullanicilarPage() {
   const router = useRouter();
@@ -102,6 +92,14 @@ export default function KullanicilarPage() {
   const [tab, setTab] = useState<TabKey>("personel");
 
   const [users, setUsers] = useState<UserItem[]>([]);
+  const { roleDefs } = useRoleDefs();
+  const roleDefsById = useMemo(() => Object.fromEntries((roleDefs ?? []).map((r) => [r.id, r])), [roleDefs]);
+  const rolOptions = useMemo(() => ["Tümü", ...(roleDefs ?? []).map((r) => r.id)], [roleDefs]);
+  const rolLabelsMap = useMemo(() => {
+    const map: Record<string, string> = { Tümü: "Tümü" };
+    (roleDefs ?? []).forEach((r) => { map[r.id] = r.label; });
+    return map;
+  }, [roleDefs]);
   const [search, setSearch] = useState("");
   const [rolFilter, setRolFilter] = useState("Tümü");
   const [subeFilter, setSubeFilter] = useState("Tümü");
@@ -358,7 +356,7 @@ export default function KullanicilarPage() {
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="kullanicilar" />
       <style>{`.ku-iconbtn:hover{background:rgba(0,0,0,.04)!important}`}</style>
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
           icon={<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
           title="Kullanıcılar"
@@ -445,8 +443,8 @@ export default function KullanicilarPage() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
                 <SearchInput value={search} onChange={setSearch} placeholder="Ad, e-posta ara…" />
-                <DropdownFilter label="Rol" value={ROL_LABELS_MAP[rolFilter]} open={rolDD} onToggle={() => { setRolDD((o) => !o); setSubeDD(false); setStatusDD(false); }}>
-                  {ROL_OPTIONS.map((r) => <DropdownItem key={r} label={ROL_LABELS_MAP[r]} selected={rolFilter === r} onClick={() => { setRolFilter(r); setRolDD(false); }} />)}
+                <DropdownFilter label="Rol" value={rolLabelsMap[rolFilter] ?? rolFilter} open={rolDD} onToggle={() => { setRolDD((o) => !o); setSubeDD(false); setStatusDD(false); }}>
+                  {rolOptions.map((r) => <DropdownItem key={r} label={rolLabelsMap[r] ?? r} selected={rolFilter === r} onClick={() => { setRolFilter(r); setRolDD(false); }} />)}
                 </DropdownFilter>
                 <DropdownFilter label="Şube" value={subeFilter} open={subeDD} onToggle={() => { setSubeDD((o) => !o); setRolDD(false); setStatusDD(false); }}>
                   {SUBE_OPTIONS.map((s) => <DropdownItem key={s} label={s} selected={subeFilter === s} onClick={() => { setSubeFilter(s); setSubeDD(false); }} />)}
@@ -479,7 +477,7 @@ export default function KullanicilarPage() {
                               <div><div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{u.name} {u.surname}</div><div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>{u.title || fmtDate(u.createdAt)}</div></div>
                             </div></td>
                             <td style={S.td}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>{u.email}</span></td>
-                            <td style={S.td}><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{u.roles.map((r) => { const rl = ROLE_LABELS[r] ?? { label: r, color: "#414B59", bg: "#EEF0F3" }; return <span key={r} style={{ display: "inline-flex", padding: "4px 11px", borderRadius: 7, fontSize: 12, fontWeight: 700, color: rl.color, background: rl.bg }}>{rl.label}</span>; })}</div></td>
+                            <td style={S.td}><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{u.roles.map((r) => { const rd = roleDefsById[r]; const color = rd?.color || "#414B59"; return <span key={r} style={{ display: "inline-flex", padding: "4px 11px", borderRadius: 7, fontSize: 12, fontWeight: 700, color, background: rd ? `${color}1A` : "#EEF0F3" }}>{rd?.label ?? r}</span>; })}</div></td>
                             <td style={S.td}>{renderSubes(u.subes)}</td>
                             <td style={S.td}><ToggleSwitch active={u.status === "aktif"} onClick={() => toggleUserStatus(u.id)} /></td>
                             <td style={S.tdRight}><div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>

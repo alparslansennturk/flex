@@ -7,13 +7,8 @@ import type { Audit, EntityId, TenantId, Gender, ISODate } from "../base";
  * Öğrenci kullanıcıları ayrı akışla (satış tamamlama → otomatik) oluşur.
  */
 
-export type FlexosUserRole =
-  | "genel_mudur"
-  | "egitim_koordinatoru"
-  | "ogrenci_isleri"
-  | "satis_temsilcisi"
-  | "finans"
-  | "egitmen";
+/** Rol id'si — sabit değil, `RoleDef.id`'ye (Firestore, `flexos_role_defs`) referans verir. */
+export type FlexosUserRole = string;
 export type FlexosUserStatus = "aktif" | "pasif";
 
 export interface FlexosUser extends Audit {

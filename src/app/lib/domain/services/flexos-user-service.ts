@@ -3,23 +3,30 @@ import { can } from "../access/can";
 import type { FlexosUser, FlexosUserRole, FlexosUserStatus } from "../core/flexos-user";
 import type { Gender } from "../base";
 import type { FlexosUserRepo } from "../repo/flexos-user-repo";
+import type { RoleDefRepo } from "../repo/role-def-repo";
+import { listRoleDefs } from "./role-def-service";
 import { ForbiddenError, ValidationError } from "../errors";
 
-const VALID_ROLES: FlexosUserRole[] = ["genel_mudur", "egitim_koordinatoru", "ogrenci_isleri", "satis_temsilcisi", "finans", "egitmen"];
-/** Kullanıcı Ekle formundan seçilebilen roller (eğitmen hariç — o Eğitmen Ekle'den gelir) */
-const CREATABLE_ROLES: FlexosUserRole[] = ["genel_mudur", "egitim_koordinatoru", "ogrenci_isleri", "satis_temsilcisi", "finans"];
 const VALID_STATUSES: FlexosUserStatus[] = ["aktif", "pasif"];
 const VALID_GENDERS: Gender[] = ["female", "male", "other", "unspecified"];
 
 const now = () => new Date().toISOString();
 
-function validateRoles(roles: string[], allowEgitmen: boolean): FlexosUserRole[] {
+/**
+ * Rolleri gerçek `RoleDef` listesine karşı doğrular — sabit VALID_ROLES/CREATABLE_ROLES
+ * dizileri kaldırıldı (2026-07-08), roller artık "Kullanıcı Ayarları"nda kurum tarafından
+ * tanımlanıyor. `allowEgitmen=false` Kullanıcı Ekle'den `egitmen` rolünün seçilememesini
+ * korur (o rol sadece Eğitmen Ekle akışından otomatik atanır).
+ */
+async function validateRoles(roles: string[], allowEgitmen: boolean, actor: Actor, roleDefRepo: RoleDefRepo): Promise<FlexosUserRole[]> {
   if (!Array.isArray(roles) || roles.length === 0) throw new ValidationError("En az bir rol seçmelisiniz.");
-  const pool = allowEgitmen ? VALID_ROLES : CREATABLE_ROLES;
+  const defs = await listRoleDefs(actor, roleDefRepo);
+  const validIds = new Set(defs.map((d) => d.id));
   for (const r of roles) {
-    if (!pool.includes(r as FlexosUserRole)) throw new ValidationError(`Geçersiz rol: ${r}`);
+    if (!validIds.has(r)) throw new ValidationError(`Geçersiz rol: ${r}`);
+    if (!allowEgitmen && r === "egitmen") throw new ValidationError("Eğitmen rolü bu formda atanamaz.");
   }
-  return roles as FlexosUserRole[];
+  return roles;
 }
 
 // ── Input types ──
@@ -58,6 +65,7 @@ export async function createFlexosUser(
   actor: Actor,
   input: CreateFlexosUserInput,
   repo: FlexosUserRepo,
+  roleDefRepo: RoleDefRepo,
 ): Promise<FlexosUser> {
   if (!can(actor, "role.manage")) throw new ForbiddenError("role.manage");
 
@@ -75,7 +83,7 @@ export async function createFlexosUser(
   if (!VALID_GENDERS.includes(gender)) throw new ValidationError("Geçersiz cinsiyet.");
 
   // Kullanıcı Ekle'den eğitmen oluşturulamaz
-  const roles = validateRoles(input.roles ?? ["operasyon"], false);
+  const roles = await validateRoles(input.roles ?? [], false, actor, roleDefRepo);
 
   const status = (input.status as FlexosUserStatus) ?? "aktif";
   if (!VALID_STATUSES.includes(status)) throw new ValidationError("Geçersiz durum.");
@@ -112,6 +120,7 @@ export async function updateFlexosUser(
   id: string,
   input: UpdateFlexosUserInput,
   repo: FlexosUserRepo,
+  roleDefRepo: RoleDefRepo,
 ): Promise<FlexosUser> {
   if (!can(actor, "role.manage")) throw new ForbiddenError("role.manage");
 
@@ -148,7 +157,7 @@ export async function updateFlexosUser(
   if (input.title !== undefined) updated.title = input.title?.trim() || undefined;
   // Düzenlemede eğitmen rolü de eklenebilir (mevcut eğitmene admin eklemek gibi)
   if (input.roles !== undefined) {
-    updated.roles = validateRoles(input.roles, true);
+    updated.roles = await validateRoles(input.roles, true, actor, roleDefRepo);
   }
   if (input.subes !== undefined) {
     if (input.subes.length === 0) throw new ValidationError("En az bir şube seçmelisiniz.");
