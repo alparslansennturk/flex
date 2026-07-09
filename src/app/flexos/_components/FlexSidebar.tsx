@@ -12,6 +12,7 @@ import React, { CSSProperties, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
 import FlexLogo from "@/app/components/ui/FlexLogo";
 import { getViewMode, setViewMode, type ViewMode } from "./viewMode";
@@ -46,7 +47,8 @@ export type FlexNavKey =
   | "yoklama-raporu"
   | "sertifika-notu"
   | "odev-notu"
-  | "sertifika-ayarlari";
+  | "sertifika-ayarlari"
+  | "sistem-ayarlari";
 
 export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const router = useRouter();
@@ -160,6 +162,11 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   /** cap yoksa hiç görünmez; core-grup her zaman, enterprise-grup sadece Full'de. */
   const canSee = (cap: string, core: boolean) => caps.has(cap) && (core || mode === "full");
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push("/flexos/giris");
+  };
 
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
@@ -446,6 +453,18 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         )}
       </nav>
 
+      {/* ALT BÖLÜM — canlıdaki "Yönetim Paneli + Çıkış" deseniyle aynı: admin-only tek link
+          (Sistem Ayarları, henüz sayfası yok — "yakında") + ayraç + Çıkış. */}
+      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+        {caps.has("role.manage") && (
+          <>
+            <Item icon={IC.settings} label="Sistem Ayarları" active={active === "sistem-ayarlari"} onClick={go(null)} />
+            <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
+          </>
+        )}
+        <Item icon={IC.logout} label="Çıkış" onClick={handleLogout} />
+      </div>
+
       <ViewPinModal open={pinOpen} onClose={() => setPinOpen(false)} onVerified={onPinVerified} />
     </aside>
   );
@@ -497,6 +516,8 @@ const IC = {
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="15" height="15" stroke-width="2.3"'),
   activity: sv('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'),
   barChart: sv('<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>'),
+  settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>'),
+  logout: sv('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>'),
 };
 
 const css = `

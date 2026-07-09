@@ -70,7 +70,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
 
 /**
  * DELETE /api/flexos/groups/[id] — grup sil. Gated `group.delete`.
- * Aktif kayıtlı grup silinmez (serviste kontrol).
+ * Kayıtlar silinmez — cascade olarak grupsuz duruma düşürülür (serviste yapılır).
  */
 export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;

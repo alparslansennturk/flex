@@ -148,8 +148,11 @@ export async function updateGroupStatus(
 
 /**
  * Grup sil — gated `group.delete`.
- * GÜVENLİK: gruba bağlı AKTİF kayıt varsa silinmez (öğrenciler önce aktarılmalı/
- * çıkarılmalı). İptal/transfer edilmiş kayıtlar engel değildir.
+ * Genelde grup silinmez ama satışı az olan bir grup açılmadan/az doluyken iptal
+ * edilebilir. Gruba bağlı kayıtlar SİLİNMEZ — cascade olarak grupsuz duruma
+ * düşürülür (`groupId` boşalır, kayıt/durum aynen kalır). Kayıtta hiçbir geçmiş-grup
+ * izi bırakılmaz (kullanıcı kararı 2026-07-09: bu grupta henüz ders/kayıt yoksa
+ * yazılacak anlamlı bir geçmiş de yok).
  */
 export async function deleteGroup(
   actor: Actor,
@@ -164,9 +167,9 @@ export async function deleteGroup(
   }
 
   const enrollments = await deps.enrollments.listByGroup(groupId, actor.tenantId);
-  const activeCount = enrollments.filter((e) => e.status === "active").length;
-  if (activeCount > 0) {
-    throw new ValidationError(`Bu grupta ${activeCount} aktif kayıt var. Önce öğrencileri başka gruba aktarın veya çıkarın.`);
+  for (const enrollment of enrollments) {
+    if (!enrollment.groupId) continue;
+    await deps.enrollments.save({ ...enrollment, groupId: undefined, updatedAt: nowISO(), updatedBy: actor.uid });
   }
 
   await deps.groups.delete(groupId, actor.tenantId);
