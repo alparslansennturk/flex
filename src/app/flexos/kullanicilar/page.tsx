@@ -120,6 +120,10 @@ export default function KullanicilarPage() {
   const [modeBusy, setModeBusy] = useState(false);
   const [modeConfirm, setModeConfirm] = useState<boolean | null>(null); // onay bekleyen hedef değer (null = modal kapalı)
 
+  // ── Grup Taşıma Kuralı (transferRequiresManualSale switch) ──
+  const [transferManual, setTransferManual] = useState<boolean | null>(null);
+  const [transferManualBusy, setTransferManualBusy] = useState(false);
+
   // ── Kişisel Görünüm PIN'i (Core/Full anahtarı, sadece owner görür) ──
   const [canPin, setCanPin] = useState(false);
   const [hasPin, setHasPin] = useState(false);
@@ -177,7 +181,10 @@ export default function KullanicilarPage() {
       });
       if (!res.ok) throw new Error("fetch failed");
       const json = await res.json();
-      if (!signal?.aborted) setStandaloneMode(!!json.standaloneMode);
+      if (!signal?.aborted) {
+        setStandaloneMode(!!json.standaloneMode);
+        setTransferManual(!!json.transferRequiresManualSale);
+      }
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
         console.error("[kullanicilar] sistem modu yüklenemedi:", e);
@@ -211,6 +218,27 @@ export default function KullanicilarPage() {
     const next = modeConfirm;
     setModeConfirm(null);
     applyStandaloneMode(next);
+  };
+
+  const applyTransferManual = async (next: boolean) => {
+    if (transferManualBusy) return;
+    setTransferManualBusy(true);
+    setTransferManual(next); // optimistic
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/flexos/settings", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ transferRequiresManualSale: next }),
+      });
+      if (!res.ok) throw new Error("patch failed");
+      toast.success(next ? "Grup taşıma artık manuel ek satış gerektiriyor." : "Grup taşımada otomatik ek satış moduna dönüldü.");
+    } catch {
+      setTransferManual(!next); // rollback
+      toast.error("Grup taşıma kuralı güncellenemedi.");
+    } finally {
+      setTransferManualBusy(false);
+    }
   };
 
   // ── Veri yükleme ──
@@ -371,8 +399,8 @@ export default function KullanicilarPage() {
             <TabBtn label="Öğrenciler" count={totalStudents} active={tab === "ogrenciler"} onClick={() => setTab("ogrenciler")} />
           </div>
 
-          {/* ═══════════ SİSTEM MODU + KİŞİSEL GÖRÜNÜM PIN'İ — 2 sütun ═══════════ */}
-          <div style={{ display: "grid", gridTemplateColumns: canPin ? "1fr 1fr" : "1fr", gap: 16, marginBottom: 22, alignItems: "stretch" }}>
+          {/* ═══════════ SİSTEM MODU + GRUP TAŞIMA KURALI + KİŞİSEL GÖRÜNÜM PIN'İ ═══════════ */}
+          <div style={{ display: "grid", gridTemplateColumns: canPin ? "1fr 1fr 1fr" : "1fr 1fr", gap: 16, marginBottom: 22, alignItems: "stretch" }}>
             <div style={{ ...S.tableCard, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px", flexWrap: "wrap" as const }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ width: 42, height: 42, borderRadius: 12, background: standaloneMode ? "#DCFCE7" : "#EDE9FE", color: standaloneMode ? "#15803D" : "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
@@ -390,6 +418,25 @@ export default function KullanicilarPage() {
                 </div>
               </div>
               <SystemModeSegment value={standaloneMode} busy={modeBusy} onChange={(next) => { if (standaloneMode !== null && next !== standaloneMode) setModeConfirm(next); }} />
+            </div>
+
+            <div style={{ ...S.tableCard, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px", flexWrap: "wrap" as const }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ width: 42, height: 42, borderRadius: 12, background: transferManual ? "#FEF3C7" : "#DDE8F8", color: transferManual ? "#B45309" : "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                  <IconTransfer />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>Grup Taşıma Kuralı</div>
+                  <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
+                    {transferManual === null
+                      ? "Yükleniyor…"
+                      : transferManual
+                        ? "Manuel Ek Satış — grup taşıma yalnız Satış tarafından ek satışla yapılır."
+                        : "Otomatik Ek Satış — Eğitim Op. öğrenciyi doğrudan taşır, sistem arkada 0 TL ek satış açar."}
+                  </div>
+                </div>
+              </div>
+              <ToggleSwitch active={!!transferManual} onClick={() => transferManual !== null && applyTransferManual(!transferManual)} />
             </div>
 
             {canPin && (
@@ -690,6 +737,7 @@ function IconBriefcase() { return <svg width="21" height="21" viewBox="0 0 24 24
 function IconGraduation() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>; }
 function IconClock() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>; }
 function IconLock() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>; }
+function IconTransfer() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>; }
 
 const S: Record<string, CSSProperties> = {
   countChip: { fontSize: 12.5, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "3px 10px", borderRadius: 999 },

@@ -61,7 +61,7 @@ const AV_PALETTES: Array<[string, string]> = [
 const SUBE_LIST = ["Tümü", ...BRANCH_OFFICES.map((o) => o.name)];
 const PAGE_SIZE = 8;
 
-interface StudentGroup { label: string; branch: string; educationName?: string }
+interface StudentGroup { label: string; branch: string; educationName?: string; groupId: string; enrollmentId: string }
 interface StudentEducation { educationId: string; name: string; status: string }
 interface Student {
   id: string; name: string; email: string; phone: string;
@@ -136,6 +136,9 @@ export default function OgrenciHavuzuPage() {
   const { caps } = useCapabilities();
   const canAssignGroup = caps.has("group.assign_student");
   const canEditPerson = caps.has("person.edit");
+  // Sunucu switch'ine göre gereken capability değişir (enrollment.transfer VEYA sale.create) —
+  // UI-only gate, ikisinden biri varsa buton görünür, gerçek kural sunucuda `transferEnrollment`'ta.
+  const canTransfer = caps.has("enrollment.transfer") || caps.has("sale.create");
 
   // applied filtreler
   const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
@@ -162,6 +165,14 @@ export default function OgrenciHavuzuPage() {
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [assigning, setAssigning] = useState(false);
+
+  // ── Grup Değiştir modal state (zaten gruplu bir kaydı başka gruba taşır — Gruba Ata'nın
+  //    tersi ekseni, aynı groupOptions/loadingGroups/selectedGroupId state'ini paylaşır,
+  //    iki modal aynı anda açılmaz) ──
+  const [transferTarget, setTransferTarget] = useState<{ student: Student; enrollmentId: string; groupId: string; groupLabel: string } | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  // Eski kaydın kapanış durumu — sistem tahmin edemez, kullanıcı seçer (bkz transferEnrollment).
+  const [transferCloseAs, setTransferCloseAs] = useState<"completed" | "cancelled" | null>(null);
 
   // ── Öğrenci Detay Drawer state ──
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
@@ -275,6 +286,65 @@ export default function OgrenciHavuzuPage() {
       toast.error("Sunucu hatası — atama yapılamadı.");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  // ── Grup Değiştir: modal aç + hedef grubun eğitimine ait grupları çek (kaynak grup HARİÇ) ──
+  const openTransfer = useCallback(async (st: Student, entry: StudentGroup) => {
+    setTransferTarget({ student: st, enrollmentId: entry.enrollmentId, groupId: entry.groupId, groupLabel: entry.label });
+    setSelectedGroupId("");
+    setTransferCloseAs(null);
+    setGroupOptions([]);
+    setLoadingGroups(true);
+    try {
+      const hdrs = await authHeaders();
+      const [gRes, eRes] = await Promise.all([
+        fetch("/api/flexos/groups", { headers: hdrs }),
+        fetch("/api/flexos/educations", { headers: hdrs }),
+      ]);
+      const gJson = gRes.ok ? await gRes.json() : { items: [] };
+      const eJson = eRes.ok ? await eRes.json() : { items: [] };
+      const eduName = new Map<string, string>((eJson.items ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
+      const rawGroups = (gJson.items ?? []).filter((g: { status?: string }) => g.status !== "archived" && g.status !== "completed");
+      const allGroups: GroupOption[] = rawGroups.map((g: { id: string; code: string; educationId?: string; branch?: string; type?: string }) => ({
+        id: g.id,
+        code: g.code,
+        educationId: g.educationId,
+        sub: (g.educationId && eduName.get(g.educationId)) || g.branch || (g.type === "ozel_ders" ? "Özel Ders" : g.type === "kurumsal" ? "Kurumsal" : "Grup"),
+      }));
+      // aynı eğitimin diğer grupları (varsa) — kaynak grup listeden çıkarılır
+      const fromEduId = allGroups.find((g) => g.id === entry.groupId)?.educationId;
+      const opts = allGroups.filter((g) => g.id !== entry.groupId && (!fromEduId || g.educationId === fromEduId));
+      setGroupOptions(opts);
+    } catch {
+      toast.error("Gruplar yüklenemedi.");
+    } finally {
+      setLoadingGroups(false);
+    }
+  }, [authHeaders]);
+
+  const closeTransfer = () => { if (!transferring) { setTransferTarget(null); setSelectedGroupId(""); setTransferCloseAs(null); } };
+
+  const confirmTransfer = async () => {
+    if (!transferTarget || !selectedGroupId || !transferCloseAs) return;
+    setTransferring(true);
+    try {
+      const headers = await authHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(`/api/flexos/enrollments/${transferTarget.enrollmentId}/transfer`, {
+        method: "POST", headers, body: JSON.stringify({ toGroupId: selectedGroupId, closeAs: transferCloseAs }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(json.error || "Grup değişikliği başarısız."); return; }
+      const grpCode = groupOptions.find((g) => g.id === selectedGroupId)?.code ?? "";
+      const closeNote = transferCloseAs === "completed" ? " (eski kayıt mezun edildi)" : " (eski kayıt sadece kapatıldı, mezun sayılmadı)";
+      toast.success(`${transferTarget.student.name} ${grpCode ? `${grpCode} grubuna` : "yeni gruba"} taşındı${closeNote}.`);
+      setTransferTarget(null); setSelectedGroupId(""); setTransferCloseAs(null);
+      await loadStudents();
+    } catch {
+      toast.error("Sunucu hatası — taşıma yapılamadı.");
+    } finally {
+      setTransferring(false);
     }
   };
 
@@ -681,13 +751,20 @@ export default function OgrenciHavuzuPage() {
                               Atanmadı
                             </span>
                           ) : groupCount === 1 ? (
-                            <span style={S.groupChip}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                              {groups[0].label}
-                            </span>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              <span style={S.groupChip}>
+                                <span dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
+                                {groups[0].label}
+                              </span>
+                              {canTransfer && (
+                                <button title="Grup Değiştir" onClick={() => openTransfer(st, groups[0])} style={S.transferIconBtn}>
+                                  <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             <div
-                              style={{ position: "relative", display: "inline-flex", cursor: "default" }}
+                              style={{ position: "relative", display: "inline-flex", cursor: "default", paddingBottom: 9 }}
                               onMouseEnter={() => setHoveredGroup(st.id)}
                               onMouseLeave={() => setHoveredGroup(null)}
                             >
@@ -697,19 +774,26 @@ export default function OgrenciHavuzuPage() {
                                 <span style={S.branchBadge}>{groupCount}</span>
                               </span>
                               {groupPopupOpen && (
-                                <div style={S.branchPopup}>
+                                <div style={{ ...S.branchPopup, top: "100%" }}>
                                   <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", padding: "4px 9px 7px" }}>
                                     Gruplar ({groupCount})
                                   </div>
                                   {groups.map((g) => {
                                     const c = BRANS[g.branch] ?? BRANS_FALLBACK;
                                     return (
-                                      <div key={g.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "7px 9px", borderRadius: 8 }}>
+                                      <div key={g.groupId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "7px 9px", borderRadius: 8 }}>
                                         <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
                                           <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: c.dot }} />
                                           <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{g.label}</span>
                                         </span>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: "#8E95A3", whiteSpace: "nowrap" }}>{g.branch}</span>
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                          <span style={{ fontSize: 12, fontWeight: 600, color: "#8E95A3", whiteSpace: "nowrap" }}>{g.branch}</span>
+                                          {canTransfer && (
+                                            <button title="Grup Değiştir" onClick={() => openTransfer(st, g)} style={S.transferIconBtn}>
+                                              <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
+                                            </button>
+                                          )}
+                                        </span>
                                       </div>
                                     );
                                   })}
@@ -851,6 +935,100 @@ export default function OgrenciHavuzuPage() {
               <button className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || assigning ? 0.55 : 1, pointerEvents: !selectedGroupId || assigning ? "none" : "auto" }} onClick={confirmAssign}>
                 <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
                 {assigning ? "Atanıyor…" : "Gruba Ata"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ GRUP DEĞİŞTİR MODAL (zaten gruplu kaydı taşır) ============ */}
+      {transferTarget && (
+        <div style={S.modalOverlay} onClick={closeTransfer}>
+          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+            {/* head */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DDE8F8", color: "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
+                  dangerouslySetInnerHTML={{ __html: IC.transfer }} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>Grup Değiştir</h3>
+                  <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
+                    <strong style={{ color: "#414B59", fontWeight: 700 }}>{transferTarget.student.name}</strong> için <strong style={{ color: "#414B59", fontWeight: 700 }}>{transferTarget.groupLabel}</strong> yerine yeni bir grup seçin.
+                  </p>
+                </div>
+              </div>
+              <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={closeTransfer}>
+                <span dangerouslySetInnerHTML={{ __html: IC.x }} />
+              </button>
+            </div>
+
+            {/* body */}
+            <div style={{ padding: 16, maxHeight: 360, overflowY: "auto" }}>
+              {loadingGroups ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "40px 20px" }}>
+                  <FlexSpinner />
+                  <div style={{ fontSize: 13, color: "#8E95A3" }}>Gruplar yükleniyor…</div>
+                </div>
+              ) : groupOptions.length === 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "40px 20px", textAlign: "center" }}>
+                  <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: "#414B59" }}>Taşınabilecek başka grup yok</div>
+                  <div style={{ fontSize: 13, color: "#8E95A3", maxWidth: 280 }}>Önce Sınıflar sayfasından uygun bir grup oluşturun.</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {groupOptions.map((g) => {
+                    const sel = selectedGroupId === g.id;
+                    return (
+                      <div key={g.id} className="oh-grow" onClick={() => setSelectedGroupId(g.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
+                        <span style={{ width: 18, height: 18, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
+                        <span style={{ width: 34, height: 34, borderRadius: 9, background: "#f1f5f9", color: "#6F7B87", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
+                          dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{g.code}</div>
+                          <div style={{ fontSize: 12.5, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.sub}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!loadingGroups && groupOptions.length > 0 && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid #EEF0F3" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 3 }}>
+                    <strong style={{ color: "#414B59" }}>{transferTarget.groupLabel}</strong>'daki kayıt nasıl kapansın?
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "#8E95A3", marginBottom: 9 }}>Sistem bunu bilemez — hangisi olduğunu siz seçmelisiniz.</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {([
+                      { key: "completed" as const, title: "Modül/Ders tamamlandı — Mezun", desc: "Öğrenci bu bölümü/dersi bitirdi, sertifika/not burada donar." },
+                      { key: "cancelled" as const, title: "Sadece sınıf değişikliği — Mezun DEĞİL", desc: "Ders henüz bitmedi, başka bir sebeple (saat/lokasyon vb.) sınıf değişti." },
+                    ]).map((opt) => {
+                      const sel = transferCloseAs === opt.key;
+                      return (
+                        <div key={opt.key} className="oh-grow" onClick={() => setTransferCloseAs(opt.key)}
+                          style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "11px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
+                          <span style={{ width: 18, height: 18, marginTop: 1, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{opt.title}</div>
+                            <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2, lineHeight: 1.4 }}>{opt.desc}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* footer */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "16px 24px 20px", borderTop: "1px solid #EEF0F3" }}>
+              <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={closeTransfer} disabled={transferring}>Vazgeç</button>
+              <button className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || !transferCloseAs || transferring ? 0.55 : 1, pointerEvents: !selectedGroupId || !transferCloseAs || transferring ? "none" : "auto" }} onClick={confirmTransfer}>
+                <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
+                {transferring ? "Taşınıyor…" : "Gruba Taşı"}
               </button>
             </div>
           </div>
@@ -1187,6 +1365,7 @@ const S: Record<string, CSSProperties> = {
   statusBadge: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
   bransBadge: { display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 11px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
   groupChip: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 8, background: "#f1f5f9", border: "1px solid #E2E5EA", fontSize: 13, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" },
+  transferIconBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", cursor: "pointer", flex: "0 0 auto" },
   assignBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, border: "none", background: "transparent", fontSize: 13, fontWeight: 600, fontFamily: "inherit", transition: "all .13s" },
   branchBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, padding: "0 5px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: "#fff", background: "#2867bd", boxShadow: "0 3px 8px -3px rgba(40,103,189,.55)", flex: "0 0 auto" },
   branchPopup: { position: "absolute", top: "calc(100% + 9px)", left: 0, minWidth: 172, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 18px 40px -12px rgba(15,31,61,.26)", padding: 8, zIndex: 50, animation: "oh-ddin .14s cubic-bezier(.2,.8,.3,1)" },
@@ -1220,6 +1399,7 @@ const IC = {
   x: sv('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 'width="14" height="14" stroke-width="2.3"'),
   funnel: sv('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 'width="17" height="17"'),
   groupIcon: sv('<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>', 'width="14" height="14" stroke="#6F7B87"'),
+  transfer: sv('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>', 'width="13" height="13"'),
   alert: sv('<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>', 'width="13" height="13"'),
   eye: sv('<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>', 'width="15" height="15"'),
   userPlus: sv('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>', 'width="15" height="15"'),

@@ -89,7 +89,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
       // branş listesi (enrollment → education → branch)
       const branchNames = new Set<string>();
-      const groupList: Array<{ label: string; branch: string; educationName: string; groupId: string }> = [];
+      const groupList: Array<{ label: string; branch: string; educationName: string; groupId: string; enrollmentId: string }> = [];
       const officeNames = new Set<string>(); // şube = öğrencinin gruplarından türetilir
 
       const educationList: Array<{ educationId: string; name: string; status: string }> = [];
@@ -108,6 +108,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
             branch: branch?.name ?? "",
             educationName: edu?.name ?? "",
             groupId: enr.groupId,
+            enrollmentId: enr.id,
           });
           const office = officeName(grp?.branchOfficeId);
           if (office) officeNames.add(office);

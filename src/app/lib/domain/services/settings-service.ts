@@ -6,19 +6,28 @@ import type { SettingsRepo } from "../repo/settings-repo";
 
 const now = () => new Date().toISOString();
 
-/** Ayarları okur — kapalıysa varsayılan `standaloneMode: false` (tam entegre mod) döner. */
+/** Ayarları okur — eksik alanlar varsayılana düşer (`standaloneMode`/`transferRequiresManualSale`: false, tam entegre/otomatik-ek-satış modu). */
 export async function getSettings(actor: Actor, repo: SettingsRepo): Promise<FlexosSettings> {
   const existing = await repo.get(actor.tenantId);
-  return existing ?? { tenantId: actor.tenantId, standaloneMode: false };
+  return {
+    tenantId: actor.tenantId,
+    standaloneMode: existing?.standaloneMode ?? false,
+    transferRequiresManualSale: existing?.transferRequiresManualSale ?? false,
+    updatedAt: existing?.updatedAt,
+    updatedBy: existing?.updatedBy,
+  };
 }
 
 export interface UpdateSettingsInput {
-  standaloneMode: boolean;
+  standaloneMode?: boolean;
+  transferRequiresManualSale?: boolean;
 }
 
 /**
- * Eğitmen "tek başına" switch'ini değiştirir — sistem-genelinde tek anahtar,
- * yalnız `role.manage` (admin) yetkisiyle açılır/kapanır.
+ * Sistem anahtarlarını değiştirir (`standaloneMode` + `transferRequiresManualSale`) —
+ * yalnız `role.manage` (admin) yetkisiyle. Kısmi güncelleme (READ-MERGE-WRITE): body'de
+ * gönderilmeyen alan mevcut değerinde kalır — iki bağımsız switch aynı dokümanı paylaşır,
+ * biri diğerini sessizce sıfırlamamalı.
  */
 export async function updateSettings(
   actor: Actor,
@@ -27,9 +36,12 @@ export async function updateSettings(
 ): Promise<FlexosSettings> {
   if (!can(actor, "role.manage")) throw new ForbiddenError("role.manage");
 
+  const existing = await repo.get(actor.tenantId);
+
   const settings: FlexosSettings = {
     tenantId: actor.tenantId,
-    standaloneMode: input.standaloneMode,
+    standaloneMode: input.standaloneMode ?? existing?.standaloneMode ?? false,
+    transferRequiresManualSale: input.transferRequiresManualSale ?? existing?.transferRequiresManualSale ?? false,
     updatedAt: now(),
     updatedBy: actor.uid,
   };

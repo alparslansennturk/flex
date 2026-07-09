@@ -12,6 +12,13 @@ export type EnrollmentStatus =
   | "completed" // Mezun
   | "cancelled"; // İptal — satış iptali cascade'i (soft, silinmez)
 
+/**
+ * Bir transferin audit izi — kapanan (eski) kayıt üzerinde durur.
+ * Not: "taşıma" tek kaydı MUTASYONA UĞRATMAZ — ek satış gibi YENİ bir Enrollment
+ * açar, eskisi `completed` olarak kapanır (bkz `transferEnrollment`). Bu yüzden
+ * `toGroupId` burada sadece "hangi gruba devam edildi" bilgisini taşır; asıl
+ * zincir bağlantısı `continuedAsEnrollmentId`/`continuesFromEnrollmentId`'dedir.
+ */
 export interface EnrollmentTransfer {
   fromGroupId: EntityId;
   toGroupId: EntityId;
@@ -67,5 +74,11 @@ export interface Enrollment extends Audit {
   saleId?: EntityId; // FlexOS dikişi — Core'da opsiyonel
 
   transferHistory?: EnrollmentTransfer[];
+  // Transfer zinciri (`transferEnrollment`) — bölüm/modül bazlı eğitimlerde (örn. Grafik
+  // Tasarım: Grafik-1 → Grafik-2, her bölümün kendi yoklama/sertifikası var) her modül
+  // AYRI bir Enrollment'tır. "Taşıma" eskisini `completed` kapatır + yenisini açar;
+  // ikisi arasındaki bağ id üzerinden kurulur (from/to grup bilgisi transferHistory'de).
+  continuedAsEnrollmentId?: EntityId; // bu kayıt kapanırken hangi YENİ kayıtla devam edildi
+  continuesFromEnrollmentId?: EntityId; // bu kayıt bir transferin sonucuysa hangi ESKİ kayıttan geldi
   result?: FrozenResult; // finalize/mezuniyet anında dolar, sonra dokunulmaz
 }

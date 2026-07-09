@@ -1,11 +1,14 @@
 import { can } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
-import type { Enrollment } from "../core/enrollment";
+import type { Enrollment, EnrollmentTransfer } from "../core/enrollment";
+import type { Sale } from "../eduos/sale";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
 import type { GroupRepo } from "../repo/group-repo";
 import type { PersonRepo } from "../repo/person-repo";
+import type { SaleRepo } from "../repo/sale-repo";
+import type { SettingsRepo } from "../repo/settings-repo";
 
 export interface CreateEnrollmentInput {
   personId: EntityId;
@@ -144,6 +147,160 @@ export async function assignToGroup(
 
   await deps.enrollments.save(updated);
   return updated;
+}
+
+const TRANSFER_CLOSE_STATUSES: Enrollment["status"][] = ["completed", "cancelled"];
+
+export interface TransferEnrollmentInput {
+  enrollmentId: EntityId;
+  toGroupId: EntityId;
+  /**
+   * Eski kaydın kapanış durumu — ZORUNLU, sistem tahmin edemez (kullanıcı kararı, 2026-07-10):
+   *  - "completed" (Mezun): modül/ders GERÇEKTEN bitti (örn. Grafik-1 tamamlandı, Grafik-2'ye geçiş).
+   *  - "cancelled": modül henüz bitmedi, öğrenci başka bir sebeple (saat/lokasyon vb.) sadece
+   *    sınıf değiştiriyor — mezun SAYILMAZ. Bu durumda da eski kayıttaki o ana kadarki
+   *    yoklama/aktivite geçmişi AYNEN durur (ayrı enrollment olduğu için zaten dokunulmuyor),
+   *    sadece kayıt "tamamlandı" değil "iptal/pasif" olarak işaretlenir.
+   */
+  closeAs: "completed" | "cancelled";
+}
+
+/** Grup değiştirme bağımlılıkları — kayıt+her iki grup+ayar (switch) + satış logu. */
+export interface TransferEnrollmentDeps {
+  enrollments: EnrollmentRepo;
+  groups: GroupRepo;
+  sales: SaleRepo;
+  settings: SettingsRepo;
+}
+
+export interface TransferEnrollmentResult {
+  closedEnrollment: Enrollment; // eski kayıt — `input.closeAs`'e göre "completed" veya "cancelled"
+  newEnrollment: Enrollment; // yeni kayıt — hedef grupta "active"
+  sale: Sale;
+}
+
+/**
+ * Bir kaydı BAŞKA bir gruba "taşır" — ama tek kaydı MUTASYONA UĞRATMAZ. Canlı
+ * sistemdeki gerçek davranışla birebir: taşıma = ek satış = YENİ bir kayıt
+ * (kullanıcı kararı, 2026-07-10). Eski kayıt `input.closeAs` ("completed"/"cancelled")
+ * ile kapanır, yeni kayıt hedef grupta `active` açılır — ikisi `continuedAsEnrollmentId`/
+ * `continuesFromEnrollmentId` ile zincirlenir.
+ *
+ * Bu ayrım özellikle bölüm/modül bazlı eğitimlerde (örn. Grafik Tasarım: Grafik-1
+ * → Grafik-2, her bölümün KENDİ yoklaması/sertifikası var) hayati — tek kaydı
+ * taşımak (eski implementasyon) iki bölümün geçmişini aynı doküman üzerinde
+ * karıştırırdı. Şimdi her bölüm kendi Enrollment'ında kalıyor, eskisi `FrozenResult`
+ * dahil olduğu gibi donmuş kalır.
+ *
+ * `closeAs` NEDEN zorunlu (kullanıcı kararı, 2026-07-10): sistem "bu geçiş modül
+ * bitişi mi yoksa sadece sınıf değişikliği mi" ayrımını KENDİSİ YAPAMAZ — bunu bilen
+ * tek taraf işlemi yapan kişi. "completed" seçilirse gerçek mezuniyet; "cancelled"
+ * seçilirse öğrenci modülü henüz bitirmedi, sadece (saat/lokasyon vb.) başka bir
+ * sınıfa geçti — bu durumda da eski kayıttaki geçmiş (yoklama vb.) AYNEN durur, çünkü
+ * ayrı bir enrollment olduğu için zaten hiç dokunulmuyor.
+ *
+ * Gated capability, `flexos_settings.transferRequiresManualSale` switch'ine göre
+ * değişir (FLEXOS.md grup transferi bloğu):
+ *
+ *  - switch KAPALI (varsayılan): `enrollment.transfer` yeterli (Eğitim Op doğrudan taşır).
+ *    Sistem arkada OTOMATİK 0 TL "ek satış" (`Sale.type:"transfer"`) açar.
+ *  - switch AÇIK: `enrollment.transfer` YETMEZ, `sale.create` gerekir (Satış tarafı) —
+ *    yani taşımayı ARTIK sadece Satış, kendi ek satış kaydını oluşturarak yapabilir.
+ *
+ * Her iki modda da bir Sale kaydı (0 TL, type "transfer") düşer — audit/satış logu HİÇ
+ * atlanmaz, yeni kaydın `saleId`'si bu satışa bağlanır (normal satış akışıyla aynı dikiş).
+ */
+export async function transferEnrollment(
+  actor: Actor,
+  input: TransferEnrollmentInput,
+  deps: TransferEnrollmentDeps,
+): Promise<TransferEnrollmentResult> {
+  if (!input.enrollmentId || !input.toGroupId) {
+    throw new ValidationError("enrollmentId ve toGroupId zorunludur.");
+  }
+  if (!TRANSFER_CLOSE_STATUSES.includes(input.closeAs)) {
+    throw new ValidationError("closeAs \"completed\" veya \"cancelled\" olmalıdır.");
+  }
+
+  const enrollment = await deps.enrollments.getById(input.enrollmentId, actor.tenantId);
+  if (!enrollment) throw new ValidationError("Taşınacak kayıt bulunamadı.");
+  if (!enrollment.groupId) {
+    throw new ValidationError("Bu kayıt grupsuz — önce \"Gruba Ata\" ile bir gruba yerleştirin.");
+  }
+  if (enrollment.status !== "active") {
+    throw new ValidationError("Yalnızca aktif kayıtlar taşınabilir.");
+  }
+  if (enrollment.groupId === input.toGroupId) {
+    throw new ValidationError("Kayıt zaten bu grupta.");
+  }
+
+  const fromGroup = await deps.groups.getById(enrollment.groupId, actor.tenantId);
+  const toGroup = await deps.groups.getById(input.toGroupId, actor.tenantId);
+  if (!toGroup) throw new ValidationError("Hedef grup bulunamadı.");
+
+  const duplicate = await deps.enrollments.findActive(enrollment.personId, input.toGroupId, actor.tenantId);
+  if (duplicate) throw new ValidationError("Bu öğrenci zaten hedef grupta aktif kayıtlı.");
+
+  const settings = await deps.settings.get(actor.tenantId);
+  const manual = settings?.transferRequiresManualSale ?? false;
+
+  if (manual) {
+    if (!can(actor, "sale.create")) throw new ForbiddenError("sale.create");
+  } else {
+    // ownerUid: standalone eğitmen kendi (assigned-scope) grubu içinde de taşıyabilsin.
+    if (!can(actor, "enrollment.transfer", { groupId: enrollment.groupId, ownerUid: fromGroup?.trainerId })) {
+      throw new ForbiddenError("enrollment.transfer");
+    }
+  }
+
+  const ts = nowISO();
+  const fromGroupId = enrollment.groupId;
+
+  // Her iki modda da audit/satış logu — 0 TL, YENİ kaydın dikişi (saleId) bu satış olur.
+  const sale: Sale = {
+    id: deps.sales.nextId(),
+    tenantId: actor.tenantId,
+    type: "transfer",
+    status: "active",
+    customerType: "individual",
+    personId: enrollment.personId,
+    educationId: toGroup.educationId ?? enrollment.educationId,
+    soldPrice: 0,
+    salespersonId: actor.uid,
+    branchOfficeId: toGroup.branchOfficeId ?? fromGroup?.branchOfficeId,
+    date: ts.slice(0, 10),
+    createdAt: ts,
+    createdBy: actor.uid,
+  };
+  await deps.sales.save(sale);
+
+  const newEnrollment: Enrollment = {
+    id: deps.enrollments.nextId(),
+    tenantId: actor.tenantId,
+    personId: enrollment.personId,
+    groupId: input.toGroupId,
+    educationId: enrollment.educationId ?? toGroup.educationId,
+    trackScope: enrollment.trackScope,
+    status: "active",
+    saleId: sale.id,
+    continuesFromEnrollmentId: enrollment.id,
+    createdAt: ts,
+    createdBy: actor.uid,
+  };
+  await deps.enrollments.save(newEnrollment);
+
+  const transfer: EnrollmentTransfer = { fromGroupId, toGroupId: input.toGroupId, at: ts, by: actor.uid };
+  const closedEnrollment: Enrollment = {
+    ...enrollment,
+    status: input.closeAs,
+    continuedAsEnrollmentId: newEnrollment.id,
+    transferHistory: [...(enrollment.transferHistory ?? []), transfer],
+    updatedAt: ts,
+    updatedBy: actor.uid,
+  };
+  await deps.enrollments.save(closedEnrollment);
+
+  return { closedEnrollment, newEnrollment, sale };
 }
 
 /** Gruptan çıkarma bağımlılıkları (kayıt + grup, ownerUid kontrolü için). */
