@@ -9,7 +9,8 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 /**
  * GET /api/flexos/groups/[id]/roster — grubun öğrenci listesi (sınıf listesi).
  * enrollment(listByGroup) → person join. PII alanları `person.read.pii` ile kapılı.
- * Sadece AKTİF kayıtlar (mevcut sınıf mevcudu) döner.
+ * `active` (mevcut sınıf mevcudu) + `completed` (modülü bitmiş ama sertifika/ödev
+ * notu hâlâ görüntülenmesi/düzenlenmesi gereken geçmiş kayıt) döner.
  *
  * Kapsam: hedef grup verilerek kontrol edilir — standalone eğitmen SADECE kendi
  * grubunun (`Group.trainerId === actor.uid`) roster'ını çekebilir.
@@ -36,7 +37,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
     const allowPII = can(actor, "person.read.pii");
 
     const items = enrollments
-      .filter((e) => e.status === "active")
+      .filter((e) => e.status === "active" || e.status === "completed")
       .map((e) => {
         const p = personMap.get(e.personId);
         return {

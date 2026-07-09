@@ -63,7 +63,7 @@ import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number; certType?: "exam" | "project" }
 
-interface GradeDoc { personId: string; projectGrade?: number; locked?: boolean }
+interface GradeDoc { personId: string; projectGrade?: number; locked?: boolean; components?: Record<string, number> }
 interface OdevKategori { totalMaxPuan: number; earnedByPerson: Record<string, number> }
 interface OdevData { normal: OdevKategori; proje: OdevKategori }
 interface Weighting { odevAktif: boolean; sertifikaPct: number }
@@ -125,6 +125,11 @@ export default function SertifikaNotuPage() {
   // scope/yetkili) true ise kilit bu aktörü hiç bağlamaz.
   const [lockedByPerson, setLockedByPerson] = useState<Record<string, boolean>>({});
   const [canOverrideLock, setCanOverrideLock] = useState(false);
+  // Geçmiş/backfill kayıtları için — `Grade.components.odevNotu` doluysa, canlı ödev/teslim
+  // verisi olmayan (veya eksik) tarihi kayıtlarda ÖNCEDEN HESAPLANMIŞ yüzdeyi doğrudan
+  // gösterir (2026-07-09, kullanıcı kararı: "sertifika not kısmında zaten hesaplanmış ödev
+  // notları var, onu al"). Aktif/canlı gruplarda bu alan hiç dolmaz, davranış değişmez.
+  const [odevNotuOverride, setOdevNotuOverride] = useState<Record<string, number>>({});
 
   useEffect(() => {
     (async () => {
@@ -162,6 +167,7 @@ export default function SertifikaNotuPage() {
       setOdevData(ODEV_DATA_BOS);
       setLockedByPerson({});
       setCanOverrideLock(false);
+      setOdevNotuOverride({});
       try {
         const headers = await authHeaders();
         const [rosterRes, gradesRes] = await Promise.all([
@@ -173,14 +179,17 @@ export default function SertifikaNotuPage() {
           const { items, odev, canOverrideLock: override } = await gradesRes.json() as { items: GradeDoc[]; odev: OdevData; canOverrideLock: boolean };
           const prefilled: Record<string, string> = {};
           const lockedMap: Record<string, boolean> = {};
+          const odevOverrideMap: Record<string, number> = {};
           for (const g of items) {
             if (g.projectGrade != null) prefilled[g.personId] = String(g.projectGrade);
             if (g.locked) lockedMap[g.personId] = true;
+            if (typeof g.components?.odevNotu === "number") odevOverrideMap[g.personId] = g.components.odevNotu;
           }
           setSertifikaNotlari(prefilled);
           setOdevData(odev);
           setLockedByPerson(lockedMap);
           setCanOverrideLock(override);
+          setOdevNotuOverride(odevOverrideMap);
         }
       } finally {
         setLoadingRoster(false);
@@ -198,6 +207,7 @@ export default function SertifikaNotuPage() {
    * Bir kategori hiç yoksa ağırlık diğerine kayar; ikisi de yoksa `null` (veri yok).
    */
   function odevYuzdesi(personId: string): number | null {
+    if (personId in odevNotuOverride) return odevNotuOverride[personId];
     const { normal, proje } = odevData;
     const normalOran = normal.totalMaxPuan > 0 ? (normal.earnedByPerson[personId] ?? 0) / normal.totalMaxPuan : null;
     const projeOran = proje.totalMaxPuan > 0 ? (proje.earnedByPerson[personId] ?? 0) / proje.totalMaxPuan : null;
@@ -217,7 +227,7 @@ export default function SertifikaNotuPage() {
   // açık unutmuş/hiç ödev vermemiş olabilir; bu durumda `saveDraft` sessizce 0'layıp
   // kaydetmek yerine uyarı modalı açar (aşağıda).
   const { odevAktif, sertifikaPct } = settings[selected?.certType ?? "project"];
-  const odevVerisiVarMi = odevData.normal.totalMaxPuan > 0 || odevData.proje.totalMaxPuan > 0;
+  const odevVerisiVarMi = odevData.normal.totalMaxPuan > 0 || odevData.proje.totalMaxPuan > 0 || Object.keys(odevNotuOverride).length > 0;
 
   async function performSaveDraft() {
     setSaving(true);
@@ -296,7 +306,15 @@ export default function SertifikaNotuPage() {
   // kutularının etrafında büyük boşluklar bırakıyordu ("boşluk" şikayeti, 2026-07-08).
   // Şimdi Ödev Notu açılıp kapansa da diğer kolonların genişliği DEĞİŞMİYOR, sadece
   // "Öğrenci" kolonu boşalan/dolan alanı alıyor.
-  const gridCols = odevAktif ? "minmax(0,1fr) 96px 96px 84px 150px 44px" : "minmax(0,1fr) 96px 84px 150px 44px";
+  // "Öğrenci" kolonu ASLA `0`'a küçülmez — `minmax(0,1fr)` idi, dar ekranlarda diğer sabit
+  // kolonlar sıkıştırınca isim 2-3 harfe kadar kesiliyordu (2026-07-09 bug). Artık 170px
+  // TABAN var, isim asla ezilmeyecek. Sertifika Notu'ndan başlayan blok isme fazla yakın
+  // duruyordu — 16px'lik boş spacer kolon bu bloğu sağa kaydırıyor. Son kolon (Srtf. onay
+  // tiki) her zaman EN SONDA, GÖRÜNÜR kalmalı (2026-07-09, "Srtf kayboldu" şikayeti — bir
+  // önceki denemede toplam genişlik bütçesi ekran genişliğini aşıp son kolonu görünür
+  // alanın dışına itmişti) — bu yüzden toplam sabit genişlik+gap bütçesi kasıtlı DAR
+  // tutuldu, `overflow-x-auto` sadece son çare (aşırı dar ekran) güvenlik ağı.
+  const gridCols = odevAktif ? "minmax(170px,1fr) 16px 100px 100px 84px 150px 36px" : "minmax(170px,1fr) 16px 100px 84px 150px 36px";
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", background: "#EEF0F3" }}>
@@ -377,9 +395,10 @@ export default function SertifikaNotuPage() {
               </div>
 
               {/* table */}
-              <div className="bg-white border border-[#E2E5EA] rounded-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] overflow-hidden">
-                <div className="grid gap-10 items-center py-[15px] px-[22px] border-b border-[#EEF0F3] bg-[#FBFCFD]" style={{ gridTemplateColumns: gridCols }}>
+              <div className="bg-white border border-[#E2E5EA] rounded-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] overflow-y-hidden overflow-x-auto">
+                <div className="grid gap-6 items-center py-[15px] px-[22px] border-b border-[#EEF0F3] bg-[#FBFCFD]" style={{ gridTemplateColumns: gridCols }}>
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide">Öğrenci</div>
+                  <div aria-hidden />
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">
                     Sertifika Notu<br /><span className="text-[10px] font-semibold normal-case text-[#AEB4C0]">{odevAktif ? `%${sertifikaPct}` : "%100"}</span>
                   </div>
@@ -414,7 +433,7 @@ export default function SertifikaNotuPage() {
                     return (
                       <div
                         key={r.personId}
-                        className="grid gap-10 items-center py-[13px] px-[22px]"
+                        className="grid gap-6 items-center py-[13px] px-[22px]"
                         style={{ gridTemplateColumns: gridCols, borderBottom: i < roster.length - 1 ? "1px solid #F2F4F7" : "none" }}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -428,6 +447,7 @@ export default function SertifikaNotuPage() {
                             <div className="text-[13.5px] font-bold text-[#1E222B] truncate">{r.name}</div>
                           </div>
                         </div>
+                        <div aria-hidden />
                         <div className="flex justify-center">
                           <input
                             className="gradeInput w-[78px] text-center py-2 px-2 rounded-[10px] border border-[#E2E5EA] bg-white text-[14px] font-bold text-[#1E222B] outline-none"
@@ -442,11 +462,11 @@ export default function SertifikaNotuPage() {
                         {odevAktif && (
                           <div className="flex justify-center">
                             <span
-                              className="inline-flex items-center justify-center rounded-[10px] font-bold text-[14px]"
-                              style={{ minWidth: 60, padding: "8px 10px", color: "#6F7B87", background: "#F7F8FA" }}
-                              title="Grup içindeki tüm ödevlerden otomatik hesaplanır"
+                              className="inline-flex items-center justify-center rounded-[10px] border border-[#E2E5EA] bg-white font-bold text-[14px] text-[#1E222B]"
+                              style={{ minWidth: 60, padding: "8px 10px" }}
+                              title="Grup içindeki tüm ödevlerden otomatik hesaplanır (canlıdaki gibi ağırlıklı puan, yüzde değil)"
                             >
-                              {`%${odev ?? 0}`}
+                              {Math.round(((odev ?? 0) * odevPct) / 100)}
                             </span>
                           </div>
                         )}
