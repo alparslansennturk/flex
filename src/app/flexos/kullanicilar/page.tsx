@@ -1,10 +1,14 @@
 "use client";
 
 /**
- * FlexOS · Kullanıcılar — 2 sekmeli kullanıcı yönetimi.
- * Sekme 1 — Personel: admin / operasyon / satış / eğitmen
- * Sekme 2 — Öğrenciler: auth/erişim bilgileri (şifre sıfırla, tek kullanımlık kod, son giriş)
- * Kullanıcı Ekle → /flexos/kullanicilar/ekle (tam sayfa form)
+ * FlexOS · Kullanıcılar — 3 sekmeli kullanıcı yönetimi (2026-07-10 kararı: "kim bu
+ * sistemde kim" tek yerden görünsün — bağımsız "Eğitmenler" sidebar linki kaldırıldı).
+ * Sekme 1 — Personel: admin / operasyon / satış (SADECE `role.manage`)
+ * Sekme 2 — Eğitmenler: hafif özet (`trainer.read`) — tam CRUD/müsaitlik/ücret BURADA
+ *   DEĞİL, "Eğitmen Kadrosu'na Git" ile /flexos/egitmenler'e yönlendirir.
+ * Sekme 3 — Öğrenciler: auth/erişim bilgileri (`person.read`)
+ * Sekmeler caller'ın gerçek yetkisine göre gösterilir/gizlenir (kozmetik — asıl kapı
+ * her zaman backend'de). Kullanıcı Ekle → /flexos/kullanicilar/ekle (tam sayfa form)
  */
 
 import React, { useEffect, useState, useMemo, useCallback, useRef, CSSProperties } from "react";
@@ -18,17 +22,24 @@ import Footer from "@/app/components/layout/Footer";
 import { useRoleDefs } from "./_shared/useRoleDefs";
 
 // ── types ──
-type TabKey = "personel" | "ogrenciler";
+type TabKey = "personel" | "egitmenler" | "ogrenciler";
 type RoleKey = string;
 
 interface UserItem {
   id: string; name: string; surname: string; email: string; phone: string;
   roles: RoleKey[]; subes: string[]; status: "aktif" | "pasif"; createdAt: string; title: string;
+  /** Aktivasyon kodu henüz kullanılmadı — `status` (istihdam aktif/pasif) ile AYRI kavram. */
+  pendingActivation: boolean;
 }
 
 interface StudentUserItem {
-  id: string; name: string; email: string; phone: string;
+  id: string; name: string; email: string;
   lastLogin: string | null; status: "aktif" | "pasif" | "askıda"; createdAt: string;
+}
+
+interface TrainerSummaryItem {
+  id: string; name: string; email: string; subes: string[];
+  status: "aktif" | "pasif"; groupCount: number;
 }
 
 const ALL_SUBES = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş", "Şirinevler"];
@@ -65,23 +76,16 @@ function fmtDateTime(iso: string | null): string {
 }
 
 
-// ── Demo Veri — Öğrenci Kullanıcıları ──
-const DUMMY_STUDENTS: StudentUserItem[] = [
-  { id: "s1", name: "İrem Arslanoğlu", email: "irem@gmail.com", phone: "0 (532) 111 22 33", lastLogin: "2026-06-26T09:14:00", status: "aktif", createdAt: "2026-02-01" },
-  { id: "s2", name: "Yusuf Kılıç", email: "yusuf.k@gmail.com", phone: "0 (544) 222 33 44", lastLogin: "2026-06-25T18:30:00", status: "aktif", createdAt: "2026-02-15" },
-  { id: "s3", name: "Defne Çetin", email: "defne.c@gmail.com", phone: "0 (555) 333 44 55", lastLogin: "2026-06-20T11:00:00", status: "aktif", createdAt: "2026-03-01" },
-  { id: "s4", name: "Arda Şahin", email: "arda@hotmail.com", phone: "0 (533) 444 55 66", lastLogin: null, status: "askıda", createdAt: "2026-03-10" },
-  { id: "s5", name: "Melis Yıldırım", email: "melis.y@gmail.com", phone: "0 (545) 555 66 77", lastLogin: "2026-06-24T14:20:00", status: "aktif", createdAt: "2026-03-20" },
-  { id: "s6", name: "Baran Demir", email: "baran.d@gmail.com", phone: "0 (537) 666 77 88", lastLogin: "2026-05-10T08:00:00", status: "pasif", createdAt: "2026-04-01" },
-  { id: "s7", name: "Elif Nur Aydın", email: "elifnur@gmail.com", phone: "0 (542) 777 88 99", lastLogin: "2026-06-26T07:45:00", status: "aktif", createdAt: "2026-04-15" },
-  { id: "s8", name: "Kerem Öztürk", email: "kerem.oz@gmail.com", phone: "0 (530) 888 99 00", lastLogin: "2026-06-22T16:10:00", status: "aktif", createdAt: "2026-05-01" },
-  { id: "s9", name: "Zehra Korkmaz", email: "zehra.k@gmail.com", phone: "0 (546) 999 00 11", lastLogin: null, status: "askıda", createdAt: "2026-05-20" },
-  { id: "s10", name: "Emir Can Polat", email: "emircan@gmail.com", phone: "0 (538) 000 11 22", lastLogin: "2026-06-18T12:30:00", status: "aktif", createdAt: "2026-06-01" },
-  { id: "s11", name: "Sude Aksoy", email: "sude.a@gmail.com", phone: "0 (541) 111 22 33", lastLogin: "2026-06-25T20:00:00", status: "aktif", createdAt: "2026-06-10" },
-  { id: "s12", name: "Toprak Yılmaz", email: "toprak@gmail.com", phone: "0 (535) 222 33 44", lastLogin: "2026-04-30T10:15:00", status: "pasif", createdAt: "2026-06-15" },
-];
-
 const SUBE_OPTIONS = ["Tümü", ...ALL_SUBES];
+
+/**
+ * Gerçek sistem sahibi — `auth-actor.ts::VIEW_TOGGLE_OWNER_EMAIL` ile AYNI hardcode
+ * (2026-07-10 kullanıcı kararı: "Genel Müdür" gerçek bir gelecek işe alım, kendisi o
+ * değil). "Admin" rozeti SADECE bu kişi kendi hesabını görüntülerken, kendi satırında
+ * çıkar — atanabilir bir rol DEĞİL, RoleDef listesine hiç girmez, başka kimsenin
+ * ekranında görünmez (viewer VE row ikisi de bu e-posta olmalı).
+ */
+const SYSTEM_OWNER_EMAIL = "alparslan.sennturk@gmail.com";
 
 export default function KullanicilarPage() {
   const router = useRouter();
@@ -109,137 +113,26 @@ export default function KullanicilarPage() {
   const [subeDD, setSubeDD] = useState(false);
   const [statusDD, setStatusDD] = useState(false);
 
-  const [students, setStudents] = useState<StudentUserItem[]>(DUMMY_STUDENTS);
+  const [students, setStudents] = useState<StudentUserItem[]>([]);
   const [stuSearch, setStuSearch] = useState("");
   const [stuStatusFilter, setStuStatusFilter] = useState("Tümü");
   const [stuPage, setStuPage] = useState(1);
   const [stuStatusDD, setStuStatusDD] = useState(false);
 
-  // ── Sistem Modu (Eğitmen Tek Başına switch) ──
-  const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
-  const [modeBusy, setModeBusy] = useState(false);
-  const [modeConfirm, setModeConfirm] = useState<boolean | null>(null); // onay bekleyen hedef değer (null = modal kapalı)
+  // ── Eğitmenler sekmesi — hafif özet (tam CRUD /flexos/egitmenler'de kalır) ──
+  const [trainers, setTrainers] = useState<TrainerSummaryItem[]>([]);
+  const [trnSearch, setTrnSearch] = useState("");
+  const [trnPage, setTrnPage] = useState(1);
 
-  // ── Grup Taşıma Kuralı (transferRequiresManualSale switch) ──
-  const [transferManual, setTransferManual] = useState<boolean | null>(null);
-  const [transferManualBusy, setTransferManualBusy] = useState(false);
+  // ── Sekme görünürlüğü — caller'ın gerçek yetkisine göre (kozmetik, asıl kapı backend'de) ──
+  const [caps, setCaps] = useState<Set<string> | null>(null);
+  const canSeePersonel = caps?.has("role.manage") ?? false;
+  const canSeeEgitmenler = caps?.has("trainer.read") ?? false;
+  const canSeeOgrenciler = caps?.has("person.read") ?? false;
 
-  // ── Kişisel Görünüm PIN'i (Core/Full anahtarı, sadece owner görür) ──
-  const [canPin, setCanPin] = useState(false);
-  const [hasPin, setHasPin] = useState(false);
-  const [newPin, setNewPin] = useState("");
-  const [newPin2, setNewPin2] = useState("");
-  const [pinBusy, setPinBusy] = useState(false);
-
-  const fetchViewAccess = useCallback(async (signal?: AbortSignal) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/flexos/view-access", { headers: { Authorization: `Bearer ${token}` }, signal });
-      if (!res.ok) { if (!signal?.aborted) setCanPin(false); return; }
-      const json = await res.json();
-      if (signal?.aborted) return;
-      setCanPin(true);
-      setHasPin(!!json.hasPin);
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") setCanPin(false);
-    }
-  }, []);
-
-  const savePin = async () => {
-    if (!/^\d{4}$/.test(newPin)) { toast.error("Yeni PIN 4 haneli rakam olmalı."); return; }
-    if (newPin !== newPin2) { toast.error("Yeni PIN'ler eşleşmiyor."); return; }
-    setPinBusy(true);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/flexos/view-access/pin", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ newPin }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(json.error || "PIN güncellenemedi."); return; }
-      toast.success(hasPin ? "PIN değiştirildi." : "PIN oluşturuldu.");
-      setNewPin(""); setNewPin2("");
-      setHasPin(true);
-    } catch {
-      toast.error("Sunucu hatası.");
-    } finally {
-      setPinBusy(false);
-    }
-  };
-
-  const fetchSettings = useCallback(async (signal?: AbortSignal) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/flexos/settings", {
-        headers: { Authorization: `Bearer ${token}` },
-        signal,
-      });
-      if (!res.ok) throw new Error("fetch failed");
-      const json = await res.json();
-      if (!signal?.aborted) {
-        setStandaloneMode(!!json.standaloneMode);
-        setTransferManual(!!json.transferRequiresManualSale);
-      }
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") {
-        console.error("[kullanicilar] sistem modu yüklenemedi:", e);
-      }
-    }
-  }, []);
-
-  const applyStandaloneMode = async (next: boolean) => {
-    if (modeBusy) return;
-    setModeBusy(true);
-    setStandaloneMode(next); // optimistic
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/flexos/settings", {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ standaloneMode: next }),
-      });
-      if (!res.ok) throw new Error("patch failed");
-      toast.success(next ? "Eğitmen tek başına çalışma modu açıldı." : "Tam sistem moduna dönüldü.");
-    } catch {
-      setStandaloneMode(!next); // rollback
-      toast.error("Sistem modu güncellenemedi.");
-    } finally {
-      setModeBusy(false);
-    }
-  };
-
-  const confirmModeChange = () => {
-    if (modeConfirm === null) return;
-    const next = modeConfirm;
-    setModeConfirm(null);
-    applyStandaloneMode(next);
-  };
-
-  const applyTransferManual = async (next: boolean) => {
-    if (transferManualBusy) return;
-    setTransferManualBusy(true);
-    setTransferManual(next); // optimistic
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/flexos/settings", {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ transferRequiresManualSale: next }),
-      });
-      if (!res.ok) throw new Error("patch failed");
-      toast.success(next ? "Grup taşıma artık manuel ek satış gerektiriyor." : "Grup taşımada otomatik ek satış moduna dönüldü.");
-    } catch {
-      setTransferManual(!next); // rollback
-      toast.error("Grup taşıma kuralı güncellenemedi.");
-    } finally {
-      setTransferManualBusy(false);
-    }
-  };
+  // Not: Sistem Modu / Grup Taşıma Kuralı / Kişisel Görünüm PIN'i artık ayrı
+  // "Sistem Ayarları" sayfasında (`/flexos/sistem-ayarlari`, 2026-07-10 kullanıcı kararı
+  // — "sistem ayarlarının içine taşıyalım").
 
   // ── Veri yükleme ──
   const fetchUsers = useCallback(async (signal?: AbortSignal) => {
@@ -265,24 +158,113 @@ export default function KullanicilarPage() {
     }
   }, []);
 
+  // Öğrenciler sekmesi — gerçek /api/flexos/persons (Öğrenci Havuzu ile AYNI kaynak).
+  // accountStatus/lastLogin backend'de canlı `users/{uid}.isActivated` + Firebase Auth
+  // `lastSignInTime`'dan salt-okunur türetiliyor (bkz. persons route).
+  const fetchStudents = useCallback(async (signal?: AbortSignal) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/flexos/persons", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      if (!res.ok) throw new Error("fetch failed");
+      const json = await res.json();
+      if (!signal?.aborted) {
+        const items: StudentUserItem[] = (json.items ?? []).map((p: {
+          id: string; name: string; email: string;
+          lastLogin: string | null; accountStatus: "aktif" | "askıda" | "pasif"; createdAt: string;
+        }) => ({
+          id: p.id, name: p.name, email: p.email,
+          lastLogin: p.lastLogin, status: p.accountStatus, createdAt: p.createdAt,
+        }));
+        setStudents(items);
+      }
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
+        console.error("[kullanicilar] öğrenci verisi yüklenemedi:", e);
+      }
+    }
+  }, []);
+
+  // Eğitmenler sekmesi — gerçek /api/flexos/trainers (Eğitmen Kadrosu ile AYNI kaynak),
+  // sadece özet alanlar (ücret/müsaitlik/not BURADA yok — tam CRUD /flexos/egitmenler'de).
+  const fetchTrainers = useCallback(async (signal?: AbortSignal) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/flexos/trainers", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      if (!res.ok) throw new Error("fetch failed");
+      const json = await res.json();
+      if (!signal?.aborted) {
+        const items: TrainerSummaryItem[] = (json.items ?? []).map((t: {
+          id: string; name: string; email: string; subes: string[];
+          status: "aktif" | "pasif"; groups: unknown[];
+        }) => ({
+          id: t.id, name: t.name, email: t.email, subes: t.subes ?? [],
+          status: t.status, groupCount: (t.groups ?? []).length,
+        }));
+        setTrainers(items);
+      }
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
+        console.error("[kullanicilar] eğitmen verisi yüklenemedi:", e);
+      }
+    }
+  }, []);
+
+  // Sekme görünürlüğü için caller'ın gerçek capability'leri (kozmetik — bkz. /api/flexos/me).
+  const fetchMe = useCallback(async (signal?: AbortSignal): Promise<Set<string>> => {
+    const user = auth.currentUser;
+    if (!user) return new Set();
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, signal });
+      if (!res.ok) throw new Error("fetch failed");
+      const json = await res.json();
+      const capSet = new Set<string>(json.capabilities ?? []);
+      if (!signal?.aborted) setCaps(capSet);
+      return capSet;
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
+        console.error("[kullanicilar] yetki bilgisi yüklenemedi:", e);
+        setCaps(new Set());
+      }
+      return new Set();
+    }
+  }, []);
+
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
-      fetchUsers(ac.signal);
-      fetchSettings(ac.signal);
-      fetchViewAccess(ac.signal);
+      // Personel/Eğitmenler/Öğrenciler uçları capability-gated (403) — sekmesi zaten
+      // gizli olan biri için o isteği hiç atmıyoruz (2026-07-10 bulgu: Eğitim
+      // Koordinatörü Kullanıcılar'a girince role.manage'i olmadığı için Personel
+      // isteği 403 dönüp konsola "fetch failed" basıyordu, işlevsel bir bug değildi
+      // ama gereksiz gürültüydü).
+      const capSet = await fetchMe(ac.signal);
+      if (ac.signal.aborted) return;
+      if (capSet.has("role.manage")) fetchUsers(ac.signal);
+      if (capSet.has("person.read")) fetchStudents(ac.signal);
+      if (capSet.has("trainer.read")) fetchTrainers(ac.signal);
     })();
     return () => { ac.abort(); };
-  }, [router, fetchUsers, fetchSettings, fetchViewAccess]);
+  }, [router, fetchMe, fetchUsers, fetchStudents, fetchTrainers]);
 
-  // Ekle sayfasından dönünce listeyi yenile
+  // Ekle sayfasından dönünce listeyi yenile (SADECE Personel'i görebilen biri için).
   useEffect(() => {
     if (!didMount.current) { didMount.current = true; return; }
-    if (pathname === "/flexos/kullanicilar") fetchUsers();
-  }, [pathname, fetchUsers]);
+    if (pathname === "/flexos/kullanicilar" && caps?.has("role.manage")) fetchUsers();
+  }, [pathname, fetchUsers, caps]);
 
   // personel filtreleme
   const filtered = useMemo(() => {
@@ -303,7 +285,7 @@ export default function KullanicilarPage() {
   const stuFiltered = useMemo(() => {
     let list = students;
     const q = stuSearch.trim().toLocaleLowerCase("tr");
-    if (q) list = list.filter((s) => `${s.name} ${s.email} ${s.phone}`.toLocaleLowerCase("tr").includes(q));
+    if (q) list = list.filter((s) => `${s.name} ${s.email}`.toLocaleLowerCase("tr").includes(q));
     if (stuStatusFilter !== "Tümü") list = list.filter((s) => s.status === stuStatusFilter);
     return list;
   }, [students, stuSearch, stuStatusFilter]);
@@ -312,13 +294,58 @@ export default function KullanicilarPage() {
   const stuPageItems = stuFiltered.slice((stuPage - 1) * PAGE_SIZE, stuPage * PAGE_SIZE);
   useEffect(() => setStuPage(1), [stuSearch, stuStatusFilter]);
 
+  // eğitmen filtreleme
+  const trnFiltered = useMemo(() => {
+    let list = trainers;
+    const q = trnSearch.trim().toLocaleLowerCase("tr");
+    if (q) list = list.filter((t) => `${t.name} ${t.email}`.toLocaleLowerCase("tr").includes(q));
+    return list;
+  }, [trainers, trnSearch]);
+
+  const trnTotalPages = Math.max(1, Math.ceil(trnFiltered.length / PAGE_SIZE));
+  const trnPageItems = trnFiltered.slice((trnPage - 1) * PAGE_SIZE, trnPage * PAGE_SIZE);
+  useEffect(() => setTrnPage(1), [trnSearch]);
+
+  // Sekme erişimi caps'e göre daralınca (ör. sadece person.read olan biri) aktif
+  // sekme erişilemez kalmasın — ilk erişilebilir sekmeye düş.
+  useEffect(() => {
+    if (!caps) return;
+    const allowed: Record<TabKey, boolean> = { personel: canSeePersonel, egitmenler: canSeeEgitmenler, ogrenciler: canSeeOgrenciler };
+    if (!allowed[tab]) {
+      const first = (["personel", "egitmenler", "ogrenciler"] as TabKey[]).find((k) => allowed[k]);
+      if (first) setTab(first);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caps]);
+
   // metrikler
   const totalUsers = users.length;
-  const activeUsers = users.filter((u) => u.status === "aktif").length;
+  const activeUsers = users.filter((u) => u.status === "aktif" && !u.pendingActivation).length;
   const rolCounts = useMemo(() => { const m: Record<string, number> = {}; users.forEach((u) => { u.roles.forEach((r) => { m[r] = (m[r] || 0) + 1; }); }); return m; }, [users]);
   const totalStudents = students.length;
   const activeStudents = students.filter((s) => s.status === "aktif").length;
   const pendingStudents = students.filter((s) => s.status === "askıda").length;
+  const totalTrainers = trainers.length;
+
+  const [resendBusyId, setResendBusyId] = useState<string | null>(null);
+  const resendCode = async (u: UserItem) => {
+    if (resendBusyId) return;
+    setResendBusyId(u.id);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/flexos/users/${u.id}/resend-code`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(json.error || "Kod gönderilemedi."); return; }
+      toast.success(`${u.name} ${u.surname} için aktivasyon kodu tekrar gönderildi.`);
+    } catch {
+      toast.error("Sunucu hatası.");
+    } finally {
+      setResendBusyId(null);
+    }
+  };
 
   const toggleUserStatus = async (id: string) => {
     const user = users.find((u) => u.id === id);
@@ -341,7 +368,6 @@ export default function KullanicilarPage() {
       toast.error("Durum güncellenemedi.");
     }
   };
-  const toggleStudentStatus = (id: string) => { setStudents((p) => p.map((s) => s.id !== id ? s : { ...s, status: s.status === "aktif" ? "pasif" : "aktif" })); toast.success("Durum güncellendi."); };
 
   // ── Sil ──
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
@@ -372,6 +398,64 @@ export default function KullanicilarPage() {
     }
   };
 
+  // ── Öğrenci: Hesabı Kapat (Person kalır, sadece giriş erişimi kapanır) ──
+  const [closeAccountModal, setCloseAccountModal] = useState<{ id: string; name: string } | null>(null);
+  const [closeAccountBusy, setCloseAccountBusy] = useState(false);
+
+  const askCloseAccount = (s: StudentUserItem) => setCloseAccountModal({ id: s.id, name: s.name });
+
+  const confirmCloseAccount = async () => {
+    if (!closeAccountModal) return;
+    setCloseAccountBusy(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/flexos/persons/${closeAccountModal.id}/close-account`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Hesap kapatılamadı." }));
+        throw new Error(err.error);
+      }
+      setStudents((p) => p.map((s) => s.id === closeAccountModal.id ? { ...s, status: "pasif", lastLogin: s.lastLogin } : s));
+      toast.success(`${closeAccountModal.name} için hesap kapatıldı.`);
+      setCloseAccountModal(null);
+    } catch (e) {
+      toast.error((e as Error).message || "Hesap kapatılamadı.");
+    } finally {
+      setCloseAccountBusy(false);
+    }
+  };
+
+  // ── Öğrenci: Tamamen Sil (satış/ödeme geçmişi varsa backend reddeder) ──
+  const [stuDeleteModal, setStuDeleteModal] = useState<{ id: string; name: string } | null>(null);
+  const [stuDelBusy, setStuDelBusy] = useState(false);
+
+  const askStudentDelete = (s: StudentUserItem) => setStuDeleteModal({ id: s.id, name: s.name });
+
+  const confirmStudentDelete = async () => {
+    if (!stuDeleteModal) return;
+    setStuDelBusy(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/flexos/persons/${stuDeleteModal.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Silinemedi." }));
+        throw new Error(err.error);
+      }
+      setStudents((p) => p.filter((s) => s.id !== stuDeleteModal.id));
+      toast.success(`${stuDeleteModal.name} silindi.`);
+      setStuDeleteModal(null);
+    } catch (e) {
+      toast.error((e as Error).message || "Öğrenci silinemedi.");
+    } finally {
+      setStuDelBusy(false);
+    }
+  };
+
   function renderSubes(subes: string[]) {
     if (subes.length === 0) return <span style={{ fontSize: 12.5, color: "#AEB4C0", fontWeight: 500 }}>—</span>;
     if (subes.length >= ALL_SUBES.length) return <span style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "3px 10px", borderRadius: 6 }}>Tümü</span>;
@@ -383,7 +467,7 @@ export default function KullanicilarPage() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="kullanicilar" />
-      <style>{`.ku-iconbtn:hover{background:rgba(0,0,0,.04)!important}`}</style>
+      <style>{`.ku-iconbtn:hover{background:rgba(0,0,0,.04)!important}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
           icon={<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
@@ -394,94 +478,23 @@ export default function KullanicilarPage() {
         />
 
         <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
-          <div style={{ display: "flex", gap: 0, marginBottom: 20 }}>
-            <TabBtn label="Personel" count={totalUsers} active={tab === "personel"} onClick={() => setTab("personel")} />
-            <TabBtn label="Öğrenciler" count={totalStudents} active={tab === "ogrenciler"} onClick={() => setTab("ogrenciler")} />
-          </div>
-
-          {/* ═══════════ SİSTEM MODU + GRUP TAŞIMA KURALI + KİŞİSEL GÖRÜNÜM PIN'İ ═══════════ */}
-          <div style={{ display: "grid", gridTemplateColumns: canPin ? "1fr 1fr 1fr" : "1fr 1fr", gap: 16, marginBottom: 22, alignItems: "stretch" }}>
-            <div style={{ ...S.tableCard, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px", flexWrap: "wrap" as const }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{ width: 42, height: 42, borderRadius: 12, background: standaloneMode ? "#DCFCE7" : "#EDE9FE", color: standaloneMode ? "#15803D" : "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
-                  <IconGraduation />
-                </div>
-                <div>
-                  <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>Sistem Modu</div>
-                  <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
-                    {standaloneMode === null
-                      ? "Yükleniyor…"
-                      : standaloneMode
-                        ? "Eğitmen Tek Başına — eğitmen kendi grubunu/öğrencisini kendi ekler, Satış/Operasyon devre dışı."
-                        : "Tam Sistem — öğrenci ve grup Satış + Operasyon üzerinden beslenir, eğitmen sadece yoklama/not girer."}
-                  </div>
-                </div>
-              </div>
-              <SystemModeSegment value={standaloneMode} busy={modeBusy} onChange={(next) => { if (standaloneMode !== null && next !== standaloneMode) setModeConfirm(next); }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 0 }}>
+              {canSeePersonel && <TabBtn label="Personel" count={totalUsers} active={tab === "personel"} onClick={() => setTab("personel")} />}
+              {canSeeEgitmenler && <TabBtn label="Eğitmenler" count={totalTrainers} active={tab === "egitmenler"} onClick={() => setTab("egitmenler")} />}
+              {canSeeOgrenciler && <TabBtn label="Öğrenciler" count={totalStudents} active={tab === "ogrenciler"} onClick={() => setTab("ogrenciler")} />}
             </div>
-
-            <div style={{ ...S.tableCard, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px", flexWrap: "wrap" as const }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{ width: 42, height: 42, borderRadius: 12, background: transferManual ? "#FEF3C7" : "#DDE8F8", color: transferManual ? "#B45309" : "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
-                  <IconTransfer />
-                </div>
-                <div>
-                  <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>Grup Taşıma Kuralı</div>
-                  <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
-                    {transferManual === null
-                      ? "Yükleniyor…"
-                      : transferManual
-                        ? "Manuel Ek Satış — grup taşıma yalnız Satış tarafından ek satışla yapılır."
-                        : "Otomatik Ek Satış — Eğitim Op. öğrenciyi doğrudan taşır, sistem arkada 0 TL ek satış açar."}
-                  </div>
-                </div>
-              </div>
-              <ToggleSwitch active={!!transferManual} onClick={() => transferManual !== null && applyTransferManual(!transferManual)} />
-            </div>
-
-            {canPin && (
-              <div style={{ ...S.tableCard, padding: "18px 22px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 12, background: "#EDE9FE", color: "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
-                    <IconLock />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>{"Kişisel Görünüm PIN'i"}</div>
-                    <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
-                      {"Ctrl/Cmd+Alt+M ile Eğitmen görünümünden admin ekranına geçerken sorulan 4 haneli PIN. "}{hasPin ? "Kurulu." : "Henüz kurulmadı."}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>Yeni PIN</label>
-                    <input type="password" inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4))} style={S.pinInput} />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>Yeni PIN (Tekrar)</label>
-                    <input type="password" inputMode="numeric" maxLength={4} value={newPin2} onChange={(e) => setNewPin2(e.target.value.replace(/\D/g, "").slice(0, 4))} style={S.pinInput} />
-                  </div>
-                  <button onClick={savePin} disabled={pinBusy} style={{ ...S.addBtn, background: "#7C3AED", boxShadow: "none" }}>
-                    {pinBusy ? "Kaydediliyor…" : hasPin ? "PIN'i Değiştir" : "PIN Oluştur"}
-                  </button>
-                </div>
-              </div>
+            {tab === "personel" && (
+              <button onClick={() => router.push("/flexos/kullanicilar/ekle")} style={S.addBtn}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+                Kullanıcı Ekle
+              </button>
             )}
           </div>
 
           {/* ═══════════ PERSONEL ═══════════ */}
           {tab === "personel" && (
             <>
-              {/* section header + CTA */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginTop: 40, marginBottom: 22 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={S.countChip}>{totalUsers} personel</span>
-                </div>
-                <button onClick={() => router.push("/flexos/kullanicilar/ekle")} style={S.addBtn}>
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-                  Kullanıcı Ekle
-                </button>
-              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 22 }}>
                 <MetricCard icon={<IconUsers />} bg="#EDE9FE" iconColor="#7C3AED" label="Toplam Personel" value={String(totalUsers)} />
                 <MetricCard icon={<IconCheck />} bg="#E6F5ED" iconColor="#007A30" label="Aktif" value={String(activeUsers)} />
@@ -517,6 +530,9 @@ export default function KullanicilarPage() {
                     </tr></thead><tbody>
                       {pageUsers.map((u, i) => {
                         const pal = AV_PALETTES[((page - 1) * PAGE_SIZE + i) % AV_PALETTES.length];
+                        const viewerIsOwner = auth.currentUser?.email === SYSTEM_OWNER_EMAIL;
+                        const rowIsSelf = u.email === auth.currentUser?.email;
+                        const showOwnerBadge = viewerIsOwner && rowIsSelf && u.email === SYSTEM_OWNER_EMAIL;
                         return (
                           <tr key={u.id} style={{ borderBottom: "1px solid #EEF0F3" }}>
                             <td style={S.tdFirst}><div style={{ display: "flex", alignItems: "center", gap: 11 }}>
@@ -524,12 +540,29 @@ export default function KullanicilarPage() {
                               <div><div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{u.name} {u.surname}</div><div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>{u.title || fmtDate(u.createdAt)}</div></div>
                             </div></td>
                             <td style={S.td}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>{u.email}</span></td>
-                            <td style={S.td}><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{u.roles.map((r) => { const rd = roleDefsById[r]; const color = rd?.color || "#414B59"; return <span key={r} style={{ display: "inline-flex", padding: "4px 11px", borderRadius: 7, fontSize: 12, fontWeight: 700, color, background: rd ? `${color}1A` : "#EEF0F3" }}>{rd?.label ?? r}</span>; })}</div></td>
+                            <td style={S.td}><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                              {showOwnerBadge
+                                ? <span style={{ display: "inline-flex", padding: "4px 11px", borderRadius: 7, fontSize: 12, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE" }}>Admin</span>
+                                : u.roles.map((r) => { const rd = roleDefsById[r]; const color = rd?.color || "#414B59"; return <span key={r} style={{ display: "inline-flex", padding: "4px 11px", borderRadius: 7, fontSize: 12, fontWeight: 700, color, background: rd ? `${color}1A` : "#EEF0F3" }}>{rd?.label ?? r}</span>; })}
+                            </div></td>
                             <td style={S.td}>{renderSubes(u.subes)}</td>
-                            <td style={S.td}><ToggleSwitch active={u.status === "aktif"} onClick={() => toggleUserStatus(u.id)} /></td>
+                            <td style={S.td}>
+                              {u.pendingActivation
+                                ? <span title="Aktivasyon kodu henüz kullanılmadı" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#B45309", background: "#FEF3C7", padding: "4px 10px", borderRadius: 999 }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#D97706" }} />Beklemede
+                                  </span>
+                                : <ToggleSwitch active={u.status === "aktif"} onClick={() => toggleUserStatus(u.id)} />}
+                            </td>
                             <td style={S.tdRight}><div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              {u.pendingActivation && (
+                                <button onClick={() => resendCode(u)} disabled={resendBusyId === u.id} title="Aktivasyon Kodunu Tekrar Gönder" style={S.iconBtn}>
+                                  {resendBusyId === u.id
+                                    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-9-9"/></svg>
+                                    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>}
+                                </button>
+                              )}
                               <button onClick={() => router.push(`/flexos/kullanicilar/${u.id}/duzenle`)} title="Düzenle" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
-                              <button onClick={() => askDelete(u)} title="Sil" style={{ ...S.iconBtn, color: "#94A3B8" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+                              <button onClick={() => !rowIsSelf && askDelete(u)} disabled={rowIsSelf} title={rowIsSelf ? "Kendi hesabınızı silemezsiniz" : "Sil"} style={{ ...S.iconBtn, color: rowIsSelf ? "#D8DCE3" : "#94A3B8", cursor: rowIsSelf ? "not-allowed" : "pointer" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
                             </div></td>
                           </tr>
                         );
@@ -538,6 +571,52 @@ export default function KullanicilarPage() {
                   </div>
                 )}
                 <Pagination total={filtered.length} totalPages={totalPages} page={page} setPage={setPage} />
+              </div>
+            </>
+          )}
+
+          {/* ═══════════ EĞİTMENLER (hafif özet — tam CRUD /flexos/egitmenler'de) ═══════════ */}
+          {tab === "egitmenler" && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+                <SearchInput value={trnSearch} onChange={setTrnSearch} placeholder="Ad, e-posta ara…" />
+                <button onClick={() => router.push("/flexos/egitmenler")} style={S.addBtn}>Eğitmen Kadrosu&apos;na Git</button>
+              </div>
+              <div style={S.tableCard}>
+                <div style={S.tableHead}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 15.5, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px" }}>Eğitmenler</span>
+                    <span style={S.countBadge}>{trnFiltered.length}</span>
+                  </div>
+                </div>
+                {trnPageItems.length === 0 ? <EmptyState text="Eğitmen bulunamadı" sub="Arama kriterlerine uygun eğitmen yok." /> : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={S.table}><thead><tr style={S.theadRow}>
+                      <th style={S.thFirst}>Eğitmen</th><th style={S.th}>E-posta</th><th style={S.th}>Şube</th><th style={S.th}>Atanmış Grup</th><th style={S.th}>Durum</th>
+                    </tr></thead><tbody>
+                      {trnPageItems.map((t, i) => {
+                        const pal = AV_PALETTES[((trnPage - 1) * PAGE_SIZE + i) % AV_PALETTES.length];
+                        return (
+                          <tr key={t.id} style={{ borderBottom: "1px solid #EEF0F3" }}>
+                            <td style={S.tdFirst}><div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                              <span style={{ ...S.avatar, background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>{initials(t.name)}</span>
+                              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{t.name}</span>
+                            </div></td>
+                            <td style={S.td}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>{t.email}</span></td>
+                            <td style={S.td}>{renderSubes(t.subes)}</td>
+                            <td style={S.td}><span style={{ fontSize: 13, color: "#414B59", fontWeight: 600 }}>{t.groupCount}</span></td>
+                            <td style={S.td}>{(() => { const sm = STATUS_MAP[t.status]; return (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: sm.color, background: sm.bg, padding: "4px 10px", borderRadius: 999 }}>
+                                <span style={{ width: 6, height: 6, borderRadius: "50%", background: sm.dot }} />{sm.label}
+                              </span>
+                            ); })()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody></table>
+                  </div>
+                )}
+                <Pagination total={trnFiltered.length} totalPages={trnTotalPages} page={trnPage} setPage={setTrnPage} />
               </div>
             </>
           )}
@@ -552,7 +631,7 @@ export default function KullanicilarPage() {
                 <MetricCard icon={<IconLock />} bg="#FEE2E2" iconColor="#DC2626" label="Pasif" value={String(totalStudents - activeStudents - pendingStudents)} />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-                <SearchInput value={stuSearch} onChange={setStuSearch} placeholder="Ad, e-posta, telefon ara…" />
+                <SearchInput value={stuSearch} onChange={setStuSearch} placeholder="Ad, e-posta ara…" />
                 <DropdownFilter label="Durum" value={stuStatusFilter === "Tümü" ? "Tümü" : STATUS_MAP[stuStatusFilter]?.label ?? stuStatusFilter} open={stuStatusDD} onToggle={() => setStuStatusDD((o) => !o)}>
                   {["Tümü", "aktif", "pasif", "askıda"].map((s) => <DropdownItem key={s} label={s === "Tümü" ? "Tümü" : STATUS_MAP[s]?.label ?? s} selected={stuStatusFilter === s} onClick={() => { setStuStatusFilter(s); setStuStatusDD(false); }} />)}
                 </DropdownFilter>
@@ -568,7 +647,7 @@ export default function KullanicilarPage() {
                 {stuPageItems.length === 0 ? <EmptyState text="Öğrenci bulunamadı" sub="Arama veya filtre kriterlerine uygun öğrenci yok." /> : (
                   <div style={{ overflowX: "auto" }}>
                     <table style={S.table}><thead><tr style={S.theadRow}>
-                      <th style={S.thFirst}>Öğrenci</th><th style={S.th}>E-posta</th><th style={S.th}>Telefon</th><th style={S.th}>Son Giriş</th><th style={S.th}>Durum</th><th style={S.thRight}>İşlem</th>
+                      <th style={S.thFirst}>Öğrenci</th><th style={S.th}>E-posta</th><th style={S.th}>Son Giriş</th><th style={S.th}>Durum</th><th style={S.thRight}>İşlem</th>
                     </tr></thead><tbody>
                       {stuPageItems.map((s, i) => {
                         const pal = AV_PALETTES[((stuPage - 1) * PAGE_SIZE + i) % AV_PALETTES.length];
@@ -580,12 +659,19 @@ export default function KullanicilarPage() {
                               <div><div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>{fmtDate(s.createdAt)}</div></div>
                             </div></td>
                             <td style={S.td}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>{s.email}</span></td>
-                            <td style={S.td}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>{s.phone}</span></td>
                             <td style={S.td}><div><div style={{ fontSize: 13, color: s.lastLogin ? "#1E222B" : "#AEB4C0", fontWeight: 500 }}>{fmtDateTime(s.lastLogin)}</div>{ago !== null && ago > 7 && <div style={{ fontSize: 11, color: "#DC2626", fontWeight: 600, marginTop: 2 }}>{ago} gündür giriş yok</div>}</div></td>
-                            <td style={S.td}><ToggleSwitch active={s.status === "aktif"} onClick={() => toggleStudentStatus(s.id)} /></td>
+                            <td style={S.td}>{(() => { const sm = STATUS_MAP[s.status]; return (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: sm.color, background: sm.bg, padding: "4px 10px", borderRadius: 999 }}>
+                                <span style={{ width: 6, height: 6, borderRadius: "50%", background: sm.dot }} />{sm.label}
+                              </span>
+                            ); })()}</td>
                             <td style={S.tdRight}><div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button onClick={() => toast.success(`${s.name} için şifre sıfırlama bağlantısı gönderildi.`)} title="Şifre Sıfırla" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
-                              <button onClick={() => toast.success(`${s.name} için tek kullanımlık giriş kodu gönderildi.`)} title="Tek Kullanımlık Kod" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12h4"/><path d="M10 16h4"/></svg></button>
+                              <button onClick={() => toast("Yakında kullanıma açılacak.")} title="Şifre Sıfırla" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+                              <button onClick={() => toast("Yakında kullanıma açılacak.")} title="Tek Kullanımlık Kod" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12h4"/><path d="M10 16h4"/></svg></button>
+                              {s.status !== "pasif" && (
+                                <button onClick={() => askCloseAccount(s)} title="Hesabı Kapat" style={S.iconBtn}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></button>
+                              )}
+                              <button onClick={() => askStudentDelete(s)} title="Kişiyi Sil" style={{ ...S.iconBtn, color: "#DC2626" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
                             </div></td>
                           </tr>
                         );
@@ -617,20 +703,33 @@ export default function KullanicilarPage() {
       />
 
       <FlexModal
-        open={modeConfirm !== null}
-        title="Sistem Modunu Değiştir"
-        message={
-          modeConfirm
-            ? <>Eğitmenler <strong>kendi grubunu/öğrencisini kendi ekleyecek</strong>, Satış ve Operasyon devre dışı kalacak. Bu değişiklik sistemdeki HERKESİ etkiler.</>
-            : <>Öğrenci ve grup ekleme yeniden <strong>Satış/Operasyon</strong> üzerinden yapılacak, eğitmenler sadece yoklama/not girecek. Bu değişiklik sistemdeki HERKESİ etkiler.</>
-        }
-        confirmLabel={modeConfirm ? "Evet, Eğitmen Moduna Geç" : "Evet, Tam Sisteme Dön"}
-        cancelLabel="Vazgeç"
-        tone="primary"
-        busy={modeBusy}
-        onConfirm={confirmModeChange}
-        onCancel={() => !modeBusy && setModeConfirm(null)}
+        open={!!closeAccountModal}
+        title="Hesabı Kapat"
+        message={<>
+          <strong>{closeAccountModal?.name}</strong> adlı öğrencinin giriş hesabını kapatmak istediğinize emin misiniz?
+          <br />Kayıt/not/ödeme geçmişi olduğu gibi kalır — sadece portal girişi kapanır. E-posta serbest kalır. Bu işlem geri alınamaz.
+        </>}
+        confirmLabel="Hesabı Kapat"
+        tone="danger"
+        busy={closeAccountBusy}
+        onConfirm={confirmCloseAccount}
+        onCancel={() => !closeAccountBusy && setCloseAccountModal(null)}
       />
+
+      <FlexModal
+        open={!!stuDeleteModal}
+        title="Kişiyi Sil"
+        message={<>
+          <strong>{stuDeleteModal?.name}</strong> adlı kişiyi tamamen silmek istediğinize emin misiniz?
+          <br />Satış/ödeme geçmişi varsa işlem reddedilir. Bu işlem geri alınamaz.
+        </>}
+        confirmLabel="Sil"
+        tone="danger"
+        busy={stuDelBusy}
+        onConfirm={confirmStudentDelete}
+        onCancel={() => !stuDelBusy && setStuDeleteModal(null)}
+      />
+
     </div>
   );
 }
@@ -641,41 +740,6 @@ function TabBtn({ label, count, active, onClick }: { label: string; count: numbe
   return <button onClick={onClick} style={{ padding: "12px 20px", border: "none", borderBottom: active ? "2.5px solid #7C3AED" : "2.5px solid transparent", background: "transparent", color: active ? "#7C3AED" : "#6F7B87", fontSize: 14, fontWeight: active ? 700 : 600, fontFamily: "inherit", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}>
     {label}<span style={{ fontSize: 11.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: active ? "#EDE9FE" : "#F2F4F7", color: active ? "#7C3AED" : "#8E95A3" }}>{count}</span>
   </button>;
-}
-
-function SystemModeSegment({ value, busy, onChange }: { value: boolean | null; busy: boolean; onChange: (standaloneMode: boolean) => void }) {
-  const items: Array<{ key: boolean; label: string }> = [
-    { key: false, label: "Tam Sistem" },
-    { key: true, label: "Eğitmen Tek Başına" },
-  ];
-  return (
-    <div style={{ display: "inline-flex", padding: 3, borderRadius: 11, background: "#F2F4F7", border: "1px solid #E2E5EA", opacity: busy ? 0.6 : 1, pointerEvents: busy ? "none" : "auto" }}>
-      {items.map((it) => {
-        const selected = value === it.key;
-        return (
-          <button
-            key={String(it.key)}
-            onClick={() => onChange(it.key)}
-            disabled={value === null}
-            style={{
-              padding: "9px 16px",
-              borderRadius: 9,
-              border: "none",
-              background: selected ? "#fff" : "transparent",
-              color: selected ? (it.key ? "#15803D" : "#7C3AED") : "#8E95A3",
-              fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-              cursor: value === null ? "default" : "pointer",
-              boxShadow: selected ? "0 1px 3px rgba(15,31,61,.12)" : "none",
-              transition: "all .15s",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {it.label}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 function ToggleSwitch({ active, onClick }: { active: boolean; onClick: () => void }) {
@@ -737,10 +801,8 @@ function IconBriefcase() { return <svg width="21" height="21" viewBox="0 0 24 24
 function IconGraduation() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>; }
 function IconClock() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>; }
 function IconLock() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>; }
-function IconTransfer() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>; }
 
 const S: Record<string, CSSProperties> = {
-  countChip: { fontSize: 12.5, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "3px 10px", borderRadius: 999 },
   addBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "11px 18px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#FF8D28,#D66500)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(214,101,0,.55)", transition: "filter .14s" },
   bellBtn: { position: "relative" as const, width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s", fontFamily: "inherit" },
   bellDot: { position: "absolute" as const, top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
@@ -760,5 +822,4 @@ const S: Record<string, CSSProperties> = {
   clearBtn: { padding: "9px 16px", borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" },
   pageBtn: { width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontFamily: "inherit" },
   iconBtn: { width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", transition: "all .14s" },
-  pinInput: { width: 90, padding: "9px 12px", borderRadius: 10, border: "1px solid #E2E5EA", fontSize: 15, letterSpacing: "4px", textAlign: "center" as const, fontFamily: "inherit", outline: "none", color: "#1E222B" },
 };

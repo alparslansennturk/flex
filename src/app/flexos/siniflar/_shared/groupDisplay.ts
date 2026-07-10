@@ -46,6 +46,7 @@ export interface RosterItem {
   phone: string;
   isOnlineStudent: boolean;
   assignedAt: string;
+  status?: "active" | "completed" | "cancelled";
 }
 
 export interface SeansDoc { id: string; days: number[]; startTime: string; endTime: string }

@@ -177,7 +177,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {/* Ana Sayfa = tek nav öğesi, hedefi role'e göre değişir (menü değil, "kim girdiyse
-            onun ana sayfası" mantığı): role.manage → admin ana sayfa; education.create
+            onun ana sayfası" mantığı): role.manage → admin ana sayfa (`/flexos/anasayfa`
+            henüz placeholder — sistem SAHİBİ için `canToggleView`/`view.toggle` özel: "Benim
+            dashboardum şimdilik eğitmen dashboard olsun" kararı, 2026-07-10 — SADECE owner'ı
+            etkiler, ileride gerçek bir Genel Müdür hâlâ placeholder'a gider); education.create
             (Operasyon paketine özgü — satış/eğitmen'de hiç yok, standalone eğitmende de
             yok, bkz. packages.ts) → Eğitim Operasyon Dashboard; sale.create (ve
             role.manage/education.create YOK, yani gerçek satış çalışanı) → Satış Dashboard;
@@ -188,7 +191,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           active={active === "ana"}
           onClick={go(
             caps.has("role.manage")
-              ? "/flexos/anasayfa"
+              ? (canToggleView ? "/flexos/egitmen-anasayfa" : "/flexos/anasayfa")
               : caps.has("education.create")
                 ? "/flexos/egitim-operasyon-anasayfa"
                 : caps.has("sale.create")
@@ -204,7 +207,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             Core'dan çıkmadan halledebilsin diye. */}
         {(canSee("education.create", false) || canSee("branch.create", true)) && (
           <>
-            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={() => setEduOpen((o) => !o)}>
+            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={() => { setEduOpen((o) => !o); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
               <span style={{ display: "inline-flex", color: eduActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.book }} />
               <span style={{ flex: 1 }}>Eğitim Yönetimi</span>
               <motion.span
@@ -240,7 +243,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             alt menülerden EN AZ BİRİ varsa görünür. */}
         {(canSee("sale.create", false) || canSee("sale.read", false) || canSee("bundle.read", false) || canSee("campaign.read", false)) && (
           <>
-            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={() => setSalesOpen((o) => !o)}>
+            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={() => { setSalesOpen((o) => !o); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
               <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
               <span style={{ flex: 1 }}>Satışlar</span>
               <motion.span
@@ -289,7 +292,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             gibi çekirdek öğretmenlik işi, standalone-only DEĞİL. */}
         {canSee("assignment.read", true) && (
           <>
-            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={() => setOdevOpen((o) => !o)}>
+            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={() => { setOdevOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
               <span style={{ display: "inline-flex", color: odevActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.clipboard }} />
               <span style={{ flex: 1 }}>Ödevler</span>
               <motion.span
@@ -320,12 +323,17 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
-        {/* Enterprise: sadece Full. */}
+        {/* Eğitmenler — tam CRUD sayfa (/flexos/egitmenler, müsaitlik/ücret/not).
+            2026-07-10'da Kullanıcılar'ın sekmesine taşınmıştı, kullanıcı geri istedi
+            ("Eğitmenler diye başlı başına bir menü vardı orada") — Kullanıcılar'daki
+            "Eğitmenler" sekmesi (hafif özet) AYRICA duruyor, bu ikisi farklı görünümler. */}
         {canSee("trainer.read", false) && <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />}
-        {/* Kullanıcılar — akordiyon: Kullanıcı Listesi + Kullanıcı Ayarları (rol/yetki tanımları). */}
-        {canSee("role.manage", false) && (
+
+        {/* Kullanıcılar — akordiyon: Kullanıcı Listesi (Personel/Eğitmenler/Öğrenciler 3 sekmesi) +
+            Kullanıcı Ayarları (rol/yetki tanımları, SADECE role.manage — aşağıda ayrıca kapılı). */}
+        {(canSee("role.manage", false) || canSee("trainer.read", false) || canSee("person.read", false)) && (
           <>
-            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={() => setKullanicilarOpen((o) => !o)}>
+            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={() => { setKullanicilarOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
               <span style={{ display: "inline-flex", color: kullanicilarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.shield }} />
               <span style={{ flex: 1 }}>Kullanıcılar</span>
               <motion.span
@@ -347,7 +355,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                     <SubItem label="Kullanıcı Listesi" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />
-                    <SubItem label="Kullanıcı Ayarları" active={active === "kullanici-ayarlari"} onClick={go("/flexos/kullanicilar/ayarlar")} />
+                    {canSee("role.manage", false) && <SubItem label="Kullanıcı Ayarları" active={active === "kullanici-ayarlari"} onClick={go("/flexos/kullanicilar/ayarlar")} />}
                   </div>
                 </motion.div>
               )}
@@ -358,7 +366,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Aktivite Merkezi — akordiyon. Enterprise: sadece Full. */}
         {canSee("case.read", false) && (
           <>
-            <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={() => setAktiviteOpen((o) => !o)}>
+            <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={() => { setAktiviteOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
               <span style={{ display: "inline-flex", color: aktiviteActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.activity }} />
               <span style={{ flex: 1 }}>Aktivite Merkezi</span>
               <motion.span
@@ -395,7 +403,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             yarım bırakmasın); Detay + Rapor normal navigasyon (2026-07-02 düzeltmesi). */}
         {(canSee("attendance.write", true) || canSee("attendance.report.read", false)) && (
           <>
-            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={() => setYoklamaOpen((o) => !o)}>
+            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={() => { setYoklamaOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setSertifikaOpen(false); }}>
               <span style={{ display: "inline-flex", color: yoklamaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.calendar }} />
               <span style={{ flex: 1 }}>Yoklamalar</span>
               <motion.span
@@ -428,7 +436,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Sertifikasyon — akordiyon: Sertifika Notu (grup bazlı not girişi) + Sertifika Ayarları. */}
         {canSee("grade.finalize", true) && (
           <>
-            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={() => setSertifikaOpen((o) => !o)}>
+            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={() => { setSertifikaOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); }}>
               <span style={{ display: "inline-flex", color: sertifikaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.award }} />
               <span style={{ flex: 1 }}>Sertifikasyon</span>
               <motion.span
@@ -460,11 +468,11 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       </nav>
 
       {/* ALT BÖLÜM — canlıdaki "Yönetim Paneli + Çıkış" deseniyle aynı: admin-only tek link
-          (Sistem Ayarları, henüz sayfası yok — "yakında") + ayraç + Çıkış. */}
+          (Sistem Ayarları) + ayraç + Çıkış. */}
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         {caps.has("role.manage") && (
           <>
-            <Item icon={IC.settings} label="Sistem Ayarları" active={active === "sistem-ayarlari"} onClick={go(null)} />
+            <Item icon={IC.settings} label="Sistem Ayarları" active={active === "sistem-ayarlari"} onClick={go("/flexos/sistem-ayarlari")} />
             <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
           </>
         )}

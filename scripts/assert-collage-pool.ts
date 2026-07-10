@@ -129,6 +129,7 @@ function makeEnrollmentRepo(enrollments: Enrollment[]): EnrollmentRepo {
     async listByGroup(gid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.groupId === gid); },
     async listBySale(saleId, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.saleId === saleId); },
     async listByPerson(personId, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.personId === personId); },
+    async delete(id, tid) { const e = map.get(id); if (e && e.tenantId === tid) map.delete(id); },
   };
 }
 

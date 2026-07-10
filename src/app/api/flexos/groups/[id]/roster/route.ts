@@ -48,6 +48,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
           phone: allowPII ? (p?.pii?.phone ?? "") : "",
           isOnlineStudent: p?.isOnlineStudent ?? false,
           assignedAt: e.createdAt,
+          status: e.status,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name, "tr"));

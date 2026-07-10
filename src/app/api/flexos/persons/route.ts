@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can, widestScope } from "@/app/lib/domain/access/can";
+import { adminAuth, adminDb } from "@/app/lib/firebase-admin";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
@@ -83,6 +84,33 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
             (enr) => enr.groupId && groupMap.get(enr.groupId)?.trainerId === actor.uid,
           ),
         );
+
+    // Hesap (Auth) durumu — Kullanıcılar > Öğrenciler sekmesi için salt-okunur çapraz kontrol.
+    // Person.authUid backfill'den (canlı) geliyor; FlexOS henüz kendi öğrenci davet/aktivasyon
+    // akışını açmadı, o yüzden aktivasyon bilgisi hâlâ canlı `users/{uid}.isActivated`'te —
+    // buraya SADECE okunur, hiç yazılmaz. "Son giriş" Firebase Auth'un kendi `lastSignInTime`'ı
+    // (uydurma veri değil, gerçek metadata).
+    const accountStatusByPersonId = new Map<string, "aktif" | "askıda" | "pasif">();
+    const lastLoginByPersonId = new Map<string, string | null>();
+    const withAuthUid = scopedPersons.filter((p) => p.authUid);
+    if (withAuthUid.length > 0) {
+      const uids = withAuthUid.map((p) => p.authUid!);
+      const [liveUserDocs, authUsersResult] = await Promise.all([
+        adminDb.getAll(...uids.map((uid) => adminDb.collection("users").doc(uid))),
+        adminAuth.getUsers(uids.map((uid) => ({ uid }))).catch(() => ({ users: [] })),
+      ]);
+      const isActivatedByUid = new Map<string, boolean>();
+      liveUserDocs.forEach((doc) => { if (doc.exists) isActivatedByUid.set(doc.id, doc.data()?.isActivated === true); });
+      const lastSignInByUid = new Map<string, string | null>();
+      authUsersResult.users.forEach((u) => lastSignInByUid.set(u.uid, u.metadata.lastSignInTime ?? null));
+      for (const p of withAuthUid) {
+        accountStatusByPersonId.set(p.id, isActivatedByUid.get(p.authUid!) ? "aktif" : "askıda");
+        lastLoginByPersonId.set(p.id, lastSignInByUid.get(p.authUid!) ?? null);
+      }
+    }
+    for (const p of scopedPersons) {
+      if (!p.authUid) accountStatusByPersonId.set(p.id, "pasif");
+    }
 
     const items = scopedPersons.map((p: Person) => {
       const enrs = enrollByPerson.get(p.id) ?? [];
@@ -170,6 +198,8 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         gender: p.gender ?? "",
         createdAt: p.createdAt,
         paymentStatus,
+        accountStatus: accountStatusByPersonId.get(p.id) ?? "pasif",
+        lastLogin: lastLoginByPersonId.get(p.id) ?? null,
       };
     });
 

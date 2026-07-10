@@ -23,7 +23,7 @@ export const DEFAULT_TENANT = "default";
  * edilmez, `view.toggle` grant'i ve mod-bazlı paket düşüşü SADECE burada kontrol
  * edilir. Başka admin veya eğitmen hesabında bu özellik hiç var olmaz.
  */
-const VIEW_TOGGLE_OWNER_EMAIL = "alparslan.sennturk@gmail.com";
+export const VIEW_TOGGLE_OWNER_EMAIL = "alparslan.sennturk@gmail.com";
 
 // ── Görünüm modu (Core/Full) cache'i — sadece owner uid'i için tutulur ──
 //

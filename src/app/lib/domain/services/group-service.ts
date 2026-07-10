@@ -122,12 +122,15 @@ const VALID_STATUSES: GroupStatus[] = ["planned", "enrolling", "active", "postpo
 /**
  * Grup yaşam-döngüsü durumunu günceller (Başlat/Bitir/İptal/Geri Al) — gated `group.edit`.
  * Sadece `status` alanını değiştirir; diğer alanlara dokunmaz.
+ * `active`'e geçiş (Başlat) — grupta en az 1 aktif kayıt yoksa reddedilir (2026-07-10 kullanıcı
+ * kararı: "içinde öğrenci olmayan gruba başlat dersem önce gruba öğrenci ekleyiniz diye uyar ve
+ * açma"). `deps.enrollments` opsiyonel — verilmezse bu kontrol atlanır (geriye uyumlu).
  */
 export async function updateGroupStatus(
   actor: Actor,
   groupId: EntityId,
   status: GroupStatus,
-  deps: { groups: GroupRepo },
+  deps: { groups: GroupRepo; enrollments?: EnrollmentRepo },
 ): Promise<Group> {
   if (!VALID_STATUSES.includes(status)) {
     throw new ValidationError("Geçersiz grup durumu.");
@@ -139,6 +142,14 @@ export async function updateGroupStatus(
   // ownerUid: `groupIds` claim altyapısı yokken standalone eğitmen kendi grubunu (Group.trainerId) düzenleyebilsin.
   if (!can(actor, "group.edit", { groupId, ownerUid: group.trainerId })) {
     throw new ForbiddenError("group.edit");
+  }
+
+  if (status === "active" && group.status !== "active" && deps.enrollments) {
+    const enrollments = await deps.enrollments.listByGroup(groupId, actor.tenantId);
+    const hasActiveStudent = enrollments.some((e) => e.status === "active");
+    if (!hasActiveStudent) {
+      throw new ValidationError("Önce gruba öğrenci ekleyiniz.");
+    }
   }
 
   const updated: Group = { ...group, status, updatedAt: nowISO(), updatedBy: actor.uid };

@@ -16,8 +16,8 @@
  *   alanlar — wiring adımında modele eklenecek/eşlenecek (bkz. FLEXOS.md Durum bloğu).
  */
 
-import React, { useEffect, useMemo, useState, useCallback, CSSProperties } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useMemo, useRef, useState, useCallback, CSSProperties } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
@@ -157,6 +157,7 @@ function initials(name: string) {
 
 export default function OgrenciHavuzuPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const { caps } = useCapabilities();
@@ -482,6 +483,17 @@ export default function OgrenciHavuzuPage() {
     }
   }, [authHeaders]);
 
+  // Sınıf Detay sayfasındaki "Düzenle" → buraya `?person=<personId>` ile döner, öğrenci
+  // detayını otomatik açar (2026-07-10) — mevcut detay/PII/veli formu ikinci kez yazılmadı.
+  const personParamHandled = useRef(false);
+  useEffect(() => {
+    if (personParamHandled.current || students.length === 0) return;
+    const personId = searchParams.get("person");
+    if (!personId) return;
+    const match = students.find((s) => s.id === personId);
+    if (match) { personParamHandled.current = true; openDetail(match); }
+  }, [students, searchParams, openDetail]);
+
   const closeDetail = () => { if (!saving) { setDetailStudent(null); setEditMode(false); setDetail(null); setGuardianSaleId(null); } };
   const startEdit = () => setEditMode(true);
   const cancelEdit = () => {
@@ -549,7 +561,10 @@ export default function OgrenciHavuzuPage() {
 
   const togglePStatus = (k: StatusKey) =>
     setPStatus((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
-  const toggleDropdown = (n: "sube" | "brans" | "egitim") => setOpenDropdown((o) => (o === n ? null : n));
+  const toggleDropdown = (n: "sube" | "brans" | "egitim") => {
+    setOpenDropdown((o) => (o === n ? null : n));
+    setActionMenuOpen(null); setActionMenuStep("root"); // filtre dropdown'ı açılınca satır işlem menüsü kapansın
+  };
   const applyFilters = () => {
     setStatusFilter([...pStatus]); setSubeFilter(pSube); setBransFilter(pBrans); setEgitimFilter(pEgitim);
     setPage(1); setOpenDropdown(null);
@@ -894,7 +909,7 @@ export default function OgrenciHavuzuPage() {
                                 <button
                                   className="oh-iconbtn"
                                   title="İşlemler"
-                                  onClick={() => { setActionMenuOpen(menuOpen ? null : st.id); setActionMenuStep("root"); }}
+                                  onClick={() => { setActionMenuOpen(menuOpen ? null : st.id); setActionMenuStep("root"); setOpenDropdown(null); }}
                                   style={S.dotsBtn}
                                 >
                                   <span dangerouslySetInnerHTML={{ __html: IC.dots }} />

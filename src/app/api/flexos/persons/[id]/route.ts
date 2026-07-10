@@ -2,12 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
+import { adminAuth, adminDb } from "@/app/lib/firebase-admin";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
+import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreEducationRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { derivePaymentStatus, derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
+import { deletePerson } from "@/app/lib/domain/services/person-service";
+import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import type { PersonPII } from "@/app/lib/domain/core/person";
+
+/** Kapanan/silinen bir hesabın Auth + öksüz canlı `users/{uid}` izini temizler (best-effort). */
+async function cleanupAuthAccount(authUid: string | null): Promise<void> {
+  if (!authUid) return;
+  try {
+    await adminAuth.deleteUser(authUid);
+  } catch {
+    // zaten silinmiş olabilir
+  }
+  try {
+    await adminDb.collection("users").doc(authUid).delete();
+  } catch {
+    // doc yoksa sessizce geç
+  }
+}
 
 /**
  * GET /api/flexos/persons/[id] — Öğrenci detayı (drawer için).
@@ -177,6 +196,37 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
     if (msg === "Person not found" || msg === "Tenant mismatch") {
       return NextResponse.json({ error: "Kişi bulunamadı." }, { status: 404 });
     }
+    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+  }
+});
+
+/**
+ * DELETE /api/flexos/persons/[id] — Kişiyi TAMAMEN sil (admin-only, `role.manage`).
+ * Satış/ödeme geçmişi varsa reddedilir (`deletePerson` içinde) — sadece dummy/test/
+ * yanlışlıkla açılmış, hiçbir finansal/akademik izi olmayan kayıtlar için. Enrollment'lar
+ * cascade silinir. Hesabı varsa Firebase Auth + öksüz canlı `users/{uid}` dokümanı da temizlenir.
+ */
+export const DELETE = withAuth(async (_req: NextRequest, caller, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params;
+  const actor = await actorFromCaller(caller);
+
+  try {
+    const result = await deletePerson(actor, id, {
+      persons: firestorePersonRepo,
+      enrollments: firestoreEnrollmentRepo,
+      sales: firestoreSaleRepo,
+      payments: firestorePaymentRepo,
+    });
+    await cleanupAuthAccount(result.closedAuthUid);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    if (e instanceof ForbiddenError) {
+      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
+    }
+    if (e instanceof ValidationError) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
+    console.error("[flexos/persons DELETE] hata:", e);
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
   }
 });

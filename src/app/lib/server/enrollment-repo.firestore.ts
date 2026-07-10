@@ -78,4 +78,8 @@ export const firestoreEnrollmentRepo: EnrollmentRepo = {
       .get();
     return snap.docs.map((d) => d.data() as Enrollment);
   },
+
+  async delete(id) {
+    await adminDb.collection(COLLECTION).doc(id).delete();
+  },
 };

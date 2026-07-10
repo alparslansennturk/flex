@@ -14,7 +14,7 @@
  */
 
 import React, { useEffect, useState, useCallback, CSSProperties, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
@@ -26,7 +26,6 @@ import { useCapabilities } from "../_components/useCapabilities";
 import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 import EgitmenSiniflarPanel from "./EgitmenSiniflarPanel";
 import GroupTable from "./_shared/GroupTable";
-import RosterDrawer from "./_shared/RosterDrawer";
 import { useGroupCatalog, type EducationDoc } from "./_shared/useGroupCatalog";
 import { type DisplayGroup, type GroupApiItem, DAY_ABBR, toDisplayGroup, formatSeansLabel } from "./_shared/groupDisplay";
 
@@ -34,6 +33,7 @@ type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
 
 export default function SınıflarPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
   const { caps } = useCapabilities();
@@ -62,9 +62,6 @@ export default function SınıflarPage() {
   const [trainerOptions, setTrainerOptions] = useState<{ id: string; name: string }[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-
-  // -- Roster (sınıf listesi) paneli — RosterDrawer kendi öğrenci verisini çeker --
-  const [rosterGroup, setRosterGroup] = useState<DisplayGroup | null>(null);
 
   const mainRef = useRef<HTMLElement>(null);
 
@@ -266,6 +263,17 @@ export default function SınıflarPage() {
 
   const cancelEdit = () => { setEditingId(null); resetForm(); setShowForm(false); };
 
+  // Sınıf Detay sayfasındaki "Sınıfı Düzenle" → buraya `?edit=<groupId>` ile döner,
+  // mevcut Düzenle sheet'ini formu ikinci kez yazmadan açar (2026-07-10).
+  const editParamHandled = useRef(false);
+  useEffect(() => {
+    if (editParamHandled.current || groups.length === 0) return;
+    const editId = searchParams.get("edit");
+    if (!editId) return;
+    const match = groups.find((g) => g.id === editId);
+    if (match) { editParamHandled.current = true; editGroup(match); }
+  }, [groups, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // -- seans display --
   const seansDisplay = fSeansIdx >= 0 && seanslar[fSeansIdx] ? formatSeansLabel(seanslar[fSeansIdx]) : "Seans seçin";
 
@@ -312,7 +320,7 @@ export default function SınıflarPage() {
             groups={groups}
             loading={loadingGroups}
             mode="full"
-            onRowClick={setRosterGroup}
+            onRowClick={(g) => router.push(`/flexos/siniflar/${g.id}`)}
             onEdit={editGroup}
             onChanged={loadGroups}
             canManage={canManageGroups}
@@ -323,13 +331,6 @@ export default function SınıflarPage() {
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
 
-      <RosterDrawer
-        group={rosterGroup}
-        onClose={() => setRosterGroup(null)}
-        canManage={false}
-        onChanged={loadGroups}
-      />
-
       {/* ═══════════ GRUP EKLE / DÜZENLE BOTTOM SHEET ═══════════ */}
       <AnimatePresence>
         {showForm && (
@@ -339,7 +340,7 @@ export default function SınıflarPage() {
             <motion.div key="form-sheet" className="fx-sheet"
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              style={{ position: "fixed", bottom: 0, zIndex: 81, maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              style={{ position: "fixed", bottom: 0, zIndex: 81, height: "85vh", maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
               {/* header */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 28px 18px", background: "#F7F8FA" }}>

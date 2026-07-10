@@ -29,7 +29,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   if (keys.length === 1 && keys[0] === "status") {
     if (!body.status) return NextResponse.json({ error: "status zorunludur." }, { status: 400 });
     try {
-      const group = await updateGroupStatus(actor, id, body.status as GroupStatus, { groups: firestoreGroupRepo });
+      const group = await updateGroupStatus(actor, id, body.status as GroupStatus, { groups: firestoreGroupRepo, enrollments: firestoreEnrollmentRepo });
       return NextResponse.json({ id: group.id, status: group.status });
     } catch (e) {
       if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

@@ -93,6 +93,8 @@ function makePersonRepo(seed: Person[]): PersonRepo {
     },
     async list(tenantId) { return Array.from(map.values()).filter((p) => p.tenantId === tenantId); },
     async update(id, tenantId, data) { const p = map.get(id); if (p && p.tenantId === tenantId) map.set(id, { ...p, ...data }); },
+    async clearAuthUid(id, tenantId) { const p = map.get(id); if (p && p.tenantId === tenantId) map.set(id, { ...p, authUid: undefined }); },
+    async delete(id, tenantId) { const p = map.get(id); if (p && p.tenantId === tenantId) map.delete(id); },
   };
 }
 
@@ -109,6 +111,7 @@ function makeEnrollmentRepo(seed: Enrollment[]): EnrollmentRepo {
     async listByGroup(groupId, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && e.groupId === groupId); },
     async listBySale(saleId, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && e.saleId === saleId); },
     async listByPerson(personId, tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId && e.personId === personId); },
+    async delete(id, tenantId) { const e = map.get(id); if (e && e.tenantId === tenantId) map.delete(id); },
   };
 }
 

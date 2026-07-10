@@ -21,4 +21,9 @@ export interface PersonRepo {
   list(tenantId: string): Promise<Person[]>;
   /** Mevcut kişiyi kısmi güncelle (merge). */
   update(id: string, tenantId: string, data: Partial<Person>): Promise<void>;
+  /** `authUid` alanını TAMAMEN kaldırır (hesap kapatma — `update` ile yapılamaz, `undefined`
+   * JSON temizlemede sessizce düşer, Firestore'da alan silinmez). */
+  clearAuthUid(id: string, tenantId: string): Promise<void>;
+  /** Kişiyi tamamen sil (satış/ödeme geçmişi olmayan dummy/test kayıtlar için — gated admin-only). */
+  delete(id: string, tenantId: string): Promise<void>;
 }

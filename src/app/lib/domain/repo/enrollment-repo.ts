@@ -22,4 +22,6 @@ export interface EnrollmentRepo {
   listBySale(saleId: string, tenantId: string): Promise<Enrollment[]>;
   /** Bir kişinin TÜM kayıtları (öğrenci portalı — hangi gruplarda aktif olduğunu bulmak için). */
   listByPerson(personId: string, tenantId: string): Promise<Enrollment[]>;
+  /** Kaydı tamamen sil (kişi silme cascade'i — bkz. `person-service.ts::deletePerson`). */
+  delete(id: string, tenantId: string): Promise<void>;
 }

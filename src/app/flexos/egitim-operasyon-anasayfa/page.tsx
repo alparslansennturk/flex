@@ -307,7 +307,7 @@ export default function EgitimOperasyonAnasayfaPage() {
       `}</style>
       <FlexSidebar active="ana" />
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
-        <FlexHeader title="Eğitim Operasyon Merkezi" subtitle="Sınıflar, yoklamalar ve öğrenci operasyonları tek ekranda." roleLabel="Yönetici · Operasyon" />
+        <FlexHeader greeting subtitle="Sınıflar, yoklamalar ve öğrenci operasyonları tek ekranda." roleLabel="Yönetici · Operasyon" />
 
         {/* `flex:1` BİLEREK yok — grid'e "doldurulacak fazla boşluk" verirsek (büyük ekranda
             içerik viewport'tan kısa kalınca) satırlar (auto auto auto) o boşluğu doldurmak

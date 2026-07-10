@@ -1,6 +1,6 @@
 // NOT: Sadece server-side import edilmeli (firebase-admin client'ta çalışmaz).
 import { adminDb } from "../firebase-admin";
-import { FieldPath } from "firebase-admin/firestore";
+import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import type { Person } from "../domain/core/person";
 import type { PersonRepo } from "../domain/repo/person-repo";
 
@@ -93,5 +93,21 @@ export const firestorePersonRepo: PersonRepo = {
     return snap.docs
       .map((d) => d.data() as Person)
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  },
+
+  async clearAuthUid(id, tenantId) {
+    const snap = await adminDb.collection(COLLECTION).doc(id).get();
+    if (!snap.exists) throw new Error("Person not found");
+    const existing = snap.data() as Person;
+    if (existing.tenantId !== tenantId) throw new Error("Tenant mismatch");
+    await adminDb.collection(COLLECTION).doc(id).update({ authUid: FieldValue.delete() });
+  },
+
+  async delete(id, tenantId) {
+    const snap = await adminDb.collection(COLLECTION).doc(id).get();
+    if (!snap.exists) return;
+    const existing = snap.data() as Person;
+    if (existing.tenantId !== tenantId) throw new Error("Tenant mismatch");
+    await adminDb.collection(COLLECTION).doc(id).delete();
   },
 };

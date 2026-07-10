@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo, CSSProperties, useRef } from "react";
+import ReactDOM from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
@@ -104,8 +105,15 @@ export default function EgitmenlerPage() {
   const [page, setPage] = useState(1);
 
   /* ── hover states ── */
+  // Popup'lar tablo hücresinin içinden `createPortal` ile document.body'ye taşınır —
+  // tablo kartı `overflow:hidden` + yatay scroll wrapper'ı `overflowX:auto` (bu ikisinin
+  // birlikte kullanımı CSS spec'inde overflow-y'yi de dolaylı "auto/clip" yapıyor) popup'ı
+  // içeride sıkıştırıyordu (2026-07-10 bulunan bug). `position:fixed` + gerçek ekran
+  // koordinatı (`getBoundingClientRect`) ile artık tablo sınırının dışına taşabiliyor.
   const [hoveredComp, setHoveredComp] = useState<number | null>(null);
+  const [compPos, setCompPos] = useState<{ top: number; left: number } | null>(null);
   const [hoveredGroups, setHoveredGroups] = useState<number | null>(null);
+  const [groupsPos, setGroupsPos] = useState<{ top: number; left: number } | null>(null);
 
   /* ── detail bottom sheet ── */
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -507,54 +515,64 @@ export default function EgitmenlerPage() {
                           </div>
                         </td>
 
-                        {/* Yetkinlik — sayı + hover popup */}
+                        {/* Yetkinlik — sayı + hover popup (portal — bkz. hover states notu) */}
                         <td style={S.td}>
-                          <div onMouseEnter={() => setHoveredComp(t.id)} onMouseLeave={() => setHoveredComp(null)} style={{ position: "relative", display: "inline-flex", cursor: "default" }}>
+                          <div
+                            onMouseEnter={(e) => { setHoveredComp(t.id); const r = e.currentTarget.getBoundingClientRect(); setCompPos({ top: r.bottom + 9, left: r.left }); }}
+                            onMouseLeave={() => setHoveredComp(null)}
+                            style={{ display: "inline-flex", cursor: "default" }}
+                          >
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 8, background: "#F2F4F7", border: "1px solid #E2E5EA", fontSize: 13, fontWeight: 700, color: "#414B59" }}>
                               <span dangerouslySetInnerHTML={{ __html: IC.bookSm }} />
                               {totalComp} eğitim
                             </span>
-                            {hoveredComp === t.id && (
-                              <div style={{ position: "absolute", top: "calc(100% + 9px)", left: 0, width: 268, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, boxShadow: "0 18px 44px -12px rgba(15,31,61,.28)", padding: 12, zIndex: 50, animation: "sgDdIn .14s cubic-bezier(.2,.8,.3,1)" }}>
-                                <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 9 }}>Girebildiği Eğitimler</div>
-                                {branches.map((b) => (
-                                  <div key={b} style={{ marginBottom: 11 }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                                      <span style={{ width: 9, height: 9, borderRadius: "50%", background: BRANS_COLORS[b]?.dot || "#CDD2DA", flex: "0 0 auto" }} />
-                                      <span style={{ fontSize: 12.5, fontWeight: 700, color: "#1E222B" }}>{b}</span>
-                                    </div>
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 16 }}>
-                                      {t.comp[b].map((e) => <span key={e} style={{ fontSize: 11.5, fontWeight: 600, color: "#414B59", background: "#F2F4F7", border: "1px solid #E2E5EA", padding: "3px 8px", borderRadius: 6 }}>{e}</span>)}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
                           </div>
+                          {hoveredComp === t.id && compPos && typeof document !== "undefined" && ReactDOM.createPortal(
+                            <div style={{ position: "fixed", top: compPos.top, left: compPos.left, width: 268, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, boxShadow: "0 18px 44px -12px rgba(15,31,61,.28)", padding: 12, zIndex: 9999, animation: "sgDdIn .14s cubic-bezier(.2,.8,.3,1)" }}>
+                              <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 9 }}>Girebildiği Eğitimler</div>
+                              {branches.map((b) => (
+                                <div key={b} style={{ marginBottom: 11 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                    <span style={{ width: 9, height: 9, borderRadius: "50%", background: BRANS_COLORS[b]?.dot || "#CDD2DA", flex: "0 0 auto" }} />
+                                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#1E222B" }}>{b}</span>
+                                  </div>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 16 }}>
+                                    {t.comp[b].map((e) => <span key={e} style={{ fontSize: 11.5, fontWeight: 600, color: "#414B59", background: "#F2F4F7", border: "1px solid #E2E5EA", padding: "3px 8px", borderRadius: 6 }}>{e}</span>)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>,
+                            document.body,
+                          )}
                         </td>
 
                         {/* Şube */}
                         <td style={S.td}><span style={{ fontSize: 13, color: "#414B59", fontWeight: 600 }}>{t.subes.join(", ")}</span></td>
 
-                        {/* Gruplar */}
+                        {/* Gruplar — hover popup (portal — bkz. hover states notu) */}
                         <td style={S.td}>
-                          <div onMouseEnter={() => setHoveredGroups(t.id)} onMouseLeave={() => setHoveredGroups(null)} style={{ position: "relative", display: "inline-flex", cursor: "default" }}>
+                          <div
+                            onMouseEnter={(e) => { setHoveredGroups(t.id); const r = e.currentTarget.getBoundingClientRect(); setGroupsPos({ top: r.bottom + 9, left: r.left }); }}
+                            onMouseLeave={() => setHoveredGroups(null)}
+                            style={{ display: "inline-flex", cursor: "default" }}
+                          >
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 8, background: t.groups.length ? "#F2F4F7" : "#FBFCFD", border: "1px solid #E2E5EA", fontSize: 13, fontWeight: 700, color: t.groups.length ? "#414B59" : "#AEB4C0", whiteSpace: "nowrap" }}>
                               <span dangerouslySetInnerHTML={{ __html: IC.groupSm }} />
                               {t.groups.length} Grup
                             </span>
-                            {hoveredGroups === t.id && t.groups.length > 0 && (
-                              <div style={{ position: "absolute", top: "calc(100% + 9px)", left: 0, width: 230, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 18px 40px -12px rgba(15,31,61,.26)", padding: 8, zIndex: 50, animation: "sgDdIn .14s cubic-bezier(.2,.8,.3,1)" }}>
-                                <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".06em", padding: "4px 9px 7px" }}>Atanmış Gruplar</div>
-                                {t.groups.map((g) => (
-                                  <div key={g.kod} className="sg-group-hover-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "7px 9px", borderRadius: 8 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{g.kod}</span>
-                                    <span style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap" }}>{g.ogrenci} öğr.</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
                           </div>
+                          {hoveredGroups === t.id && t.groups.length > 0 && groupsPos && typeof document !== "undefined" && ReactDOM.createPortal(
+                            <div style={{ position: "fixed", top: groupsPos.top, left: groupsPos.left, width: 230, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 18px 40px -12px rgba(15,31,61,.26)", padding: 8, zIndex: 9999, animation: "sgDdIn .14s cubic-bezier(.2,.8,.3,1)" }}>
+                              <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".06em", padding: "4px 9px 7px" }}>Atanmış Gruplar</div>
+                              {t.groups.map((g) => (
+                                <div key={g.kod} className="sg-group-hover-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "7px 9px", borderRadius: 8 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{g.kod}</span>
+                                  <span style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap" }}>{g.ogrenci} öğr.</span>
+                                </div>
+                              ))}
+                            </div>,
+                            document.body,
+                          )}
                         </td>
 
                         {/* Öğrenci */}

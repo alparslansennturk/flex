@@ -63,6 +63,8 @@ function makePersonRepo(persons: Person[] = []): PersonRepo {
     async findByAuthUid() { return null; },
     async list(tid) { return [...map.values()].filter((p) => p.tenantId === tid); },
     async update(id, tid, data) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, ...data }); },
+    async clearAuthUid(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, authUid: undefined }); },
+    async delete(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.delete(id); },
   };
 }
 
@@ -79,6 +81,7 @@ function makeEnrollmentRepo(enrollments: Enrollment[] = []): EnrollmentRepo {
     async listByGroup(gid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.groupId === gid); },
     async listBySale(sid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.saleId === sid); },
     async listByPerson(pid, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.personId === pid); },
+    async delete(id, tid) { const e = map.get(id); if (e && e.tenantId === tid) map.delete(id); },
   };
 }
 

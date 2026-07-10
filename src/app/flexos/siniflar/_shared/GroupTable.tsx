@@ -202,11 +202,20 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                     <tr key={g.id} className="gt-trow" onClick={() => onRowClick(g)} style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}>
                       <td style={S.tdFirst}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: bs.dot, flex: "0 0 auto" }} />
+                          {/* En soldaki nokta artık DURUM (her zaman "açılacak"=mavi, "aktif"=yeşil vb.) —
+                              önceden branş rengiydi, kullanıcı bunu durum sanıp kırmızı-pembe branş
+                              rengini "iptal" zannediyordu (2026-07-10 bulgu). Branş rengi "Eğitim"
+                              sütununa taşındı — durum rengiyle asla karışmasın diye kare/köşeli. */}
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: st.dot, flex: "0 0 auto" }} />
                           <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1E222B", letterSpacing: "-.2px", whiteSpace: "nowrap" }}>{g.kod}</span>
                         </div>
                       </td>
-                      <td style={S.td}><span style={{ fontSize: 13, color: "#414B59", fontWeight: 600 }}>{g.eğitim}</span></td>
+                      <td style={S.td}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: 2, background: bs.dot, flex: "0 0 auto" }} />
+                          <span style={{ fontSize: 13, color: "#414B59", fontWeight: 600 }}>{g.eğitim}</span>
+                        </div>
+                      </td>
                       {byGroup && <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.şube}</span></td>}
                       {byGroup && <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.eğitmen}</span></td>}
                       <td style={S.td}><span style={{ fontSize: 13, color: g.bölüm === "—" ? "#AEB4C0" : "#414B59" }}>{g.bölüm}</span></td>
@@ -239,7 +248,16 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                         {canManage ? (
                           <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                             {g.status === "açılacak" && (
-                              <button disabled={!canStart} onClick={() => canStart && setStartId(g.id)}
+                              <button
+                                disabled={!canStart}
+                                title={canStart && g.dolu === 0 ? "Önce gruba öğrenci ekleyiniz" : undefined}
+                                onClick={() => {
+                                  if (!canStart) return;
+                                  // Öğrencisi olmayan grup başlatılamaz (2026-07-10 kullanıcı kararı) —
+                                  // buton disabled DEĞİL (tıklanabilir), açıklayıcı uyarı verip durduruyoruz.
+                                  if (g.dolu === 0) { toast.error("Önce gruba öğrenci ekleyiniz."); return; }
+                                  setStartId(g.id);
+                                }}
                                 className="gt-start-btn" style={{ ...S.startBtn, opacity: canStart ? 1 : 0.45, cursor: canStart ? "pointer" : "not-allowed" }}>
                                 <span dangerouslySetInnerHTML={{ __html: IC.play }} />
                                 Başlat
@@ -509,12 +527,12 @@ const pageBtnStyle = (active: boolean): CSSProperties => ({
 });
 
 const S: Record<string, CSSProperties> = {
-  th: { padding: "12px 10px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#8E95A3", letterSpacing: ".05em", whiteSpace: "nowrap" },
-  thFirst: { padding: "12px 10px 12px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#8E95A3", letterSpacing: ".05em", whiteSpace: "nowrap" },
-  thRight: { padding: "12px 16px 12px 10px", textAlign: "right" },
-  td: { padding: "12px 10px", verticalAlign: "middle" },
-  tdFirst: { padding: "12px 10px 12px 20px", verticalAlign: "middle" },
-  tdRight: { padding: "12px 16px 12px 10px", verticalAlign: "middle", textAlign: "right", whiteSpace: "nowrap" },
+  th: { padding: "14px 10px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#8E95A3", letterSpacing: ".05em", whiteSpace: "nowrap" },
+  thFirst: { padding: "14px 10px 14px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#8E95A3", letterSpacing: ".05em", whiteSpace: "nowrap" },
+  thRight: { padding: "14px 16px 14px 10px", textAlign: "right" },
+  td: { padding: "18px 10px", verticalAlign: "middle" },
+  tdFirst: { padding: "18px 10px 18px 20px", verticalAlign: "middle" },
+  tdRight: { padding: "18px 16px 18px 10px", verticalAlign: "middle", textAlign: "right", whiteSpace: "nowrap" },
   startBtn: { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", transition: "all .13s", whiteSpace: "nowrap" },
   editBtnIcon: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontFamily: "inherit", cursor: "pointer", transition: "all .13s", flex: "0 0 auto" },
   delBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#8E95A3", fontFamily: "inherit", cursor: "pointer", transition: "all .13s", flex: "0 0 auto" },

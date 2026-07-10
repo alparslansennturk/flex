@@ -16,6 +16,32 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
+### ✅ Eğitmen Onboarding Otomasyonu + Kullanıcılar Düzeltmeleri + Sınıf Detay Sayfası (2026-07-10, ikinci canlı-test oturumu, aynı gün)
+
+Bir önceki girdideki test oturumunun devamı — kullanıcı kendi hesabıyla + "Eda Yılmaz"/Eğitim Koordinatörü hesabıyla gerçek tarayıcı testine devam etti, çok sayıda gerçek bug/eksik bulunup aynı oturumda kapatıldı.
+
+**1) Eğitmen onboarding UÇTAN UCA otomatikleşti.** `POST /api/flexos/trainers` artık trainer roster kaydının yanında (e-posta zaten bir hesaba bağlı değilse) otomatik Firebase Auth hesabı + `flexos_users` (rol: egitmen) + aktivasyon kodu maili oluşturuyor (`Trainer.authUid` linki, `users/[id]/resend-code` route'u da eklendi — kod kaybolursa yeniden gönderim). Zaten kayıtlı e-postaysa (owner dahil) DOKUNMUYOR. Önceden bu akış hiç yoktu; Kullanıcı Ekle'den "egitmen" rolü seçilse bile `resolveFlexosUserGrants` onu bilerek dışlıyordu (gerçek yetki hiç gelmiyordu) — yeni akış gerçek `instructor` custom claim'i set ederek bunu çözdü (admin claim'i olan hesap ASLA düşürülmez).
+
+**2) Kullanıcılar sayfası — owner-only "Admin" görünürlüğü + gerçek aktivasyon durumu.** Personel tablosunda SADECE sistem sahibi kendi satırında "Admin" rozeti görür (kimse göremez, `GET /api/flexos/users` server-side filtreli); "Beklemede" (henüz `emailVerified:false`) rozeti artık gerçek Firebase Auth durumundan türetiliyor. Sekme çubuğu artık "Kullanıcı Ekle" ile aynı satırda; tekrarlayan "N personel" chip'i kaldırıldı.
+
+**3) Sistem Ayarları sayfası kuruldu** (`/flexos/sistem-ayarlari`, sidebar linki artık gerçek) — Sistem Modu/Grup Taşıma Kuralı/Kişisel PIN Kullanıcılar'dan buraya taşındı, 2 sekme (**Genel Ayarlar** + **Loglar** placeholder). "Ana Sayfa" routing sistem sahibi için artık placeholder yerine gerçek Eğitmen Ana Sayfa'ya gidiyor.
+
+**4) Sidebar "Eğitmenler" linki GERİ GELDİ.** Sabah Kullanıcılar sekmesine konsolide edilip kaldırılmıştı, kullanıcı sert tepki verdi ("ben adminim, görmem lazım her şeyi") — artık HEM bağımsız sidebar linki (tam CRUD sayfa) HEM Kullanıcılar'daki özet sekmesi bir arada. Ders: [[feedback-admin-full-nav-visibility]] (yeni memory).
+
+**5) YENİ SAYFA: Sınıf Detay tam sayfa** (`/flexos/siniflar/[id]`) — kullanıcı Claude Design'da çizip verdi, "yandan açılan sheet değil, sınıfa bas ve detaylar gelsin" kararıyla. `GroupTable.tsx` satır tıklaması artık buraya yönlendiriyor (eski `RosterDrawer` bu akıştan kaldırıldı). Hero+bilgi kartları+kapasite şeridi+öğrenci tablosu (gerçek roster+Devam% yoklama kayıtlarından hesaplanıyor). Mockup'tan bilerek sapılan yerler: branş rengi tamamen kaldırıldı (sabit mavi — pembe/magenta "kırmızı" gibi algılanıyordu), "Öğrenci Ekle" sıfırdan kişi formu değil arama+seç (grupsuz + aynı eğitime ait adaylar, gerçek "Gruba Ata" ucu), "Öğrenciyi Düzenle" sayfadan hiç ayrılmadan inline modal (önce Öğrenci Havuzu'na yönlendirip orada sheet açıyordu, "saçma" bulundu).
+
+**Roster aksiyon semantiği netleşti (ÖNEMLİ düzeltme):** Grup Değiştir = gerçek `transferEnrollment` (closeAs zorunlu). **YENİ: Mezun Et** (`setEnrollmentStatus`, backend zaten vardı UI yoktu) — hedef grup istemez, grup devam ederken TEK öğrencinin kaydı kapanır, yoklama/ödev dağıtımı otomatik düşer (`active` filtreli). **"Sınıftan Çıkar" (X) DÜZELTME: hard-delete DEĞİL** — `removeFromGroup` sadece `status:"cancelled"` yazar, Firestore dokümanı silinmez (önceki oturumda yanlış anlatılmıştı). Otomatik mezuniyet YOK — ders/seans bitiş tarihi geçse bile hiçbir cron/otomatik mekanizma `Enrollment.status`'ü değiştirmiyor, SADECE insan aksiyonu. Detay: [[project-sinif-detay-page]] (yeni memory).
+
+**6) UX/CSS düzeltmeleri (küçük ama çok sayıda):** Eğitmenler tablosundaki hover popup'lar (`overflow:hidden` içinde sıkışıyordu) → `createPortal`+`position:fixed`. Sınıflar "Grup Ekle" bottom-sheet sabit `height` (içerik büyüyünce zıplamasın). Sidebar'daki 7 akordiyon artık birbirini kapatıyor. Öğrenci Havuzu'nda filtre-dropdown ile satır-aksiyon-menüsü birbirini kapatıyor. Sınıflar tablosunda en soldaki nokta artık DURUM rengi (branş rengi "Eğitim" sütununa taşındı, kare şeklinde — daire=durum/kare=branş asla karışmasın). Sınıflar tablosu satır yüksekliği artırıldı (12px→18px padding, "basık" duruyordu). **Yeni kural: öğrencisi olmayan grup başlatılamaz** (`updateGroupStatus` server + `GroupTable.tsx` client, çift kapı).
+
+**7) Test verisi + gerçek uçtan-uca doğrulama:** GRP-550'deki (Grafik-1) 9 öğrencinin eski seed-script'ten (`backfill-grades-assignments.mjs`) kalma `status:"completed"`si "active"e resetlendi. Kullanıcı GERÇEK Grup Değiştir akışıyla **4 öğrenciyi GRP-550'den GRP-784'e (Grafik-2) başarıyla taşıdı** (closeAs=completed/Mezun) — transfer akışı canlı test edilip DOĞRULANDI.
+
+**8) Local dev:** `.env.local`'a `NEXT_PUBLIC_APP_URL=http://localhost:3000` eklendi (PC'ye özel, senkronize olmaz, Mac'te ayrı ayarlanmalı) — aktivasyon/şifre mailleri artık Vercel değil localhost'a linkliyor.
+
+`tsc --noEmit` + `npm run build` her adımda temiz.
+
+**SIRADAKİ İŞ (kod YOK):** Satıştan grupsuz gelen öğrenciler için Eğitim Op'a otomatik bildirim fikri konuşuldu (henüz karar yok, kapsam: basit "gruba atanmayı bekliyor" bildirimi mi, akıllı gün/seans önerisi de mi olsun). Tekil enrollment için gerçek hard-delete ucu hâlâ yok (sadece `deletePerson` cascade seviyesinde var) — istenirse ayrı iş.
+
 ### ✅ Öğrenci Havuzu çoklu-branş Gruba Ata + zaman çakışması + Kullanıcı yetki düzeltmeleri (2026-07-10, canlıya-öncesi test oturumu)
 
 Bugün "canlıya almak için engel kalmamalı" hedefiyle gerçek test oturumu başladı (bkz. aşağıdaki **Test Kontrol Listesi**). Test sırasında bulunan 2 gerçek engel + 1 tasarım boşluğu kapatıldı:

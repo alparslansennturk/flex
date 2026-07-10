@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
-import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import { actorFromCaller, VIEW_TOGGLE_OWNER_EMAIL } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
@@ -26,7 +26,29 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
   try {
     const users = await firestoreFlexosUserRepo.list(actor.tenantId);
-    const items = users.map((u) => ({
+    // Gerçek sistem sahibi (2026-07-10 kullanıcı kararı: "beni genel müdür falan listede
+    // göremesin, kendime görünmek istiyorum sadece") — kendi kaydı SADECE kendi görüntülerken
+    // listede kalır, başka hiçbir role.manage sahibine görünmez.
+    const visibleUsers = users.filter((u) => u.email !== VIEW_TOGGLE_OWNER_EMAIL || caller.email === VIEW_TOGGLE_OWNER_EMAIL);
+
+    // Aktivasyon durumu — "Beklemede" (kod henüz kullanılmadı) `status` alanından (istihdam
+    // aktif/pasif toggle'ı) AYRI bir kavram (2026-07-10 kullanıcı: "hâlâ kod girmemişse
+    // beklemede durur"). `flexos_users.status` oluşturulduğu anda hep "aktif" yazılıyor —
+    // gerçek aktivasyon sinyali Firebase Auth'un kendi `emailVerified`'ı (`activation/verify`
+    // SADECE kod doğru girilince `emailVerified:true` yapıyor, persons route'taki
+    // accountStatus türetmesiyle AYNI desen).
+    const pendingByUserId = new Set<string>();
+    const withAuthUid = visibleUsers.filter((u) => u.authUid);
+    if (withAuthUid.length > 0) {
+      const uids = withAuthUid.map((u) => u.authUid!);
+      const authUsersResult = await adminAuth.getUsers(uids.map((uid) => ({ uid }))).catch(() => ({ users: [] }));
+      const verifiedByUid = new Map(authUsersResult.users.map((au) => [au.uid, au.emailVerified]));
+      for (const u of withAuthUid) {
+        if (verifiedByUid.get(u.authUid!) === false) pendingByUserId.add(u.id);
+      }
+    }
+
+    const items = visibleUsers.map((u) => ({
       id: u.id,
       name: u.name,
       surname: u.surname,
@@ -39,6 +61,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       subes: u.subes,
       permOverrides: u.permOverrides ?? {},
       status: u.status,
+      pendingActivation: pendingByUserId.has(u.id),
       createdAt: u.createdAt,
     }));
     return NextResponse.json({ items });

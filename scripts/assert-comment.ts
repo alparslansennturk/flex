@@ -67,6 +67,8 @@ function makePersonRepo(seed: Person[]): PersonRepo {
     async findByAuthUid(authUid, tid) { return Array.from(map.values()).find((p) => p.tenantId === tid && p.authUid === authUid) ?? null; },
     async list(tid) { return Array.from(map.values()).filter((p) => p.tenantId === tid); },
     async update(id, tid, data) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, ...data }); },
+    async clearAuthUid(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, authUid: undefined }); },
+    async delete(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.delete(id); },
   };
 }
 
@@ -83,6 +85,7 @@ function makeEnrollmentRepo(seed: Enrollment[]): EnrollmentRepo {
     async listByGroup(groupId, tid) { return Array.from(map.values()).filter((e) => e.tenantId === tid && e.groupId === groupId); },
     async listBySale(saleId, tid) { return Array.from(map.values()).filter((e) => e.tenantId === tid && e.saleId === saleId); },
     async listByPerson(personId, tid) { return Array.from(map.values()).filter((e) => e.tenantId === tid && e.personId === personId); },
+    async delete(id, tid) { const e = map.get(id); if (e && e.tenantId === tid) map.delete(id); },
   };
 }
 
