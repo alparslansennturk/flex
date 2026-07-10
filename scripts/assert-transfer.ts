@@ -25,9 +25,10 @@ function nextId() { return `test-${++idCounter}`; }
 function makeKayitActor(): Actor {
   return { type: "human", uid: "user-kayit", tenantId: TENANT, grants: grantsForPermModules(["kayit"]) };
 }
-// "satis" modülü = Satış Temsilcisi benzeri özel rol (SADECE sale.create, enrollment.transfer YOK).
+// "satis_yap" modülü = Satış Temsilcisi benzeri özel rol (SADECE sale.create, enrollment.transfer YOK).
+// (2026-07-10: "satis" modülü Satış Yap/Satış Listesi/Paket/Kampanya olarak 4'e bölündü.)
 function makeSatisActor(): Actor {
-  return { type: "human", uid: "user-satis", tenantId: TENANT, grants: grantsForPermModules(["satis"]) };
+  return { type: "human", uid: "user-satis", tenantId: TENANT, grants: grantsForPermModules(["satis_yap"]) };
 }
 function makeAdminActor(): Actor {
   return { type: "human", uid: "user-admin", tenantId: TENANT, grants: resolvePackages(["admin"]) };

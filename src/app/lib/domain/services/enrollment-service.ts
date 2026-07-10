@@ -2,6 +2,7 @@ import { can } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Enrollment, EnrollmentTransfer } from "../core/enrollment";
+import type { Group, GroupSchedule } from "../core/group";
 import type { Sale } from "../eduos/sale";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
@@ -9,6 +10,50 @@ import type { GroupRepo } from "../repo/group-repo";
 import type { PersonRepo } from "../repo/person-repo";
 import type { SaleRepo } from "../repo/sale-repo";
 import type { SettingsRepo } from "../repo/settings-repo";
+
+/** "19.00" → dakika (gece yarısından). Ayrıştırılamıyorsa null. */
+function parseHM(t?: string): number | null {
+  if (!t) return null;
+  const [h, m] = t.split(".").map((n) => Number(n));
+  if (!Number.isFinite(h)) return null;
+  return h * 60 + (Number.isFinite(m) ? m : 0);
+}
+
+/**
+ * İki grup programı gün+saat olarak çakışıyor mu?
+ *
+ * Sadece haftalık gün+saat örtüşmesine bakar (schedule.startDate/endDate aralığı
+ * dikkate ALINMAZ — kapsam dışı, MVP). Gün kesişimi yoksa veya saat bilgisi
+ * eksikse (backfill'den gelen `days: []` gibi) çakışma YOK sayılır — kullanıcı
+ * kararı: eksik veriyle yanlış-pozitif engelleme yapmamak, sessizce izin vermek.
+ */
+export function schedulesOverlap(a: GroupSchedule, b: GroupSchedule): boolean {
+  if (!a.days.some((d) => b.days.includes(d))) return false;
+  const aStart = parseHM(a.startTime);
+  const aEnd = parseHM(a.endTime);
+  const bStart = parseHM(b.startTime);
+  const bEnd = parseHM(b.endTime);
+  if (aStart == null || aEnd == null || bStart == null || bEnd == null) return false;
+  return aStart < bEnd && bStart < aEnd;
+}
+
+/** Kişinin (enrollmentId hariç) diğer aktif+gruplu kayıtlarının gruplarını çeker — çakışma kontrolü için. */
+async function otherActiveGroups(
+  personId: EntityId,
+  excludeEnrollmentId: EntityId | null,
+  tenantId: string,
+  deps: { enrollments: EnrollmentRepo; groups: GroupRepo },
+): Promise<Group[]> {
+  const all = await deps.enrollments.listByPerson(personId, tenantId);
+  const others = all.filter((e) => e.status === "active" && e.groupId && e.id !== excludeEnrollmentId);
+  const groups = await Promise.all(others.map((e) => deps.groups.getById(e.groupId!, tenantId)));
+  return groups.filter((g): g is Group => !!g);
+}
+
+/** Aday grup, kişinin diğer aktif gruplarından biriyle çakışıyorsa o grubu döner (yoksa null). */
+function findConflict(candidate: Group, others: Group[]): Group | null {
+  return others.find((g) => schedulesOverlap(candidate.schedule, g.schedule)) ?? null;
+}
 
 export interface CreateEnrollmentInput {
   personId: EntityId;
@@ -136,6 +181,12 @@ export async function assignToGroup(
     throw new ValidationError("Bu öğrenci zaten bu grupta aktif kayıtlı.");
   }
 
+  const others = await otherActiveGroups(enrollment.personId, enrollment.id, actor.tenantId, deps);
+  const conflict = findConflict(group, others);
+  if (conflict) {
+    throw new ValidationError(`Bu grup, öğrencinin ${conflict.code} grubuyla saat/gün çakışıyor.`);
+  }
+
   const updated: Enrollment = {
     ...enrollment,
     groupId: input.groupId,
@@ -240,6 +291,13 @@ export async function transferEnrollment(
 
   const duplicate = await deps.enrollments.findActive(enrollment.personId, input.toGroupId, actor.tenantId);
   if (duplicate) throw new ValidationError("Bu öğrenci zaten hedef grupta aktif kayıtlı.");
+
+  // Taşınan kaydın KENDİ (kapanacak) grubu hariç, kişinin diğer aktif gruplarıyla çakışma kontrolü.
+  const others = await otherActiveGroups(enrollment.personId, enrollment.id, actor.tenantId, deps);
+  const conflict = findConflict(toGroup, others);
+  if (conflict) {
+    throw new ValidationError(`Hedef grup, öğrencinin ${conflict.code} grubuyla saat/gün çakışıyor.`);
+  }
 
   const settings = await deps.settings.get(actor.tenantId);
   const manual = settings?.transferRequiresManualSale ?? false;

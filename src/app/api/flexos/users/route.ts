@@ -55,6 +55,11 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
  * `flexos_codes`'a bir aktivasyon kodu yazılır ve mail OTOMATİK gönderilir — canlıdaki
  * gibi ayrı bir "kodu gönder" adımı yok (kullanıcı kararı: "ben asla göndermiyorum,
  * otomatik gidiyor zaten"; manuel tekrar-gönder sadece sorunlu durumlar için ayrı bir iş).
+ *
+ * E-posta ZATEN bir Firebase Auth hesabına sahipse (aynı proje canlı sistemle paylaşılıyor —
+ * kişi canlıda öğrenci/eğitmen olabilir) yeni hesap açmaya çalışıp reddedilmek yerine MEVCUT
+ * uid yeniden kullanılır (2026-07-10 fix — gerçek testte ortaya çıktı: ofis personelinin
+ * e-postası canlıda zaten kayıtlıysa oluşturma tamamen tıkanıyordu).
  */
 export const POST = withAuth(async (req: NextRequest, caller) => {
   let body: CreateFlexosUserInput;
@@ -75,17 +80,29 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   let authUid: string;
+  let createdNewAuthAccount = false;
   try {
     const displayName = [body.name?.trim(), body.surname?.trim()].filter(Boolean).join(" ");
     const created = await adminAuth.createUser({ email, displayName: displayName || undefined, emailVerified: false });
     authUid = created.uid;
+    createdNewAuthAccount = true;
   } catch (e) {
     const code = (e as { code?: string })?.code;
-    if (code === "auth/email-already-exists") {
-      return NextResponse.json({ error: "Bu e-posta adresiyle zaten bir hesap var." }, { status: 400 });
+    if (code !== "auth/email-already-exists") {
+      console.error("[flexos/users POST] Firebase Auth hesabı oluşturulamadı:", e);
+      return NextResponse.json({ error: "Hesap oluşturulamadı." }, { status: 500 });
     }
-    console.error("[flexos/users POST] Firebase Auth hesabı oluşturulamadı:", e);
-    return NextResponse.json({ error: "Hesap oluşturulamadı." }, { status: 500 });
+    // E-posta zaten bir Firebase Auth hesabına sahip — aynı proje canlı sistemle
+    // PAYLAŞILIYOR (öğrenci/eğitmen hesabı olabilir). Additive tasarım: yeni hesap
+    // açmaya çalışıp reddedilmek yerine MEVCUT uid'i yeniden kullan (instructor
+    // backfill'deki presedanla aynı mantık — bkz FLEXOS.md). Zaten başka bir
+    // flexos_users kaydına bağlıysa (aynı kişi iki kez eklenmeye çalışılıyor) reddet.
+    const existingAuthUser = await adminAuth.getUserByEmail(email!);
+    const alreadyLinked = await firestoreFlexosUserRepo.findByAuthUid(existingAuthUser.uid, actor.tenantId);
+    if (alreadyLinked) {
+      return NextResponse.json({ error: "Bu e-posta zaten bir FlexOS kullanıcısına bağlı." }, { status: 400 });
+    }
+    authUid = existingAuthUser.uid;
   }
 
   try {
@@ -110,8 +127,10 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
     return NextResponse.json({ id: user.id }, { status: 201 });
   } catch (e) {
-    // Firestore tarafı başarısız oldu — az önce açılan Auth hesabını geri al (öksüz bırakma).
-    await adminAuth.deleteUser(authUid).catch(() => {});
+    // Firestore tarafı başarısız oldu — SADECE biz yeni açtıysak Auth hesabını geri al
+    // (öksüz bırakma). Mevcut (canlı/başka) bir hesabı yeniden kullandıysak ASLA silme —
+    // o bize ait değil.
+    if (createdNewAuthAccount) await adminAuth.deleteUser(authUid).catch(() => {});
     if (e instanceof ForbiddenError) {
       return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
     }

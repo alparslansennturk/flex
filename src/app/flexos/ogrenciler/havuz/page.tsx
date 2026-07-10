@@ -63,13 +63,14 @@ const PAGE_SIZE = 8;
 
 interface StudentGroup { label: string; branch: string; educationName?: string; groupId: string; enrollmentId: string }
 interface StudentEducation { educationId: string; name: string; status: string }
+/** Kişinin grupsuz+aktif bir kaydı — "Gruba Ata"nın atayabileceği aday (bir paket satışında birden fazla olabilir). */
+interface AssignableEnrollment { enrollmentId: string; educationId: string | null; educationName: string }
 interface Student {
   id: string; name: string; email: string; phone: string;
   status: StatusKey; subeler: string[]; gender: string; branches: string[];
   groups: StudentGroup[];
   educations: StudentEducation[];
-  assignableEnrollmentId: string | null;
-  assignableEducationId: string | null;
+  assignableEnrollments: AssignableEnrollment[];
 }
 
 /** API'den gelen ham havuz kaydı (GET /api/flexos/persons). */
@@ -77,12 +78,18 @@ interface PersonApiItem {
   id: string; name: string; email: string; phone: string;
   status: string; branches?: string[]; groups?: StudentGroup[];
   educations?: StudentEducation[];
-  assignableEnrollmentId?: string | null; assignableEducationId?: string | null;
+  assignableEnrollments?: AssignableEnrollment[];
   gender?: string; subeler?: string[];
 }
 
-/** Modal'daki atanabilir grup seçeneği. */
-interface GroupOption { id: string; code: string; sub: string; educationId?: string }
+/**
+ * Modal'daki atanabilir/hedef grup seçeneği.
+ * `enrollmentId` — Gruba Ata akışında bu grup seçilirse HANGİ grupsuz kaydın PATCH'leneceği
+ * (kişinin birden fazla branştan grupsuz kaydı olabilir, her aday kendi enrollment'ına bağlı).
+ * `conflictWith` — doluysa bu grup kişinin AKTİF başka bir grubuyla gün/saat çakışıyor demektir,
+ * satır seçilemez (disabled+tooltip) gösterilir.
+ */
+interface GroupOption { id: string; code: string; sub: string; educationId?: string; sectionId?: string; enrollmentId?: string; conflictWith?: string }
 
 /** Öğrenci detayı (GET /api/flexos/persons/[id]) — drawer için. */
 interface SaleSummary { id: string; educationName: string; status: string; soldPrice: number; financingFee: number; guardian: { name: string; idNo?: string } | null; date: string }
@@ -125,6 +132,25 @@ function clientRollup(payments: PaymentLine[], expected: number): string {
   return "planned";
 }
 
+/** Grubun ham programı (GET /api/flexos/groups'tan gelir). */
+interface ScheduleLite { days: number[]; startTime?: string; endTime?: string }
+
+function parseHM(t?: string): number | null {
+  if (!t) return null;
+  const [h, m] = t.split(".").map((n) => Number(n));
+  if (!Number.isFinite(h)) return null;
+  return h * 60 + (Number.isFinite(m) ? m : 0);
+}
+
+/** İki grup programı çakışıyor mu (client; server `schedulesOverlap` ile aynı mantık). */
+function schedulesOverlapClient(a: ScheduleLite, b: ScheduleLite): boolean {
+  if (!a.days.some((d) => b.days.includes(d))) return false;
+  const aStart = parseHM(a.startTime), aEnd = parseHM(a.endTime);
+  const bStart = parseHM(b.startTime), bEnd = parseHM(b.endTime);
+  if (aStart == null || aEnd == null || bStart == null || bEnd == null) return false;
+  return aStart < bEnd && bStart < aEnd;
+}
+
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toLocaleUpperCase("tr");
 }
@@ -156,6 +182,19 @@ export default function OgrenciHavuzuPage() {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [hoveredEdu, setHoveredEdu] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+
+  // ── İşlem — 3 nokta menüsü (Gruba Ata / Grup Değiştir) ──
+  const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
+  const [actionMenuStep, setActionMenuStep] = useState<"root" | "pickGroup">("root");
+  useEffect(() => {
+    if (!actionMenuOpen) return;
+    function handleClick(e: MouseEvent) {
+      const el = (e.target as HTMLElement).closest(`[data-oh-actionmenu="${actionMenuOpen}"]`);
+      if (!el) { setActionMenuOpen(null); setActionMenuStep("root"); }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [actionMenuOpen]);
 
   const [loading, setLoading] = useState(false);
 
@@ -210,8 +249,7 @@ export default function OgrenciHavuzuPage() {
         branches: it.branches ?? [],
         groups: it.groups ?? [],
         educations: it.educations ?? [],
-        assignableEnrollmentId: it.assignableEnrollmentId ?? null,
-        assignableEducationId: it.assignableEducationId ?? null,
+        assignableEnrollments: it.assignableEnrollments ?? [],
       })));
     } catch (e) {
       if ((e as Error).name !== "AbortError") toast.error("Öğrenciler yüklenemedi.");
@@ -231,7 +269,11 @@ export default function OgrenciHavuzuPage() {
     return () => ac.abort();
   }, [router, loadStudents]);
 
-  // ── Gruba Ata: modal aç + öğrencinin eğitimine ait grupları çek ──
+  // ── Gruba Ata: modal aç + kişinin TÜM grupsuz eğitimlerinin (paket satışıysa birden
+  //    fazla olabilir — Grafik Tasarım + Dijital Pazarlama + Video gibi) gruplarını TEK
+  //    düz listede çek. Bölümlü (sectioned) bir eğitimde SADECE ilk bölümün grupları
+  //    aday olur — ikinci bölüme geçiş "Gruba Ata" ile değil, Grup Değiştir'le olur.
+  //    Kişinin hâlâ aktif olduğu diğer gruplarla gün/saat çakışan adaylar disabled gösterilir.
   const openAssign = useCallback(async (st: Student) => {
     setAssignTarget(st);
     setSelectedGroupId("");
@@ -239,24 +281,58 @@ export default function OgrenciHavuzuPage() {
     setLoadingGroups(true);
     try {
       const hdrs = await authHeaders();
-      const [gRes, eRes] = await Promise.all([
+      const [gRes, eRes, sRes] = await Promise.all([
         fetch("/api/flexos/groups", { headers: hdrs }),
         fetch("/api/flexos/educations", { headers: hdrs }),
+        fetch("/api/flexos/sections", { headers: hdrs }),
       ]);
       const gJson = gRes.ok ? await gRes.json() : { items: [] };
       const eJson = eRes.ok ? await eRes.json() : { items: [] };
+      const sJson = sRes.ok ? await sRes.json() : { items: [] };
+      type RawGroup = { id: string; code: string; status?: string; educationId?: string; sectionId?: string; branch?: string; type?: string; schedule: ScheduleLite };
       const eduName = new Map<string, string>((eJson.items ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
+      // eğitim başına en düşük order'lı (ilk) bölümün id'si — sectioned olmayan eğitimlerde yok
+      const sectionsByEdu = new Map<string, Array<{ id: string; order: number }>>();
+      for (const s of (sJson.items ?? []) as Array<{ id: string; educationId: string; order: number }>) {
+        const list = sectionsByEdu.get(s.educationId) ?? [];
+        list.push({ id: s.id, order: s.order });
+        sectionsByEdu.set(s.educationId, list);
+      }
+      const firstSectionByEdu = new Map<string, string>();
+      for (const [eduId, list] of sectionsByEdu) {
+        firstSectionByEdu.set(eduId, list.reduce((min, s) => (s.order < min.order ? s : min)).id);
+      }
       // archived/completed grupları çıkar — öğrenci atanamaz
-      const rawGroups = (gJson.items ?? []).filter((g: { status?: string }) => g.status !== "archived" && g.status !== "completed");
-      const allGroups: GroupOption[] = rawGroups.map((g: { id: string; code: string; educationId?: string; branch?: string; type?: string }) => ({
-        id: g.id,
-        code: g.code,
-        educationId: g.educationId,
-        sub: (g.educationId && eduName.get(g.educationId)) || g.branch || (g.type === "ozel_ders" ? "Özel Ders" : g.type === "kurumsal" ? "Kurumsal" : "Grup"),
-      }));
-      // öğrencinin eğitimine ait grupları filtrele (educationId yoksa hepsini göster)
-      const eduId = st.assignableEducationId;
-      const opts = eduId ? allGroups.filter((g) => g.educationId === eduId) : allGroups;
+      const rawGroups = ((gJson.items ?? []) as RawGroup[]).filter((g) => g.status !== "archived" && g.status !== "completed");
+      const groupById = new Map(rawGroups.map((g) => [g.id, g]));
+
+      // kişinin hâlâ aktif olduğu gruplar — çakışma kontrolü için (kod + program)
+      const activeGroups = st.groups
+        .map((sg) => groupById.get(sg.groupId))
+        .filter((g): g is RawGroup => !!g);
+
+      const opts: GroupOption[] = [];
+      for (const pending of st.assignableEnrollments) {
+        const eduId = pending.educationId;
+        const firstSectionId = eduId ? firstSectionByEdu.get(eduId) : undefined;
+        const candidates = rawGroups.filter((g) => {
+          if (!eduId) return true; // eğitimi olmayan (nadir) kayıt — tüm gruplar aday
+          if (firstSectionId) return g.sectionId === firstSectionId;
+          return g.educationId === eduId;
+        });
+        for (const g of candidates) {
+          const conflict = activeGroups.find((ag) => schedulesOverlapClient(g.schedule, ag.schedule));
+          opts.push({
+            id: g.id,
+            code: g.code,
+            educationId: g.educationId,
+            sectionId: g.sectionId,
+            enrollmentId: pending.enrollmentId,
+            sub: pending.educationName || (g.educationId && eduName.get(g.educationId)) || g.branch || (g.type === "ozel_ders" ? "Özel Ders" : g.type === "kurumsal" ? "Kurumsal" : "Grup"),
+            conflictWith: conflict?.code,
+          });
+        }
+      }
       setGroupOptions(opts);
     } catch {
       toast.error("Gruplar yüklenemedi.");
@@ -268,18 +344,18 @@ export default function OgrenciHavuzuPage() {
   const closeAssign = () => { if (!assigning) { setAssignTarget(null); setSelectedGroupId(""); } };
 
   const confirmAssign = async () => {
-    if (!assignTarget?.assignableEnrollmentId || !selectedGroupId) return;
+    const option = groupOptions.find((g) => g.id === selectedGroupId);
+    if (!assignTarget || !option?.enrollmentId || option.conflictWith) return;
     setAssigning(true);
     try {
       const headers = await authHeaders();
       headers["Content-Type"] = "application/json";
-      const res = await fetch(`/api/flexos/enrollments/${assignTarget.assignableEnrollmentId}`, {
+      const res = await fetch(`/api/flexos/enrollments/${option.enrollmentId}`, {
         method: "PATCH", headers, body: JSON.stringify({ groupId: selectedGroupId }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(json.error || "Gruba atama başarısız."); return; }
-      const grpCode = groupOptions.find((g) => g.id === selectedGroupId)?.code ?? "";
-      toast.success(`${assignTarget.name} ${grpCode ? `${grpCode} grubuna` : "gruba"} atandı.`);
+      toast.success(`${assignTarget.name} ${option.code} grubuna atandı.`);
       setAssignTarget(null); setSelectedGroupId("");
       await loadStudents(); // havuz durumu güncellensin (grupsuz → aktif)
     } catch {
@@ -289,7 +365,10 @@ export default function OgrenciHavuzuPage() {
     }
   };
 
-  // ── Grup Değiştir: modal aç + hedef grubun eğitimine ait grupları çek (kaynak grup HARİÇ) ──
+  // ── Grup Değiştir: modal aç + hedef grubun eğitimine ait grupları çek (kaynak grup HARİÇ).
+  //    Etiket Bölüm adını (Grafik-1/Grafik-2) önceliklendirir — aynı eğitime bağlı birden
+  //    fazla bölüm grubu varsa hangisi olduğu belirsiz kalmasın. Kişinin kaynak grup DIŞINDAKİ
+  //    diğer aktif gruplarıyla gün/saat çakışan hedefler disabled gösterilir.
   const openTransfer = useCallback(async (st: Student, entry: StudentGroup) => {
     setTransferTarget({ student: st, enrollmentId: entry.enrollmentId, groupId: entry.groupId, groupLabel: entry.label });
     setSelectedGroupId("");
@@ -304,17 +383,30 @@ export default function OgrenciHavuzuPage() {
       ]);
       const gJson = gRes.ok ? await gRes.json() : { items: [] };
       const eJson = eRes.ok ? await eRes.json() : { items: [] };
+      type RawGroup = { id: string; code: string; status?: string; educationId?: string; branch?: string; type?: string; sectionName?: string; schedule: ScheduleLite };
       const eduName = new Map<string, string>((eJson.items ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
-      const rawGroups = (gJson.items ?? []).filter((g: { status?: string }) => g.status !== "archived" && g.status !== "completed");
-      const allGroups: GroupOption[] = rawGroups.map((g: { id: string; code: string; educationId?: string; branch?: string; type?: string }) => ({
-        id: g.id,
-        code: g.code,
-        educationId: g.educationId,
-        sub: (g.educationId && eduName.get(g.educationId)) || g.branch || (g.type === "ozel_ders" ? "Özel Ders" : g.type === "kurumsal" ? "Kurumsal" : "Grup"),
-      }));
+      const rawGroups = ((gJson.items ?? []) as RawGroup[]).filter((g) => g.status !== "archived" && g.status !== "completed");
+      const groupById = new Map(rawGroups.map((g) => [g.id, g]));
+
+      // kişinin kaynak grup HARİÇ hâlâ aktif olduğu diğer gruplar — çakışma kontrolü için
+      const activeGroups = st.groups
+        .filter((sg) => sg.groupId !== entry.groupId)
+        .map((sg) => groupById.get(sg.groupId))
+        .filter((g): g is RawGroup => !!g);
+
       // aynı eğitimin diğer grupları (varsa) — kaynak grup listeden çıkarılır
-      const fromEduId = allGroups.find((g) => g.id === entry.groupId)?.educationId;
-      const opts = allGroups.filter((g) => g.id !== entry.groupId && (!fromEduId || g.educationId === fromEduId));
+      const fromEduId = groupById.get(entry.groupId)?.educationId;
+      const candidates = rawGroups.filter((g) => g.id !== entry.groupId && (!fromEduId || g.educationId === fromEduId));
+      const opts: GroupOption[] = candidates.map((g) => {
+        const conflict = activeGroups.find((ag) => schedulesOverlapClient(g.schedule, ag.schedule));
+        return {
+          id: g.id,
+          code: g.code,
+          educationId: g.educationId,
+          sub: g.sectionName || (g.educationId && eduName.get(g.educationId)) || g.branch || (g.type === "ozel_ders" ? "Özel Ders" : g.type === "kurumsal" ? "Kurumsal" : "Grup"),
+          conflictWith: conflict?.code,
+        };
+      });
       setGroupOptions(opts);
     } catch {
       toast.error("Gruplar yüklenemedi.");
@@ -326,7 +418,8 @@ export default function OgrenciHavuzuPage() {
   const closeTransfer = () => { if (!transferring) { setTransferTarget(null); setSelectedGroupId(""); setTransferCloseAs(null); } };
 
   const confirmTransfer = async () => {
-    if (!transferTarget || !selectedGroupId || !transferCloseAs) return;
+    const option = groupOptions.find((g) => g.id === selectedGroupId);
+    if (!transferTarget || !selectedGroupId || !transferCloseAs || option?.conflictWith) return;
     setTransferring(true);
     try {
       const headers = await authHeaders();
@@ -751,17 +844,10 @@ export default function OgrenciHavuzuPage() {
                               Atanmadı
                             </span>
                           ) : groupCount === 1 ? (
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                              <span style={S.groupChip}>
-                                <span dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                                {groups[0].label}
-                              </span>
-                              {canTransfer && (
-                                <button title="Grup Değiştir" onClick={() => openTransfer(st, groups[0])} style={S.transferIconBtn}>
-                                  <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
-                                </button>
-                              )}
-                            </div>
+                            <span style={S.groupChip}>
+                              <span dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
+                              {groups[0].label}
+                            </span>
                           ) : (
                             <div
                               style={{ position: "relative", display: "inline-flex", cursor: "default", paddingBottom: 9 }}
@@ -786,14 +872,7 @@ export default function OgrenciHavuzuPage() {
                                           <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: c.dot }} />
                                           <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{g.label}</span>
                                         </span>
-                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                                          <span style={{ fontSize: 12, fontWeight: 600, color: "#8E95A3", whiteSpace: "nowrap" }}>{g.branch}</span>
-                                          {canTransfer && (
-                                            <button title="Grup Değiştir" onClick={() => openTransfer(st, g)} style={S.transferIconBtn}>
-                                              <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
-                                            </button>
-                                          )}
-                                        </span>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: "#8E95A3", whiteSpace: "nowrap" }}>{g.branch}</span>
                                       </div>
                                     );
                                   })}
@@ -802,21 +881,89 @@ export default function OgrenciHavuzuPage() {
                             </div>
                           )}
                         </td>
-                        {/* İşlem — Gruba Ata */}
+                        {/* İşlem — 3 nokta menü: Gruba Ata / Grup Değiştir */}
                         <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                          {canAssignGroup ? (() => {
-                            const canAssign = !!st.assignableEnrollmentId;
+                          {(canAssignGroup || canTransfer) ? (() => {
+                            const canAssign = canAssignGroup && st.assignableEnrollments.length > 0;
+                            const canDoTransfer = canTransfer && hasGroup;
+                            const menuOpen = actionMenuOpen === st.id;
+                            const step = menuOpen ? actionMenuStep : "root";
+                            const closeMenu = () => { setActionMenuOpen(null); setActionMenuStep("root"); };
                             return (
-                              <button
-                                className={canAssign ? "oh-assign" : undefined}
-                                disabled={!canAssign}
-                                title={canAssign ? "Gruba ata" : (hasGroup ? (groupCount === 1 ? `Zaten bir gruba atanmış (${groups[0].label})` : `Zaten ${groupCount} gruba atanmış`) : "Atanabilir grupsuz kayıt yok")}
-                                onClick={() => openAssign(st)}
-                                style={{ ...S.assignBtn, color: canAssign ? "#414B59" : "#CDD2DA", cursor: canAssign ? "pointer" : "not-allowed" }}
-                              >
-                                <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
-                                Gruba Ata
-                              </button>
+                              <div data-oh-actionmenu={st.id} style={{ position: "relative", display: "inline-flex" }}>
+                                <button
+                                  className="oh-iconbtn"
+                                  title="İşlemler"
+                                  onClick={() => { setActionMenuOpen(menuOpen ? null : st.id); setActionMenuStep("root"); }}
+                                  style={S.dotsBtn}
+                                >
+                                  <span dangerouslySetInnerHTML={{ __html: IC.dots }} />
+                                </button>
+                                {menuOpen && (
+                                  <div style={S.actionMenu}>
+                                    {step === "root" ? (
+                                      <>
+                                        {canAssignGroup && (
+                                          <button
+                                            className={canAssign ? "oh-ddrow" : undefined}
+                                            disabled={!canAssign}
+                                            title={canAssign ? "" : "Atanabilir grupsuz kayıt yok"}
+                                            onClick={() => { closeMenu(); openAssign(st); }}
+                                            style={{ ...S.menuItem, color: canAssign ? "#1E222B" : "#CDD2DA", cursor: canAssign ? "pointer" : "not-allowed" }}
+                                          >
+                                            <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
+                                            Gruba Ata
+                                          </button>
+                                        )}
+                                        {canTransfer && (
+                                          <button
+                                            className={canDoTransfer ? "oh-ddrow" : undefined}
+                                            disabled={!canDoTransfer}
+                                            title={canDoTransfer ? "" : "Grup değiştirmek için önce bir gruba atanmış olmalı"}
+                                            onClick={() => {
+                                              if (!canDoTransfer) return;
+                                              if (groupCount === 1) { closeMenu(); openTransfer(st, groups[0]); }
+                                              else setActionMenuStep("pickGroup");
+                                            }}
+                                            style={{ ...S.menuItem, color: canDoTransfer ? "#1E222B" : "#CDD2DA", cursor: canDoTransfer ? "pointer" : "not-allowed" }}
+                                          >
+                                            <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
+                                            Grup Değiştir
+                                          </button>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => setActionMenuStep("root")}
+                                          className="oh-ddrow"
+                                          style={{ ...S.menuItem, color: "#8E95A3", fontWeight: 700, fontSize: 11.5, letterSpacing: ".02em" }}
+                                        >
+                                          <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />
+                                          HANGİ GRUPTAN TAŞINSIN?
+                                        </button>
+                                        {groups.map((g) => {
+                                          const c = BRANS[g.branch] ?? BRANS_FALLBACK;
+                                          return (
+                                            <button
+                                              key={g.groupId}
+                                              onClick={() => { closeMenu(); openTransfer(st, g); }}
+                                              className="oh-ddrow"
+                                              style={{ ...S.menuItem, justifyContent: "space-between", color: "#1E222B" }}
+                                            >
+                                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                                <span style={{ width: 7, height: 7, borderRadius: "50%", background: c.dot, flex: "0 0 auto" }} />
+                                                {g.label}
+                                              </span>
+                                              <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600 }}>{g.branch}</span>
+                                            </button>
+                                          );
+                                        })}
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             );
                           })() : (
                             <span style={{ fontSize: 12, color: "#AEB4C0" }}>—</span>
@@ -912,15 +1059,20 @@ export default function OgrenciHavuzuPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {groupOptions.map((g) => {
                     const sel = selectedGroupId === g.id;
+                    const blocked = !!g.conflictWith;
                     return (
-                      <div key={g.id} className="oh-grow" onClick={() => setSelectedGroupId(g.id)}
-                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
+                      <div key={g.id} className={blocked ? undefined : "oh-grow"}
+                        onClick={() => { if (!blocked) setSelectedGroupId(g.id); }}
+                        title={blocked ? `${g.conflictWith} grubuyla saat/gün çakışıyor` : undefined}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: blocked ? "not-allowed" : "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff", opacity: blocked ? 0.45 : 1 }}>
                         <span style={{ width: 18, height: 18, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
                         <span style={{ width: 34, height: 34, borderRadius: 9, background: "#f1f5f9", color: "#6F7B87", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
                           dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{g.code}</div>
-                          <div style={{ fontSize: 12.5, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.sub}</div>
+                          <div style={{ fontSize: 12.5, color: blocked ? "#B42318" : "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {blocked ? `${g.conflictWith} ile çakışıyor` : g.sub}
+                          </div>
                         </div>
                       </div>
                     );
@@ -979,15 +1131,20 @@ export default function OgrenciHavuzuPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {groupOptions.map((g) => {
                     const sel = selectedGroupId === g.id;
+                    const blocked = !!g.conflictWith;
                     return (
-                      <div key={g.id} className="oh-grow" onClick={() => setSelectedGroupId(g.id)}
-                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
+                      <div key={g.id} className={blocked ? undefined : "oh-grow"}
+                        onClick={() => { if (!blocked) setSelectedGroupId(g.id); }}
+                        title={blocked ? `${g.conflictWith} grubuyla saat/gün çakışıyor` : undefined}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: blocked ? "not-allowed" : "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff", opacity: blocked ? 0.45 : 1 }}>
                         <span style={{ width: 18, height: 18, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
                         <span style={{ width: 34, height: 34, borderRadius: 9, background: "#f1f5f9", color: "#6F7B87", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
                           dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{g.code}</div>
-                          <div style={{ fontSize: 12.5, color: "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.sub}</div>
+                          <div style={{ fontSize: 12.5, color: blocked ? "#B42318" : "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {blocked ? `${g.conflictWith} ile çakışıyor` : g.sub}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1367,6 +1524,9 @@ const S: Record<string, CSSProperties> = {
   groupChip: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 8, background: "#f1f5f9", border: "1px solid #E2E5EA", fontSize: 13, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" },
   transferIconBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", cursor: "pointer", flex: "0 0 auto" },
   assignBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, border: "none", background: "transparent", fontSize: 13, fontWeight: 600, fontFamily: "inherit", transition: "all .13s" },
+  dotsBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", cursor: "pointer", flex: "0 0 auto" },
+  actionMenu: { position: "absolute", top: "calc(100% + 6px)", right: 0, left: "auto", minWidth: 190, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 18px 40px -12px rgba(15,31,61,.26)", padding: 6, zIndex: 60, animation: "oh-ddin .14s cubic-bezier(.2,.8,.3,1)" },
+  menuItem: { display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 10px", borderRadius: 8, border: "none", background: "transparent", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", textAlign: "left", transition: "background .12s" },
   branchBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, padding: "0 5px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: "#fff", background: "#2867bd", boxShadow: "0 3px 8px -3px rgba(40,103,189,.55)", flex: "0 0 auto" },
   branchPopup: { position: "absolute", top: "calc(100% + 9px)", left: 0, minWidth: 172, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 18px 40px -12px rgba(15,31,61,.26)", padding: 8, zIndex: 50, animation: "oh-ddin .14s cubic-bezier(.2,.8,.3,1)" },
   emptyIcon: { width: 58, height: 58, borderRadius: 16, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" },
@@ -1403,6 +1563,8 @@ const IC = {
   alert: sv('<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>', 'width="13" height="13"'),
   eye: sv('<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>', 'width="15" height="15"'),
   userPlus: sv('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>', 'width="15" height="15"'),
+  dots: sv('<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>', 'width="16" height="16" fill="currentColor" stroke="none"'),
+  chevLeftSm: sv('<path d="m15 18-6-6 6-6"/>', 'width="13" height="13" stroke-width="2.4"'),
   searchBig: sv('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', 'width="26" height="26" stroke-width="1.8"'),
   chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="17" height="17" stroke-width="2.2"'),

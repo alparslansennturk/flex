@@ -234,8 +234,11 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
-        {/* Satışlar — akordiyon ana başlık. Enterprise: sadece Full. */}
-        {canSee("sale.create", false) && (
+        {/* Satışlar — akordiyon ana başlık. Enterprise: sadece Full. Her alt-menü KENDİ
+            capability'siyle ayrı gated (2026-07-10 kullanıcı kararı) — bir role Satış
+            Yap kapalı, Satış Listesi açık şeklinde tanımlanabilsin diye. Ana başlık
+            alt menülerden EN AZ BİRİ varsa görünür. */}
+        {(canSee("sale.create", false) || canSee("sale.read", false) || canSee("bundle.read", false) || canSee("campaign.read", false)) && (
           <>
             <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={() => setSalesOpen((o) => !o)}>
               <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
@@ -258,10 +261,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                   style={{ overflow: "hidden" }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                    <SubItem label="Satış Yap" active={active === "satis-yap"} onClick={go("/flexos/satislar/satis-yap")} />
-                    <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go("/flexos/satislar/satis-liste")} />
-                    <SubItem label="Paket Yönetimi" active={active === "paket-yonetimi"} onClick={go("/flexos/satislar/paket-yonetimi")} />
-                    <SubItem label="Kampanya Yönetimi" active={active === "kampanya-yonetimi"} onClick={go("/flexos/satislar/kampanya-yonetimi")} />
+                    {canSee("sale.create", false) && <SubItem label="Satış Yap" active={active === "satis-yap"} onClick={go("/flexos/satislar/satis-yap")} />}
+                    {canSee("sale.read", false) && <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go("/flexos/satislar/satis-liste")} />}
+                    {canSee("bundle.read", false) && <SubItem label="Paket Yönetimi" active={active === "paket-yonetimi"} onClick={go("/flexos/satislar/paket-yonetimi")} />}
+                    {canSee("campaign.read", false) && <SubItem label="Kampanya Yönetimi" active={active === "kampanya-yonetimi"} onClick={go("/flexos/satislar/kampanya-yonetimi")} />}
                   </div>
                 </motion.div>
               )}
@@ -271,8 +274,11 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
         {/* Öğrenci Havuzu = admin/satış/operasyon işi — eğitmen (Full'da da Core sistem
             modunda da) burayı hiç görmez, kendi öğrencilerini Sınıflar'daki "Öğrencilerim"
-            bölümünden ekler/görür. `sale.read` eğitmen paketinde (hiçbir modda) yok. */}
-        {canSee("sale.read", false) && <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />}
+            bölümünden ekler/görür. `person.read` eğitmen paketinde (hiçbir modda) yok.
+            ÖNCEDEN `sale.read`'e bağlıydı (2026-07-10 düzeltme: Eğitim Koordinatörü'nün
+            satış modülü yok ama kayıt/grup atama işi öğrenci havuzundan yapılıyor —
+            `person.read` her ofis rolünde ortak, doğru gate bu). */}
+        {canSee("person.read", false) && <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />}
         {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür. */}
         {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
 

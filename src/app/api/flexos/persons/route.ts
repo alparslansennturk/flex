@@ -135,8 +135,16 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       // enrollment durumundan havuz durumu türet (öğrenci durumu = üyelikten, Person'dan değil)
       const status = derivePoolStatus(enrs);
 
-      // "Gruba Ata" için atanabilir kayıt: aktif + grupsuz (ilk uygun)
-      const assignable = enrs.find((e) => e.status === "active" && !e.groupId);
+      // "Gruba Ata" için atanabilir kayıtlar: aktif + grupsuz TÜMÜ (bir paket/bundle satışı
+      // aynı anda birden çok grupsuz enrollment açabilir — Grafik Tasarım + Dijital Pazarlama +
+      // Video gibi — hepsi tek seferde listelenmeli, sadece ilki değil).
+      const assignableEnrollments = enrs
+        .filter((e) => e.status === "active" && !e.groupId)
+        .map((e) => ({
+          enrollmentId: e.id,
+          educationId: e.educationId ?? null,
+          educationName: (e.educationId && eduMap.get(e.educationId)?.name) ?? "",
+        }));
 
       // ödeme durumu rollup'ı (payment.read yetkisiyle)
       const personPayments = paymentsByPerson.get(p.id) ?? [];
@@ -156,8 +164,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         groups: groupList,
         educations: educationList,
         subeler: [...officeNames],
-        assignableEnrollmentId: assignable?.id ?? null,
-        assignableEducationId: assignable?.educationId ?? null,
+        assignableEnrollments,
         // Core (eğitmen) basit tablosu için tekil düzenlenebilir kayıt (Mezun Et/Sil/Aktife Al).
         primaryEnrollmentId: enrs.find((e) => e.status === "active")?.id ?? enrs[0]?.id ?? null,
         gender: p.gender ?? "",
