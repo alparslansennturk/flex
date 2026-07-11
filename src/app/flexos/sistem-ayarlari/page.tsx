@@ -30,6 +30,7 @@ export default function SistemAyarlariPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false); // role.manage — org-geneli kartları gösterir
   const [tab, setTab] = useState<"genel" | "loglar">("genel");
 
   // ── Sistem Modu (Eğitmen Tek Başına switch) ──
@@ -58,7 +59,14 @@ export default function SistemAyarlariPage() {
       const json = await res.json();
       if (signal?.aborted) return;
       const caps = new Set<string>(json.capabilities ?? []);
-      setAllowed(caps.has("role.manage"));
+      // view.toggle sahibi (SADECE VIEW_TOGGLE_OWNER_EMAIL, tek hesap) Core moddayken
+      // role.manage'i kaybeder ama sayfayı yine görebilmeli — kendi PIN'ini buradan
+      // yönetsin diye (2026-07-11). Görünüm modu değişimi kısayolla (Ctrl/Cmd+Alt+T)
+      // yapılıyor, burada AYRICA bir switch YOK (kullanıcı: "gerek yok, kısayol zaten
+      // çalışıyor"). Org-geneli kartlar (Sistem Modu, Grup Taşıma) sayfa İÇİNDE ayrıca
+      // `role.manage`'e göre ayrı gated (aşağıda).
+      setIsAdmin(caps.has("role.manage"));
+      setAllowed(caps.has("role.manage") || caps.has("view.toggle"));
     } catch (e) {
       if ((e as Error).name !== "AbortError") setAllowed(false);
     }
@@ -221,6 +229,7 @@ export default function SistemAyarlariPage() {
 
           {tab === "genel" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {isAdmin && (
             <div style={{ ...S.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" as const }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ width: 42, height: 42, borderRadius: 12, background: standaloneMode ? "#DCFCE7" : "#EDE9FE", color: standaloneMode ? "#15803D" : "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
@@ -239,7 +248,9 @@ export default function SistemAyarlariPage() {
               </div>
               <SystemModeSegment value={standaloneMode} busy={modeBusy} onChange={(next) => { if (standaloneMode !== null && next !== standaloneMode) setModeConfirm(next); }} />
             </div>
+            )}
 
+            {isAdmin && (
             <div style={{ ...S.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" as const }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ width: 42, height: 42, borderRadius: 12, background: transferManual ? "#FEF3C7" : "#DDE8F8", color: transferManual ? "#B45309" : "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
@@ -258,6 +269,7 @@ export default function SistemAyarlariPage() {
               </div>
               <ToggleSwitch active={!!transferManual} onClick={() => transferManual !== null && applyTransferManual(!transferManual)} />
             </div>
+            )}
 
             {canPin && (
               <div style={S.card}>
@@ -268,7 +280,7 @@ export default function SistemAyarlariPage() {
                   <div>
                     <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>{"Kişisel Görünüm PIN'i"}</div>
                     <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2 }}>
-                      {"Ctrl/Cmd+Alt+M ile Eğitmen görünümünden admin ekranına geçerken sorulan 4 haneli PIN. "}{hasPin ? "Kurulu." : "Henüz kurulmadı."}
+                      {"Ctrl/Cmd+Alt+T kısayoluyla Eğitmen'den Full'a geçerken sorulan 4 haneli PIN. "}{hasPin ? "Kurulu." : "Henüz kurulmadı."}
                     </div>
                   </div>
                 </div>

@@ -39,4 +39,15 @@ export const firestoreTrainerRepo: TrainerRepo = {
   async delete(id) {
     await adminDb.collection(COLLECTION).doc(id).delete();
   },
+
+  async findByAuthUid(authUid, tenantId) {
+    const snap = await adminDb
+      .collection(COLLECTION)
+      .where("tenantId", "==", tenantId)
+      .where("authUid", "==", authUid)
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
+    return snap.docs[0].data() as Trainer;
+  },
 };

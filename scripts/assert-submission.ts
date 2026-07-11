@@ -64,6 +64,7 @@ function makeTrainerRepo(): TrainerRepo {
     async getById() { return null; }, // testlerde eğitmen adı önemsiz — klasör yolu ölçülmüyor
     async list() { return []; },
     async delete() {},
+    async findByAuthUid() { return null; },
   };
 }
 

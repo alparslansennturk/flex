@@ -47,7 +47,9 @@ interface GroupTableProps {
 }
 
 export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, onChanged, emptyHint, canManage = true }: GroupTableProps) {
-  const [groupFilter, setGroupFilter] = useState<FilterKey | CoreFilterKey>("hepsi");
+  // Varsayılan "Aktif" — sayfa açılışında tamamlanmış/iptal/açılacak gruplarla boğulmadan
+  // doğrudan güncel iş yükü görünsün (2026-07-11 kullanıcı kararı). "Tümü" hâlâ bir tık uzakta.
+  const [groupFilter, setGroupFilter] = useState<FilterKey | CoreFilterKey>("aktif");
   // Core (eğitmen) VE Full'da eğitmen (canManage=false, "kendi sınıflarım" hissi) için
   // kart görünümü varsayılan — Liste toggle'ı Full'da yine seçilebilir kalıyor.
   const [viewMode, setViewMode] = useState<ViewMode>(mode === "core" || !canManage ? "card" : "list");

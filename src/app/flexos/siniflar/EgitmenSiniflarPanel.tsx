@@ -25,11 +25,24 @@ import { FlexPageLoader } from "../_components/FlexSpinner";
 import GroupTable from "./_shared/GroupTable";
 import { useGroupCatalog, type EducationDoc } from "./_shared/useGroupCatalog";
 import { type DisplayGroup, type GroupApiItem, DAY_ABBR, toDisplayGroup, formatSeansLabel, initials, avatarStyle } from "./_shared/groupDisplay";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
+
+interface StudentGroupDetail { groupId: string; enrollmentId: string; status: string }
 
 interface StudentRow {
   id: string; name: string; email: string; phone: string; status: string;
   educationName: string; groupLabel: string; groupCount: number;
-  groupId: string | null; enrollmentId: string | null;
+  groupId: string | null; groupIds: string[]; enrollmentId: string | null;
+  groupsDetail: StudentGroupDetail[];
+}
+
+/** Ham enrollment.status → STUDENT_STATUS badge anahtarı. */
+function enrollmentStatusToBadgeKey(status: string): string {
+  if (status === "completed") return "mezun";
+  if (status === "on_hold") return "beklemede";
+  if (status === "passive") return "pasif";
+  if (status === "cancelled") return "iptal";
+  return "aktif";
 }
 
 const STUDENT_STATUS: Record<string, { label: string; color: string; background: string; dot: string }> = {
@@ -99,8 +112,15 @@ export default function EgitmenSiniflarPanel() {
   const loadGroups = useCallback(async (signal?: AbortSignal) => {
     setLoadingGroups(true);
     try {
-      const uid = auth.currentUser?.uid ?? "";
-      const res = await fetch(`/api/flexos/groups?trainerId=${encodeURIComponent(uid)}`, { headers: await authHeaders(), signal });
+      // trainerId param GÖNDERİLMİYOR — sunucu zaten kendi kararını veriyor (groups/route.ts):
+      // org-scope aktör (standalone'da admin, bu panel eğitmen ORTAK KULLANILIYOR) parametresiz
+      // isteğe TÜM tenant gruplarını döner; org-scope OLMAYAN gerçek eğitmen ise ne gönderirsek
+      // gönderelim actor.trainerId'ye zorlanır. Önceden burada `trainerId=${uid}` (Firebase auth
+      // uid) EXPLICIT gönderiliyordu — admin org-scope olduğu için sunucu bunu ham filtre olarak
+      // kullanıyordu, ama Group.trainerId uid DEĞİL eğitmen kadrosu docId'si taşıyor (bkz.
+      // can.ts ownerMatches yorumu) — hiç eşleşmiyordu, admin standalone'da "hiç sınıfım yok"
+      // görüyordu (2026-07-11 bulgusu).
+      const res = await fetch("/api/flexos/groups", { headers: await authHeaders(), signal });
       const json = res.ok ? await res.json() : { items: [] };
       if (signal?.aborted) return;
       const items: GroupApiItem[] = json.items ?? [];
@@ -121,7 +141,7 @@ export default function EgitmenSiniflarPanel() {
       if (signal?.aborted) return;
       interface PersonApiItem {
         id: string; name: string; email: string; phone: string; status: string;
-        educations?: { name: string }[]; groups?: { label: string; groupId: string }[];
+        educations?: { name: string }[]; groups?: { label: string; groupId: string; enrollmentId: string; status: string }[];
         primaryEnrollmentId?: string | null;
       }
       const items: PersonApiItem[] = json.items ?? [];
@@ -131,6 +151,15 @@ export default function EgitmenSiniflarPanel() {
         groupLabel: p.groups?.[0]?.label ?? "—",
         groupCount: p.groups?.length ?? 0,
         groupId: p.groups?.[0]?.groupId ?? null,
+        // Bir kişinin BİRDEN FAZLA grup kaydı olabilir (bölümlü eğitim — Grafik1+Grafik2
+        // gibi). "Mevcut Grup" filtresi SADECE ilk kaydı (groupId) kontrol ederse, ikinci
+        // modülündeki grup her zaman boş görünür (2026-07-11 bulgusu) — tüm kayıtlar tutulur.
+        groupIds: (p.groups ?? []).map((g) => g.groupId),
+        // Grup taşındığında (ör. 550→784) eski kayıt "completed", yeni kayıt "active" olur —
+        // p.status (kişi-seviyeli özet) İKİSİNİ birleştirip "aktif" döner (aktif enrollment
+        // varsa öncelikli), bu yüzden 550'nin roster'ında Mezun görünmesi gereken kişi Aktif
+        // görünüyordu. Grup bazında GERÇEK durumu göstermek için ham liste saklanıyor.
+        groupsDetail: (p.groups ?? []).map((g) => ({ groupId: g.groupId, enrollmentId: g.enrollmentId, status: g.status })),
         enrollmentId: p.primaryEnrollmentId ?? null,
       })));
     } catch (e) {
@@ -150,6 +179,12 @@ export default function EgitmenSiniflarPanel() {
     })();
     return () => ac.abort();
   }, [router, loadGroups, loadStudents]);
+
+  // 2026-07-11/12 — grup+öğrenci gerçek-zamanlı senkron: başka bir kullanıcı grup
+  // oluşturduğunda/düzenlediğinde ya da öğrenci ekleyip/kaydını değiştirdiğinde SSE
+  // üzerinden haber alınır, ilgili yükleyici tekrar çağrılır.
+  useRealtimeSync(["groups.changed"], useCallback(() => { void loadGroups(); }, [loadGroups]));
+  useRealtimeSync(["students.changed"], useCallback(() => { void loadStudents(); }, [loadStudents]));
 
   const resetStudentForm = () => { setSAd(""); setSSoyad(""); setSTelefon(""); setSEposta(""); setSGroupId(""); setEditingStudentId(null); };
 
@@ -246,12 +281,43 @@ export default function EgitmenSiniflarPanel() {
   const confirmAktif = async () => { if (!aktifId) return; const id = aktifId; setAktifId(null); await setStudentEnrollmentStatus(id, "active", "Öğrenci tekrar aktif duruma alındı."); };
   const confirmSil = async () => { if (!silId) return; const id = silId; setSilId(null); await setStudentEnrollmentStatus(id, "cancelled", "Öğrenci silindi."); };
 
+  // Seçili grup (Mevcut Grup scope'unda) tamamlandı/iptal mi — Aktif sekmesi + Öğrenci
+  // Ekle butonu bu grup için disable edilir (2026-07-11 kullanıcı kararı: bitmiş gruba
+  // öğrenci eklemek anlamsız, sunucu tarafı `assignToGroup`/`transferEnrollment` da
+  // zaten reddediyor artık — bu sadece UI'ın önceden haber vermesi).
+  // NOT: `DisplayGroup.status` groupDisplay.ts'in KENDİ Türkçe display union'ı
+  // ("açılacak"|"aktif"|"tamamlandı"|"iptal") — domain'in ham GroupStatus'ü DEĞİL
+  // (isim çakışması, tsc bunu yakaladı).
+  const selectedGroupClosed = studentScope === "grup" && selectedGroupId
+    ? (() => { const st = groups.find((g) => g.id === selectedGroupId)?.status; return st === "tamamlandı" || st === "iptal"; })()
+    : false;
+
+  // "Mevcut Grup" scope'undayken kişinin O GRUBA özel enrollment'ı gösterilir/işlenir —
+  // "Tüm Öğrenciler" scope'unda kişi-seviyeli özet (birden fazla grubun birleşimi, ör.
+  // en az biri aktifse "aktif") kullanılmaya devam eder, orada tek bir "hangi grup"
+  // bağlamı yok. bkz. groupsDetail yorumu (loadStudents).
+  const effectiveStatus = (s: StudentRow): string => {
+    if (studentScope === "grup" && selectedGroupId) {
+      const g = s.groupsDetail.find((x) => x.groupId === selectedGroupId);
+      if (g) return enrollmentStatusToBadgeKey(g.status);
+    }
+    return s.status;
+  };
+  const effectiveEnrollmentId = (s: StudentRow): string | null => {
+    if (studentScope === "grup" && selectedGroupId) {
+      const g = s.groupsDetail.find((x) => x.groupId === selectedGroupId);
+      if (g) return g.enrollmentId;
+    }
+    return s.enrollmentId;
+  };
+
   const STUDENT_PAGE_SIZE = 15;
   const filteredStudents = students.filter((s) => {
-    if (s.status === "iptal") return false; // silinen öğrenci hiçbir sekmede görünmez
-    const inTab = studentTab === "mezun" ? s.status === "mezun" : s.status !== "mezun";
+    const eff = effectiveStatus(s);
+    if (eff === "iptal") return false; // silinen öğrenci hiçbir sekmede görünmez
+    const inTab = studentTab === "mezun" ? eff === "mezun" : eff !== "mezun";
     if (!inTab) return false;
-    if (studentScope === "grup" && s.groupId !== selectedGroupId) return false;
+    if (studentScope === "grup" && !(selectedGroupId && s.groupIds.includes(selectedGroupId))) return false;
     const q = studentSearch.trim().toLocaleLowerCase("tr");
     if (!q) return true;
     return `${s.name} ${s.email} ${s.phone}`.toLocaleLowerCase("tr").includes(q);
@@ -511,7 +577,13 @@ export default function EgitmenSiniflarPanel() {
             groups={groups}
             loading={loadingGroups}
             mode="core"
-            onRowClick={(g) => { setSelectedGroupId(g.id); setStudentScope("grup"); }}
+            onRowClick={(g) => {
+              setSelectedGroupId(g.id);
+              setStudentScope("grup");
+              // Bitmiş/iptal grup açılınca varsayılan Aktif değil Mezun sekmesi — 2026-07-11
+              // kullanıcı kararı: "biten grupta ben gruba basınca varsayılan mezunlar görünsün".
+              setStudentTab(g.status === "tamamlandı" || g.status === "iptal" ? "mezun" : "aktif");
+            }}
             onEdit={editGroup}
             onChanged={loadGroups}
             emptyHint='"Grup Ekle" ile ilk sınıfınızı oluşturun.'
@@ -526,7 +598,16 @@ export default function EgitmenSiniflarPanel() {
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{filteredStudents.length} öğrenci</span>
                 </div>
                 <div style={{ display: "inline-flex", padding: 4, borderRadius: 11, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-                  <button onClick={() => setStudentTab("aktif")} style={tabBtnStyle(studentTab === "aktif")}>Aktif Öğrenciler</button>
+                  {/* Seçili grup bitmiş/iptalse "Aktif" sekmesi disable — o grupta hiç aktif
+                      kayıt olmaması gerekir (grup Bitir'de otomatik mezun ediliyor artık,
+                      bkz. group-service.ts), sekme kafa karıştırmasın (2026-07-11). */}
+                  <button
+                    onClick={() => !selectedGroupClosed && setStudentTab("aktif")}
+                    disabled={selectedGroupClosed}
+                    style={{ ...tabBtnStyle(studentTab === "aktif"), opacity: selectedGroupClosed ? 0.4 : 1, cursor: selectedGroupClosed ? "not-allowed" : "pointer" }}
+                  >
+                    Aktif Öğrenciler
+                  </button>
                   <button onClick={() => setStudentTab("mezun")} style={tabBtnStyle(studentTab === "mezun")}>Mezun Öğrenciler</button>
                 </div>
                 <div style={{ display: "inline-flex", padding: 4, borderRadius: 11, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
@@ -538,7 +619,12 @@ export default function EgitmenSiniflarPanel() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <input value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} placeholder="Öğrenci ara…" style={{ ...S.inp, width: 220 }} />
-                <button style={S.addBtn} onClick={() => { if (showStudentForm) { cancelStudentForm(); } else { if (studentScope === "grup" && selectedGroupId) setSGroupId(selectedGroupId); setShowStudentForm(true); } }}>
+                <button
+                  style={{ ...S.addBtn, opacity: selectedGroupClosed && !showStudentForm ? 0.45 : 1, cursor: selectedGroupClosed && !showStudentForm ? "not-allowed" : "pointer" }}
+                  disabled={selectedGroupClosed && !showStudentForm}
+                  title={selectedGroupClosed && !showStudentForm ? "Bu grup tamamlandı/iptal — yeni öğrenci eklenemez." : undefined}
+                  onClick={() => { if (showStudentForm) { cancelStudentForm(); } else { if (studentScope === "grup" && selectedGroupId) setSGroupId(selectedGroupId); setShowStudentForm(true); } }}
+                >
                   {showStudentForm ? "Vazgeç" : "+ Öğrenci Ekle"}
                 </button>
               </div>
@@ -630,8 +716,13 @@ export default function EgitmenSiniflarPanel() {
                     </thead>
                     <tbody>
                       {pageStudents.map((s, i) => {
-                        const st = STUDENT_STATUS[s.status] ?? STUDENT_STATUS.grupsuz;
-                        const isMezun = s.status === "mezun";
+                        const effStatus = effectiveStatus(s);
+                        const st = STUDENT_STATUS[effStatus] ?? STUDENT_STATUS.grupsuz;
+                        const isMezun = effStatus === "mezun";
+                        const effEnrollmentId = effectiveEnrollmentId(s);
+                        const displayGroupLabel = (studentScope === "grup" && selectedGroupId
+                          ? groups.find((g) => g.id === selectedGroupId)?.kod
+                          : undefined) ?? s.groupLabel;
                         return (
                           <tr key={s.id} style={{ borderBottom: "1px solid #EEF0F3" }}>
                             <td style={S.cell}>
@@ -642,8 +733,10 @@ export default function EgitmenSiniflarPanel() {
                             </td>
                             <td style={S.cell}><span style={{ fontSize: 13, fontWeight: 600, color: "#414B59" }}>{s.educationName}</span></td>
                             <td style={S.cell}>
-                              <span style={{ fontSize: 13, color: s.groupLabel === "—" ? "#CDD2DA" : "#414B59", fontWeight: 600 }}>{s.groupLabel}</span>
-                              {s.groupCount > 1 && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "#fff", background: "#2867bd", borderRadius: 10, padding: "1px 6px" }}>+{s.groupCount - 1}</span>}
+                              {/* "+N diğer grup" rozeti BİLEREK YOK (2026-07-11 kullanıcı kararı) — SADECE Core/Eğitmen
+                                  modunda: eğitmen öğrencisinin başka bir eğitimde/gruptaki kaydıyla ilgilenmez, bu bilgi
+                                  Full modda (Öğrenci Havuzu) kalmaya devam eder, burada dokunulmadı. */}
+                              <span style={{ fontSize: 13, color: displayGroupLabel === "—" ? "#CDD2DA" : "#414B59", fontWeight: 600 }}>{displayGroupLabel}</span>
                             </td>
                             <td style={S.cell}>
                               <span style={{ ...S.statusBadge, color: st.color, background: st.background }}>
@@ -659,15 +752,15 @@ export default function EgitmenSiniflarPanel() {
                                   <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
                                 </button>
                                 {isMezun ? (
-                                  <button onClick={() => s.enrollmentId && setAktifId(s.enrollmentId)} disabled={!s.enrollmentId} title="Aktife Al" style={{ ...S.actionIcon, color: "#2867bd" }}>
+                                  <button onClick={() => effEnrollmentId && setAktifId(effEnrollmentId)} disabled={!effEnrollmentId} title="Aktife Al" style={{ ...S.actionIcon, color: "#2867bd" }}>
                                     <span dangerouslySetInnerHTML={{ __html: IC.undoSm }} />
                                   </button>
                                 ) : (
-                                  <button onClick={() => s.enrollmentId && setMezunId(s.enrollmentId)} disabled={!s.enrollmentId} title="Mezun Et" style={{ ...S.actionIcon, color: "#15803D" }}>
+                                  <button onClick={() => effEnrollmentId && setMezunId(effEnrollmentId)} disabled={!effEnrollmentId} title="Mezun Et" style={{ ...S.actionIcon, color: "#15803D" }}>
                                     <span dangerouslySetInnerHTML={{ __html: IC.graduationSm }} />
                                   </button>
                                 )}
-                                <button onClick={() => s.enrollmentId && setSilId(s.enrollmentId)} disabled={!s.enrollmentId} title="Sil" style={{ ...S.actionIcon, color: "#D93636" }}>
+                                <button onClick={() => effEnrollmentId && setSilId(effEnrollmentId)} disabled={!effEnrollmentId} title="Sil" style={{ ...S.actionIcon, color: "#D93636" }}>
                                   <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />
                                 </button>
                               </div>

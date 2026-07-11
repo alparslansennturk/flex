@@ -5,6 +5,7 @@ import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { cancelSale } from "@/app/lib/domain/services/sale-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * POST /api/flexos/sales/[id]/cancel — satış iptali (soft).
@@ -30,6 +31,8 @@ export const POST = withAuth(async (req: NextRequest, caller, { params }: { para
       enrollments: firestoreEnrollmentRepo,
     });
 
+    broadcast(actor.tenantId, { type: "sales.changed", id });
+    broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({
       ok: true,
       cancelledEnrollments: result.cancelledEnrollments,

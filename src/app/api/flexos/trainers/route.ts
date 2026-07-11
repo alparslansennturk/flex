@@ -16,6 +16,7 @@ import { sendMail } from "@/app/lib/email";
 import type { Trainer } from "@/app/lib/domain/core/trainer";
 import type { FlexosUser } from "@/app/lib/domain/core/flexos-user";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 const ACTIVATION_CODE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 gün — Kullanıcı Ekle ile aynı
 
@@ -115,10 +116,11 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
     const eduMap = new Map(educations.map((e) => [e.id, e]));
 
-    // grup başına aktif kayıt (doluluk)
+    // Grup başına öğrenci sayısı — groups/route.ts ile AYNI kural (active+completed),
+    // bkz. oradaki 2026-07-11 tutarlılık notu.
     const enrolledByGroup = new Map<string, number>();
     for (const enr of enrollments) {
-      if (enr.groupId && enr.status === "active") {
+      if (enr.groupId && (enr.status === "active" || enr.status === "completed")) {
         enrolledByGroup.set(enr.groupId, (enrolledByGroup.get(enr.groupId) ?? 0) + 1);
       }
     }
@@ -181,6 +183,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     } catch (loginErr) {
       console.error("[flexos/trainers POST] giriş hesabı sağlanamadı:", loginErr);
     }
+    broadcast(actor.tenantId, { type: "trainers.changed", id: result.trainer.id });
     return NextResponse.json({ id: result.trainer.id, rateDropped: result.rateDropped }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

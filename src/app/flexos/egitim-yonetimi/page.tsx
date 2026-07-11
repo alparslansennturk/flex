@@ -19,6 +19,7 @@ import FlexHeader from "../_components/FlexHeader";
 import FlexModal from "../_components/FlexModal";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
 
 // ── API tipleri (ileride genişleyecek alanlar opsiyonel) ──────────────────────
 interface EducationDoc {
@@ -114,6 +115,10 @@ export default function EgitimYonetimiPage() {
     })();
     return () => { ac.abort(); };
   }, [router, fetchData]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı branş/eğitim eklediğinde/
+  // düzenlediğinde SSE üzerinden haber alınır, liste tekrar çekilir.
+  useRealtimeSync(["educations.changed"], useCallback(() => { void fetchData(); }, [fetchData]));
 
   // SPA navigasyonla geri dönünce (pathname tekrar bu sayfaya eşleşince) listeyi yenile
   useEffect(() => {

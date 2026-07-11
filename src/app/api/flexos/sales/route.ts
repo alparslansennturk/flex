@@ -10,6 +10,7 @@ import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/ca
 import { firestoreBundleRepo } from "@/app/lib/server/bundle-repo.firestore";
 import { createSale, type CreateSaleInput } from "@/app/lib/domain/services/sale-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * GET /api/flexos/sales — satış listesi.
@@ -87,6 +88,8 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       bundles: firestoreBundleRepo,
       payments: firestorePaymentRepo,
     });
+    broadcast(actor.tenantId, { type: "sales.changed", id: result.sale.id });
+    broadcast(actor.tenantId, { type: "students.changed", id: result.person.id });
     return NextResponse.json(
       {
         saleId: result.sale.id,

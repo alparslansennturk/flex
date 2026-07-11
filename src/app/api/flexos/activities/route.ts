@@ -8,6 +8,7 @@ import { firestoreActivityRepo } from "@/app/lib/server/activity-repo.firestore"
 import { firestoreAppointmentRepo } from "@/app/lib/server/appointment-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { addActivity, type AddActivityInput } from "@/app/lib/domain/services/case-service";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 const RECENT_LIMIT = 30;
 
@@ -58,12 +59,14 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const result = await addActivity((await actorFromCaller(caller)), body, {
+    const actor = await actorFromCaller(caller);
+    const result = await addActivity(actor, body, {
       cases: firestoreCaseRepo,
       activities: firestoreActivityRepo,
       appointments: firestoreAppointmentRepo,
     });
 
+    broadcast(actor.tenantId, { type: "activities.changed", id: result.activity.id });
     return NextResponse.json(
       {
         activityId: result.activity.id,

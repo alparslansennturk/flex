@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import type { Guardian } from "@/app/lib/domain/eduos/sale";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * PATCH /api/flexos/sales/[id] — Satış üzerindeki sözleşme alanlarını güncelle.
@@ -60,6 +61,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
     sale.updatedBy = actor.uid;
     await firestoreSaleRepo.save(sale); // set = tam yazım (merge edilmiş obje)
 
+    broadcast(actor.tenantId, { type: "sales.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[flexos/sales/[id] PATCH] hata:", e);

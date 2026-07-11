@@ -33,6 +33,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Award, BookOpen, Check, ArrowLeft, ClipboardList, ChevronRight, Clock } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
@@ -40,6 +41,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
+import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface AssignmentItem { id: string; title: string; dueDate?: string; status: string; maxPuan?: number; kind?: "normal" | "proje" }
@@ -70,10 +72,8 @@ const DURUM_META: Record<TeslimDurum, { label: string; color: string; bg: string
 };
 
 const GROUP_COLORS = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#1CB5AE", "#F91079"];
-const AVATAR_PALETTES: [string, string][] = [
-  ["#689adf", "#2867bd"], ["#F76FA3", "#F91079"], ["#67B5B6", "#1CB5AE"],
-  ["#C79BF0", "#8B44D6"], ["#F9B36F", "#E8830F"], ["#7FCE8E", "#2E9E4A"],
-];
+// Öğrenci avatarları — ÖNCEDEN 2 renkli gradyan (AVATAR_PALETTES) kullanıyordu, kullanıcı
+// tek renk + sistem paletinden (GROUP_COLORS'la AYNI 6 renk) istedi (2026-07-11 kararı).
 function groupColor(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash << 5) - hash + id.charCodeAt(i);
@@ -154,6 +154,13 @@ function dummyRosterFor(groupId: string): RosterItem[] {
 }
 
 export default function OdevNotuPage() {
+  // Ödev Parkuru "Not Ver"den deep-link — 2026-07-11 kullanıcı bulgusu: önceden bu sayfa
+  // parametresiz açılıyordu, eğitmen grubu/ödevi elle tekrar bulup seçmek zorunda kalıyordu.
+  const searchParams = useSearchParams();
+  const deepLinkGroupId = searchParams.get("groupId");
+  const deepLinkAssignmentId = searchParams.get("assignmentId");
+  const [autoOpened, setAutoOpened] = useState(false);
+
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
@@ -178,16 +185,23 @@ export default function OdevNotuPage() {
       const items = res.ok ? (await res.json() as { items: GroupItem[] }).items : [];
       const finalItems = items.length > 0 ? items : DUMMY_GROUPS;
       setGroups(finalItems);
-      setSelectedGroupId((cur) => cur ?? finalItems[0]?.id ?? null);
+      const deepLinkMatch = deepLinkGroupId && finalItems.some((g) => g.id === deepLinkGroupId) ? deepLinkGroupId : null;
+      setSelectedGroupId((cur) => cur ?? deepLinkMatch ?? finalItems[0]?.id ?? null);
     } catch {
       setGroups(DUMMY_GROUPS);
       setSelectedGroupId((cur) => cur ?? DUMMY_GROUPS[0].id);
     } finally {
       setLoadingGroups(false);
     }
-  }, []);
+  }, [deepLinkGroupId]);
 
   useEffect(() => { loadGroups(); }, [loadGroups]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı grup/eğitim ekleyip
+  // düzenlediğinde SSE üzerinden haber alınır, grup listesi tekrar çekilir. (Deep-link
+  // auto-open state'i kırılgan olduğu için ödev/roster effect'i kasıtlı olarak buraya
+  // bağlanmadı — bu sayfa zaten notun GİRİLDİĞİ ekran, pasif tüketici değil.)
+  useRealtimeSync(["groups.changed", "educations.changed"], loadGroups);
 
   useEffect(() => {
     if (!selectedGroupId) return;
@@ -205,6 +219,14 @@ export default function OdevNotuPage() {
         const rosterItems = rosterRes.ok ? (await rosterRes.json() as { items: RosterItem[] }).items : [];
         setAssignments(assignItems.length > 0 ? assignItems : (group ? dummyAssignmentsFor(group) : []));
         setRoster(rosterItems.length > 0 ? rosterItems : dummyRosterFor(selectedGroupId));
+        // Deep-link: doğru grup + doğru ödev yüklendiyse puanlama ekranını OTOMATİK aç
+        // (sadece ilk deep-link'te — sonraki manuel grup değişimlerinde tekrar tetiklenmez).
+        if (!autoOpened && deepLinkAssignmentId && selectedGroupId === deepLinkGroupId && assignItems.some((a) => a.id === deepLinkAssignmentId)) {
+          setAutoOpened(true);
+          const effRoster = rosterItems.length > 0 ? rosterItems : dummyRosterFor(selectedGroupId);
+          const effAssignments = assignItems.length > 0 ? assignItems : (group ? dummyAssignmentsFor(group) : []);
+          void openAssignment(deepLinkAssignmentId, effRoster, effAssignments);
+        }
       } catch {
         setAssignments(group ? dummyAssignmentsFor(group) : []);
         setRoster(dummyRosterFor(selectedGroupId));
@@ -214,9 +236,16 @@ export default function OdevNotuPage() {
     })();
   }, [selectedGroupId, groups]);
 
-  async function openAssignment(assignmentId: string) {
+  // `rosterOverride`/`assignmentsOverride`: deep-link otomatik açılışta component state'i
+  // henüz commit olmadan (setRoster/setAssignments async) hemen çağrıldığı için stale
+  // closure okumaması diye — normal (butona tıklayarak) açılışta undefined kalır, state
+  // kullanılır (2026-07-11).
+  async function openAssignment(assignmentId: string, rosterOverride?: RosterItem[], assignmentsOverride?: AssignmentItem[]) {
     setActiveAssignmentId(assignmentId);
     if (gradesByAssignment[assignmentId]) return; // zaten yüklendi/düzenlendi
+
+    const effRoster = rosterOverride ?? roster;
+    const effAssignments = assignmentsOverride ?? assignments;
 
     setLoadingGrading(true);
     try {
@@ -228,11 +257,11 @@ export default function OdevNotuPage() {
         submissions = res.ok ? (await res.json() as { items: SubmissionRow[] }).items : [];
       }
       const byPerson = new Map(submissions.map((s) => [s.personId, s]));
-      const dueDate = assignments.find((a) => a.id === assignmentId)?.dueDate;
+      const dueDate = effAssignments.find((a) => a.id === assignmentId)?.dueDate;
       const dummyPreset: TeslimDurum[] = ["teslim", "gec1", "teslim", "gec2", "yok", "teslim", "gec1", "teslim"];
       const initial: Record<string, StudentGradeState> = {};
       const submissionIds: Record<string, string> = {};
-      roster.forEach((r, i) => {
+      effRoster.forEach((r, i) => {
         if (isDummy) {
           initial[r.personId] = { durum: dummyPreset[i % dummyPreset.length] };
         } else {
@@ -283,8 +312,28 @@ export default function OdevNotuPage() {
         ),
       );
       const failed = results.filter((r) => !r.ok).length;
-      if (failed === 0) toast.success("Notlar kaydedildi.");
-      else toast.error(`${failed} öğrenci kaydedilemedi.`);
+      if (failed === 0) {
+        toast.success("Notlar kaydedildi.");
+        // "Notları Kaydet" = bu tur için değerlendirme bitti demek — Ödev Parkuru'ndan
+        // (Ana Sayfa) kalkar ama not GİRİLMEYE devam edilebilir: assignment "archived"
+        // olur (Parkur "published"/"closed" filtreler, archived hiç göstermez), bu sayfada
+        // grup+ödev listesinde hâlâ görünür (archived filtrelenmiyor), tekrar açılıp
+        // düzenlenebilir. 2026-07-11 kullanıcı kararı — "Taslak Kaydet" de bu yüzden
+        // kaldırıldı, tek gerçek aksiyon bu.
+        try {
+          const patchHeaders = await authHeaders();
+          await fetch(`/api/flexos/assignments/${activeAssignmentId}`, {
+            method: "PATCH",
+            headers: { ...patchHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "archived" }),
+          });
+          setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "archived" } : a)));
+        } catch {
+          // sessiz — notlar zaten kaydedildi, arşivleme kozmetik bir son adım
+        }
+      } else {
+        toast.error(`${failed} öğrenci kaydedilemedi.`);
+      }
     } catch {
       toast.error("Kaydedilemedi.");
     } finally {
@@ -502,12 +551,12 @@ export default function OdevNotuPage() {
                   // Taban puan HER ZAMAN ödevin maxPuan'ı — elle giriş yok (2026-07-08 kararı).
                   const ceza = teslimEtmedi ? null : Math.round(MAX_PUAN * oran);
                   const net = Math.round(MAX_PUAN * (1 - oran));
-                  const pal = AVATAR_PALETTES[i % AVATAR_PALETTES.length];
+                  const avatarColor = GROUP_COLORS[i % GROUP_COLORS.length];
 
                   return (
                     <div key={r.personId} className="grid gap-3 items-center py-[13px] px-[22px]" style={{ gridTemplateColumns: "1.9fr 1.7fr 1fr 1fr", borderBottom: i < roster.length - 1 ? "1px solid #F2F4F7" : "none" }}>
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white text-[13.5px] font-bold" style={{ background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>
+                        <span className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white text-[13.5px] font-bold" style={{ background: avatarColor }}>
                           {initials(r.name)}
                         </span>
                         <div className="min-w-0">
@@ -549,12 +598,9 @@ export default function OdevNotuPage() {
               <div className="flex items-center justify-between gap-4 py-4 px-[22px] border-t border-[#EEF0F3] bg-[#FBFCFD] flex-wrap">
                 <div className="text-[12.5px] text-[#6F7B87] font-semibold">{girilenSayisi} / {roster.length} öğrenci değerlendirildi</div>
                 <div className="flex items-center gap-2.5">
-                  <button
-                    onClick={() => toast.info("Bu özellik yakında.")}
-                    className="py-[11px] px-[18px] rounded-[11px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-bold cursor-pointer hover:bg-[#F7F8FA] transition-colors"
-                  >
-                    Taslak Kaydet
-                  </button>
+                  {/* "Taslak Kaydet" kaldırıldı (2026-07-11 kullanıcı kararı: hiç işlevi
+                      yoktu, sadece "yakında" toast'ı gösteriyordu — "saçma") — tek gerçek
+                      aksiyon "Notları Kaydet". */}
                   <button
                     onClick={saveGrades}
                     disabled={savingGrades || activeAssignmentId?.startsWith("dummy-")}

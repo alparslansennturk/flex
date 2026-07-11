@@ -6,6 +6,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { firestoreCaseRepo } from "@/app/lib/server/case-repo.firestore";
 import { firestoreActivityRepo } from "@/app/lib/server/activity-repo.firestore";
 import { updateCase, type UpdateCaseInput } from "@/app/lib/domain/services/case-service";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * GET /api/flexos/cases/[id] — tekil talep + aktivite zaman çizelgesi.
@@ -38,7 +39,9 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   const { id } = await ctx.params;
 
   try {
-    const updated = await updateCase((await actorFromCaller(caller)), id, body, firestoreCaseRepo);
+    const actor = await actorFromCaller(caller);
+    const updated = await updateCase(actor, id, body, firestoreCaseRepo);
+    broadcast(actor.tenantId, { type: "activities.changed", id: updated.id });
     return NextResponse.json({ id: updated.id, status: updated.status });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

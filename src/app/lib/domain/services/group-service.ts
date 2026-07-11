@@ -98,7 +98,11 @@ export async function createGroup(
     branch: input.branch,
     status: input.status ?? "planned",
     type: input.type,
-    trainerId: input.trainerId ?? actor.uid,
+    // trainerId eğitmen kadrosu docId'sidir (actor.uid DEĞİL) — bkz. Actor.trainerId
+    // yorumu. Kadroya kaydı olmayan eğitmen (actor.trainerId undefined) için actor.uid'e
+    // düşülür (eski davranış) — kendi can()/liste sorgularıyla tutarlı kalır (ikisi de
+    // aynı fallback'i kullanır).
+    trainerId: input.trainerId ?? actor.trainerId ?? actor.uid,
     branchOfficeId: input.branchOfficeId,
     schedule: {
       startDate: s.startDate,
@@ -150,6 +154,21 @@ export async function updateGroupStatus(
     if (!hasActiveStudent) {
       throw new ValidationError("Önce gruba öğrenci ekleyiniz.");
     }
+  }
+
+  // Grup "tamamlandı"ya alınınca içindeki aktif kayıtlar OTOMATİK mezun olur — insan
+  // eylemi (Bitir butonu) tetikliyor, tarih/cron bazlı otomatik mezuniyet YOK (o karar
+  // hâlâ geçerli). 2026-07-11: kullanıcı canlı testte "Grup 296/330 bitmiş ama içindeki
+  // kayıtlar hâlâ active görünüyor" bulgusuyla istedi — önceden bu adım UNUTULMUŞTU,
+  // sadece "Mezun Et" ile TEK tek elle yapılıyordu (bkz. GRP-550, kullanıcı elle yaptı).
+  if (status === "completed" && group.status !== "completed" && deps.enrollments) {
+    const enrollments = await deps.enrollments.listByGroup(groupId, actor.tenantId);
+    const ts = nowISO();
+    await Promise.all(
+      enrollments
+        .filter((e) => e.status === "active")
+        .map((e) => deps.enrollments!.save({ ...e, status: "completed", updatedAt: ts, updatedBy: actor.uid })),
+    );
   }
 
   const updated: Group = { ...group, status, updatedAt: nowISO(), updatedBy: actor.uid };

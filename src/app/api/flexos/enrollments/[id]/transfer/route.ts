@@ -7,6 +7,7 @@ import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestoreSettingsRepo } from "@/app/lib/server/settings-repo.firestore";
 import { transferEnrollment } from "@/app/lib/domain/services/enrollment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * POST /api/flexos/enrollments/[id]/transfer — bir kaydı başka bir gruba "taşır".
@@ -32,8 +33,9 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   }
 
   try {
+    const actor = await actorFromCaller(caller);
     const { closedEnrollment, newEnrollment, sale } = await transferEnrollment(
-      await actorFromCaller(caller),
+      actor,
       { enrollmentId: id, toGroupId: body.toGroupId, closeAs: body.closeAs },
       {
         enrollments: firestoreEnrollmentRepo,
@@ -42,6 +44,8 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
         settings: firestoreSettingsRepo,
       },
     );
+    broadcast(actor.tenantId, { type: "students.changed", id: newEnrollment.id });
+    broadcast(actor.tenantId, { type: "sales.changed", id: sale.id });
     return NextResponse.json({
       closedEnrollmentId: closedEnrollment.id,
       newEnrollmentId: newEnrollment.id,

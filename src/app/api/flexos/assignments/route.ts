@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
-import { can, widestScope } from "@/app/lib/domain/access/can";
+import { can, widestScope, ownerMatches } from "@/app/lib/domain/access/can";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAssignmentTemplateRepo } from "@/app/lib/server/assignment-template-repo.firestore";
@@ -24,7 +24,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
 
   try {
     let items = await firestoreAssignmentRepo.list(actor.tenantId, groupId);
-    if (!isOrgScope) items = items.filter((a) => a.trainerId === actor.uid);
+    if (!isOrgScope) items = items.filter((a) => ownerMatches(actor, a.trainerId));
     return NextResponse.json({ items });
   } catch (e) {
     console.error("[flexos/assignments GET] hata:", e);

@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreEducationRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { createEducation, type CreateEducationInput } from "@/app/lib/domain/services/catalog-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /** POST /api/flexos/educations — eğitim oluştur (gated `education.create`). */
 export const POST = withAuth(async (req: NextRequest, caller) => {
@@ -11,7 +12,9 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   try { body = (await req.json()) as CreateEducationInput; }
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
   try {
-    const education = await createEducation((await actorFromCaller(caller)), body, firestoreEducationRepo);
+    const actor = await actorFromCaller(caller);
+    const education = await createEducation(actor, body, firestoreEducationRepo);
+    broadcast(actor.tenantId, { type: "educations.changed", id: education.id });
     return NextResponse.json({ id: education.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

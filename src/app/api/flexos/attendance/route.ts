@@ -6,6 +6,7 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAttendanceRepo } from "@/app/lib/server/attendance-repo.firestore";
 import { startLesson, isWithinEditWindow, type StartLessonInput } from "@/app/lib/domain/services/attendance-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * POST /api/flexos/attendance — Dersi Başlat (boş yoklama kaydı açar).
@@ -26,6 +27,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       groups: firestoreGroupRepo,
       attendance: firestoreAttendanceRepo,
     });
+    broadcast(actor.tenantId, { type: "attendance.changed", id: record.id });
     return NextResponse.json({ id: record.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

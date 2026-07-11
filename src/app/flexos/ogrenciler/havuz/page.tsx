@@ -28,6 +28,7 @@ import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
 import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
+import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 // ── Durum & Branş sözlükleri (tasarımdan) ────────────────────────────────────
 type StatusKey =
@@ -269,6 +270,10 @@ export default function OgrenciHavuzuPage() {
     })();
     return () => ac.abort();
   }, [router, loadStudents]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı öğrenci ekleyip/kaydını
+  // değiştirdiğinde (satış, transfer, mezuniyet dahil) SSE üzerinden haber alınır.
+  useRealtimeSync(["students.changed", "sales.changed"], useCallback(() => { void loadStudents(); }, [loadStudents]));
 
   // ── Gruba Ata: modal aç + kişinin TÜM grupsuz eğitimlerinin (paket satışıysa birden
   //    fazla olabilir — Grafik Tasarım + Dijital Pazarlama + Video gibi) gruplarını TEK

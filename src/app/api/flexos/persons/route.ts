@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
-import { can, widestScope } from "@/app/lib/domain/access/can";
+import { can, widestScope, ownerMatches } from "@/app/lib/domain/access/can";
 import { adminAuth, adminDb } from "@/app/lib/firebase-admin";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
@@ -14,6 +14,7 @@ import { createPerson, type CreatePersonInput } from "@/app/lib/domain/services/
 import { derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 import type { Person } from "@/app/lib/domain/core/person";
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
 import type { Payment } from "@/app/lib/domain/eduos/payment";
@@ -81,7 +82,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       ? persons
       : persons.filter((p) =>
           (enrollByPerson.get(p.id) ?? []).some(
-            (enr) => enr.groupId && groupMap.get(enr.groupId)?.trainerId === actor.uid,
+            (enr) => enr.groupId && ownerMatches(actor, groupMap.get(enr.groupId)?.trainerId),
           ),
         );
 
@@ -117,7 +118,15 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
       // branş listesi (enrollment → education → branch)
       const branchNames = new Set<string>();
-      const groupList: Array<{ label: string; branch: string; educationName: string; groupId: string; enrollmentId: string }> = [];
+      // `status` (enrollment.status, GRUBA ÖZEL) — bir kişi A grubunda "completed"
+      // (mezun), B grubunda "active" olabilir (bkz. enrollment.ts EnrollmentStatus
+      // yorumu: "durum üyeliğe ait, kişiye değil"). `derivePoolStatus` (aşağıda) TÜM
+      // enrollment'ları birleştirip TEK bir kişi-seviyeli özet üretir (Havuz listesi
+      // için uygun) — ama grup-bazlı görünümlerde (EgitmenSiniflarPanel "Mevcut Grup")
+      // bu özeti kullanmak yanlış: 550'den 784'e taşınan biri 784'te "aktif" olduğu için
+      // özet "aktif" döner, 550'deki asıl "mezun" durumunu gizler. groupList'e status
+      // eklenip client'ta grup-özel gösterim için kullanılıyor (2026-07-11 bulgusu).
+      const groupList: Array<{ label: string; branch: string; educationName: string; groupId: string; enrollmentId: string; status: string }> = [];
       const officeNames = new Set<string>(); // şube = öğrencinin gruplarından türetilir
 
       const educationList: Array<{ educationId: string; name: string; status: string }> = [];
@@ -137,6 +146,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
             educationName: edu?.name ?? "",
             groupId: enr.groupId,
             enrollmentId: enr.id,
+            status: enr.status,
           });
           const office = officeName(grp?.branchOfficeId);
           if (office) officeNames.add(office);
@@ -249,6 +259,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
   try {
     const result = await createPerson(actor, body, firestorePersonRepo);
+    broadcast(actor.tenantId, { type: "students.changed", id: result.person.id });
     return NextResponse.json(
       { id: result.person.id, piiDropped: result.piiDropped },
       { status: 201 },

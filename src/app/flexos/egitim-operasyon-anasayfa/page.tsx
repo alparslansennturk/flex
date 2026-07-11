@@ -18,6 +18,7 @@ import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
 
 // ── types (API şekilleri) ──
 interface GroupSchedule {
@@ -191,46 +192,10 @@ export default function EgitimOperasyonAnasayfaPage() {
     }
   }, [authHeaders]);
 
-  // Operasyon Akışı — haber sitesi gibi: yeni aktivite gelince liste kaymadan (framer-motion
-  // `layout`) en üste eklenir. GERÇEK polling — sahte/otomatik "yeni geldi" simülasyonu yok,
-  // sadece belirli aralıkla `/api/flexos/activities` tekrar çekilip id bazlı fark alınıyor.
-  // Sekme arka plandaysa (başka sekme/minimize) durur — açık unutulan sekmeler Firestore
-  // okumaya devam etmesin diye (bkz. 2026-07-04 Firestore kota notu).
-  useEffect(() => {
-    if (!initialLoadDone) return;
-
-    const poll = async () => {
-      try {
-        const headers = await authHeaders();
-        const res = await fetch("/api/flexos/activities", { headers });
-        if (!res.ok) return;
-        const items = ((await res.json()).items ?? []) as ActivityItem[];
-        setActivities(items);
-      } catch { /* sessizce atla, bir sonraki turda tekrar dener */ }
-    };
-
-    let interval: ReturnType<typeof setInterval> | null = null;
-    const start = () => {
-      if (interval) return;
-      interval = setInterval(poll, 60000);
-    };
-    const stop = () => {
-      if (!interval) return;
-      clearInterval(interval);
-      interval = null;
-    };
-    const onVisibilityChange = () => {
-      if (document.hidden) stop();
-      else { poll(); start(); }
-    };
-
-    if (!document.hidden) start();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [initialLoadDone, authHeaders]);
+  // 2026-07-11 — polling mimarisi TAMAMEN kaldırıldı. Aktiviteler `loadAll` ile sayfa
+  // açılışında TEK SEFER çekiliyor (yukarıda). Bu sayfada aktivite mutasyonu (checkbox
+  // onay vb.) yapılmıyor — o Aktivite Merkezi'nde; oraya gidip dönmek zaten (Next.js
+  // dinamik sayfa cache'i yok) taze veriyle yeniden mount olur. Zamanlayıcıya gerek yok.
 
   useEffect(() => {
     const ac = new AbortController();
@@ -242,6 +207,15 @@ export default function EgitimOperasyonAnasayfaPage() {
     })();
     return () => ac.abort();
   }, [router, loadAll]);
+
+  // 2026-07-11/12 — bu sayfa operasyonun MERKEZ ekranı: grup/eğitmen/eğitim kataloğu
+  // doğrudan bu sayfanın kendi verisi (groups/branches/trainers); satış/not/yoklama/
+  // öğrenci ise "Operasyon Akışı" aktivite şeridini besliyor. Herhangi biri değiştiğinde
+  // SSE üzerinden haber alınır, `loadAll` tekrar çağrılır — ayrı fetch/cache katmanı yok.
+  useRealtimeSync(
+    ["groups.changed", "trainers.changed", "educations.changed", "students.changed", "sales.changed", "grades.changed", "attendance.changed", "activities.changed"],
+    useCallback(() => { void loadAll(); }, [loadAll]),
+  );
 
   // ── branş renk paleti — donut ile Yaklaşan Sınıflar arasında tutarlı ──
   const branchColor = useMemo(() => {

@@ -12,12 +12,13 @@
  * görür (GET /groups zaten scope'lu), İptal her zaman "—" kalır (aggregate uca erişemez).
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart2, ChevronDown, CalendarDays, CheckCircle2, XCircle, TrendingUp, Search,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { useCapabilities } from "@/app/flexos/_components/useCapabilities";
+import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
 import type { GroupApiItem } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import type { Attendance } from "@/app/lib/domain/core/attendance";
 
@@ -161,51 +162,55 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
   const monthOptions = getMonthOptions();
 
   // ── Statik veriler (branş/eğitmen/tatil/eğitim-saati/gruplar) ──
-  useEffect(() => {
-    (async () => {
-      const headers = await authHeaders();
-      try {
-        const bRes = await fetch("/api/flexos/branches", { headers, cache: "no-store" });
-        const bJson = bRes.ok ? await bRes.json() : { items: [] };
-        setBranches((bJson.items ?? []).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
-      } catch { /* sessiz */ }
+  const loadStaticData = useCallback(async () => {
+    const headers = await authHeaders();
+    try {
+      const bRes = await fetch("/api/flexos/branches", { headers, cache: "no-store" });
+      const bJson = bRes.ok ? await bRes.json() : { items: [] };
+      setBranches((bJson.items ?? []).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
+    } catch { /* sessiz */ }
 
-      if (isOrgWide) {
-        try {
-          const tRes = await fetch("/api/flexos/trainers", { headers, cache: "no-store" });
-          const tJson = tRes.ok ? await tRes.json() : { items: [] };
-          setTrainers((tJson.items ?? []).map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
-        } catch { /* sessiz */ }
-      }
-
+    if (isOrgWide) {
       try {
-        const hRes = await fetch("/api/flexos/holidays", { headers, cache: "no-store" });
-        const hJson = hRes.ok ? await hRes.json() : { items: [] };
-        const dates = new Set<string>();
-        (hJson.items ?? []).forEach((h: { startDate: string; endDate: string }) => {
-          const cur = new Date(h.startDate + "T12:00:00");
-          const end = new Date(h.endDate + "T12:00:00");
-          while (cur <= end) { dates.add(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
-        });
-        setHolidayDates(dates);
+        const tRes = await fetch("/api/flexos/trainers", { headers, cache: "no-store" });
+        const tJson = tRes.ok ? await tRes.json() : { items: [] };
+        setTrainers((tJson.items ?? []).map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
       } catch { /* sessiz */ }
+    }
 
-      try {
-        const eRes = await fetch("/api/flexos/educations", { headers, cache: "no-store" });
-        const eJson = eRes.ok ? await eRes.json() : { items: [] };
-        const map: Record<string, number> = {};
-        (eJson.items ?? []).forEach((e: { id: string; totalHours?: number }) => { if (e.totalHours) map[e.id] = e.totalHours; });
-        setEduTotalHours(map);
-      } catch { /* sessiz */ }
+    try {
+      const hRes = await fetch("/api/flexos/holidays", { headers, cache: "no-store" });
+      const hJson = hRes.ok ? await hRes.json() : { items: [] };
+      const dates = new Set<string>();
+      (hJson.items ?? []).forEach((h: { startDate: string; endDate: string }) => {
+        const cur = new Date(h.startDate + "T12:00:00");
+        const end = new Date(h.endDate + "T12:00:00");
+        while (cur <= end) { dates.add(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+      });
+      setHolidayDates(dates);
+    } catch { /* sessiz */ }
 
-      try {
-        const gRes = await fetch("/api/flexos/groups", { headers, cache: "no-store" });
-        const gJson = gRes.ok ? await gRes.json() : { items: [] };
-        setGroups(gJson.items ?? []);
-      } catch { /* sessiz */ }
-      setGroupsLoaded(true);
-    })();
+    try {
+      const eRes = await fetch("/api/flexos/educations", { headers, cache: "no-store" });
+      const eJson = eRes.ok ? await eRes.json() : { items: [] };
+      const map: Record<string, number> = {};
+      (eJson.items ?? []).forEach((e: { id: string; totalHours?: number }) => { if (e.totalHours) map[e.id] = e.totalHours; });
+      setEduTotalHours(map);
+    } catch { /* sessiz */ }
+
+    try {
+      const gRes = await fetch("/api/flexos/groups", { headers, cache: "no-store" });
+      const gJson = gRes.ok ? await gRes.json() : { items: [] };
+      setGroups(gJson.items ?? []);
+    } catch { /* sessiz */ }
+    setGroupsLoaded(true);
   }, [isOrgWide]);
+
+  useEffect(() => { void loadStaticData(); }, [loadStaticData]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: grup/eğitmen/eğitim kataloğu değiştiğinde SSE
+  // üzerinden haber alınır, statik veri tekrar çekilir.
+  useRealtimeSync(["groups.changed", "trainers.changed", "educations.changed"], loadStaticData);
 
   // ── Grup durumu → "kapalı" (Tamamlandı/İptal) mı "aktif" mi ──
   const isClosedGroup = (g: GroupApiItem) => g.status === "completed" || g.status === "archived" || g.status === "cancelled";

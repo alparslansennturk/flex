@@ -15,8 +15,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
 import FlexLogo from "@/app/components/ui/FlexLogo";
-import { getViewMode, setViewMode, type ViewMode } from "./viewMode";
 import ViewPinModal from "./ViewPinModal";
+
+/**
+ * Core/Full — SADECE `/api/flexos/me`'nin `mode` alanından okunur (bkz. o route'taki
+ * yorum). 2026-07-11 öncesi burada localStorage tabanlı ayrı bir kaynak vardı
+ * (`viewMode.ts`, silindi) — sunucudaki gerçek moddan bağımsız kayabiliyordu (ör.
+ * admin'e dönünce sidebar hâlâ eğitmen sanıp Sistem Ayarları'nı gizliyordu).
+ */
+type ViewMode = "core" | "full";
 
 // Sayfa değişince FlexSidebar yeniden mount olur (paylaşımlı layout yok) — capability
 // listesini modül-seviyesinde önbelleğe alarak her navigasyonda "menü boşal-dolsun"
@@ -82,6 +89,14 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const [caps, setCaps] = useState<Set<string>>(() => capsCache ?? new Set());
   const [mode, setMode] = useState<ViewMode>("full");
   const [pinOpen, setPinOpen] = useState(false);
+  // Sistem-geneli "Eğitmen Tek Başına" (standaloneMode) — Kişisel Görünüm Modu'ndan
+  // (mode/Core-Full) TAMAMEN AYRI. 2026-07-11 kullanıcı bulgusu: standalone açıkken bile
+  // admin/Full sidebar'da Satışlar/Aktivite Merkezi/Öğrenciler görünüyordu, çünkü hiçbir
+  // yerde standaloneMode kontrol edilmiyordu — sadece "egitmen" paketinin kendi grant'lerini
+  // etkiliyordu (resolvePackages), admin/satis/operasyon paketlerini hiç etkilemiyordu.
+  // Standalone = tek-eğitmenlik/classroom kurulumu; satış/aktivite katmanı HERKES için
+  // (admin dahil) anlamsız, o yüzden burada sidebar seviyesinde ayrıca gizleniyor.
+  const [standaloneMode, setStandaloneMode] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,15 +105,22 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       const user = auth.currentUser;
       if (!user || cancelled) return;
       setUid(user.uid);
-      setMode(getViewMode(user.uid));
       try {
         const token = await user.getIdToken();
-        const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-        if (res.ok && !cancelled) {
-          const json = await res.json();
+        const [meRes, settingsRes] = await Promise.all([
+          fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+          fetch("/api/flexos/settings", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        ]);
+        if (meRes.ok && !cancelled) {
+          const json = await meRes.json();
           const next = new Set<string>(json.capabilities ?? []);
           capsCache = next;
           setCaps(next);
+          setMode(json.mode === "core" ? "core" : "full");
+        }
+        if (settingsRes.ok && !cancelled) {
+          const json = await settingsRes.json();
+          setStandaloneMode(!!json.standaloneMode);
         }
       } catch {
         // sessiz — menüde kapılı öğeler gizli kalır, sayfa fonksiyonelliğini etkilemez
@@ -119,31 +141,46 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
     try {
       const user = auth.currentUser;
       const token = user ? await user.getIdToken() : "";
-      await fetch("/api/flexos/view-access/mode", {
+      const res = await fetch("/api/flexos/view-access/mode", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ mode: next }),
       });
+      // 2026-07-11: POST başarısızsa artık SESSİZCE yutup yine de navigate ETMİYORUZ —
+      // önceki davranış sunucu tarafını değiştirmeden client'ı "değişti" sanan bir sayfaya
+      // götürüyordu, sonraki hard-reload'larda bile eski moda takılı kalınabiliyordu
+      // (gerçek bir "stuck in core mode" vakasının kök nedeniydi). Şimdi hata görünür.
+      if (!res.ok) {
+        toast.error("Görünüm değiştirilemedi, tekrar dener misin?");
+        return;
+      }
     } catch {
-      // sessiz — en kötü ihtimalle bir sonraki istekte kendini düzeltir
-    } finally {
-      window.location.href = next === "core" ? "/flexos/egitmen-anasayfa" : "/flexos/anasayfa";
+      toast.error("Görünüm değiştirilemedi (bağlantı hatası), tekrar dener misin?");
+      return;
     }
+    toast.success(next === "core" ? "Görünüm: Eğitmen" : "Görünüm: Full");
+    window.location.href = next === "core" ? "/flexos/egitmen-anasayfa" : "/flexos/anasayfa";
   };
 
-  // Gizli kısayol — Ctrl/Cmd+Alt+M. Owner değilse tamamen no-op (sıfır iz).
-  // NOT: Sırasıyla Ctrl+Shift+M (Chrome profil değiştirme) ve Ctrl+Shift+K
-  // (arka planda çalışan başka bir uygulamanın global kısayolu — teşhis logunda
-  // "k" tuşu tarayıcıya hiç ulaşmıyordu) ile çakıştı. 2026-07-02: Ctrl+Alt+M'ye
-  // geçildi ve doğrulandı (kullanıcı talebi + tarayıcıda test edildi).
+  // Gizli kısayol — Ctrl/Cmd+Alt+T (platformun kendi doğal modifier'ı: Mac'te Cmd,
+  // PC'de Ctrl). Owner değilse tamamen no-op (sıfır iz).
+  // NOT: Sırasıyla Ctrl+Shift+M (Chrome profil değiştirme), Ctrl+Shift+K (arka
+  // planda çalışan başka bir uygulamanın global kısayolu) ve Ctrl/Cmd+Alt+M
+  // (Mac'te Cmd+Option+M = macOS'un native "Tüm Pencereleri Küçült" kısayolu,
+  // OS seviyesinde yakalanıyor, tarayıcıya hiç ulaşmıyor) ile çakıştı.
+  // 2026-07-11: harf M'den T'ye değişti (Cmd+Option+T bilinen bir OS/tarayıcı
+  // kısayolu değil). PC'de Ctrl+Alt+T'nin boş olduğu doğrulanmalı (Linux'ta
+  // GNOME Terminal kısayolu ama Windows'ta varsayılan değil).
+  // 2026-07-11 (devam): e.key DEĞİL e.code kullanılıyor — macOS'ta Option basılıyken
+  // e.key harf yerine özel karakter üretir (Option+T → "†" gibi, klavye düzenine
+  // göre değişir), bu yüzden "t" karşılaştırması Mac'te hiç eşleşmiyordu. e.code
+  // fiziksel tuş konumunu verir (modifier/klavye düzeninden bağımsız, "KeyT").
   useEffect(() => {
     if (!canToggleView) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (!((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === "m")) return;
+      if (!((e.ctrlKey || e.metaKey) && e.altKey && e.code === "KeyT")) return;
       e.preventDefault();
       if (mode === "full") {
-        if (uid) setViewMode(uid, "core");
-        toast.info("Görünüm: Eğitmen");
         void persistModeAndReload("core");
       } else {
         setPinOpen(true);
@@ -154,9 +191,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   }, [canToggleView, mode, uid, caps]);
 
   const onPinVerified = () => {
-    if (uid) setViewMode(uid, "full");
     setPinOpen(false);
-    toast.success("Görünüm: Full");
     void persistModeAndReload("full");
   };
 
@@ -240,8 +275,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Satışlar — akordiyon ana başlık. Enterprise: sadece Full. Her alt-menü KENDİ
             capability'siyle ayrı gated (2026-07-10 kullanıcı kararı) — bir role Satış
             Yap kapalı, Satış Listesi açık şeklinde tanımlanabilsin diye. Ana başlık
-            alt menülerden EN AZ BİRİ varsa görünür. */}
-        {(canSee("sale.create", false) || canSee("sale.read", false) || canSee("bundle.read", false) || canSee("campaign.read", false)) && (
+            alt menülerden EN AZ BİRİ varsa görünür. Standalone'da (2026-07-11) admin
+            dahil KİMSE görmez — Satış katmanı standalone kurulumda anlamsız. */}
+        {!standaloneMode && (canSee("sale.create", false) || canSee("sale.read", false) || canSee("bundle.read", false) || canSee("campaign.read", false)) && (
           <>
             <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={() => { setSalesOpen((o) => !o); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
               <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
@@ -280,8 +316,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             bölümünden ekler/görür. `person.read` eğitmen paketinde (hiçbir modda) yok.
             ÖNCEDEN `sale.read`'e bağlıydı (2026-07-10 düzeltme: Eğitim Koordinatörü'nün
             satış modülü yok ama kayıt/grup atama işi öğrenci havuzundan yapılıyor —
-            `person.read` her ofis rolünde ortak, doğru gate bu). */}
-        {canSee("person.read", false) && <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />}
+            `person.read` her ofis rolünde ortak, doğru gate bu). Standalone'da (2026-07-11
+            kullanıcı kararı) ayrı bir Öğrenci Havuzu YOK — öğrenci listesi Sınıflar'ın
+            içinde (Classroom mantığı), admin dahil kimse bu linki görmez. */}
+        {!standaloneMode && canSee("person.read", false) && <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />}
         {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür. */}
         {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
 
@@ -363,8 +401,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
-        {/* Aktivite Merkezi — akordiyon. Enterprise: sadece Full. */}
-        {canSee("case.read", false) && (
+        {/* Aktivite Merkezi — akordiyon. Enterprise: sadece Full. Standalone'da (2026-07-11)
+            admin dahil kimse görmez — Satış/Op pipeline'ı standalone'da yok. */}
+        {!standaloneMode && canSee("case.read", false) && (
           <>
             <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={() => { setAktiviteOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
               <span style={{ display: "inline-flex", color: aktiviteActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.activity }} />
@@ -468,9 +507,15 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       </nav>
 
       {/* ALT BÖLÜM — canlıdaki "Yönetim Paneli + Çıkış" deseniyle aynı: admin-only tek link
-          (Sistem Ayarları) + ayraç + Çıkış. */}
+          (Sistem Ayarları) + ayraç + Çıkış.
+          2026-07-11 kullanıcı isteği: Core'dayken (Görünüm Anahtarı sahibi eğitmen paketine
+          düşünce role.manage'i kaybeder) Sistem Ayarları hiç görünmüyordu — sayfanın kendisi
+          artık view.toggle sahibi için Core'da da açılıyor (bkz. sistem-ayarlari/page.tsx
+          `allowed` gate'i + kendi içindeki "Görünüm Modu" switch'i), o yüzden link HER ZAMAN
+          gerçek sayfaya gider (PIN'e sarmalamaya gerek yok, sayfa kendi PIN akışını içeriyor).
+          Gerçek eğitmen (view.toggle'ı olmayan) bu linki hiç görmez. */}
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-        {caps.has("role.manage") && (
+        {(caps.has("role.manage") || canToggleView) && (
           <>
             <Item icon={IC.settings} label="Sistem Ayarları" active={active === "sistem-ayarlari"} onClick={go("/flexos/sistem-ayarlari")} />
             <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />

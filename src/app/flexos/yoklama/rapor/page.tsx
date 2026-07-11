@@ -30,6 +30,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import AttendanceCore from "../_shared/AttendanceCore";
+import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -248,44 +249,49 @@ function ReportContent() {
   const [selectedGroupHistory, setSelectedGroupHistory] = useState<GroupItem | null>(null);
   const [selectedSession, setSelectedSession] = useState<HistorySession | null>(null);
 
-  // ── Temel veriler (grup/branş/tatil) — bir kez ──
-  useEffect(() => {
-    (async () => {
-      const headers = await authHeaders();
-      const [gRes, bRes, hRes] = await Promise.all([
-        fetch("/api/flexos/groups", { headers }),
-        fetch("/api/flexos/branches", { headers }),
-        fetch("/api/flexos/holidays", { headers }),
-      ]);
-      if (gRes.ok) { const j = await gRes.json(); setGroups((j.items ?? []).filter((g: { status: string }) => g.status !== "archived")); }
-      if (bRes.ok) { const j = await bRes.json(); setBranches(j.items ?? []); }
-      if (hRes.ok) {
-        const j = await hRes.json();
-        const dates = new Set<string>();
-        for (const item of (j.items ?? []) as { startDate: string; endDate: string }[]) {
-          const cur = new Date(`${item.startDate}T12:00:00`);
-          const end = new Date(`${item.endDate}T12:00:00`);
-          while (cur <= end) { dates.add(toLocalDateStr(cur)); cur.setDate(cur.getDate() + 1); }
-        }
-        setHolidayDates(dates);
+  // ── Temel veriler (grup/branş/tatil) ──
+  const loadBaseData = useCallback(async () => {
+    const headers = await authHeaders();
+    const [gRes, bRes, hRes] = await Promise.all([
+      fetch("/api/flexos/groups", { headers }),
+      fetch("/api/flexos/branches", { headers }),
+      fetch("/api/flexos/holidays", { headers }),
+    ]);
+    if (gRes.ok) { const j = await gRes.json(); setGroups((j.items ?? []).filter((g: { status: string }) => g.status !== "archived")); }
+    if (bRes.ok) { const j = await bRes.json(); setBranches(j.items ?? []); }
+    if (hRes.ok) {
+      const j = await hRes.json();
+      const dates = new Set<string>();
+      for (const item of (j.items ?? []) as { startDate: string; endDate: string }[]) {
+        const cur = new Date(`${item.startDate}T12:00:00`);
+        const end = new Date(`${item.endDate}T12:00:00`);
+        while (cur <= end) { dates.add(toLocalDateStr(cur)); cur.setDate(cur.getDate() + 1); }
       }
-    })();
+      setHolidayDates(dates);
+    }
   }, []);
 
+  useEffect(() => { void loadBaseData(); }, [loadBaseData]);
+
   // ── Rapor verisi (tarih aralığı değişince) ──
-  useEffect(() => {
+  const loadReport = useCallback(async () => {
     setLoading(true);
-    (async () => {
-      const headers = await authHeaders();
-      const [rRes, eRes] = await Promise.all([
-        fetch(`/api/flexos/attendance/report?from=${searchFrom}&to=${searchTo}`, { headers }),
-        fetch(`/api/flexos/lesson-exceptions?from=${searchFrom}&to=${searchTo}`, { headers }),
-      ]);
-      setRecords(rRes.ok ? (await rRes.json()).items ?? [] : []);
-      setExceptions(eRes.ok ? (await eRes.json()).items ?? [] : []);
-      setLoading(false);
-    })();
+    const headers = await authHeaders();
+    const [rRes, eRes] = await Promise.all([
+      fetch(`/api/flexos/attendance/report?from=${searchFrom}&to=${searchTo}`, { headers }),
+      fetch(`/api/flexos/lesson-exceptions?from=${searchFrom}&to=${searchTo}`, { headers }),
+    ]);
+    setRecords(rRes.ok ? (await rRes.json()).items ?? [] : []);
+    setExceptions(eRes.ok ? (await eRes.json()).items ?? [] : []);
+    setLoading(false);
   }, [searchFrom, searchTo]);
+
+  useEffect(() => { void loadReport(); }, [loadReport]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı yoklama girdiğinde/grup
+  // değiştiğinde SSE üzerinden haber alınır, ilgili veri tekrar çekilir.
+  useRealtimeSync(["groups.changed", "educations.changed"], loadBaseData);
+  useRealtimeSync(["attendance.changed"], loadReport);
 
   // ── Eğitmen bazlı satırlar (client-side aggregate) ──
   const rows = useMemo<InstructorRow[]>(() => {

@@ -169,6 +169,12 @@ export async function assignToGroup(
     throw new ForbiddenError("group.assign_student");
   }
 
+  // Kapanmış gruba (tamamlandı/iptal) yeni öğrenci eklenemez — 2026-07-11 kullanıcı
+  // bulgusu: bitmiş bir gruba öğrenci eklemek anlamsız (yoklama/ödev akışı zaten kapalı).
+  if (group.status === "completed" || group.status === "archived") {
+    throw new ValidationError("Bu grup tamamlandı/iptal edildi, yeni öğrenci eklenemez.");
+  }
+
   if (enrollment.groupId) {
     throw new ValidationError("Bu kayıt zaten bir gruba bağlı. Grup değiştirmek için aktarım kullanın.");
   }
@@ -288,6 +294,11 @@ export async function transferEnrollment(
   const fromGroup = await deps.groups.getById(enrollment.groupId, actor.tenantId);
   const toGroup = await deps.groups.getById(input.toGroupId, actor.tenantId);
   if (!toGroup) throw new ValidationError("Hedef grup bulunamadı.");
+  // Kapanmış hedef gruba (tamamlandı/iptal) taşınamaz — assignToGroup'taki AYNI kural
+  // (2026-07-11 kullanıcı bulgusu), taşıma da yeni öğrenci eklemenin bir türü.
+  if (toGroup.status === "completed" || toGroup.status === "archived") {
+    throw new ValidationError("Hedef grup tamamlandı/iptal edildi, öğrenci taşınamaz.");
+  }
 
   const duplicate = await deps.enrollments.findActive(enrollment.personId, input.toGroupId, actor.tenantId);
   if (duplicate) throw new ValidationError("Bu öğrenci zaten hedef grupta aktif kayıtlı.");

@@ -7,6 +7,7 @@ export interface BuildActorInput {
   packages: PackageName[];
   groupIds?: string[]; // assigned scope (eğitmenin grupları)
   branchIds?: string[]; // branch scope
+  trainerId?: string; // bkz. Actor.trainerId — Trainer.authUid'den çözülür
   type?: ActorType; // varsayılan "human"
   /** bkz. `ResolvePackagesOptions.standaloneMode` — eğitmen tek-başına anahtarı. */
   standaloneMode?: boolean;
@@ -23,5 +24,6 @@ export function buildActor(input: BuildActorInput): Actor {
     grants: [...resolvePackages(input.packages, { standaloneMode: input.standaloneMode }), ...(input.extraGrants ?? [])],
     groupIds: input.groupIds,
     branchIds: input.branchIds,
+    trainerId: input.trainerId,
   };
 }

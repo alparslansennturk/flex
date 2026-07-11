@@ -26,10 +26,19 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   // scope'ta (global şablon) anlamlı — self scope (kişisel şablon) eğitmene hiç gösterilmez.
   const templateManageScope = widestScope(actor, "template.manage");
   const landing = await resolveLanding(actor.uid, actor.tenantId);
+  // Görünüm Anahtarı sahibi (view.toggle) için TEK doğruluk kaynağından türetilen mod —
+  // 2026-07-11 düzeltmesi öncesi FlexSidebar bunu localStorage'dan AYRI okuyordu
+  // (`viewMode.ts`), sunucudaki gerçek moddan (Firestore + in-process cache) kopabiliyordu
+  // (ör. admin'e dönünce sidebar hâlâ eğitmen sanıyordu — Sistem Ayarları kayboluyordu).
+  // Artık `caps` ile AYNI istekten, tek kaynaktan geliyor — asla birbirinden bağımsız kayamaz.
+  const mode: "core" | "full" = capabilities.includes("view.toggle") && !capabilities.includes("role.manage") ? "core" : "full";
   // no-store: Görünüm Anahtarı sahibi mod değiştirdiğinde (admin↔eğitmen) bu uç
   // ANINDA yeni sonucu vermeli — tarayıcı/ara katman cache'i eski yetkiyi göstermesin.
   return NextResponse.json(
-    { uid: actor.uid, capabilities, templateManageScope, landing },
+    // trainerId: eğitmen kadrosu (`flexos_trainers`) docId'si (uid DEĞİL, bkz. can.ts
+    // ownerMatches yorumu) — client'ın "kendi gruplarım" filtrelerinde `?trainerId=`
+    // olarak kullanması için (raw uid gönderirse Group.trainerId'yle asla eşleşmez).
+    { uid: actor.uid, trainerId: actor.trainerId ?? null, capabilities, templateManageScope, landing, mode },
     { headers: { "Cache-Control": "no-store" } },
   );
 });

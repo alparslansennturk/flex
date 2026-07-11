@@ -6,6 +6,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { createEnrollment, type CreateEnrollmentInput } from "@/app/lib/domain/services/enrollment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * POST /api/flexos/enrollments — kişiyi bir gruba kaydet (gated).
@@ -28,6 +29,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       persons: firestorePersonRepo,
       groups: firestoreGroupRepo,
     });
+    broadcast(actor.tenantId, { type: "students.changed", id: enrollment.id });
     return NextResponse.json({ id: enrollment.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

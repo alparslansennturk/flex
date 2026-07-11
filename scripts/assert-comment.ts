@@ -27,8 +27,8 @@ import { ForbiddenError, ValidationError } from "../src/app/lib/domain/errors";
 const TENANT = "test-tenant";
 const OTHER_TENANT = "other-tenant";
 
-function makeActor(pkg: "egitmen" | "operasyon" | "admin", uid: string, tenantId = TENANT): Actor {
-  return { type: "human", uid, tenantId, grants: resolvePackages([pkg]) };
+function makeActor(pkg: "egitmen" | "operasyon" | "admin", uid: string, tenantId = TENANT, trainerId?: string): Actor {
+  return { type: "human", uid, tenantId, grants: resolvePackages([pkg]), trainerId };
 }
 
 let idCounter = 0;
@@ -97,6 +97,7 @@ function makeTrainerRepo(seed: Trainer[]): TrainerRepo {
     async getById(id, tid) { const t = map.get(id); return t && t.tenantId === tid ? t : null; },
     async list(tid) { return Array.from(map.values()).filter((t) => t.tenantId === tid); },
     async delete(id) { map.delete(id); },
+    async findByAuthUid(authUid, tid) { return Array.from(map.values()).find((t) => t.tenantId === tid && t.authUid === authUid) ?? null; },
   };
 }
 
@@ -134,8 +135,8 @@ function fakePerson(id: string, authUid: string): Person {
 function fakeEnrollment(id: string, personId: string, groupId: string): Enrollment {
   return { id, tenantId: TENANT, personId, groupId, status: "active", createdAt: new Date().toISOString(), createdBy: "seed" };
 }
-function fakeTrainer(id: string, name: string): Trainer {
-  return { id, tenantId: TENANT, name, email: `${id}@test.com`, branchOffices: [], status: "aktif", competencies: {}, createdAt: new Date().toISOString(), createdBy: "seed" };
+function fakeTrainer(id: string, name: string, authUid?: string): Trainer {
+  return { id, tenantId: TENANT, name, email: `${id}@test.com`, branchOffices: [], status: "aktif", competencies: {}, createdAt: new Date().toISOString(), createdBy: "seed", authUid };
 }
 
 let passed = 0, failed = 0;
@@ -159,15 +160,19 @@ function makeDeps(overrides: { groups?: Group[]; assignments?: Assignment[]; per
 async function main() {
   console.log("\n=== Ödev Yorumu (Comment) — Faz 3 Assertions ===\n");
 
-  const trainerA = makeActor("egitmen", "trainer-a");
-  const trainerB = makeActor("egitmen", "trainer-b");
+  // `trainer-a` (actor.uid, Firebase auth uid) KASITLI OLARAK `trainer-doc-a` (eğitmen
+  // kadrosu docId) DEĞİL — ikisi ayrı kimlik uzayı (bkz. can.ts ownerMatches yorumu,
+  // 2026-07-11 düzeltmesi). Actor.trainerId ile çözülüyor, Group/Assignment.trainerId
+  // hep docId taşıyor.
+  const trainerA = makeActor("egitmen", "trainer-a", TENANT, "trainer-doc-a");
+  const trainerB = makeActor("egitmen", "trainer-b", TENANT, "trainer-doc-b");
   const operasyon = makeActor("operasyon", "op-1");
 
-  const groupA = fakeGroup("group-a", "trainer-a");
-  const assignmentA = fakeAssignment("assignment-a", "group-a", "trainer-a");
+  const groupA = fakeGroup("group-a", "trainer-doc-a");
+  const assignmentA = fakeAssignment("assignment-a", "group-a", "trainer-doc-a");
   const student = fakePerson("person-1", "student-uid-1");
   const enrollment = fakeEnrollment("enr-1", "person-1", "group-a");
-  const trainerRecord = fakeTrainer("trainer-a", "Ayşe Hoca");
+  const trainerRecord = fakeTrainer("trainer-doc-a", "Ayşe Hoca", "trainer-a");
 
   // ── postGeneralComment (staff) ──
   {

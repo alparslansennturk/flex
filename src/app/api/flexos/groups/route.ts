@@ -9,6 +9,7 @@ import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { createGroup, type CreateGroupInput } from "@/app/lib/domain/services/group-service";
 import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * POST /api/flexos/groups — yeni grup oluştur (gated `group.create`).
@@ -31,6 +32,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       sections: firestoreSectionRepo,
       tracks: firestoreTrackRepo,
     });
+    broadcast(actor.tenantId, { type: "groups.changed", id: group.id });
     return NextResponse.json({ id: group.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {
@@ -62,7 +64,16 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
 
   const isOrgScope = widestScope(actor, "group.read") === "org";
   const requestedTrainerId = req.nextUrl.searchParams.get("trainerId") ?? undefined;
-  const trainerId = isOrgScope ? requestedTrainerId : actor.uid;
+  // `Group.trainerId` eğitmen kadrosu (`flexos_trainers`) docId'sini taşır, Firebase
+  // auth uid'ini DEĞİL (bkz. actor.trainerId yorumu) — self/assigned filtre bu yüzden
+  // actor.uid değil actor.trainerId kullanır. DİKKAT (2026-07-11 düzeltmesi): kadroya
+  // kaydı olmayan eğitmen için actor.trainerId `undefined` olur — `firestoreGroupRepo.list`
+  // `if (trainerId)` ile falsy'de filtreyi TAMAMEN ATLAR (TÜM tenant'ı döner!), undefined
+  // BURADA "filtresiz" değil "asla eşleşmeyen sahte id" anlamına gelmeli — org-scope
+  // olmayan aktör için asla boş bırakılmaz, gerçek bir kayıt yoksa hiçbir zaman eşleşmeyecek
+  // bir sentinel value kullanılır (org-scope aktör için hâlâ gerçekten filtresiz kalabilir,
+  // "TÜM tenant" istenen davranış).
+  const trainerId = isOrgScope ? requestedTrainerId : (actor.trainerId ?? "__no_trainer_record__");
 
   const [groups, educations, branches, sections, enrollments, trainers] = await Promise.all([
     firestoreGroupRepo.list(actor.tenantId, trainerId),
@@ -78,10 +89,14 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const sectionMap = new Map(sections.map((s) => [s.id, s]));
   const trainerMap = new Map(trainers.map((t) => [t.id, t.name]));
 
-  // grup başına aktif kayıt sayısı (doluluk)
+  // Grup başına öğrenci sayısı (doluluk). `active` + `completed` — roster uç noktasıyla
+  // (groups/[id]/roster/route.ts) AYNI kural: bir grup "tamamlandı"ya alınıp öğrenciler
+  // mezun/completed olunca SADECE `active` sayarsak liste "0 öğrenci" gösterirdi (roster'da
+  // hâlâ görünen mezunlar sayılmazdı) — 2026-07-11'de bulunan gerçek tutarsızlık düzeltildi.
+  // `cancelled` (sınıftan çıkarılan) hâlâ sayılmıyor, bu doğru.
   const enrolledByGroup = new Map<string, number>();
   for (const enr of enrollments) {
-    if (enr.groupId && enr.status === "active") {
+    if (enr.groupId && (enr.status === "active" || enr.status === "completed")) {
       enrolledByGroup.set(enr.groupId, (enrolledByGroup.get(enr.groupId) ?? 0) + 1);
     }
   }

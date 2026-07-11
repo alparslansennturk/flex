@@ -11,6 +11,7 @@ import { firestoreEducationRepo } from "@/app/lib/server/catalog-repo.firestore"
 import { derivePaymentStatus, derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import { deletePerson } from "@/app/lib/domain/services/person-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 import type { PersonPII } from "@/app/lib/domain/core/person";
 
 /** Kapanan/silinen bir hesabın Auth + öksüz canlı `users/{uid}` izini temizler (best-effort). */
@@ -189,6 +190,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
     }
 
     await firestorePersonRepo.update(id, actor.tenantId, updateData);
+    broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[flexos/persons PATCH] hata:", e);
@@ -218,6 +220,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, { params }: { p
       payments: firestorePaymentRepo,
     });
     await cleanupAuthAccount(result.closedAuthUid);
+    broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) {

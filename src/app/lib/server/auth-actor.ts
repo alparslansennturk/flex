@@ -5,6 +5,7 @@ import type { Caller } from "@/app/lib/with-auth";
 import { firestoreSettingsRepo } from "@/app/lib/server/settings-repo.firestore";
 import { firestoreViewModeRepo } from "@/app/lib/server/view-mode-repo.firestore";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
+import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
 import { ALL_PERM_MODULE_KEYS } from "@/app/lib/domain/access/perm-modules";
 import { grantsForPermModules } from "@/app/lib/domain/access/perm-module-capabilities";
@@ -155,13 +156,26 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
     caller.email === VIEW_TOGGLE_OWNER_EMAIL ? [{ capability: "view.toggle", scope: "org" }] : [];
 
   const flexosGrants = await resolveFlexosUserGrants(caller.uid);
+  const packages = packagesForCaller(caller);
+
+  // `Group.trainerId` Firebase auth uid DEĞİL, eğitmen kadrosu (`flexos_trainers`)
+  // docId'sini taşır (bkz. types.ts Actor.trainerId yorumu, 2026-07-11 düzeltmesi).
+  // Sadece eğitmen paketi çözülen aktörler için aranır (gereksiz Firestore okuması
+  // yapılmasın diye) — bulunamazsa (henüz kadroya eklenmemiş eğitmen) undefined kalır,
+  // can()/groups filtresi actor.uid'e düşer (eski davranış, zararsız).
+  let trainerId: string | undefined;
+  if (packages.includes("egitmen")) {
+    const trainer = await firestoreTrainerRepo.findByAuthUid(caller.uid, DEFAULT_TENANT).catch(() => null);
+    trainerId = trainer?.id;
+  }
 
   return buildActor({
     uid: caller.uid,
     tenantId: DEFAULT_TENANT,
-    packages: packagesForCaller(caller),
+    packages,
     groupIds: groupIdsOverride ?? caller.groupIds, // token claim'inden gelir
     standaloneMode: cachedStandaloneMode,
     extraGrants: [...viewToggleGrant, ...flexosGrants],
+    trainerId,
   });
 }

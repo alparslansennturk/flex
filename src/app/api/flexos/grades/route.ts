@@ -9,6 +9,7 @@ import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firest
 import { saveGrades, getGradesByGroup, type SaveGradesInput } from "@/app/lib/domain/services/grade-service";
 import { computeOdevYuzdeleri } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * GET /api/flexos/grades?groupId=... — grubun notlarını getirir (gated `grade.read`).
@@ -54,10 +55,12 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const items = await saveGrades((await actorFromCaller(caller)), body, {
+    const actor = await actorFromCaller(caller);
+    const items = await saveGrades(actor, body, {
       grades: firestoreGradeRepo,
       groups: firestoreGroupRepo,
     });
+    broadcast(actor.tenantId, { type: "grades.changed", id: body.groupId });
     return NextResponse.json({ items }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

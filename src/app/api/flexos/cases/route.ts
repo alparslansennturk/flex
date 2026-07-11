@@ -9,6 +9,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { createCase, type CreateCaseInput } from "@/app/lib/domain/services/case-service";
 import type { CaseChannel, CaseType } from "@/app/lib/domain/crm/case";
 import type { Person } from "@/app/lib/domain/core/person";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * GET /api/flexos/cases — tüm talepler (kişi bilgisi join'li).
@@ -161,6 +162,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       activities: firestoreActivityRepo,
     });
 
+    broadcast(actor.tenantId, { type: "activities.changed", id: result.case.id });
     return NextResponse.json({ id: result.case.id, activityId: result.activity.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

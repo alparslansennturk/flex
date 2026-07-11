@@ -5,6 +5,7 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { updateTrainer, deleteTrainer, type UpdateTrainerInput } from "@/app/lib/domain/services/trainer-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * PATCH /api/flexos/trainers/[id] — eğitmen güncelle (gated `trainer.edit`).
@@ -22,7 +23,9 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   }
 
   try {
-    const result = await updateTrainer((await actorFromCaller(caller)), id, body, firestoreTrainerRepo);
+    const actor = await actorFromCaller(caller);
+    const result = await updateTrainer(actor, id, body, firestoreTrainerRepo);
+    broadcast(actor.tenantId, { type: "trainers.changed", id: result.trainer.id });
     return NextResponse.json({ id: result.trainer.id, rateDropped: result.rateDropped });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -40,7 +43,9 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteTrainer((await actorFromCaller(caller)), id, firestoreTrainerRepo, { groups: firestoreGroupRepo });
+    const actor = await actorFromCaller(caller);
+    await deleteTrainer(actor, id, firestoreTrainerRepo, { groups: firestoreGroupRepo });
+    broadcast(actor.tenantId, { type: "trainers.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

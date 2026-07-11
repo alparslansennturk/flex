@@ -40,6 +40,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { auth } from "@/app/lib/firebase";
 import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
 import { initials, avatarStyle } from "@/app/flexos/siniflar/_shared/groupDisplay";
+import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
 import type { ExceptionReason, ExceptionScope, LessonException } from "@/app/lib/domain/core/lesson-exception";
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
@@ -350,37 +351,41 @@ export default function AttendanceCore({
   };
 
   // ── Groups + tatiller yükle ──────────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
-      const headers = await authHeaders();
-      const [gRes, meRes, hRes] = await Promise.all([
-        fetch("/api/flexos/groups", { headers }),
-        fetch("/api/flexos/me", { headers }),
-        fetch("/api/flexos/holidays", { headers }),
-      ]);
-      if (gRes.ok) {
-        const g = await gRes.json();
-        setGroups((g.items ?? []).filter((it: GroupItem) => it.status !== "archived" && it.status !== "completed"));
-      }
-      if (meRes.ok) {
-        const me = await meRes.json();
-        setIsOrgScope((me.capabilities ?? []).includes("attendance.report.read"));
-      }
-      if (hRes.ok) {
-        const h = await hRes.json();
-        const dates = new Set<string>();
-        for (const item of (h.items ?? []) as { startDate: string; endDate: string }[]) {
-          const cur = new Date(`${item.startDate}T12:00:00`);
-          const end = new Date(`${item.endDate}T12:00:00`);
-          while (cur <= end) {
-            dates.add(toDateKey(cur));
-            cur.setDate(cur.getDate() + 1);
-          }
+  const loadGroupsAndHolidays = useCallback(async () => {
+    const headers = await authHeaders();
+    const [gRes, meRes, hRes] = await Promise.all([
+      fetch("/api/flexos/groups", { headers }),
+      fetch("/api/flexos/me", { headers }),
+      fetch("/api/flexos/holidays", { headers }),
+    ]);
+    if (gRes.ok) {
+      const g = await gRes.json();
+      setGroups((g.items ?? []).filter((it: GroupItem) => it.status !== "archived" && it.status !== "completed"));
+    }
+    if (meRes.ok) {
+      const me = await meRes.json();
+      setIsOrgScope((me.capabilities ?? []).includes("attendance.report.read"));
+    }
+    if (hRes.ok) {
+      const h = await hRes.json();
+      const dates = new Set<string>();
+      for (const item of (h.items ?? []) as { startDate: string; endDate: string }[]) {
+        const cur = new Date(`${item.startDate}T12:00:00`);
+        const end = new Date(`${item.endDate}T12:00:00`);
+        while (cur <= end) {
+          dates.add(toDateKey(cur));
+          cur.setDate(cur.getDate() + 1);
         }
-        setHolidayDates(dates);
       }
-    })();
+      setHolidayDates(dates);
+    }
   }, []);
+
+  useEffect(() => { void loadGroupsAndHolidays(); }, [loadGroupsAndHolidays]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: grup/eğitim kataloğu değiştiğinde SSE üzerinden
+  // haber alınır, grup listesi tekrar çekilir.
+  useRealtimeSync(["groups.changed", "educations.changed"], loadGroupsAndHolidays);
 
   useEffect(() => {
     if (preSelectedGroupId) setSelectedGroupId(preSelectedGroupId);
