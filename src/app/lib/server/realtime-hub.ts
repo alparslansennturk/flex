@@ -19,6 +19,8 @@
  * geçiş yapılabilir.
  */
 
+import { invalidateCache } from "./read-cache";
+
 export type RealtimeEventType =
   | "groups.changed"
   | "students.changed" // person (öğrenci) + enrollment (kayıt/transfer/mezuniyet) mutasyonları
@@ -44,6 +46,21 @@ type Listener = (event: RealtimeEvent) => void;
 
 const subscribersByTenant = new Map<string, Set<Listener>>();
 
+// 2026-07-13 kota fix: sunucu-içi okuma cache'i (read-cache.ts) ile SSE tutarlı kalsın —
+// bir mutasyon broadcast ettiği AN, o event'in etkilediği cache'ler düşürülür. Böylece
+// client refetch'i (aynı event'i dinleyip tetiklenen) bayat değil TAZE veri alır. Tek nokta:
+// her yeni mutasyon route'u ekstra iş yapmadan otomatik doğru davranır.
+function invalidateCachesFor(tenantId: string, type: RealtimeEventType): void {
+  // groups yanıtı: grup + eğitim/branş adı + eğitmen adı + enrollment sayısı join'liyor.
+  if (type === "groups.changed" || type === "students.changed" || type === "educations.changed" || type === "trainers.changed") {
+    invalidateCache(`groups:${tenantId}`);
+  }
+  // persons yanıtı: kişi + enrollment + satış + ödeme + eğitim/branş join'liyor.
+  if (type === "students.changed" || type === "sales.changed" || type === "educations.changed") {
+    invalidateCache(`persons:${tenantId}`);
+  }
+}
+
 /** Yeni bir dinleyici kaydeder, unsubscribe fonksiyonu döner. */
 export function subscribe(tenantId: string, listener: Listener): () => void {
   let set = subscribersByTenant.get(tenantId);
@@ -62,6 +79,7 @@ export function subscribe(tenantId: string, listener: Listener): () => void {
 
 /** Bu tenant'a bağlı TÜM dinleyicilere olayı iletir (bu instance'daki). */
 export function broadcast(tenantId: string, event: RealtimeEvent): void {
+  invalidateCachesFor(tenantId, event.type); // önce sunucu cache'ini düşür — client TAZE çeksin
   const set = subscribersByTenant.get(tenantId);
   if (!set || set.size === 0) return;
   for (const listener of set) listener(event);

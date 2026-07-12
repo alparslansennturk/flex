@@ -10,6 +10,14 @@ import { createGroup, type CreateGroupInput } from "@/app/lib/domain/services/gr
 import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
+
+/** Groups GET yanıtı ağır (6 koleksiyon) ve aynı mount'ta 3× + ~7 ekranda çağrılıyor.
+ *  Grading akışında gruplar/enrollment DEĞİŞMEZ, o yüzden 30s TTL güvenli ve Ana Sayfa'ya
+ *  her dönüşü cache'e denk getirir (notlama 8s'den uzun sürdüğü için kısa TTL yetmezdi).
+ *  Yeni grup `invalidateCache` ile anında görünür; enrollment sayısı en fazla TTL kadar
+ *  gecikmeli yansır (satış/transfer nadir, grading sırasında hiç olmaz). */
+const GROUPS_CACHE_TTL_MS = 30_000;
 
 /**
  * POST /api/flexos/groups — yeni grup oluştur (gated `group.create`).
@@ -32,6 +40,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       sections: firestoreSectionRepo,
       tracks: firestoreTrackRepo,
     });
+    invalidateCache(`groups:${actor.tenantId}`); // yeni grup — cache'i anında düşür
     broadcast(actor.tenantId, { type: "groups.changed", id: group.id });
     return NextResponse.json({ id: group.id }, { status: 201 });
   } catch (e) {
@@ -75,6 +84,10 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   // "TÜM tenant" istenen davranış).
   const trainerId = isOrgScope ? requestedTrainerId : (actor.trainerId ?? "__no_trainer_record__");
 
+  // Aynı (tenant, trainerId) için kısa süre cache + eşzamanlı çağrı coalescing — Ana Sayfa'da
+  // groups 3× çağrılıyor, ~7 ekranda tekrar; TTL içinde dönüşler Firestore'a hiç gitmez.
+  const cacheKey = `groups:${actor.tenantId}:${trainerId ?? "__all__"}`;
+  const items = await cachedRead(cacheKey, GROUPS_CACHE_TTL_MS, async () => {
   const [groups, educations, branches, sections, trainers] = await Promise.all([
     firestoreGroupRepo.list(actor.tenantId, trainerId),
     firestoreEducationRepo.list(actor.tenantId),
@@ -106,7 +119,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
     }
   }
 
-  const items = groups.map((g) => {
+  return groups.map((g) => {
     const edu = g.educationId ? eduMap.get(g.educationId) : undefined;
     const branchName = edu?.branchId ? branchMap.get(edu.branchId)?.name : g.branch;
     const sec = g.sectionId ? sectionMap.get(g.sectionId) : undefined;
@@ -129,6 +142,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
       capacity: g.capacity ?? 0,
       enrolled: enrolledByGroup.get(g.id) ?? 0,
     };
+  });
   });
 
   return NextResponse.json({ items });

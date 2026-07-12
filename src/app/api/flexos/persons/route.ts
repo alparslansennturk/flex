@@ -15,7 +15,13 @@ import { derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 import type { Person } from "@/app/lib/domain/core/person";
+
+// Persons GET EN AĞIR uç (8 koleksiyon: persons+enrollments+sales+payments+bundles+...) ve
+// Ana Sayfa mount'unda + öğrenci ekranlarında çekiliyor. Grading sırasında değişmez → 30s
+// cache dönüş başına ~150 okumayı ~0'a indirir (yeni öğrenci POST'ta invalidate edilir).
+const PERSONS_CACHE_TTL_MS = 30_000;
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
 import type { Payment } from "@/app/lib/domain/eduos/payment";
 import type { Sale } from "@/app/lib/domain/eduos/sale";
@@ -33,6 +39,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
+    const items = await cachedRead(`persons:${actor.tenantId}:${actor.uid}`, PERSONS_CACHE_TTL_MS, async () => {
     const [persons, enrollments, educations, branches, groups, bundles, allSales, allPayments] = await Promise.all([
       firestorePersonRepo.list(actor.tenantId),
       firestoreEnrollmentRepo.list(actor.tenantId),
@@ -113,7 +120,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       if (!p.authUid) accountStatusByPersonId.set(p.id, "pasif");
     }
 
-    const items = scopedPersons.map((p: Person) => {
+    return scopedPersons.map((p: Person) => {
       const enrs = enrollByPerson.get(p.id) ?? [];
 
       // branş listesi (enrollment → education → branch)
@@ -212,6 +219,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         lastLogin: lastLoginByPersonId.get(p.id) ?? null,
       };
     });
+    });
 
     return NextResponse.json({ items });
   } catch (e) {
@@ -259,6 +267,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
   try {
     const result = await createPerson(actor, body, firestorePersonRepo);
+    invalidateCache(`persons:${actor.tenantId}`); // yeni öğrenci — cache'i anında düşür
     broadcast(actor.tenantId, { type: "students.changed", id: result.person.id });
     return NextResponse.json(
       { id: result.person.id, piiDropped: result.piiDropped },
