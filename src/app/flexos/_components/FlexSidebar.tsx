@@ -203,10 +203,25 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
     router.push("/flexos/giris");
   };
 
+  // "Kim girdiyse onun ana sayfası" hedefi — hem logo hem "Ana Sayfa" nav öğesi aynı
+  // hedefe gider (bkz. aşağıdaki nav öğesindeki uzun açıklama).
+  const homeHref = caps.has("role.manage")
+    ? (canToggleView ? "/flexos/egitmen-anasayfa" : "/flexos/anasayfa")
+    : caps.has("education.create")
+      ? "/flexos/egitim-operasyon-anasayfa"
+      : caps.has("sale.create")
+        ? "/flexos/satislar/dashboard"
+        : "/flexos/egitmen-anasayfa";
+
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
       <style>{css}</style>
-      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 52px" }}>
+      {/* 2026-07-12 kullanıcı isteği: logo sabit duruyordu, artık tıklanınca Ana Sayfa'yla
+          aynı hedefe gidiyor. */}
+      <div
+        onClick={go(homeHref)}
+        style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 52px", cursor: "pointer", width: "fit-content" }}
+      >
         <FlexLogo variant="white" width={72} />
       </div>
 
@@ -224,15 +239,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           icon={IC.home}
           label="Ana Sayfa"
           active={active === "ana"}
-          onClick={go(
-            caps.has("role.manage")
-              ? (canToggleView ? "/flexos/egitmen-anasayfa" : "/flexos/anasayfa")
-              : caps.has("education.create")
-                ? "/flexos/egitim-operasyon-anasayfa"
-                : caps.has("sale.create")
-                  ? "/flexos/satislar/dashboard"
-                  : "/flexos/egitmen-anasayfa",
-          )}
+          onClick={go(homeHref)}
         />
 
         {/* Eğitim Yönetimi — akordiyon ana başlık (framer-motion geçişli).

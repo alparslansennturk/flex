@@ -528,6 +528,13 @@ function OdevParkuru() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // "Notları Kaydet"/"Ödevi Bitir"/"Ödevi İptal Et" başka bir sekmede veya bu sayfadan
+  // gidilen Ödev Notu ekranında olduğunda kart anında düşsün/güncellensin diye. BİLEREK
+  // "grades.changed" DEĞİL "assignments.changed" — bu widget tek tek öğrenci notlarıyla
+  // değil sadece ödevin DURUMUYLA ilgileniyor (2026-07-13 kota fix — N öğrenci notlanınca
+  // N kere değil, ödev arşivlenince TEK kere tetiklenir).
+  useRealtimeSync(["assignments.changed"], loadData);
+
   // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması). "closed" (Ödevi
   // Bitir sonrası, not girişi bekleyen) da burada kalır — kart kaybolmaz, sadece görünümü
   // "Bekliyor/Not Girişi" ikili butona döner (canlıdaki `task.status === "completed"` davranışı).

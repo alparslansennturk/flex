@@ -145,6 +145,38 @@ async function resolveFlexosUserGrants(uid: string): Promise<Grant[]> {
   }
 }
 
+// ── Kimlik (grant + trainerId) cache'i — uid başına, kısa TTL (2026-07-13 kota fix) ──
+//
+// `actorFromCaller` HER authenticated request'te (her GET/PATCH/POST + her SSE yeniden
+// bağlanmada) çalışıyor ve actor'ı sıfırdan çözüyordu: `resolveFlexosUserGrants`
+// (findByAuthUid [+ office rol varsa roleDefs.list]) + eğitmen ise trainer findByAuthUid.
+// Bu, request başına 1-2 Firestore okuması demek. Kimlik/rol saniyeler içinde değişmez;
+// toplu işlemlerde ("Notları Kaydet"in N ayrı grade PATCH'i) ve dev hot-reload kaynaklı
+// SSE yeniden-bağlanma fırtınalarında aynı okuma onlarca kez tekrarlanıyordu. Bu değerler
+// artık uid başına kısa süre cache'lenir — `standaloneMode`/`viewMode` cache'leriyle AYNI
+// felsefe (rol değişimi TTL kadar, en fazla ~20sn, gecikmeli yansır — kabul edilir sınır).
+const IDENTITY_CACHE_TTL_MS = 20_000;
+interface IdentityCacheEntry<T> { value: T; at: number; }
+const grantsCache = new Map<string, IdentityCacheEntry<Grant[]>>();
+const trainerIdCache = new Map<string, IdentityCacheEntry<string | undefined>>();
+
+async function cachedFlexosUserGrants(uid: string): Promise<Grant[]> {
+  const hit = grantsCache.get(uid);
+  if (hit && Date.now() - hit.at < IDENTITY_CACHE_TTL_MS) return hit.value;
+  const value = await resolveFlexosUserGrants(uid);
+  grantsCache.set(uid, { value, at: Date.now() });
+  return value;
+}
+
+async function cachedTrainerId(uid: string): Promise<string | undefined> {
+  const hit = trainerIdCache.get(uid);
+  if (hit && Date.now() - hit.at < IDENTITY_CACHE_TTL_MS) return hit.value;
+  const trainer = await firestoreTrainerRepo.findByAuthUid(uid, DEFAULT_TENANT).catch(() => null);
+  const value = trainer?.id;
+  trainerIdCache.set(uid, { value, at: Date.now() });
+  return value;
+}
+
 export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[]): Promise<Actor> {
   if (Date.now() - cacheLoadedAt > STANDALONE_CACHE_TTL_MS) {
     refreshStandaloneModeCache(); // fire-and-forget, bu isteği bloklamaz
@@ -155,7 +187,7 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
   const viewToggleGrant: Grant[] =
     caller.email === VIEW_TOGGLE_OWNER_EMAIL ? [{ capability: "view.toggle", scope: "org" }] : [];
 
-  const flexosGrants = await resolveFlexosUserGrants(caller.uid);
+  const flexosGrants = await cachedFlexosUserGrants(caller.uid);
   const packages = packagesForCaller(caller);
 
   // `Group.trainerId` Firebase auth uid DEĞİL, eğitmen kadrosu (`flexos_trainers`)
@@ -165,8 +197,7 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
   // can()/groups filtresi actor.uid'e düşer (eski davranış, zararsız).
   let trainerId: string | undefined;
   if (packages.includes("egitmen")) {
-    const trainer = await firestoreTrainerRepo.findByAuthUid(caller.uid, DEFAULT_TENANT).catch(() => null);
-    trainerId = trainer?.id;
+    trainerId = await cachedTrainerId(caller.uid);
   }
 
   return buildActor({

@@ -75,14 +75,19 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   // "TÜM tenant" istenen davranış).
   const trainerId = isOrgScope ? requestedTrainerId : (actor.trainerId ?? "__no_trainer_record__");
 
-  const [groups, educations, branches, sections, enrollments, trainers] = await Promise.all([
+  const [groups, educations, branches, sections, trainers] = await Promise.all([
     firestoreGroupRepo.list(actor.tenantId, trainerId),
     firestoreEducationRepo.list(actor.tenantId),
     firestoreBranchRepo.list(actor.tenantId),
     firestoreSectionRepo.list(actor.tenantId),
-    firestoreEnrollmentRepo.list(actor.tenantId),
     firestoreTrainerRepo.list(actor.tenantId),
   ]);
+  // 2026-07-12 ACİL kota fix: önceden `firestoreEnrollmentRepo.list(tenantId)` tenant'taki
+  // TÜM enrollment'ları okuyordu (grup filtresi yok) — bu uç ~7 farklı ekranda groups/
+  // trainers/educations.changed'de yeniden çekiliyor, her çağrı yüzlerce/binlerce gereksiz
+  // okumaya mal oluyordu (Firestore kota olayının kök nedeni). Artık SADECE görüntülenen
+  // grupların enrollment'ları okunuyor.
+  const enrollments = await firestoreEnrollmentRepo.listByGroupIds(groups.map((g) => g.id), actor.tenantId);
 
   const eduMap = new Map(educations.map((e) => [e.id, e]));
   const branchMap = new Map(branches.map((b) => [b.id, b]));

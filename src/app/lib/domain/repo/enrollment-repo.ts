@@ -18,6 +18,12 @@ export interface EnrollmentRepo {
   list(tenantId: string): Promise<Enrollment[]>;
   /** Bir grubun kayıtları (roster + silmeden önce doluluk kontrolü). */
   listByGroup(groupId: string, tenantId: string): Promise<Enrollment[]>;
+  /**
+   * BELİRLİ grup id'lerinin kayıtları — grup listesi ekranındaki doluluk (enrolled
+   * count) hesabı için (2026-07-12 kota fix): `list(tenantId)` tüm tenant'ı okurdu,
+   * bu SADECE görüntülenen grupların enrollment'larını okur. Boş dizi → boş sonuç.
+   */
+  listByGroupIds(groupIds: string[], tenantId: string): Promise<Enrollment[]>;
   /** Bir satışa bağlı kayıtlar (iptal cascade'i). */
   listBySale(saleId: string, tenantId: string): Promise<Enrollment[]>;
   /** Bir kişinin TÜM kayıtları (öğrenci portalı — hangi gruplarda aktif olduğunu bulmak için). */

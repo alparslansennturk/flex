@@ -27,7 +27,13 @@ export type RealtimeEventType =
   | "attendance.changed"
   | "trainers.changed"
   | "educations.changed" // branş/eğitim/bölüm kataloğu
-  | "activities.changed"; // Aktivite Merkezi: talep (case) + aktivite + randevu
+  | "activities.changed" // Aktivite Merkezi: talep (case) + aktivite + randevu
+  | "settings.changed" // CertificateSettings (Sertifika Ayarları — Ödev Etkisi/%) gibi tenant/eğitmen ayarları
+  | "assignments.changed"; // ödev metadata/durum değişikliği (Bitir/Arşivle/Düzenle) — TEK öğrenci notu DEĞİL,
+  // bkz. `grades.changed` yorumu — 2026-07-13 kota fix: ikisi aynı türdü, "Notları Kaydet"in
+  // N öğrenciyi tek tek notlaması N ayrı `grades.changed` üretip Ödev Parkuru'nun (sadece
+  // ödev DURUMUYLA ilgilenen, tek tek notlarla değil) pahalı tüm-tenant `assignments`/
+  // `assignment-templates` sorgusunu N kere tekrar çekmesine sebep oluyordu.
 
 export interface RealtimeEvent {
   type: RealtimeEventType;

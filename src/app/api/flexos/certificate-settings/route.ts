@@ -8,6 +8,7 @@ import {
   type UpdateCertificateSettingsInput,
 } from "@/app/lib/domain/services/certificate-settings-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /** GET /api/flexos/certificate-settings — sertifika hesaplama ayarını okur (herkes okuyabilir). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
@@ -30,7 +31,9 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const settings = await updateCertificateSettings((await actorFromCaller(caller)), body, firestoreCertificateSettingsRepo);
+    const actor = await actorFromCaller(caller);
+    const settings = await updateCertificateSettings(actor, body, firestoreCertificateSettingsRepo);
+    broadcast(actor.tenantId, { type: "settings.changed" });
     return NextResponse.json(settings);
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

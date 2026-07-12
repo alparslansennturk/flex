@@ -192,6 +192,22 @@ export default function EgitimOperasyonAnasayfaPage() {
     }
   }, [authHeaders]);
 
+  // 2026-07-12 ACİL fix: `/api/flexos/groups` tenant'taki TÜM enrollment kayıtlarını
+  // sınırsız okuyor (doluluk hesabı için) — Firestore kota olayına sebep oldu, çünkü
+  // `loadAll` önceden satış/not/yoklama/öğrenci değişikliklerinde de (sadece aktivite
+  // şeridini etkileyen olaylar) TAM bu pahalı sorguyu tetikliyordu. Bu olaylar sadece
+  // aktiviteyi etkiler — SADECE `/api/flexos/activities` yeniden çekilir, groups/
+  // branches/trainers'a dokunulmaz.
+  const loadActivitiesOnly = useCallback(async () => {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/flexos/activities", { headers });
+      if (res.ok) setActivities(((await res.json()).items ?? []) as ActivityItem[]);
+    } catch {
+      // sessiz — aktivite şeridi kozmetik bir yeniden çekim
+    }
+  }, [authHeaders]);
+
   // 2026-07-11 — polling mimarisi TAMAMEN kaldırıldı. Aktiviteler `loadAll` ile sayfa
   // açılışında TEK SEFER çekiliyor (yukarıda). Bu sayfada aktivite mutasyonu (checkbox
   // onay vb.) yapılmıyor — o Aktivite Merkezi'nde; oraya gidip dönmek zaten (Next.js
@@ -209,12 +225,18 @@ export default function EgitimOperasyonAnasayfaPage() {
   }, [router, loadAll]);
 
   // 2026-07-11/12 — bu sayfa operasyonun MERKEZ ekranı: grup/eğitmen/eğitim kataloğu
-  // doğrudan bu sayfanın kendi verisi (groups/branches/trainers); satış/not/yoklama/
-  // öğrenci ise "Operasyon Akışı" aktivite şeridini besliyor. Herhangi biri değiştiğinde
-  // SSE üzerinden haber alınır, `loadAll` tekrar çağrılır — ayrı fetch/cache katmanı yok.
+  // doğrudan bu sayfanın kendi verisi (groups/branches/trainers) — SADECE bunlar
+  // değişince PAHALI `loadAll` (groups tüm-tenant enrollment okuması içerir) çalışır.
   useRealtimeSync(
-    ["groups.changed", "trainers.changed", "educations.changed", "students.changed", "sales.changed", "grades.changed", "attendance.changed", "activities.changed"],
+    ["groups.changed", "trainers.changed", "educations.changed"],
     useCallback(() => { void loadAll(); }, [loadAll]),
+  );
+  // Satış/not/yoklama/öğrenci/aktivite ise SADECE "Operasyon Akışı" şeridini besliyor —
+  // 2026-07-12 ACİL fix: bunlar için artık ucuz `loadActivitiesOnly`, pahalı `loadAll` DEĞİL
+  // (bkz. yukarıdaki fix notu — kota olayının kök nedeni buydu).
+  useRealtimeSync(
+    ["students.changed", "sales.changed", "grades.changed", "attendance.changed", "activities.changed"],
+    loadActivitiesOnly,
   );
 
   // ── branş renk paleti — donut ile Yaklaşan Sınıflar arasında tutarlı ──

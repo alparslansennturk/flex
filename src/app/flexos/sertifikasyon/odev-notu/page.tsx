@@ -35,7 +35,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Award, BookOpen, Check, ArrowLeft, ClipboardList, ChevronRight, Clock } from "lucide-react";
+import { Award, BookOpen, Check, ArrowLeft, ClipboardList, ChevronRight, Clock, Loader2 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
@@ -160,6 +160,13 @@ export default function OdevNotuPage() {
   const deepLinkGroupId = searchParams.get("groupId");
   const deepLinkAssignmentId = searchParams.get("assignmentId");
   const [autoOpened, setAutoOpened] = useState(false);
+  // 2026-07-12 fix: `loadingGroups`/`loadingAssignments` her biri AYRI bir render/effect
+  // turunda false olur — aradaki commit'te ikisi de false olabildiği an VIEW 1 (gruplar
+  // listesi) gerçek veriyle bir kare/an için görünüp hemen otomatik-açılışla kayboluyordu
+  // ("gruplar göründü, boşaldı, başka sayfaya gitti gibi oldu"). Bu flag deep-link'in TÜM
+  // adımları (grup yükle → ödev+roster yükle → aç) boyunca aralıksız true kalır, sadece
+  // hedef bulunamayınca (geçersiz/silinmiş link) elle false'a çekilir.
+  const [deepLinkPending, setDeepLinkPending] = useState(!!deepLinkAssignmentId);
 
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -171,6 +178,10 @@ export default function OdevNotuPage() {
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [loadingGrading, setLoadingGrading] = useState(false);
   const [savingGrades, setSavingGrades] = useState(false);
+  // Son kaydetme başarılıydı ve o zamandan beri hiçbir not değiştirilmedi mi — buton
+  // rengi/metni bunu yansıtır (2026-07-12 kullanıcı isteği: mavi "Notları Kaydet" →
+  // kaydedince yeşil "Notlar Kaydedildi").
+  const [justSaved, setJustSaved] = useState(false);
   // assignmentId -> (personId -> state) — her ödev için ayrı, sekmeler arası korunur
   const [gradesByAssignment, setGradesByAssignment] = useState<Record<string, Record<string, StudentGradeState>>>({});
   // assignmentId -> (personId -> submissionId) — "Notları Kaydet" hangi Submission'a
@@ -226,6 +237,11 @@ export default function OdevNotuPage() {
           const effRoster = rosterItems.length > 0 ? rosterItems : dummyRosterFor(selectedGroupId);
           const effAssignments = assignItems.length > 0 ? assignItems : (group ? dummyAssignmentsFor(group) : []);
           void openAssignment(deepLinkAssignmentId, effRoster, effAssignments);
+        } else if (deepLinkPending && !autoOpened) {
+          // Bu turda deep-link hedefine ulaşılamadı (yanlış grup ya da grupta öyle bir
+          // ödev yok — silinmiş/geçersiz link) — sonsuza dek loader'da beklemek yerine
+          // normal VIEW 1'e düş.
+          setDeepLinkPending(false);
         }
       } catch {
         setAssignments(group ? dummyAssignmentsFor(group) : []);
@@ -242,6 +258,7 @@ export default function OdevNotuPage() {
   // kullanılır (2026-07-11).
   async function openAssignment(assignmentId: string, rosterOverride?: RosterItem[], assignmentsOverride?: AssignmentItem[]) {
     setActiveAssignmentId(assignmentId);
+    setJustSaved(false);
     if (gradesByAssignment[assignmentId]) return; // zaten yüklendi/düzenlendi
 
     const effRoster = rosterOverride ?? roster;
@@ -282,38 +299,89 @@ export default function OdevNotuPage() {
     setSavingGrades(true);
     try {
       const activeGrades = gradesByAssignment[activeAssignmentId] ?? {};
-      const submissionIds = submissionIdsByAssignment[activeAssignmentId] ?? {};
       const assignmentMaxPuan = assignments.find((a) => a.id === activeAssignmentId)?.maxPuan ?? 100;
 
-      const jobs = roster
+      // 2026-07-12 fix — KÖK NEDEN: `submissionIdsByAssignment` sadece assignment İLK
+      // açıldığında dolduruluyordu (`openAssignment`'taki tek-seferlik cache guard'ı,
+      // "sekmeler arası korunsun" diye BİLEREK var — bkz. oradaki yorum). Eğer trainer
+      // ödevi ilk açtığında hiç teslim yoktu, SONRADAN bir öğrenci gerçekten teslim
+      // etse bile bu harita hiç yenilenmiyordu — dropdown'dan elle "Teslim etti"
+      // seçilse bile submissionId eşleşmediği için o kişi jobs'tan SESSİZCE düşüyordu
+      // (kullanıcı bulgusu: Grup 598 Poster — sonradan teslim eden öğrenciyi işaretleyip
+      // kaydedince "teslim eden olmadı" mesajı çıktı). Artık kaydetmeden hemen önce
+      // submission listesi TAZE çekilip harita güncelleniyor.
+      const isDummy = activeAssignmentId.startsWith("dummy-");
+      let submissionIds = submissionIdsByAssignment[activeAssignmentId] ?? {};
+      if (!isDummy) {
+        const freshHeaders = await authHeaders();
+        const freshRes = await fetch(`/api/flexos/submissions?assignmentId=${activeAssignmentId}`, { headers: freshHeaders });
+        if (freshRes.ok) {
+          const items = (await freshRes.json() as { items: SubmissionRow[] }).items;
+          submissionIds = Object.fromEntries(items.map((s) => [s.personId, s.id]));
+          setSubmissionIdsByAssignment((prev) => ({ ...prev, [activeAssignmentId]: submissionIds }));
+        }
+      }
+
+      const realJobs = roster
         .map((r) => {
           const state = activeGrades[r.personId];
           const submissionId = submissionIds[r.personId];
-          if (!state || !submissionId) return null; // teslim yoksa notlanacak Submission da yok
+          if (!state || !submissionId) return null; // gerçek teslimi yok, aşağıdaki manuel yola düşer
           // Taban puan artık HER ZAMAN ödevin maxPuan'ı — elle giriş yok (2026-07-08 kararı).
           const net = Math.round(assignmentMaxPuan * (1 - CEZA_ORANI[state.durum]));
           return { submissionId, net };
         })
         .filter((j): j is { submissionId: string; net: number } => j != null);
 
-      if (jobs.length === 0) {
-        toast.info("Puanlanmış (teslimi olan) öğrenci yok.");
-        return;
-      }
+      // 2026-07-13 kullanıcı kararı: gerçek dijital teslim izi olmayan ama eğitmenin elle
+      // "teslim etti/gecikmeli" işaretlediği öğrenciler artık ATLANMIYOR — "ben eğitmenim,
+      // canım istedi verdim, sistem karışamaz". `gradeManually` dosyasız yeni bir Submission
+      // açıp doğrudan notu yazıyor (eski/legacy ödevlerde dijital iz hiç olmayabilir).
+      const manualJobs = !isDummy
+        ? roster
+            .map((r) => {
+              const state = activeGrades[r.personId];
+              if (!state || state.durum === "yok" || submissionIds[r.personId]) return null; // "yok" ya da zaten gerçek teslimi var
+              const net = Math.round(assignmentMaxPuan * (1 - CEZA_ORANI[state.durum]));
+              return { personId: r.personId, isLate: state.durum !== "teslim", net };
+            })
+            .filter((j): j is { personId: string; isLate: boolean; net: number } => j != null)
+        : [];
 
-      const headers = await authHeaders();
-      const results = await Promise.all(
-        jobs.map(({ submissionId, net }) =>
-          fetch(`/api/flexos/submissions/${submissionId}/grade`, {
-            method: "PATCH",
-            headers: { ...headers, "Content-Type": "application/json" },
-            body: JSON.stringify({ grade: net }),
-          }),
-        ),
-      );
-      const failed = results.filter((r) => !r.ok).length;
+      // 2026-07-12 fix: teslim eden HİÇ kimse yoksa (deadline geçmiş + boş roster) eskiden
+      // burada erken `return` ediliyordu — ödev hiç arşivlenmiyor, Ana Sayfa'da sonsuza
+      // dek "Not Girişi" olarak takılı kalıyordu. Artık teslim yoksa notlama adımı
+      // atlanır ama arşivleme adımına HER ZAMAN devam edilir (aşağıda).
+      let failed = 0;
+      if (realJobs.length > 0 || manualJobs.length > 0) {
+        const headers = await authHeaders();
+        const results = await Promise.all([
+          ...realJobs.map(({ submissionId, net }) =>
+            fetch(`/api/flexos/submissions/${submissionId}/grade`, {
+              method: "PATCH",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({ grade: net }),
+            }),
+          ),
+          ...manualJobs.map(({ personId, isLate, net }) =>
+            fetch(`/api/flexos/submissions/manual-grade`, {
+              method: "POST",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({ assignmentId: activeAssignmentId, personId, groupId: selectedGroupId, isLate, grade: net }),
+            }),
+          ),
+        ]);
+        failed = results.filter((r) => !r.ok).length;
+      }
       if (failed === 0) {
-        toast.success("Notlar kaydedildi.");
+        if (manualJobs.length > 0) {
+          toast.warning(`${manualJobs.length} öğrenci gerçek teslim kaydı olmadan elle notlandı (dijital iz yok). Notlar yine de kaydedildi.`);
+        } else if (realJobs.length > 0) {
+          toast.success("Notlar kaydedildi.");
+        } else {
+          toast.success("Teslim eden olmadı, ödev tamamlandı olarak işaretlendi.");
+        }
+        setJustSaved(true);
         // "Notları Kaydet" = bu tur için değerlendirme bitti demek — Ödev Parkuru'ndan
         // (Ana Sayfa) kalkar ama not GİRİLMEYE devam edilebilir: assignment "archived"
         // olur (Parkur "published"/"closed" filtreler, archived hiç göstermez), bu sayfada
@@ -346,6 +414,7 @@ export default function OdevNotuPage() {
       ...prev,
       [assignmentId]: { ...prev[assignmentId], [personId]: { durum } },
     }));
+    setJustSaved(false); // kaydedilmiş halden sapıldı — buton tekrar "Notları Kaydet"e döner
   }
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
@@ -365,6 +434,17 @@ export default function OdevNotuPage() {
   let girilenSayisi = 0;
   for (const r of roster) if (activeGrades[r.personId]) girilenSayisi++;
 
+  // Deep-link hedefi henüz açılmamışken (bkz. `deepLinkPending`) VIEW 1'i HİÇ göstermeyip
+  // tek bir loader gösteriyoruz — ara adımlardaki flash/"başka sayfaya gitti" hissi için.
+  const awaitingDeepLink = deepLinkPending && !activeAssignmentId;
+  // 2026-07-12 fix #2: VIEW 2 daha önce `activeAssignmentId` set edilir edilmez (grades
+  // henüz gelmeden) render oluyordu — üst kart hemen dolu görünüyor ama tablo bir an
+  // "Yükleniyor…" boş hâliyle gösterilip hemen ardından satırlar "pat" diye doluyordu
+  // (kullanıcı: "önce boş container sonra içi doldu"). Artık `loadingGrading` true iken
+  // (hem deep-link hem elle tıklama akışında) VIEW 2 hiç render edilmiyor, aynı loader
+  // devam ediyor — puanlama ekranı ancak TAMAMEN dolu veriyle bir kerede beliriyor.
+  const showLoader = awaitingDeepLink || (!!activeAssignmentId && loadingGrading);
+
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", background: "#EEF0F3" }}>
       <FlexSidebar active="odev-notu" />
@@ -376,7 +456,13 @@ export default function OdevNotuPage() {
           roleLabel="Eğitmen"
         />
 
-        {!activeAssignmentId ? (
+        {showLoader ? (
+          /* ===== Yükleniyor: hedef görünüm (deep-link ya da puanlama) TAM veriyle hazır
+             olana kadar ara/eksik hâl hiç gösterilmez ===== */
+          <div className="flex-1 flex items-center justify-center">
+            <Loader2 size={26} className="animate-spin text-[#AEB4C0]" />
+          </div>
+        ) : !activeAssignmentId ? (
           /* ===== VIEW 1: Grup + Ödev Seçimi ===== */
           <div style={{ padding: "26px 30px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }} className="font-inter">
             <div className="grid gap-5" style={{ gridTemplateColumns: "280px 1fr", alignItems: "start" }}>
@@ -538,9 +624,7 @@ export default function OdevNotuPage() {
                 <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide text-center">Net Puan</div>
               </div>
 
-              {loadingGrading ? (
-                <div className="py-10 text-center text-[13px] text-[#8E95A3]">Yükleniyor…</div>
-              ) : roster.length === 0 ? (
+              {roster.length === 0 ? (
                 <div className="py-10 text-center text-[13px] text-[#8E95A3]">Bu grupta öğrenci yok.</div>
               ) : (
                 roster.map((r, i) => {
@@ -604,11 +688,15 @@ export default function OdevNotuPage() {
                   <button
                     onClick={saveGrades}
                     disabled={savingGrades || activeAssignmentId?.startsWith("dummy-")}
-                    className="inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border-none text-white text-[13px] font-extrabold cursor-pointer transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ background: "linear-gradient(135deg,#1F9D57,#0E7A3E)", boxShadow: "0 10px 20px -8px rgba(14,122,62,.5)" }}
+                    className="inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border-none text-white text-[13px] font-extrabold cursor-pointer transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={
+                      justSaved
+                        ? { background: "linear-gradient(135deg,#1F9D57,#0E7A3E)", boxShadow: "0 10px 20px -8px rgba(14,122,62,.5)" }
+                        : { background: "linear-gradient(135deg,#2867bd,#205297)", boxShadow: "0 10px 20px -8px rgba(32,82,151,.5)" }
+                    }
                   >
                     <Check size={16} strokeWidth={2.4} />
-                    {savingGrades ? "Kaydediliyor…" : "Notları Kaydet"}
+                    {savingGrades ? "Kaydediliyor…" : justSaved ? "Notlar Kaydedildi" : "Notları Kaydet"}
                   </button>
                 </div>
               </div>

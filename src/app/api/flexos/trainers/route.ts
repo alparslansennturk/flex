@@ -107,12 +107,14 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
-    const [trainers, groups, educations, enrollments] = await Promise.all([
+    const [trainers, groups, educations] = await Promise.all([
       firestoreTrainerRepo.list(actor.tenantId),
       firestoreGroupRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
-      firestoreEnrollmentRepo.list(actor.tenantId),
     ]);
+    // 2026-07-12 ACİL kota fix (bkz. groups/route.ts'teki aynı fix): tenant-genelinde
+    // sınırsız enrollment okuması yerine SADECE görüntülenen grupların enrollment'ları.
+    const enrollments = await firestoreEnrollmentRepo.listByGroupIds(groups.map((g) => g.id), actor.tenantId);
 
     const eduMap = new Map(educations.map((e) => [e.id, e]));
 

@@ -132,16 +132,20 @@ export default function SertifikaNotuPage() {
   // notları var, onu al"). Aktif/canlı gruplarda bu alan hiç dolmaz, davranış değişmez.
   const [odevNotuOverride, setOdevNotuOverride] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    (async () => {
-      const headers = await authHeaders();
-      const res = await fetch("/api/flexos/certificate-settings", { headers });
-      if (res.ok) {
-        const data = await res.json() as { project: Weighting; exam: Weighting };
-        setSettings({ project: data.project, exam: data.exam });
-      }
-    })();
+  const loadSettings = useCallback(async () => {
+    const headers = await authHeaders();
+    const res = await fetch("/api/flexos/certificate-settings", { headers });
+    if (res.ok) {
+      const data = await res.json() as { project: Weighting; exam: Weighting };
+      setSettings({ project: data.project, exam: data.exam });
+    }
   }, []);
+
+  useEffect(() => { loadSettings(); }, [loadSettings]);
+
+  // 2026-07-12 — Sertifika Ayarları'ndaki "Ödev Etkisi" değişince (başka sekme/kullanıcı
+  // dahil) bu sayfa açıkken bile SSE üzerinden anında yeniden çekilir, yenileme gerekmez.
+  useRealtimeSync(["settings.changed"], loadSettings);
 
   const loadGroups = useCallback(async () => {
     setLoadingGroups(true);

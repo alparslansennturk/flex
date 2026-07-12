@@ -69,6 +69,9 @@ function makeAssignmentRepo(): AssignmentRepo {
         (a) => a.tenantId === tenantId && (!groupId || a.groupId === groupId),
       );
     },
+    async listByTrainerIds(trainerIds, tenantId) {
+      return Array.from(map.values()).filter((a) => a.tenantId === tenantId && trainerIds.includes(a.trainerId ?? ""));
+    },
     async delete(id) { map.delete(id); },
   };
 }

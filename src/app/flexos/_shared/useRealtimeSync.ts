@@ -35,6 +35,16 @@ export function useRealtimeSync(eventTypes: RealtimeEventType[], onChange: () =>
     let abortController: AbortController | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let attempt = 0;
+    // 2026-07-13 kota fix: toplu işlemler (ör. "Notları Kaydet"in N öğrenciyi tek tek
+    // PATCH etmesi) aynı türde N ayrı broadcast üretiyordu — her biri açık her sekmede
+    // AYRI bir yeniden-çekim tetikliyordu (bir save = N × pahalı sorgu, kota olayının
+    // ikinci kök nedeni). Kısa bir sessizlik penceresi içindeki art arda olaylar artık
+    // TEK bir `onChange()`'e toplanıyor.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    // "Notları Kaydet" iki AYRI adım (önce N not, sonra ayrı bir arşivleme PATCH'i) —
+    // aradaki gecikme kısa debounce'u kaçırıp 2. bir yenilemeye sebep olabiliyordu,
+    // pencere biraz genişletildi (2026-07-13, ek güvenlik payı).
+    const DEBOUNCE_MS = 1000;
 
     const connect = async () => {
       if (stopped) return;
@@ -67,7 +77,10 @@ export function useRealtimeSync(eventTypes: RealtimeEventType[], onChange: () =>
             if (!line) continue; // ": ping" gibi yorum satırları atlanır
             try {
               const event = JSON.parse(line.slice(6));
-              if (event?.type && wanted.has(event.type)) onChangeRef.current();
+              if (event?.type && wanted.has(event.type)) {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => onChangeRef.current(), DEBOUNCE_MS);
+              }
             } catch {
               // bozuk çerçeveyi yut, bağlantıyı koparma
             }
@@ -89,6 +102,7 @@ export function useRealtimeSync(eventTypes: RealtimeEventType[], onChange: () =>
       stopped = true;
       abortController?.abort();
       if (retryTimer) clearTimeout(retryTimer);
+      if (debounceTimer) clearTimeout(debounceTimer);
     };
   }, [typesKey]);
 }
