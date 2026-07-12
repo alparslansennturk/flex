@@ -300,108 +300,55 @@ export default function OdevNotuPage() {
     try {
       const activeGrades = gradesByAssignment[activeAssignmentId] ?? {};
       const assignmentMaxPuan = assignments.find((a) => a.id === activeAssignmentId)?.maxPuan ?? 100;
-
-      // 2026-07-12 fix — KÖK NEDEN: `submissionIdsByAssignment` sadece assignment İLK
-      // açıldığında dolduruluyordu (`openAssignment`'taki tek-seferlik cache guard'ı,
-      // "sekmeler arası korunsun" diye BİLEREK var — bkz. oradaki yorum). Eğer trainer
-      // ödevi ilk açtığında hiç teslim yoktu, SONRADAN bir öğrenci gerçekten teslim
-      // etse bile bu harita hiç yenilenmiyordu — dropdown'dan elle "Teslim etti"
-      // seçilse bile submissionId eşleşmediği için o kişi jobs'tan SESSİZCE düşüyordu
-      // (kullanıcı bulgusu: Grup 598 Poster — sonradan teslim eden öğrenciyi işaretleyip
-      // kaydedince "teslim eden olmadı" mesajı çıktı). Artık kaydetmeden hemen önce
-      // submission listesi TAZE çekilip harita güncelleniyor.
       const isDummy = activeAssignmentId.startsWith("dummy-");
-      let submissionIds = submissionIdsByAssignment[activeAssignmentId] ?? {};
-      if (!isDummy) {
-        const freshHeaders = await authHeaders();
-        const freshRes = await fetch(`/api/flexos/submissions?assignmentId=${activeAssignmentId}`, { headers: freshHeaders });
-        if (freshRes.ok) {
-          const items = (await freshRes.json() as { items: SubmissionRow[] }).items;
-          submissionIds = Object.fromEntries(items.map((s) => [s.personId, s.id]));
-          setSubmissionIdsByAssignment((prev) => ({ ...prev, [activeAssignmentId]: submissionIds }));
-        }
-      }
 
-      const realJobs = roster
+      // 2026-07-13 kota fix — TOPLU notlama: eskiden öğrenci başına ayrı grade/manual-grade
+      // isteği + taze submissions GET + ayrı arşiv PATCH atılıyordu (N+2 istek, her biri
+      // grup+ödev+kimlik'i yeniden okuyordu). Artık TEK `batch-grade` isteği: roster'da state'i
+      // olan her öğrenci gönderilir, SUNUCU (gradeBatch) teslim listesini bir kez okuyup gerçek
+      // teslimi olanı günceller / elle işaretleneni dosyasız açar / dokunulmamış "teslim etmedi"
+      // (net 0 + teslimi yok) olanı ATLAR. Böylece stale `submissionIdsByAssignment` sorunu da
+      // kökten kalkar (sunucu taze listeyi kendi okur).
+      const items = roster
         .map((r) => {
           const state = activeGrades[r.personId];
-          const submissionId = submissionIds[r.personId];
-          if (!state || !submissionId) return null; // gerçek teslimi yok, aşağıdaki manuel yola düşer
-          // Taban puan artık HER ZAMAN ödevin maxPuan'ı — elle giriş yok (2026-07-08 kararı).
+          if (!state) return null;
+          // Taban puan HER ZAMAN ödevin maxPuan'ı; net = maxPuan × (1 − gecikme cezası).
           const net = Math.round(assignmentMaxPuan * (1 - CEZA_ORANI[state.durum]));
-          return { submissionId, net };
+          return { personId: r.personId, grade: net, isLate: state.durum !== "teslim" };
         })
-        .filter((j): j is { submissionId: string; net: number } => j != null);
+        .filter((j): j is { personId: string; grade: number; isLate: boolean } => j != null);
 
-      // 2026-07-13 kullanıcı kararı: gerçek dijital teslim izi olmayan ama eğitmenin elle
-      // "teslim etti/gecikmeli" işaretlediği öğrenciler artık ATLANMIYOR — "ben eğitmenim,
-      // canım istedi verdim, sistem karışamaz". `gradeManually` dosyasız yeni bir Submission
-      // açıp doğrudan notu yazıyor (eski/legacy ödevlerde dijital iz hiç olmayabilir).
-      const manualJobs = !isDummy
-        ? roster
-            .map((r) => {
-              const state = activeGrades[r.personId];
-              if (!state || state.durum === "yok" || submissionIds[r.personId]) return null; // "yok" ya da zaten gerçek teslimi var
-              const net = Math.round(assignmentMaxPuan * (1 - CEZA_ORANI[state.durum]));
-              return { personId: r.personId, isLate: state.durum !== "teslim", net };
-            })
-            .filter((j): j is { personId: string; isLate: boolean; net: number } => j != null)
-        : [];
-
-      // 2026-07-12 fix: teslim eden HİÇ kimse yoksa (deadline geçmiş + boş roster) eskiden
-      // burada erken `return` ediliyordu — ödev hiç arşivlenmiyor, Ana Sayfa'da sonsuza
-      // dek "Not Girişi" olarak takılı kalıyordu. Artık teslim yoksa notlama adımı
-      // atlanır ama arşivleme adımına HER ZAMAN devam edilir (aşağıda).
-      let failed = 0;
-      if (realJobs.length > 0 || manualJobs.length > 0) {
-        const headers = await authHeaders();
-        const results = await Promise.all([
-          ...realJobs.map(({ submissionId, net }) =>
-            fetch(`/api/flexos/submissions/${submissionId}/grade`, {
-              method: "PATCH",
-              headers: { ...headers, "Content-Type": "application/json" },
-              body: JSON.stringify({ grade: net }),
-            }),
-          ),
-          ...manualJobs.map(({ personId, isLate, net }) =>
-            fetch(`/api/flexos/submissions/manual-grade`, {
-              method: "POST",
-              headers: { ...headers, "Content-Type": "application/json" },
-              body: JSON.stringify({ assignmentId: activeAssignmentId, personId, groupId: selectedGroupId, isLate, grade: net }),
-            }),
-          ),
-        ]);
-        failed = results.filter((r) => !r.ok).length;
-      }
-      if (failed === 0) {
-        if (manualJobs.length > 0) {
-          toast.warning(`${manualJobs.length} öğrenci gerçek teslim kaydı olmadan elle notlandı (dijital iz yok). Notlar yine de kaydedildi.`);
-        } else if (realJobs.length > 0) {
-          toast.success("Notlar kaydedildi.");
-        } else {
-          toast.success("Teslim eden olmadı, ödev tamamlandı olarak işaretlendi.");
-        }
+      if (isDummy) {
+        // demo ödev — sunucuya gitmez, sadece yerel olarak "kaydedildi" gösterilir.
+        toast.success("Notlar kaydedildi.");
         setJustSaved(true);
-        // "Notları Kaydet" = bu tur için değerlendirme bitti demek — Ödev Parkuru'ndan
-        // (Ana Sayfa) kalkar ama not GİRİLMEYE devam edilebilir: assignment "archived"
-        // olur (Parkur "published"/"closed" filtreler, archived hiç göstermez), bu sayfada
-        // grup+ödev listesinde hâlâ görünür (archived filtrelenmiyor), tekrar açılıp
-        // düzenlenebilir. 2026-07-11 kullanıcı kararı — "Taslak Kaydet" de bu yüzden
-        // kaldırıldı, tek gerçek aksiyon bu.
-        try {
-          const patchHeaders = await authHeaders();
-          await fetch(`/api/flexos/assignments/${activeAssignmentId}`, {
-            method: "PATCH",
-            headers: { ...patchHeaders, "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "archived" }),
-          });
-          setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "archived" } : a)));
-        } catch {
-          // sessiz — notlar zaten kaydedildi, arşivleme kozmetik bir son adım
-        }
-      } else {
-        toast.error(`${failed} öğrenci kaydedilemedi.`);
+        setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "archived" } : a)));
+        return;
       }
+
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/submissions/batch-grade`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        // archive:true → notlama sonrası ödev "archived" olur: Ana Sayfa Ödev Parkuru'ndan
+        // kalkar ama bu sayfada listede kalır, tekrar açılıp düzenlenebilir (2026-07-11 kararı).
+        body: JSON.stringify({ assignmentId: activeAssignmentId, groupId: selectedGroupId, items, archive: true }),
+      });
+      if (!res.ok) {
+        toast.error("Kaydedilemedi.");
+        return;
+      }
+      const result = (await res.json()) as { graded: number; created: number; skipped: number; archived: boolean };
+      if (result.created > 0) {
+        toast.warning(`${result.created} öğrenci gerçek teslim kaydı olmadan elle notlandı (dijital iz yok). Notlar yine de kaydedildi.`);
+      } else if (result.graded > 0) {
+        toast.success("Notlar kaydedildi.");
+      } else {
+        toast.success("Teslim eden olmadı, ödev tamamlandı olarak işaretlendi.");
+      }
+      setJustSaved(true);
+      setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "archived" } : a)));
     } catch {
       toast.error("Kaydedilemedi.");
     } finally {

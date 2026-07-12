@@ -640,6 +640,92 @@ export async function gradeManually(
   return updated;
 }
 
+export interface BatchGradeItem {
+  personId: EntityId;
+  /** Net puan (0..maxPuan). 0 = teslim etmedi; gerçek teslimi olmayan 0'lar YAZILMAZ. */
+  grade: number;
+  isLate: boolean;
+}
+
+export interface BatchGradeResult {
+  graded: number; // güncellenen (gerçek teslimi olan)
+  created: number; // dosyasız yeni açılan (elle işaretlenen)
+  skipped: number; // teslimi yok + 0 (default "teslim etmedi") — yazılmadı
+  archived: boolean;
+}
+
+/**
+ * TOPLU notlama (2026-07-13 kota fix) — bir ödevin TÜM öğrenci notlarını TEK istekte işler.
+ * Eskiden `odev-notu` sayfası öğrenci başına ayrı `grade`/`manual-grade` PATCH/POST atıyordu
+ * (N+2 istek, her biri grup+ödev+kimlik'i yeniden okuyordu). Burada grup+ödev+teslim listesi
+ * SADECE BİR KEZ okunur, tüm yazmalar toplanır, çağıran route TEK `broadcast` yapar.
+ *
+ * İş kuralı `gradeSubmission`+`gradeManually` ile birebir aynı: gerçek teslimi olan güncellenir;
+ * teslimi olmayan ama not>0 (elle "teslim etti/gecikmeli" işaretlenen) için dosyasız yeni
+ * `Submission` açılır; teslimi olmayan + not 0 (dokunulmamış "teslim etmedi") ATLANIR (7 default
+ * öğrenciye boşuna kayıt açılmaz — sertifika hesabı zaten payda'da 0 sayar).
+ */
+export async function gradeBatch(
+  actor: Actor,
+  input: { assignmentId: EntityId; groupId: EntityId; items: BatchGradeItem[]; archive?: boolean },
+  deps: Pick<SubmissionDeps, "submissions" | "groups" | "assignments">,
+): Promise<BatchGradeResult> {
+  await requireGroupScope(actor, "submission.grade", input.groupId, deps, actor.tenantId);
+
+  const assignment = await deps.assignments.getById(input.assignmentId, actor.tenantId);
+  const maxPuan = assignment?.maxPuan ?? 100;
+
+  const existing = await deps.submissions.listByAssignment(input.assignmentId, actor.tenantId);
+  const byPerson = new Map(existing.map((s) => [s.personId, s]));
+
+  const now = nowISO();
+  const writes: Submission[] = [];
+  const result: BatchGradeResult = { graded: 0, created: 0, skipped: 0, archived: false };
+
+  for (const item of input.items) {
+    if (!Number.isFinite(item.grade) || item.grade < 0 || item.grade > maxPuan) {
+      throw new ValidationError(`Not 0-${maxPuan} aralığında olmalı.`);
+    }
+    const sub = byPerson.get(item.personId);
+    if (sub) {
+      writes.push({ ...sub, grade: item.grade, gradedAt: now, gradedBy: actor.uid, updatedAt: now, updatedBy: actor.uid });
+      result.graded += 1;
+    } else if (item.grade > 0) {
+      writes.push({
+        id: deps.submissions.nextId(),
+        tenantId: actor.tenantId,
+        assignmentId: input.assignmentId,
+        groupId: input.groupId,
+        personId: item.personId,
+        status: "completed",
+        iteration: 1,
+        isLate: item.isLate,
+        note: "Eğitmen tarafından elle işaretlendi (dijital teslim kaydı yok).",
+        submittedAt: now,
+        lastSubmittedAt: now,
+        grade: item.grade,
+        gradedAt: now,
+        gradedBy: actor.uid,
+        createdAt: now,
+        createdBy: actor.uid,
+        updatedAt: now,
+        updatedBy: actor.uid,
+      });
+      result.created += 1;
+    } else {
+      result.skipped += 1; // teslimi yok + 0 → yazma
+    }
+  }
+
+  await Promise.all(writes.map((s) => deps.submissions.save(s)));
+
+  if (input.archive && assignment) {
+    await deps.assignments.save({ ...assignment, status: "archived", updatedAt: now, updatedBy: actor.uid });
+    result.archived = true;
+  }
+  return result;
+}
+
 /**
  * Ödev Notu'nun İÇ ağırlıklandırması (2026-07-06 kararı, SABİT iş kuralı — Sertifika
  * Ayarları'ndaki dışsal Sertifika/Ödev ağırlığından TAMAMEN AYRI bir eksen):
