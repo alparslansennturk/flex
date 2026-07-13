@@ -303,6 +303,12 @@ export default function EgitmenSiniflarPanel() {
         const res = await fetch(`/api/flexos/persons/${personId}`, { method: "DELETE", headers });
         if (res.ok) {
           toast.success("Öğrenci tamamen silindi.");
+          // 2026-07-13 fix — kullanıcı bulgusu: silme aslında başarılıydı ama liste async
+          // yeniden-çekim tamamlanana kadar kişiyi hâlâ gösteriyordu; kullanıcı "silinmedi"
+          // sanıp tekrar tıklayınca (artık gerçekten silinmiş kayıt için) sunucu doğru
+          // şekilde "Kişi bulunamadı" diyordu. Artık yeniden-çekimi BEKLEMEDEN anında
+          // yerelden kaldırılıyor — liste ile gerçek durum arasında gecikme kalmıyor.
+          setStudents((prev) => prev.filter((s) => s.id !== personId));
           loadStudents();
           loadGroups();
           return;
