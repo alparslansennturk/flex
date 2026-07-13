@@ -25,10 +25,12 @@ import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 import type { Person } from "@/app/lib/domain/core/person";
 
 // Persons GET EN AĞIR uç (8 koleksiyon: persons+enrollments+sales+payments+bundles+...) ve
-// Ana Sayfa mount'unda + öğrenci ekranlarında çekiliyor. Grading sırasında değişmez → 5dk
-// cache (groups'taki 2026-07-13 gerekçesiyle aynı: grading tek gruba 30sn'den uzun sürüyor)
-// dönüş başına ~150 okumayı ~0'a indirir (yeni öğrenci POST'ta invalidate edilir).
-const PERSONS_CACHE_TTL_MS = 5 * 60_000;
+// Ana Sayfa mount'unda + öğrenci ekranlarında çekiliyor. 2026-07-13'te bir silme-sonrası-
+// gecikme bulgusu burada yaşandı (kök neden kanıtlanamadı) — 2026-07-14: diğer uçlar (groups/
+// trainers/templates) TTL'e geri döndü ama EN YÜKSEK silinme-şüpheli uç olduğu için persons
+// BİLEREK 0 TTL'de kalıyor (`cachedRead`'de `< 0` asla doğru olmaz → her çağrı taze okur) —
+// coalescing hâlâ aktif (eşzamanlı çağrılar tek okumayı paylaşır), sadece TTL penceresi yok.
+const PERSONS_CACHE_TTL_MS = 0;
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
 import type { Payment } from "@/app/lib/domain/eduos/payment";
 import type { Sale } from "@/app/lib/domain/eduos/sale";

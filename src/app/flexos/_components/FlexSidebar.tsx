@@ -29,11 +29,16 @@ type ViewMode = "core" | "full";
 // listesini modül-seviyesinde önbelleğe alarak her navigasyonda "menü boşal-dolsun"
 // yanıp sönmesini (flaş) önler. İlk yüklemede bir kez fetch edilir, sonrasında cache'ten okunur.
 let capsCache: Set<string> | null = null;
-// 2026-07-13 bug fix: `caps` cache'leniyordu ama `mode` her mount'ta "full"a resetleniyordu —
-// Core moddaki admin bir sayfaya (ör. Eğitimler) geçince `caps` cache'ten ANINDA doluyor ama
-// `mode` henüz gerçek fetch'ten gelmediği için bir an "full" sanılıp core-olmayan (enterprise)
-// menüler görünüyor, gerçek mod ("core") gelince kayboluyordu (flaş). `mode`'u da caps gibi
-// modül-seviyesinde önbelleğe al.
+// 2026-07-13 bug fix (1. tur, YETERSİZ): `caps` cache'leniyordu ama `mode` her mount'ta
+// "full"a resetleniyordu. Modül-cache eklendi AMA cache soğukken (ilk mount, ya da önceki
+// sayfa fetch'i tamamlanmadan hızlı geçiş — `cancelled` o fetch'i iptal eder) varsayılan hâlâ
+// "full" idi — yani bilinmeyen durumda EN AÇIK (permissive) hali varsayıyordu, tam tersi olması
+// gerekirken. Kullanıcı fix sonrası hâlâ aynı flaşı gördü (2026-07-13, aynı gün, sonraki oturum).
+// 2. tur GERÇEK fix: `caps` için zaten var olan kural ("yüklenene kadar boş/gizli") `mode`'a da
+// uygulandı — bilinmeyen mod artık "full" değil `null`, `canSee`'deki `mode === "full"` katı
+// eşitliği null'da otomatik false döner (enterprise öğe gizli kalır), sunucu gerçekten "full"
+// diyene kadar hiçbir full-only öğe ASLA görünmez (ne kısa an ne uzun) — modül-cache artık sadece
+// bir OPTİMİZASYON, doğruluk artık ona bağımlı değil.
 let modeCache: "core" | "full" | null = null;
 
 export type FlexNavKey =
@@ -93,7 +98,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   // Capability listesi yüklenene kadar boş küme = kapılı öğeler geçici gizli (kozmetik flaş yok).
   const [uid, setUid] = useState<string | null>(null);
   const [caps, setCaps] = useState<Set<string>>(() => capsCache ?? new Set());
-  const [mode, setMode] = useState<ViewMode>(() => modeCache ?? "full");
+  // Bilinmeyen (henüz sunucudan doğrulanmamış) mod artık "full" DEĞİL — `canSee`'nin
+  // `mode === "full"` katı eşitliği null'da false döner, yani full-only öğeler mod
+  // ONAYLANANA kadar hiç görünmez (bkz. modeCache yorumu).
+  const [mode, setMode] = useState<ViewMode | null>(() => modeCache);
   const [pinOpen, setPinOpen] = useState(false);
   // Sistem-geneli "Eğitmen Tek Başına" (standaloneMode) — Kişisel Görünüm Modu'ndan
   // (mode/Core-Full) TAMAMEN AYRI. 2026-07-11 kullanıcı bulgusu: standalone açıkken bile

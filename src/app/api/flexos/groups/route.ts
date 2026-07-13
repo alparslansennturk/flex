@@ -13,14 +13,11 @@ import { broadcast } from "@/app/lib/server/realtime-hub";
 import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 
 /** Groups GET yanıtı ağır (6 koleksiyon) ve aynı mount'ta 3× + ~7 ekranda çağrılıyor.
- *  2026-07-13: 30s TTL yetersiz kaldı — bir ödevi gerçekten değerlendirmek (öğrenci
- *  başına teslim inceleme + not girme) 30sn'den uzun sürüyor, her Ana Sayfa dönüşünde
- *  cache bayatlayıp sıfırdan okunuyordu (canlı ölçüm: dönüş başına ~250-500 okuma geri
- *  geldi). Grading akışında gruplar/enrollment DEĞİŞMEZ — 5dk TTL güvenli, bir grading
- *  oturumu boyunca hiç bayatlamaz. Yeni grup/gerçek değişiklik `invalidateCache` ile
- *  ANINDA görünür (broadcast'e bağlı, bkz. realtime-hub.ts) — TTL sadece "hiç mutasyon
- *  olmasa en kötü ihtimalle ne kadar bayat kalır" sınırı, tipik durumda anlık. */
-const GROUPS_CACHE_TTL_MS = 5 * 60_000;
+ *  2026-07-14: en pahalı uç olduğu için (grup/enrollment) 5dk yerine kısa 1dk TTL —
+ *  Ana Sayfa'daki art arda çağrıları (aynı mount'ta 3×) keser, gerçek bir değişikliği
+ *  en fazla 1dk geciktirir (ki zaten `invalidateCache` + SSE broadcast ile mutasyon
+ *  sonrası ANINDA taze gelir, bu sadece "hiç mutasyon olmasa en kötü durum" sınırı). */
+const GROUPS_CACHE_TTL_MS = 60_000;
 
 /**
  * POST /api/flexos/groups — yeni grup oluştur (gated `group.create`).

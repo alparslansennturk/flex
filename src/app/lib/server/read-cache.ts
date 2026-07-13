@@ -32,20 +32,19 @@ const inflight = new Map<string, Promise<unknown>>();
  * `loader` sonucunu paylaşır.
  */
 export async function cachedRead<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
-  // 2026-07-13 GEÇİCİ DEVRE DIŞI — GÜVENLİK/DOĞRULUK ÖNCELİĞİ: kullanıcı bulgusu, silinen
-  // bir öğrenci PATCH/DELETE sonrası `broadcast(students.changed)` doğru çağrılmasına
-  // rağmen (kod doğrulandı) listede/persons GET'te silinmiş gibi görünmeye devam etti,
-  // sayfa yenilense bile. En güçlü hipotez: bugün erken saatlerde `cachedViewMode` için
-  // bulduğumuz AYNI Turbopack modül-çoğaltma sorunu — bu store'un da route'lar arası
-  // farklı kopyaları olabiliyor, invalidateCache bir kopyayı temizlerken okuma başka bir
-  // kopyadan gelmeye devam ediyor olabilir. Kritik canlıya-geçiş testi sırasında DOĞRULUK
-  // kota-tasarrufundan önemli — TTL'li stale-okuma YOLU BİLEREK devre dışı bırakıldı
-  // (aşağıdaki `store.get` kontrolü kaldırıldı), her çağrı artık taze okur. In-flight
-  // coalescing hâlâ aktif — o salt performans, doğruluk riski taşımıyor.
-  void ttlMs;
+  // 2026-07-14 GERİ AÇILDI (seçici, çağıran-bazlı): 2026-07-13'te canlıya-geçiş testi
+  // sırasında bir silme-sonrası-gecikme bulgusuyla TÜM TTL'ler devre dışı bırakılmıştı
+  // (kanıtlanamayan bir Turbopack modül-çoğaltma şüphesiyle). Canlıya geçiş bitti,
+  // gerçek kullanıcı trafiğinde TTL'siz hâl kotayı hızla tüketti (her Ana Sayfa açılışı
+  // ~121+ okuma). Karar: TTL kontrolü GERİ AÇ ama riski çağıran tarafta yönet — her uç
+  // kendi TTL'sini (`GROUPS_CACHE_TTL_MS` vb.) riskine göre seçer; `ttlMs=0` veren bir
+  // çağıran (persons — silinme şüphesi en yüksek uç) fiilen hep taze okur (`< 0` asla
+  // doğru olmaz), diğerleri (templates/trainers 5dk, groups 1dk) gerçek cache'ten yararlanır.
+  const existing = store.get(key);
+  if (existing && Date.now() - existing.at < ttlMs) return existing.value as T;
 
-  const existing = inflight.get(key);
-  if (existing) return existing as Promise<T>;
+  const inflightExisting = inflight.get(key);
+  if (inflightExisting) return inflightExisting as Promise<T>;
 
   const p = (async () => {
     try {
