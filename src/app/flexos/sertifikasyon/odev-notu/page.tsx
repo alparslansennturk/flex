@@ -216,7 +216,6 @@ export default function OdevNotuPage() {
 
   useEffect(() => {
     if (!selectedGroupId) return;
-    const group = groups.find((g) => g.id === selectedGroupId) ?? null;
     setActiveAssignmentId(null);
     (async () => {
       setLoadingAssignments(true);
@@ -228,15 +227,16 @@ export default function OdevNotuPage() {
         ]);
         const assignItems = assignRes.ok ? (await assignRes.json() as { items: AssignmentItem[] }).items : [];
         const rosterItems = rosterRes.ok ? (await rosterRes.json() as { items: RosterItem[] }).items : [];
-        setAssignments(assignItems.length > 0 ? assignItems : (group ? dummyAssignmentsFor(group) : []));
-        setRoster(rosterItems.length > 0 ? rosterItems : dummyRosterFor(selectedGroupId));
+        // 2026-07-13 fix: GERÇEK veri kullanılır — eskiden ödevi olmayan grupta sahte
+        // `dummyAssignmentsFor` demo ödevleri gösteriliyordu (kullanıcı bug'ı: yeni açılan
+        // gerçek Grup 784, DB'de 0 ödevi varken 4 uydurma ödev gösteriyordu). Boşsa boş.
+        setAssignments(assignItems);
+        setRoster(rosterItems);
         // Deep-link: doğru grup + doğru ödev yüklendiyse puanlama ekranını OTOMATİK aç
         // (sadece ilk deep-link'te — sonraki manuel grup değişimlerinde tekrar tetiklenmez).
         if (!autoOpened && deepLinkAssignmentId && selectedGroupId === deepLinkGroupId && assignItems.some((a) => a.id === deepLinkAssignmentId)) {
           setAutoOpened(true);
-          const effRoster = rosterItems.length > 0 ? rosterItems : dummyRosterFor(selectedGroupId);
-          const effAssignments = assignItems.length > 0 ? assignItems : (group ? dummyAssignmentsFor(group) : []);
-          void openAssignment(deepLinkAssignmentId, effRoster, effAssignments);
+          void openAssignment(deepLinkAssignmentId, rosterItems, assignItems);
         } else if (deepLinkPending && !autoOpened) {
           // Bu turda deep-link hedefine ulaşılamadı (yanlış grup ya da grupta öyle bir
           // ödev yok — silinmiş/geçersiz link) — sonsuza dek loader'da beklemek yerine
@@ -244,8 +244,8 @@ export default function OdevNotuPage() {
           setDeepLinkPending(false);
         }
       } catch {
-        setAssignments(group ? dummyAssignmentsFor(group) : []);
-        setRoster(dummyRosterFor(selectedGroupId));
+        setAssignments([]);
+        setRoster([]);
       } finally {
         setLoadingAssignments(false);
       }
