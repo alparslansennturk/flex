@@ -16,6 +16,16 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
+### 🚀 CANLIYA ALINDI — `flexos` branch `main`'e merge edilip push edildi (2026-07-13, aynı gün, PC oturumu sonu)
+
+**Kullanıcı kararı (kesin, birkaç kez teyit edildi):** `flexos` branch `main`'e merge edildi (çakışmasız fast-forward — `main`'de flexos'ta olmayan hiç commit yoktu) ve `origin/main`'e push edildi (`20b716f`). Vercel `main`'i production'a deploy ediyor — yani bu push GERÇEK kullanıcılara gitti. Merge öncesi `tsc --noEmit` + `npm run build` temiz doğrulandı.
+
+**Kapsam kararı:** İlk faz = eğitmen ödev versin + öğrenci yüklesin + yoklama alınsın (üçü de kullanıcı tarafından test edilip onaylandı — yoklama: "grup 2 gün yoklaması girdim"). Satış/Eğitim Op/Eğitmenler modülleri de flexos'ta zaten var ama finans YOK, başka eksikler olabilir — kullanıcı bunu kabul ediyor, "eskiden kalan hiçbir şey kullanılmayacak, eskisi TAMAMEN pasife alınacak, yedek olarak tutulacak (silinmeyecek)."
+
+**⚠️ SIRADAKİ İŞ (henüz yapılmadı):** Eski sistemi (`/dashboard/*`, eski `/login` akışı) gerçek kullanıcılar için erişilemez/pasif hale getirmek — kod SİLİNMEYECEK (yedek), sadece routing/login ile erişim kapatılacak. Mekanizma netleşmedi (muhtemelen `resolveLanding`/login-yönlendirme zaten FlexOS'a gidiyor olabilir, doğrulanmalı; direkt `/dashboard` URL'sine girilirse ne olacağı ayrı konu).
+
+**Bilinen, kabul edilmiş, go-live SONRASI ertelenen eksik:** [[project_student_portal_grup_secici]] — bitmiş grup→devam grubu (örnek: 550 Grafik1 → 784 Grafik2) senaryosunda öğrenci dashboard'u SADECE aktif enrollment'ların ödevlerini gösteriyor, bitmiş grubun ödevleri kayboluyor. Çözüm zaten tasarlanmış bir modelin (`project_student_card_hub` — eğitim seçici) öğrenci-facing uzantısı. Go-live'ı bloklamıyor, kullanıcı onayladı.
+
 ### ✅ PC oturumu: 5 gerçek bug + anlık chat (Firestore onSnapshot) + kritik altyapı bulguları — "vahim hatalar" kullanıcı tarafından KAPANDI kabul edildi (2026-07-13, aynı gün, Mac oturumunun devamı)
 
 **Bir önceki (Mac) oturumun bıraktığı "durum iyi değil / vahim hatalar var" uyarısı kullanıcı tarafından ÇÖZÜLDÜ kabul edildi** ("ciddi vahim hataları biz düzelttik bugün merak etme") — aşağıdaki iş bu kapsamda sayılıyor, ayrı bir detay listesi hiç istenmedi/verilmedi.
