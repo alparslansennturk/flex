@@ -6,6 +6,7 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreCommentRepo } from "@/app/lib/server/comment-repo.firestore";
+import { firestoreChatRepo } from "@/app/lib/server/chat-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { notifyUser } from "@/app/lib/server/flexos-notify";
 import { listThreadCommentsForStudent, postThreadCommentAsStudent } from "@/app/lib/domain/services/comment-service";
@@ -17,6 +18,7 @@ const deps = {
   persons: firestorePersonRepo,
   enrollments: firestoreEnrollmentRepo,
   comments: firestoreCommentRepo,
+  chats: firestoreChatRepo,
   trainers: firestoreTrainerRepo,
   notify: notifyUser,
 };

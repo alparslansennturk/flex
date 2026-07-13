@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import StudentSidebar from "../_components/StudentSidebar";
 import StudentHeader from "../_components/StudentHeader";
+import { FlexPageContent } from "../../_components/FlexHeader";
 
 /* ── Types ── */
 
@@ -157,7 +158,10 @@ export default function FlexosStudentDashboard() {
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <StudentHeader studentName={me.name} groupCode={me.groupCode} />
         <main className="flex-1 overflow-y-auto overflow-x-clip [scrollbar-gutter:stable]">
-          <div className="w-[94%] mx-auto pt-7 pb-12 max-w-[960px] xl:max-w-[1200px] 2xl:max-w-[1480px]">
+          {/* Merkezi genişlik (2026-07-13): Eğitmen Ana Sayfa'daki AYNI `FlexPageContent`
+              (FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS) — önceki ayrı/elle yazılmış
+              max-w değerleri (960/1200/1480) diğer FlexOS sayfalarıyla tutarsızdı. */}
+          <FlexPageContent className="pt-7 pb-12">
             <div className="flex gap-8 items-start">
 
               {/* ══ Sol: Ödevler ══ */}
@@ -245,7 +249,7 @@ export default function FlexosStudentDashboard() {
               </aside>
 
             </div>
-          </div>
+          </FlexPageContent>
         </main>
       </div>
 

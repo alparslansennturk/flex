@@ -391,7 +391,11 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
           </div>
         ) : (
           <button
-            onClick={() => router.push(`/flexos/odevler/teslim/${assignment.groupId}/${assignment.id}`)}
+            // needsGrading dalıyla AYNI kural (yukarıdaki 2026-07-11 düzeltmesi burada
+            // unutulmuştu, 2026-07-13 bulgusu): önce grubun ödev listesine gider, tıklanan
+            // ödevin akordiyonu otomatik açık gelir — doğrudan teslim/roster detayına
+            // ("öğrenci lobisi") ATLAMAZ.
+            onClick={() => router.push(`/flexos/odevler/teslim/${assignment.groupId}?assignmentId=${assignment.id}`)}
             className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold bg-[#6F74D8] text-white hover:bg-[#5E63C2] transition-all cursor-pointer"
           >
             Detay <ChevronRight size={13} />

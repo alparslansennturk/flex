@@ -400,6 +400,31 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // ─── chats (FlexOS: öğrenci↔eğitmen ANLIK 1:1 sohbet) ────────────────────
+    //
+    // 2026-07-13 kararı: `flexos_comments`'teki 1:1 thread için önce in-memory
+    // SSE broadcast denendi, CANLI TESTTE Turbopack dev'de route'lar arası modül
+    // paylaşmadığı kanıtlandı (bkz. realtime-hub.ts yorumu) — polling'e (6sn)
+    // düşüldü ama canlı sistemdeki gerçek anlıklığın kaynağı zaten Firestore
+    // `onSnapshot` idi. Bu koleksiyon AYNI deseni (`tasks/{id}/threads/{studentId}/
+    // comments` ile birebir) yeni mimariye taşır: SADECE bu chat'in hoca/öğrenci
+    // uid'i eşleşen kullanıcı OKUYABİLİR (onSnapshot), YAZMA HER ZAMAN Admin SDK
+    // (comment-service.ts) üzerinden — mevcut yetki/kayıt/durum kontrolleri
+    // rules'a taşınmadı, "tek kapı" (API) yazma tarafında korunuyor.
+
+    match /chats/{chatId} {
+      allow read: if isSignedIn() &&
+        (request.auth.uid == resource.data.trainerUid || request.auth.uid == resource.data.studentUid);
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() &&
+          (request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.trainerUid ||
+           request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.studentUid);
+        allow write: if false;
+      }
+    }
+
     // ─── FlexOS yeniden-inşa (yeni koleksiyonlar) ─────────────────────────────
     //
     // persons / enrollments: TÜM erişim Admin SDK (server) üzerinden, gated

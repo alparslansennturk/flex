@@ -17,6 +17,17 @@
  * TEK değişecek yer burası (Upstash/Redis pub-sub'a geçiş) — `subscribe`/`broadcast`
  * imzası aynı kalacağı için çağıran kod (route'lar, client hook) HİÇ değişmeden bu
  * geçiş yapılabilir.
+ *
+ * KANITLANMIŞ RİSK (2026-07-13): comment/thread bildirimi için bu mekanizma denendi
+ * (`comments.changed`) ve LOCAL DEV'DE (Turbopack, tek Node process) bile güvenilmez
+ * çıktı — `/api/flexos/realtime/stream` route'unun `subscribe()` çağrısı ile
+ * `student/assignments/[id]/thread` route'unun `broadcast()` çağrısı FARKLI modül
+ * instance'ında çalışıyordu (terminal logu: subscribe→1 hemen ardından, aradan hiç
+ * unsubscribe geçmeden, broadcast→0 dinleyici). Yani "sadece Vercel çoklu-instance"
+ * sınırı değil — Turbopack dev'de route dosyaları arasında da modül paylaşımı garanti
+ * değil. Bu yüzden comment/thread için SSE YERİNE polling kullanılıyor (öğrenci
+ * sayfasındaki kanıtlanmış 6sn desen). Bu dosyayı YENİ bir event türü için kullanmadan
+ * önce gerçek çapraz-route testi yapılmalı, "18 ekranda çalışıyor" güveniyle varsayılmamalı.
  */
 
 import { invalidateCache } from "./read-cache";

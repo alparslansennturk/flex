@@ -19,8 +19,9 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { auth } from "@/app/lib/firebase";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { auth, db } from "@/app/lib/firebase";
+import { collection, onSnapshot, orderBy, query, type Timestamp } from "firebase/firestore";
 import { toast } from "sonner";
 import {
   ArrowLeft, Loader2, FileText, ExternalLink, Send, Megaphone, MessageSquare, RotateCcw, CheckCircle2, ChevronDown,
@@ -68,6 +69,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 export default function OdevTeslimDetayPage() {
   const router = useRouter();
   const { groupId, assignmentId } = useParams<{ groupId: string; assignmentId: string }>();
+  const searchParams = useSearchParams();
 
   const [assignment, setAssignment] = useState<AssignmentDetail | null>(null);
   const [roster, setRoster] = useState<RosterItem[]>([]);
@@ -119,19 +121,64 @@ export default function OdevTeslimDetayPage() {
 
   useEffect(() => { loadOverview(); }, [loadOverview]);
 
+  // Bildirimden `?personId=` ile gelinince (postThreadCommentAsStudent'in actionUrl'i,
+  // comment-service.ts) o öğrencinin thread'i otomatik açılır — eğitmen elle roster'dan
+  // aramak zorunda kalmaz (2026-07-13 bug fix).
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (loading || autoSelectedRef.current) return;
+    const personId = searchParams.get("personId");
+    if (!personId || !roster.some((r) => r.personId === personId)) return;
+    autoSelectedRef.current = true;
+    void selectPerson(personId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, roster, searchParams]);
+
   const loadGeneralComments = useCallback(async () => {
     const headers = await authHeaders();
     const res = await fetch(`/api/flexos/assignments/${assignmentId}/comments`, { headers });
     if (res.ok) setGeneralComments((await res.json() as { items: CommentItem[] }).items);
   }, [assignmentId]);
 
-  const loadThreadComments = useCallback(async (personId: string) => {
-    const headers = await authHeaders();
-    const res = await fetch(`/api/flexos/assignments/${assignmentId}/comments/thread?personId=${personId}`, { headers });
-    if (res.ok) setThreadComments((await res.json() as { items: CommentItem[] }).items);
-  }, [assignmentId]);
-
   useEffect(() => { loadGeneralComments(); }, [loadGeneralComments]);
+
+  // 2026-07-13 kararı: 1:1 thread SADECE Firestore `onSnapshot` ile okunur (gerçek anlık,
+  // canlıdaki `tasks/{id}/threads/{studentId}/comments` ile AYNI desen) — `comments.changed`
+  // broadcast + SSE denendi ama route'lar arası modül paylaşmadığı kanıtlandı (realtime-hub.ts).
+  // Duyuru (general) sekmesi kapsam dışı, API+polling yerine dokunulmadı (chat DEĞİL, tek-yönlü duyuru).
+  const chatId = viewingPersonId ? `${assignmentId}_${viewingPersonId}` : null;
+  useEffect(() => {
+    if (!chatId || !viewingPersonId) { setThreadComments([]); return; }
+    const personId = viewingPersonId;
+    let cancelled = false;
+    let unsub: (() => void) | undefined;
+    (async () => {
+      // Chat dokümanı garanti edilmeden `onSnapshot` "Missing or insufficient permissions"
+      // atıyordu — rules'taki `get()` parent dokümanın VAR olmasını gerektiriyor
+      // (2026-07-13 bug fix). İlk mesajdan ÖNCE bile çağrılmalı.
+      try {
+        const headers = await authHeaders();
+        const ensureRes = await fetch(`/api/flexos/assignments/${assignmentId}/comments/thread/ensure?personId=${personId}`, { method: "POST", headers });
+        if (!ensureRes.ok) console.error("[teslim-thread-chat] ensure başarısız:", ensureRes.status, await ensureRes.text().catch(() => ""));
+      } catch (e) { console.error("[teslim-thread-chat] ensure hata:", e); }
+      if (cancelled) return;
+      const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
+      unsub = onSnapshot(q, (snap) => {
+        setThreadComments(snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            authorUid: data.authorUid ?? "",
+            authorType: data.authorType ?? "student",
+            authorName: data.authorName ?? "",
+            text: data.text ?? "",
+            createdAt: ((data.createdAt as Timestamp | undefined)?.toDate() ?? new Date()).toISOString(),
+          };
+        }));
+      }, (err) => console.error("[teslim-thread-chat]", err));
+    })();
+    return () => { cancelled = true; unsub?.(); };
+  }, [chatId, assignmentId, viewingPersonId]);
 
   async function selectPerson(personId: string) {
     setViewingPersonId(personId);
@@ -153,7 +200,8 @@ export default function OdevTeslimDetayPage() {
         setFilesLoading(false);
       }
     }
-    await loadThreadComments(personId);
+    // threadComments YOK burada — `chatId` state'i `viewingPersonId`'den türetiliyor,
+    // onSnapshot effect'i otomatik devreye girer.
   }
 
   useEffect(() => { commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [threadComments, generalComments, commentTab]);
@@ -174,8 +222,9 @@ export default function OdevTeslimDetayPage() {
         toast.error(json.error ?? "Yorum gönderilemedi.");
         return;
       }
+      // Duyuru sekmesi hâlâ API+state — thread ("private") sekmesi ise `onSnapshot`
+      // zaten dinliyor, mesaj Firestore'a yazılır yazılmaz otomatik görünür.
       if (commentTab === "general") await loadGeneralComments();
-      else if (viewingPersonId) await loadThreadComments(viewingPersonId);
     } catch {
       toast.error("Bağlantı hatası, tekrar dene.");
     }
@@ -400,6 +449,19 @@ export default function OdevTeslimDetayPage() {
                             </a>
                           </div>
                         ))}
+                      </div>
+                    )}
+                    {/* Tam-ekran önizleme (2026-07-13 port) — canlıdaki "Dosya" kartının
+                        altındaki TEK "Detay Gör" butonunun BİREBİR karşılığı (dosya satırı
+                        başına değil, mevcut teslimin tamamı için tek buton). */}
+                    {viewingRow.submission && files.length > 0 && (
+                      <div className="flex justify-end mt-4">
+                        <button
+                          onClick={() => router.push(`/flexos/odevler/teslim/${groupId}/${assignmentId}/${viewingRow.submission!.id}/preview`)}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-status-success-500 text-white text-[13px] font-semibold hover:bg-status-success-700 transition-colors cursor-pointer"
+                        >
+                          <ExternalLink size={14} /> Detay Gör
+                        </button>
                       </div>
                     )}
                   </div>

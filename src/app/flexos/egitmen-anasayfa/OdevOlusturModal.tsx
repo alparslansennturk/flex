@@ -61,8 +61,12 @@ import {
 import { auth } from "@/app/lib/firebase";
 import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from "../odevler/_shared/assignmentIcons";
 import { uploadAssignmentAttachment, ATTACHMENT_MAX_MB } from "../odevler/_shared/uploadAssignmentAttachment";
+import { mapStatus } from "../siniflar/_shared/groupDisplay";
 
-interface GroupItem { id: string; code: string; branch: string }
+interface GroupItem {
+  id: string; code: string; branch: string;
+  status: string; schedule?: { endDate?: string };
+}
 
 const ICONS = ASSIGNMENT_ICONS;
 const ICON_KEYS = ASSIGNMENT_ICON_KEYS;
@@ -146,8 +150,11 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
         const res = await fetch("/api/flexos/groups", { headers });
         if (res.ok) {
           const data = await res.json() as { items: GroupItem[] };
-          setGroups(data.items);
-          if (data.items.length > 0) setGroupId((cur) => cur || data.items[0].id);
+          // Sadece "aktif" gruplar seçilebilir — tamamlanmış/iptal/açılacak gruplara ödev
+          // atanamaz (EgitmenSiniflarPanel.tsx'teki AYNI kural: ham `status` değil `mapStatus`).
+          const aktifGruplar = data.items.filter((g) => mapStatus(g.status, g.schedule?.endDate) === "aktif");
+          setGroups(aktifGruplar);
+          if (aktifGruplar.length > 0) setGroupId((cur) => cur || aktifGruplar[0].id);
         }
       } finally {
         setLoadingGroups(false);

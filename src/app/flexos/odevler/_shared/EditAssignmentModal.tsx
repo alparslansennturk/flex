@@ -43,7 +43,7 @@ export interface EditableAssignment {
   attachments?: EditableAttachment[];
 }
 
-interface UploadJob { fileName: string; progress: number; status: "uploading" | "success" | "error"; error?: string }
+interface UploadJob { id: string; fileName: string; progress: number; status: "uploading" | "success" | "error"; error?: string }
 
 async function authHeaders(): Promise<Record<string, string>> {
   const u = auth.currentUser;
@@ -110,10 +110,14 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
   }
 
   async function uploadOne(file: File) {
-    const jobIndex = jobs.length;
-    setJobs((prev) => [...prev, { fileName: file.name, progress: 0, status: "uploading" }]);
+    // Sırayla artan bir index (`jobs.length`) DEĞİL — çoklu dosya aynı anda seçilince
+    // (`pickFiles` → `forEach`) hepsi aynı render'daki `jobs`'u görüyor, o yüzden hepsi
+    // AYNI index'i yakalayıp birbirlerinin progress/hata durumunu eziyordu (stale closure).
+    // Her job kendi benzersiz id'siyle eşleşir.
+    const jobId = `${file.name}-${Date.now()}-${Math.random()}`;
+    setJobs((prev) => [...prev, { id: jobId, fileName: file.name, progress: 0, status: "uploading" }]);
     const patchJob = (patch: Partial<UploadJob>) =>
-      setJobs((prev) => prev.map((j, i) => (i === jobIndex ? { ...j, ...patch } : j)));
+      setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...patch } : j)));
 
     try {
       const attachment = await uploadAssignmentAttachment(assignmentId, file, (pct) => patchJob({ progress: pct }));
@@ -216,8 +220,8 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
                   </a>
                 </div>
               ))}
-              {jobs.filter((j) => j.status !== "success").map((j, i) => (
-                <div key={`job-${i}`} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-50 border border-surface-100 text-[12px]">
+              {jobs.filter((j) => j.status !== "success").map((j) => (
+                <div key={j.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-50 border border-surface-100 text-[12px]">
                   {j.status === "uploading" ? <Loader2 size={14} className="animate-spin text-base-primary-500 shrink-0" /> : <FileText size={14} className="text-status-danger-500 shrink-0" />}
                   <span className="flex-1 min-w-0 truncate text-text-primary font-medium">{j.fileName}</span>
                   <span className={j.status === "error" ? "text-status-danger-500" : "text-surface-400"}>

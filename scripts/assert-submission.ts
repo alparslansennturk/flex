@@ -344,6 +344,30 @@ async function main() {
     );
   }
 
+  // ── completeUpload: 2 dosya AYNI ANDA tamamlanınca TEK submission'a bağlanır (2026-07-13 race fix) ──
+  {
+    const groupRace = fakeGroup("group-race", "trainer-a");
+    const assignmentRace = fakeAssignment("assignment-race", "group-race", "trainer-a");
+    const deps = makeDeps({
+      groups: [groupRace], assignments: [assignmentRace], persons: [student],
+      enrollments: [fakeEnrollment("enr-race", "person-1", "group-race")],
+    });
+
+    const { session: r1 } = await initUpload({ requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "assignment-race", fileName: "r1.pdf", fileSize: 1, mimeType: "application/pdf" }, deps);
+    const { session: r2 } = await initUpload({ requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "assignment-race", fileName: "r2.pdf", fileSize: 1, mimeType: "application/pdf" }, deps);
+
+    // İki dosya AYNI ANDA tamamlanıyor — ikisi de completeUpload'ın "existing yok" dalına aynı anda girebilir.
+    await Promise.all([
+      completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: r1.id }, deps),
+      completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: r2.id }, deps),
+    ]);
+
+    const raceSubmission = await deps.submissions.findByAssignmentAndPerson("assignment-race", "person-1", TENANT);
+    assert("completeUpload: paralel 2 dosya öksüz 2. submission'a bölünmez", raceSubmission !== null);
+    const raceFiles = raceSubmission ? await deps.submissionFiles.listActiveBySubmission(raceSubmission.id, TENANT) : [];
+    assert("completeUpload: paralel 2 dosyanın ikisi de AYNI submission altında görünür", raceFiles.length === 2);
+  }
+
   // ── org-scope (Operasyon/Admin) herhangi bir grubun teslimini notlandırabilir/durum değiştirebilir ──
   {
     const deps = makeDeps({ groups: [groupA], assignments: [assignmentA], persons: [student], enrollments: [enrollment] });

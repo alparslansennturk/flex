@@ -17,6 +17,7 @@ import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import GroupCard from "../_components/GroupCard";
 import type { GroupApiItem } from "../../siniflar/_shared/groupDisplay";
+import { mapStatus } from "../../siniflar/_shared/groupDisplay";
 
 interface AssignmentItem {
   id: string;
@@ -87,10 +88,15 @@ export default function OdevTeslimiPage() {
     toast.success(archive ? "Grup arşive alındı." : "Grup aktife alındı.");
   }
 
-  const filtered = groups.filter((g) =>
-    filter === "active" ? g.status !== "archived" :
-    filter === "archived" ? g.status === "archived" : true,
-  );
+  // Ham `g.status` yerine `mapStatus` (GroupTable.tsx: CORE_ACTIVE_STATUSES/CORE_ARCHIVE_STATUSES
+  // ile AYNI kural) — "active" olup `schedule.endDate`'i geçmiş veya domain'de "completed" olan
+  // gruplar da (manuel arşivlenmemiş olsalar bile) "tamamlandı" sayılır, Aktif Sınıflar'da kalmaz.
+  const filtered = groups.filter((g) => {
+    const eff = mapStatus(g.status, g.schedule?.endDate);
+    if (filter === "active") return eff === "açılacak" || eff === "aktif";
+    if (filter === "archived") return eff === "tamamlandı" || eff === "iptal";
+    return true;
+  });
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", background: "#EEF0F3" }}>

@@ -4,14 +4,15 @@
  * FlexOS · Ödev Detay + Yükleme — canlıdaki `/student/[studentId]/[taskId]/page.tsx` portu.
  * Görünüm/işleyiş birebir: drag-drop, 256KB chunk'lı resumable upload, teslim geçmişi,
  * geri çekme, sağda 1:1 yorum paneli. Backend: FlexOS Submission/Comment domain'i (Faz 2+3).
- * Yorumlar POLLING ile tazelenir (flexos_comments'te client onSnapshot rules'u AÇILMADI —
- * bkz. [[flexos_firestore_client_access_pattern]] hafızası); anlık toast zaten GLOBAL
- * `NotificationToastListener` üzerinden geliyor (`users/{uid}/notifications`, aynı koleksiyon).
+ * Ödev/teslim durumu HÂLÂ polling (6sn) — chat 2026-07-13'ten beri `chats/{chatId}/messages`
+ * üzerinden DOĞRUDAN Firestore `onSnapshot` ile okunuyor (gerçek anlık, canlıdaki
+ * `tasks/{id}/threads/{studentId}/comments` ile AYNI desen — bkz. firestore.rules).
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { auth } from "@/app/lib/firebase";
+import { auth, db } from "@/app/lib/firebase";
+import { collection, onSnapshot, orderBy, query, type Timestamp } from "firebase/firestore";
 import { toast } from "sonner";
 import {
   ArrowLeft, Loader2, Upload, FileText, CheckCircle2,
@@ -146,31 +147,59 @@ export default function FlexosStudentAssignmentDetail() {
     setFiles(data.files.sort((a, b) => b.versionNo - a.versionNo));
   }, [assignmentId, personId]);
 
-  const loadComments = useCallback(async () => {
-    const headers = await authHeaders();
-    const res = await fetch(`/api/flexos/student/assignments/${assignmentId}/thread?personId=${personId}`, { headers });
-    if (!res.ok) return;
-    const data = await res.json() as { items: CommentItem[] };
-    setComments(data.items);
-  }, [assignmentId, personId]);
-
   useEffect(() => {
-    (async () => { setLoading(true); await Promise.all([loadDetail(), loadComments()]); setLoading(false); })();
-  }, [loadDetail, loadComments]);
+    (async () => { setLoading(true); await loadDetail(); setLoading(false); })();
+  }, [loadDetail]);
 
-  /* Polling — 6sn'de bir tazele, sekme arka plandaysa durdur (Firestore kota bilinci) */
+  /* Ödev/teslim durumu polling — 6sn'de bir tazele, sekme arka plandaysa durdur
+     (Firestore kota bilinci). Chat BURADA DEĞİL — aşağıdaki onSnapshot'ta. */
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
     function start() {
       if (timer) return;
-      timer = setInterval(() => { loadDetail(); loadComments(); }, POLL_MS);
+      timer = setInterval(() => { loadDetail(); }, POLL_MS);
     }
     function stop() { if (timer) { clearInterval(timer); timer = null; } }
     function onVisibility() { if (document.visibilityState === "visible") start(); else stop(); }
     start();
     document.addEventListener("visibilitychange", onVisibility);
     return () => { stop(); document.removeEventListener("visibilitychange", onVisibility); };
-  }, [loadDetail, loadComments]);
+  }, [loadDetail]);
+
+  // Chat — `chats/{chatId}/messages`'ı DOĞRUDAN Firestore `onSnapshot` ile dinler
+  // (2026-07-13 kararı, bkz. dosya başı yorumu). `chatId` server'daki `chatIdFor` ile
+  // BİREBİR aynı formülle hesaplanır: `${assignmentId}_${personId}`.
+  useEffect(() => {
+    const chatId = `${assignmentId}_${personId}`;
+    let cancelled = false;
+    let unsub: (() => void) | undefined;
+    (async () => {
+      // Chat dokümanı garanti edilmeden `onSnapshot` "Missing or insufficient permissions"
+      // atıyordu — rules'taki `get()` parent dokümanın VAR olmasını gerektiriyor
+      // (2026-07-13 bug fix). İlk mesajdan ÖNCE bile çağrılmalı.
+      try {
+        const headers = await authHeaders();
+        const ensureRes = await fetch(`/api/flexos/student/assignments/${assignmentId}/thread/ensure?personId=${personId}`, { method: "POST", headers });
+        if (!ensureRes.ok) console.error("[student-thread-chat] ensure başarısız:", ensureRes.status, await ensureRes.text().catch(() => ""));
+      } catch (e) { console.error("[student-thread-chat] ensure hata:", e); }
+      if (cancelled) return;
+      const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
+      unsub = onSnapshot(q, (snap) => {
+        setComments(snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            authorUid: data.authorUid ?? "",
+            authorType: data.authorType ?? "trainer",
+            authorName: data.authorName ?? "",
+            text: data.text ?? "",
+            createdAt: ((data.createdAt as Timestamp | undefined)?.toDate() ?? new Date()).toISOString(),
+          };
+        }));
+      }, (err) => console.error("[student-thread-chat]", err));
+    })();
+    return () => { cancelled = true; unsub?.(); };
+  }, [assignmentId, personId]);
 
   useEffect(() => { commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [comments]);
 
@@ -326,7 +355,7 @@ export default function FlexosStudentAssignmentDetail() {
         toast.error(json.error ?? "Yorum gönderilemedi.");
         return;
       }
-      await loadComments();
+      // Refetch YOK — `chats/{chatId}/messages`'a `onSnapshot` zaten dinliyor.
     } catch {
       toast.error("Bağlantı hatası, tekrar dene.");
     }
@@ -334,18 +363,16 @@ export default function FlexosStudentAssignmentDetail() {
 
   async function editComment(id: string, newText: string) {
     const headers = await authHeaders();
-    await fetch(`/api/flexos/comments/${id}`, {
+    await fetch(`/api/flexos/chats/${assignmentId}_${personId}/messages/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify({ text: newText }),
     });
-    await loadComments();
   }
 
   async function deleteComment(id: string) {
     const headers = await authHeaders();
-    await fetch(`/api/flexos/comments/${id}`, { method: "DELETE", headers });
-    await loadComments();
+    await fetch(`/api/flexos/chats/${assignmentId}_${personId}/messages/${id}`, { method: "DELETE", headers });
   }
 
   /* ── Derived ── */

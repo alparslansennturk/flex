@@ -11,6 +11,7 @@ import type { Group } from "../src/app/lib/domain/core/group";
 import type { Person } from "../src/app/lib/domain/core/person";
 import type { Trainer } from "../src/app/lib/domain/core/trainer";
 import type { AssignmentRepo } from "../src/app/lib/domain/repo/assignment-repo";
+import type { ChatRepo, ChatMessage } from "../src/app/lib/domain/repo/chat-repo";
 import type { CommentRepo } from "../src/app/lib/domain/repo/comment-repo";
 import type { EnrollmentRepo } from "../src/app/lib/domain/repo/enrollment-repo";
 import type { GroupRepo } from "../src/app/lib/domain/repo/group-repo";
@@ -20,6 +21,7 @@ import {
   postGeneralComment, postThreadCommentAsStaff, listGeneralCommentsForStaff, listThreadCommentsForStaff,
   listGeneralCommentsForStudent, listThreadCommentsForStudent, postThreadCommentAsStudent,
   listAnnouncementsForStudent, editOwnComment, deleteOwnComment,
+  editChatMessage, deleteChatMessage, ensureThreadChatForStaff, ensureThreadChatForStudent,
   type CommentDeps,
 } from "../src/app/lib/domain/services/comment-service";
 import { ForbiddenError, ValidationError } from "../src/app/lib/domain/errors";
@@ -122,6 +124,36 @@ function makeCommentRepo(): CommentRepo {
   };
 }
 
+function makeChatRepo(): ChatRepo & { hasChat(chatId: string): boolean } {
+  const chats = new Map<string, { trainerUid: string; studentUid: string }>();
+  const messages = new Map<string, ChatMessage[]>();
+  let msgCounter = 0;
+  return {
+    hasChat(chatId) { return chats.has(chatId); },
+    chatIdFor(assignmentId, personId) { return `${assignmentId}_${personId}`; },
+    async ensureChat(chatId, data) {
+      if (!chats.has(chatId)) chats.set(chatId, { trainerUid: data.trainerUid, studentUid: data.studentUid });
+    },
+    async addMessage(chatId, msg) {
+      const id = `msg-${++msgCounter}`;
+      const list = messages.get(chatId) ?? [];
+      list.push({ id, ...msg });
+      messages.set(chatId, list);
+      return id;
+    },
+    async getMessage(chatId, messageId) {
+      return (messages.get(chatId) ?? []).find((m) => m.id === messageId) ?? null;
+    },
+    async updateMessage(chatId, messageId, text) {
+      const m = (messages.get(chatId) ?? []).find((x) => x.id === messageId);
+      if (m) m.text = text;
+    },
+    async deleteMessage(chatId, messageId) {
+      messages.set(chatId, (messages.get(chatId) ?? []).filter((m) => m.id !== messageId));
+    },
+  };
+}
+
 const notifyCalls: { uid: string; title: string }[] = [];
 async function fakeNotify(uid: string, input: { title: string }) { notifyCalls.push({ uid, title: input.title }); }
 
@@ -154,6 +186,7 @@ function makeDeps(overrides: { groups?: Group[]; assignments?: Assignment[]; per
     persons: makePersonRepo(overrides.persons ?? []),
     enrollments: makeEnrollmentRepo(overrides.enrollments ?? []),
     comments: makeCommentRepo(),
+    chats: makeChatRepo(),
     trainers: makeTrainerRepo(overrides.trainers ?? []),
     notify: fakeNotify,
   };
@@ -283,6 +316,55 @@ async function main() {
     assert("listGeneralCommentsForStaff: Operasyon (org-scope) okuyabilir", general.length === 1);
     const thread = await listThreadCommentsForStaff(operasyon, "assignment-a", "person-1", deps);
     assert("listThreadCommentsForStaff: Operasyon (org-scope) okuyabilir", thread.length === 1);
+  }
+
+  // ── chats/{chatId}/messages mirror (2026-07-13, anlık chat) ──
+  {
+    const deps = makeDeps({ groups: [groupA], assignments: [assignmentA], persons: [student], enrollments: [enrollment], trainers: [trainerRecord] });
+    const chatId = deps.chats.chatIdFor("assignment-a", "person-1");
+
+    await postThreadCommentAsStudent("student-uid-1", TENANT, "person-1", "assignment-a", "Merhaba hoca", deps);
+    const afterStudent = await deps.chats.getMessage(chatId, "msg-1");
+    assert("mirrorToChat: öğrenci mesajı ilk kez chat'i doğru trainerUid/studentUid ile açar", afterStudent?.authorUid === "student-uid-1" && afterStudent?.authorType === "student");
+
+    await postThreadCommentAsStaff(trainerA, "assignment-a", "person-1", "Merhaba, aldım", deps);
+    const afterStaff = await deps.chats.getMessage(chatId, "msg-2");
+    assert("mirrorToChat: eğitmen mesajı AYNI chat'e (aynı chatId) düşer", afterStaff?.authorUid === "trainer-a" && afterStaff?.authorType === "trainer");
+
+    await editChatMessage("student-uid-1", chatId, "msg-1", "Düzeltildi", deps);
+    const edited = await deps.chats.getMessage(chatId, "msg-1");
+    assert("editChatMessage: sahibi düzenleyebilir", edited?.text === "Düzeltildi");
+
+    await assertRejects(
+      "editChatMessage: başkası düzenleyemez — ForbiddenError",
+      () => editChatMessage("trainer-a", chatId, "msg-1", "Hacklendi", deps),
+      ForbiddenError,
+    );
+
+    await deleteChatMessage("trainer-a", chatId, "msg-2", deps);
+    const afterDelete = await deps.chats.getMessage(chatId, "msg-2");
+    assert("deleteChatMessage: sahibi silebilir", afterDelete === null);
+  }
+
+  // ── ensureThreadChatForStaff/ForStudent (2026-07-13: ilk mesajdan ÖNCE chat garanti) ──
+  {
+    const deps = makeDeps({ groups: [groupA], assignments: [assignmentA], persons: [student], enrollments: [enrollment], trainers: [trainerRecord] });
+    const chatId = deps.chats.chatIdFor("assignment-a", "person-1");
+    const hasChat = () => (deps.chats as ReturnType<typeof makeChatRepo>).hasChat(chatId);
+
+    assert("ensureThreadChatForStaff öncesi: chat henüz yok", !hasChat());
+    await ensureThreadChatForStaff(trainerA, "assignment-a", "person-1", deps);
+    assert("ensureThreadChatForStaff: hiç mesaj yokken bile chat dokümanı oluşur", hasChat());
+
+    const deps2 = makeDeps({ groups: [groupA], assignments: [assignmentA], persons: [student], enrollments: [enrollment], trainers: [trainerRecord] });
+    await ensureThreadChatForStudent("student-uid-1", TENANT, "person-1", "assignment-a", deps2);
+    assert("ensureThreadChatForStudent: hiç mesaj yokken bile chat dokümanı oluşur", (deps2.chats as ReturnType<typeof makeChatRepo>).hasChat(chatId));
+
+    await assertRejects(
+      "ensureThreadChatForStudent: başka öğrencinin kimliğiyle çağrılamaz — ForbiddenError",
+      () => ensureThreadChatForStudent("wrong-uid", TENANT, "person-1", "assignment-a", makeDeps({ groups: [groupA], assignments: [assignmentA], persons: [student], enrollments: [enrollment] })),
+      ForbiddenError,
+    );
   }
 
   // ── tenant izolasyonu ──

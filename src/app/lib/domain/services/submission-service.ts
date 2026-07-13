@@ -21,6 +21,22 @@ function nowISO(): ISODateTime {
   return new Date().toISOString();
 }
 
+/**
+ * Bir (tenant, assignment, kişi) üçlüsü için DETERMİNİSTİK Submission ID'si.
+ * `nextId()` (rastgele Firestore ID) yerine bu kullanılır ki iki dosya AYNI ANDA
+ * tamamlanınca (`completeUpload`'ın paralel çağrıları, `Promise.all` ile çoklu
+ * dosya yükleme) ikisi de "existing yok" görüp 2 AYRI Submission dokümanı
+ * açmasın — böylece ikinci dosya, uygulamanın `findByAssignmentAndPerson` ile
+ * hiç bulamayacağı "öksüz" bir dokümana bağlanıp kayboluyordu (2026-07-13 bug).
+ * Aynı ID üretimi çakışsa bile Firestore `.set()` üzerine yazar, doküman
+ * ÇOĞALMAZ. BİLİNÇLİ SINIR: `iteration`/`status` gibi skaler alanlarda hâlâ
+ * son-yazan-kazanır riski var (gerçek transaction yok) — kabul edilebilir,
+ * kritik olan dosyanın asla öksüz kalmaması.
+ */
+function submissionDocId(tenantId: string, assignmentId: EntityId, personId: EntityId): string {
+  return `${tenantId}_${assignmentId}_${personId}`;
+}
+
 export interface SubmissionDeps {
   assignments: AssignmentRepo;
   groups: GroupRepo;
@@ -229,7 +245,7 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
 
   if (!existing) {
     existing = {
-      id: deps.submissions.nextId(),
+      id: submissionDocId(tenantId, session.assignmentId, personId),
       tenantId,
       assignmentId: session.assignmentId,
       groupId: session.groupId,
@@ -617,7 +633,7 @@ export async function gradeManually(
   const updated: Submission = existing
     ? { ...existing, grade: input.grade, gradedAt: now, gradedBy: actor.uid, updatedAt: now, updatedBy: actor.uid }
     : {
-        id: deps.submissions.nextId(),
+        id: submissionDocId(actor.tenantId, input.assignmentId, input.personId),
         tenantId: actor.tenantId,
         assignmentId: input.assignmentId,
         groupId: input.groupId,
@@ -692,7 +708,7 @@ export async function gradeBatch(
       result.graded += 1;
     } else if (item.grade > 0) {
       writes.push({
-        id: deps.submissions.nextId(),
+        id: submissionDocId(actor.tenantId, input.assignmentId, item.personId),
         tenantId: actor.tenantId,
         assignmentId: input.assignmentId,
         groupId: input.groupId,

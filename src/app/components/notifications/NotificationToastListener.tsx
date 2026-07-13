@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { useUser } from '@/app/context/UserContext';
+import { onIdTokenChanged } from 'firebase/auth';
+import { auth } from '@/app/lib/firebase';
 import { NotificationService } from '@/app/lib/services/NotificationService';
 import { NotificationRealtimeService } from '@/app/lib/services/NotificationRealtimeService';
 import { playNotificationSound } from '@/app/lib/notificationSound';
@@ -17,7 +18,14 @@ const TYPE_ICON: Record<NotificationPayload['type'], string> = {
 };
 
 export default function NotificationToastListener() {
-  const { user }    = useUser();
+  // `useUser()` (legacy `users/{uid}` Firestore DOKÜMANI'na `onSnapshot` ile bağlı) yerine
+  // doğrudan Firebase Auth uid'i — 2026-07-13 bug fix: FlexOS'ta sadece `flexos_users` ile
+  // oluşturulan hesapların (`provisionTrainerLogin`/`provisionStudentLogin`) legacy
+  // `users/{uid}` dokümanı hiç yok, `useUser()` sonsuza dek `null` dönüyor, bu yüzden toast
+  // HİÇ tetiklenmiyordu (bildirimler kendisi `users/{uid}/notifications` ALT koleksiyonunda —
+  // ayrı, üst dokümanın var olması gerekmez — bu yüzden zil/liste tarafı etkilenmiyordu).
+  const [uid, setUid] = useState<string | null>(null);
+  useEffect(() => onIdTokenChanged(auth, (u) => setUid(u?.uid ?? null)), []);
   const pathname    = usePathname();
   const router      = useRouter();
   const seenIds       = useRef(new Set<string>());
@@ -37,7 +45,7 @@ export default function NotificationToastListener() {
   }, []);
 
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!uid) return;
 
     // seenIds sadece kullanıcı değişince sıfırlanır — navigasyon kesmez.
     // isInitialLoad: ilk snapshot'taki mevcut bildirimler sessizce seenIds'e eklenir,
@@ -46,7 +54,7 @@ export default function NotificationToastListener() {
     seenIds.current.clear();
     isInitialLoad.current = true;
 
-    const unsub = NotificationRealtimeService.subscribe(user.uid, (notifications) => {
+    const unsub = NotificationRealtimeService.subscribe(uid, (notifications) => {
       // İlk snapshot (isInitialLoad=true): eski bildirimler bastırılır ama
       // son 30 saniyede oluşanlar toast gösterir (API hızlı yazarsa ilk snapshot'a düşebilir).
       // 30s penceresi sunucu/tarayıcı saat farkından etkilenmez.
@@ -93,7 +101,7 @@ export default function NotificationToastListener() {
     }, 50, 'NotificationToastListener');
 
     return unsub;
-  }, [user?.uid]); // Sadece user.uid değişince yeniden kur — pathname/router navigasyonu kesmez
+  }, [uid]); // Sadece uid değişince yeniden kur — pathname/router navigasyonu kesmez
 
   return null;
 }
