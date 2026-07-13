@@ -16,6 +16,32 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
+### ✅ PC oturumu: 5 gerçek bug + anlık chat (Firestore onSnapshot) + kritik altyapı bulguları — "vahim hatalar" kullanıcı tarafından KAPANDI kabul edildi (2026-07-13, aynı gün, Mac oturumunun devamı)
+
+**Bir önceki (Mac) oturumun bıraktığı "durum iyi değil / vahim hatalar var" uyarısı kullanıcı tarafından ÇÖZÜLDÜ kabul edildi** ("ciddi vahim hataları biz düzelttik bugün merak etme") — aşağıdaki iş bu kapsamda sayılıyor, ayrı bir detay listesi hiç istenmedi/verilmedi.
+
+**Bulunup düzeltilen 5 gerçek bug (canlı test ile):**
+1. `completeUpload`: 2 dosya AYNI ANDA tamamlanınca `nextId()` (rastgele) yerine deterministik Submission ID (`tenantId_assignmentId_personId`) — öksüz 2. submission'a bölünme + kota çarpımı düzeltildi
+2. Ödev Ver/Ödev Teslimi grup listelerinde bitmiş/iptal gruplar filtrelenmiyordu → `mapStatus` ile tutarlı hale geldi (EgitmenSiniflarPanel'deki AYNI kural)
+3. `EditAssignmentModal` çoklu dosya yüklemede stale-closure index bug'ı (`jobs.length` aynı anda yakalanıp hepsi aynı index'i eziyordu) → id-bazlı eşleşme
+4. Bildirim (`postThreadCommentAsStudent`) hep `/flexos/egitmen-anasayfa`'ya gidiyordu → artık `teslim/{groupId}/{assignmentId}?personId=` ile doğru öğrenci thread'i otomatik açılıyor
+5. Ana Sayfa "Detay" butonu (needsGrading olmayan dalda) doğrudan roster/teslim detayına atlıyordu (canlıdaki "önce liste" davranışı 2026-07-11'de sadece bir daldan düzeltilmişti) → artık her iki dalda da önce ödev listesine gidip ilgili ödevi açık gösteriyor
+6. + canlıdaki tam-ekran "Detay Gör" önizleme sayfası (dosya önizleme + sohbet + onayla/revize) hiç portlanmamıştı → portlandı
+
+**Anlık chat (öğrenci↔eğitmen 1:1) — mimari karar:** `comments.changed` broadcast + `useRealtimeSync` (SSE) denendi, CANLI TESTTE (terminal loguyla) KANITLANDI ki Turbopack dev'de `/api/flexos/realtime/stream` ile mutasyon route'ları FARKLI modül instance'ında çalışıyor (`broadcast()` her zaman dinleyici=0 buluyordu, aradan unsubscribe hiç geçmeden) — **in-memory pub/sub'ın Vercel çoklu-instance riski (realtime-hub.ts'teki bilinen sınır) local dev'de bile gerçekleşiyor.** Kullanıcı kararı: chat için SSE yerine `chats/{chatId}/messages` koleksiyonunu client DOĞRUDAN Firestore `onSnapshot` ile okusun (canlıdaki `tasks/{id}/threads/{studentId}/comments` ile AYNI desen) — yazma yine Admin SDK (mevcut yetki kontrolleri korunur), rules SADECE okuma açar (trainerUid/studentUid eşleşmesi, `tasks/threads` ile aynı ilke: "hoca ve öğrenci ID'lerini denetle", admin/org-scope bypass YOK — bilinçli sınır, gerekirse ayrıca eklenir). `mirrorToChat` dual-write yapıyor (eski `flexos_comments`'e de yazıyor, geriye uyumluluk + testler).
+
+**KRİTİK bulgu — `with-auth.ts`'te unutulmuş Mac teşhis kodu:** `_read-audit.ts` (Firestore SDK'sının `Query`/`CollectionReference`/`DocumentReference` prototiplerini monkey-patch eden GEÇİCİ ölçüm aracı, kendi yorumu "analiz bitince silinecek" diyordu) hâlâ `with-auth.ts` içinde aktifti — Mac'e özel sabit bir log dosyası yolu (`/private/tmp/claude-501/...`) içeriyordu, TÜM API route'ları etkiliyordu. Silindi (`_read-audit.ts` + `with-auth.ts`'teki 3 satır).
+
+**KRİTİK bulgu #2 — `firestore.rules` 2 haftadır deploy edilmemiş:** Kullanıcı "deploy ettim" dedikten sonra bile chat'te "Missing or insufficient permissions" devam etti. `firebaserules` API'sinden aktif ruleset'in `updateTime`'ı kontrol edilince **30 Haziran** tarihli olduğu görüldü (chats bloğu YOK) — önceki deploy denemesi hiç yürürlüğe girmemiş. Gerçek deploy tekrar yapıldı, `updateTime` + içerik doğrulandı.
+
+`tsc --noEmit` + `npm run build` + 29/29 (assert-comment) + 37/37 (assert-submission) temiz. Commit: `65d8547` (push edildi, Mac `git pull` almalı).
+
+**İleri vizyon (KOD YOK, sadece kayıt):** [[project_mobile_chat_pwa_vizyon]] — Flex chat'ini kurumun resmi WhatsApp-alternatifi + mobil PWA'ya taşıma planı, kullanıcı "şimdi değil" dedi ama ACİL öncelikli (kurumdan gelen WhatsApp-yasağı maili sonrası Flex'i kuruma kabul ettirme pitch'i).
+
+**SIRADAKİ İŞ:** (1) Öğrenci Ana Sayfası'nı (`/flexos/student/[personId]`) canlıyla tam eşitleme — "Sınıflar Ligi" yerine öğrenciye özel aktiviteler konması (henüz yapılmadı, sadece task olarak açık). (2) **Canlıya geçiş kapsamı netleşmedi** — sadece ödev/teslim/chat akışı mı (eğitmen-öğrenci), yoksa satış/yoklama/sertifika dahil tüm platform mu? Kullanıcıya soruldu, cevap bekleniyor. (3) Mobil PWA vizyonu — aciliyet var ama "şimdi değil" denildi, tetiklenirse [[project_mobile_chat_pwa_vizyon]] oku.
+
+---
+
 ### ⚠️ Kota sızıntısı kökten çözüldü + 18 gerçek bug fix + Öğrenci Portalı KRİTİK EKSİK — canlıya geçiş ERTELENDİ (2026-07-13, çok uzun oturum, PC'de devam)
 
 **Bu oturumun ilk yarısı — Firestore kota sızıntısı derin teşhis + kökten çözüm.** Kullanıcı bulgusu: kota bir günde defalarca aniden fırladı (15k→35k, dakikada 400-1.4k okuma). Gerçek zamanlı ölçüm aracıyla (geçici, sonra kaldırıldı) kanıtlandı: tek bir "kaydet" aksiyonu ~12-30 okuma (ucuz), asıl maliyet **Ana Sayfa'ya her dönüşte** groups(56)/persons(108)/templates(18)/trainers(51) gibi ağır uçların 30sn-5dk cache'i olmadan defalarca yeniden okunmasıydı + **dev'in kendisi** (Claude'un kod düzenlemesi → Turbopack recompile → açık sekmelerin/canlı `onSnapshot` dinleyicilerinin yeniden okuması) önemli bir sızıntı kaynağıydı. **Kullanıcı kararı: bundan sonraki geliştirme local dev değil doğrudan canlı Vercel'de** ([[flexos_gelistirme_artik_canli_vercel]]) — dev-recompile sızıntısı orada hiç olmayacak.
