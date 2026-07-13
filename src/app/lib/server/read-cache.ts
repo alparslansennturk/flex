@@ -32,8 +32,17 @@ const inflight = new Map<string, Promise<unknown>>();
  * `loader` sonucunu paylaşır.
  */
 export async function cachedRead<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
-  const hit = store.get(key);
-  if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
+  // 2026-07-13 GEÇİCİ DEVRE DIŞI — GÜVENLİK/DOĞRULUK ÖNCELİĞİ: kullanıcı bulgusu, silinen
+  // bir öğrenci PATCH/DELETE sonrası `broadcast(students.changed)` doğru çağrılmasına
+  // rağmen (kod doğrulandı) listede/persons GET'te silinmiş gibi görünmeye devam etti,
+  // sayfa yenilense bile. En güçlü hipotez: bugün erken saatlerde `cachedViewMode` için
+  // bulduğumuz AYNI Turbopack modül-çoğaltma sorunu — bu store'un da route'lar arası
+  // farklı kopyaları olabiliyor, invalidateCache bir kopyayı temizlerken okuma başka bir
+  // kopyadan gelmeye devam ediyor olabilir. Kritik canlıya-geçiş testi sırasında DOĞRULUK
+  // kota-tasarrufundan önemli — TTL'li stale-okuma YOLU BİLEREK devre dışı bırakıldı
+  // (aşağıdaki `store.get` kontrolü kaldırıldı), her çağrı artık taze okur. In-flight
+  // coalescing hâlâ aktif — o salt performans, doğruluk riski taşımıyor.
+  void ttlMs;
 
   const existing = inflight.get(key);
   if (existing) return existing as Promise<T>;
