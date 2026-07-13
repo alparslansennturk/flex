@@ -13,6 +13,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { getFlexMessage } from "../lib/messages";
+import { resolveFlexosLanding } from "../lib/resolveFlexosLanding";
 
 // ─── Normal Login ─────────────────────────────────────────────────────────────
 
@@ -96,12 +97,14 @@ function LoginForm() {
           // Redirect'ten önce claims yenile — try/catch dışında, kesinlikle çalışır
           const freshToken = await auth.currentUser!.getIdToken(true);
           document.cookie = `flex-token=${freshToken}; path=/; max-age=2592000; SameSite=Lax`;
-          router.push(`/student/${studentDocId}`);
+          // 2026-07-13 canlıya alma: eski `/student/{id}` yerine FlexOS'un kendi
+          // landing'i (tüm gerçek öğrenciler zaten FlexOS'a taşındı).
+          router.push(await resolveFlexosLanding(freshToken));
           return;
         }
       }
 
-      router.push("/dashboard");
+      router.push(await resolveFlexosLanding(idToken));
     } catch (error: unknown) {
       const e = error as { code?: string };
       console.error("Giriş Hatası:", e.code);
@@ -288,7 +291,8 @@ function ActivationForm({ prefillEmail, prefillCode }: { prefillEmail: string; p
         method: "POST",
         headers: { Authorization: `Bearer ${activationToken}` },
       }).catch(() => {});
-      router.push(`/student/${data.studentDocId ?? data.userId}`);
+      // 2026-07-13 canlıya alma: eski `/student/{id}` yerine FlexOS'un kendi landing'i.
+      router.push(await resolveFlexosLanding(activationToken));
 
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");

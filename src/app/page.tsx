@@ -5,31 +5,22 @@ import { useRouter } from "next/navigation";
 import { auth } from "./lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Loader2 } from "lucide-react";
+import { resolveFlexosLanding } from "./lib/resolveFlexosLanding";
 
 export default function RootPage() {
   const router = useRouter();
 
+  // 2026-07-13 canlıya alma: eski `/dashboard`/`/student/{id}` hedefleri yerine
+  // FlexOS'un kendi `resolveFlexosLanding`'i (rol/capability bazlı, `/api/flexos/me`)
+  // kullanılıyor — tüm gerçek eğitmen/öğrenciler zaten FlexOS'a taşındığı için güvenli.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        router.push("/login");
+        router.push("/flexos/giris");
         return;
       }
-
-      const tokenResult = await user.getIdTokenResult();
-      const role = tokenResult.claims.role as string | undefined;
-
-      if (role === "student") {
-        const studentDocId = tokenResult.claims.studentDocId as string | undefined;
-        if (studentDocId) {
-          router.push(`/student/${studentDocId}`);
-        } else {
-          // studentDocId claim henüz set edilmemişse login'e gönder
-          router.push("/login");
-        }
-      } else {
-        router.push("/dashboard");
-      }
+      const token = await user.getIdToken();
+      router.push(await resolveFlexosLanding(token));
     });
 
     return () => unsubscribe();

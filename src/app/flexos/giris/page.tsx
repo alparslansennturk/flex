@@ -15,21 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { auth } from "@/app/lib/firebase";
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFlexMessage } from "@/app/lib/messages";
-
-// 3 dashboard var (Eğitmen / Eğitim Operasyon / Genel) — `/api/flexos/me` role'e göre
-// doğru olanı döner. O uca hiç ulaşılamazsa (ağ hatası vb.) bu genel-amaçlı sayfaya düşülür.
-const FALLBACK_LANDING = "/flexos/anasayfa";
-
-async function resolveLanding(idToken: string): Promise<string> {
-  try {
-    const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${idToken}` } });
-    if (!res.ok) return FALLBACK_LANDING;
-    const data = await res.json();
-    return typeof data.landing === "string" ? data.landing : FALLBACK_LANDING;
-  } catch {
-    return FALLBACK_LANDING;
-  }
-}
+import { resolveFlexosLanding } from "@/app/lib/resolveFlexosLanding";
 
 function LoginForm() {
   const router = useRouter();
@@ -84,7 +70,7 @@ function LoginForm() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const token = await userCredential.user.getIdToken();
       document.cookie = `flex-token=${token}; path=/; max-age=2592000; SameSite=Lax`;
-      router.push(await resolveLanding(token));
+      router.push(await resolveFlexosLanding(token));
     } catch (error: unknown) {
       const e = error as { code?: string };
       console.error("Giriş Hatası:", e.code);
