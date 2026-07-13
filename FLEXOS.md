@@ -16,7 +16,19 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🚀 CANLIYA ALMA SONRASI — eski sistem pasife alındı + resolveLanding KRİTİK veri bug'ı + sidebar flaş fix (2026-07-13, aynı gün, PC oturumu — GERÇEK oturumun en son bloğu)
+### ✅ Sidebar flaş KALICI fix + read-cache TTL seçici geri açıldı (2026-07-14, Mac oturumu — EN GÜNCEL)
+
+**1) Sidebar flaş — kullanıcı bir önceki (cb2f86c) fix'ten SONRA da hâlâ oluyor dedi.** Kök neden tam anlaşıldı: owner'ın `flexos_users`'taki ofis rolü capability'leri (`sale.create` vb.) zaten Core/Full modundan BAĞIMSIZ her zaman `caps` içinde geliyor (mode'a göre değişen tek şey `mode` string'i) — tek koruma `canSee()`'deki `mode === "full"` kontrolüydü. Önceki fix `mode`'u modül-cache'e aldı ama bilinmeyen (henüz fetch edilmemiş) durumda hâlâ `"full"` (EN AÇIK/permissive) varsayıyordu — cache soğukken (ilk mount, ya da önceki sayfanın fetch'i `cancelled` ile iptal olduysa) yine yanlış yönde varsayılan devredeydi. **Gerçek fix:** `caps` için zaten var olan "yüklenene kadar gizle" kuralı `mode`'a da uygulandı — bilinmeyen mod artık `"full"` değil `null`, katı `mode === "full"` eşitliği null'da otomatik `false` döner. Full-only öğeler sunucu GERÇEKTEN `"full"` demeden ASLA görünmez (`FlexSidebar.tsx`).
+
+**2) Kota tekrar uçtu (983/786/850 gibi okuma rakamları) — kök neden: `read-cache.ts`'teki TTL 2026-07-13'te TAMAMEN devre dışı bırakılmıştı** (bir silme-sonrası-gecikme bulgusu yüzünden, kanıtlanamayan Turbopack modül-çoğaltma şüphesiyle). O zaman bilinçli tercihti ama artık sistem canlıda gerçek kullanıcılarla — TTL'siz hâl her açılışta ~121+ okumaya (groups 6-koleksiyon join dahil) sebep oluyordu. **Kullanıcı kararıyla hibrit TTL'e geri dönüldü:** `cachedRead()` TTL kontrolünü tekrar uyguluyor (in-flight coalescing zaten aktifti) — `assignment-templates`/`trainers` **5dk**, `groups` (en pahalı uç) **1dk**, `persons` (silinme şüphesi en yüksek uç) **0ms** (hep taze okur, `< 0` asla doğru olmaz).
+
+Commit: `f697ac0`, `flexos` + `main`'e push edildi (main lokali eski kalmış olabilir, `origin/main` güncel — `git push origin flexos:main` ile fast-forward yapıldı). typecheck+build temiz.
+
+**SIRADAKİ İŞ (yarın):** (1) Kota grafiğini izle — hibrit TTL'in gerçekten kotayı düşürüp düşürmediğini doğrula. (2) Sidebar flaş'ın bu kez gerçekten bitip bitmediğini canlıda tekrar test et (deploy sonrası hard-refresh). (3) Bir önceki oturumdan kalan açık işler hâlâ geçerli: Sınıf Odası dönüşümü, öğrenci portalı grup seçici, öğrenci portalı genel eksikler — bkz. aşağıdaki eski bloklar.
+
+---
+
+### 🚀 CANLIYA ALMA SONRASI — eski sistem pasife alındı + resolveLanding KRİTİK veri bug'ı + sidebar flaş fix (2026-07-13, aynı gün, PC oturumu)
 
 **Bu blok bir önceki "CANLIYA ALINDI" girdisinden SONRA, aynı PC oturumunda oldu — kronolojik olarak EN GÜNCEL durum budur.**
 
