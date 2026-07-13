@@ -19,9 +19,10 @@ import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 import type { Person } from "@/app/lib/domain/core/person";
 
 // Persons GET EN AĞIR uç (8 koleksiyon: persons+enrollments+sales+payments+bundles+...) ve
-// Ana Sayfa mount'unda + öğrenci ekranlarında çekiliyor. Grading sırasında değişmez → 30s
-// cache dönüş başına ~150 okumayı ~0'a indirir (yeni öğrenci POST'ta invalidate edilir).
-const PERSONS_CACHE_TTL_MS = 30_000;
+// Ana Sayfa mount'unda + öğrenci ekranlarında çekiliyor. Grading sırasında değişmez → 5dk
+// cache (groups'taki 2026-07-13 gerekçesiyle aynı: grading tek gruba 30sn'den uzun sürüyor)
+// dönüş başına ~150 okumayı ~0'a indirir (yeni öğrenci POST'ta invalidate edilir).
+const PERSONS_CACHE_TTL_MS = 5 * 60_000;
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
 import type { Payment } from "@/app/lib/domain/eduos/payment";
 import type { Sale } from "@/app/lib/domain/eduos/sale";

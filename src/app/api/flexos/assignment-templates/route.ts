@@ -6,9 +6,9 @@ import { createTemplate, listTemplates, type CreateTemplateInput } from "@/app/l
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 
-// Şablonlar nadir değişir ama Ana Sayfa'da 2× + katalog ekranlarında çekiliyor — kısa TTL
+// Şablonlar nadir değişir ama Ana Sayfa'da 2× + katalog ekranlarında çekiliyor — 5dk TTL
 // cache tekrarları Firestore'a hiç göndermez (yeni şablon POST'ta invalidate edilir).
-const TEMPLATES_CACHE_TTL_MS = 30_000;
+const TEMPLATES_CACHE_TTL_MS = 5 * 60_000;
 
 /**
  * GET /api/flexos/assignment-templates — şablon kütüphanesi listesi.

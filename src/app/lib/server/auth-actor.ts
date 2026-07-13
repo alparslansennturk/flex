@@ -40,18 +40,34 @@ export const VIEW_TOGGLE_OWNER_EMAIL = "alparslan.sennturk@gmail.com";
 // Firestore'dan yüklenir; ondan sonra tamamen `primeViewModeCache`'e güvenilir.
 let cachedViewMode: "core" | "full" = "full";
 let viewModeColdStartDone = false;
+let viewModeColdStartPromise: Promise<void> | null = null;
 
-function loadViewModeOnColdStart(uid: string): void {
-  if (viewModeColdStartDone) return;
-  viewModeColdStartDone = true; // senkron olarak hemen işaretle — tekrar tetiklenmesin
-  firestoreViewModeRepo
-    .get(uid)
-    .then((state) => {
-      cachedViewMode = state?.mode ?? "full";
-    })
-    .catch((e) => {
-      console.error("[auth-actor] view mode soğuk başlangıç yüklenemedi:", e);
-    });
+/**
+ * GÜVENLİK FIX (2026-07-13) — eskiden bu fire-and-forget'ti: soğuk başlangıçta (dev/server
+ * yeniden başlayınca) `cachedViewMode` varsayılan "full" (admin) ile başlıyordu, gerçek değer
+ * Firestore'dan ARKA PLANDA yükleniyordu — İLK istek(ler) bu yükleme bitmeden gelirse owner
+ * "core" (eğitmen) moddayken bile YANLIŞLIKLA admin paketiyle çözülüyordu (kullanıcı bulgusu:
+ * dev restart sonrası doğrudan admin-scope bir sayfaya deep-link ile girince içeri alındı,
+ * sonraki istekte doğru eğitmen kısıtına düştü). Artık İLK çağrı gerçek değeri BEKLİYOR (tek
+ * seferlik, tek Firestore okuması, ~100ms) — sonraki tüm çağrılar `viewModeColdStartDone`
+ * true olduğu için anında (senkron) döner, normal isteklerde ek gecikme YOK.
+ */
+function ensureViewModeLoaded(uid: string): Promise<void> {
+  if (viewModeColdStartDone) return Promise.resolve();
+  if (!viewModeColdStartPromise) {
+    viewModeColdStartPromise = firestoreViewModeRepo
+      .get(uid)
+      .then((state) => {
+        cachedViewMode = state?.mode ?? "full";
+      })
+      .catch((e) => {
+        console.error("[auth-actor] view mode soğuk başlangıç yüklenemedi:", e);
+      })
+      .finally(() => {
+        viewModeColdStartDone = true;
+      });
+  }
+  return viewModeColdStartPromise;
 }
 
 /**
@@ -65,10 +81,10 @@ export function primeViewModeCache(mode: "core" | "full"): void {
 }
 
 /** Eski rol → capability paketi. Satış/Op rolleri eklenince map büyür. */
-export function packagesForCaller(caller: Caller): PackageName[] {
+export async function packagesForCaller(caller: Caller): Promise<PackageName[]> {
   if (caller.isAdmin) {
     if (caller.email === VIEW_TOGGLE_OWNER_EMAIL) {
-      loadViewModeOnColdStart(caller.uid); // no-op'tur eğer zaten yüklendiyse
+      await ensureViewModeLoaded(caller.uid); // ilk çağrı bekler, sonrakiler anında (yukarıdaki yorum)
       if (cachedViewMode === "core") return ["egitmen"];
     }
     return ["admin"];
@@ -188,7 +204,7 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
     caller.email === VIEW_TOGGLE_OWNER_EMAIL ? [{ capability: "view.toggle", scope: "org" }] : [];
 
   const flexosGrants = await cachedFlexosUserGrants(caller.uid);
-  const packages = packagesForCaller(caller);
+  const packages = await packagesForCaller(caller);
 
   // `Group.trainerId` Firebase auth uid DEĞİL, eğitmen kadrosu (`flexos_trainers`)
   // docId'sini taşır (bkz. types.ts Actor.trainerId yorumu, 2026-07-11 düzeltmesi).
