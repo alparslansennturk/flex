@@ -36,6 +36,10 @@ interface FlexHeaderProps {
   /** Verilirse sol taraf (icon/title/subtitle) TAMAMEN bununla değişir — breadcrumb/geri
    *  butonu gibi özel sol içeriği olan sayfalar için (bildirim+avatar bloğu hep aynı kalır). */
   left?: React.ReactNode;
+  /** Verilirse iç `users/{uid}` Firestore fetch'i hiç ÇALIŞMAZ, doğrudan bu isim kullanılır —
+   *  ismi zaten kendi API'sinden (ör. Person.firstName/lastName) bilen çağıranlar için
+   *  (öğrenci sayfası: `users/{uid}` legacy dokümanı FlexOS-only hesaplarda hiç yok). */
+  displayNameOverride?: string;
 }
 
 // Diğer FlexOS sayfalarının (Eğitim Yönetimi, Sınıflar, Eğitmenler, Satış Yap…) standart
@@ -74,11 +78,15 @@ export function FlexPageContent({ children, className, style }: { children: Reac
   );
 }
 
-export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, maxWidthClassName, left }: FlexHeaderProps) {
-  const [displayName, setDisplayName] = useState(nameCache ?? "");
+export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, maxWidthClassName, left, displayNameOverride }: FlexHeaderProps) {
+  const [displayName, setDisplayName] = useState(displayNameOverride ?? nameCache ?? "");
 
   useEffect(() => {
-    if (nameCache) return;
+    if (displayNameOverride) setDisplayName(displayNameOverride);
+  }, [displayNameOverride]);
+
+  useEffect(() => {
+    if (displayNameOverride || nameCache) return;
     let cancelled = false;
     (async () => {
       await auth.authStateReady();

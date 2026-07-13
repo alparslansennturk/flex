@@ -3,8 +3,10 @@
 /**
  * FlexOS · Öğrenci Dashboard — canlıdaki `/student/[studentId]/page.tsx` portu.
  * Görünüm/işleyiş birebir: filtre pilleri, accordion ödev listesi, "Duyurular" paneli.
- * TEK bilinçli fark: Sınıf Ligi widget'ı YOK (ayrı roadmap kalemi), avatar initials
- * (StudentHeader'da). Backend: FlexOS Assignment/Submission/Comment domain'i (Faz 2+3).
+ * Header artık eğitmen/admin sayfalarıyla AYNI paylaşımlı `FlexHeader` (2026-07-13,
+ * eski ayrı `StudentHeader` kaldırıldı — yükseklik/hizalama tutarsızlığı vardı).
+ * Sınıf Ligi yerine Eğitmen Ana Sayfa'daki "En Son Aktiviteler" panelinin birebir aynısı.
+ * Backend: FlexOS Assignment/Submission/Comment domain'i (Faz 2+3).
  */
 
 import { useEffect, useState } from "react";
@@ -12,11 +14,10 @@ import { useParams, useRouter } from "next/navigation";
 import { auth } from "@/app/lib/firebase";
 import {
   Loader2, BookOpen, ClipboardList, ChevronDown,
-  CheckCircle2, RotateCcw, Clock, ArrowRight, FileText,
+  CheckCircle2, RotateCcw, Clock, ArrowRight, FileText, Activity,
 } from "lucide-react";
 import StudentSidebar from "../_components/StudentSidebar";
-import StudentHeader from "../_components/StudentHeader";
-import { FlexPageContent } from "../../_components/FlexHeader";
+import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../../_components/FlexHeader";
 
 /* ── Types ── */
 
@@ -156,7 +157,18 @@ export default function FlexosStudentDashboard() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <StudentHeader studentName={me.name} groupCode={me.groupCode} />
+        {/* Standart header (2026-07-13): eğitmen/admin sayfalarıyla AYNI paylaşımlı
+            `FlexHeader` — önceki ayrı `StudentHeader` biraz farklı yükseklik/hizalama
+            kullanıyordu, artık birebir aynı bileşen (displayNameOverride: `users/{uid}`
+            legacy dokümanı FlexOS-only öğrenci hesaplarında hiç yok, Person'dan gelen
+            isim doğrudan verilir). */}
+        <FlexHeader
+          greeting
+          subtitle="Bugün ödevlerini kontrol etmeyi unutma."
+          roleLabel={me.groupCode ? `${me.groupCode} · Öğrenci` : "Öğrenci"}
+          maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
+          displayNameOverride={me.name}
+        />
         <main className="flex-1 overflow-y-auto overflow-x-clip [scrollbar-gutter:stable]">
           {/* Merkezi genişlik (2026-07-13): Eğitmen Ana Sayfa'daki AYNI `FlexPageContent`
               (FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS) — önceki ayrı/elle yazılmış
@@ -219,8 +231,35 @@ export default function FlexosStudentDashboard() {
                 )}
               </div>
 
-              {/* ══ Sağ: Duyurular ══ */}
+              {/* ══ Sağ: Aktiviteler + Duyurular ══ */}
               <aside className="w-72 shrink-0 sticky top-7 hidden xl:flex xl:flex-col xl:gap-6 xl:pt-14">
+                {/* Eğitmen Ana Sayfa'daki "En Son Aktiviteler" panelinin BİREBİR aynısı
+                    (2026-07-13, Sınıf Ligi yerine) — o taraf da şu an boş durumda
+                    (henüz gerçek aktivite log'u yok), bu yüzden burada da aynı boş durum. */}
+                <div className="bg-white rounded-2xl border border-[#E8ECF2] flex flex-col overflow-hidden h-[180px]">
+                  <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#F0F2F6] shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#10294C] flex items-center justify-center shrink-0">
+                        <Activity size={16} className="text-white" strokeWidth={2} />
+                      </div>
+                      <div>
+                        <p className="text-[14px] font-bold text-[#10294C] leading-none">En Son Aktiviteler</p>
+                        <p className="text-[11px] text-[#9CA3AF] mt-0.5 leading-none">Ödev ve teslim hareketlerin</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-[#10294C]/10 px-2.5 py-1 rounded-full">
+                      <div className="relative w-1.5 h-1.5">
+                        <span className="absolute inset-0 bg-[#009F3E] rounded-full animate-ping opacity-75" />
+                        <span className="relative block w-1.5 h-1.5 bg-[#009F3E] rounded-full" />
+                      </div>
+                      <span className="text-[10px] font-bold text-[#10294C]">Canlı</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-0 flex items-center justify-center text-[12px] text-[#9CA3AF]">
+                    Henüz aktivite yok
+                  </div>
+                </div>
+
                 <div>
                   <h2 className="text-[15px] font-bold text-text-primary mb-4">Duyurular</h2>
                   {announcements.length === 0 ? (

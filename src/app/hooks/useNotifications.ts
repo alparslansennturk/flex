@@ -10,6 +10,13 @@ import type { NotificationPayload } from "@/app/lib/notifications/types";
 export function useNotifications(userId: string | undefined) {
   const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
   const [lastClearedAt, setLastClearedAt] = useState<Timestamp | undefined>();
+  // `lastClearedAt`, bildirimlerden AYRI bir Firestore dinleyicisinden gelir — mount
+  // olunca bildirimler (1. dinleyici) `lastClearedAt` (2. dinleyici) daha yüklenmeden
+  // gelebiliyordu, bu da bir an TÜM bildirimlerin (filtrelenmemiş) görünüp `lastClearedAt`
+  // gelince aniden kaybolmasına sebep oluyordu (2026-07-13 bug fix — "hepsi okundu"
+  // sonrası bildirim paneli açılınca fark edildi). Bu ikinci dinleyici gerçekten
+  // yüklenene kadar liste boş gösterilir — flaş yerine kısa bir boşluk.
+  const [clearedAtLoaded, setClearedAtLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
 
   /* ── Real-time bildirimler ── */
@@ -30,18 +37,19 @@ export function useNotifications(userId: string | undefined) {
 
   /* ── lastClearedAt: user doc'tan real-time ── */
   useEffect(() => {
+    setClearedAtLoaded(false);
     if (!userId) return;
     const unsub = onSnapshot(doc(db, "users", userId), (snap) => {
-      if (snap.exists()) {
-        setLastClearedAt(snap.data()?.lastClearedAt as Timestamp | undefined);
-      }
+      setLastClearedAt(snap.exists() ? (snap.data()?.lastClearedAt as Timestamp | undefined) : undefined);
+      setClearedAtLoaded(true);
     }, (error) => {
       console.warn("[useNotifications] users doc listen error:", error.code);
+      setClearedAtLoaded(true); // hata da olsa "yüklendi" say — sonsuza dek boş kalmasın
     });
     return unsub;
   }, [userId]);
 
-  const visible = NotificationRealtimeService.filterVisible(notifications, lastClearedAt);
+  const visible = clearedAtLoaded ? NotificationRealtimeService.filterVisible(notifications, lastClearedAt) : [];
   const unreadCount = NotificationRealtimeService.getUnreadCount(visible);
 
   /* ── Optimistic markAsRead ── */
