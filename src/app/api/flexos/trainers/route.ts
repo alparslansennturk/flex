@@ -16,6 +16,14 @@ import { sendMail } from "@/app/lib/email";
 import type { Trainer } from "@/app/lib/domain/core/trainer";
 import type { FlexosUser } from "@/app/lib/domain/core/flexos-user";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
+import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
+
+// Trainers GET ağır (4 koleksiyon: trainers+groups+educations+enrollments) ve yoklama
+// akışında sık çekiliyor (2026-07-13 ölçüm: tek başına 51 okuma). `ucret` alanı actor'ın
+// `trainer.rate.read` yetkisine göre değiştiği için cache anahtarı uid'e bağlı — farklı
+// yetkideki kullanıcılar birbirinin cache'ini görmez.
+const TRAINERS_CACHE_TTL_MS = 5 * 60_000;
 
 const ACTIVATION_CODE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 gün — Kullanıcı Ekle ile aynı
 
@@ -106,19 +114,23 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
-    const [trainers, groups, educations, enrollments] = await Promise.all([
+    const items = await cachedRead(`trainers:${actor.tenantId}:${actor.uid}`, TRAINERS_CACHE_TTL_MS, async () => {
+    const [trainers, groups, educations] = await Promise.all([
       firestoreTrainerRepo.list(actor.tenantId),
       firestoreGroupRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
-      firestoreEnrollmentRepo.list(actor.tenantId),
     ]);
+    // 2026-07-12 ACİL kota fix (bkz. groups/route.ts'teki aynı fix): tenant-genelinde
+    // sınırsız enrollment okuması yerine SADECE görüntülenen grupların enrollment'ları.
+    const enrollments = await firestoreEnrollmentRepo.listByGroupIds(groups.map((g) => g.id), actor.tenantId);
 
     const eduMap = new Map(educations.map((e) => [e.id, e]));
 
-    // grup başına aktif kayıt (doluluk)
+    // Grup başına öğrenci sayısı — groups/route.ts ile AYNI kural (active+completed),
+    // bkz. oradaki 2026-07-11 tutarlılık notu.
     const enrolledByGroup = new Map<string, number>();
     for (const enr of enrollments) {
-      if (enr.groupId && enr.status === "active") {
+      if (enr.groupId && (enr.status === "active" || enr.status === "completed")) {
         enrolledByGroup.set(enr.groupId, (enrolledByGroup.get(enr.groupId) ?? 0) + 1);
       }
     }
@@ -138,7 +150,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
     const allowRate = can(actor, "trainer.rate.read");
 
-    const items = trainers.map((t) => ({
+    return trainers.map((t) => ({
       id: t.id,
       name: t.name,
       email: t.email,
@@ -152,6 +164,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       notes: t.notes ?? [],
       groups: groupsByTrainer.get(t.id) ?? [],
     }));
+    });
 
     return NextResponse.json({ items });
   } catch (e) {
@@ -181,6 +194,8 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     } catch (loginErr) {
       console.error("[flexos/trainers POST] giriş hesabı sağlanamadı:", loginErr);
     }
+    invalidateCache(`trainers:${actor.tenantId}`);
+    broadcast(actor.tenantId, { type: "trainers.changed", id: result.trainer.id });
     return NextResponse.json({ id: result.trainer.id, rateDropped: result.rateDropped }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

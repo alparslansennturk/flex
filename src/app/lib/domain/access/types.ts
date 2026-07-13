@@ -48,6 +48,11 @@ export interface Actor {
   grants: Grant[]; // paketlerden + tekil grant'lerden çözülmüş etkin yetkiler
   groupIds?: string[]; // assigned scope için (eğitmenin atanmış grupları)
   branchIds?: string[]; // branch scope için (şube müdürü vb.)
+  /** `Trainer.authUid === uid` ile çözülen eğitmen kadrosu docId'si — `Group.trainerId`
+   * bu docId'yi taşır (Firebase uid DEĞİL, bkz. trainers/route.ts, siniflar/page.tsx
+   * "Eğitmen" seçici). self/assigned scope ownerUid kıyaslamasında uid'e ek olarak
+   * denenir (2026-07-11 düzeltmesi — bkz. flexos_group_trainerid_identity_fix memory). */
+  trainerId?: string;
 }
 
 /** can() çağrısında hedef kayıt bağlamı (kayıt-özel scope kontrolü için). */

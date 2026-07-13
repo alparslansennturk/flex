@@ -12,6 +12,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAuth, DecodedIdToken } from "firebase-admin/auth";
+import { installReadAudit, auditRequest } from "./server/_read-audit"; // GEÇİCİ teşhis (2026-07-13 final test)
+
+installReadAudit(); // GEÇİCİ teşhis
 
 export interface Caller {
   uid:     string;
@@ -44,7 +47,8 @@ export function withAuth<C = { params: Promise<Record<string, string>> }>(
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
         const systemCaller: Caller = { uid: "system", email: "", role: "admin", isAdmin: true, groupIds: [] };
-        return handler(req, systemCaller, ctx);
+        return auditRequest(req.method, req.nextUrl.pathname, () => handler(req, systemCaller, ctx)); // GEÇİCİ teşhis
+
       }
     }
 
@@ -74,6 +78,7 @@ export function withAuth<C = { params: Promise<Record<string, string>> }>(
 
     const groupIds = Array.isArray(decoded.groupIds) ? (decoded.groupIds as string[]) : undefined;
     const caller: Caller = { uid: decoded.uid, email: decoded.email ?? "", role, isAdmin, groupIds };
-    return handler(req, caller, ctx);
+    return auditRequest(req.method, req.nextUrl.pathname, () => handler(req, caller, ctx)); // GEÇİCİ teşhis
+
   };
 }

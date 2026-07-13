@@ -6,6 +6,7 @@ import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firest
 import { updateGroupStatus, deleteGroup } from "@/app/lib/domain/services/group-service";
 import type { GroupStatus } from "@/app/lib/domain/core/group";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * PATCH /api/flexos/groups/[id] — grup güncelle.
@@ -30,6 +31,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     if (!body.status) return NextResponse.json({ error: "status zorunludur." }, { status: 400 });
     try {
       const group = await updateGroupStatus(actor, id, body.status as GroupStatus, { groups: firestoreGroupRepo, enrollments: firestoreEnrollmentRepo });
+      broadcast(actor.tenantId, { type: "groups.changed", id: group.id });
       return NextResponse.json({ id: group.id, status: group.status });
     } catch (e) {
       if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -61,6 +63,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     if (body.status !== undefined) existing.status = body.status as GroupStatus;
 
     await firestoreGroupRepo.save(existing);
+    broadcast(actor.tenantId, { type: "groups.changed", id: existing.id });
     return NextResponse.json({ id: existing.id });
   } catch (e) {
     console.error("[flexos/groups/:id PATCH]", e);
@@ -77,7 +80,9 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteGroup((await actorFromCaller(caller)), id, { groups: firestoreGroupRepo, enrollments: firestoreEnrollmentRepo });
+    const actor = await actorFromCaller(caller);
+    await deleteGroup(actor, id, { groups: firestoreGroupRepo, enrollments: firestoreEnrollmentRepo });
+    broadcast(actor.tenantId, { type: "groups.changed", id: id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

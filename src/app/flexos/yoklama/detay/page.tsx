@@ -22,6 +22,24 @@ import AttendanceDetailList from "../_shared/AttendanceDetailList";
 
 const T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
+/**
+ * 2026-07-13 fix — GERÇEK BUG: grup detayına girerken tarih HER ZAMAN seçili ayın
+ * 1'ine sabitleniyordu (`${month}-01`) — bugün o ayın içindeyse bile takvimde
+ * yanlışlıkla 1'i seçili görünüyordu (kullanıcı bulgusu: "1 Temmuz seçiliydi, günün
+ * tarihi seçili olmalı"). Artık bugün seçilen ayın içindeyse GERÇEKTEN bugünün
+ * tarihi kullanılıyor; başka bir ay taranıyorsa (bugün o ayda değilse) o ayın 1'ine
+ * düşülüyor — `AttendanceCore` zaten "bu tarihte ders yoksa 'bugün ders yok'"
+ * mesajını kendi mantığıyla gösteriyor.
+ */
+function detailDateFor(month: string): string {
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  if (month === currentMonthKey) {
+    return `${currentMonthKey}-${String(now.getDate()).padStart(2, "0")}`;
+  }
+  return `${month}-01`;
+}
+
 export default function YoklamaDetayPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -82,7 +100,7 @@ export default function YoklamaDetayPage() {
               containerClassName="w-full max-w-[1920px] mx-auto px-9 py-8 space-y-5"
               onGroupDetail={(groupId, month) => {
                 setDetailGroupId(groupId);
-                setDetailDate(`${month}-01`);
+                setDetailDate(detailDateFor(month));
                 setShowDetail(true);
               }}
             />

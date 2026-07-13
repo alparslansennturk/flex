@@ -2,7 +2,8 @@
 
 /**
  * FlexOS · Kullanıcılar — 3 sekmeli kullanıcı yönetimi (2026-07-10 kararı: "kim bu
- * sistemde kim" tek yerden görünsün — bağımsız "Eğitmenler" sidebar linki kaldırıldı).
+ * sistemde kim" tek yerden görünsün — bağımsız "Eğitmenler" sidebar linki de AYRICA
+ * duruyor, kullanıcı isteğiyle kaldırılmadı, bkz. FlexSidebar.tsx).
  * Sekme 1 — Personel: admin / operasyon / satış (SADECE `role.manage`)
  * Sekme 2 — Eğitmenler: hafif özet (`trainer.read`) — tam CRUD/müsaitlik/ücret BURADA
  *   DEĞİL, "Eğitmen Kadrosu'na Git" ile /flexos/egitmenler'e yönlendirir.
@@ -20,6 +21,7 @@ import FlexHeader from "../_components/FlexHeader";
 import FlexModal from "../_components/FlexModal";
 import Footer from "@/app/components/layout/Footer";
 import { useRoleDefs } from "./_shared/useRoleDefs";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
 
 // ── types ──
 type TabKey = "personel" | "egitmenler" | "ogrenciler";
@@ -265,6 +267,11 @@ export default function KullanicilarPage() {
     if (!didMount.current) { didMount.current = true; return; }
     if (pathname === "/flexos/kullanicilar" && caps?.has("role.manage")) fetchUsers();
   }, [pathname, fetchUsers, caps]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı öğrenci/eğitmen ekleyip/
+  // düzenlediğinde SSE üzerinden haber alınır, ilgili sekme tekrar çekilir.
+  useRealtimeSync(["students.changed"], useCallback(() => { void fetchStudents(); }, [fetchStudents]));
+  useRealtimeSync(["trainers.changed"], useCallback(() => { void fetchTrainers(); }, [fetchTrainers]));
 
   // personel filtreleme
   const filtered = useMemo(() => {

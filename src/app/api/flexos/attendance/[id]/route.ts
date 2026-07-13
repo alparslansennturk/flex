@@ -5,6 +5,7 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAttendanceRepo } from "@/app/lib/server/attendance-repo.firestore";
 import { saveAttendance, deleteAttendance, type SaveAttendanceInput } from "@/app/lib/domain/services/attendance-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * PATCH /api/flexos/attendance/[id] — yoklama kaydet (Kaydet) / kapat (Dersi Bitir) /
@@ -38,6 +39,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
       groups: firestoreGroupRepo,
       attendance: firestoreAttendanceRepo,
     });
+    broadcast(actor.tenantId, { type: "attendance.changed", id: record.id });
     return NextResponse.json({ id: record.id, attendanceClosed: record.attendanceClosed });
   } catch (e) {
     if (e instanceof ForbiddenError) {
@@ -68,6 +70,7 @@ export const DELETE = withAuth(async (req: NextRequest, caller, ctx: { params: P
 
   try {
     await deleteAttendance(actor, { groupId, date }, { groups: firestoreGroupRepo, attendance: firestoreAttendanceRepo });
+    broadcast(actor.tenantId, { type: "attendance.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) {

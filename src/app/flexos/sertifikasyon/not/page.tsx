@@ -60,6 +60,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
+import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number; certType?: "exam" | "project" }
 
@@ -131,16 +132,20 @@ export default function SertifikaNotuPage() {
   // notları var, onu al"). Aktif/canlı gruplarda bu alan hiç dolmaz, davranış değişmez.
   const [odevNotuOverride, setOdevNotuOverride] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    (async () => {
-      const headers = await authHeaders();
-      const res = await fetch("/api/flexos/certificate-settings", { headers });
-      if (res.ok) {
-        const data = await res.json() as { project: Weighting; exam: Weighting };
-        setSettings({ project: data.project, exam: data.exam });
-      }
-    })();
+  const loadSettings = useCallback(async () => {
+    const headers = await authHeaders();
+    const res = await fetch("/api/flexos/certificate-settings", { headers });
+    if (res.ok) {
+      const data = await res.json() as { project: Weighting; exam: Weighting };
+      setSettings({ project: data.project, exam: data.exam });
+    }
   }, []);
+
+  useEffect(() => { loadSettings(); }, [loadSettings]);
+
+  // 2026-07-12 — Sertifika Ayarları'ndaki "Ödev Etkisi" değişince (başka sekme/kullanıcı
+  // dahil) bu sayfa açıkken bile SSE üzerinden anında yeniden çekilir, yenileme gerekmez.
+  useRealtimeSync(["settings.changed"], loadSettings);
 
   const loadGroups = useCallback(async () => {
     setLoadingGroups(true);
@@ -159,43 +164,51 @@ export default function SertifikaNotuPage() {
 
   useEffect(() => { loadGroups(); }, [loadGroups]);
 
-  useEffect(() => {
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı grup/eğitim ekleyip
+  // düzenlediğinde SSE üzerinden haber alınır, grup listesi tekrar çekilir.
+  useRealtimeSync(["groups.changed", "educations.changed"], loadGroups);
+
+  const loadRosterAndGrades = useCallback(async () => {
     if (!selectedId) return;
-    (async () => {
-      setLoadingRoster(true);
-      setSertifikaNotlari({});
-      setOdevData(ODEV_DATA_BOS);
-      setLockedByPerson({});
-      setCanOverrideLock(false);
-      setOdevNotuOverride({});
-      try {
-        const headers = await authHeaders();
-        const [rosterRes, gradesRes] = await Promise.all([
-          fetch(`/api/flexos/groups/${selectedId}/roster`, { headers }),
-          fetch(`/api/flexos/grades?groupId=${selectedId}`, { headers }),
-        ]);
-        setRoster(rosterRes.ok ? (await rosterRes.json() as { items: RosterItem[] }).items : []);
-        if (gradesRes.ok) {
-          const { items, odev, canOverrideLock: override } = await gradesRes.json() as { items: GradeDoc[]; odev: OdevData; canOverrideLock: boolean };
-          const prefilled: Record<string, string> = {};
-          const lockedMap: Record<string, boolean> = {};
-          const odevOverrideMap: Record<string, number> = {};
-          for (const g of items) {
-            if (g.projectGrade != null) prefilled[g.personId] = String(g.projectGrade);
-            if (g.locked) lockedMap[g.personId] = true;
-            if (typeof g.components?.odevNotu === "number") odevOverrideMap[g.personId] = g.components.odevNotu;
-          }
-          setSertifikaNotlari(prefilled);
-          setOdevData(odev);
-          setLockedByPerson(lockedMap);
-          setCanOverrideLock(override);
-          setOdevNotuOverride(odevOverrideMap);
+    setLoadingRoster(true);
+    setSertifikaNotlari({});
+    setOdevData(ODEV_DATA_BOS);
+    setLockedByPerson({});
+    setCanOverrideLock(false);
+    setOdevNotuOverride({});
+    try {
+      const headers = await authHeaders();
+      const [rosterRes, gradesRes] = await Promise.all([
+        fetch(`/api/flexos/groups/${selectedId}/roster`, { headers }),
+        fetch(`/api/flexos/grades?groupId=${selectedId}`, { headers }),
+      ]);
+      setRoster(rosterRes.ok ? (await rosterRes.json() as { items: RosterItem[] }).items : []);
+      if (gradesRes.ok) {
+        const { items, odev, canOverrideLock: override } = await gradesRes.json() as { items: GradeDoc[]; odev: OdevData; canOverrideLock: boolean };
+        const prefilled: Record<string, string> = {};
+        const lockedMap: Record<string, boolean> = {};
+        const odevOverrideMap: Record<string, number> = {};
+        for (const g of items) {
+          if (g.projectGrade != null) prefilled[g.personId] = String(g.projectGrade);
+          if (g.locked) lockedMap[g.personId] = true;
+          if (typeof g.components?.odevNotu === "number") odevOverrideMap[g.personId] = g.components.odevNotu;
         }
-      } finally {
-        setLoadingRoster(false);
+        setSertifikaNotlari(prefilled);
+        setOdevData(odev);
+        setLockedByPerson(lockedMap);
+        setCanOverrideLock(override);
+        setOdevNotuOverride(odevOverrideMap);
       }
-    })();
+    } finally {
+      setLoadingRoster(false);
+    }
   }, [selectedId]);
+
+  useEffect(() => { void loadRosterAndGrades(); }, [loadRosterAndGrades]);
+
+  // 2026-07-12 — başka bir kullanıcı öğrenci ekleyip/kaydını değiştirdiğinde ya da not/
+  // ödev notu girdiğinde SSE üzerinden haber alınır, roster+notlar tekrar çekilir.
+  useRealtimeSync(["students.changed", "grades.changed"], loadRosterAndGrades);
 
   function setSertifikaNotu(personId: string, raw: string) {
     setSertifikaNotlari((prev) => ({ ...prev, [personId]: clamp100(raw) }));

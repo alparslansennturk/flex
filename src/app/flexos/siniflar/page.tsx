@@ -28,6 +28,7 @@ import EgitmenSiniflarPanel from "./EgitmenSiniflarPanel";
 import GroupTable from "./_shared/GroupTable";
 import { useGroupCatalog, type EducationDoc } from "./_shared/useGroupCatalog";
 import { type DisplayGroup, type GroupApiItem, DAY_ABBR, toDisplayGroup, formatSeansLabel } from "./_shared/groupDisplay";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
 
 type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
 
@@ -135,6 +136,12 @@ export default function SınıflarPage() {
     })();
     return () => ac.abort();
   }, [router, authHeaders, loadGroups]);
+
+  // 2026-07-11/12 — grup gerçek-zamanlı senkron: başka bir kullanıcı grup oluşturduğunda/
+  // düzenlediğinde/sildiğinde ya da yeni eğitmen/eğitim eklendiğinde (form dropdown'ları
+  // ve trainerOptions bunlardan türer) SSE üzerinden haber alınır, `loadGroups` tekrar
+  // çağrılır.
+  useRealtimeSync(["groups.changed", "trainers.changed", "educations.changed"], useCallback(() => { void loadGroups(); }, [loadGroups]));
 
   // -- seans popup: dışarı tıklama ile kapat --
   const seansRef = useRef<HTMLDivElement>(null);

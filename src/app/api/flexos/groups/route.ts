@@ -9,6 +9,18 @@ import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { createGroup, type CreateGroupInput } from "@/app/lib/domain/services/group-service";
 import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
+import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
+
+/** Groups GET yanıtı ağır (6 koleksiyon) ve aynı mount'ta 3× + ~7 ekranda çağrılıyor.
+ *  2026-07-13: 30s TTL yetersiz kaldı — bir ödevi gerçekten değerlendirmek (öğrenci
+ *  başına teslim inceleme + not girme) 30sn'den uzun sürüyor, her Ana Sayfa dönüşünde
+ *  cache bayatlayıp sıfırdan okunuyordu (canlı ölçüm: dönüş başına ~250-500 okuma geri
+ *  geldi). Grading akışında gruplar/enrollment DEĞİŞMEZ — 5dk TTL güvenli, bir grading
+ *  oturumu boyunca hiç bayatlamaz. Yeni grup/gerçek değişiklik `invalidateCache` ile
+ *  ANINDA görünür (broadcast'e bağlı, bkz. realtime-hub.ts) — TTL sadece "hiç mutasyon
+ *  olmasa en kötü ihtimalle ne kadar bayat kalır" sınırı, tipik durumda anlık. */
+const GROUPS_CACHE_TTL_MS = 5 * 60_000;
 
 /**
  * POST /api/flexos/groups — yeni grup oluştur (gated `group.create`).
@@ -31,6 +43,8 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       sections: firestoreSectionRepo,
       tracks: firestoreTrackRepo,
     });
+    invalidateCache(`groups:${actor.tenantId}`); // yeni grup — cache'i anında düşür
+    broadcast(actor.tenantId, { type: "groups.changed", id: group.id });
     return NextResponse.json({ id: group.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {
@@ -62,31 +76,53 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
 
   const isOrgScope = widestScope(actor, "group.read") === "org";
   const requestedTrainerId = req.nextUrl.searchParams.get("trainerId") ?? undefined;
-  const trainerId = isOrgScope ? requestedTrainerId : actor.uid;
+  // `Group.trainerId` eğitmen kadrosu (`flexos_trainers`) docId'sini taşır, Firebase
+  // auth uid'ini DEĞİL (bkz. actor.trainerId yorumu) — self/assigned filtre bu yüzden
+  // actor.uid değil actor.trainerId kullanır. DİKKAT (2026-07-11 düzeltmesi): kadroya
+  // kaydı olmayan eğitmen için actor.trainerId `undefined` olur — `firestoreGroupRepo.list`
+  // `if (trainerId)` ile falsy'de filtreyi TAMAMEN ATLAR (TÜM tenant'ı döner!), undefined
+  // BURADA "filtresiz" değil "asla eşleşmeyen sahte id" anlamına gelmeli — org-scope
+  // olmayan aktör için asla boş bırakılmaz, gerçek bir kayıt yoksa hiçbir zaman eşleşmeyecek
+  // bir sentinel value kullanılır (org-scope aktör için hâlâ gerçekten filtresiz kalabilir,
+  // "TÜM tenant" istenen davranış).
+  const trainerId = isOrgScope ? requestedTrainerId : (actor.trainerId ?? "__no_trainer_record__");
 
-  const [groups, educations, branches, sections, enrollments, trainers] = await Promise.all([
+  // Aynı (tenant, trainerId) için kısa süre cache + eşzamanlı çağrı coalescing — Ana Sayfa'da
+  // groups 3× çağrılıyor, ~7 ekranda tekrar; TTL içinde dönüşler Firestore'a hiç gitmez.
+  const cacheKey = `groups:${actor.tenantId}:${trainerId ?? "__all__"}`;
+  const items = await cachedRead(cacheKey, GROUPS_CACHE_TTL_MS, async () => {
+  const [groups, educations, branches, sections, trainers] = await Promise.all([
     firestoreGroupRepo.list(actor.tenantId, trainerId),
     firestoreEducationRepo.list(actor.tenantId),
     firestoreBranchRepo.list(actor.tenantId),
     firestoreSectionRepo.list(actor.tenantId),
-    firestoreEnrollmentRepo.list(actor.tenantId),
     firestoreTrainerRepo.list(actor.tenantId),
   ]);
+  // 2026-07-12 ACİL kota fix: önceden `firestoreEnrollmentRepo.list(tenantId)` tenant'taki
+  // TÜM enrollment'ları okuyordu (grup filtresi yok) — bu uç ~7 farklı ekranda groups/
+  // trainers/educations.changed'de yeniden çekiliyor, her çağrı yüzlerce/binlerce gereksiz
+  // okumaya mal oluyordu (Firestore kota olayının kök nedeni). Artık SADECE görüntülenen
+  // grupların enrollment'ları okunuyor.
+  const enrollments = await firestoreEnrollmentRepo.listByGroupIds(groups.map((g) => g.id), actor.tenantId);
 
   const eduMap = new Map(educations.map((e) => [e.id, e]));
   const branchMap = new Map(branches.map((b) => [b.id, b]));
   const sectionMap = new Map(sections.map((s) => [s.id, s]));
   const trainerMap = new Map(trainers.map((t) => [t.id, t.name]));
 
-  // grup başına aktif kayıt sayısı (doluluk)
+  // Grup başına öğrenci sayısı (doluluk). `active` + `completed` — roster uç noktasıyla
+  // (groups/[id]/roster/route.ts) AYNI kural: bir grup "tamamlandı"ya alınıp öğrenciler
+  // mezun/completed olunca SADECE `active` sayarsak liste "0 öğrenci" gösterirdi (roster'da
+  // hâlâ görünen mezunlar sayılmazdı) — 2026-07-11'de bulunan gerçek tutarsızlık düzeltildi.
+  // `cancelled` (sınıftan çıkarılan) hâlâ sayılmıyor, bu doğru.
   const enrolledByGroup = new Map<string, number>();
   for (const enr of enrollments) {
-    if (enr.groupId && enr.status === "active") {
+    if (enr.groupId && (enr.status === "active" || enr.status === "completed")) {
       enrolledByGroup.set(enr.groupId, (enrolledByGroup.get(enr.groupId) ?? 0) + 1);
     }
   }
 
-  const items = groups.map((g) => {
+  return groups.map((g) => {
     const edu = g.educationId ? eduMap.get(g.educationId) : undefined;
     const branchName = edu?.branchId ? branchMap.get(edu.branchId)?.name : g.branch;
     const sec = g.sectionId ? sectionMap.get(g.sectionId) : undefined;
@@ -109,6 +145,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
       capacity: g.capacity ?? 0,
       enrolled: enrolledByGroup.get(g.id) ?? 0,
     };
+  });
   });
 
   return NextResponse.json({ items });

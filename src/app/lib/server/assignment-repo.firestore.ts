@@ -37,6 +37,22 @@ export const firestoreAssignmentRepo: AssignmentRepo = {
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   },
 
+  async listByTrainerIds(trainerIds, tenantId) {
+    if (trainerIds.length === 0) return [];
+    // Firestore `in` en fazla 30 değer kabul eder — 30'luk parçalara bölünüp paralel çekilir
+    // (bkz. `enrollment-repo.firestore.ts::listByGroupIds` ile AYNI desen, 2026-07-12/13 kota fix).
+    const chunks: string[][] = [];
+    for (let i = 0; i < trainerIds.length; i += 30) chunks.push(trainerIds.slice(i, i + 30));
+    const snaps = await Promise.all(
+      chunks.map((chunk) =>
+        adminDb.collection(COLLECTION).where("tenantId", "==", tenantId).where("trainerId", "in", chunk).get(),
+      ),
+    );
+    return snaps
+      .flatMap((snap) => snap.docs.map((d) => d.data() as Assignment))
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  },
+
   async delete(id) {
     await adminDb.collection(COLLECTION).doc(id).delete();
   },

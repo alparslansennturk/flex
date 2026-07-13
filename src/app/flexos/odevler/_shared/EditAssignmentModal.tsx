@@ -19,6 +19,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 import { X, Loader2, UploadCloud, FileText, ExternalLink } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { uploadAssignmentAttachment, ATTACHMENT_MAX_MB } from "./uploadAssignmentAttachment";
@@ -127,9 +128,19 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
     Array.from(incoming).forEach((f) => { void uploadOne(f); });
   }
 
+  // 2026-07-11 kullanıcı isteği: modal sert bir "pop" ile açılıyordu, framer-motion
+  // giriş animasyonu istendi (backdrop fade + diyalog scale/slide-in) — ViewPinModal'daki
+  // AYNI desen.
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => !saving && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+      onClick={() => !saving && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-[18px] font-bold text-base-primary-900">Ödevi Düzenle</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
@@ -226,7 +237,7 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
             {saving && <Loader2 size={14} className="animate-spin" />} Kaydet
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -6,6 +6,7 @@ import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firest
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { gradeSubmission } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * PATCH /api/flexos/submissions/[id]/grade — gated (`submission.grade`).
@@ -28,6 +29,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
       groups: firestoreGroupRepo,
       assignments: firestoreAssignmentRepo,
     });
+    broadcast(actor.tenantId, { type: "grades.changed", id: submission.id });
     return NextResponse.json({ id: submission.id, grade: submission.grade });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

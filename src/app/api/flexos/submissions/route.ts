@@ -31,7 +31,9 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
 
     const isOrgScope = widestScope(actor, "submission.read") === "org";
     if (!isOrgScope) {
-      const ownGroups = await firestoreGroupRepo.list(actor.tenantId, actor.uid);
+      // `Group.trainerId` eğitmen kadrosu docId'si, actor.uid DEĞİL (bkz. can.ts
+      // ownerMatches yorumu) — 2026-07-11 düzeltmesi.
+      const ownGroups = await firestoreGroupRepo.list(actor.tenantId, actor.trainerId ?? actor.uid);
       const ownGroupIds = new Set(ownGroups.map((g) => g.id));
       items = items.filter((s) => ownGroupIds.has(s.groupId));
     }

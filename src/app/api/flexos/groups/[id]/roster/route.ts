@@ -13,7 +13,8 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
  * notu hâlâ görüntülenmesi/düzenlenmesi gereken geçmiş kayıt) döner.
  *
  * Kapsam: hedef grup verilerek kontrol edilir — standalone eğitmen SADECE kendi
- * grubunun (`Group.trainerId === actor.uid`) roster'ını çekebilir.
+ * grubunun roster'ını çekebilir (`can()`'ın `ownerMatches` sahiplik kontrolü —
+ * `Group.trainerId` uid DEĞİL eğitmen kadrosu docId'si, bkz. access/can.ts).
  */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;

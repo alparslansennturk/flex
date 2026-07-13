@@ -18,6 +18,8 @@ import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { isoWeekday } from "../siniflar/_shared/groupDisplay";
 
 // ── types (API şekilleri) ──
 interface GroupSchedule {
@@ -191,46 +193,26 @@ export default function EgitimOperasyonAnasayfaPage() {
     }
   }, [authHeaders]);
 
-  // Operasyon Akışı — haber sitesi gibi: yeni aktivite gelince liste kaymadan (framer-motion
-  // `layout`) en üste eklenir. GERÇEK polling — sahte/otomatik "yeni geldi" simülasyonu yok,
-  // sadece belirli aralıkla `/api/flexos/activities` tekrar çekilip id bazlı fark alınıyor.
-  // Sekme arka plandaysa (başka sekme/minimize) durur — açık unutulan sekmeler Firestore
-  // okumaya devam etmesin diye (bkz. 2026-07-04 Firestore kota notu).
-  useEffect(() => {
-    if (!initialLoadDone) return;
+  // 2026-07-12 ACİL fix: `/api/flexos/groups` tenant'taki TÜM enrollment kayıtlarını
+  // sınırsız okuyor (doluluk hesabı için) — Firestore kota olayına sebep oldu, çünkü
+  // `loadAll` önceden satış/not/yoklama/öğrenci değişikliklerinde de (sadece aktivite
+  // şeridini etkileyen olaylar) TAM bu pahalı sorguyu tetikliyordu. Bu olaylar sadece
+  // aktiviteyi etkiler — SADECE `/api/flexos/activities` yeniden çekilir, groups/
+  // branches/trainers'a dokunulmaz.
+  const loadActivitiesOnly = useCallback(async () => {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/flexos/activities", { headers });
+      if (res.ok) setActivities(((await res.json()).items ?? []) as ActivityItem[]);
+    } catch {
+      // sessiz — aktivite şeridi kozmetik bir yeniden çekim
+    }
+  }, [authHeaders]);
 
-    const poll = async () => {
-      try {
-        const headers = await authHeaders();
-        const res = await fetch("/api/flexos/activities", { headers });
-        if (!res.ok) return;
-        const items = ((await res.json()).items ?? []) as ActivityItem[];
-        setActivities(items);
-      } catch { /* sessizce atla, bir sonraki turda tekrar dener */ }
-    };
-
-    let interval: ReturnType<typeof setInterval> | null = null;
-    const start = () => {
-      if (interval) return;
-      interval = setInterval(poll, 60000);
-    };
-    const stop = () => {
-      if (!interval) return;
-      clearInterval(interval);
-      interval = null;
-    };
-    const onVisibilityChange = () => {
-      if (document.hidden) stop();
-      else { poll(); start(); }
-    };
-
-    if (!document.hidden) start();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [initialLoadDone, authHeaders]);
+  // 2026-07-11 — polling mimarisi TAMAMEN kaldırıldı. Aktiviteler `loadAll` ile sayfa
+  // açılışında TEK SEFER çekiliyor (yukarıda). Bu sayfada aktivite mutasyonu (checkbox
+  // onay vb.) yapılmıyor — o Aktivite Merkezi'nde; oraya gidip dönmek zaten (Next.js
+  // dinamik sayfa cache'i yok) taze veriyle yeniden mount olur. Zamanlayıcıya gerek yok.
 
   useEffect(() => {
     const ac = new AbortController();
@@ -242,6 +224,21 @@ export default function EgitimOperasyonAnasayfaPage() {
     })();
     return () => ac.abort();
   }, [router, loadAll]);
+
+  // 2026-07-11/12 — bu sayfa operasyonun MERKEZ ekranı: grup/eğitmen/eğitim kataloğu
+  // doğrudan bu sayfanın kendi verisi (groups/branches/trainers) — SADECE bunlar
+  // değişince PAHALI `loadAll` (groups tüm-tenant enrollment okuması içerir) çalışır.
+  useRealtimeSync(
+    ["groups.changed", "trainers.changed", "educations.changed"],
+    useCallback(() => { void loadAll(); }, [loadAll]),
+  );
+  // Satış/not/yoklama/öğrenci/aktivite ise SADECE "Operasyon Akışı" şeridini besliyor —
+  // 2026-07-12 ACİL fix: bunlar için artık ucuz `loadActivitiesOnly`, pahalı `loadAll` DEĞİL
+  // (bkz. yukarıdaki fix notu — kota olayının kök nedeni buydu).
+  useRealtimeSync(
+    ["students.changed", "sales.changed", "grades.changed", "attendance.changed", "activities.changed"],
+    loadActivitiesOnly,
+  );
 
   // ── branş renk paleti — donut ile Yaklaşan Sınıflar arasında tutarlı ──
   const branchColor = useMemo(() => {
@@ -278,7 +275,7 @@ export default function EgitimOperasyonAnasayfaPage() {
   // kalan eğitmen sayısı (toplam eğitmen − bugün en az bir dersi olan eğitmen). Çakışma
   // tespiti (aynı eğitmenin çakışan iki seansı) kullanıcı kararıyla kapsam dışı bırakıldı.
   const egitmenTakvimiStats = useMemo(() => {
-    const todayDow = new Date().getDay();
+    const todayDow = isoWeekday(new Date());
     const busyToday = new Set<string>();
     let bugunDersSayisi = 0;
     for (const g of groups) {

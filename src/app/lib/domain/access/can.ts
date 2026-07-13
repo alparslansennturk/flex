@@ -33,6 +33,18 @@ export function widestScope(actor: Actor, capability: string): Scope | null {
   return best;
 }
 
+/**
+ * `ownerUid` iki farklı kimlik uzayından biri olabilir: Firebase auth uid (ör.
+ * Person.authUid tabanlı sahiplikler) VEYA eğitmen kadrosu docId'si (`Group.trainerId`,
+ * `Assignment.trainerId` — bkz. `Actor.trainerId` yorumu). İkisi de denenir, 2026-07-11
+ * düzeltmesi. `can()`'ın `AccessTarget` akışı DIŞINDA (raw `.filter()` ile listeyi kendi
+ * kısan uçlar — assignments/route.ts, persons/route.ts gibi) doğrudan da kullanılır.
+ */
+export function ownerMatches(actor: Actor, ownerUid: string | undefined | null): boolean {
+  if (!ownerUid) return false;
+  return ownerUid === actor.uid || (!!actor.trainerId && ownerUid === actor.trainerId);
+}
+
 function scopeSatisfied(actor: Actor, scope: Scope, target?: AccessTarget): boolean {
   switch (scope) {
     case "org":
@@ -46,11 +58,11 @@ function scopeSatisfied(actor: Actor, scope: Scope, target?: AccessTarget): bool
       if (actor.groupIds?.includes(target.groupId)) return true;
       // `groupIds` claim altyapısı (Operasyon→eğitmen ataması) henüz kurulmadı —
       // o güne kadar/onsuz da "kendi açtığı/sahip olduğu grup" sahiplik eşleşmesiyle
-      // (örn. Group.trainerId === actor.uid) "assigned" sayılır (standalone eğitmen).
-      return !!target?.ownerUid && target.ownerUid === actor.uid;
+      // "assigned" sayılır (standalone eğitmen).
+      return ownerMatches(actor, target?.ownerUid);
     case "self":
       // self her zaman somut bir sahip ister.
-      return !!target?.ownerUid && target.ownerUid === actor.uid;
+      return ownerMatches(actor, target?.ownerUid);
     default:
       return false;
   }

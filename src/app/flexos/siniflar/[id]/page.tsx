@@ -38,6 +38,7 @@ import {
   STATUS_MAP,
   toDisplayGroup, fmtTrDate, initials, avatarStyle,
 } from "../_shared/groupDisplay";
+import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 interface AttendanceRecordLite { id: string; date: string; entries: Record<string, { hours: number }> }
 interface EducationLite { id: string; totalHours?: number }
@@ -113,6 +114,10 @@ export default function SinifDetayPage() {
       load();
     })();
   }, [router, load]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: grup/eğitim/öğrenci/yoklama değiştiğinde
+  // (başka bir kullanıcı tarafından) SSE üzerinden haber alınır, sayfa tekrar yüklenir.
+  useRealtimeSync(["groups.changed", "educations.changed", "students.changed", "attendance.changed"], load);
 
   // ── Öğrenci Ekle = ARAMA + ATAMA (2026-07-10 kullanıcı düzeltmesi: "biz öğrenci havuzundan
   // ekliyoruz", sıfırdan kişi oluşturmak satış→havuz akışını bypass ediyordu). Öğrenci Havuzu'ndaki
@@ -418,7 +423,12 @@ export default function SinifDetayPage() {
                         </button>
                       )}
                       {canManage && (
-                        <button onClick={openAdd} style={S.primaryBtn}>
+                        <button
+                          onClick={openAdd}
+                          disabled={group?.status === "completed" || group?.status === "archived"}
+                          title={group?.status === "completed" || group?.status === "archived" ? "Bu grup tamamlandı/iptal — yeni öğrenci eklenemez." : undefined}
+                          style={{ ...S.primaryBtn, opacity: group?.status === "completed" || group?.status === "archived" ? 0.45 : 1, cursor: group?.status === "completed" || group?.status === "archived" ? "not-allowed" : "pointer" }}
+                        >
                           <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} /> Öğrenci Ekle
                         </button>
                       )}

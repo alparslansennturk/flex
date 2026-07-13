@@ -15,6 +15,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
+import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 // ── types ──
 interface SaleItem {
@@ -129,6 +130,10 @@ export default function SatisListePage() {
     })();
     return () => ac.abort();
   }, [router, loadSales]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı satış yaptığında/iptal
+  // ettiğinde SSE üzerinden haber alınır, liste tekrar çekilir.
+  useRealtimeSync(["sales.changed"], useCallback(() => { void loadSales(); }, [loadSales]));
 
   // ── benzersiz branşlar ──
   const branchList = useMemo(() => {

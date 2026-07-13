@@ -11,9 +11,20 @@ import { firestoreEducationRepo } from "@/app/lib/server/catalog-repo.firestore"
 import { derivePaymentStatus, derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import { deletePerson } from "@/app/lib/domain/services/person-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
+import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
+import { DEFAULT_TENANT } from "@/app/lib/server/auth-actor";
 import type { PersonPII } from "@/app/lib/domain/core/person";
 
-/** Kapanan/silinen bir hesabın Auth + öksüz canlı `users/{uid}` izini temizler (best-effort). */
+/**
+ * Kapanan/silinen bir hesabın Auth + öksüz canlı `users/{uid}` izini temizler (best-effort).
+ * 2026-07-13 GERÇEK BUG: `flexos_users` kaydı HİÇ silinmiyordu — Auth hesabı gerçekten
+ * silinmiş olsa bile bu öksüz kayıt kalıyordu. Aynı e-postayla YENİ bir kişi (öğrenci)
+ * oluşturulunca `provisionStudentLogin`/`provisionTrainerLogin` "e-posta zaten var, mevcut
+ * hesabı kullan" mantığıyla bu öksüz kayda (artık VAR OLMAYAN bir authUid'e) bağlanıyordu —
+ * yeni Auth hesabı/aktivasyon maili HİÇ oluşmuyordu (kullanıcı bulgusu: "silme kalıcı
+ * olmuyor", yeniden eklenen öğrenciye mail gitmedi, eski/yanlış bir kimliğe bağlandı).
+ */
 async function cleanupAuthAccount(authUid: string | null): Promise<void> {
   if (!authUid) return;
   try {
@@ -25,6 +36,12 @@ async function cleanupAuthAccount(authUid: string | null): Promise<void> {
     await adminDb.collection("users").doc(authUid).delete();
   } catch {
     // doc yoksa sessizce geç
+  }
+  try {
+    const flexosUser = await firestoreFlexosUserRepo.findByAuthUid(authUid, DEFAULT_TENANT);
+    if (flexosUser) await firestoreFlexosUserRepo.delete(flexosUser.id, DEFAULT_TENANT);
+  } catch {
+    // kayıt yoksa/silinemezse sessizce geç — best-effort
   }
 }
 
@@ -189,6 +206,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
     }
 
     await firestorePersonRepo.update(id, actor.tenantId, updateData);
+    broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[flexos/persons PATCH] hata:", e);
@@ -218,6 +236,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, { params }: { p
       payments: firestorePaymentRepo,
     });
     await cleanupAuthAccount(result.closedAuthUid);
+    broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) {

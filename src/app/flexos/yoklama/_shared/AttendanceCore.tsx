@@ -37,9 +37,11 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
-import { initials, avatarStyle } from "@/app/flexos/siniflar/_shared/groupDisplay";
+import { initials, avatarStyle, isoWeekday, toJsWeekdays } from "@/app/flexos/siniflar/_shared/groupDisplay";
+import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
 import type { ExceptionReason, ExceptionScope, LessonException } from "@/app/lib/domain/core/lesson-exception";
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
@@ -146,7 +148,7 @@ function countWeekdaysInMonth(year: number, month: number, weekDays: number[], h
   let count = 0;
   while (d.getMonth() === month) {
     const key = toDateKey(d);
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key) && (!startDate || key >= startDate) && (!endDate || key <= endDate)) count++;
+    if (weekDays.includes(isoWeekday(d)) && !holidayDates.has(key) && (!startDate || key >= startDate) && (!endDate || key <= endDate)) count++;
     d.setDate(d.getDate() + 1);
   }
   return count;
@@ -350,37 +352,41 @@ export default function AttendanceCore({
   };
 
   // ── Groups + tatiller yükle ──────────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
-      const headers = await authHeaders();
-      const [gRes, meRes, hRes] = await Promise.all([
-        fetch("/api/flexos/groups", { headers }),
-        fetch("/api/flexos/me", { headers }),
-        fetch("/api/flexos/holidays", { headers }),
-      ]);
-      if (gRes.ok) {
-        const g = await gRes.json();
-        setGroups((g.items ?? []).filter((it: GroupItem) => it.status !== "archived" && it.status !== "completed"));
-      }
-      if (meRes.ok) {
-        const me = await meRes.json();
-        setIsOrgScope((me.capabilities ?? []).includes("attendance.report.read"));
-      }
-      if (hRes.ok) {
-        const h = await hRes.json();
-        const dates = new Set<string>();
-        for (const item of (h.items ?? []) as { startDate: string; endDate: string }[]) {
-          const cur = new Date(`${item.startDate}T12:00:00`);
-          const end = new Date(`${item.endDate}T12:00:00`);
-          while (cur <= end) {
-            dates.add(toDateKey(cur));
-            cur.setDate(cur.getDate() + 1);
-          }
+  const loadGroupsAndHolidays = useCallback(async () => {
+    const headers = await authHeaders();
+    const [gRes, meRes, hRes] = await Promise.all([
+      fetch("/api/flexos/groups", { headers }),
+      fetch("/api/flexos/me", { headers }),
+      fetch("/api/flexos/holidays", { headers }),
+    ]);
+    if (gRes.ok) {
+      const g = await gRes.json();
+      setGroups((g.items ?? []).filter((it: GroupItem) => it.status !== "archived" && it.status !== "completed"));
+    }
+    if (meRes.ok) {
+      const me = await meRes.json();
+      setIsOrgScope((me.capabilities ?? []).includes("attendance.report.read"));
+    }
+    if (hRes.ok) {
+      const h = await hRes.json();
+      const dates = new Set<string>();
+      for (const item of (h.items ?? []) as { startDate: string; endDate: string }[]) {
+        const cur = new Date(`${item.startDate}T12:00:00`);
+        const end = new Date(`${item.endDate}T12:00:00`);
+        while (cur <= end) {
+          dates.add(toDateKey(cur));
+          cur.setDate(cur.getDate() + 1);
         }
-        setHolidayDates(dates);
       }
-    })();
+      setHolidayDates(dates);
+    }
   }, []);
+
+  useEffect(() => { void loadGroupsAndHolidays(); }, [loadGroupsAndHolidays]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: grup/eğitim kataloğu değiştiğinde SSE üzerinden
+  // haber alınır, grup listesi tekrar çekilir.
+  useRealtimeSync(["groups.changed", "educations.changed"], loadGroupsAndHolidays);
 
   useEffect(() => {
     if (preSelectedGroupId) setSelectedGroupId(preSelectedGroupId);
@@ -388,7 +394,7 @@ export default function AttendanceCore({
 
   useEffect(() => {
     if (autoSelectToday && !selectedGroupId && groups.length > 0) {
-      const todayDow = new Date().getDay();
+      const todayDow = isoWeekday(new Date());
       const todayGroup = groups.find((g) => (g.schedule?.days ?? []).includes(todayDow));
       setSelectedGroupId((todayGroup ?? groups[0]).id);
     }
@@ -540,7 +546,17 @@ export default function AttendanceCore({
     const res = await fetch("/api/flexos/attendance", {
       method: "POST", headers, body: JSON.stringify({ groupId: selectedGroupId, date: dateKey }),
     });
-    if (res.ok) await loadRecord();
+    if (res.ok) {
+      await loadRecord();
+    } else {
+      // 2026-07-13 fix — KÖK NEDEN: istek başarısız olunca (403/400/500) fonksiyon
+      // SESSİZCE dönüyordu, kullanıcı hiçbir geri bildirim görmüyordu ("Dersi Başlat"a
+      // basıyor, hiçbir şey olmuyormuş gibi görünüyordu — kullanıcı bulgusu). Artık
+      // gerçek hata mesajı gösteriliyor.
+      let msg = "Ders başlatılamadı.";
+      try { const body = await res.json(); if (body?.error) msg = body.error; } catch { /* yut */ }
+      toast.error(msg);
+    }
   };
 
   const handleSave = async (close?: boolean) => {
@@ -556,6 +572,15 @@ export default function AttendanceCore({
         await loadRecord();
         setSaved(true);
         if (close) setShowEndConfirm(false);
+        // 2026-07-13 kullanıcı isteği: geçmiş tarihli (admin/Yoklama Detay) kaydetmede
+        // AÇIK bir onay mesajı gösterilsin — bugünkü NORMAL akışa (sessizce "Kaydedildi"
+        // durumuna geçer) dokunulmadı, sadece `!isToday` için ekstra toast.
+        if (!isToday) toast.success("Yoklama başarıyla güncellendi.");
+      } else {
+        // 2026-07-13 fix — aynı sessiz-hata deseni (bkz. handleStartLesson yorumu).
+        let msg = "Kaydedilemedi.";
+        try { const body = await res.json(); if (body?.error) msg = body.error; } catch { /* yut */ }
+        toast.error(msg);
       }
     } finally {
       setSaving(false);
@@ -574,7 +599,7 @@ export default function AttendanceCore({
   };
 
   // ── Derived — zaman/gün kısıtları ────────────────────────────────────────
-  const hasClassThisDay = selectedWeekDays.length === 0 || selectedWeekDays.includes(selectedDate.getDay());
+  const hasClassThisDay = selectedWeekDays.length === 0 || selectedWeekDays.includes(isoWeekday(selectedDate));
   const isFridayBlock = selectedGroup?.type === "standart" && selectedDate.getDay() === 5;
   const isHolidayDate = holidayDates.has(dateKey);
   const isActiveForDate = hasClassThisDay && !isFridayBlock && !isHolidayDate;
@@ -689,7 +714,7 @@ export default function AttendanceCore({
               const gDays = g.schedule?.days ?? [];
               const active = selectedGroupId === g.id;
               const isFridayItem = g.type === "standart" && selectedDate.getDay() === 5;
-              const hasClass = !isFridayItem && !holidayDates.has(dateKey) && (gDays.length === 0 || gDays.includes(selectedDate.getDay()));
+              const hasClass = !isFridayItem && !holidayDates.has(dateKey) && (gDays.length === 0 || gDays.includes(isoWeekday(selectedDate)));
               return (
                 <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
                   className={`w-full flex items-center gap-3 pl-5 pr-4 py-3.5 text-left border-b border-surface-100 border-l-[3px] outline-none cursor-pointer transition-all
@@ -958,7 +983,7 @@ export default function AttendanceCore({
                               maxDate={maxSelectable}
                               courseEndDate={schedule.endDate}
                               holidayDates={holidayDates}
-                              weekDays={selectedWeekDays}
+                              weekDays={toJsWeekdays(selectedWeekDays)}
                               onChange={(d) => setSelectedDate(d)}
                             >
                               <div className="flex items-center gap-1.5 group cursor-pointer">
@@ -1184,9 +1209,14 @@ export default function AttendanceCore({
                                 <CheckCheck size={13} /> Kaydedildi
                               </button>
                             ) : (
-                              <button onClick={() => setShowEndConfirm(true)} disabled={saving}
+                              // 2026-07-13 kullanıcı isteği: bu buton zaten KAPALI bir kaydı
+                              // güncelliyor (bitirme değil) — "Dersi Bitir"in onay modalını
+                              // açmak anlamsızdı ("bitirecek misin, emin misin?" sorusu burada
+                              // uygun değil). Artık DOĞRUDAN kaydediyor (close=false, kayıt
+                              // zaten kapalı kalıyor), toast onayı handleSave içinde veriliyor.
+                              <button onClick={() => handleSave(false)} disabled={saving}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">
-                                <RefreshCw size={13} /> Güncelle
+                                <RefreshCw size={13} /> {saving ? "Güncelleniyor…" : "Güncelle"}
                               </button>
                             )
                           ) : null
@@ -1196,9 +1226,19 @@ export default function AttendanceCore({
                               <CalendarCheck size={13} /> Bu tarih için kayıt yok
                             </button>
                           ) : (
-                            <button onClick={handleStartLesson} disabled={!isActiveForDate || !isWithinTimeWindow}
+                            <button onClick={handleStartLesson} disabled={!isActiveForDate || !isWithinTimeWindow || isPastExpired}
                               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
-                              {!isWithinTimeWindow ? <Lock size={13} /> : <Play size={13} />} Dersi Başlat
+                              {/* 2026-07-13 fix: `isWithinTimeWindow` SADECE bugün için pencere kontrol
+                                  ediyor (`!isToday` ise erken true dönüyor) — geçmiş tarihte org-scope
+                                  olmayan (eğitmen) kullanıcı için asıl kısıtlayıcı sinyal `isPastExpired`,
+                                  ama buton bunu HİÇ görmüyordu — tıklanabilir duruyordu, sunucu reddediyordu
+                                  (kullanıcı bulgusu: "sıfır hareket"). Artık `isPastExpired` de disabled'a dahil. */}
+                              {/* 2026-07-13 kullanıcı isteği: geçmiş bir tarihte (ders zaten bitmiş)
+                                  "Dersi Başlat" anlamsız — ders başlamıyor, geriye dönük yoklama
+                                  giriliyor. SADECE `!isToday` (geçmiş tarih, tipik olarak admin'in
+                                  Yoklama Detay'dan girdiği senaryo) için etiket değişiyor — bugünkü
+                                  NORMAL akışa ("Dersi Başlat") hiç dokunulmadı. */}
+                              {!isWithinTimeWindow || isPastExpired ? <Lock size={13} /> : <Play size={13} />} {isToday ? "Dersi Başlat" : "Yoklama Gir"}
                             </button>
                           )
                         ) : !saved ? (

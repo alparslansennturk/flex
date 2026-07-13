@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
-import { can, widestScope } from "@/app/lib/domain/access/can";
+import { can, widestScope, ownerMatches } from "@/app/lib/domain/access/can";
 import { adminAuth, adminDb } from "@/app/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
+import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
+import { generateActivationCode } from "@/app/lib/user-validation";
+import { buildFlexosActivationEmail } from "@/app/lib/server/flexos-activation-email";
+import { sendMail } from "@/app/lib/email";
+import type { FlexosUser } from "@/app/lib/domain/core/flexos-user";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
@@ -14,7 +20,15 @@ import { createPerson, type CreatePersonInput } from "@/app/lib/domain/services/
 import { derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
+import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 import type { Person } from "@/app/lib/domain/core/person";
+
+// Persons GET EN AĞIR uç (8 koleksiyon: persons+enrollments+sales+payments+bundles+...) ve
+// Ana Sayfa mount'unda + öğrenci ekranlarında çekiliyor. Grading sırasında değişmez → 5dk
+// cache (groups'taki 2026-07-13 gerekçesiyle aynı: grading tek gruba 30sn'den uzun sürüyor)
+// dönüş başına ~150 okumayı ~0'a indirir (yeni öğrenci POST'ta invalidate edilir).
+const PERSONS_CACHE_TTL_MS = 5 * 60_000;
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
 import type { Payment } from "@/app/lib/domain/eduos/payment";
 import type { Sale } from "@/app/lib/domain/eduos/sale";
@@ -32,6 +46,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
+    const items = await cachedRead(`persons:${actor.tenantId}:${actor.uid}`, PERSONS_CACHE_TTL_MS, async () => {
     const [persons, enrollments, educations, branches, groups, bundles, allSales, allPayments] = await Promise.all([
       firestorePersonRepo.list(actor.tenantId),
       firestoreEnrollmentRepo.list(actor.tenantId),
@@ -81,7 +96,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       ? persons
       : persons.filter((p) =>
           (enrollByPerson.get(p.id) ?? []).some(
-            (enr) => enr.groupId && groupMap.get(enr.groupId)?.trainerId === actor.uid,
+            (enr) => enr.groupId && ownerMatches(actor, groupMap.get(enr.groupId)?.trainerId),
           ),
         );
 
@@ -112,12 +127,20 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       if (!p.authUid) accountStatusByPersonId.set(p.id, "pasif");
     }
 
-    const items = scopedPersons.map((p: Person) => {
+    return scopedPersons.map((p: Person) => {
       const enrs = enrollByPerson.get(p.id) ?? [];
 
       // branş listesi (enrollment → education → branch)
       const branchNames = new Set<string>();
-      const groupList: Array<{ label: string; branch: string; educationName: string; groupId: string; enrollmentId: string }> = [];
+      // `status` (enrollment.status, GRUBA ÖZEL) — bir kişi A grubunda "completed"
+      // (mezun), B grubunda "active" olabilir (bkz. enrollment.ts EnrollmentStatus
+      // yorumu: "durum üyeliğe ait, kişiye değil"). `derivePoolStatus` (aşağıda) TÜM
+      // enrollment'ları birleştirip TEK bir kişi-seviyeli özet üretir (Havuz listesi
+      // için uygun) — ama grup-bazlı görünümlerde (EgitmenSiniflarPanel "Mevcut Grup")
+      // bu özeti kullanmak yanlış: 550'den 784'e taşınan biri 784'te "aktif" olduğu için
+      // özet "aktif" döner, 550'deki asıl "mezun" durumunu gizler. groupList'e status
+      // eklenip client'ta grup-özel gösterim için kullanılıyor (2026-07-11 bulgusu).
+      const groupList: Array<{ label: string; branch: string; educationName: string; groupId: string; enrollmentId: string; status: string }> = [];
       const officeNames = new Set<string>(); // şube = öğrencinin gruplarından türetilir
 
       const educationList: Array<{ educationId: string; name: string; status: string }> = [];
@@ -137,6 +160,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
             educationName: edu?.name ?? "",
             groupId: enr.groupId,
             enrollmentId: enr.id,
+            status: enr.status,
           });
           const office = officeName(grp?.branchOfficeId);
           if (office) officeNames.add(office);
@@ -202,6 +226,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         lastLogin: lastLoginByPersonId.get(p.id) ?? null,
       };
     });
+    });
 
     return NextResponse.json({ items });
   } catch (e) {
@@ -230,12 +255,84 @@ function derivePoolStatus(enrollments: Enrollment[]): string {
   return "pasif";
 }
 
+const ACTIVATION_CODE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 gün — trainers/route.ts ile AYNI
+
+/**
+ * 2026-07-13 EKLENDİ — kullanıcı bulgusu: "otomatik mail atmalıydı." Öğrenci ekleme
+ * (`trainers/route.ts::provisionTrainerLogin` ile AYNI desen, bilerek — o zaten çalışıyor,
+ * kod tekrar YAZILMADI, birebir uyarlandı) e-posta varsa giriş hesabı + tek kullanımlık
+ * aktivasyon kodu otomatik sağlanır. Idempotent: e-posta zaten bir Auth hesabına/flexos_users
+ * kaydına bağlıysa MEVCUT hesap kullanılır, yeni kod/mail gönderilmez. Best-effort: hata
+ * olursa kişi kaydı BAŞARISIZ SAYILMAZ (non-fatal, aynen trainer deseni).
+ */
+async function provisionStudentLogin(person: Person, tenantId: string, createdBy: string): Promise<void> {
+  const email = person.pii?.email?.trim().toLowerCase();
+  if (!email) return; // e-posta yoksa (PII yetkisi yok/girilmedi) hesap sağlanamaz
+
+  const existingFlexosUser = await firestoreFlexosUserRepo.getByEmail(email, tenantId);
+  if (existingFlexosUser) {
+    if (existingFlexosUser.authUid && existingFlexosUser.authUid !== person.authUid) {
+      await firestorePersonRepo.save({ ...person, authUid: existingFlexosUser.authUid });
+    }
+    return;
+  }
+
+  let authUid: string;
+  try {
+    const existingAuthUser = await adminAuth.getUserByEmail(email);
+    authUid = existingAuthUser.uid;
+  } catch {
+    const created = await adminAuth.createUser({
+      email, displayName: `${person.firstName} ${person.lastName}`.trim(), emailVerified: false,
+    });
+    authUid = created.uid;
+  }
+  // Öğrenci tarafı capability-role claim'i GEREKTİRMİYOR — sahiplik kontrolü
+  // `person.authUid === caller.uid` üzerinden yapılıyor (bkz. submission-service.ts
+  // `requireOwnedPerson`), o yüzden trainer'ın aksine burada `role` claim'i YAZILMIYOR.
+
+  const flexosUser: FlexosUser = {
+    id: firestoreFlexosUserRepo.nextId(),
+    tenantId,
+    name: person.firstName,
+    surname: person.lastName,
+    email,
+    phone: person.pii?.phone,
+    gender: person.gender ?? "unspecified",
+    roles: ["ogrenci"],
+    subes: [],
+    status: "aktif",
+    authUid,
+    createdAt: new Date().toISOString(),
+    createdBy,
+  };
+  await firestoreFlexosUserRepo.save(flexosUser);
+  await firestorePersonRepo.save({ ...person, authUid });
+
+  try {
+    const code = generateActivationCode();
+    const expiresAt = new Date(Date.now() + ACTIVATION_CODE_TTL_MS);
+    await adminDb.collection("flexos_codes").add({
+      code, flexosUserId: flexosUser.id, tenantId, email: flexosUser.email,
+      createdAt: FieldValue.serverTimestamp(), expiresAt, status: "pending",
+    });
+    const emailTemplate = buildFlexosActivationEmail({
+      name: `${flexosUser.name} ${flexosUser.surname}`.trim(), email: flexosUser.email, code, expiresAt,
+    });
+    await sendMail({ to: flexosUser.email, subject: emailTemplate.subject, html: emailTemplate.html, text: emailTemplate.text });
+  } catch (mailErr) {
+    console.error("[flexos/persons POST] Aktivasyon maili gönderilemedi:", mailErr);
+  }
+}
+
 /**
  * POST /api/flexos/persons — yeni kişi oluştur (gated).
  *
  * Yetki + PII filtreleme service'te (`createPerson`). Bu route sadece:
  *  token → Actor, gövde → input, hata → HTTP kodu.
  * Yazım Admin SDK ile yeni `persons` koleksiyonuna; canlıya dokunmaz.
+ * 2026-07-13: e-posta verilmişse otomatik giriş hesabı + aktivasyon kodu maili
+ * sağlanır (`provisionStudentLogin`, trainer deseninin birebir uyarlaması).
  */
 export const POST = withAuth(async (req: NextRequest, caller) => {
   let body: CreatePersonInput;
@@ -249,8 +346,19 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
   try {
     const result = await createPerson(actor, body, firestorePersonRepo);
+    let loginProvisioned = false;
+    try {
+      if (!result.piiDropped && result.person.pii?.email) {
+        await provisionStudentLogin(result.person, actor.tenantId, actor.uid);
+        loginProvisioned = true;
+      }
+    } catch (loginErr) {
+      console.error("[flexos/persons POST] giriş hesabı sağlanamadı:", loginErr);
+    }
+    invalidateCache(`persons:${actor.tenantId}`); // yeni öğrenci — cache'i anında düşür
+    broadcast(actor.tenantId, { type: "students.changed", id: result.person.id });
     return NextResponse.json(
-      { id: result.person.id, piiDropped: result.piiDropped },
+      { id: result.person.id, piiDropped: result.piiDropped, loginProvisioned },
       { status: 201 },
     );
   } catch (e) {

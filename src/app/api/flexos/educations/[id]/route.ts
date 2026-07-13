@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreEducationRepo, firestoreSectionRepo, firestoreTrackRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { updateEducation, deleteEducation, type UpdateEducationInput } from "@/app/lib/domain/services/catalog-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /** GET /api/flexos/educations/[id] — tek eğitim (düzenleme için ön-doldurma). */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
@@ -24,7 +25,9 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
 
   try {
-    const edu = await updateEducation((await actorFromCaller(caller)), id, body, firestoreEducationRepo);
+    const actor = await actorFromCaller(caller);
+    const edu = await updateEducation(actor, id, body, firestoreEducationRepo);
+    broadcast(actor.tenantId, { type: "educations.changed", id: edu.id });
     return NextResponse.json({ id: edu.id, onSale: edu.onSale ?? false });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
@@ -39,7 +42,9 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
   try {
-    await deleteEducation((await actorFromCaller(caller)), id, { educations: firestoreEducationRepo, sections: firestoreSectionRepo, tracks: firestoreTrackRepo });
+    const actor = await actorFromCaller(caller);
+    await deleteEducation(actor, id, { educations: firestoreEducationRepo, sections: firestoreSectionRepo, tracks: firestoreTrackRepo });
+    broadcast(actor.tenantId, { type: "educations.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

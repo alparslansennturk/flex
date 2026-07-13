@@ -36,6 +36,10 @@ interface SubmissionRow { id: string; personId: string; status: SubmissionStatus
 interface FileRow { id: string; fileName: string; fileSize: number; driveViewLink: string; versionNo: number; createdAt: string }
 interface CommentItem { id: string; authorUid: string; authorType: "trainer" | "student"; authorName: string; text: string; createdAt: string }
 
+// Öğrenci avatarları — sistem paletinden dönen tek renk (odev-notu/page.tsx'teki
+// GROUP_COLORS ile AYNI 6 renk, tutarlılık için).
+const AVATAR_COLORS = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#1CB5AE", "#F91079"];
+
 const STATUS_META: Record<SubmissionStatus, { label: string; cls: string }> = {
   submitted: { label: "Teslim Edildi", cls: "bg-status-success-100 text-status-success-700" },
   reviewing: { label: "İncelemede", cls: "bg-status-success-100 text-status-success-700" },
@@ -211,6 +215,19 @@ export default function OdevTeslimDetayPage() {
     });
   }
 
+  // Bölüm başlığındaki checkbox — 2026-07-11 kullanıcı isteği: "Teslim Edenler"/
+  // "Teslim Etmeyenler" başlığının solundaki checkbox'a basınca O BÖLÜMDEKİ tüm
+  // öğrenciler seçilsin. Hepsi zaten seçiliyse tersine çevirir (hepsini kaldırır).
+  function toggleCheckAll(personIds: string[]) {
+    setCheckedIds((prev) => {
+      const allChecked = personIds.length > 0 && personIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allChecked) personIds.forEach((id) => next.delete(id));
+      else personIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
   /** Toplu işlem — canlıdaki `bulkSetStatus`'un karşılığı (seçili öğrencilerin
    * teslimlerine aynı durumu paralel uygular). */
   async function bulkSetStatus(status: SubmissionStatus) {
@@ -264,7 +281,10 @@ export default function OdevTeslimDetayPage() {
           left={
             <div className="flex items-center gap-3">
               <button
-                onClick={() => router.push(`/flexos/odevler/teslim/${groupId}`)}
+                // Geri dönünce hangi ödeve bakıyorduysa o ödevin akordiyonu Ödevler
+                // sekmesinde otomatik açık gelsin diye assignmentId hint'i taşınıyor
+                // (2026-07-11 kullanıcı bulgusu — canlıdaki davranış).
+                onClick={() => router.push(`/flexos/odevler/teslim/${groupId}?assignmentId=${assignmentId}`)}
                 className="w-9 h-9 rounded-xl border border-surface-200 bg-white flex items-center justify-center hover:bg-surface-50 transition-colors cursor-pointer shrink-0"
               >
                 <ArrowLeft size={16} className="text-surface-700" />
@@ -312,9 +332,9 @@ export default function OdevTeslimDetayPage() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <StudentGroup title="Teslim Edenler" rows={teslimEdenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} />
-              <StudentGroup title="Revize Verilenler" rows={revizeVerilenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} />
-              <StudentGroup title="Teslim Etmeyenler" rows={teslimEtmeyenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} />
+              <StudentGroup title="Teslim Edenler" rows={teslimEdenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} onToggleAll={toggleCheckAll} />
+              <StudentGroup title="Revize Verilenler" rows={revizeVerilenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} onToggleAll={toggleCheckAll} />
+              <StudentGroup title="Teslim Etmeyenler" rows={teslimEtmeyenler} viewingPersonId={viewingPersonId} checkedIds={checkedIds} onSelect={selectPerson} onToggleCheck={toggleCheck} onToggleAll={toggleCheckAll} />
             </div>
           </div>
 
@@ -448,19 +468,32 @@ export default function OdevTeslimDetayPage() {
   );
 }
 
-function StudentGroup({ title, rows, viewingPersonId, checkedIds, onSelect, onToggleCheck }: {
+function StudentGroup({ title, rows, viewingPersonId, checkedIds, onSelect, onToggleCheck, onToggleAll }: {
   title: string;
   rows: { roster: RosterItem; submission: SubmissionRow | null }[];
   viewingPersonId: string | null;
   checkedIds: Set<string>;
   onSelect: (personId: string) => void;
   onToggleCheck: (personId: string) => void;
+  onToggleAll: (personIds: string[]) => void;
 }) {
   if (rows.length === 0) return null;
+  const personIds = rows.map((r) => r.roster.personId);
+  const allChecked = personIds.every((id) => checkedIds.has(id));
   return (
     <div className="py-2">
-      <p className="px-4 py-2 text-[11px] font-bold text-surface-400 uppercase tracking-wide">{title} ({rows.length})</p>
-      {rows.map(({ roster, submission }) => (
+      {/* 2026-07-11 kullanıcı düzeltmeleri: uppercase kaldırıldı, font-bold→semibold,
+          11px→14px (lg/xl'de biraz büyür), solda "hepsini seç" checkbox'ı eklendi. */}
+      <div className="flex items-center gap-2.5 px-4 py-2">
+        <input
+          type="checkbox"
+          checked={allChecked}
+          onChange={() => onToggleAll(personIds)}
+          className="shrink-0 w-4 h-4 rounded cursor-pointer accent-base-primary-600"
+        />
+        <p className="text-[14px] lg:text-[15px] font-semibold text-surface-500 tracking-wide">{title} ({rows.length})</p>
+      </div>
+      {rows.map(({ roster, submission }, i) => (
         <div
           key={roster.personId}
           onClick={() => onSelect(roster.personId)}
@@ -473,7 +506,9 @@ function StudentGroup({ title, rows, viewingPersonId, checkedIds, onSelect, onTo
             onChange={() => onToggleCheck(roster.personId)}
             className="shrink-0 w-4 h-4 rounded cursor-pointer accent-base-primary-600"
           />
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ background: "linear-gradient(135deg,#6F74D8,#5E63C2)" }}>
+          {/* ÖNCEDEN sabit tek gradyan — HERKES aynı maviydi (2026-07-11 kullanıcı bulgusu:
+              "avatarlar hepsi mavi, random olsun istemiştim"). Sistem paletinden dönen tek renk. */}
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}>
             {initials(roster.name)}
           </div>
           <span className="flex-1 min-w-0 text-[13px] font-semibold text-text-primary truncate">{roster.name}</span>

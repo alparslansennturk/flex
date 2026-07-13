@@ -16,6 +16,56 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
+### ⚠️ Kota sızıntısı kökten çözüldü + 18 gerçek bug fix + Öğrenci Portalı KRİTİK EKSİK — canlıya geçiş ERTELENDİ (2026-07-13, çok uzun oturum, PC'de devam)
+
+**Bu oturumun ilk yarısı — Firestore kota sızıntısı derin teşhis + kökten çözüm.** Kullanıcı bulgusu: kota bir günde defalarca aniden fırladı (15k→35k, dakikada 400-1.4k okuma). Gerçek zamanlı ölçüm aracıyla (geçici, sonra kaldırıldı) kanıtlandı: tek bir "kaydet" aksiyonu ~12-30 okuma (ucuz), asıl maliyet **Ana Sayfa'ya her dönüşte** groups(56)/persons(108)/templates(18)/trainers(51) gibi ağır uçların 30sn-5dk cache'i olmadan defalarca yeniden okunmasıydı + **dev'in kendisi** (Claude'un kod düzenlemesi → Turbopack recompile → açık sekmelerin/canlı `onSnapshot` dinleyicilerinin yeniden okuması) önemli bir sızıntı kaynağıydı. **Kullanıcı kararı: bundan sonraki geliştirme local dev değil doğrudan canlı Vercel'de** ([[flexos_gelistirme_artik_canli_vercel]]) — dev-recompile sızıntısı orada hiç olmayacak.
+
+**KRİTİK GÜVENLİK BULGUSU + kökten fix:** Görünüm Anahtarı (Core/Full) sahibinin modu bellek-içi `cachedViewMode` değişkeninde tutuluyordu — mod değiştirme (`POST view-access/mode`) ile `assignments` GET'in okuduğu mod **farklı bellek konumlarıydı** (Next.js dev/Turbopack route'lar arası modül kopyalama şüphesi, KESİN kanıtlanamadı ama 5+ ardışık mod değişiminden sonra bile `assignments` HER ZAMAN org-scope/40-doküman davranmaya devam etti). **Fix: bellek-içi cache TAMAMEN kaldırıldı**, mod her istekte doğrudan Firestore'dan okunuyor (~1 okuma, ihmal edilebilir maliyet, garanti doğru). Aynı modül-çoğaltma şüphesi GÜN SONUNDA **read-cache.ts'i de (groups/persons/templates/trainers 5dk cache) vurdu** — silinen bir öğrenci, cache invalidate DOĞRU çağrılmasına rağmen (kod doğrulandı) hard-refresh sonrası bile listede görünmeye devam etti. **O da devre dışı bırakıldı** (`cachedRead` artık her zaman taze okur, in-flight coalescing hâlâ aktif) — DOĞRULUK, kritik canlıya-geçiş testi sırasında kota-tasarrufundan öncelikli tutuldu. Detaylı teşhis: [[flexos_kota_sizintisi_teshis_2026_07_13]].
+
+**İkinci yarı — kullanıcı "canlıya alabiliriz" deyip gerçek uçtan-uca testine başladı, 18 GERÇEK bug bulundu, hepsi düzeltildi:**
+1. Ödev Notu liste rozeti notlanan ödevi "bekliyor" gösteriyordu (client-only hesap, DB'den türetilmedi)
+2. Yeni/boş grupta (GRP-784) sahte dummy ödev fallback'i gösteriliyordu
+3. Eğitim Yönetimi sayfası yetkisiz erişimde yönlendirme yapmıyordu (admin panel flaşlanıyordu)
+4. **Yoklama gün eşleşmesi — SİSTEMİK bug, 9+ yerde (6 dosya), HEM client HEM SUNUCU** (`attendance-service.ts::startLesson` dahil): `schedule.days` ISO-tabanlı (0=Pazartesi) ama JS'in `Date.getDay()`'i (0=Pazar) doğrudan karşılaştırılıyordu — 1 gün kayması. `isoWeekday()`/`toJsWeekdays()` helper'larıyla düzeltildi.
+5. Grup düzenleme "admin'de bile çıkmıyordu" → aslında görünüm-modu güvenlik bug'ının (#yukarıda) yan etkisiydi
+6. Admin moda geçince `/flexos/anasayfa` (boş "yakında" placeholder) yerine artık `/flexos/egitmen-anasayfa`'ya gidiyor
+7. Yoklama Detay'a girince takvim her zaman ayın 1'ine sabitliydi → bugüne düzeltildi
+8. "Dersi Başlat" butonu hata olunca SESSİZCE başarısız oluyordu → artık toast.error
+9. Geçmiş tarihli girişte "Dersi Başlat" yerine "Yoklama Gir" + kaydetme onay toast'ı
+10. "Güncelle" butonu gereksiz "Dersi Bitir" onay modalı açıyordu → direkt kaydediyor
+11. Yoklama Raporu: tamamlanmış eski gruplar güncel aya hayalet saat ekliyordu (54 saat vs gerçek 24) + varsayılan aralık "bugüne kadar" değil "tüm ay" oldu
+12. Core "Sınıflarım" kart görünümünde grup düzenleme butonu HİÇ yoktu (sadece gizli liste görünümünde vardı)
+13. "Sil" gerçekten silmiyordu, sadece enrollment cancel ediyordu ("silindi" mesajı YANLIŞTI) → gerçek `deletePerson` + doğru mesaj (role.manage/admin ister)
+14. Silinen öğrenci listede gecikmeli kalıyordu → optimistic anında kaldırma
+15. Öğrenci Ekle grup dropdown'ı tamamlanmış eski grupları da listeliyordu → sadece aktif
+16. Core öğrenci ekleme: telefon (KVKK) kaldırıldı, cinsiyet eklendi (istatistik için)
+17. **Öğrenci otomatik giriş hesabı + aktivasyon maili YOKTU** — `provisionTrainerLogin` deseni öğrenciye uyarlandı (`provisionStudentLogin`, persons/route.ts) + enrollment `educationId` artık gruptan türetiliyor (eskiden boştu, "Eğitim: —" görünüyordu)
+18. Öğrenci girişi yanlış (staff) sayfaya düşüyordu (`resolveLanding` "ogrenci" rolünü hiç tanımıyordu) + kişi silinince `flexos_users` kaydı öksüz kalıp yeniden-oluşturmada eski/ölü hesaba bağlanıyordu (`cleanupAuthAccount` düzeltildi)
+
+**⚠️ SONUÇ — canlıya geçiş ERTELENDİ.** #18'i düzelttikten sonra kullanıcı öğrenci hesabıyla tekrar giriş denedi ve **"ciddi ciddi vahim hatalar var. Canlıdan hiç düzgün alınmamış. Eğitmen öğrenci bağlantısı çokkk eksikler var eksik sayfalar var. Durum iyi değil"** dedi — test PC'ye geçmeden hemen önce, ödev/dosya/yorum akışına girmeden durduruldu. **Kullanıcı henüz TAM DETAY vermedi** (hangi sayfalar eksik, ne bağlantı kopuk — spesifik değil). Detay: [[flexos_ogrenci_portali_eksik_2026_07_13]].
+
+`tsc --noEmit` + `npm run build` her adımda temiz. Son commit: `ee6541a`.
+
+**SIRADAKİ İŞ (PC'de, ACİL):** (1) Kullanıcıdan "durum iyi değil" dediği somut detayları al. (2) `/flexos/student/[personId]` + `/flexos/student/[personId]/[assignmentId]` sayfalarını hiçbir önceki iddiaya (ör. "Faz 3 canlıdan birebir port" notu) güvenmeden BAŞTAN oku/test et. (3) Canlıya geçiş kararını kullanıcı onayı olmadan verme.
+
+---
+
+### ✅ Kimlik-karışıklığı zinciri fix + Mod senkronu fix + Gerçek-zamanlı senkron (SSE) TÜM ana varlıklara (2026-07-11/12, uzun oturum)
+
+**1) Sistemik `Group.trainerId` vs `actor.uid` kimlik-karışıklığı bulundu ve düzeltildi.** `Group.trainerId` (ve `Assignment.trainerId`) aslında `flexos_trainers` koleksiyonunun DOCID'sini taşıyor, Firebase Auth uid'ini DEĞİL — iki ayrı kimlik uzayı. Canlı Firestore verisiyle doğrulanan bu ayrım, ~10 dosyada (groups/persons/assignments/submissions route'ları, comment-service) eğitmen modunda Sınıflar/Öğrenciler/Ödevler/yorum-yazarı/bildirimlerin sessizce boş/yanlış görünmesine sebep oluyordu. Fix: `Actor.trainerId` alanı eklendi (`Trainer.authUid === actor.uid` ile çözülüyor), `ownerMatches()` helper'ı tüm self/assigned-scope sahiplik kontrollerinde kullanıldı. Düzeltirken kendi kendine bir güvenlik regresyonu da yakalanıp (sentinel `"__no_trainer_record__"` ile) düzeltildi — `actor.trainerId` undefined olduğunda filtre atlanıp TÜM tenant'ın sızmasına yol açabilirdi.
+
+**2) 3'lü mod state-ayrışması fix.** Server Firestore + server in-process cache + client localStorage bağımsız bir şekilde Core/Full modunu takip ediyordu, owner bazen eğitmen modunda "sıkışıp kalıyordu". localStorage katmanı (`viewMode.ts`) tamamen silindi, tek doğru kaynak `GET /api/flexos/me`'nin döndürdüğü `mode` alanı oldu. Sidebar'a "Sistem Ayarları" linki her iki modda da erişilebilir hale getirildi (role.manage || view.toggle) — Full'a dönüş ayrı bir buton/switch OLARAK EKLENMEDİ (denenip kullanıcı tarafından reddedildi), PIN modalı üzerinden çalışıyor. `standaloneMode` sidebar'da artık gerçekten kontrol ediliyor (Satış/Aktivite Merkezi/Öğrenciler standalone'da gizleniyor).
+
+**3) Sınıflar/Öğrenciler/Ödevler UI ve iş kuralı düzeltmeleri:** varsayılan grup filtresi "Aktif"; tamamlanan/arşivlenen gruplara öğrenci eklenemez/transfer edilemez (server+client çift kapı); grup "tamamlandı"ya alınınca enrollment'lar otomatik `completed`'a düşer (+ geçmiş veri için tek seferlik backfill); Ödev Teslimi'nde canlıdaki `AttachmentManager` (sürükle-bırak + dosya adı gösterimi, kart kapalıyken bile çalışan mavi glow border) birebir portlandı; Ödev Parkuru "Detay"/"Not Ver" artık doğru akordiyonu/ödevi otomatik açıp scroll ediyor.
+
+**4) Prodüksiyon Firestore kota tükenme olayı + kökten çözüm.** Gece 02:00-09:00 arası (kullanıcı uyurken) günlük okuma kotası tükendi — kök neden: Eğitmen Ana Sayfa + Eğitim Operasyon Ana Sayfa'daki `setInterval` polling'i macOS ekran kilidinde durmuyordu (`visibilitychange` tetiklenmiyor), üstüne pahalı 6-koleksiyonlu `/api/flexos/groups` join'i bir pollinge eklenmişti. Kullanıcı "idle-detection" ve "5dk'ya çıkar" önerilerini reddedip kesin talimat verdi: polling TAMAMEN kalksın AMA gerçek zamanlı senkron kalsın, Firestore client erişimi AÇILMASIN, `firestore.rules` gevşetilmeSİN.
+
+**Çözüm: Server-Sent Events, bellek-içi tek-instance pub/sub — TEK altyapı, TÜM ana varlıklar.** `src/app/lib/server/realtime-hub.ts` (`RealtimeEventType` union: groups/students/sales/grades/attendance/trainers/educations/activities `.changed`) → `src/app/api/flexos/realtime/stream/route.ts` (TEK SSE ucu) → `src/app/flexos/_shared/useRealtimeSync.ts` (TEK client hook, `(eventTypes, onChange)` imzası). ~20 mutasyon route'una `broadcast()` eklendi, ~18 ekrana hook bağlandı (Eğitmen/Operasyon Ana Sayfa, Sınıflar, Eğitmen Sınıflar, Sınıf Detay, Kullanıcılar, Öğrenci Havuzu, Satış Dashboard/Listesi, Yoklama Raporu/Al/Detay, Sertifikasyon Not/Ödev Notu, Eğitmenler, Eğitim Yönetimi, Aktivite Merkezi). Her ekran kendi var olan `loadXxx` fonksiyonunu callback olarak geçiyor — ayrı fetch/cache katmanı yok. Detay + bilinçli sınırlar: proje hafızası `flexos_groups_realtime_sse_2026_07_11`.
+
+`tsc --noEmit` + `npm run build` + 395/395 assertion temiz.
+
+**SIRADAKİ İŞ (kod YOK):** Bu oturumda dokunulmayan/ertelenen: "Eğitmen Tek Başına" standalone modunda Kullanıcılar/Eğitimler'in sadeleştirilmiş tasarımı (ayrı oturum gerekiyor), Finans modülü (sıfır kod), Randevu Takvimi (placeholder), Şube Aşama-2 (başlamadı). Ayrıca: mevcut 39 "closed" durumundaki backfilled ödevin statüsü hakkında (bulk-değişim yapılsın mı) hiç karar verilmedi.
+
 ### ✅ Eğitmen Onboarding Otomasyonu + Kullanıcılar Düzeltmeleri + Sınıf Detay Sayfası (2026-07-10, ikinci canlı-test oturumu, aynı gün)
 
 Bir önceki girdideki test oturumunun devamı — kullanıcı kendi hesabıyla + "Eda Yılmaz"/Eğitim Koordinatörü hesabıyla gerçek tarayıcı testine devam etti, çok sayıda gerçek bug/eksik bulunup aynı oturumda kapatıldı.
@@ -58,7 +108,7 @@ Bugün "canlıya almak için engel kalmamalı" hedefiyle gerçek test oturumu ba
 
 **Bilinen ama BUG OLMAYAN bulgu:** Aynı tarayıcının farklı sekmelerinde farklı hesap test edilirse ("Alparslan" + "Eda Yılmaz" aynı anda) `onSnapshot` listener'ları (canlı `users/{uid}` dinleyen `UserContext`/`useNotifications`) Firebase Auth'un `localStorage` paylaşımı yüzünden geçici "Missing or insufficient permissions" console hatası basabiliyor — zaten yakalanmış (`console.error`), Next.js 16 dev overlay bunu bile kırmızı ekran gösteriyor. Production'da bu overlay hiç çıkmaz. Çözüm: çoklu hesap testi ayrı incognito pencerelerde yapılmalı.
 
-**SIRADAKİ İŞ (karar verildi, kod YAZILMADI):** Kullanıcılar sayfası 3 sekmeli olacak: Personel / Eğitmenler / Öğrenciler (kullanıcı kararı — "kim bu sistemde kim" tek yerden görünsün). Keşfedilen durum: `kullanicilar/page.tsx`'te ZATEN yarım bırakılmış bir Personel/Öğrenciler 2-sekme iskeleti var ama "Öğrenciler" sekmesi `DUMMY_STUDENTS` (sabit mock) kullanıyor, gerçek `/api/flexos/persons`'a hiç bağlanmamış. Plan: Personel (zaten gerçek flexos_users) + Öğrenciler (dummy'den gerçek persons API'ye geçirilecek) bu sayfada kalır, Eğitmenler 3. sekme olarak eklenir ama tam CRUD'u (1197 satır, müsaitlik/ücret/not) buraya taşınmaz — "özet + Eğitmen Kadrosu'na git" şeklinde hafif bir görünüm olacak. Yetki: Personel sekmesi SADECE `role.manage` (Eğitim Koordinatörü asla personel ekleyemez — dolaylı yoldan üst yetki oluşturma riski), Eğitmenler `trainer.read`, Öğrenciler `person.read`. Sidebar: bağımsız "Eğitmenler" linki kaldırılıp Kullanıcılar şemsiyesinin sekmesi olacak, "Kullanıcılar" ana girişin gate'i üç yetkiden herhangi birine genişleyecek (`role.manage || trainer.read || person.read`).
+**✅ TAMAMLANDI (aynı gün, sonraki oturumda):** Kullanıcılar sayfası 3 sekmeli oldu: Personel (`role.manage`) / Eğitmenler (`trainer.read`, hafif özet + "Eğitmen Kadrosu'na Git") / Öğrenciler (`person.read`, gerçek `/api/flexos/persons`'a bağlı — `DUMMY_STUDENTS` kaldırıldı). Sidebar'da bağımsız "Eğitmenler" linki PLANLANDIĞI GİBİ kaldırılmadı — aynı oturumda kullanıcı "ben adminim, görmem lazım her şeyi" diyerek geri istedi (bkz. yukarıdaki "Sidebar Eğitmenler linki GERİ GELDİ" notu), o yüzden HEM bağımsız link HEM Kullanıcılar'daki özet sekme bir arada duruyor. Kod: `kullanicilar/page.tsx` + `FlexSidebar.tsx`.
 
 **Test Kontrol Listesi (canlıya çıkış öncesi, bu oturumun TaskList'inde #7-#27 — repo'da PERSIST OLMUYOR, bilgi kaybolmasın diye burada özetleniyor):**
 - Yetki/Hesap: kullanıcı oluşturma+aktivasyon maili (✅ bug bulundu+düzeltildi, uçtan uca tarayıcı testi YARIM — Eda Yılmaz oluşturuldu, aktivasyon linkine tıklanmadı), aktivasyon sayfası, şifremi unuttum, rol bazlı login yönlendirme, gerçek capability bağlama (✅ 3 sorun bulundu+düzeltildi, granüler modül testi PC'de devam), kullanıcı sil→Firebase hesabı silme, Kullanıcı Ayarları gerçek etkisi — HEPSİ hâlâ test edilecek.

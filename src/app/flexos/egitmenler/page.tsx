@@ -10,6 +10,7 @@ import FlexHeader from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatTrPhone } from "@/app/lib/phone";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
 
 /* ── Types ── */
 interface TrainerNote {
@@ -178,6 +179,10 @@ export default function EgitmenlerPage() {
     })();
     return () => ac.abort();
   }, [router, loadTrainers]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı eğitmen ekleyip/
+  // düzenlediğinde SSE üzerinden haber alınır, liste tekrar çekilir.
+  useRealtimeSync(["trainers.changed"], useCallback(() => { void loadTrainers(); }, [loadTrainers]));
 
   /* ── filter logic ── */
   const applyFilters = () => {

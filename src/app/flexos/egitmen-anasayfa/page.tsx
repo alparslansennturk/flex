@@ -54,6 +54,8 @@ import Footer from "@/app/components/layout/Footer";
 import OdevOlusturModal, { type AssignmentPrefill } from "./OdevOlusturModal";
 import EditAssignmentModal, { type EditableAssignment, type EditableAttachment } from "../odevler/_shared/EditAssignmentModal";
 import { ASSIGNMENT_ICONS } from "../odevler/_shared/assignmentIcons";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { isoWeekday } from "../siniflar/_shared/groupDisplay";
 
 // ── API şekilleri ──
 interface GroupItem {
@@ -259,8 +261,9 @@ async function finishAssignment(id: string, currentDueDate?: string): Promise<{ 
 }
 
 /** Gerçek aktif ödev kartı — canlıdaki `TaskParkourCard` (compact) karşılığı. */
-function ActiveParkourCard({ assignment, onArchived, onFinished, onEdit }: {
+function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEdit }: {
   assignment: ParkourAssignment;
+  groupCode?: string;
   onArchived: (id: string) => void;
   onFinished: (id: string, dueDate?: string) => void;
   onEdit: (a: ParkourAssignment) => void;
@@ -330,6 +333,9 @@ function ActiveParkourCard({ assignment, onArchived, onFinished, onEdit }: {
         </div>
       </div>
       <div className="mb-3">
+        {/* Grup kodu — başlığın hemen üstünde, arka plansız düz etiket (2026-07-11:
+            önceki konum/badge stili yanlış bulundu, buraya taşındı). */}
+        {groupCode && <div className="text-[11px] font-bold text-[#8E95A3] tracking-wide mb-0.5">{groupCode}</div>}
         <h4 className="text-[17px] text-[#10294C] font-bold leading-tight truncate">{assignment.title}</h4>
         {assignment.subtitle && <p className="text-[12.5px] text-[#6F7B87] font-semibold truncate mt-0.5">{assignment.subtitle}</p>}
         {assignment.description && <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2 mt-1">{assignment.description}</p>}
@@ -364,13 +370,20 @@ function ActiveParkourCard({ assignment, onArchived, onFinished, onEdit }: {
           <div className="relative flex items-center gap-1.5">
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />
             <button
-              onClick={() => router.push(`/flexos/odevler/teslim/${assignment.groupId}/${assignment.id}`)}
+              // Grup sayfasına gider, İLGİLİ ödevin akordiyonu otomatik açık gelir —
+              // 2026-07-11 kullanıcı düzeltmesi: önceden yanlışlıkla doğrudan öğrenci
+              // listesi/teslim detayına ([assignmentId] sayfası) gidiyordu, canlıdaki
+              // "önce ödev listesi, tıklanan ödev açık" akışı bu değildi.
+              onClick={() => router.push(`/flexos/odevler/teslim/${assignment.groupId}?assignmentId=${assignment.id}`)}
               className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold border border-[#E2E5EA] text-[#10294C] hover:bg-[#F7F8FA] transition-all cursor-pointer"
             >
               Detay
             </button>
             <button
-              onClick={() => router.push("/flexos/sertifikasyon/odev-notu")}
+              // Grup+ödev SEÇİLİ olarak açılsın diye deep-link — 2026-07-11 kullanıcı
+              // bulgusu: önceden parametresiz gidiyordu, kullanıcı grubu/ödevi elle
+              // tekrar seçmek zorunda kalıyordu.
+              onClick={() => router.push(`/flexos/sertifikasyon/odev-notu?groupId=${assignment.groupId}&assignmentId=${assignment.id}`)}
               className="h-8 px-4 flex items-center gap-1 rounded-full text-[11px] font-semibold bg-[#009F3E] text-white hover:bg-[#007F32] transition-all cursor-pointer"
             >
               Not Ver
@@ -487,6 +500,7 @@ function PlaceholderParkourCard() {
 function OdevParkuru() {
   const [assignments, setAssignments] = useState<ParkourAssignment[]>([]);
   const [templates, setTemplates] = useState<ParkourTemplate[]>([]);
+  const [groupCodes, setGroupCodes] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
   const [modalAcik, setModalAcik] = useState(false);
   const [startTemplate, setStartTemplate] = useState<ParkourTemplate | null>(null);
@@ -497,18 +511,30 @@ function OdevParkuru() {
     const token = u ? await u.getIdToken() : "";
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      const [assignRes, tplRes] = await Promise.all([
+      const [assignRes, tplRes, groupsRes] = await Promise.all([
         fetch("/api/flexos/assignments", { headers }),
         fetch("/api/flexos/assignment-templates", { headers }),
+        fetch("/api/flexos/groups", { headers }),
       ]);
       if (assignRes.ok) setAssignments((await assignRes.json()).items ?? []);
       if (tplRes.ok) setTemplates((await tplRes.json()).items ?? []);
+      if (groupsRes.ok) {
+        const items: { id: string; code: string }[] = (await groupsRes.json()).items ?? [];
+        setGroupCodes(Object.fromEntries(items.map((g) => [g.id, g.code])));
+      }
     } finally {
       setLoaded(true);
     }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // "Notları Kaydet"/"Ödevi Bitir"/"Ödevi İptal Et" başka bir sekmede veya bu sayfadan
+  // gidilen Ödev Notu ekranında olduğunda kart anında düşsün/güncellensin diye. BİLEREK
+  // "grades.changed" DEĞİL "assignments.changed" — bu widget tek tek öğrenci notlarıyla
+  // değil sadece ödevin DURUMUYLA ilgileniyor (2026-07-13 kota fix — N öğrenci notlanınca
+  // N kere değil, ödev arşivlenince TEK kere tetiklenir).
+  useRealtimeSync(["assignments.changed"], loadData);
 
   // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması). "closed" (Ödevi
   // Bitir sonrası, not girişi bekleyen) da burada kalır — kart kaybolmaz, sadece görünümü
@@ -563,6 +589,7 @@ function OdevParkuru() {
               <ActiveParkourCard
                 key={a.id}
                 assignment={a}
+                groupCode={groupCodes[a.groupId]}
                 onArchived={(id) => setAssignments((prev) => prev.filter((x) => x.id !== id))}
                 onFinished={(id, dueDate) => setAssignments((prev) => prev.map((x) => (x.id === id ? { ...x, status: "closed", dueDate: dueDate ?? x.dueDate } : x)))}
                 onEdit={(edited) => setEditingAssignment({ id: edited.id, title: edited.title, description: edited.description, dueDate: edited.dueDate, status: edited.status as EditableAssignment["status"], attachments: edited.attachments })}
@@ -692,51 +719,57 @@ function OdevKutuphanesi() {
   const [startTemplate, setStartTemplate] = useState<LibTemplate | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // 2026-07-11 KOTA OLAYI — `groupBranches` (gruplarım) BURADAN ÇIKARILDI. Sebep:
+  // `/api/flexos/groups` kendi içinde 6 koleksiyonu (groups+educations+branches+
+  // sections+enrollments+trainers) OKUYARAK join yapıyor — bunu her 60sn'lik pollingde
+  // tekrar çekmek (10 saatlik aktif çalışmada ~600 kez) tek başına günlük Firestore
+  // okuma kotasını tüketebilirdi. Gruplarım listesi (dolayısıyla branşlar) zaten SIK
+  // DEĞİŞMEYEN veri — sadece İLK YÜKLEMEDE bir kez çekiliyor (aşağıdaki ayrı effect),
+  // recurring poll'a HİÇ girmiyor. Poll'a kalan tek şey ucuz `assignment-templates`
+  // (tek koleksiyon) ve interval de 60sn'den 5dk'ya çıkarıldı (şablon onay/kaldırma
+  // saniyeler içinde görünmesi gereken bir şey değil).
+  const groupBranchesRef = useRef<string[]>([]);
+
+  const loadGroupBranchesOnce = useCallback(async () => {
+    const u = auth.currentUser;
+    const token = u ? await u.getIdToken() : "";
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const meRes = await fetch("/api/flexos/me", { headers });
+      const meJson = meRes.ok ? await meRes.json() : { trainerId: null };
+      const groupsRes = await fetch(`/api/flexos/groups?trainerId=${meJson.trainerId ?? ""}`, { headers });
+      groupBranchesRef.current = groupsRes.ok
+        ? ((await groupsRes.json()).items ?? []).map((g: { branch?: string }) => g.branch).filter((b: string | undefined): b is string => !!b)
+        : [];
+    } catch { /* sessizce atla — branş filtresi sadece şablonlardan türer */ }
+  }, []);
+
   const loadData = useCallback(async () => {
     const u = auth.currentUser;
     const token = u ? await u.getIdToken() : "";
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      // trainerId=kendi uid'i EXPLICIT gönderiliyor — org-scope aktör (admin/owner)
-      // parametresiz istekte TÜM tenant'ın gruplarını görür, ama bu widget "eğitmenin
-      // KENDİ kütüphanesi" kavramı; kim görüntülüyorsa sadece kendi branşlarını görmeli.
-      const [tplRes, groupsRes] = await Promise.all([
-        fetch("/api/flexos/assignment-templates", { headers }),
-        fetch(`/api/flexos/groups?trainerId=${u?.uid ?? ""}`, { headers }),
-      ]);
+      const tplRes = await fetch("/api/flexos/assignment-templates", { headers });
       const templateItems: LibTemplate[] = tplRes.ok ? (await tplRes.json()).items ?? [] : [];
       setTemplates(templateItems);
 
-      const groupBranches: string[] = groupsRes.ok
-        ? ((await groupsRes.json()).items ?? []).map((g: { branch?: string }) => g.branch).filter((b: string | undefined): b is string => !!b)
-        : [];
-      // Branş filtresi: gerçek gruplarım ∪ şablonlarımın branşları (canlıdaki sabit
-      // user.branches listesine en yakın karşılık — FlexOS'ta öyle bir alan yok, henüz
-      // gerçek grubu olmayan ama şablonu olan bir branş da filtrede görünmeli).
+      // Branş filtresi: gerçek gruplarım (bir kez çekilen, cache'lenen) ∪ şablonlarımın
+      // branşları — henüz gerçek grubu olmayan ama şablonu olan bir branş da görünmeli.
       const templateBranches = templateItems.map((t) => t.branch).filter((b): b is string => !!b);
-      setMyBranches(Array.from(new Set([...groupBranches, ...templateBranches])));
+      setMyBranches(Array.from(new Set([...groupBranchesRef.current, ...templateBranches])));
     } finally {
       setLoaded(true);
     }
   }, []);
 
-  // Şablon Yönetimi'nde onay/kaldır değişikliği başka bir sekme/sayfada yapılabiliyor —
-  // client Firestore listener'ı yok (bkz. flexos_* server-only rules), o yüzden
-  // egitim-operasyon-anasayfa'daki aynı desen: 60sn polling + sekmeye geri dönünce anında
-  // yenile (activities polling ile aynı desen).
+  // 2026-07-11 — polling mimarisi TAMAMEN kaldırıldı (setInterval/visibilitychange/
+  // hareketsizlik takibi yok artık). Sayfa açılışında TEK SEFER çekilir. Gerçek zamanlı
+  // his, KULLANICININ KENDİ mutasyonlarında (ödev oluştur/bitir/düzenle/iptal) zaten
+  // yerel state güncellemesiyle sağlanıyor (bkz. onArchived/onFinished/onCreated
+  // callback'leri, hiçbiri yeniden fetch gerektirmiyor) — zamanlayıcıya hiç gerek yok.
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    const start = () => { if (!interval) interval = setInterval(loadData, 60000); };
-    const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
-    const onVisibilityChange = () => {
-      if (document.hidden) stop();
-      else { loadData(); start(); }
-    };
-    loadData();
-    if (!document.hidden) start();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => { stop(); document.removeEventListener("visibilitychange", onVisibilityChange); };
-  }, [loadData]);
+    void loadGroupBranchesOnce().then(loadData);
+  }, [loadData, loadGroupBranchesOnce]);
 
   const approvedTemplates = templates.filter((t) => t.visible === true);
   const branchOptions = myBranches;
@@ -845,7 +878,7 @@ export default function EgitmenAnaSayfaPage() {
       setAttendMeta(""); setAttendPulse(false); return;
     }
     const now = new Date();
-    const todayDay = now.getDay();
+    const todayDay = isoWeekday(now);
     const nowMins = now.getHours() * 60 + now.getMinutes();
 
     const candidates = activeGroupsRef.current.filter((g) => {
@@ -872,49 +905,59 @@ export default function EgitmenAnaSayfaPage() {
     else { setAttendMeta(`${pendingCodes.length} grup`); setAttendPulse(true); }
   }, [authHeaders]);
 
+  const loadGroupsAndPersons = useCallback(async (signal?: AbortSignal) => {
+    const headers = await authHeaders();
+    try {
+      const [groupsRes, personsRes, holidaysRes] = await Promise.all([
+        fetch("/api/flexos/groups", { headers, signal }),
+        fetch("/api/flexos/persons", { headers, signal }),
+        fetch("/api/flexos/holidays", { headers, signal }),
+      ]);
+      if (signal?.aborted) return;
+
+      const groupItems: GroupItem[] = groupsRes.ok ? ((await groupsRes.json()).items ?? []) : [];
+      const activeGroups = groupItems.filter((g) => g.status === "active");
+      setGroupCount(activeGroups.length);
+      activeGroupsRef.current = activeGroups;
+
+      if (personsRes.ok) setStudentCount(((await personsRes.json()).items ?? []).length);
+
+      if (holidaysRes.ok) {
+        const items: HolidayItem[] = (await holidaysRes.json()).items ?? [];
+        const dates = new Set<string>();
+        for (const h of items) {
+          const cur = new Date(h.startDate + "T12:00:00");
+          const end = new Date(h.endDate + "T12:00:00");
+          while (cur <= end) { dates.add(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+        }
+        holidayDatesRef.current = dates;
+      }
+
+      await computeAttendPulse();
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
+    }
+  }, [authHeaders, computeAttendPulse]);
+
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
-
       todayKeyRef.current = todayKeyOf(new Date());
-      const headers = await authHeaders();
-      try {
-        const [groupsRes, personsRes, holidaysRes] = await Promise.all([
-          fetch("/api/flexos/groups", { headers, signal: ac.signal }),
-          fetch("/api/flexos/persons", { headers, signal: ac.signal }),
-          fetch("/api/flexos/holidays", { headers, signal: ac.signal }),
-        ]);
-        if (ac.signal.aborted) return;
-
-        const groupItems: GroupItem[] = groupsRes.ok ? ((await groupsRes.json()).items ?? []) : [];
-        const activeGroups = groupItems.filter((g) => g.status === "active");
-        setGroupCount(activeGroups.length);
-        activeGroupsRef.current = activeGroups;
-
-        if (personsRes.ok) setStudentCount(((await personsRes.json()).items ?? []).length);
-
-        if (holidaysRes.ok) {
-          const items: HolidayItem[] = (await holidaysRes.json()).items ?? [];
-          const dates = new Set<string>();
-          for (const h of items) {
-            const cur = new Date(h.startDate + "T12:00:00");
-            const end = new Date(h.endDate + "T12:00:00");
-            while (cur <= end) { dates.add(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
-          }
-          holidayDatesRef.current = dates;
-        }
-
-        await computeAttendPulse();
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
-      }
+      await loadGroupsAndPersons(ac.signal);
     })();
     const interval = setInterval(computeAttendPulse, 60_000);
     return () => { ac.abort(); clearInterval(interval); };
-  }, [router, authHeaders, computeAttendPulse]);
+  }, [router, computeAttendPulse, loadGroupsAndPersons]);
+
+  // 2026-07-11/12 — grup+öğrenci gerçek-zamanlı senkron: SSE (`useRealtimeSync`) ile başka
+  // bir kullanıcı grup oluşturduğunda/düzenlediğinde veya öğrenci ekleyip/kaydını
+  // değiştirdiğinde bu ekran KENDİ VAR OLAN `loadGroupsAndPersons` fonksiyonunu tekrar
+  // çağırır (groupCount/studentCount/attend-pulse hepsi buradan türer) — ayrı bir
+  // fetch/cache katmanı yok.
+  useRealtimeSync(["groups.changed", "students.changed"], loadGroupsAndPersons);
 
   if (authed === null) return <FlexPageLoader />;
 

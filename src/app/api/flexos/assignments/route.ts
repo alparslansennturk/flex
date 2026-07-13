@@ -23,8 +23,16 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const isOrgScope = widestScope(actor, "assignment.read") === "org";
 
   try {
-    let items = await firestoreAssignmentRepo.list(actor.tenantId, groupId);
-    if (!isOrgScope) items = items.filter((a) => a.trainerId === actor.uid);
+    let items: Awaited<ReturnType<typeof firestoreAssignmentRepo.list>>;
+    if (isOrgScope) {
+      items = await firestoreAssignmentRepo.list(actor.tenantId, groupId);
+    } else {
+      // 2026-07-13 kota fix: tüm kiracıyı okuyup JS'te süzmek yerine SADECE bu eğitmenin
+      // ödevleri sorgulanır (`ownerMatches` actor.uid VEYA actor.trainerId eşleşmesiyle AYNI).
+      const trainerIds = [actor.uid, actor.trainerId].filter((v): v is string => !!v);
+      items = await firestoreAssignmentRepo.listByTrainerIds(trainerIds, actor.tenantId);
+      if (groupId) items = items.filter((a) => a.groupId === groupId);
+    }
     return NextResponse.json({ items });
   } catch (e) {
     console.error("[flexos/assignments GET] hata:", e);

@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { createBranch, type CreateBranchInput } from "@/app/lib/domain/services/catalog-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /** POST /api/flexos/branches — branş oluştur (gated `branch.create`). */
 export const POST = withAuth(async (req: NextRequest, caller) => {
@@ -11,7 +12,9 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   try { body = (await req.json()) as CreateBranchInput; }
   catch { return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 }); }
   try {
-    const branch = await createBranch((await actorFromCaller(caller)), body, firestoreBranchRepo);
+    const actor = await actorFromCaller(caller);
+    const branch = await createBranch(actor, body, firestoreBranchRepo);
+    broadcast(actor.tenantId, { type: "educations.changed", id: branch.id });
     return NextResponse.json({ id: branch.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

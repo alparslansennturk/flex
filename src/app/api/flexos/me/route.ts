@@ -3,13 +3,27 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { widestScope } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
+import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 
-/** 3 dashboard var — login sonrası kişinin rolüne göre doğru olana yönlendirilir. */
+/**
+ * 4 dashboard var — login sonrası kişinin rolüne göre doğru olana yönlendirilir.
+ * 2026-07-13 GERÇEK BUG (kullanıcı bulgusu): "ogrenci" rolü hiç kontrol edilmiyordu —
+ * yeni sağlanan öğrenci hesapları (bkz. persons/route.ts::provisionStudentLogin)
+ * girişte varsayılan `/flexos/anasayfa`'ya (STAFF sayfası, admin placeholder) düşüyordu.
+ * Orada FlexSidebar öğrenci için tasarlanmadığından "Ana Sayfa" linki de yanlışlıkla
+ * `/flexos/egitmen-anasayfa`'ya gidiyordu, o sayfanın client-taraflı Firestore
+ * okumaları da öğrenci rules'unda reddedilip "Missing or insufficient permissions"
+ * hatası veriyordu — hepsi TEK kök nedenin (yanlış landing) zincirleme sonucu.
+ */
 async function resolveLanding(uid: string, tenantId: string): Promise<string> {
   const flexosUser = await firestoreFlexosUserRepo.findByAuthUid(uid, tenantId);
   const roles = flexosUser?.roles ?? [];
   if (roles.includes("egitmen")) return "/flexos/egitmen-anasayfa";
   if (roles.includes("egitim_koordinatoru")) return "/flexos/egitim-operasyon-anasayfa";
+  if (roles.includes("ogrenci")) {
+    const person = await firestorePersonRepo.findByAuthUid(uid, tenantId);
+    if (person) return `/flexos/student/${person.id}`;
+  }
   return "/flexos/anasayfa";
 }
 
@@ -26,10 +40,19 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   // scope'ta (global şablon) anlamlı — self scope (kişisel şablon) eğitmene hiç gösterilmez.
   const templateManageScope = widestScope(actor, "template.manage");
   const landing = await resolveLanding(actor.uid, actor.tenantId);
+  // Görünüm Anahtarı sahibi (view.toggle) için TEK doğruluk kaynağından türetilen mod —
+  // 2026-07-11 düzeltmesi öncesi FlexSidebar bunu localStorage'dan AYRI okuyordu
+  // (`viewMode.ts`), sunucudaki gerçek moddan (Firestore + in-process cache) kopabiliyordu
+  // (ör. admin'e dönünce sidebar hâlâ eğitmen sanıyordu — Sistem Ayarları kayboluyordu).
+  // Artık `caps` ile AYNI istekten, tek kaynaktan geliyor — asla birbirinden bağımsız kayamaz.
+  const mode: "core" | "full" = capabilities.includes("view.toggle") && !capabilities.includes("role.manage") ? "core" : "full";
   // no-store: Görünüm Anahtarı sahibi mod değiştirdiğinde (admin↔eğitmen) bu uç
   // ANINDA yeni sonucu vermeli — tarayıcı/ara katman cache'i eski yetkiyi göstermesin.
   return NextResponse.json(
-    { uid: actor.uid, capabilities, templateManageScope, landing },
+    // trainerId: eğitmen kadrosu (`flexos_trainers`) docId'si (uid DEĞİL, bkz. can.ts
+    // ownerMatches yorumu) — client'ın "kendi gruplarım" filtrelerinde `?trainerId=`
+    // olarak kullanması için (raw uid gönderirse Group.trainerId'yle asla eşleşmez).
+    { uid: actor.uid, trainerId: actor.trainerId ?? null, capabilities, templateManageScope, landing, mode },
     { headers: { "Cache-Control": "no-store" } },
   );
 });

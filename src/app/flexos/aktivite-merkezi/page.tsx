@@ -32,6 +32,7 @@ import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import { formatTrPhone } from "@/app/lib/phone";
 import { FLEX_MESSAGES } from "@/app/lib/messages";
+import { useRealtimeSync } from "../_shared/useRealtimeSync";
 
 // ─── Sözlükler ────────────────────────────────────────────────────────────────
 
@@ -425,6 +426,10 @@ export default function AktiviteMerkeziPage() {
 
     return () => { unsubAuth(); unsubSnap?.(); };
   }, [loadBackend]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı talep/aktivite/randevu
+  // ekleyip/güncellediğinde SSE üzerinden haber alınır, backend listesi tekrar çekilir.
+  useRealtimeSync(["activities.changed"], loadBackend);
 
   const expand = useCallback((a: AktiviteRow) => {
     if (expandedId === a.id) { setExpandedId(null); return; }

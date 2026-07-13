@@ -4,6 +4,11 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreAssignmentTemplateRepo } from "@/app/lib/server/assignment-template-repo.firestore";
 import { createTemplate, listTemplates, type CreateTemplateInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
+
+// Şablonlar nadir değişir ama Ana Sayfa'da 2× + katalog ekranlarında çekiliyor — 5dk TTL
+// cache tekrarları Firestore'a hiç göndermez (yeni şablon POST'ta invalidate edilir).
+const TEMPLATES_CACHE_TTL_MS = 5 * 60_000;
 
 /**
  * GET /api/flexos/assignment-templates — şablon kütüphanesi listesi.
@@ -11,7 +16,10 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   try {
-    const items = await listTemplates((await actorFromCaller(caller)), firestoreAssignmentTemplateRepo);
+    const actor = await actorFromCaller(caller);
+    const items = await cachedRead(`templates:${actor.tenantId}:${actor.uid}`, TEMPLATES_CACHE_TTL_MS, () =>
+      listTemplates(actor, firestoreAssignmentTemplateRepo),
+    );
     return NextResponse.json({ items });
   } catch (e) {
     if (e instanceof ForbiddenError) {
@@ -35,7 +43,9 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const template = await createTemplate((await actorFromCaller(caller)), body, firestoreAssignmentTemplateRepo);
+    const actor = await actorFromCaller(caller);
+    const template = await createTemplate(actor, body, firestoreAssignmentTemplateRepo);
+    invalidateCache(`templates:${actor.tenantId}`); // yeni şablon — tüm kullanıcıların cache'ini düşür
     return NextResponse.json({ id: template.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

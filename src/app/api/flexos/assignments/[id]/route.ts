@@ -5,6 +5,7 @@ import { can } from "@/app/lib/domain/access/can";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { updateAssignment, deleteAssignment, type UpdateAssignmentInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 
 /**
  * GET /api/flexos/assignments/[id] — tekil ödev (ör. `/flexos/kolaj` çekiliş ekranının
@@ -39,7 +40,13 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
   }
 
   try {
-    const assignment = await updateAssignment((await actorFromCaller(caller)), id, body, firestoreAssignmentRepo);
+    const actor = await actorFromCaller(caller);
+    const assignment = await updateAssignment(actor, id, body, firestoreAssignmentRepo);
+    // Ödev Parkuru (Ana Sayfa) widget'ı bu event'i dinleyip "Notları Kaydet"in arşivlediği
+    // (veya "Ödevi Bitir"in kapattığı) ödevleri gerçek zamanlı düşürsün diye. 2026-07-13:
+    // BİLEREK "grades.changed" DEĞİL — o TEK öğrenci notu değiştiğinde N kere ateşleniyor
+    // (kota fix, bkz. realtime-hub.ts yorumu).
+    broadcast(actor.tenantId, { type: "assignments.changed", id: assignment.id });
     return NextResponse.json({ id: assignment.id });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

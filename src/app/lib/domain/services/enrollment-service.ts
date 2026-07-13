@@ -118,7 +118,13 @@ export async function createEnrollment(
     tenantId: actor.tenantId,
     personId: input.personId,
     groupId: input.groupId,
-    educationId: input.educationId,
+    // 2026-07-13 GERÇEK BUG: servis zaten grubu çekiyordu (yukarıda) ama `group.educationId`'yi
+    // hiç kullanmıyordu — SADECE client'ın gönderdiği `input.educationId`'ye güveniyordu. Core
+    // "Öğrenci Ekle" akışı (EgitmenSiniflarPanel) bunu hiç göndermiyordu (sadece groupId),
+    // enrollment educationId'siz kalıyordu → persons GET'te "Eğitim: —" (kullanıcı bulgusu).
+    // Bir enrollment'ın eğitimi MANTIKEN bağlı olduğu grubun eğitimiyle aynı olmalı —
+    // client açıkça farklı bir şey göndermediği sürece gruptan türetiliyor.
+    educationId: input.educationId ?? group.educationId,
     trackScope: input.trackScope,
     status: "active",
     saleId: input.saleId,
@@ -167,6 +173,12 @@ export async function assignToGroup(
   // ownerUid: `groupIds` claim altyapısı yokken standalone eğitmen kendi grubuna (Group.trainerId) öğrenci yerleştirebilsin.
   if (!can(actor, "group.assign_student", { groupId: input.groupId, ownerUid: group.trainerId })) {
     throw new ForbiddenError("group.assign_student");
+  }
+
+  // Kapanmış gruba (tamamlandı/iptal) yeni öğrenci eklenemez — 2026-07-11 kullanıcı
+  // bulgusu: bitmiş bir gruba öğrenci eklemek anlamsız (yoklama/ödev akışı zaten kapalı).
+  if (group.status === "completed" || group.status === "archived") {
+    throw new ValidationError("Bu grup tamamlandı/iptal edildi, yeni öğrenci eklenemez.");
   }
 
   if (enrollment.groupId) {
@@ -288,6 +300,11 @@ export async function transferEnrollment(
   const fromGroup = await deps.groups.getById(enrollment.groupId, actor.tenantId);
   const toGroup = await deps.groups.getById(input.toGroupId, actor.tenantId);
   if (!toGroup) throw new ValidationError("Hedef grup bulunamadı.");
+  // Kapanmış hedef gruba (tamamlandı/iptal) taşınamaz — assignToGroup'taki AYNI kural
+  // (2026-07-11 kullanıcı bulgusu), taşıma da yeni öğrenci eklemenin bir türü.
+  if (toGroup.status === "completed" || toGroup.status === "archived") {
+    throw new ValidationError("Hedef grup tamamlandı/iptal edildi, öğrenci taşınamaz.");
+  }
 
   const duplicate = await deps.enrollments.findActive(enrollment.personId, input.toGroupId, actor.tenantId);
   if (duplicate) throw new ValidationError("Bu öğrenci zaten hedef grupta aktif kayıtlı.");

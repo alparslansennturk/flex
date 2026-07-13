@@ -17,6 +17,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 // ── types (API şekilleri) ──
 interface SaleItem {
@@ -268,6 +269,10 @@ export default function SatisDashboardPage() {
     })();
     return () => ac.abort();
   }, [router, loadAll]);
+
+  // 2026-07-12 — gerçek zamanlı senkron: yeni satış/randevu-aktivite/eğitim kataloğu
+  // değişikliği olduğunda SSE üzerinden haber alınır, `loadAll` tekrar çağrılır.
+  useRealtimeSync(["sales.changed", "activities.changed", "educations.changed"], useCallback(() => { void loadAll(); }, [loadAll]));
 
   // ── bu ay aktif satışlar ──
   const monthActive = useMemo(() => sales.filter((s) => s.status === "active" && isThisMonth(s.date)), [sales]);

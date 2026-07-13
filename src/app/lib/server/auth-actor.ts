@@ -5,6 +5,7 @@ import type { Caller } from "@/app/lib/with-auth";
 import { firestoreSettingsRepo } from "@/app/lib/server/settings-repo.firestore";
 import { firestoreViewModeRepo } from "@/app/lib/server/view-mode-repo.firestore";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
+import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
 import { ALL_PERM_MODULE_KEYS } from "@/app/lib/domain/access/perm-modules";
 import { grantsForPermModules } from "@/app/lib/domain/access/perm-module-capabilities";
@@ -25,50 +26,31 @@ export const DEFAULT_TENANT = "default";
  */
 export const VIEW_TOGGLE_OWNER_EMAIL = "alparslan.sennturk@gmail.com";
 
-// ── Görünüm modu (Core/Full) cache'i — sadece owner uid'i için tutulur ──
-//
-// Core moddayken owner sunucuda GERÇEKTEN `egitmen` paketiyle çözülür (kozmetik
-// değil — yoklama/not/grup işlemlerinde gerçek eğitmen kısıtları geçerli olsun
-// diye). standaloneMode'un aksine bu değer SADECE tek bir kod yolundan
-// (`POST /api/flexos/view-access/mode` → `primeViewModeCache`) değişir — periyodik
-// TTL ile arka planda yeniden okuma YOK BİLEREK: birden fazla admin'in farklı
-// tarayıcılardan değiştirebileceği `standaloneMode`'dan farklı olarak, bu tek
-// kullanıcıya özel bir ayar; periyodik yeniden okuma sadece yarış riski (eski bir
-// okumanın yeni yazılan doğru değerin üzerine geç gelip yazması) yaratıyordu ve
-// gerçek bug'lara yol açtı (2026-07-02). Sadece soğuk başlangıçta BİR KEZ
-// Firestore'dan yüklenir; ondan sonra tamamen `primeViewModeCache`'e güvenilir.
-let cachedViewMode: "core" | "full" = "full";
-let viewModeColdStartDone = false;
-
-function loadViewModeOnColdStart(uid: string): void {
-  if (viewModeColdStartDone) return;
-  viewModeColdStartDone = true; // senkron olarak hemen işaretle — tekrar tetiklenmesin
-  firestoreViewModeRepo
-    .get(uid)
-    .then((state) => {
-      cachedViewMode = state?.mode ?? "full";
-    })
-    .catch((e) => {
-      console.error("[auth-actor] view mode soğuk başlangıç yüklenemedi:", e);
-    });
-}
-
 /**
- * Mod değişimini YAZAN route (`POST /api/flexos/view-access/mode`) bu isteği
- * işleyen sunucu instance'ının cache'ini anında, tartışmasız günceller — tek
- * doğruluk kaynağı budur artık (soğuk başlangıç okuması hariç).
+ * GÜVENLİK FIX (2026-07-13, İKİNCİ tur — bellek-içi cache TAMAMEN KALDIRILDI):
+ * Görünüm modu eskiden bir modül-seviyesi `cachedViewMode` değişkeninde tutuluyordu.
+ * Kullanıcı bulgusu: mod'u kaç kez değiştirirse değiştirsin (`POST view-access/mode`),
+ * `GET /api/flexos/assignments` HER ZAMAN org-scope (tüm tenant, 40 doküman) davranmaya
+ * devam ediyordu — ölçümle kanıtlandı (5+ ardışık mod değişiminden sonra bile hep 40).
+ * Kök neden KESİN doğrulanamadı ama en güçlü hipotez: Next.js dev'de (Turbopack) farklı
+ * API route'ları `auth-actor.ts`'in AYRI modül kopyalarını yükleyebiliyor — `mode`
+ * route'unun güncellediği `cachedViewMode` ile `assignments` route'unun okuduğu
+ * `cachedViewMode` FARKLI bellek konumları olabiliyordu, bu yüzden yazma hiç görünmüyordu.
+ *
+ * Çözüm: paylaşılan bellek durumuna GÜVENMEMEK — mod her istekte DOĞRUDAN Firestore'dan
+ * okunur (tek doküman, ~1 okuma). Bu SADECE VIEW_TOGGLE_OWNER_EMAIL hesabının istekleri
+ * için çalışır (tek kullanıcı, nadir bir kod yolu) — maliyeti ihmal edilebilir, karşılığında
+ * hangi route'un hangi modül kopyasını kullandığından TAMAMEN bağımsız, garanti doğru.
+ * `primeViewModeCache` de bu yüzden kaldırıldı — artık gereksiz (bir sonraki istek zaten
+ * taze okur, Firestore Admin SDK aynı dokümanda yazma-sonrası-okuma tutarlı).
  */
-export function primeViewModeCache(mode: "core" | "full"): void {
-  cachedViewMode = mode;
-  viewModeColdStartDone = true; // artık Firestore'dan tekrar okumaya gerek yok
-}
 
 /** Eski rol → capability paketi. Satış/Op rolleri eklenince map büyür. */
-export function packagesForCaller(caller: Caller): PackageName[] {
+export async function packagesForCaller(caller: Caller): Promise<PackageName[]> {
   if (caller.isAdmin) {
     if (caller.email === VIEW_TOGGLE_OWNER_EMAIL) {
-      loadViewModeOnColdStart(caller.uid); // no-op'tur eğer zaten yüklendiyse
-      if (cachedViewMode === "core") return ["egitmen"];
+      const state = await firestoreViewModeRepo.get(caller.uid).catch(() => null);
+      if ((state?.mode ?? "full") === "core") return ["egitmen"];
     }
     return ["admin"];
   }
@@ -144,6 +126,38 @@ async function resolveFlexosUserGrants(uid: string): Promise<Grant[]> {
   }
 }
 
+// ── Kimlik (grant + trainerId) cache'i — uid başına, kısa TTL (2026-07-13 kota fix) ──
+//
+// `actorFromCaller` HER authenticated request'te (her GET/PATCH/POST + her SSE yeniden
+// bağlanmada) çalışıyor ve actor'ı sıfırdan çözüyordu: `resolveFlexosUserGrants`
+// (findByAuthUid [+ office rol varsa roleDefs.list]) + eğitmen ise trainer findByAuthUid.
+// Bu, request başına 1-2 Firestore okuması demek. Kimlik/rol saniyeler içinde değişmez;
+// toplu işlemlerde ("Notları Kaydet"in N ayrı grade PATCH'i) ve dev hot-reload kaynaklı
+// SSE yeniden-bağlanma fırtınalarında aynı okuma onlarca kez tekrarlanıyordu. Bu değerler
+// artık uid başına kısa süre cache'lenir — `standaloneMode`/`viewMode` cache'leriyle AYNI
+// felsefe (rol değişimi TTL kadar, en fazla ~20sn, gecikmeli yansır — kabul edilir sınır).
+const IDENTITY_CACHE_TTL_MS = 20_000;
+interface IdentityCacheEntry<T> { value: T; at: number; }
+const grantsCache = new Map<string, IdentityCacheEntry<Grant[]>>();
+const trainerIdCache = new Map<string, IdentityCacheEntry<string | undefined>>();
+
+async function cachedFlexosUserGrants(uid: string): Promise<Grant[]> {
+  const hit = grantsCache.get(uid);
+  if (hit && Date.now() - hit.at < IDENTITY_CACHE_TTL_MS) return hit.value;
+  const value = await resolveFlexosUserGrants(uid);
+  grantsCache.set(uid, { value, at: Date.now() });
+  return value;
+}
+
+async function cachedTrainerId(uid: string): Promise<string | undefined> {
+  const hit = trainerIdCache.get(uid);
+  if (hit && Date.now() - hit.at < IDENTITY_CACHE_TTL_MS) return hit.value;
+  const trainer = await firestoreTrainerRepo.findByAuthUid(uid, DEFAULT_TENANT).catch(() => null);
+  const value = trainer?.id;
+  trainerIdCache.set(uid, { value, at: Date.now() });
+  return value;
+}
+
 export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[]): Promise<Actor> {
   if (Date.now() - cacheLoadedAt > STANDALONE_CACHE_TTL_MS) {
     refreshStandaloneModeCache(); // fire-and-forget, bu isteği bloklamaz
@@ -154,14 +168,26 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
   const viewToggleGrant: Grant[] =
     caller.email === VIEW_TOGGLE_OWNER_EMAIL ? [{ capability: "view.toggle", scope: "org" }] : [];
 
-  const flexosGrants = await resolveFlexosUserGrants(caller.uid);
+  const flexosGrants = await cachedFlexosUserGrants(caller.uid);
+  const packages = await packagesForCaller(caller);
+
+  // `Group.trainerId` Firebase auth uid DEĞİL, eğitmen kadrosu (`flexos_trainers`)
+  // docId'sini taşır (bkz. types.ts Actor.trainerId yorumu, 2026-07-11 düzeltmesi).
+  // Sadece eğitmen paketi çözülen aktörler için aranır (gereksiz Firestore okuması
+  // yapılmasın diye) — bulunamazsa (henüz kadroya eklenmemiş eğitmen) undefined kalır,
+  // can()/groups filtresi actor.uid'e düşer (eski davranış, zararsız).
+  let trainerId: string | undefined;
+  if (packages.includes("egitmen")) {
+    trainerId = await cachedTrainerId(caller.uid);
+  }
 
   return buildActor({
     uid: caller.uid,
     tenantId: DEFAULT_TENANT,
-    packages: packagesForCaller(caller),
+    packages,
     groupIds: groupIdsOverride ?? caller.groupIds, // token claim'inden gelir
     standaloneMode: cachedStandaloneMode,
     extraGrants: [...viewToggleGrant, ...flexosGrants],
+    trainerId,
   });
 }

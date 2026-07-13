@@ -33,9 +33,15 @@ export interface CommentDeps {
   notify: (uid: string, input: NotifyInput) => Promise<void>;
 }
 
-/** Trainer.id === Group.trainerId === auth uid (proje konvansiyonu) — bulunamazsa genel etiket. */
+/**
+ * `Trainer.id` (eğitmen kadrosu docId) auth uid DEĞİL (bkz. `Actor.trainerId` yorumu,
+ * access/types.ts) — 2026-07-11 düzeltmesi öncesi burada `actor.uid` ile `getById`
+ * çağrılıyordu, hiçbir zaman eşleşmiyordu, isim hep "Eğitim Ekibi"ne düşüyordu.
+ * Bulunamazsa genel etiket.
+ */
 async function staffDisplayName(actor: Actor, deps: Pick<CommentDeps, "trainers">): Promise<string> {
-  const trainer = await deps.trainers.getById(actor.uid, actor.tenantId);
+  if (!actor.trainerId) return "Eğitim Ekibi";
+  const trainer = await deps.trainers.getById(actor.trainerId, actor.tenantId);
   return trainer?.name ?? "Eğitim Ekibi";
 }
 
@@ -253,8 +259,13 @@ export async function postThreadCommentAsStudent(
   await deps.comments.save(comment);
 
   const group = await deps.groups.getById(assignment.groupId, tenantId);
-  if (group?.trainerId) {
-    await deps.notify(group.trainerId, {
+  // `notify()` gerçek Firebase auth uid ister — `group.trainerId` eğitmen kadrosu
+  // docId'si (bkz. can.ts ownerMatches yorumu), doğrudan uid DEĞİL. 2026-07-11 düzeltmesi
+  // öncesi bu satır `group.trainerId`'yi doğrudan uid gibi kullanıyordu, bildirim hiçbir
+  // zaman gerçek eğitmenin (kendi uid'iyle giriş yapan) hesabına düşmüyordu.
+  const trainerForNotify = group?.trainerId ? await deps.trainers.getById(group.trainerId, tenantId) : null;
+  if (trainerForNotify?.authUid) {
+    await deps.notify(trainerForNotify.authUid, {
       type: "message",
       entityId: assignmentId,
       senderId: requesterUid,
