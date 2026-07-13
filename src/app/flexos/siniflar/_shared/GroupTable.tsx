@@ -318,10 +318,27 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                       <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500 }}>{g.eğitim}</div>
                     </div>
                   </div>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700, color: st.color, background: st.background, whiteSpace: "nowrap" }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: st.dot }} />
-                    {st.label}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700, color: st.color, background: st.background, whiteSpace: "nowrap" }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: st.dot }} />
+                      {st.label}
+                    </span>
+                    {/* 2026-07-13 fix — kart görünümünde (mode="core", Eğitmen Tek Başına)
+                        düzenleme butonu HİÇ yoktu; sadece tablo/liste satırında vardı (yukarıda,
+                        mode="core"'da liste görünümü tamamen gizli olduğu için erişilemezdi).
+                        `onEdit` prop'u zaten bağlıydı (EgitmenSiniflarPanel.tsx), sadece render
+                        eksikti. Tablo satırıyla AYNI durum kuralı (açılacak/aktif) + canManage. */}
+                    {canManage && (g.status === "açılacak" || g.status === "aktif") && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onEdit(g); }}
+                        title="Düzenle"
+                        className="gt-edit-btn"
+                        style={S.editBtnIcon}
+                      >
+                        <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 9, padding: "13px 0", borderTop: "1px solid #EEF0F3", borderBottom: "1px solid #EEF0F3" }}>
