@@ -572,6 +572,10 @@ export default function AttendanceCore({
         await loadRecord();
         setSaved(true);
         if (close) setShowEndConfirm(false);
+        // 2026-07-13 kullanıcı isteği: geçmiş tarihli (admin/Yoklama Detay) kaydetmede
+        // AÇIK bir onay mesajı gösterilsin — bugünkü NORMAL akışa (sessizce "Kaydedildi"
+        // durumuna geçer) dokunulmadı, sadece `!isToday` için ekstra toast.
+        if (!isToday) toast.success("Yoklama başarıyla güncellendi.");
       } else {
         // 2026-07-13 fix — aynı sessiz-hata deseni (bkz. handleStartLesson yorumu).
         let msg = "Kaydedilemedi.";
@@ -1224,7 +1228,12 @@ export default function AttendanceCore({
                                   olmayan (eğitmen) kullanıcı için asıl kısıtlayıcı sinyal `isPastExpired`,
                                   ama buton bunu HİÇ görmüyordu — tıklanabilir duruyordu, sunucu reddediyordu
                                   (kullanıcı bulgusu: "sıfır hareket"). Artık `isPastExpired` de disabled'a dahil. */}
-                              {!isWithinTimeWindow || isPastExpired ? <Lock size={13} /> : <Play size={13} />} Dersi Başlat
+                              {/* 2026-07-13 kullanıcı isteği: geçmiş bir tarihte (ders zaten bitmiş)
+                                  "Dersi Başlat" anlamsız — ders başlamıyor, geriye dönük yoklama
+                                  giriliyor. SADECE `!isToday` (geçmiş tarih, tipik olarak admin'in
+                                  Yoklama Detay'dan girdiği senaryo) için etiket değişiyor — bugünkü
+                                  NORMAL akışa ("Dersi Başlat") hiç dokunulmadı. */}
+                              {!isWithinTimeWindow || isPastExpired ? <Lock size={13} /> : <Play size={13} />} {isToday ? "Dersi Başlat" : "Yoklama Gir"}
                             </button>
                           )
                         ) : !saved ? (
