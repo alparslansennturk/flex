@@ -258,7 +258,14 @@ export default function EgitmenSiniflarPanel() {
         });
         const enrollJson = await enrollRes.json().catch(() => ({}));
         if (!enrollRes.ok) { toast.error(enrollJson.error || "Öğrenci gruba eklenemedi."); return; }
-        toast.success("Öğrenci eklendi.");
+        // 2026-07-13 kullanıcı isteği: "tek kullanımlık kod gönderilince bir mesaj da
+        // gelmeli, gönderildi diye" — sunucu (provisionStudentLogin) e-posta varsa
+        // otomatik giriş hesabı + aktivasyon kodu sağlıyor, client bunu ayrı toast'la bildiriyor.
+        if (personJson.loginProvisioned) {
+          toast.success("Öğrenci eklendi, aktivasyon kodu e-postasına gönderildi.");
+        } else {
+          toast.success("Öğrenci eklendi.");
+        }
       }
 
       resetStudentForm();

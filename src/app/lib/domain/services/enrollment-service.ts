@@ -118,7 +118,13 @@ export async function createEnrollment(
     tenantId: actor.tenantId,
     personId: input.personId,
     groupId: input.groupId,
-    educationId: input.educationId,
+    // 2026-07-13 GERÇEK BUG: servis zaten grubu çekiyordu (yukarıda) ama `group.educationId`'yi
+    // hiç kullanmıyordu — SADECE client'ın gönderdiği `input.educationId`'ye güveniyordu. Core
+    // "Öğrenci Ekle" akışı (EgitmenSiniflarPanel) bunu hiç göndermiyordu (sadece groupId),
+    // enrollment educationId'siz kalıyordu → persons GET'te "Eğitim: —" (kullanıcı bulgusu).
+    // Bir enrollment'ın eğitimi MANTIKEN bağlı olduğu grubun eğitimiyle aynı olmalı —
+    // client açıkça farklı bir şey göndermediği sürece gruptan türetiliyor.
+    educationId: input.educationId ?? group.educationId,
     trackScope: input.trackScope,
     status: "active",
     saleId: input.saleId,
