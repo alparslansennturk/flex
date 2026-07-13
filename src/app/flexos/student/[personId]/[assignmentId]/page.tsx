@@ -394,9 +394,7 @@ export default function FlexosStudentAssignmentDetail() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-white font-inter antialiased text-text-primary">
-      <aside className="hidden lg:flex h-full shrink-0 z-50 w-[280px] 2xl:w-[320px] bg-base-primary-900 flex-col">
-        <StudentSidebar personId={personId} />
-      </aside>
+      <StudentSidebar personId={personId} />
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <header className="shrink-0 h-14 bg-white border-b border-surface-200 flex items-center gap-3 px-6">

@@ -542,7 +542,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   );
 }
 
-function Item({ icon, label, onClick, active }: { icon: string; label: string; onClick: () => void; active?: boolean }) {
+/** Öğrenci sidebar'ı da (StudentSidebar.tsx) BİREBİR aynı görsel dili kullanır — 2026-07-13
+ *  kullanıcı kararı: "öğrencide eğitmendeki gibi olacak" (gradient, genişlik, Item stili). */
+export function Item({ icon, label, onClick, active }: { icon: string; label: string; onClick: () => void; active?: boolean }) {
   return (
     <a className="fs-navlink" style={active ? S.itemActive : S.navItem} onClick={onClick}>
       <span style={{ display: "inline-flex", color: active ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: icon }} />
@@ -561,7 +563,7 @@ function SubItem({ label, active, onClick }: { label: string; active: boolean; o
   );
 }
 
-const S: Record<string, CSSProperties> = {
+export const S: Record<string, CSSProperties> = {
   sidebar: { height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
@@ -573,7 +575,7 @@ const S: Record<string, CSSProperties> = {
 
 const sv = (inner: string, attrs = 'width="19" height="19"') =>
   `<svg ${attrs} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-const IC = {
+export const IC = {
   home: sv('<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
   book: sv('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>'),
   tag: sv('<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>'),
@@ -592,7 +594,7 @@ const IC = {
   logout: sv('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>'),
 };
 
-const css = `
+export const css = `
 /* Responsive genişlik: küçük ekranda dar, büyükte kademeli geniş (canlının 320 sıçraması yok) */
 .fs-sidebar{width:248px;flex:0 0 248px}
 @media(min-width:1536px){.fs-sidebar{width:272px;flex-basis:272px}}
