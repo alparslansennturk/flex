@@ -29,6 +29,12 @@ type ViewMode = "core" | "full";
 // listesini modül-seviyesinde önbelleğe alarak her navigasyonda "menü boşal-dolsun"
 // yanıp sönmesini (flaş) önler. İlk yüklemede bir kez fetch edilir, sonrasında cache'ten okunur.
 let capsCache: Set<string> | null = null;
+// 2026-07-13 bug fix: `caps` cache'leniyordu ama `mode` her mount'ta "full"a resetleniyordu —
+// Core moddaki admin bir sayfaya (ör. Eğitimler) geçince `caps` cache'ten ANINDA doluyor ama
+// `mode` henüz gerçek fetch'ten gelmediği için bir an "full" sanılıp core-olmayan (enterprise)
+// menüler görünüyor, gerçek mod ("core") gelince kayboluyordu (flaş). `mode`'u da caps gibi
+// modül-seviyesinde önbelleğe al.
+let modeCache: "core" | "full" | null = null;
 
 export type FlexNavKey =
   | "ana"
@@ -87,7 +93,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   // Capability listesi yüklenene kadar boş küme = kapılı öğeler geçici gizli (kozmetik flaş yok).
   const [uid, setUid] = useState<string | null>(null);
   const [caps, setCaps] = useState<Set<string>>(() => capsCache ?? new Set());
-  const [mode, setMode] = useState<ViewMode>("full");
+  const [mode, setMode] = useState<ViewMode>(() => modeCache ?? "full");
   const [pinOpen, setPinOpen] = useState(false);
   // Sistem-geneli "Eğitmen Tek Başına" (standaloneMode) — Kişisel Görünüm Modu'ndan
   // (mode/Core-Full) TAMAMEN AYRI. 2026-07-11 kullanıcı bulgusu: standalone açıkken bile
@@ -116,7 +122,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           const next = new Set<string>(json.capabilities ?? []);
           capsCache = next;
           setCaps(next);
-          setMode(json.mode === "core" ? "core" : "full");
+          const nextMode: ViewMode = json.mode === "core" ? "core" : "full";
+          modeCache = nextMode;
+          setMode(nextMode);
         }
         if (settingsRes.ok && !cancelled) {
           const json = await settingsRes.json();
