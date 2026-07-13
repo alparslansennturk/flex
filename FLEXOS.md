@@ -16,6 +16,27 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
+### 🚀 CANLIYA ALMA SONRASI — eski sistem pasife alındı + resolveLanding KRİTİK veri bug'ı + sidebar flaş fix (2026-07-13, aynı gün, PC oturumu — GERÇEK oturumun en son bloğu)
+
+**Bu blok bir önceki "CANLIYA ALINDI" girdisinden SONRA, aynı PC oturumunda oldu — kronolojik olarak EN GÜNCEL durum budur.**
+
+1. **Eski sistem tamamen pasife alındı** (kod silinmedi, kullanıcı kararı: 1 ay yedek, sonra silinecek):
+   - Yeni paylaşılan `src/app/lib/resolveFlexosLanding.ts` — rol bazlı landing (`/api/flexos/me`'nin `landing` alanı).
+   - Eski kök `/` ve eski `/login`: başarılı auth sonrası artık `/dashboard`/`/student/{id}` yerine `resolveFlexosLanding` kullanıyor.
+   - `src/middleware.ts`: `/dashboard`, `/student`, `/admin`, `/league`, `/attend` — kime ait olursa olsun artık HER ZAMAN köke (`/`) yönlendiriliyor (eski JWT-doğrulama/rol-izolasyon mantığı kaldırıldı, gereksiz kaldı).
+
+2. **KRİTİK, gerçek veriyle doğrulanmış bug — `resolveLanding` (`/api/flexos/me/route.ts`):** Kullanıcı "3 aktif öğrenci var, girince ne olacak" diye sorunca admin script ile gerçek veri kontrol edildi: `flexos_users`'ta `roles:["ogrenci"]` olan SADECE 1 kayıt (test hesabı), ama `persons`'ta `authUid` dolu **20 gerçek kişi** vardı. Eski mantık ÖNCE `flexos_users` rolüne bakıyordu, "ogrenci" bulamayınca `persons`'a HİÇ bakmadan boş `/flexos/anasayfa` placeholder'ına düşürüyordu — yani 19 gerçek öğrenci girişte boş sayfaya düşecekti. Fix: `flexos_users` rolü eşleşmese bile `persons`'ta `authUid` eşleşmesi TEK BAŞINA öğrenci landing'i için yeterli sayılıyor artık (persons zaten doğru dolu, asıl doğruluk kaynağı o).
+
+3. **Öğrenci sidebar'ı eğitmen sidebar'ıyla birebir aynı yapıldı:** `FlexSidebar.tsx`'ten `Item`/`S`/`IC`/`css` export edilip `StudentSidebar.tsx` bunları kullanıyor (aynı gradient/genişlik/aktif-durum vurgusu). Öğrenci header'ı da (`StudentHeader` kaldırıldı) artık paylaşımlı `FlexHeader` (`displayNameOverride` prop'u eklendi — `users/{uid}` legacy dokümanına bağımlı olmasın diye).
+
+4. **Sidebar flaş bug'ı (kullanıcı canlıda yakaladı):** Core moddaki admin sayfa değiştirince (Eğitimler'e girince, sonra Ana Sayfa'da da) bir an TÜM menüler (Full-only Satışlar dahil) görünüp kayboluyordu. Kök neden: `caps` mount'lar arası modül-seviyesinde cache'leniyordu (`capsCache`) ama `mode` HER mount'ta `"full"`a resetleniyordu — sidebar remount olunca (paylaşımlı layout yok) caps cache'ten anında dolup mode henüz gerçek fetch'ten gelmeden `"full"` sanılıyordu. Fix: `mode` da `modeCache` ile aynı desende cache'lendi. **Kullanıcı deploy'un canlıya yansımasından ÖNCE test etmiş olabilir — bir dahaki oturumda hard-refresh sonrası hâlâ oluyor mu diye TEKRAR DOĞRULANMALI.**
+
+Commit sırası: `a1a9672` (eski sistem pasife) → `79cb541` (resolveLanding fix) → `cb2f86c` (sidebar flaş fix). Hepsi `flexos` + `main`'e push edildi, typecheck+build her adımda temiz.
+
+**SIRADAKİ İŞ (Mac'te devam):** (1) Sidebar flaş fix'inin gerçekten çözüp çözmediğini doğrula (kullanıcı son testi deploy tamamlanmadan yapmış olabilir). (2) [[project_mobile_chat_pwa_vizyon]] — Sınıf Odası dönüşümü (Genel Duyuru → herkesin yazabildiği sınıf chat'i) henüz kod yazılmadı. (3) [[project_student_portal_grup_secici]] — bitmiş grup→devam grubu senaryosu, go-live sonrası ertelendi, kabul edilmiş. (4) Öğrenci portalı — kullanıcı "ayrıca yapılacak, ana sistemden ayrılacak" demişti, henüz başlamadı.
+
+---
+
 ### 🚀 CANLIYA ALINDI — `flexos` branch `main`'e merge edilip push edildi (2026-07-13, aynı gün, PC oturumu sonu)
 
 **Kullanıcı kararı (kesin, birkaç kez teyit edildi):** `flexos` branch `main`'e merge edildi (çakışmasız fast-forward — `main`'de flexos'ta olmayan hiç commit yoktu) ve `origin/main`'e push edildi (`20b716f`). Vercel `main`'i production'a deploy ediyor — yani bu push GERÇEK kullanıcılara gitti. Merge öncesi `tsc --noEmit` + `npm run build` temiz doğrulandı.
