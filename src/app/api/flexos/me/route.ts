@@ -20,10 +20,16 @@ async function resolveLanding(uid: string, tenantId: string): Promise<string> {
   const roles = flexosUser?.roles ?? [];
   if (roles.includes("egitmen")) return "/flexos/egitmen-anasayfa";
   if (roles.includes("egitim_koordinatoru")) return "/flexos/egitim-operasyon-anasayfa";
-  if (roles.includes("ogrenci")) {
-    const person = await firestorePersonRepo.findByAuthUid(uid, tenantId);
-    if (person) return `/flexos/student/${person.id}`;
-  }
+
+  // 2026-07-13 canlıya alma bug fix: `flexos_users`'ta "ogrenci" rol etiketi eksik/atlanmış
+  // GERÇEK öğrenciler bulundu (migration boşluğu — gerçek veride 20 `persons` kaydının
+  // authUid'i doluyken sadece 1 `flexos_users` kaydında `roles:["ogrenci"]` doğruydu,
+  // diğer 19'u boş placeholder'a düşüyordu). Artık flexos_users rolüne BAKILMAKSIZIN
+  // `persons`'ta authUid eşleşmesi TEK BAŞINA yeterli — persons zaten doğru dolu,
+  // asıl doğruluk kaynağı burası.
+  const person = await firestorePersonRepo.findByAuthUid(uid, tenantId);
+  if (person) return `/flexos/student/${person.id}`;
+
   return "/flexos/anasayfa";
 }
 
