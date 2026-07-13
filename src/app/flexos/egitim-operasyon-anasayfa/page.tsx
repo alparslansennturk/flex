@@ -19,6 +19,7 @@ import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { isoWeekday } from "../siniflar/_shared/groupDisplay";
 
 // ── types (API şekilleri) ──
 interface GroupSchedule {
@@ -274,7 +275,7 @@ export default function EgitimOperasyonAnasayfaPage() {
   // kalan eğitmen sayısı (toplam eğitmen − bugün en az bir dersi olan eğitmen). Çakışma
   // tespiti (aynı eğitmenin çakışan iki seansı) kullanıcı kararıyla kapsam dışı bırakıldı.
   const egitmenTakvimiStats = useMemo(() => {
-    const todayDow = new Date().getDay();
+    const todayDow = isoWeekday(new Date());
     const busyToday = new Set<string>();
     let bugunDersSayisi = 0;
     for (const g of groups) {

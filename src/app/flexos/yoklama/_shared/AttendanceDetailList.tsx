@@ -19,6 +19,7 @@ import {
 import { auth } from "@/app/lib/firebase";
 import { useCapabilities } from "@/app/flexos/_components/useCapabilities";
 import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
+import { isoWeekday } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import type { GroupApiItem } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import type { Attendance } from "@/app/lib/domain/core/attendance";
 
@@ -47,7 +48,7 @@ function countWeekdaysInMonth(
   let count = 0;
   while (d.getMonth() === month) {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key) && (!startDate || key >= startDate) && (!endDate || key <= endDate)) count++;
+    if (weekDays.includes(isoWeekday(d)) && !holidayDates.has(key) && (!startDate || key >= startDate) && (!endDate || key <= endDate)) count++;
     d.setDate(d.getDate() + 1);
   }
   return count;
@@ -59,7 +60,7 @@ function calcEstimatedEndDate(startDate: string, totalSessions: number, weekDays
   let count = 0;
   while (d <= max) {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key)) {
+    if (weekDays.includes(isoWeekday(d)) && !holidayDates.has(key)) {
       count++;
       if (count >= totalSessions) return key;
     }

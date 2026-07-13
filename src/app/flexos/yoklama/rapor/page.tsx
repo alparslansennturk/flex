@@ -31,6 +31,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import AttendanceCore from "../_shared/AttendanceCore";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+import { isoWeekday } from "../../siniflar/_shared/groupDisplay";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ function countWeekdaysInRange(start: string, end: string, weekDays: number[], ho
   let count = 0;
   while (d <= endD) {
     const key = toLocalDateStr(d);
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key)) count++;
+    if (weekDays.includes(isoWeekday(d)) && !holidayDates.has(key)) count++;
     d.setDate(d.getDate() + 1);
   }
   return count;

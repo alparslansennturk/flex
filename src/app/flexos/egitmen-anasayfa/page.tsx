@@ -55,6 +55,7 @@ import OdevOlusturModal, { type AssignmentPrefill } from "./OdevOlusturModal";
 import EditAssignmentModal, { type EditableAssignment, type EditableAttachment } from "../odevler/_shared/EditAssignmentModal";
 import { ASSIGNMENT_ICONS } from "../odevler/_shared/assignmentIcons";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { isoWeekday } from "../siniflar/_shared/groupDisplay";
 
 // ── API şekilleri ──
 interface GroupItem {
@@ -877,7 +878,7 @@ export default function EgitmenAnaSayfaPage() {
       setAttendMeta(""); setAttendPulse(false); return;
     }
     const now = new Date();
-    const todayDay = now.getDay();
+    const todayDay = isoWeekday(now);
     const nowMins = now.getHours() * 60 + now.getMinutes();
 
     const candidates = activeGroupsRef.current.filter((g) => {

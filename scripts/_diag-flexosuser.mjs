@@ -1,0 +1,12 @@
+import { initializeApp, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+const sa = JSON.parse(readFileSync(resolve("service-account.json"), "utf8"));
+initializeApp({ credential: cert(sa) });
+const db = getFirestore();
+const uid = "kYG8N01PTudh1VT1uvy2vg8vmAR2";
+const snap = await db.collection("flexos_users").where("authUid", "==", uid).get();
+console.log(`flexos_users authUid=${uid}: ${snap.size} kayıt`);
+for (const d of snap.docs) console.log(` ->`, JSON.stringify(d.data()));
+process.exit(0);

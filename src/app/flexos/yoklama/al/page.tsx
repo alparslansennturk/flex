@@ -31,6 +31,12 @@ export default function YoklamaAlPage() {
   const [displayName, setDisplayName] = useState("");
   const [showDetail, setShowDetail] = useState(false);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
+  // 2026-07-13 fix — logo linki `/flexos/anasayfa` (admin-only, hâlâ "Dashboard yakında
+  // burada olacak" placeholder'ı) HARDCODED'dı: rolden bağımsız herkesi oraya götürüyordu
+  // (kullanıcı bulgusu: eğitmen yoklamadan logoya tıklayınca boş "yakında" sayfasına düştü).
+  // `/api/flexos/me`'nin zaten hesapladığı `landing` (kullanıcının gerçek ana sayfası,
+  // FlexSidebar'ın `homeHref`'iyle aynı iş kuralı ailesinden) kullanılıyor.
+  const [homeHref, setHomeHref] = useState("/flexos/egitmen-anasayfa");
 
   useEffect(() => {
     (async () => {
@@ -48,6 +54,16 @@ export default function YoklamaAlPage() {
       } catch {
         setDisplayName(u.displayName ?? u.email ?? "");
       }
+      try {
+        const token = await u.getIdToken();
+        const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json() as { landing?: string };
+          if (json.landing) setHomeHref(json.landing);
+        }
+      } catch {
+        // sessiz — varsayılan /flexos/egitmen-anasayfa'da kalır
+      }
       setReady(true);
     })();
   }, [router]);
@@ -64,7 +80,7 @@ export default function YoklamaAlPage() {
     <div className="h-[64px] shrink-0 border-b border-surface-100 bg-white">
       <div className="w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto h-full flex pl-4 sm:pl-6 lg:pl-8">
         <div className="w-[260px] shrink-0 flex items-center px-6 bg-neutral-50 border-r border-surface-100">
-          <Link href="/flexos/anasayfa" className="select-none">
+          <Link href={homeHref} className="select-none">
             <FlexLogo variant="dark" />
           </Link>
         </div>

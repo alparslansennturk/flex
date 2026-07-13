@@ -53,6 +53,19 @@ export interface SeansDoc { id: string; days: number[]; startTime: string; endTi
 
 export const DAY_ABBR = ["Pts", "Sal", "Çrş", "Prş", "Cum", "Cts", "Paz"];
 
+/**
+ * `Group.schedule.days`/`SeansDoc.days` ISO-tabanlı indeks kullanır (0=Pazartesi…6=Pazar,
+ * yukarıdaki `DAY_ABBR` ile aynı sıra) — JS'in yerleşik `Date.prototype.getDay()`'i
+ * (0=Pazar…6=Cumartesi) DEĞİL. 2026-07-13 GERÇEK BUG'IN KÖKÜ: yoklama tarafında birden
+ * fazla yerde ham `date.getDay()` doğrudan `schedule.days` ile karşılaştırılıyordu —
+ * kayıtlı [1,3] (Salı+Perşembe, DAY_ABBR ile doğrulandı) yoklamada Pazartesi+Çarşamba
+ * gibi davranıyordu (iki kural 1 gün kaymalı çakışıyor). `schedule.days` ile
+ * KIYASLANACAK her `Date` bundan sonra bu fonksiyondan geçmeli, ham `getDay()` değil.
+ */
+export function isoWeekday(date: Date): number {
+  return (date.getDay() + 6) % 7;
+}
+
 export function formatSeansLabel(s: SeansDoc): string {
   const daysStr = s.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
   return `${daysStr} · ${s.startTime} - ${s.endTime}`;

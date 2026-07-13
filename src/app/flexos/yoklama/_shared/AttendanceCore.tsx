@@ -39,7 +39,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { auth } from "@/app/lib/firebase";
 import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
-import { initials, avatarStyle } from "@/app/flexos/siniflar/_shared/groupDisplay";
+import { initials, avatarStyle, isoWeekday } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
 import type { ExceptionReason, ExceptionScope, LessonException } from "@/app/lib/domain/core/lesson-exception";
 import {
@@ -147,7 +147,7 @@ function countWeekdaysInMonth(year: number, month: number, weekDays: number[], h
   let count = 0;
   while (d.getMonth() === month) {
     const key = toDateKey(d);
-    if (weekDays.includes(d.getDay()) && !holidayDates.has(key) && (!startDate || key >= startDate) && (!endDate || key <= endDate)) count++;
+    if (weekDays.includes(isoWeekday(d)) && !holidayDates.has(key) && (!startDate || key >= startDate) && (!endDate || key <= endDate)) count++;
     d.setDate(d.getDate() + 1);
   }
   return count;
@@ -393,7 +393,7 @@ export default function AttendanceCore({
 
   useEffect(() => {
     if (autoSelectToday && !selectedGroupId && groups.length > 0) {
-      const todayDow = new Date().getDay();
+      const todayDow = isoWeekday(new Date());
       const todayGroup = groups.find((g) => (g.schedule?.days ?? []).includes(todayDow));
       setSelectedGroupId((todayGroup ?? groups[0]).id);
     }
@@ -579,7 +579,7 @@ export default function AttendanceCore({
   };
 
   // ── Derived — zaman/gün kısıtları ────────────────────────────────────────
-  const hasClassThisDay = selectedWeekDays.length === 0 || selectedWeekDays.includes(selectedDate.getDay());
+  const hasClassThisDay = selectedWeekDays.length === 0 || selectedWeekDays.includes(isoWeekday(selectedDate));
   const isFridayBlock = selectedGroup?.type === "standart" && selectedDate.getDay() === 5;
   const isHolidayDate = holidayDates.has(dateKey);
   const isActiveForDate = hasClassThisDay && !isFridayBlock && !isHolidayDate;
@@ -694,7 +694,7 @@ export default function AttendanceCore({
               const gDays = g.schedule?.days ?? [];
               const active = selectedGroupId === g.id;
               const isFridayItem = g.type === "standart" && selectedDate.getDay() === 5;
-              const hasClass = !isFridayItem && !holidayDates.has(dateKey) && (gDays.length === 0 || gDays.includes(selectedDate.getDay()));
+              const hasClass = !isFridayItem && !holidayDates.has(dateKey) && (gDays.length === 0 || gDays.includes(isoWeekday(selectedDate)));
               return (
                 <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
                   className={`w-full flex items-center gap-3 pl-5 pr-4 py-3.5 text-left border-b border-surface-100 border-l-[3px] outline-none cursor-pointer transition-all
