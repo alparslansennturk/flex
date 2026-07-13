@@ -308,6 +308,15 @@ function ReportContent() {
       }
       if (g.branch && !map[iid].branchIds.includes(g.branch)) map[iid].branchIds.push(g.branch);
 
+      // 2026-07-13 fix — GERÇEK BUG: "completed" (tamamlanmış) gruplar `groupCount`'a hiç
+      // katılmıyordu (aşağıdaki satır) ama planned/actualDone/saatler HÂLÂ ekleniyordu.
+      // `schedule.endDate` boş olan eski tamamlanmış gruplarda (ör. Ocak/Mart'ta biten)
+      // `effectiveEnd` arama aralığının sonuna (bugüne) kadar uzuyordu — grup aylar önce
+      // tamamlandığı halde "bu ay da dersi var" gibi hayalet saat üretiyordu (kullanıcı
+      // bulgusu: Temmuz'da tek aktif grubu varken Toplam Planlanan 54 saat çıktı, olması
+      // gereken ~24). `groupCount`'la AYNI kural: tamamlanmış grup güncel rapora katılmaz.
+      if (g.status === "completed") continue;
+
       const sessionHours = g.schedule.sessionHours ?? 3;
       const weekDays = g.schedule.days ?? [];
       const effectiveStart = [searchFrom, g.schedule.startDate].filter(Boolean).reduce((a, b) => (a! > b! ? a : b))!;
