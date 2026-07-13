@@ -34,7 +34,12 @@ interface StudentRow {
   educationName: string; groupLabel: string; groupCount: number;
   groupId: string | null; groupIds: string[]; enrollmentId: string | null;
   groupsDetail: StudentGroupDetail[];
+  // 2026-07-13 kullanıcı kararı: Core'da öğrenci eklerken telefon KVKK kapsamına giriyor
+  // ve eğitmen için gereksiz — cinsiyet (istatistik için) alındı, telefonun yerini aldı.
+  gender?: string;
 }
+
+const GENDER_LABEL: Record<string, string> = { male: "Erkek", female: "Kadın", other: "Diğer", unspecified: "—" };
 
 /** Ham enrollment.status → STUDENT_STATUS badge anahtarı. */
 function enrollmentStatusToBadgeKey(status: string): string {
@@ -88,7 +93,7 @@ export default function EgitmenSiniflarPanel() {
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [sAd, setSAd] = useState("");
   const [sSoyad, setSSoyad] = useState("");
-  const [sTelefon, setSTelefon] = useState("");
+  const [sGender, setSGender] = useState("");
   const [sEposta, setSEposta] = useState("");
   const [sGroupId, setSGroupId] = useState("");
   const [sSaving, setSSaving] = useState(false);
@@ -146,13 +151,13 @@ export default function EgitmenSiniflarPanel() {
       const json = res.ok ? await res.json() : { items: [] };
       if (signal?.aborted) return;
       interface PersonApiItem {
-        id: string; name: string; email: string; phone: string; status: string;
+        id: string; name: string; email: string; phone: string; status: string; gender?: string;
         educations?: { name: string }[]; groups?: { label: string; groupId: string; enrollmentId: string; status: string }[];
         primaryEnrollmentId?: string | null;
       }
       const items: PersonApiItem[] = json.items ?? [];
       setStudents(items.map((p) => ({
-        id: p.id, name: p.name, email: p.email, phone: p.phone, status: p.status,
+        id: p.id, name: p.name, email: p.email, phone: p.phone, status: p.status, gender: p.gender,
         educationName: p.educations?.[0]?.name ?? "—",
         groupLabel: p.groups?.[0]?.label ?? "—",
         groupCount: p.groups?.length ?? 0,
@@ -192,14 +197,14 @@ export default function EgitmenSiniflarPanel() {
   useRealtimeSync(["groups.changed"], useCallback(() => { void loadGroups(); }, [loadGroups]));
   useRealtimeSync(["students.changed"], useCallback(() => { void loadStudents(); }, [loadStudents]));
 
-  const resetStudentForm = () => { setSAd(""); setSSoyad(""); setSTelefon(""); setSEposta(""); setSGroupId(""); setEditingStudentId(null); };
+  const resetStudentForm = () => { setSAd(""); setSSoyad(""); setSGender(""); setSEposta(""); setSGroupId(""); setEditingStudentId(null); };
 
   const editStudent = (s: StudentRow) => {
     const [ad, ...rest] = s.name.split(" ");
     setEditingStudentId(s.id);
     setSAd(ad ?? "");
     setSSoyad(rest.join(" "));
-    setSTelefon(s.phone === "—" ? "" : s.phone);
+    setSGender(s.gender && s.gender !== "unspecified" ? s.gender : "");
     setSEposta(s.email === "—" ? "" : s.email);
     setSGroupId("");
     setShowStudentForm(true);
@@ -224,7 +229,8 @@ export default function EgitmenSiniflarPanel() {
           body: JSON.stringify({
             firstName: sAd.trim(),
             lastName: sSoyad.trim(),
-            pii: { phone: sTelefon.trim() || undefined, email: sEposta.trim() || undefined },
+            gender: sGender || undefined,
+            pii: { email: sEposta.trim() || undefined },
           }),
         });
         const json = await res.json().catch(() => ({}));
@@ -238,7 +244,8 @@ export default function EgitmenSiniflarPanel() {
             firstName: sAd.trim(),
             lastName: sSoyad.trim(),
             status: "active",
-            pii: { phone: sTelefon.trim() || undefined, email: sEposta.trim() || undefined },
+            gender: sGender || undefined,
+            pii: { email: sEposta.trim() || undefined },
           }),
         });
         const personJson = await personRes.json().catch(() => ({}));
@@ -723,9 +730,15 @@ export default function EgitmenSiniflarPanel() {
                             </select>
                           </label>
                         )}
+                        {/* 2026-07-13 kullanıcı kararı: telefon KVKK kapsamına giriyor ve Core'da
+                            eğitmen için gereksiz — yerine istatistik için cinsiyet alındı. */}
                         <label style={S.fieldWrap}>
-                          <span style={S.lbl}>Telefon</span>
-                          <input value={sTelefon} onChange={(e) => setSTelefon(e.target.value)} placeholder="0 (5XX) XXX XX XX" style={S.inp} />
+                          <span style={S.lbl}>Cinsiyet</span>
+                          <select value={sGender} onChange={(e) => setSGender(e.target.value)} style={S.sel}>
+                            <option value="">Seçin</option>
+                            <option value="male">Erkek</option>
+                            <option value="female">Kadın</option>
+                          </select>
                         </label>
                         <label style={S.fieldWrap}>
                           <span style={S.lbl}>E-posta</span>
@@ -764,7 +777,7 @@ export default function EgitmenSiniflarPanel() {
                         <th style={S.th}>Eğitim</th>
                         <th style={S.th}>Grup</th>
                         <th style={S.th}>Durum</th>
-                        <th style={S.th}>Telefon</th>
+                        <th style={S.th}>Cinsiyet</th>
                         <th style={S.th}>E-posta</th>
                         <th style={{ ...S.th, textAlign: "right" }}>İşlem</th>
                       </tr>
@@ -799,7 +812,7 @@ export default function EgitmenSiniflarPanel() {
                                 {st.label}
                               </span>
                             </td>
-                            <td style={S.cell}><span style={{ fontSize: 13, color: "#414B59" }}>{s.phone || "—"}</span></td>
+                            <td style={S.cell}><span style={{ fontSize: 13, color: "#414B59" }}>{GENDER_LABEL[s.gender ?? "unspecified"] ?? "—"}</span></td>
                             <td style={S.cell}><span style={{ fontSize: 13, color: "#414B59" }}>{s.email || "—"}</span></td>
                             <td style={{ ...S.cell, textAlign: "right" }}>
                               <div style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
