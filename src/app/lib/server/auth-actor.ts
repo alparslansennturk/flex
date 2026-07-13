@@ -26,66 +26,31 @@ export const DEFAULT_TENANT = "default";
  */
 export const VIEW_TOGGLE_OWNER_EMAIL = "alparslan.sennturk@gmail.com";
 
-// ── Görünüm modu (Core/Full) cache'i — sadece owner uid'i için tutulur ──
-//
-// Core moddayken owner sunucuda GERÇEKTEN `egitmen` paketiyle çözülür (kozmetik
-// değil — yoklama/not/grup işlemlerinde gerçek eğitmen kısıtları geçerli olsun
-// diye). standaloneMode'un aksine bu değer SADECE tek bir kod yolundan
-// (`POST /api/flexos/view-access/mode` → `primeViewModeCache`) değişir — periyodik
-// TTL ile arka planda yeniden okuma YOK BİLEREK: birden fazla admin'in farklı
-// tarayıcılardan değiştirebileceği `standaloneMode`'dan farklı olarak, bu tek
-// kullanıcıya özel bir ayar; periyodik yeniden okuma sadece yarış riski (eski bir
-// okumanın yeni yazılan doğru değerin üzerine geç gelip yazması) yaratıyordu ve
-// gerçek bug'lara yol açtı (2026-07-02). Sadece soğuk başlangıçta BİR KEZ
-// Firestore'dan yüklenir; ondan sonra tamamen `primeViewModeCache`'e güvenilir.
-let cachedViewMode: "core" | "full" = "full";
-let viewModeColdStartDone = false;
-let viewModeColdStartPromise: Promise<void> | null = null;
-
 /**
- * GÜVENLİK FIX (2026-07-13) — eskiden bu fire-and-forget'ti: soğuk başlangıçta (dev/server
- * yeniden başlayınca) `cachedViewMode` varsayılan "full" (admin) ile başlıyordu, gerçek değer
- * Firestore'dan ARKA PLANDA yükleniyordu — İLK istek(ler) bu yükleme bitmeden gelirse owner
- * "core" (eğitmen) moddayken bile YANLIŞLIKLA admin paketiyle çözülüyordu (kullanıcı bulgusu:
- * dev restart sonrası doğrudan admin-scope bir sayfaya deep-link ile girince içeri alındı,
- * sonraki istekte doğru eğitmen kısıtına düştü). Artık İLK çağrı gerçek değeri BEKLİYOR (tek
- * seferlik, tek Firestore okuması, ~100ms) — sonraki tüm çağrılar `viewModeColdStartDone`
- * true olduğu için anında (senkron) döner, normal isteklerde ek gecikme YOK.
+ * GÜVENLİK FIX (2026-07-13, İKİNCİ tur — bellek-içi cache TAMAMEN KALDIRILDI):
+ * Görünüm modu eskiden bir modül-seviyesi `cachedViewMode` değişkeninde tutuluyordu.
+ * Kullanıcı bulgusu: mod'u kaç kez değiştirirse değiştirsin (`POST view-access/mode`),
+ * `GET /api/flexos/assignments` HER ZAMAN org-scope (tüm tenant, 40 doküman) davranmaya
+ * devam ediyordu — ölçümle kanıtlandı (5+ ardışık mod değişiminden sonra bile hep 40).
+ * Kök neden KESİN doğrulanamadı ama en güçlü hipotez: Next.js dev'de (Turbopack) farklı
+ * API route'ları `auth-actor.ts`'in AYRI modül kopyalarını yükleyebiliyor — `mode`
+ * route'unun güncellediği `cachedViewMode` ile `assignments` route'unun okuduğu
+ * `cachedViewMode` FARKLI bellek konumları olabiliyordu, bu yüzden yazma hiç görünmüyordu.
+ *
+ * Çözüm: paylaşılan bellek durumuna GÜVENMEMEK — mod her istekte DOĞRUDAN Firestore'dan
+ * okunur (tek doküman, ~1 okuma). Bu SADECE VIEW_TOGGLE_OWNER_EMAIL hesabının istekleri
+ * için çalışır (tek kullanıcı, nadir bir kod yolu) — maliyeti ihmal edilebilir, karşılığında
+ * hangi route'un hangi modül kopyasını kullandığından TAMAMEN bağımsız, garanti doğru.
+ * `primeViewModeCache` de bu yüzden kaldırıldı — artık gereksiz (bir sonraki istek zaten
+ * taze okur, Firestore Admin SDK aynı dokümanda yazma-sonrası-okuma tutarlı).
  */
-function ensureViewModeLoaded(uid: string): Promise<void> {
-  if (viewModeColdStartDone) return Promise.resolve();
-  if (!viewModeColdStartPromise) {
-    viewModeColdStartPromise = firestoreViewModeRepo
-      .get(uid)
-      .then((state) => {
-        cachedViewMode = state?.mode ?? "full";
-      })
-      .catch((e) => {
-        console.error("[auth-actor] view mode soğuk başlangıç yüklenemedi:", e);
-      })
-      .finally(() => {
-        viewModeColdStartDone = true;
-      });
-  }
-  return viewModeColdStartPromise;
-}
-
-/**
- * Mod değişimini YAZAN route (`POST /api/flexos/view-access/mode`) bu isteği
- * işleyen sunucu instance'ının cache'ini anında, tartışmasız günceller — tek
- * doğruluk kaynağı budur artık (soğuk başlangıç okuması hariç).
- */
-export function primeViewModeCache(mode: "core" | "full"): void {
-  cachedViewMode = mode;
-  viewModeColdStartDone = true; // artık Firestore'dan tekrar okumaya gerek yok
-}
 
 /** Eski rol → capability paketi. Satış/Op rolleri eklenince map büyür. */
 export async function packagesForCaller(caller: Caller): Promise<PackageName[]> {
   if (caller.isAdmin) {
     if (caller.email === VIEW_TOGGLE_OWNER_EMAIL) {
-      await ensureViewModeLoaded(caller.uid); // ilk çağrı bekler, sonrakiler anında (yukarıdaki yorum)
-      if (cachedViewMode === "core") return ["egitmen"];
+      const state = await firestoreViewModeRepo.get(caller.uid).catch(() => null);
+      if ((state?.mode ?? "full") === "core") return ["egitmen"];
     }
     return ["admin"];
   }

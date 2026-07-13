@@ -59,6 +59,10 @@ function invalidateCachesFor(tenantId: string, type: RealtimeEventType): void {
   if (type === "students.changed" || type === "sales.changed" || type === "educations.changed") {
     invalidateCache(`persons:${tenantId}`);
   }
+  // trainers yanıtı: eğitmen + grup + eğitim + enrollment join'liyor (2026-07-13 eklendi).
+  if (type === "trainers.changed" || type === "groups.changed" || type === "educations.changed" || type === "students.changed") {
+    invalidateCache(`trainers:${tenantId}`);
+  }
 }
 
 /** Yeni bir dinleyici kaydeder, unsubscribe fonksiyonu döner. */
