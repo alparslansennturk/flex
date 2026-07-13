@@ -715,7 +715,11 @@ export default function EgitmenSiniflarPanel() {
                             <span style={S.lbl}>Grup</span>
                             <select value={sGroupId} onChange={(e) => setSGroupId(e.target.value)} style={S.sel}>
                               <option value="">Grup seçin</option>
-                              {groups.map((g) => <option key={g.id} value={g.id}>{g.kod} · {g.eğitim}</option>)}
+                              {/* 2026-07-13 fix — kullanıcı bulgusu: dropdown filtresizdi, tamamlanmış/
+                                  iptal eski gruplar da listeleniyordu. Bu panel zaten SADECE bu eğitmenin
+                                  kendi gruplarını gösteriyor (kaç branşı olursa hepsi dahil) — eksik olan
+                                  tek şey "aktif" durum filtresiydi. */}
+                              {groups.filter((g) => g.status === "aktif").map((g) => <option key={g.id} value={g.id}>{g.kod} · {g.eğitim}</option>)}
                             </select>
                           </label>
                         )}
