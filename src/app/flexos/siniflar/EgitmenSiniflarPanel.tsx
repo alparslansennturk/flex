@@ -97,6 +97,12 @@ export default function EgitmenSiniflarPanel() {
   const [mezunId, setMezunId] = useState<string | null>(null);
   const [aktifId, setAktifId] = useState<string | null>(null);
   const [silId, setSilId] = useState<string | null>(null);
+  // 2026-07-13 fix — GERÇEK BUG: "Sil" butonu aslında SADECE enrollment'ı "cancelled"
+  // yapıyordu (kişi kaydı duruyordu), ama toast yanıltıcı şekilde "Öğrenci silindi"
+  // diyordu — kullanıcı bulgusu: "sil dedim, silindi dedi ama silmedi" (Core modda test
+  // öğrencisi temizliği için GERÇEK silme lazım). `silId` (enrollmentId) yeterli değil,
+  // gerçek kişi silme (`DELETE /api/flexos/persons/[id]`) personId ister — ayrı takip.
+  const [silPersonId, setSilPersonId] = useState<string | null>(null);
   const [studentActionBusy, setStudentActionBusy] = useState(false);
 
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -279,7 +285,46 @@ export default function EgitmenSiniflarPanel() {
 
   const confirmMezun = async () => { if (!mezunId) return; const id = mezunId; setMezunId(null); await setStudentEnrollmentStatus(id, "completed", "Öğrenci mezun edildi."); };
   const confirmAktif = async () => { if (!aktifId) return; const id = aktifId; setAktifId(null); await setStudentEnrollmentStatus(id, "active", "Öğrenci tekrar aktif duruma alındı."); };
-  const confirmSil = async () => { if (!silId) return; const id = silId; setSilId(null); await setStudentEnrollmentStatus(id, "cancelled", "Öğrenci silindi."); };
+  const confirmSil = async () => {
+    if (!silId) return;
+    const enrollmentId = silId;
+    const personId = silPersonId;
+    setSilId(null);
+    setSilPersonId(null);
+    // Önce GERÇEK silmeyi dene (role.manage gerektirir, admin) — başarılıysa kişi TAMAMEN
+    // kalkar. Yetkisizse (403, ör. sadece eğitmen paketi standaloneMode'da bile role.manage
+    // almaz) veya engellenmişse (satış/ödeme geçmişi var) eski davranışa (enrollment'ı
+    // "cancelled" yap, kişi kaydı kalır) SESSİZCE düşülür — hiçbir durumda kullanıcı
+    // "silindi" yanlış mesajını GERÇEKTEN silinmemişken görmez.
+    if (personId) {
+      setStudentActionBusy(true);
+      try {
+        const headers = await authHeaders();
+        const res = await fetch(`/api/flexos/persons/${personId}`, { method: "DELETE", headers });
+        if (res.ok) {
+          toast.success("Öğrenci tamamen silindi.");
+          loadStudents();
+          loadGroups();
+          return;
+        }
+        if (res.status === 403) {
+          // yetkisiz — soft-cancel'a düş (eski davranış), yanıltıcı olmayan mesajla
+          await setStudentEnrollmentStatus(enrollmentId, "cancelled", "Öğrenci gruptan çıkarıldı (tam silme için yetki gerekir).");
+          return;
+        }
+        let msg = "Silinemedi.";
+        try { const body = await res.json(); if (body?.error) msg = body.error; } catch { /* yut */ }
+        toast.error(msg);
+        return;
+      } catch {
+        toast.error("Sunucu hatası.");
+        return;
+      } finally {
+        setStudentActionBusy(false);
+      }
+    }
+    await setStudentEnrollmentStatus(enrollmentId, "cancelled", "Öğrenci gruptan çıkarıldı.");
+  };
 
   // Seçili grup (Mevcut Grup scope'unda) tamamlandı/iptal mi — Aktif sekmesi + Öğrenci
   // Ekle butonu bu grup için disable edilir (2026-07-11 kullanıcı kararı: bitmiş gruba
@@ -760,7 +805,7 @@ export default function EgitmenSiniflarPanel() {
                                     <span dangerouslySetInnerHTML={{ __html: IC.graduationSm }} />
                                   </button>
                                 )}
-                                <button onClick={() => effEnrollmentId && setSilId(effEnrollmentId)} disabled={!effEnrollmentId} title="Sil" style={{ ...S.actionIcon, color: "#D93636" }}>
+                                <button onClick={() => { if (effEnrollmentId) { setSilId(effEnrollmentId); setSilPersonId(s.id); } }} disabled={!effEnrollmentId} title="Sil" style={{ ...S.actionIcon, color: "#D93636" }}>
                                   <span dangerouslySetInnerHTML={{ __html: IC.trashSm }} />
                                 </button>
                               </div>
@@ -823,12 +868,12 @@ export default function EgitmenSiniflarPanel() {
       )}
 
       {silId !== null && (
-        <div onClick={() => !studentActionBusy && setSilId(null)} style={S.overlay}>
+        <div onClick={() => !studentActionBusy && (setSilId(null), setSilPersonId(null))} style={S.overlay}>
           <div onClick={(e) => e.stopPropagation()} style={S.modal}>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#1E222B" }}>Öğrenciyi sil</h3>
-            <p style={{ margin: "10px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}>Bu öğrenciyi silmek istediğinize emin misiniz? Kaydı iptal edilir, listeden kaldırılır.</p>
+            <p style={{ margin: "10px 0 0", fontSize: 13.5, color: "#6F7B87", lineHeight: 1.5 }}>Bu öğrenciyi silmek istediğinize emin misiniz? Satış/ödeme geçmişi yoksa kayıt tamamen silinir; varsa gruptan çıkarılıp iptal edilir.</p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-              <button style={S.cancelBtn} onClick={() => setSilId(null)}>Vazgeç</button>
+              <button style={S.cancelBtn} onClick={() => { setSilId(null); setSilPersonId(null); }}>Vazgeç</button>
               <button style={S.confirmDangerBtn} disabled={studentActionBusy} onClick={confirmSil}>Evet, sil</button>
             </div>
           </div>
