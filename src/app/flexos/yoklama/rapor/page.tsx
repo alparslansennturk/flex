@@ -244,7 +244,10 @@ function ReportContent() {
   const [selectedInstructor, setSelectedInstructor] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFrom, setSearchFrom] = useState(() => { const d = new Date(); d.setDate(1); return toLocalDateStr(d); });
-  const [searchTo, setSearchTo] = useState(() => toLocalDateStr());
+  // 2026-07-13 fix (kullanıcı kararı): varsayılan "bugüne kadar" değil TÜM AY —
+  // "Toplam Planlanan" ayın kalanını da göstermeli (ör. Temmuz'un tamamı, sadece 13'üne
+  // kadar değil). `setMonth(ay+1, 0)` = mevcut ayın son günü.
+  const [searchTo, setSearchTo] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1, 0); return toLocalDateStr(d); });
 
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [selectedGroupHistory, setSelectedGroupHistory] = useState<GroupItem | null>(null);
