@@ -20,6 +20,7 @@ import FlexModal from "../_components/FlexModal";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { useRequireCapability } from "../_shared/useRequireCapability";
 
 // ── API tipleri (ileride genişleyecek alanlar opsiyonel) ──────────────────────
 interface EducationDoc {
@@ -62,6 +63,11 @@ export default function EgitimYonetimiPage() {
   const pathname = usePathname();
   const didMount = useRef(false);
   const [authed, setAuthed] = useState<boolean | null>(null);
+  // 2026-07-13 GÜVENLİK fix: bu sayfa admin-only (sidebar'da `education.create` capability'siyle
+  // gizli) ama kendisi hiç kontrol etmiyordu — yetkisi olmayan biri (ör. Görünüm Anahtarı sahibi
+  // "core" moddayken) doğrudan linkle girince tam admin arayüzünü görüyordu. Sunucudaki `can()`
+  // zaten TÜM mutasyonları koruyor (asıl sınır orada), bu SADECE istemci deneyimi/yönlendirme.
+  const { allowed } = useRequireCapability("education.create");
   const [loading, setLoading] = useState(true);
   const [educations, setEducations] = useState<EducationDoc[]>([]);
   const [branches, setBranches] = useState<BranchDoc[]>([]);
@@ -106,6 +112,7 @@ export default function EgitimYonetimiPage() {
 
   // ── Auth + ilk yükleme + sayfa odağına dönünce yenileme ──
   useEffect(() => {
+    if (!allowed) return; // yetki onaylanmadan veri ÇEKİLMEZ (gereksiz okuma + erken flaş olmasın)
     const ac = new AbortController();
     (async () => {
       await auth.authStateReady();
@@ -114,7 +121,7 @@ export default function EgitimYonetimiPage() {
       fetchData(ac.signal);
     })();
     return () => { ac.abort(); };
-  }, [router, fetchData]);
+  }, [allowed, router, fetchData]);
 
   // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı branş/eğitim eklediğinde/
   // düzenlediğinde SSE üzerinden haber alınır, liste tekrar çekilir.
@@ -223,7 +230,7 @@ export default function EgitimYonetimiPage() {
     return arr;
   }, [curPage, totalPages]);
 
-  if (authed === null) return <FlexPageLoader />;
+  if (!allowed || authed === null) return <FlexPageLoader />;
 
   return (
     <div style={S.root}>
