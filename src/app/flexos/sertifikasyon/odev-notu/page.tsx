@@ -370,6 +370,15 @@ export default function OdevNotuPage() {
   const activeGrades = activeAssignmentId ? gradesByAssignment[activeAssignmentId] ?? {} : {};
 
   function assignmentStatusMeta(assignmentId: string): { label: string; color: string; bg: string; dot: string } {
+    // 2026-07-13 fix — DB gerçeğini önce kullan: "Notları Kaydet" ödevi "archived"a çekiyor
+    // (notlaması bitti demek). Client `gradesByAssignment` SADECE ödev açılınca dolduğu için,
+    // açılmamış ama notlanmış ödevler (özellikle Ana Sayfa'dan girip kaydedilenler) eskiden
+    // yanlışlıkla "Bekliyor" görünüyordu — kullanıcı bug'ı. Artık archived → her zaman
+    // "Tamamlandı" (tekrar açıp kaydetmeye gerek yok).
+    const assignment = assignments.find((a) => a.id === assignmentId);
+    if (assignment?.status === "archived") {
+      return { label: "Tamamlandı", color: "#007A30", bg: "#E6F5ED", dot: "#009F3E" };
+    }
     const grades = gradesByAssignment[assignmentId];
     if (!grades) return { label: "Bekliyor", color: "#8E95A3", bg: "#F2F4F7", dot: "#AEB4C0" };
     const puanlanan = roster.filter((r) => grades[r.personId]).length;
