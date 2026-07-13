@@ -159,7 +159,13 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       return;
     }
     toast.success(next === "core" ? "Görünüm: Eğitmen" : "Görünüm: Full");
-    window.location.href = next === "core" ? "/flexos/egitmen-anasayfa" : "/flexos/anasayfa";
+    // 2026-07-13 fix: "full" moda geçince `/flexos/anasayfa`'ya (admin dashboard'u HENÜZ
+    // İNŞA EDİLMEDİ, boş "yakında" placeholder'ı) gidiyordu — kullanıcı bulgusu: admin'e
+    // her geçişte dead-end'e düşüyordu. Aşağıdaki `homeHref` (Ana Sayfa nav öğesi/logo)
+    // zaten owner için HER İKİ modda da `/flexos/egitmen-anasayfa`'ya gidiyor (canToggleView
+    // true olduğu sürece) — mod değişimindeki bu tek YÖNLENDİRME o mantıkla TUTARLI hale
+    // getirildi, aynı gerçek sayfaya gider.
+    window.location.href = "/flexos/egitmen-anasayfa";
   };
 
   // Gizli kısayol — Ctrl/Cmd+Alt+T (platformun kendi doğal modifier'ı: Mac'te Cmd,
