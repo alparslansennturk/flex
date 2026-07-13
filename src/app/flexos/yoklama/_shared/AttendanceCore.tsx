@@ -37,9 +37,10 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { DayCalendarPopover } from "@/app/components/dashboard/attendance/CalendarPopover";
-import { initials, avatarStyle, isoWeekday } from "@/app/flexos/siniflar/_shared/groupDisplay";
+import { initials, avatarStyle, isoWeekday, toJsWeekdays } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
 import type { ExceptionReason, ExceptionScope, LessonException } from "@/app/lib/domain/core/lesson-exception";
 import {
@@ -545,7 +546,17 @@ export default function AttendanceCore({
     const res = await fetch("/api/flexos/attendance", {
       method: "POST", headers, body: JSON.stringify({ groupId: selectedGroupId, date: dateKey }),
     });
-    if (res.ok) await loadRecord();
+    if (res.ok) {
+      await loadRecord();
+    } else {
+      // 2026-07-13 fix — KÖK NEDEN: istek başarısız olunca (403/400/500) fonksiyon
+      // SESSİZCE dönüyordu, kullanıcı hiçbir geri bildirim görmüyordu ("Dersi Başlat"a
+      // basıyor, hiçbir şey olmuyormuş gibi görünüyordu — kullanıcı bulgusu). Artık
+      // gerçek hata mesajı gösteriliyor.
+      let msg = "Ders başlatılamadı.";
+      try { const body = await res.json(); if (body?.error) msg = body.error; } catch { /* yut */ }
+      toast.error(msg);
+    }
   };
 
   const handleSave = async (close?: boolean) => {
@@ -561,6 +572,11 @@ export default function AttendanceCore({
         await loadRecord();
         setSaved(true);
         if (close) setShowEndConfirm(false);
+      } else {
+        // 2026-07-13 fix — aynı sessiz-hata deseni (bkz. handleStartLesson yorumu).
+        let msg = "Kaydedilemedi.";
+        try { const body = await res.json(); if (body?.error) msg = body.error; } catch { /* yut */ }
+        toast.error(msg);
       }
     } finally {
       setSaving(false);
@@ -963,7 +979,7 @@ export default function AttendanceCore({
                               maxDate={maxSelectable}
                               courseEndDate={schedule.endDate}
                               holidayDates={holidayDates}
-                              weekDays={selectedWeekDays}
+                              weekDays={toJsWeekdays(selectedWeekDays)}
                               onChange={(d) => setSelectedDate(d)}
                             >
                               <div className="flex items-center gap-1.5 group cursor-pointer">
@@ -1201,9 +1217,14 @@ export default function AttendanceCore({
                               <CalendarCheck size={13} /> Bu tarih için kayıt yok
                             </button>
                           ) : (
-                            <button onClick={handleStartLesson} disabled={!isActiveForDate || !isWithinTimeWindow}
+                            <button onClick={handleStartLesson} disabled={!isActiveForDate || !isWithinTimeWindow || isPastExpired}
                               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-base-primary-600 text-white hover:bg-base-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer outline-none">
-                              {!isWithinTimeWindow ? <Lock size={13} /> : <Play size={13} />} Dersi Başlat
+                              {/* 2026-07-13 fix: `isWithinTimeWindow` SADECE bugün için pencere kontrol
+                                  ediyor (`!isToday` ise erken true dönüyor) — geçmiş tarihte org-scope
+                                  olmayan (eğitmen) kullanıcı için asıl kısıtlayıcı sinyal `isPastExpired`,
+                                  ama buton bunu HİÇ görmüyordu — tıklanabilir duruyordu, sunucu reddediyordu
+                                  (kullanıcı bulgusu: "sıfır hareket"). Artık `isPastExpired` de disabled'a dahil. */}
+                              {!isWithinTimeWindow || isPastExpired ? <Lock size={13} /> : <Play size={13} />} Dersi Başlat
                             </button>
                           )
                         ) : !saved ? (

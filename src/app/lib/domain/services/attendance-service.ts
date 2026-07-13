@@ -17,6 +17,20 @@ function recordId(groupId: string, date: string): string {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
+ * `Group.schedule.days` ISO-tabanlı indeks kullanır (0=Pazartesi…6=Pazar — bkz.
+ * `groupDisplay.ts::DAY_ABBR`/`isoWeekday`, UI katmanındaki AYNI dönüşüm; domain
+ * katmanı UI klasöründen import ETMEDİĞİ için burada yerel bir kopya). 2026-07-13
+ * GERÇEK BUG: bu fonksiyon ham JS `Date.getDay()`'i (0=Pazar…6=Cumartesi) doğrudan
+ * `schedule.days`'le karşılaştırıyordu — geçerli bir ders günü (ör. Salı) sunucuda
+ * "bu grubun ders günlerinden biri değil" diye REDDEDİLİYORDU (istemci tarafı zaten
+ * doğru hesaplasa/UI'da buton aktif görünse bile, sunucu bağımsız validasyonda
+ * yanlış günü kontrol ediyordu).
+ */
+function isoWeekday(date: Date): number {
+  return (date.getDay() + 6) % 7;
+}
+
+/**
  * Düzenleme penceresi — ders tarihinden 3 gün (canlıdaki kural, `closedAt`'tan DEĞİL
  * `date`'ten hesaplanır). Sadece org-scope OLMAYAN aktörlere (standart eğitmen)
  * uygulanır — Op/Finans/Admin (`attendance.write` org-scope) her zaman muaf.
@@ -57,7 +71,7 @@ export async function startLesson(
 
   const s = group.schedule;
   if (s?.days?.length) {
-    const weekday = new Date(`${input.date}T00:00:00`).getDay();
+    const weekday = isoWeekday(new Date(`${input.date}T00:00:00`));
     if (!s.days.includes(weekday)) {
       throw new ValidationError("Seçilen tarih bu grubun ders günlerinden biri değil.");
     }

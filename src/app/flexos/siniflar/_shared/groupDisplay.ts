@@ -66,6 +66,18 @@ export function isoWeekday(date: Date): number {
   return (date.getDay() + 6) % 7;
 }
 
+/**
+ * `isoWeekday`'in tersi — `schedule.days` (ISO-tabanlı, 0=Pazartesi) dizisini eski/canlı
+ * bileşenlerin beklediği JS-native indekse (0=Pazar) çevirir. 2026-07-13: takvim seçici
+ * (`CalendarPopover`, canlıdan ortak kullanılan bileşen, kendi JS-native kuralını KORUYOR
+ * — o değişmedi) `weekDays` prop'unu ham `schedule.days` alıyordu, aynı 1-gün kaymasını
+ * takvimdeki mavi/vurgulu günlerde de üretiyordu. Bu iki sınır arasında geçen her
+ * `schedule.days` dizisi bu fonksiyondan geçmeli.
+ */
+export function toJsWeekdays(isoDays: number[]): number[] {
+  return isoDays.map((d) => (d + 1) % 7);
+}
+
 export function formatSeansLabel(s: SeansDoc): string {
   const daysStr = s.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
   return `${daysStr} · ${s.startTime} - ${s.endTime}`;
