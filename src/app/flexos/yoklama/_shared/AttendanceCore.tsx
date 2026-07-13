@@ -1209,9 +1209,14 @@ export default function AttendanceCore({
                                 <CheckCheck size={13} /> Kaydedildi
                               </button>
                             ) : (
-                              <button onClick={() => setShowEndConfirm(true)} disabled={saving}
+                              // 2026-07-13 kullanıcı isteği: bu buton zaten KAPALI bir kaydı
+                              // güncelliyor (bitirme değil) — "Dersi Bitir"in onay modalını
+                              // açmak anlamsızdı ("bitirecek misin, emin misin?" sorusu burada
+                              // uygun değil). Artık DOĞRUDAN kaydediyor (close=false, kayıt
+                              // zaten kapalı kalıyor), toast onayı handleSave içinde veriliyor.
+                              <button onClick={() => handleSave(false)} disabled={saving}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">
-                                <RefreshCw size={13} /> Güncelle
+                                <RefreshCw size={13} /> {saving ? "Güncelleniyor…" : "Güncelle"}
                               </button>
                             )
                           ) : null
