@@ -63,6 +63,7 @@ interface GroupItem {
   code: string;
   status: string;
   schedule?: { days: number[]; startTime?: string; endTime?: string };
+  enrolled?: number; // /api/flexos/groups zaten grup başına doluluk (aktif+tamamlanmış enrollment) döndürüyor
 }
 interface HolidayItem { startDate: string; endDate: string }
 
@@ -909,12 +910,19 @@ export default function EgitmenAnaSayfaPage() {
     else { setAttendMeta(`${pendingCodes.length} grup`); setAttendPulse(true); }
   }, [authHeaders]);
 
+  // 2026-07-14 KOTA FİX: `/api/flexos/persons` (8 koleksiyon: persons+enrollments+sales+
+  // payments+bundles+... — read-cache'te BİLEREK TTL=0, hep taze) sadece banner'daki TEK
+  // bir "Öğrenci" rakamı için tam maliyetiyle çekiliyordu. `/api/flexos/groups` zaten grup
+  // başına doluluk (`enrolled` — aktif+tamamlanmış enrollment sayısı) döndürüyor (bkz.
+  // groups/route.ts) — aktif gruplardaki dolulukları toplamak aynı rakamı persons'a HİÇ
+  // dokunmadan verir (kullanıcı kararı: bir öğrenci aynı anda 2 aktif gruba kayıtlıysa 2
+  // kez sayılır — persons'un TEKİL kişi sayısından farklı, ama "Atölyendeki güncel
+  // istatistikler" banner'ının anlamıyla zaten daha tutarlı, kabul edilen bir yaklaşım).
   const loadGroupsAndPersons = useCallback(async (signal?: AbortSignal) => {
     const headers = await authHeaders();
     try {
-      const [groupsRes, personsRes, holidaysRes] = await Promise.all([
+      const [groupsRes, holidaysRes] = await Promise.all([
         fetch("/api/flexos/groups", { headers, signal }),
-        fetch("/api/flexos/persons", { headers, signal }),
         fetch("/api/flexos/holidays", { headers, signal }),
       ]);
       if (signal?.aborted) return;
@@ -923,8 +931,7 @@ export default function EgitmenAnaSayfaPage() {
       const activeGroups = groupItems.filter((g) => g.status === "active");
       setGroupCount(activeGroups.length);
       activeGroupsRef.current = activeGroups;
-
-      if (personsRes.ok) setStudentCount(((await personsRes.json()).items ?? []).length);
+      setStudentCount(activeGroups.reduce((sum, g) => sum + (g.enrolled ?? 0), 0));
 
       if (holidaysRes.ok) {
         const items: HolidayItem[] = (await holidaysRes.json()).items ?? [];
