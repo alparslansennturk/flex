@@ -16,7 +16,35 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Sidebar flaş KALICI fix + read-cache TTL seçici geri açıldı (2026-07-14, Mac oturumu — EN GÜNCEL)
+### ✅ Sidebar flaşı KESİN çözüldü + Vercel↔Firestore bölge uyuşmazlığı bulundu + bootstrap endpoint + persons TTL (2026-07-14, Mac oturumu, bir önceki blokun DEVAMI — EN GÜNCEL)
+
+**1) Sidebar flaşı gerçekten bitti — 3 turda.** Bir önceki blokta "çözüldü" denen fix yetersiz çıktı: kullanıcı hem "Full menüler bir an görünüp gizleniyor" hem "önce sadece Ana Sayfa, sonra diğerleri kademeli doluyor" bildirdi. Kök neden: `FlexSidebar`'ın `caps`/`mode` state'i sıcak modül-cache'ten İYİMSER okunuyordu — cache doğruysa sorun yok, ama caps boşken (soğuk mount) `canSee()` her şeyi gizlediği için kademeli dolma oluyordu; cache cache YANLIŞSA (nadir ama olası) yanlış öğe bir an görünüyordu. **Kesin fix:** `ready` adlı tek bir bayrak eklendi — `false` iken (her mount'ta, cache ne olursa olsun) sidebar'ın YERİNE tam ekranı kaplayan `position:fixed` bir kapatma katmanı dönüyor (projenin paylaşımlı `FlexSpinner`'ı, gri zemin — kullanıcı lacivert+logo'yu beğenmedi), altındaki hiçbir şey görünmüyor; `ready=true` olunca TEK seferde tam/doğru nav render ediliyor. İlk denemede `if (ready) return` ile fetch'i atlayıp bir REGRESYON yarattım (yanlış değer sonsuza kadar cache'te donuyordu) — geri alındı, fetch her mount'ta sessizce (skeleton göstermeden) arka planda çalışıp state'i günceller (SWR deseni). `auth-actor.ts::packagesForCaller` da sertleştirildi: view-mode okuma hatası artık sessizce "full"a düşmüyor, son bilinen değere düşüyor. Commit'ler: `a9808f4`.
+
+**2) Kota teşhisi — gerçek sayılarla.** Kullanıcı "ilk açılışta 900+ okuma, saatte 6.6k" bildirdi. `egitmen-anasayfa/page.tsx` incelendi: `/api/flexos/persons` (8 koleksiyon: persons+enrollments+sales+payments+bundles+…, TTL=0, hep taze) sadece banner'daki TEK bir "Öğrenci" sayısı için tam maliyetiyle çekiliyordu → **tamamen kaldırıldı**, sayı artık `/api/flexos/groups`'un zaten döndürdüğü `enrolled` (doluluk) alanından, aktif gruplar toplanarak türetiliyor (commit `d478639`). Ardından `groups` (3×), `assignment-templates` (2×), `/api/flexos/me` (OdevKütüphanesi'nin sadece trainerId için yaptığı, aslında gereksiz bir çağrı) aynı sayfada tekrar tekrar çekildiği görüldü → sayfa TEK SEFER çekip `OdevParkuru`/`OdevKütüphanesi`'ye prop olarak geçecek şekilde yeniden yapılandırıldı (commit `4dd8e59`). Sonuç: 3 dakikada ~441 okumaya düştü (900+'dan).
+
+**3) ASIL kök neden — coğrafi bölge uyuşmazlığı.** Hız hâlâ 3-4sn'ydi, dedup rağmen düzelmedi. DevTools Network'te her `/api/flexos/*` isteğinin (holidays gibi bariz ucuz biri dahil) aynı ~1.5-2.5sn'yi aldığı görüldü — bu "her route'un kendi işi" değil, PAYLAŞILAN sabit bir maliyet işaretiydi. `vercel inspect` → fonksiyonlar **`iad1`** (Virginia, ABD) çalışıyor. `firebase firestore:databases:get` → Firestore **`eur3`**'te (Avrupa). Yani her istek Atlantik'i iki kez geçiyordu. **Kullanıcı Vercel Dashboard'dan Function Region'ı Frankfurt'a (`fra1`) taşıyıp redeploy etti** — süreler anında `groups 515ms / templates 226ms / holidays 302ms / assignments 505ms / me 270ms / settings 216ms`'e düştü (önceki 1.47-2.54sn'den 3-8× iyileşme). Bu, tüm oturumun EN YÜKSEK etkili tek düzeltmesiydi.
+
+**4) Kullanıcı "demir tavında dövülsün" dedi, iki ek iş daha aynı oturumda bitirildi (commit `b903a0a`):**
+   - **`/api/flexos/egitmen-anasayfa/bootstrap`** — sayfanın `groups`/`assignment-templates`/`holidays`/`assignments` ihtiyacı artık TEK istekte (ilgili route'lardan export edilen `fetchGroupsForActor`/`fetchTemplatesForActor`/`fetchAssignmentsForActor`/`buildMeInfo` fonksiyonları aynen import edilip Promise.all'la paralel çalıştırılıyor, kod tekrarı yok). `me`/`settings` BİLEREK dışarıda bırakıldı — onlar `FlexSidebar`'ın (20+ sayfada ortak) kendi çağrıları, sayfaya özel bir endpoint'e bağlamak paylaşımlı bileşeni kırardı.
+   - **`persons` TTL 0 → 20sn** — kullanıcı "500 öğrenci olsa ne olur" diye sorunca (Öğrenci Havuzu sayfası aynı ağır 8-koleksiyon join'i kullanıyor, sayfalama yok) gündeme geldi. Geçen haftaki "silme-sonrası-gecikme" şüphesi hiçbir zaman kanıtlanamamıştı; artık `PATCH`/`DELETE`/`close-account`'a `invalidateCache` eklendi (gerçek değişiklik anında yansır), TTL sadece "hiç mutasyon olmasa en kötü durum" sınırı.
+
+**Kanıtlanmış sonuç (kullanıcı canlıda ölçtü):** ilk (soğuk) yükleme ~350-440 okuma (kabul edilebilir, tek seferlik), sonraki dakika **0 okuma** — arka planda hiçbir sızıntı/poll yok. Hız: en yavaş istek 515ms (önceki 2.54sn'den).
+
+**Yan bulgu (aksiyon alınmadı, düşük öncelik):** Bildirim sistemi (`NotificationToastListener` + `NotificationBell`/`useNotifications`) AYNI `users/{uid}` dokümanını ve AYNI `users/{uid}/notifications` sorgusunu birbirinden habersiz 2'şer kez `onSnapshot` ile dinliyor — cleanup'ları doğru (memory leak yok), sadece gereksiz bağlantı çoğalması. İleride `NotificationRealtimeService`'e tekilleştirme eklenebilir.
+
+**⚠️ AÇIK/CEVAPSIZ:** Kullanıcı bir mesajında "projede benim verdiğimin dışında asla yorum yapılmasın, globals.css dosyasını hep hatırla" dedi — bu, oturumun geri kalanıyla (hiç CSS konuşulmadı) bağlantısız ve kod tabanının kendi yerleşik (yoğun, tarihli, "neden" açıklayan) yorum geleneğiyle ÇELİŞİYOR. Uygulanmadı, kullanıcıya açıkça soruldu, henüz yanıt gelmedi — **PC'de ilk iş bu netleşsin.**
+
+Commit sırası: `a9808f4` → `d478639` → `4dd8e59` → `b903a0a`. Hepsi `flexos` + `main`'e push edildi (main = production, Vercel deploy ediyor). Vercel Function Region Frankfurt'a taşındı (kod/commit değil, dashboard ayarı — PC'de bunun kalıcı olduğunu/ekibin bildiğini varsay). Her adımda `tsc --noEmit` + `npm run build` temiz.
+
+**SIRADAKİ İŞ (PC'de):**
+1. **Önce netleştir:** yukarıdaki "yorum yapma + globals.css" talimatı neydi — başka bir konuşmadan mı karıştı?
+2. Kota grafiğini birkaç saat/gün daha izle (steady-state gerçekten düşük mü kalıyor).
+3. İstenirse: bildirim listener'larının tekilleştirilmesi (düşük öncelik, yan bulgu).
+4. Önceki oturumlardan kalan, hâlâ açık işler geçerliliğini koruyor: Sınıf Odası dönüşümü, öğrenci portalı grup seçici, öğrenci portalı genel eksikler — bkz. aşağıdaki eski bloklar.
+
+---
+
+### ✅ Sidebar flaş KALICI fix + read-cache TTL seçici geri açıldı (2026-07-14, Mac oturumu — bir önceki, YETERSİZ çıkan tur)
 
 **1) Sidebar flaş — kullanıcı bir önceki (cb2f86c) fix'ten SONRA da hâlâ oluyor dedi.** Kök neden tam anlaşıldı: owner'ın `flexos_users`'taki ofis rolü capability'leri (`sale.create` vb.) zaten Core/Full modundan BAĞIMSIZ her zaman `caps` içinde geliyor (mode'a göre değişen tek şey `mode` string'i) — tek koruma `canSee()`'deki `mode === "full"` kontrolüydü. Önceki fix `mode`'u modül-cache'e aldı ama bilinmeyen (henüz fetch edilmemiş) durumda hâlâ `"full"` (EN AÇIK/permissive) varsayıyordu — cache soğukken (ilk mount, ya da önceki sayfanın fetch'i `cancelled` ile iptal olduysa) yine yanlış yönde varsayılan devredeydi. **Gerçek fix:** `caps` için zaten var olan "yüklenene kadar gizle" kuralı `mode`'a da uygulandı — bilinmeyen mod artık `"full"` değil `null`, katı `mode === "full"` eşitliği null'da otomatik `false` döner. Full-only öğeler sunucu GERÇEKTEN `"full"` demeden ASLA görünmez (`FlexSidebar.tsx`).
 
