@@ -38,7 +38,7 @@
  * seçenek görünür.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -62,10 +62,29 @@ interface GroupItem {
   id: string;
   code: string;
   status: string;
+  branch?: string;
   schedule?: { days: number[]; startTime?: string; endTime?: string };
   enrolled?: number; // /api/flexos/groups zaten grup başına doluluk (aktif+tamamlanmış enrollment) döndürüyor
 }
 interface HolidayItem { startDate: string; endDate: string }
+
+// 2026-07-14 KOTA FİX (2. tur): groups/templates/me aynı sayfada 3 AYRI bileşenden
+// (sayfa + OdevParkuru + OdevKütüphanesi) bağımsız bağımsız çekiliyordu — sayfa TEK
+// SEFER çekip alt bileşenlere prop olarak geçiyor artık. `AssignmentTemplateItem`/`AssignmentTemplateItem`
+// iki ayrı isimdi ama AYNI API'nin (assignment-templates) dönüşüydü, tek paylaşımlı tip.
+interface AssignmentTemplateItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  description: string;
+  branch?: string;
+  icon?: string;
+  kind?: "normal" | "proje";
+  maxPuan?: number;
+  visible?: boolean;
+  gamifiedType?: "kolaj" | "kitap" | "sosyal";
+  scope?: "personal" | "global";
+}
 
 const ATTEND_BEFORE_MIN = 15; // canlıyla aynı (dashboard/page.tsx)
 const ATTEND_AFTER_MIN = 180;
@@ -203,11 +222,6 @@ function ActivityFeedPlaceholder() {
 const MAX_PARKOUR_SLOTS = 4;
 
 interface ParkourAssignment { id: string; groupId: string; title: string; subtitle?: string; description: string; dueDate?: string; status: string; createdAt?: string; templateId?: string; attachments?: EditableAttachment[] }
-interface ParkourTemplate {
-  id: string; title: string; description: string; visible?: boolean;
-  subtitle?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number;
-  gamifiedType?: "kolaj" | "kitap" | "sosyal";
-}
 
 function getDuration(dueDate?: string): { text: string; expired: boolean; noDate: boolean } {
   if (!dueDate) return { text: "Süresiz", expired: false, noDate: true };
@@ -408,7 +422,7 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
 }
 
 /** Kullanılmamış şablon "ghost" kartı — canlıdaki `GhostParkourCard` (compact, soluk stil). */
-function GhostParkourCard({ template, onStart }: { template: ParkourTemplate; onStart: (t: ParkourTemplate) => void }) {
+function GhostParkourCard({ template, onStart }: { template: AssignmentTemplateItem; onStart: (t: AssignmentTemplateItem) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -502,33 +516,29 @@ function PlaceholderParkourCard() {
   );
 }
 
-function OdevParkuru() {
+// 2026-07-14 KOTA FİX (2. tur): `groups`/`templates` artık burada kendi başına
+// çekilmiyor — sayfa (EgitmenAnaSayfaPage) TEK SEFER çekip prop olarak geçiyor
+// (aynı sayfada groups 3×, templates 2× çağrılıyordu). Bu bileşen SADECE kendine
+// özgü `assignments`'ı çeker.
+function OdevParkuru({ groups, templates, sharedLoaded }: { groups: GroupItem[]; templates: AssignmentTemplateItem[]; sharedLoaded: boolean }) {
   const [assignments, setAssignments] = useState<ParkourAssignment[]>([]);
-  const [templates, setTemplates] = useState<ParkourTemplate[]>([]);
-  const [groupCodes, setGroupCodes] = useState<Record<string, string>>({});
-  const [loaded, setLoaded] = useState(false);
+  const [assignmentsLoaded, setAssignmentsLoaded] = useState(false);
   const [modalAcik, setModalAcik] = useState(false);
-  const [startTemplate, setStartTemplate] = useState<ParkourTemplate | null>(null);
+  const [startTemplate, setStartTemplate] = useState<AssignmentTemplateItem | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<EditableAssignment | null>(null);
+
+  const groupCodes = useMemo(() => Object.fromEntries(groups.map((g) => [g.id, g.code])), [groups]);
+  const loaded = sharedLoaded && assignmentsLoaded;
 
   const loadData = useCallback(async () => {
     const u = auth.currentUser;
     const token = u ? await u.getIdToken() : "";
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      const [assignRes, tplRes, groupsRes] = await Promise.all([
-        fetch("/api/flexos/assignments", { headers }),
-        fetch("/api/flexos/assignment-templates", { headers }),
-        fetch("/api/flexos/groups", { headers }),
-      ]);
+      const assignRes = await fetch("/api/flexos/assignments", { headers });
       if (assignRes.ok) setAssignments((await assignRes.json()).items ?? []);
-      if (tplRes.ok) setTemplates((await tplRes.json()).items ?? []);
-      if (groupsRes.ok) {
-        const items: { id: string; code: string }[] = (await groupsRes.json()).items ?? [];
-        setGroupCodes(Object.fromEntries(items.map((g) => [g.id, g.code])));
-      }
     } finally {
-      setLoaded(true);
+      setAssignmentsLoaded(true);
     }
   }, []);
 
@@ -632,7 +642,6 @@ function OdevParkuru() {
 // Parkuru ghost-slot'u ARTIK `visible`e bakmıyor (otomatik/rastgele doldurma,
 // 2026-07-07 kararıyla değişti) — `visible` ŞİMDİ Kütüphane'nin filtresi: eğitmen
 // Şablon Yönetimi'nden onaylamadan (Check) şablon Kütüphane'de listelenmez.
-interface LibTemplate { id: string; title: string; subtitle?: string; description: string; branch?: string; icon?: string; kind?: "normal" | "proje"; maxPuan?: number; visible?: boolean; gamifiedType?: "kolaj" | "kitap" | "sosyal"; scope?: "personal" | "global" }
 
 /** `template.manage` gated — canlıdaki kütüphane kartının "Kaldır" aksiyonu (kişisel şablonu sil). */
 async function removeTemplate(id: string): Promise<boolean> {
@@ -647,7 +656,7 @@ async function removeTemplate(id: string): Promise<boolean> {
   return true;
 }
 
-function LibraryCard({ t, onStart, onRemoved }: { t: LibTemplate; onStart: (t: LibTemplate) => void; onRemoved: (id: string) => void }) {
+function LibraryCard({ t, onStart, onRemoved }: { t: AssignmentTemplateItem; onStart: (t: AssignmentTemplateItem) => void; onRemoved: (id: string) => void }) {
   const Icon = (t.icon && ASSIGNMENT_ICONS[t.icon]) || ClipboardList;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -715,68 +724,34 @@ function LibraryCard({ t, onStart, onRemoved }: { t: LibTemplate; onStart: (t: L
   );
 }
 
-function OdevKutuphanesi() {
-  const [templates, setTemplates] = useState<LibTemplate[]>([]);
-  const [myBranches, setMyBranches] = useState<string[]>([]);
-  const [loaded, setLoaded] = useState(false);
+// 2026-07-14 KOTA FİX (2. tur): eskiden burada AYRICA `/api/flexos/me` (sadece
+// trainerId almak için) + `/api/flexos/groups?trainerId=...` + `/api/flexos/
+// assignment-templates` çekiliyordu — üçü de aynı sayfada ZATEN çekilen
+// verinin tekrarıydı (groups sayfada + Ödev Parkuru'nda da çekiliyordu, templates
+// Ödev Parkuru'nda da). Artık ikisi de sayfadan prop olarak geliyor, burada HİÇ
+// fetch yok — bu bileşen artık sıfır ağ isteği yapıyor.
+function OdevKutuphanesi({ groups, templates, sharedLoaded }: { groups: GroupItem[]; templates: AssignmentTemplateItem[]; sharedLoaded: boolean }) {
   const [activeBranch, setActiveBranch] = useState("all");
   const [hasOverflow, setHasOverflow] = useState(false);
-  const [startTemplate, setStartTemplate] = useState<LibTemplate | null>(null);
+  const [startTemplate, setStartTemplate] = useState<AssignmentTemplateItem | null>(null);
+  // "Kaldır" (kişisel şablonu sil) — `templates` artık üst sayfadan gelen bir prop,
+  // doğrudan mutasyona kapalı; bu oturumda kaldırılanları yerelde gizliyoruz (DELETE
+  // isteği zaten gerçek silmeyi yapıyor, bir sonraki tam sayfa yüklemesi zaten bunu
+  // yansıtacak).
+  const [removedTemplateIds, setRemovedTemplateIds] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // 2026-07-11 KOTA OLAYI — `groupBranches` (gruplarım) BURADAN ÇIKARILDI. Sebep:
-  // `/api/flexos/groups` kendi içinde 6 koleksiyonu (groups+educations+branches+
-  // sections+enrollments+trainers) OKUYARAK join yapıyor — bunu her 60sn'lik pollingde
-  // tekrar çekmek (10 saatlik aktif çalışmada ~600 kez) tek başına günlük Firestore
-  // okuma kotasını tüketebilirdi. Gruplarım listesi (dolayısıyla branşlar) zaten SIK
-  // DEĞİŞMEYEN veri — sadece İLK YÜKLEMEDE bir kez çekiliyor (aşağıdaki ayrı effect),
-  // recurring poll'a HİÇ girmiyor. Poll'a kalan tek şey ucuz `assignment-templates`
-  // (tek koleksiyon) ve interval de 60sn'den 5dk'ya çıkarıldı (şablon onay/kaldırma
-  // saniyeler içinde görünmesi gereken bir şey değil).
-  const groupBranchesRef = useRef<string[]>([]);
+  const loaded = sharedLoaded;
 
-  const loadGroupBranchesOnce = useCallback(async () => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    const headers = { Authorization: `Bearer ${token}` };
-    try {
-      const meRes = await fetch("/api/flexos/me", { headers });
-      const meJson = meRes.ok ? await meRes.json() : { trainerId: null };
-      const groupsRes = await fetch(`/api/flexos/groups?trainerId=${meJson.trainerId ?? ""}`, { headers });
-      groupBranchesRef.current = groupsRes.ok
-        ? ((await groupsRes.json()).items ?? []).map((g: { branch?: string }) => g.branch).filter((b: string | undefined): b is string => !!b)
-        : [];
-    } catch { /* sessizce atla — branş filtresi sadece şablonlardan türer */ }
-  }, []);
+  // Branş filtresi: gerçek gruplarım ∪ şablonlarımın branşları — henüz gerçek grubu
+  // olmayan ama şablonu olan bir branş da görünmeli.
+  const myBranches = useMemo(() => {
+    const groupBranches = groups.map((g) => g.branch).filter((b): b is string => !!b);
+    const templateBranches = templates.map((t) => t.branch).filter((b): b is string => !!b);
+    return Array.from(new Set([...groupBranches, ...templateBranches]));
+  }, [groups, templates]);
 
-  const loadData = useCallback(async () => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    const headers = { Authorization: `Bearer ${token}` };
-    try {
-      const tplRes = await fetch("/api/flexos/assignment-templates", { headers });
-      const templateItems: LibTemplate[] = tplRes.ok ? (await tplRes.json()).items ?? [] : [];
-      setTemplates(templateItems);
-
-      // Branş filtresi: gerçek gruplarım (bir kez çekilen, cache'lenen) ∪ şablonlarımın
-      // branşları — henüz gerçek grubu olmayan ama şablonu olan bir branş da görünmeli.
-      const templateBranches = templateItems.map((t) => t.branch).filter((b): b is string => !!b);
-      setMyBranches(Array.from(new Set([...groupBranchesRef.current, ...templateBranches])));
-    } finally {
-      setLoaded(true);
-    }
-  }, []);
-
-  // 2026-07-11 — polling mimarisi TAMAMEN kaldırıldı (setInterval/visibilitychange/
-  // hareketsizlik takibi yok artık). Sayfa açılışında TEK SEFER çekilir. Gerçek zamanlı
-  // his, KULLANICININ KENDİ mutasyonlarında (ödev oluştur/bitir/düzenle/iptal) zaten
-  // yerel state güncellemesiyle sağlanıyor (bkz. onArchived/onFinished/onCreated
-  // callback'leri, hiçbiri yeniden fetch gerektirmiyor) — zamanlayıcıya hiç gerek yok.
-  useEffect(() => {
-    void loadGroupBranchesOnce().then(loadData);
-  }, [loadData, loadGroupBranchesOnce]);
-
-  const approvedTemplates = templates.filter((t) => t.visible === true);
+  const approvedTemplates = templates.filter((t) => t.visible === true && !removedTemplateIds.has(t.id));
   const branchOptions = myBranches;
 
   useEffect(() => {
@@ -841,7 +816,7 @@ function OdevKutuphanesi() {
           )}
           <div ref={scrollRef} className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth snap-x py-10 -my-10">
             {visibleTemplates.map((t) => (
-              <LibraryCard key={t.id} t={t} onStart={setStartTemplate} onRemoved={(id) => setTemplates((prev) => prev.filter((x) => x.id !== id))} />
+              <LibraryCard key={t.id} t={t} onStart={setStartTemplate} onRemoved={(id) => setRemovedTemplateIds((prev) => new Set(prev).add(id))} />
             ))}
           </div>
         </div>
@@ -865,6 +840,11 @@ export default function EgitmenAnaSayfaPage() {
   const [studentCount, setStudentCount] = useState(0);
   const [attendMeta, setAttendMeta] = useState("");
   const [attendPulse, setAttendPulse] = useState(false);
+  // OdevParkuru + OdevKutuphanesi'ne prop olarak geçilen paylaşımlı veri — bkz. aşağıdaki
+  // loadGroupsAndPersons yorumu (2026-07-14 KOTA FİX, 2. tur).
+  const [groups, setGroups] = useState<GroupItem[]>([]);
+  const [templates, setTemplates] = useState<AssignmentTemplateItem[]>([]);
+  const [sharedLoaded, setSharedLoaded] = useState(false);
 
   const activeGroupsRef = useRef<GroupItem[]>([]);
   const holidayDatesRef = useRef<Set<string>>(new Set());
@@ -918,20 +898,29 @@ export default function EgitmenAnaSayfaPage() {
   // dokunmadan verir (kullanıcı kararı: bir öğrenci aynı anda 2 aktif gruba kayıtlıysa 2
   // kez sayılır — persons'un TEKİL kişi sayısından farklı, ama "Atölyendeki güncel
   // istatistikler" banner'ının anlamıyla zaten daha tutarlı, kabul edilen bir yaklaşım).
+  //
+  // 2026-07-14 KOTA FİX (2. tur): `templates` de buraya taşındı — aynı sayfada groups
+  // ZATEN 3× (burada + OdevParkuru + OdevKütüphanesi), templates 2× (OdevParkuru +
+  // OdevKütüphanesi), me 1× ekstra (OdevKütüphanesi, sadece trainerId için) çekiliyordu.
+  // İkisi de artık TEK burada çekilip alt bileşenlere prop olarak geçiyor.
   const loadGroupsAndPersons = useCallback(async (signal?: AbortSignal) => {
     const headers = await authHeaders();
     try {
-      const [groupsRes, holidaysRes] = await Promise.all([
+      const [groupsRes, templatesRes, holidaysRes] = await Promise.all([
         fetch("/api/flexos/groups", { headers, signal }),
+        fetch("/api/flexos/assignment-templates", { headers, signal }),
         fetch("/api/flexos/holidays", { headers, signal }),
       ]);
       if (signal?.aborted) return;
 
       const groupItems: GroupItem[] = groupsRes.ok ? ((await groupsRes.json()).items ?? []) : [];
+      setGroups(groupItems);
       const activeGroups = groupItems.filter((g) => g.status === "active");
       setGroupCount(activeGroups.length);
       activeGroupsRef.current = activeGroups;
       setStudentCount(activeGroups.reduce((sum, g) => sum + (g.enrolled ?? 0), 0));
+
+      if (templatesRes.ok) setTemplates((await templatesRes.json()).items ?? []);
 
       if (holidaysRes.ok) {
         const items: HolidayItem[] = (await holidaysRes.json()).items ?? [];
@@ -947,6 +936,8 @@ export default function EgitmenAnaSayfaPage() {
       await computeAttendPulse();
     } catch (e) {
       if ((e as Error).name !== "AbortError") toast.error("Veriler yüklenemedi.");
+    } finally {
+      if (!signal?.aborted) setSharedLoaded(true);
     }
   }, [authHeaders, computeAttendPulse]);
 
@@ -1028,8 +1019,8 @@ export default function EgitmenAnaSayfaPage() {
             </div>
           </div>
 
-          <OdevParkuru />
-          <OdevKutuphanesi />
+          <OdevParkuru groups={groups} templates={templates} sharedLoaded={sharedLoaded} />
+          <OdevKutuphanesi groups={groups} templates={templates} sharedLoaded={sharedLoaded} />
         </FlexPageContent>
 
         <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
