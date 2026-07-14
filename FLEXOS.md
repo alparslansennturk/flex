@@ -16,7 +16,25 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Sidebar flaşı KESİN çözüldü + Vercel↔Firestore bölge uyuşmazlığı bulundu + bootstrap endpoint + persons TTL (2026-07-14, Mac oturumu, bir önceki blokun DEVAMI — EN GÜNCEL)
+### ✅ Ödev arşivi gerçek bug'ı + Arşiv sekmesi/kalıcı sil + 2 AÇIK mimari karar (2026-07-14, Mac oturumu, aynı gün DEVAMI — EN GÜNCEL)
+
+**1) Gerçek bug bulundu ve düzeltildi (commit `ed82976`):** Kullanıcı Ana Sayfa'da bir ödevi ("raket ödevi", grup 784) kart menüsünden "İptal Et" dedi (`status: "archived"` — backend doğru çalışıyor, Firestore'a doğru yazılıyor). Ama `/flexos/odevler/teslim/[groupId]` sayfasında hâlâ "Aktif Ödevler"de görünüyordu — o sayfadaki Aktif/Tamamlanan ayrımı SADECE `dueDate`'e bakıyordu, `status` hiç kontrol edilmiyordu. Fix: arşivlenenler Aktif/Tamamlanan'dan tamamen çıkarıldı + yeni bir **"Arşiv" sekmesi** eklendi (sade kart: başlık+tarih) + her kartta onaylı **"Kalıcı Sil"** (`DELETE /api/flexos/assignments/:id`, zaten vardı, backend'de cascade yok).
+
+**2) Kullanıcı test ederken İKİNCİ gerçek bug'ı kendi buldu:** ödeve yorum ("selam") bıraktı → bildirim düştü → sonra ödevi Kalıcı Sil'le sildi → bildirime tıklayınca sonsuz loader (öksüz thread/yorum referansı). **Bilinçli olarak ŞİMDİ düzeltilmedi** — kullanıcı bunun genelde test senaryosu olduğunu, gerçek kullanımda kalıcı silmeyeceğini söyledi. Tartışılan ama uygulanmayan öneri: `deletePerson`'daki AYNI desen (`Satış/ödeme geçmişi varsa reddedilir`) — ödevde yorum/teslim varsa `deleteAssignment` hard-delete'i reddetsin, arşivde kalsın. **PC'de/ileride gerekirse bu eklenebilir, henüz kod yok.**
+
+**3) Kullanıcının kendi bulduğu ÜÇÜNCÜ, daha derin nokta:** arşivlenmiş ödevler bile "sürekli okunan veri" — `/api/flexos/assignments` (hem `list` hem `listByTrainerIds`) status'a göre HİÇ Firestore-seviyesi filtre yapmıyor, TÜM ödevleri (arşiv dahil) her çağrıda okuyor. **Araştırırken gerçek bir Firestore KISITI bulundu:** bireysel eğitmen (org-scope olmayan, en yaygın yol) sorgusu zaten `trainerId in [...]` kullanıyor (2026-07-13 kota fix) — Firestore TEK sorguda birden fazla `in` filtresine izin vermiyor, yani üstüne `status in [...]` eklemek bu yolda doğrudan mümkün değil. **Gerçek çözüm ya `isArchived: boolean` düz alanı (migrasyon gerekir) ya da ayrı sorgular** — bu saatte/oturumda riske girilmedi, kod yazılmadı. **PC'de ele alınacak, bilinçli açık iş.**
+
+**4) Bilgi notu (kod değil, mimari yön):** Kullanıcı "Flex Connect" adlı ayrı bir uygulamanın (WhatsApp-benzeri ama farklı tasarım, masaüstü çizimleri Claude Design'da tamamlandı) sohbet geçmişini ödevden BAĞIMSIZ tutabileceğini düşünüyor — eğer chat mimarisi assignment'a değil person/group'a bağlanırsa, madde 2'deki "ödev silinince yorum/bildirim öksüz kalıyor" sorunu mimari olarak kendiliğinden ortadan kalkar. Henüz tasarım/kod yok, ilerideki bir karar.
+
+**SIRADAKİ İŞ (Mac ya da PC, hangisi açılırsa):**
+1. `deleteAssignment`'a `deletePerson`'daki gibi bir güvenlik freni eklensin mi (yorum/teslimi olan ödev hard-delete edilemesin)? Kullanıcı onayı bekliyor.
+2. Arşivlenmiş ödevlerin Firestore-seviyesinde okunmasını engelleme — `isArchived` düz alan + migrasyon (ya da ayrı sorgular), `trainerId in [...]` ile `status in [...]`'ın AYNI sorguda birleşemediği unutulmasın.
+3. Flex Connect (ayrı chat uygulaması) tasarımı geldiğinde mimari karar gözden geçirilsin.
+4. Önceki oturumlardan kalan, hâlâ açık: yorum yapma/globals.css talimatının netleşmesi, bildirim listener tekilleştirmesi, Sınıf Odası dönüşümü, öğrenci portalı grup seçici/genel eksikler.
+
+---
+
+### ✅ Sidebar flaşı KESİN çözüldü + Vercel↔Firestore bölge uyuşmazlığı bulundu + bootstrap endpoint + persons TTL (2026-07-14, Mac oturumu, bir önceki blokun DEVAMI)
 
 **1) Sidebar flaşı gerçekten bitti — 3 turda.** Bir önceki blokta "çözüldü" denen fix yetersiz çıktı: kullanıcı hem "Full menüler bir an görünüp gizleniyor" hem "önce sadece Ana Sayfa, sonra diğerleri kademeli doluyor" bildirdi. Kök neden: `FlexSidebar`'ın `caps`/`mode` state'i sıcak modül-cache'ten İYİMSER okunuyordu — cache doğruysa sorun yok, ama caps boşken (soğuk mount) `canSee()` her şeyi gizlediği için kademeli dolma oluyordu; cache cache YANLIŞSA (nadir ama olası) yanlış öğe bir an görünüyordu. **Kesin fix:** `ready` adlı tek bir bayrak eklendi — `false` iken (her mount'ta, cache ne olursa olsun) sidebar'ın YERİNE tam ekranı kaplayan `position:fixed` bir kapatma katmanı dönüyor (projenin paylaşımlı `FlexSpinner`'ı, gri zemin — kullanıcı lacivert+logo'yu beğenmedi), altındaki hiçbir şey görünmüyor; `ready=true` olunca TEK seferde tam/doğru nav render ediliyor. İlk denemede `if (ready) return` ile fetch'i atlayıp bir REGRESYON yarattım (yanlış değer sonsuza kadar cache'te donuyordu) — geri alındı, fetch her mount'ta sessizce (skeleton göstermeden) arka planda çalışıp state'i günceller (SWR deseni). `auth-actor.ts::packagesForCaller` da sertleştirildi: view-mode okuma hatası artık sessizce "full"a düşmüyor, son bilinen değere düşüyor. Commit'ler: `a9808f4`.
 
