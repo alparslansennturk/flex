@@ -16,6 +16,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
 import FlexLogo from "@/app/components/ui/FlexLogo";
 import ViewPinModal from "./ViewPinModal";
+import { FlexSpinner } from "./FlexSpinner";
 
 /**
  * Core/Full — SADECE `/api/flexos/me`'nin `mode` alanından okunur (bkz. o route'taki
@@ -102,6 +103,19 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   // `mode === "full"` katı eşitliği null'da false döner, yani full-only öğeler mod
   // ONAYLANANA kadar hiç görünmez (bkz. modeCache yorumu).
   const [mode, setMode] = useState<ViewMode | null>(() => modeCache);
+  // 2026-07-14 (4. tur — SICAK-CACHE İYİMSERLİĞİ TAMAMEN KALDIRILDI): önceki turda
+  // `ready` modül-cache doluysa baştan `true` başlıyordu ("navigasyon akıcılığı" için)
+  // — ama kullanıcı BUNU DA reddetti: "Eğitimlere giriyorum, sidebar 1sn bile olsa
+  // full oluyor sonra gizleniyor". Kök neden: cache'teki (önceki sayfadan miras kalan)
+  // değer anlık doğru gösteriliyordu, SONRA arka planda sessizce yenilenen fetch
+  // düzeltiyordu — cache YANLIŞSA (ya da geçiciyse) bu tam olarak "1 saniye yanlış,
+  // sonra doğru" görüntüsü verir. Kullanıcının talebi KESİN: sidebar/site kendi
+  // NİHAİ cevabına sahip olmadan HİÇ görünmeyecek — tek bir doğru render, asla iki
+  // aşamalı değil. Çözüm: `ready` HER mount'ta `false` başlar (cache ne olursa olsun),
+  // SADECE bu mount'un KENDİ fetch'i bitince true olur. Bunun bedeli: her navigasyonda
+  // kısa bir tam-ekran yükleme kapanışı (aşağıdaki `!ready` early-return, bkz. render) —
+  // kullanıcı bunu "akıcılığa" tercih etti, kabul edilebilir.
+  const [ready, setReady] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
   // Sistem-geneli "Eğitmen Tek Başına" (standaloneMode) — Kişisel Görünüm Modu'ndan
   // (mode/Core-Full) TAMAMEN AYRI. 2026-07-11 kullanıcı bulgusu: standalone açıkken bile
@@ -113,6 +127,16 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const [standaloneMode, setStandaloneMode] = useState(false);
 
   useEffect(() => {
+    // 2026-07-14 (4. tur — bir önceki turun kendi REGRESYONU düzeltildi): `if (ready)
+    // return` ile fetch'i tamamen atlamak, sıcak cache'teki bir değerin YANLIŞ olduğu
+    // (ör. view-mode dokümanı bir istekte okunamayıp geçici olarak "full"a düşen bir
+    // sunucu tarafı hatası) durumda ASLA düzelmemesine yol açtı — kullanıcı "Satışlar
+    // geldi ve gitmedi" diye bildirdi, çünkü artık hiçbir mount yeniden doğrulamıyordu.
+    // Doğrusu: skeleton'ı SADECE "hiç onaylanmamışken" göster (ready), ama fetch'i HER
+    // mount'ta arka planda (sessizce, skeleton'a dönmeden) çalıştırmaya devam et — SWR
+    // deseni. Cache doğruysa görünürde hiçbir şey değişmez; yanlışsa bir sonraki
+    // sayfada (hatta aynı sayfada state güncellenince) kendi kendine düzelir, hiç
+    // kalıcı yanlış durumda TAKILI KALMAZ.
     let cancelled = false;
     (async () => {
       await auth.authStateReady();
@@ -140,6 +164,13 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         }
       } catch {
         // sessiz — menüde kapılı öğeler gizli kalır, sayfa fonksiyonelliğini etkilemez
+      } finally {
+        // Başarı ya da hata fark etmez: bu mount artık NİHAİ bir cevaba sahip —
+        // ready=true olmadan nav hiç çizilmiyordu (bkz. render), sonsuza kadar
+        // iskelette takılı kalmasın diye başarısızlıkta da (auth yok, network
+        // hatası) kapanıyor; o durumda caps boş/mode null kalır, canSee zaten
+        // güvenli tarafta (hiçbir kapılı öğe görünmez).
+        if (!cancelled) setReady(true);
       }
     })();
     return () => { cancelled = true; };
@@ -234,6 +265,28 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       : caps.has("sale.create")
         ? "/flexos/satislar/dashboard"
         : "/flexos/egitmen-anasayfa";
+
+  // 2026-07-14: `ready` false iken sidebar'ın YERİNE değil, TÜM SAYFANIN ÜSTÜNE tam
+  // ekran bir kapatma katmanı döndürülüyor — kullanıcı açıkça "sidebar render olmadan
+  // SİTEYİ gösterme" dedi, yani altındaki asıl sayfa içeriği (aynı anda mount olmuş
+  // olsa bile) görsel olarak hiç görünmemeli. Nav'ın kendisi de (canlı öğe listesi)
+  // sadece bu erken dönüşten SONRA, `ready` kesinleşince tek seferde render edilir —
+  // iki aşamalı (önce yanlış/eksik, sonra doğru) bir render asla olmaz.
+  if (!ready) {
+    // 2026-07-14: lacivert zemin + logo kullanıcı tarafından beğenilmedi ("hoş
+    // olmamış") — projenin zaten HER YERDE kullandığı paylaşımlı yükleme deseni
+    // (FlexSpinner.tsx::FlexPageLoader, açık gri zemin + dönen spinner) burada da
+    // aynen kullanılıyor, tutarlılık için. `position:fixed` + `inset:0` KORUNUYOR —
+    // FlexPageLoader'ın kendisi sabit-konumlu değil (kendi 100vh'lik bloğu), o yüzden
+    // burada aynen import edip kullanmak yerine AYNI görsel içerik fixed sarmalayıcı
+    // içinde tekrarlanıyor — amaç (sayfayı tam kapatmak) FlexPageLoader'ın normal
+    // akıştaki halinden farklı, o yüzden birebir import yerine.
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <FlexSpinner size={48} />
+      </div>
+    );
+  }
 
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
@@ -542,7 +595,9 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           artık view.toggle sahibi için Core'da da açılıyor (bkz. sistem-ayarlari/page.tsx
           `allowed` gate'i + kendi içindeki "Görünüm Modu" switch'i), o yüzden link HER ZAMAN
           gerçek sayfaya gider (PIN'e sarmalamaya gerek yok, sayfa kendi PIN akışını içeriyor).
-          Gerçek eğitmen (view.toggle'ı olmayan) bu linki hiç görmez. */}
+          Gerçek eğitmen (view.toggle'ı olmayan) bu linki hiç görmez.
+          Bu blok yukarıdaki `if (!ready) return ...` sayesinde her zaman `ready===true`
+          iken çalışır — ayrıca koşullamaya gerek yok. */}
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         {(caps.has("role.manage") || canToggleView) && (
           <>

@@ -45,12 +45,30 @@ export const VIEW_TOGGLE_OWNER_EMAIL = "alparslan.sennturk@gmail.com";
  * taze okur, Firestore Admin SDK aynı dokümanda yazma-sonrası-okuma tutarlı).
  */
 
+// 2026-07-14: `firestoreViewModeRepo.get()` başarısız olursa (geçici Firestore hatası,
+// quota vb.) eskiden `.catch(() => null)` sessizce "full"a (İZİNLİ tarafa) düşüyordu —
+// owner "core"da kalıcı olsa bile TEK bir okuma hatası onu anlık admin/Full paketine
+// sıçratıyordu (sidebar'da Satışlar vb. o istek için gerçekten görünür oluyordu, kozmetik
+// bir bug değil). Son BAŞARILI okumayı süreç-içi hafızada tutup SADECE gerçek hata
+// (doküman gerçekten yok DEĞİL) durumunda ona düşülüyor — "core"dan sebepsiz "full"a
+// asla geçilmez, doküman gerçekten hiç yoksa (owner hiç toggle etmemiş) varsayılan
+// yine "full" (ilk kurulum admin'dir, doğru varsayılan).
+const lastKnownViewMode = new Map<string, "core" | "full">();
+
 /** Eski rol → capability paketi. Satış/Op rolleri eklenince map büyür. */
 export async function packagesForCaller(caller: Caller): Promise<PackageName[]> {
   if (caller.isAdmin) {
     if (caller.email === VIEW_TOGGLE_OWNER_EMAIL) {
-      const state = await firestoreViewModeRepo.get(caller.uid).catch(() => null);
-      if ((state?.mode ?? "full") === "core") return ["egitmen"];
+      let mode: "core" | "full" = lastKnownViewMode.get(caller.uid) ?? "full";
+      try {
+        const state = await firestoreViewModeRepo.get(caller.uid);
+        mode = state?.mode ?? "full";
+        lastKnownViewMode.set(caller.uid, mode);
+      } catch (e) {
+        console.error("[auth-actor] view-mode okunamadı, son bilinen değere düşülüyor:", e);
+        // mode zaten lastKnownViewMode'dan başlatıldı — değiştirilmiyor.
+      }
+      if (mode === "core") return ["egitmen"];
     }
     return ["admin"];
   }
