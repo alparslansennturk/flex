@@ -516,40 +516,25 @@ function PlaceholderParkourCard() {
   );
 }
 
-// 2026-07-14 KOTA FİX (2. tur): `groups`/`templates` artık burada kendi başına
-// çekilmiyor — sayfa (EgitmenAnaSayfaPage) TEK SEFER çekip prop olarak geçiyor
-// (aynı sayfada groups 3×, templates 2× çağrılıyordu). Bu bileşen SADECE kendine
-// özgü `assignments`'ı çeker.
-function OdevParkuru({ groups, templates, sharedLoaded }: { groups: GroupItem[]; templates: AssignmentTemplateItem[]; sharedLoaded: boolean }) {
-  const [assignments, setAssignments] = useState<ParkourAssignment[]>([]);
-  const [assignmentsLoaded, setAssignmentsLoaded] = useState(false);
+// 2026-07-14 KOTA/HIZ FİX (3. tur): `groups`/`templates`/`assignments` artık burada
+// kendi başına çekilmiyor — sayfa TEK bir bootstrap isteğiyle (`/api/flexos/egitmen-
+// anasayfa/bootstrap`) hepsini birden çekip prop olarak geçiyor. `assignments.changed`
+// realtime aboneliği de sayfaya taşındı (`refetchAssignments` — sadece assignments'ı
+// hafifçe yeniler, groups/templates/holidays'ı tekrar çekmez).
+function OdevParkuru({ groups, templates, assignments, setAssignments, refetchAssignments, sharedLoaded }: {
+  groups: GroupItem[];
+  templates: AssignmentTemplateItem[];
+  assignments: ParkourAssignment[];
+  setAssignments: React.Dispatch<React.SetStateAction<ParkourAssignment[]>>;
+  refetchAssignments: () => Promise<void>;
+  sharedLoaded: boolean;
+}) {
   const [modalAcik, setModalAcik] = useState(false);
   const [startTemplate, setStartTemplate] = useState<AssignmentTemplateItem | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<EditableAssignment | null>(null);
 
   const groupCodes = useMemo(() => Object.fromEntries(groups.map((g) => [g.id, g.code])), [groups]);
-  const loaded = sharedLoaded && assignmentsLoaded;
-
-  const loadData = useCallback(async () => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    const headers = { Authorization: `Bearer ${token}` };
-    try {
-      const assignRes = await fetch("/api/flexos/assignments", { headers });
-      if (assignRes.ok) setAssignments((await assignRes.json()).items ?? []);
-    } finally {
-      setAssignmentsLoaded(true);
-    }
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // "Notları Kaydet"/"Ödevi Bitir"/"Ödevi İptal Et" başka bir sekmede veya bu sayfadan
-  // gidilen Ödev Notu ekranında olduğunda kart anında düşsün/güncellensin diye. BİLEREK
-  // "grades.changed" DEĞİL "assignments.changed" — bu widget tek tek öğrenci notlarıyla
-  // değil sadece ödevin DURUMUYLA ilgileniyor (2026-07-13 kota fix — N öğrenci notlanınca
-  // N kere değil, ödev arşivlenince TEK kere tetiklenir).
-  useRealtimeSync(["assignments.changed"], loadData);
+  const loaded = sharedLoaded;
 
   // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması). "closed" (Ödevi
   // Bitir sonrası, not girişi bekleyen) da burada kalır — kart kaybolmaz, sadece görünümü
@@ -618,7 +603,7 @@ function OdevParkuru({ groups, templates, sharedLoaded }: { groups: GroupItem[];
       <OdevOlusturModal
         open={modalAcik || startTemplate !== null}
         onClose={() => { setModalAcik(false); setStartTemplate(null); }}
-        onCreated={() => { setModalAcik(false); setStartTemplate(null); loadData(); }}
+        onCreated={() => { setModalAcik(false); setStartTemplate(null); void refetchAssignments(); }}
         prefill={startPrefill}
       />
       <EditAssignmentModal
@@ -841,9 +826,10 @@ export default function EgitmenAnaSayfaPage() {
   const [attendMeta, setAttendMeta] = useState("");
   const [attendPulse, setAttendPulse] = useState(false);
   // OdevParkuru + OdevKutuphanesi'ne prop olarak geçilen paylaşımlı veri — bkz. aşağıdaki
-  // loadGroupsAndPersons yorumu (2026-07-14 KOTA FİX, 2. tur).
+  // loadBootstrap yorumu (2026-07-14 KOTA FİX, 3. tur — bootstrap endpoint).
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [templates, setTemplates] = useState<AssignmentTemplateItem[]>([]);
+  const [assignments, setAssignments] = useState<ParkourAssignment[]>([]);
   const [sharedLoaded, setSharedLoaded] = useState(false);
 
   const activeGroupsRef = useRef<GroupItem[]>([]);
@@ -890,48 +876,43 @@ export default function EgitmenAnaSayfaPage() {
     else { setAttendMeta(`${pendingCodes.length} grup`); setAttendPulse(true); }
   }, [authHeaders]);
 
-  // 2026-07-14 KOTA FİX: `/api/flexos/persons` (8 koleksiyon: persons+enrollments+sales+
-  // payments+bundles+... — read-cache'te BİLEREK TTL=0, hep taze) sadece banner'daki TEK
-  // bir "Öğrenci" rakamı için tam maliyetiyle çekiliyordu. `/api/flexos/groups` zaten grup
-  // başına doluluk (`enrolled` — aktif+tamamlanmış enrollment sayısı) döndürüyor (bkz.
-  // groups/route.ts) — aktif gruplardaki dolulukları toplamak aynı rakamı persons'a HİÇ
-  // dokunmadan verir (kullanıcı kararı: bir öğrenci aynı anda 2 aktif gruba kayıtlıysa 2
-  // kez sayılır — persons'un TEKİL kişi sayısından farklı, ama "Atölyendeki güncel
-  // istatistikler" banner'ının anlamıyla zaten daha tutarlı, kabul edilen bir yaklaşım).
-  //
-  // 2026-07-14 KOTA FİX (2. tur): `templates` de buraya taşındı — aynı sayfada groups
-  // ZATEN 3× (burada + OdevParkuru + OdevKütüphanesi), templates 2× (OdevParkuru +
-  // OdevKütüphanesi), me 1× ekstra (OdevKütüphanesi, sadece trainerId için) çekiliyordu.
-  // İkisi de artık TEK burada çekilip alt bileşenlere prop olarak geçiyor.
-  const loadGroupsAndPersons = useCallback(async (signal?: AbortSignal) => {
+  // 2026-07-14 KOTA/HIZ FİX (3. tur — bootstrap endpoint): groups/assignment-templates/
+  // holidays/assignments + me/settings (sidebar'ın kendi çağırdığı) toplam 6 ayrı HTTP
+  // isteği + 6 ayrı Vercel fonksiyon çağrısıydı. Bölge taşınması (iad1→fra1) süreyi zaten
+  // ~500ms'ye indirdi, ama istek sayısını da tek kaleme indirmek için sayfanın kendi 4
+  // ihtiyacı (`groups`/`templates`/`holidays`/`assignments`) artık TEK bir sunucu ucunda
+  // (`/api/flexos/egitmen-anasayfa/bootstrap`) birleşiyor — o uç da kendi içinde AYNI
+  // `fetchGroupsForActor`/`fetchTemplatesForActor`/`fetchAssignmentsForActor` fonksiyonlarını
+  // (ilgili route dosyalarından import edilmiş, kod tekrarı yok) TEK fonksiyon çağrısında
+  // paralel çalıştırıyor. `/api/flexos/persons` (8 koleksiyon) daha önce buradan tamamen
+  // kaldırılmıştı — banner'daki "Öğrenci" rakamı `groups`'un `enrolled` alanından türüyor
+  // (bir öğrenci 2 aktif gruba kayıtlıysa 2 kez sayılır, kabul edilen bir yaklaşım).
+  const loadBootstrap = useCallback(async (signal?: AbortSignal) => {
     const headers = await authHeaders();
     try {
-      const [groupsRes, templatesRes, holidaysRes] = await Promise.all([
-        fetch("/api/flexos/groups", { headers, signal }),
-        fetch("/api/flexos/assignment-templates", { headers, signal }),
-        fetch("/api/flexos/holidays", { headers, signal }),
-      ]);
+      const res = await fetch("/api/flexos/egitmen-anasayfa/bootstrap", { headers, signal });
       if (signal?.aborted) return;
+      if (!res.ok) throw new Error("bootstrap yanıtı başarısız");
+      const data = await res.json();
 
-      const groupItems: GroupItem[] = groupsRes.ok ? ((await groupsRes.json()).items ?? []) : [];
+      const groupItems: GroupItem[] = data.groups ?? [];
       setGroups(groupItems);
       const activeGroups = groupItems.filter((g) => g.status === "active");
       setGroupCount(activeGroups.length);
       activeGroupsRef.current = activeGroups;
       setStudentCount(activeGroups.reduce((sum, g) => sum + (g.enrolled ?? 0), 0));
 
-      if (templatesRes.ok) setTemplates((await templatesRes.json()).items ?? []);
+      setTemplates(data.templates ?? []);
+      setAssignments(data.assignments ?? []);
 
-      if (holidaysRes.ok) {
-        const items: HolidayItem[] = (await holidaysRes.json()).items ?? [];
-        const dates = new Set<string>();
-        for (const h of items) {
-          const cur = new Date(h.startDate + "T12:00:00");
-          const end = new Date(h.endDate + "T12:00:00");
-          while (cur <= end) { dates.add(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
-        }
-        holidayDatesRef.current = dates;
+      const holidayItems: HolidayItem[] = data.holidays ?? [];
+      const dates = new Set<string>();
+      for (const h of holidayItems) {
+        const cur = new Date(h.startDate + "T12:00:00");
+        const end = new Date(h.endDate + "T12:00:00");
+        while (cur <= end) { dates.add(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
       }
+      holidayDatesRef.current = dates;
 
       await computeAttendPulse();
     } catch (e) {
@@ -941,6 +922,16 @@ export default function EgitmenAnaSayfaPage() {
     }
   }, [authHeaders, computeAttendPulse]);
 
+  // "Ödevi Bitir"/"Ödevi İptal Et" gibi SIK olabilecek aksiyonlarda tüm bootstrap'i
+  // (groups+templates+holidays dahil) yeniden çekmek gereksiz — sadece `assignments`
+  // hafifçe yenilenir. `groups.changed`/`students.changed` (nadir olaylar) hâlâ tam
+  // bootstrap'i tetikliyor, kod sadeliği için kabul edilebilir bir tercih.
+  const refetchAssignments = useCallback(async () => {
+    const headers = await authHeaders();
+    const res = await fetch("/api/flexos/assignments", { headers });
+    if (res.ok) setAssignments((await res.json()).items ?? []);
+  }, [authHeaders]);
+
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
@@ -948,18 +939,20 @@ export default function EgitmenAnaSayfaPage() {
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
       todayKeyRef.current = todayKeyOf(new Date());
-      await loadGroupsAndPersons(ac.signal);
+      await loadBootstrap(ac.signal);
     })();
     const interval = setInterval(computeAttendPulse, 60_000);
     return () => { ac.abort(); clearInterval(interval); };
-  }, [router, computeAttendPulse, loadGroupsAndPersons]);
+  }, [router, computeAttendPulse, loadBootstrap]);
 
   // 2026-07-11/12 — grup+öğrenci gerçek-zamanlı senkron: SSE (`useRealtimeSync`) ile başka
   // bir kullanıcı grup oluşturduğunda/düzenlediğinde veya öğrenci ekleyip/kaydını
-  // değiştirdiğinde bu ekran KENDİ VAR OLAN `loadGroupsAndPersons` fonksiyonunu tekrar
-  // çağırır (groupCount/studentCount/attend-pulse hepsi buradan türer) — ayrı bir
-  // fetch/cache katmanı yok.
-  useRealtimeSync(["groups.changed", "students.changed"], loadGroupsAndPersons);
+  // değiştirdiğinde bu ekran KENDİ VAR OLAN `loadBootstrap` fonksiyonunu tekrar çağırır
+  // (groupCount/studentCount/attend-pulse hepsi buradan türer) — ayrı bir fetch/cache
+  // katmanı yok. `assignments.changed` ise (eskiden OdevParkuru'nun kendi başına dinlediği
+  // olay) artık burada, hafif `refetchAssignments` ile karşılanıyor.
+  useRealtimeSync(["groups.changed", "students.changed"], loadBootstrap);
+  useRealtimeSync(["assignments.changed"], refetchAssignments);
 
   if (authed === null) return <FlexPageLoader />;
 
@@ -1019,7 +1012,7 @@ export default function EgitmenAnaSayfaPage() {
             </div>
           </div>
 
-          <OdevParkuru groups={groups} templates={templates} sharedLoaded={sharedLoaded} />
+          <OdevParkuru groups={groups} templates={templates} assignments={assignments} setAssignments={setAssignments} refetchAssignments={refetchAssignments} sharedLoaded={sharedLoaded} />
           <OdevKutuphanesi groups={groups} templates={templates} sharedLoaded={sharedLoaded} />
         </FlexPageContent>
 

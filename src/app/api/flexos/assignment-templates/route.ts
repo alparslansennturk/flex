@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import type { Actor } from "@/app/lib/domain/access/types";
 import { firestoreAssignmentTemplateRepo } from "@/app/lib/server/assignment-template-repo.firestore";
 import { createTemplate, listTemplates, type CreateTemplateInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
@@ -10,6 +11,13 @@ import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 // cache tekrarları Firestore'a hiç göndermez (yeni şablon POST'ta invalidate edilir).
 const TEMPLATES_CACHE_TTL_MS = 5 * 60_000;
 
+/** bootstrap/route.ts da AYNI fonksiyonu (dolayısıyla aynı cache key'i) kullanır. */
+export function fetchTemplatesForActor(actor: Actor) {
+  return cachedRead(`templates:${actor.tenantId}:${actor.uid}`, TEMPLATES_CACHE_TTL_MS, () =>
+    listTemplates(actor, firestoreAssignmentTemplateRepo),
+  );
+}
+
 /**
  * GET /api/flexos/assignment-templates — şablon kütüphanesi listesi.
  * Okuma `assignment.read` ile serbest — eğitmen kütüphaneyi görür ama düzenleyemez.
@@ -17,9 +25,7 @@ const TEMPLATES_CACHE_TTL_MS = 5 * 60_000;
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   try {
     const actor = await actorFromCaller(caller);
-    const items = await cachedRead(`templates:${actor.tenantId}:${actor.uid}`, TEMPLATES_CACHE_TTL_MS, () =>
-      listTemplates(actor, firestoreAssignmentTemplateRepo),
-    );
+    const items = await fetchTemplatesForActor(actor);
     return NextResponse.json({ items });
   } catch (e) {
     if (e instanceof ForbiddenError) {

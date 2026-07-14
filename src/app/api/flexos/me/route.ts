@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import type { Actor } from "@/app/lib/domain/access/types";
 import { widestScope } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
@@ -34,13 +35,10 @@ async function resolveLanding(uid: string, tenantId: string): Promise<string> {
 }
 
 /**
- * GET /api/flexos/me — caller'ın etkin capability'leri (menü görünürlüğü için) + login
- * sonrası yönlendirilecek dashboard. Sunucudaki gerçek yetki kontrolü zaten `can()` ile
- * her serviste var; capabilities kısmı sadece client'ın hangi menüleri çizeceğini bilmesi
- * için (kozmetik, güvenlik değil).
+ * `/api/flexos/me`'nin gövdesi — `bootstrap/route.ts` da AYNI fonksiyonu çağırır.
+ * NOT cache'lenmez (view-mode/landing gibi alanlar mod değişiminde ANINDA doğru olmalı).
  */
-export const GET = withAuth(async (_req: NextRequest, caller) => {
-  const actor = await actorFromCaller(caller);
+export async function buildMeInfo(actor: Actor) {
   const capabilities = Array.from(new Set(actor.grants.map((g) => g.capability)));
   // templateManageScope: Şablon Yönetimi'nin "Oyunlaştırılmış Tür" seçicisi SADECE org
   // scope'ta (global şablon) anlamlı — self scope (kişisel şablon) eğitmene hiç gösterilmez.
@@ -52,13 +50,22 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   // (ör. admin'e dönünce sidebar hâlâ eğitmen sanıyordu — Sistem Ayarları kayboluyordu).
   // Artık `caps` ile AYNI istekten, tek kaynaktan geliyor — asla birbirinden bağımsız kayamaz.
   const mode: "core" | "full" = capabilities.includes("view.toggle") && !capabilities.includes("role.manage") ? "core" : "full";
+  // trainerId: eğitmen kadrosu (`flexos_trainers`) docId'si (uid DEĞİL, bkz. can.ts
+  // ownerMatches yorumu) — client'ın "kendi gruplarım" filtrelerinde `?trainerId=`
+  // olarak kullanması için (raw uid gönderirse Group.trainerId'yle asla eşleşmez).
+  return { uid: actor.uid, trainerId: actor.trainerId ?? null, capabilities, templateManageScope, landing, mode };
+}
+
+/**
+ * GET /api/flexos/me — caller'ın etkin capability'leri (menü görünürlüğü için) + login
+ * sonrası yönlendirilecek dashboard. Sunucudaki gerçek yetki kontrolü zaten `can()` ile
+ * her serviste var; capabilities kısmı sadece client'ın hangi menüleri çizeceğini bilmesi
+ * için (kozmetik, güvenlik değil).
+ */
+export const GET = withAuth(async (_req: NextRequest, caller) => {
+  const actor = await actorFromCaller(caller);
+  const info = await buildMeInfo(actor);
   // no-store: Görünüm Anahtarı sahibi mod değiştirdiğinde (admin↔eğitmen) bu uç
   // ANINDA yeni sonucu vermeli — tarayıcı/ara katman cache'i eski yetkiyi göstermesin.
-  return NextResponse.json(
-    // trainerId: eğitmen kadrosu (`flexos_trainers`) docId'si (uid DEĞİL, bkz. can.ts
-    // ownerMatches yorumu) — client'ın "kendi gruplarım" filtrelerinde `?trainerId=`
-    // olarak kullanması için (raw uid gönderirse Group.trainerId'yle asla eşleşmez).
-    { uid: actor.uid, trainerId: actor.trainerId ?? null, capabilities, templateManageScope, landing, mode },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  return NextResponse.json(info, { headers: { "Cache-Control": "no-store" } });
 });

@@ -24,13 +24,16 @@ import { broadcast } from "@/app/lib/server/realtime-hub";
 import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 import type { Person } from "@/app/lib/domain/core/person";
 
-// Persons GET EN AĞIR uç (8 koleksiyon: persons+enrollments+sales+payments+bundles+...) ve
-// Ana Sayfa mount'unda + öğrenci ekranlarında çekiliyor. 2026-07-13'te bir silme-sonrası-
-// gecikme bulgusu burada yaşandı (kök neden kanıtlanamadı) — 2026-07-14: diğer uçlar (groups/
-// trainers/templates) TTL'e geri döndü ama EN YÜKSEK silinme-şüpheli uç olduğu için persons
-// BİLEREK 0 TTL'de kalıyor (`cachedRead`'de `< 0` asla doğru olmaz → her çağrı taze okur) —
-// coalescing hâlâ aktif (eşzamanlı çağrılar tek okumayı paylaşır), sadece TTL penceresi yok.
-const PERSONS_CACHE_TTL_MS = 0;
+// Persons GET EN AĞIR uç (8 koleksiyon: persons+enrollments+sales+payments+bundles+...).
+// 2026-07-13'te bir silme-sonrası-gecikme bulgusu burada yaşandı (kök neden HİÇBİR ZAMAN
+// kanıtlanamadı) — o gün TTL tamamen kapatılmıştı (0). 2026-07-14 (Öğrenci Havuzu 500+
+// kişiye çıktığında bu uç tek başına binlerce okumaya mal olacağı için) kısa bir TTL'e
+// geri dönüldü — kanıtlanmamış bir şüphe yüzünden kalıcı olarak "hep taze" kalmak,
+// gerçek ölçekte (yüzlerce öğrenci) kotaya çok daha somut bir zarar veriyor. Doğrudan
+// person mutasyonları (PATCH/DELETE/close-account) artık `invalidateCache` çağırıyor —
+// gerçek bir değişiklik en kötü ihtimalle bu TTL kadar (20sn) gecikir, groups/templates'te
+// zaten kabul edilen AYNI tercih.
+const PERSONS_CACHE_TTL_MS = 20_000;
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
 import type { Payment } from "@/app/lib/domain/eduos/payment";
 import type { Sale } from "@/app/lib/domain/eduos/sale";

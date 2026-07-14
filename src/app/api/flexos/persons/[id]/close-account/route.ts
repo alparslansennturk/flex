@@ -6,6 +6,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { closeAccount } from "@/app/lib/domain/services/person-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { invalidateCache } from "@/app/lib/server/read-cache";
 
 /**
  * POST /api/flexos/persons/[id]/close-account — Öğrenci hesabını kapat (admin-only, `role.manage`).
@@ -32,6 +33,7 @@ export const POST = withAuth(async (_req: NextRequest, caller, { params }: { par
       }
     }
 
+    invalidateCache(`persons:${actor.tenantId}`);
     broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -12,6 +12,7 @@ import { derivePaymentStatus, derivePaymentRollup } from "@/app/lib/domain/servi
 import { deletePerson } from "@/app/lib/domain/services/person-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { invalidateCache } from "@/app/lib/server/read-cache";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { DEFAULT_TENANT } from "@/app/lib/server/auth-actor";
 import type { PersonPII } from "@/app/lib/domain/core/person";
@@ -206,6 +207,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
     }
 
     await firestorePersonRepo.update(id, actor.tenantId, updateData);
+    invalidateCache(`persons:${actor.tenantId}`);
     broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -236,6 +238,7 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, { params }: { p
       payments: firestorePaymentRepo,
     });
     await cleanupAuthAccount(result.closedAuthUid);
+    invalidateCache(`persons:${actor.tenantId}`);
     broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {

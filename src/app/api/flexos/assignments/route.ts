@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
+import type { Actor } from "@/app/lib/domain/access/types";
 import { can, widestScope } from "@/app/lib/domain/access/can";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAssignmentTemplateRepo } from "@/app/lib/server/assignment-template-repo.firestore";
 import { assignTask, type AssignTaskInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+
+/** bootstrap/route.ts da AYNI fonksiyonu çağırır (kod tekrarı yok). */
+export async function fetchAssignmentsForActor(actor: Actor, groupId?: string) {
+  const isOrgScope = widestScope(actor, "assignment.read") === "org";
+  if (isOrgScope) return firestoreAssignmentRepo.list(actor.tenantId, groupId);
+  // 2026-07-13 kota fix: tüm kiracıyı okuyup JS'te süzmek yerine SADECE bu eğitmenin
+  // ödevleri sorgulanır (`ownerMatches` actor.uid VEYA actor.trainerId eşleşmesiyle AYNI).
+  const trainerIds = [actor.uid, actor.trainerId].filter((v): v is string => !!v);
+  const items = await firestoreAssignmentRepo.listByTrainerIds(trainerIds, actor.tenantId);
+  return groupId ? items.filter((a) => a.groupId === groupId) : items;
+}
 
 /**
  * GET /api/flexos/assignments?groupId=... — ödev listesi (kiracıya göre, opsiyonel grup filtresi).
@@ -20,19 +32,9 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   }
 
   const groupId = req.nextUrl.searchParams.get("groupId") ?? undefined;
-  const isOrgScope = widestScope(actor, "assignment.read") === "org";
 
   try {
-    let items: Awaited<ReturnType<typeof firestoreAssignmentRepo.list>>;
-    if (isOrgScope) {
-      items = await firestoreAssignmentRepo.list(actor.tenantId, groupId);
-    } else {
-      // 2026-07-13 kota fix: tüm kiracıyı okuyup JS'te süzmek yerine SADECE bu eğitmenin
-      // ödevleri sorgulanır (`ownerMatches` actor.uid VEYA actor.trainerId eşleşmesiyle AYNI).
-      const trainerIds = [actor.uid, actor.trainerId].filter((v): v is string => !!v);
-      items = await firestoreAssignmentRepo.listByTrainerIds(trainerIds, actor.tenantId);
-      if (groupId) items = items.filter((a) => a.groupId === groupId);
-    }
+    const items = await fetchAssignmentsForActor(actor, groupId);
     return NextResponse.json({ items });
   } catch (e) {
     console.error("[flexos/assignments GET] hata:", e);
