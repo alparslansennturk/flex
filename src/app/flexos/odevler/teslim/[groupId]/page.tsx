@@ -37,7 +37,7 @@ import type { RosterItem } from "../../../siniflar/_shared/groupDisplay";
 import EditAssignmentModal, { type EditableAssignment, type AssignmentStatus } from "../../_shared/EditAssignmentModal";
 
 type MainTab = "students" | "assignments";
-type Filter = "all" | "active" | "completed";
+type Filter = "all" | "active" | "completed" | "archived";
 
 interface GroupInfo {
   code: string;
@@ -217,6 +217,7 @@ export default function OdevTeslimiGroupPage() {
               groupId={groupId}
               onEdit={(a) => setEditingAssignment({ id: a.id, title: a.title, description: a.description, dueDate: a.dueDate, status: a.status, attachments: a.attachments })}
               onAttachmentsChanged={(assignmentId, attachments) => setAssignments((prev) => prev.map((a) => (a.id === assignmentId ? { ...a, attachments } : a)))}
+              onDeleted={(assignmentId) => setAssignments((prev) => prev.filter((a) => a.id !== assignmentId))}
             />
           ) : (
             <div className="space-y-3">
@@ -276,26 +277,36 @@ export default function OdevTeslimiGroupPage() {
 
 /* ── Ödevler Tab ── */
 
-function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focusAssignmentId, onEdit, onAttachmentsChanged }: {
-  assignments: AssignmentItem[]; submissions: SubmissionRow[]; totalStudents: number; groupId: string; focusAssignmentId: string | null; onEdit: (a: AssignmentItem) => void; onAttachmentsChanged: (assignmentId: string, attachments: AssignmentAttachment[]) => void;
+function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focusAssignmentId, onEdit, onAttachmentsChanged, onDeleted }: {
+  assignments: AssignmentItem[]; submissions: SubmissionRow[]; totalStudents: number; groupId: string; focusAssignmentId: string | null; onEdit: (a: AssignmentItem) => void; onAttachmentsChanged: (assignmentId: string, attachments: AssignmentAttachment[]) => void; onDeleted: (assignmentId: string) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const activeAssignments = assignments
+  // İptal edilen (arşivlenen) ödevler Aktif/Tamamlanan'a hiç karışmaz — eskiden bu ayrım
+  // SADECE teslim tarihine bakıyordu, `status==="archived"` hiç kontrol edilmediği için
+  // iptal edilmiş ama tarihi ileride olan bir ödev hâlâ "Aktif Ödevler"de listeleniyordu.
+  // Arşivlenenler artık ayrı bir "Arşiv" sekmesinde, kalıcı silme aksiyonuyla görünüyor.
+  const visibleAssignments = assignments.filter((a) => a.status !== "archived");
+  const activeAssignments = visibleAssignments
     .filter((a) => { const d = a.dueDate ? new Date(a.dueDate) : null; return d ? d >= today : true; })
     .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-  const completedAssignments = assignments
+  const completedAssignments = visibleAssignments
     .filter((a) => { const d = a.dueDate ? new Date(a.dueDate) : null; return !!d && d < today; })
+    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  const archivedAssignments = assignments
+    .filter((a) => a.status === "archived")
     .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 
   const FILTERS: { key: Filter; label: string }[] = [
     { key: "all", label: "Tümü" },
     { key: "active", label: "Aktif Ödevler" },
     { key: "completed", label: "Tamamlananlar" },
+    { key: "archived", label: "Arşiv" },
   ];
   const showActive = filter === "all" || filter === "active";
   const showCompleted = filter === "all" || filter === "completed";
+  const showArchived = filter === "archived";
 
   return (
     <div>
@@ -339,12 +350,66 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focu
         </section>
       )}
 
-      {assignments.length === 0 && (
+      {showArchived && (
+        archivedAssignments.length > 0 ? (
+          <section>
+            <h2 className="text-[18px] font-bold text-text-primary mb-3">Arşiv</h2>
+            <div className="space-y-3">
+              {archivedAssignments.map((a) => (
+                <ArchivedAssignmentCard key={a.id} assignment={a} onDeleted={onDeleted} />
+              ))}
+            </div>
+          </section>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-16 text-surface-400">
+            <BookOpen size={22} />
+            <p className="text-[13px] font-medium">Arşivlenmiş ödev yok</p>
+          </div>
+        )
+      )}
+
+      {!showArchived && assignments.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-16 text-surface-400">
           <BookOpen size={22} />
           <p className="text-[13px] font-medium">Bu gruba ait ödev yok</p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Arşivlenmiş (iptal edilmiş) ödev kartı — sadece görüntüleme + kalıcı silme, teslim/dosya
+ *  yönetimi yok (TaskAccordion'un aksine, iptal edilmiş bir ödevde bunların anlamı kalmıyor). */
+function ArchivedAssignmentCard({ assignment, onDeleted }: { assignment: AssignmentItem; onDeleted: (assignmentId: string) => void }) {
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!window.confirm("Bu ödevi KALICI olarak silmek istediğine emin misin? Bu işlem geri alınamaz.")) return;
+    setDeleting(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/assignments/${assignment.id}`, { method: "DELETE", headers });
+      if (!res.ok) { toast.error("Ödev silinemedi."); return; }
+      toast.success("Ödev kalıcı olarak silindi.");
+      onDeleted(assignment.id);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-surface-200 p-4 flex items-center justify-between gap-4 opacity-80">
+      <div className="min-w-0">
+        <p className="text-[14px] font-bold text-text-primary truncate">{assignment.title}</p>
+        {assignment.dueDate && <p className="text-[12px] text-surface-400 mt-0.5">{fmtEndDate(assignment.dueDate)}</p>}
+      </div>
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        className="shrink-0 h-8 px-4 rounded-full text-[12px] font-semibold border border-status-danger-200 text-status-danger-500 hover:bg-status-danger-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {deleting ? "Siliniyor…" : "Kalıcı Sil"}
+      </button>
     </div>
   );
 }
