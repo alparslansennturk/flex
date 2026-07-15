@@ -2,9 +2,11 @@ import { ALLOWED_MIME_TYPES, MAX_RESUMABLE_FILE_SIZE_BYTES, MAX_RESUMABLE_FILE_S
 import { can } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
+import type { ActivityLogEntry } from "../core/activity-log";
 import type { Submission, SubmissionFile, SubmissionStatus, UploadSession } from "../core/submission";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { Assignment, AssignmentAttachment, AssignmentKind } from "../core/assignment";
+import type { ActivityLogRepo } from "../repo/activity-log-repo";
 import type { AssignmentRepo } from "../repo/assignment-repo";
 import type { DriveDeps } from "../repo/drive-deps";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
@@ -49,6 +51,9 @@ export interface SubmissionDeps {
   drive: DriveDeps;
   notify: (uid: string, input: NotifyInput) => Promise<void>;
 }
+
+/** Not verme akışlarının (`gradeSubmission`/`gradeManually`/`gradeBatch`) ortak ek bağımlılığı. */
+type GradingDeps = Pick<SubmissionDeps, "submissions" | "groups" | "assignments"> & { activityLog: ActivityLogRepo };
 
 /**
  * Drive klasör hiyerarşisi — TÜM upload akışları (öğrenci teslimi + eğitmen eki) için TEK
@@ -517,10 +522,15 @@ async function requireGroupScope(
   groupId: EntityId,
   deps: Pick<SubmissionDeps, "groups">,
   tenantId: string,
-) {
+): Promise<Group> {
   const group = await deps.groups.getById(groupId, tenantId);
   if (!group) throw new ValidationError("Grup bulunamadı.");
   if (!can(actor, capability, { groupId, ownerUid: group.trainerId })) throw new ForbiddenError(capability);
+  return group;
+}
+
+function activityId(): string {
+  return `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /**
@@ -581,7 +591,7 @@ export async function gradeSubmission(
   actor: Actor,
   submissionId: EntityId,
   grade: number,
-  deps: Pick<SubmissionDeps, "submissions" | "groups" | "assignments">,
+  deps: GradingDeps,
 ): Promise<Submission> {
   const existing = await deps.submissions.getById(submissionId, actor.tenantId);
   if (!existing) throw new ValidationError("Teslim bulunamadı.");
@@ -592,17 +602,30 @@ export async function gradeSubmission(
     throw new ValidationError(`Not 0-${maxPuan} aralığında olmalı.`);
   }
 
-  await requireGroupScope(actor, "submission.grade", existing.groupId, deps, actor.tenantId);
+  const group = await requireGroupScope(actor, "submission.grade", existing.groupId, deps, actor.tenantId);
 
+  const now = nowISO();
   const updated: Submission = {
     ...existing,
     grade,
-    gradedAt: nowISO(),
+    gradedAt: now,
     gradedBy: actor.uid,
-    updatedAt: nowISO(),
+    updatedAt: now,
     updatedBy: actor.uid,
   };
   await deps.submissions.save(updated);
+
+  await deps.activityLog.create({
+    id: activityId(),
+    tenantId: actor.tenantId,
+    trainerId: group.trainerId ?? actor.uid,
+    groupId: existing.groupId,
+    type: "grade.given",
+    title: "Not Girildi",
+    description: `${assignment?.title ?? "Ödev"}`,
+    createdAt: now,
+  });
+
   return updated;
 }
 
@@ -618,9 +641,9 @@ export async function gradeSubmission(
 export async function gradeManually(
   actor: Actor,
   input: { assignmentId: EntityId; personId: EntityId; groupId: EntityId; isLate: boolean; grade: number },
-  deps: Pick<SubmissionDeps, "submissions" | "groups" | "assignments">,
+  deps: GradingDeps,
 ): Promise<Submission> {
-  await requireGroupScope(actor, "submission.grade", input.groupId, deps, actor.tenantId);
+  const group = await requireGroupScope(actor, "submission.grade", input.groupId, deps, actor.tenantId);
 
   const assignment = await deps.assignments.getById(input.assignmentId, actor.tenantId);
   const maxPuan = assignment?.maxPuan ?? 100;
@@ -653,6 +676,18 @@ export async function gradeManually(
         updatedBy: actor.uid,
       };
   await deps.submissions.save(updated);
+
+  await deps.activityLog.create({
+    id: activityId(),
+    tenantId: actor.tenantId,
+    trainerId: group.trainerId ?? actor.uid,
+    groupId: input.groupId,
+    type: "grade.given",
+    title: "Not Girildi",
+    description: `${assignment?.title ?? "Ödev"}`,
+    createdAt: now,
+  });
+
   return updated;
 }
 
@@ -684,9 +719,9 @@ export interface BatchGradeResult {
 export async function gradeBatch(
   actor: Actor,
   input: { assignmentId: EntityId; groupId: EntityId; items: BatchGradeItem[]; archive?: boolean },
-  deps: Pick<SubmissionDeps, "submissions" | "groups" | "assignments">,
+  deps: GradingDeps,
 ): Promise<BatchGradeResult> {
-  await requireGroupScope(actor, "submission.grade", input.groupId, deps, actor.tenantId);
+  const group = await requireGroupScope(actor, "submission.grade", input.groupId, deps, actor.tenantId);
 
   const assignment = await deps.assignments.getById(input.assignmentId, actor.tenantId);
   const maxPuan = assignment?.maxPuan ?? 100;
@@ -696,6 +731,11 @@ export async function gradeBatch(
 
   const now = nowISO();
   const writes: Submission[] = [];
+  // 2026-07-15 BUG FIX (eski canlı sistemdeki bilinen hata — bkz. `dashboard/grading/page.tsx`
+  // `handleSaveGrades`): roster HER seferinde TAM gönderilir (bkz. docstring), bu yüzden SADECE
+  // gerçekten değişen notlar sayılır — daha önce notlanmış, değeri hiç değişmemiş öğrenciler
+  // için "Not Girildi" TEKRAR SAYILMAZ.
+  const changed: { personId: EntityId; grade: number }[] = [];
   const result: BatchGradeResult = { graded: 0, created: 0, skipped: 0, archived: false };
 
   for (const item of input.items) {
@@ -706,6 +746,7 @@ export async function gradeBatch(
     if (sub) {
       writes.push({ ...sub, grade: item.grade, gradedAt: now, gradedBy: actor.uid, updatedAt: now, updatedBy: actor.uid });
       result.graded += 1;
+      if (item.grade !== sub.grade) changed.push({ personId: item.personId, grade: item.grade });
     } else if (item.grade > 0) {
       writes.push({
         id: submissionDocId(actor.tenantId, input.assignmentId, item.personId),
@@ -728,12 +769,31 @@ export async function gradeBatch(
         updatedBy: actor.uid,
       });
       result.created += 1;
+      changed.push({ personId: item.personId, grade: item.grade });
     } else {
       result.skipped += 1; // teslimi yok + 0 → yazma
     }
   }
 
   await Promise.all(writes.map((s) => deps.submissions.save(s)));
+
+  // 2026-07-15 kullanıcı düzeltmesi: TEK batch-grade çağrısı = TEK aktivite ("6 kişiye not
+  // verdim, 6 ayrı 'Not Girildi' saçma" — kullanıcı geri bildirimi), öğrenci sayısına göre
+  // her biri için ayrı satır DEĞİL. Puan da yok (öğrenciler farklı puan alabilir, tek sayı anlamsız).
+  if (changed.length > 0) {
+    await deps.activityLog.create({
+      id: activityId(),
+      tenantId: actor.tenantId,
+      trainerId: group.trainerId ?? actor.uid,
+      groupId: input.groupId,
+      type: "grade.given",
+      title: "Not Girildi",
+      description: changed.length === 1
+        ? `${assignment?.title ?? "Ödev"} — 1 öğrenciye not girildi.`
+        : `${assignment?.title ?? "Ödev"} — ${changed.length} öğrenciye not girildi.`,
+      createdAt: now,
+    });
+  }
 
   if (input.archive && assignment) {
     await deps.assignments.save({ ...assignment, status: "archived", updatedAt: now, updatedBy: actor.uid });

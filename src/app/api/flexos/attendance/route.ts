@@ -4,9 +4,11 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAttendanceRepo } from "@/app/lib/server/attendance-repo.firestore";
+import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { startLesson, isWithinEditWindow, type StartLessonInput } from "@/app/lib/domain/services/attendance-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
 
 /**
  * POST /api/flexos/attendance — Dersi Başlat (boş yoklama kaydı açar).
@@ -26,8 +28,10 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     const record = await startLesson(actor, body, {
       groups: firestoreGroupRepo,
       attendance: firestoreAttendanceRepo,
+      activityLog: firestoreActivityLogRepo,
     });
     broadcast(actor.tenantId, { type: "attendance.changed", id: record.id });
+    invalidateActivityLogCache(actor.tenantId);
     return NextResponse.json({ id: record.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {

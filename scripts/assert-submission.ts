@@ -10,6 +10,8 @@ import type { Enrollment } from "../src/app/lib/domain/core/enrollment";
 import type { Group } from "../src/app/lib/domain/core/group";
 import type { Person } from "../src/app/lib/domain/core/person";
 import type { Submission, SubmissionFile, UploadSession } from "../src/app/lib/domain/core/submission";
+import type { ActivityLogEntry } from "../src/app/lib/domain/core/activity-log";
+import type { ActivityLogRepo } from "../src/app/lib/domain/repo/activity-log-repo";
 import type { AssignmentRepo } from "../src/app/lib/domain/repo/assignment-repo";
 import type { DriveDeps } from "../src/app/lib/domain/repo/drive-deps";
 import type { EnrollmentRepo } from "../src/app/lib/domain/repo/enrollment-repo";
@@ -26,9 +28,12 @@ import {
   retract,
   updateSubmissionStatus,
   gradeSubmission,
+  gradeBatch,
+  gradeManually,
   computeOdevYuzdeleri,
   combineOdevYuzdesi,
   type SubmissionDeps,
+  type BatchGradeItem,
 } from "../src/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "../src/app/lib/domain/errors";
 
@@ -215,9 +220,19 @@ async function assertRejects(label: string, fn: () => Promise<unknown>, errType:
   }
 }
 
+function makeActivityLogRepo(store: ActivityLogEntry[] = []): ActivityLogRepo {
+  return {
+    async create(entry) { store.push(entry); },
+    async listRecentForTrainer(tenantId, trainerId) {
+      return store.filter((e) => e.tenantId === tenantId && e.trainerId === trainerId);
+    },
+  };
+}
+
 function makeDeps(overrides: {
   groups?: Group[]; assignments?: Assignment[]; persons?: Person[]; enrollments?: Enrollment[];
-}): SubmissionDeps {
+  activityLogStore?: ActivityLogEntry[];
+}): SubmissionDeps & { activityLog: ActivityLogRepo } {
   return {
     groups: makeGroupRepo(overrides.groups ?? []),
     assignments: makeAssignmentRepo(overrides.assignments ?? []),
@@ -228,6 +243,7 @@ function makeDeps(overrides: {
     uploadSessions: makeUploadSessionRepo(),
     trainers: makeTrainerRepo(),
     drive: makeFakeDrive(),
+    activityLog: makeActivityLogRepo(overrides.activityLogStore ?? []),
     notify: async () => {},
   };
 }
@@ -483,6 +499,64 @@ async function main() {
     const submission = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: session.id }, deps);
     const graded = await gradeSubmission(trainerA, submission.id, 180, deps);
     assert("gradeSubmission: 200 puanlık ödevde 180 girilebilir", graded.grade === 180);
+  }
+
+  // ── Aktivite logu (Ana Sayfa "En Son Aktiviteler") — gradeSubmission tek eylem, HER ZAMAN loglar ──
+  {
+    const store: ActivityLogEntry[] = [];
+    const deps = makeDeps({ groups: [groupA], assignments: [assignmentA], persons: [student], enrollments: [enrollment], activityLogStore: store });
+    const { session } = await initUpload(
+      { requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "assignment-a", fileName: "kapak.pdf", fileSize: 1024, mimeType: "application/pdf" },
+      deps,
+    );
+    const submission = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: session.id }, deps);
+    await gradeSubmission(trainerA, submission.id, 70, deps);
+    assert("gradeSubmission: 1 aktivite logu düşer", store.length === 1 && store[0].type === "grade.given");
+  }
+
+  // ── Aktivite logu — gradeManually tek eylem, HER ZAMAN loglar ──
+  {
+    const store: ActivityLogEntry[] = [];
+    const deps = makeDeps({ groups: [groupA], assignments: [assignmentA], persons: [student], enrollments: [enrollment], activityLogStore: store });
+    await gradeManually(trainerA, { assignmentId: "assignment-a", personId: "person-1", groupId: "group-a", isLate: false, grade: 60 }, deps);
+    assert("gradeManually: 1 aktivite logu düşer", store.length === 1 && store[0].type === "grade.given");
+  }
+
+  // ── 2026-07-15 BUG FIX doğrulaması: gradeBatch roster'ı HER SEFERİNDE TAM gönderir
+  // (bkz. docstring), ama aktivite logu SADECE gerçekten değişen not için düşmeli —
+  // eski canlı sistemdeki "1 öğrenciye not verdim, herkese düşmüş gibi göründü" bug'ı BUNU tekrarlamamalı.
+  {
+    const store: ActivityLogEntry[] = [];
+    const student2 = fakePerson("person-2", "student-uid-2");
+    const enrollment2 = fakeEnrollment("enr-2", "person-2", "group-a");
+    const deps = makeDeps({
+      groups: [groupA], assignments: [assignmentA], persons: [student, student2],
+      enrollments: [enrollment, enrollment2], activityLogStore: store,
+    });
+    const items1: BatchGradeItem[] = [
+      { personId: "person-1", grade: 80, isLate: false },
+      { personId: "person-2", grade: 90, isLate: false },
+    ];
+    await gradeBatch(trainerA, { assignmentId: "assignment-a", groupId: "group-a", items: items1 }, deps);
+    assert(
+      "gradeBatch: 2 öğrenci AYNI çağrıda değişti — TEK özet log düşer (kullanıcı isteği: N ayrı satır değil)",
+      store.length === 1 && store[0].description.includes("2 öğrenciye"),
+    );
+
+    // Roster AYNI notlarla tekrar gönderiliyor (gerçek kullanım — "Kaydet"e tekrar basmak) — YENİ log YOK.
+    await gradeBatch(trainerA, { assignmentId: "assignment-a", groupId: "group-a", items: items1 }, deps);
+    assert("gradeBatch: değişmeyen notlar TEKRAR loglanmaz (bug fix)", store.length === 1);
+
+    // Sadece person-1 değişti (95) — SADECE 1 yeni özet log düşmeli (1 öğrenciye).
+    const items2: BatchGradeItem[] = [
+      { personId: "person-1", grade: 95, isLate: false },
+      { personId: "person-2", grade: 90, isLate: false },
+    ];
+    await gradeBatch(trainerA, { assignmentId: "assignment-a", groupId: "group-a", items: items2 }, deps);
+    assert(
+      "gradeBatch: SADECE değişen öğrenci sayılır — '1 öğrenciye' özet log (puan gösterilmiyor)",
+      store.length === 2 && store[1].description.includes("1 öğrenciye") && !store[1].description.includes("95"),
+    );
   }
 
   // ── computeOdevYuzdeleri — Ödev Notu ANLIK hesaplama (manuel giriş YOK) ──

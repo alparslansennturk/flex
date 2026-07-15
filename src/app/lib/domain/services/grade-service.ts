@@ -1,8 +1,10 @@
 import { can, widestScope } from "../access/can";
 import type { Actor } from "../access/types";
 import type { ISODateTime } from "../base";
+import type { ActivityLogEntry } from "../core/activity-log";
 import type { Grade } from "../education/grade";
 import { ForbiddenError, ValidationError } from "../errors";
+import type { ActivityLogRepo } from "../repo/activity-log-repo";
 import type { GradeRepo } from "../repo/grade-repo";
 import type { GroupRepo } from "../repo/group-repo";
 
@@ -10,9 +12,14 @@ function nowISO(): ISODateTime {
   return new Date().toISOString();
 }
 
+function activityId(): string {
+  return `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export interface GradeDeps {
   grades: GradeRepo;
   groups: GroupRepo;
+  activityLog: ActivityLogRepo;
 }
 
 export interface GradeEntryInput {
@@ -53,19 +60,21 @@ export async function saveGrades(actor: Actor, input: SaveGradesInput, deps: Gra
 
   const ts = nowISO();
   const results: Grade[] = [];
+  let changedCount = 0;
   for (const entry of input.entries) {
     if (!entry.enrollmentId || !entry.personId) throw new ValidationError("enrollmentId/personId zorunlu.");
     if (!validScore(entry.projectGrade)) throw new ValidationError("Sertifika notu 0-100 arası olmalı.");
 
     const existing = await deps.grades.getById(entry.enrollmentId, actor.tenantId);
     if (existing?.locked && !canOverrideLock) continue; // kilitli — sessizce atla, diğerlerini engelleme
+    const newProjectGrade = entry.projectGrade == null ? undefined : entry.projectGrade;
     const grade: Grade = {
       id: entry.enrollmentId,
       tenantId: actor.tenantId,
       enrollmentId: entry.enrollmentId,
       personId: entry.personId,
       groupId: input.groupId,
-      projectGrade: entry.projectGrade == null ? undefined : entry.projectGrade,
+      projectGrade: newProjectGrade,
       locked: existing?.locked,
       lockedAt: existing?.lockedAt,
       lockedBy: existing?.lockedBy,
@@ -76,7 +85,30 @@ export async function saveGrades(actor: Actor, input: SaveGradesInput, deps: Gra
     };
     await deps.grades.save(grade);
     results.push(grade);
+
+    // Sadece GERÇEKTEN değişen (ve gerçek bir sayı olan) not sayılır — roster yeniden
+    // aynı değerle gönderilirse (ya da temizleme/dokunmama) tekrar SAYILMAZ.
+    if (newProjectGrade != null && existing?.projectGrade !== newProjectGrade) changedCount += 1;
   }
+
+  // 2026-07-15 kullanıcı düzeltmesi: roster TEK seferde topluca kaydedilir (bkz. yukarıdaki
+  // yorum) — bu yüzden aktivite logu da HER öğrenci için ayrı satır değil, çağrı başına TEK
+  // özet satır olmalı ("6 kişiye not girdim, 6 aktivite saçma" — kullanıcı geri bildirimi).
+  // Puan da BURADA gösterilmiyor (farklı öğrencilerin farklı notu var, tek bir sayı anlamsız).
+  if (changedCount > 0) {
+    const log: ActivityLogEntry = {
+      id: activityId(),
+      tenantId: actor.tenantId,
+      trainerId: group.trainerId ?? actor.uid,
+      groupId: input.groupId,
+      type: "grade.given",
+      title: "Sertifika Notu Girildi",
+      description: changedCount === 1 ? `${group.code} — 1 öğrenciye not girildi.` : `${group.code} — ${changedCount} öğrenciye not girildi.`,
+      createdAt: ts,
+    };
+    await deps.activityLog.create(log);
+  }
+
   return results;
 }
 
@@ -84,7 +116,7 @@ export async function saveGrades(actor: Actor, input: SaveGradesInput, deps: Gra
  * Grup notlarını oku — gated `grade.read`
  * (eğitmen: assigned scope, kendi grubu; op/admin: org).
  */
-export async function getGradesByGroup(actor: Actor, groupId: string, deps: GradeDeps): Promise<Grade[]> {
+export async function getGradesByGroup(actor: Actor, groupId: string, deps: Pick<GradeDeps, "grades" | "groups">): Promise<Grade[]> {
   if (!groupId) throw new ValidationError("groupId zorunlu.");
   const group = await deps.groups.getById(groupId, actor.tenantId);
   if (!group) throw new ValidationError("Grup bulunamadı.");

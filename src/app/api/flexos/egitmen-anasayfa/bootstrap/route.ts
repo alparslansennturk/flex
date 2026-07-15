@@ -5,6 +5,7 @@ import { can } from "@/app/lib/domain/access/can";
 import { fetchGroupsForActor } from "@/app/api/flexos/groups/route";
 import { fetchTemplatesForActor } from "@/app/api/flexos/assignment-templates/route";
 import { fetchAssignmentsForActor } from "@/app/api/flexos/assignments/route";
+import { fetchActivityLogForActor } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
 import { buildMeInfo } from "@/app/api/flexos/me/route";
 import { firestoreHolidayRepo } from "@/app/lib/server/holiday-repo.firestore";
 import { getSettings } from "@/app/lib/domain/services/settings-service";
@@ -33,16 +34,17 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   const requestedTrainerId = req.nextUrl.searchParams.get("trainerId") ?? undefined;
 
   try {
-    const [groups, templates, holidays, assignments, me, settings] = await Promise.all([
+    const [groups, templates, holidays, assignments, me, settings, activityLog] = await Promise.all([
       fetchGroupsForActor(actor, requestedTrainerId),
       fetchTemplatesForActor(actor),
       firestoreHolidayRepo.list(actor.tenantId),
       fetchAssignmentsForActor(actor),
       buildMeInfo(actor),
       getSettings(actor, firestoreSettingsRepo),
+      fetchActivityLogForActor(actor, requestedTrainerId),
     ]);
     return NextResponse.json(
-      { groups, templates, holidays, assignments, me, settings },
+      { groups, templates, holidays, assignments, me, settings, activityLog },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (e) {

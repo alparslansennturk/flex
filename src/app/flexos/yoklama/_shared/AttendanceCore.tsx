@@ -1212,9 +1212,13 @@ export default function AttendanceCore({
                               // 2026-07-13 kullanıcı isteği: bu buton zaten KAPALI bir kaydı
                               // güncelliyor (bitirme değil) — "Dersi Bitir"in onay modalını
                               // açmak anlamsızdı ("bitirecek misin, emin misin?" sorusu burada
-                              // uygun değil). Artık DOĞRUDAN kaydediyor (close=false, kayıt
-                              // zaten kapalı kalıyor), toast onayı handleSave içinde veriliyor.
-                              <button onClick={() => handleSave(false)} disabled={saving}
+                              // uygun değil). Artık DOĞRUDAN kaydediyor, toast onayı handleSave
+                              // içinde veriliyor. 2026-07-15 GERÇEK BUG FIX: `close:false`
+                              // gönderiliyordu — `saveAttendance`'da `attendanceClosed: input.close
+                              // ?? existing.attendanceClosed` YANLIŞLIKLA kaydı YENİDEN AÇIYORDU
+                              // (kullanıcı bulgusu: "Güncelle"den sonra "Dersi Bitir" butonu tekrar
+                              // çıkıyordu). `undefined` = "dokunma" (zaten kapalı kalır), niyetle eşleşen doğru değer.
+                              <button onClick={() => handleSave(undefined)} disabled={saving}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors cursor-pointer outline-none">
                                 <RefreshCw size={13} /> {saving ? "Güncelleniyor…" : "Güncelle"}
                               </button>

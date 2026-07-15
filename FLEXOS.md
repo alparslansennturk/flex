@@ -16,7 +16,29 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Ödev arşivi gerçek bug'ı + Arşiv sekmesi/kalıcı sil + 2 AÇIK mimari karar (2026-07-14, Mac oturumu, aynı gün DEVAMI — EN GÜNCEL)
+### ✅ Ana Sayfa gerçek "En Son Aktiviteler" akışı + 8 gerçek bug (canlı testte bulundu) (2026-07-15, Mac oturumu — EN GÜNCEL)
+
+**Özellik — Ana Sayfa'daki "En Son Aktiviteler" paneli gerçek veriyle çalışıyor** (öncesinde sabit `ActivityFeedPlaceholder`, "Henüz aktivite yok"). Yeni: `domain/core/activity-log.ts`, `domain/repo/activity-log-repo.ts`, `server/activity-log-repo.firestore.ts`, `/api/flexos/egitmen-anasayfa/activity-log` route (bootstrap'a eklendi). **Bilinçli olarak CRM "Aktivite Merkezi" (`repo/activity-repo.ts`, `flexos_activities`) İLE KARIŞTIRILMADI** — tamamen ayrı, yeni `flexos_activity_log` koleksiyonu. Kapsam: `attendance.started`/`attendance.ended`/`attendance.updated` (`attendance-service.ts`) + `grade.given` (`submission-service.ts::gradeSubmission`/`gradeManually`/`gradeBatch`, `grade-service.ts::saveGrades`). Realtime: yeni SSE event gerekmedi, var olan `attendance.changed`/`grades.changed` kullanıldı. Firestore rules server-only, yeni composite index deploy edildi — **ama `firebase.json`'da `firestore.indexes` yolu hiç tanımlı değilmiş, ilk deploy'um bu yüzden index'i sessizce atlamıştı, `firebase.json` düzeltilip yeniden deploy edildi.**
+
+**Canlı testte kullanıcının bulduğu 8 gerçek bug (hepsi düzeltildi):**
+1. **Hızlı Yoklama kartı yeni sekmede açmıyordu** — sidebar'daki "Yoklama Al" (2026-07-02'den beri bilinçli `window.open`) ile tutarsızdı. `QuickActionCard`'a `openInNewTab` prop'u eklendi.
+2. **Toplu not girişinde öğrenci başına ayrı log** — eski canlı sistemin AYNI bug'ı tekrarlanıyordu (`handleSaveGrades` diff yapmıyordu). `gradeBatch`/`saveGrades` artık SADECE gerçekten değişen notlar için TEK özet log yazıyor ("6 öğrenciye not girildi"), puan gösterilmiyor (kullanıcı: "100p demiş, gerek yok").
+3. **Sertifika Notu (`grade-service.ts::saveGrades`) aktivite logu hiç yoktu** — sadece Ödev Notu tarafı bağlanmıştı, unutulmuştu.
+4. **Cache invalidation eksikliği** — aktivite yazıldıktan sonra 30sn'lik okuma cache'i düşürülmüyordu, SSE anında refetch stale liste dönüyordu ("güncelledim, hiç düşmedi"). 6 mutasyon route'una `invalidateActivityLogCache` eklendi.
+5. **"Güncelle" butonu yoklamayı yanlışlıkla yeniden açıyordu** — `AttendanceCore.tsx`'teki "Güncelle" butonu `close:false` gönderiyordu, `saveAttendance` bunu "yeniden aç" olarak yorumluyordu (kod yorumu "kapalı kalıyor" diyordu ama YANLIŞTI) — kullanıcı "Kaydet dedim Dersi Bitir çıktı" diye yakaladı. `close:undefined`'a çevrildi.
+6. **Panel yüksekliği içerik arttıkça büyüyordu** — eski canlı sistemdeki (`dashboard/page.tsx`) AYNI çözüm portlandı: `ResizeObserver` ile sol kart grid'inin bittiği yer ölçülüp panelin `maxHeight`'ına sabitleniyor. İlk versiyonda efekt `[]` bağımlılıkla SADECE ilk (loading) render'da çalışıp bir daha tetiklenmiyordu (`authed===null` erken dönüşü yüzünden `cardsRef` henüz DOM'da değildi) — `[authed, sharedLoaded]` dep'ine eklenerek düzeltildi. `no-scrollbar` class'ı da kaldırıldı (kullanıcı: scroll görünür olmalı, yoksa kaydırılabildiğini anlamaz).
+7. **Full/admin modda `actor.trainerId` hiç çözülmüyordu** — `auth-actor.ts::actorFromCaller`, `trainerId` SADECE `packages.includes("egitmen")` ise aranıyordu; Full modda paket `["admin"]` olduğu için Görünüm Anahtarı sahibi (aynı kişi hem admin hem gerçek eğitmen) Full'dayken Ana Sayfa'nın "kendi" verisi (aktivite) hep boş dönüyordu. `caller.email === VIEW_TOGGLE_OWNER_EMAIL` de arama koşuluna eklendi. **Turbopack hot-reload bu bellek-içi cache'i (`trainerIdCache`) eski koda takılı bıraktı** (bu projede daha önce de görülen bir desen) — dev sunucusu restart'ıyla düzeldi, kod değişikliği doğruydu.
+8. **Kullanıcılar sayfasında 2 ayrı, alakasız ama ciddi bug bulundu** (kullanıcı "vahim hata" dedi):
+   - **Personel listesinde öğrenci hesapları görünüyordu** — `flexos_users` koleksiyonu personel VE öğrenci giriş hesaplarını (`provisionStudentLogin`, `roles:["ogrenci"]`) AYNI yerde tutuyor, Personel API'si (`/api/flexos/users`) hiç rol filtresi uygulamıyordu. `roles.includes("ogrenci")` filtresi eklendi.
+   - **"Son giriş" yanlış hesaplanıyordu** — SADECE Firebase Auth'un `lastSignInTime`'ına bakılıyordu, bu alan SADECE yeni email/şifre girişinde güncellenir; günlük normal kullanımda (çıkış yapmadan devam eden oturum) sessiz token yenilemesi (`lastRefreshTime`) hiç sayılmıyordu. Gerçek örnekle kanıtlandı (bir öğrenci gün içinde kullandı ama "19 gündür girmedi" yazıyordu — `lastRefreshTime` dündü, `lastSignInTime` 19 gün önceydi). Bu SADECE o öğrenciye özel değil, çıkış yapıp tekrar girmeyen HERKESİ etkiliyordu — `persons/route.ts` artık ikisinin en yenisini kullanıyor.
+
+**Test kapsamı:** `scripts/assert-attendance.ts` (24/24) + `scripts/assert-submission.ts` (42/42) + `scripts/assert-grade.ts` (18/18, aktivite testleri YENİ eklendi). `tsc --noEmit` + `npm run build` temiz. Firestore rules+indexes gerçekten deploy edildi (`firebase.json` fix sonrası doğrulandı).
+
+**SIRADAKİ İŞ:** Kod commit+push edilecek (bu oturumun sonu). Ödev ver/sil/arşivle, grup ekleme gibi diğer aktivite log türleri bu turda YOK (istenirse aynı desenle sonra eklenir). Ceren Gürel'in gerçek "şifremi unuttum" senaryosu (`lastRefreshTime` fix'iyle artık doğru görünmeli) PC'de/sonraki oturumda tekrar canlı doğrulanabilir.
+
+---
+
+### ✅ Ödev arşivi gerçek bug'ı + Arşiv sekmesi/kalıcı sil + 2 AÇIK mimari karar (2026-07-14, Mac oturumu, aynı gün DEVAMI)
 
 **1) Gerçek bug bulundu ve düzeltildi (commit `ed82976`):** Kullanıcı Ana Sayfa'da bir ödevi ("raket ödevi", grup 784) kart menüsünden "İptal Et" dedi (`status: "archived"` — backend doğru çalışıyor, Firestore'a doğru yazılıyor). Ama `/flexos/odevler/teslim/[groupId]` sayfasında hâlâ "Aktif Ödevler"de görünüyordu — o sayfadaki Aktif/Tamamlanan ayrımı SADECE `dueDate`'e bakıyordu, `status` hiç kontrol edilmiyordu. Fix: arşivlenenler Aktif/Tamamlanan'dan tamamen çıkarıldı + yeni bir **"Arşiv" sekmesi** eklendi (sade kart: başlık+tarih) + her kartta onaylı **"Kalıcı Sil"** (`DELETE /api/flexos/assignments/:id`, zaten vardı, backend'de cascade yok).
 
@@ -26,11 +48,12 @@
 
 **4) Bilgi notu (kod değil, mimari yön):** Kullanıcı "Flex Connect" adlı ayrı bir uygulamanın (WhatsApp-benzeri ama farklı tasarım, masaüstü çizimleri Claude Design'da tamamlandı) sohbet geçmişini ödevden BAĞIMSIZ tutabileceğini düşünüyor — eğer chat mimarisi assignment'a değil person/group'a bağlanırsa, madde 2'deki "ödev silinince yorum/bildirim öksüz kalıyor" sorunu mimari olarak kendiliğinden ortadan kalkar. Henüz tasarım/kod yok, ilerideki bir karar.
 
+**KARAR (2026-07-15, Mac oturumu):** Madde 1 kapandı — `deleteAssignment` hard-delete'e güvenlik freni EKLENMEYECEK, mevcut davranış korunacak. Kullanıcı gerekçesi: ödev kaydı öğrenci/satış kaydı gibi kalıcı önem taşımıyor — zaten belirli süre sonra siliniyor, öğrenci mezun olunca da önemi kalmıyor. `deletePerson`'daki desen (satış/ödeme geçmişi varsa reddet) buraya bilinçli olarak UYGULANMAYACAK.
+
 **SIRADAKİ İŞ (Mac ya da PC, hangisi açılırsa):**
-1. `deleteAssignment`'a `deletePerson`'daki gibi bir güvenlik freni eklensin mi (yorum/teslimi olan ödev hard-delete edilemesin)? Kullanıcı onayı bekliyor.
-2. Arşivlenmiş ödevlerin Firestore-seviyesinde okunmasını engelleme — `isArchived` düz alan + migrasyon (ya da ayrı sorgular), `trainerId in [...]` ile `status in [...]`'ın AYNI sorguda birleşemediği unutulmasın.
-3. Flex Connect (ayrı chat uygulaması) tasarımı geldiğinde mimari karar gözden geçirilsin.
-4. Önceki oturumlardan kalan, hâlâ açık: yorum yapma/globals.css talimatının netleşmesi, bildirim listener tekilleştirmesi, Sınıf Odası dönüşümü, öğrenci portalı grup seçici/genel eksikler.
+1. Arşivlenmiş ödevlerin Firestore-seviyesinde okunmasını engelleme — `isArchived` düz alan + migrasyon (ya da ayrı sorgular), `trainerId in [...]` ile `status in [...]`'ın AYNI sorguda birleşemediği unutulmasın.
+2. Flex Connect (ayrı chat uygulaması) tasarımı geldiğinde mimari karar gözden geçirilsin.
+3. Önceki oturumlardan kalan, hâlâ açık: yorum yapma/globals.css talimatının netleşmesi, bildirim listener tekilleştirmesi, Sınıf Odası dönüşümü, öğrenci portalı grup seçici/genel eksikler.
 
 ---
 

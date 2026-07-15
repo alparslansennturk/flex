@@ -4,12 +4,14 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { widestScope } from "@/app/lib/domain/access/can";
 import { firestoreGradeRepo } from "@/app/lib/server/grade-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
+import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firestore";
 import { saveGrades, getGradesByGroup, type SaveGradesInput } from "@/app/lib/domain/services/grade-service";
 import { computeOdevYuzdeleri } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
 
 /**
  * GET /api/flexos/grades?groupId=... — grubun notlarını getirir (gated `grade.read`).
@@ -59,8 +61,10 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     const items = await saveGrades(actor, body, {
       grades: firestoreGradeRepo,
       groups: firestoreGroupRepo,
+      activityLog: firestoreActivityLogRepo,
     });
     broadcast(actor.tenantId, { type: "grades.changed", id: body.groupId });
+    invalidateActivityLogCache(actor.tenantId);
     return NextResponse.json({ items }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

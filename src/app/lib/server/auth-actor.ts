@@ -194,8 +194,14 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
   // Sadece eğitmen paketi çözülen aktörler için aranır (gereksiz Firestore okuması
   // yapılmasın diye) — bulunamazsa (henüz kadroya eklenmemiş eğitmen) undefined kalır,
   // can()/groups filtresi actor.uid'e düşer (eski davranış, zararsız).
+  // 2026-07-15 GERÇEK BUG: Görünüm Anahtarı sahibi Full (admin) modda `packages=["admin"]`
+  // oluyor (egitmen YOK, bkz. `packagesForCaller`) — bu yüzden `trainerId` HER ZAMAN
+  // undefined kalıyordu, Full moddayken Ana Sayfa aktivite logu (ve kendi trainerId'sine
+  // bağlı her şey) boş dönüyordu. Sahip AYNI kişi hem admin hem gerçek eğitmen olabildiği
+  // için (Core↔Full sadece görünen yetki paketini değiştirir, kimliği değil) bu kişi için
+  // paket ne olursa olsun arama yapılır — `cachedTrainerId` zaten TTL'li, maliyeti düşük.
   let trainerId: string | undefined;
-  if (packages.includes("egitmen")) {
+  if (packages.includes("egitmen") || caller.email === VIEW_TOGGLE_OWNER_EMAIL) {
     trainerId = await cachedTrainerId(caller.uid);
   }
 

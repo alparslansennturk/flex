@@ -8,6 +8,8 @@ import type { Grade } from "../src/app/lib/domain/education/grade";
 import type { Group } from "../src/app/lib/domain/core/group";
 import type { GradeRepo } from "../src/app/lib/domain/repo/grade-repo";
 import type { GroupRepo } from "../src/app/lib/domain/repo/group-repo";
+import type { ActivityLogRepo } from "../src/app/lib/domain/repo/activity-log-repo";
+import type { ActivityLogEntry } from "../src/app/lib/domain/core/activity-log";
 import { ForbiddenError, ValidationError } from "../src/app/lib/domain/errors";
 import { resolvePackages } from "../src/app/lib/domain/access/packages";
 
@@ -54,6 +56,16 @@ function makeGradeRepo(grades: Grade[] = []): GradeRepo {
   };
 }
 
+function makeActivityLogRepo(store: ActivityLogEntry[] = []): ActivityLogRepo {
+  return {
+    async create(entry) { store.push(entry); },
+    async listRecentForTrainer(tenantId, trainerId) {
+      return store.filter((e) => e.tenantId === tenantId && e.trainerId === trainerId);
+    },
+  };
+}
+const activityLog = makeActivityLogRepo();
+
 function makeGroup(overrides: Partial<Group> = {}): Group {
   return {
     id: nextId(),
@@ -84,7 +96,7 @@ async function run() {
     const result = await saveGrades(
       makeActor("admin"),
       { groupId: group.id, entries: [{ enrollmentId: "enr-1", personId: "p-1", projectGrade: 90 }] },
-      { grades: makeGradeRepo(), groups: makeGroupRepo([group]) },
+      { grades: makeGradeRepo(), groups: makeGroupRepo([group]), activityLog },
     );
     assert("Admin not girebilir", result.length === 1 && result[0].projectGrade === 90);
     assert("Not doküman id'si = enrollmentId", result[0].id === "enr-1");
@@ -97,7 +109,7 @@ async function run() {
     const result = await saveGrades(
       actor,
       { groupId: group.id, entries: [{ enrollmentId: "enr-2", personId: "p-2", projectGrade: 70 }] },
-      { grades: makeGradeRepo(), groups: makeGroupRepo([group]) },
+      { grades: makeGradeRepo(), groups: makeGroupRepo([group]), activityLog },
     );
     assert("Kendi grubuna atanmış eğitmen not girebilir", result[0].projectGrade === 70);
   }
@@ -110,7 +122,7 @@ async function run() {
       await saveGrades(
         actor,
         { groupId: group.id, entries: [{ enrollmentId: "enr-3", personId: "p-3", projectGrade: 70 }] },
-        { grades: makeGradeRepo(), groups: makeGroupRepo([group]) },
+        { grades: makeGradeRepo(), groups: makeGroupRepo([group]), activityLog },
       );
       assert("Başka eğitmenin grubuna not giremez (ForbiddenError)", false);
     } catch (e) {
@@ -125,7 +137,7 @@ async function run() {
       await saveGrades(
         makeActor("satis"),
         { groupId: group.id, entries: [{ enrollmentId: "enr-4", personId: "p-4", projectGrade: 70 }] },
-        { grades: makeGradeRepo(), groups: makeGroupRepo([group]) },
+        { grades: makeGradeRepo(), groups: makeGroupRepo([group]), activityLog },
       );
       assert("Satış not giremez (ForbiddenError)", false);
     } catch (e) {
@@ -140,7 +152,7 @@ async function run() {
       await saveGrades(
         makeActor("operasyon"),
         { groupId: group.id, entries: [{ enrollmentId: "enr-5", personId: "p-5", projectGrade: 70 }] },
-        { grades: makeGradeRepo(), groups: makeGroupRepo([group]) },
+        { grades: makeGradeRepo(), groups: makeGroupRepo([group]), activityLog },
       );
       assert("Operasyon not giremez (ForbiddenError)", false);
     } catch (e) {
@@ -177,7 +189,7 @@ async function run() {
       await saveGrades(
         makeActor("admin"),
         { groupId: group.id, entries: [{ enrollmentId: "enr-8", personId: "p-8", projectGrade: 150 }] },
-        { grades: makeGradeRepo(), groups: makeGroupRepo([group]) },
+        { grades: makeGradeRepo(), groups: makeGroupRepo([group]), activityLog },
       );
       assert("Aralık dışı not → ValidationError", false);
     } catch (e) {
@@ -191,7 +203,7 @@ async function run() {
       await saveGrades(
         makeActor("admin"),
         { groupId: "nonexistent", entries: [{ enrollmentId: "enr-9", personId: "p-9", projectGrade: 70 }] },
-        { grades: makeGradeRepo(), groups: makeGroupRepo([]) },
+        { grades: makeGradeRepo(), groups: makeGroupRepo([]), activityLog },
       );
       assert("Varolmayan grup → ValidationError", false);
     } catch (e) {
@@ -203,7 +215,7 @@ async function run() {
   {
     try {
       const group = makeGroup();
-      await saveGrades(makeActor("admin"), { groupId: group.id, entries: [] }, { grades: makeGradeRepo(), groups: makeGroupRepo([group]) });
+      await saveGrades(makeActor("admin"), { groupId: group.id, entries: [] }, { grades: makeGradeRepo(), groups: makeGroupRepo([group]), activityLog });
       assert("Boş entries → ValidationError", false);
     } catch (e) {
       assert("Boş entries → ValidationError", e instanceof ValidationError);
@@ -217,12 +229,12 @@ async function run() {
     const first = await saveGrades(
       makeActor("admin"),
       { groupId: group.id, entries: [{ enrollmentId: "enr-11", personId: "p-11", projectGrade: 60 }] },
-      { grades: gradeRepo, groups: makeGroupRepo([group]) },
+      { grades: gradeRepo, groups: makeGroupRepo([group]), activityLog },
     );
     const second = await saveGrades(
       makeActor("admin"),
       { groupId: group.id, entries: [{ enrollmentId: "enr-11", personId: "p-11", projectGrade: 85 }] },
-      { grades: gradeRepo, groups: makeGroupRepo([group]) },
+      { grades: gradeRepo, groups: makeGroupRepo([group]), activityLog },
     );
     assert("Güncelleme — createdAt korunur", second[0].createdAt === first[0].createdAt);
     assert("Güncelleme — projectGrade güncellendi", second[0].projectGrade === 85);
@@ -236,12 +248,12 @@ async function run() {
     await saveGrades(
       makeActor("admin"),
       { groupId: group.id, entries: [{ enrollmentId: "enr-12", personId: "p-12", projectGrade: 60 }] },
-      { grades: gradeRepo, groups: makeGroupRepo([group]) },
+      { grades: gradeRepo, groups: makeGroupRepo([group]), activityLog },
     );
     const cleared = await saveGrades(
       makeActor("admin"),
       { groupId: group.id, entries: [{ enrollmentId: "enr-12", personId: "p-12", projectGrade: null }] },
-      { grades: gradeRepo, groups: makeGroupRepo([group]) },
+      { grades: gradeRepo, groups: makeGroupRepo([group]), activityLog },
     );
     assert("Not temizleme — projectGrade undefined", cleared[0].projectGrade === undefined);
   }
@@ -251,9 +263,43 @@ async function run() {
     const actor = makeActor("egitmen", "trainer-3");
     const group = makeGroup({ trainerId: "trainer-3" });
     const gradeRepo = makeGradeRepo();
-    await saveGrades(makeActor("admin"), { groupId: group.id, entries: [{ enrollmentId: "enr-13", personId: "p-13", projectGrade: 77 }] }, { grades: gradeRepo, groups: makeGroupRepo([group]) });
+    await saveGrades(makeActor("admin"), { groupId: group.id, entries: [{ enrollmentId: "enr-13", personId: "p-13", projectGrade: 77 }] }, { grades: gradeRepo, groups: makeGroupRepo([group]), activityLog });
     const items = await getGradesByGroup(actor, group.id, { grades: gradeRepo, groups: makeGroupRepo([group]) });
     assert("Kendi grubuna atanmış eğitmen okuyabilir", items.length === 1 && items[0].projectGrade === 77);
+  }
+
+  // 14. Aktivite logu — 2026-07-15 kullanıcı düzeltmesi: roster TEK seferde topluca kaydedilir,
+  // aktivite logu da öğrenci başına ayrı satır değil ÇAĞRI başına TEK özet satır olmalı.
+  {
+    const store: ActivityLogEntry[] = [];
+    const log = makeActivityLogRepo(store);
+    const group = makeGroup({ trainerId: "trainer-14" });
+    const gradeRepo = makeGradeRepo();
+    const actor = makeActor("egitmen", "trainer-14");
+
+    await saveGrades(
+      actor,
+      { groupId: group.id, entries: [
+        { enrollmentId: "enr-14a", personId: "p-14a", projectGrade: 80 },
+        { enrollmentId: "enr-14b", personId: "p-14b", projectGrade: 90 },
+      ] },
+      { grades: gradeRepo, groups: makeGroupRepo([group]), activityLog: log },
+    );
+    assert(
+      "saveGrades: 2 öğrenci AYNI çağrıda — TEK özet log (puan gösterilmiyor)",
+      store.length === 1 && store[0].description.includes("2 öğrenciye") && !store[0].description.includes("80") && !store[0].description.includes("90"),
+    );
+
+    // Aynı değerlerle tekrar kaydet (roster'ın geri kalanı yeniden gönderilebilir gerçek kullanımda) — YENİ log YOK.
+    await saveGrades(
+      actor,
+      { groupId: group.id, entries: [
+        { enrollmentId: "enr-14a", personId: "p-14a", projectGrade: 80 },
+        { enrollmentId: "enr-14b", personId: "p-14b", projectGrade: 90 },
+      ] },
+      { grades: gradeRepo, groups: makeGroupRepo([group]), activityLog: log },
+    );
+    assert("saveGrades: değişmeyen notlar TEKRAR loglanmaz", store.length === 1);
   }
 
   console.log(`\n=== Sonuç: ${passed} geçti, ${failed} başarısız ===\n`);

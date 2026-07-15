@@ -476,6 +476,10 @@ service cloud.firestore {
     // 3 gün / Op+Finans rapor tüm gruplar) gated service'te (attendance-service.ts).
     match /flexos_attendance/{id} { allow read, write: if false; }
 
+    // Eğitmen günlük iş logu (Ana Sayfa "En Son Aktiviteler") — server-only (Admin SDK).
+    // CRM "Aktivite Merkezi" (flexos_activities) ile KARIŞTIRILMASIN, ayrı koleksiyon.
+    match /flexos_activity_log/{id} { allow read, write: if false; }
+
     // Senelik tatiller — server-only (Admin SDK), yazma `holiday.manage` gated (Op+Admin).
     match /flexos_holidays/{id} { allow read, write: if false; }
 

@@ -108,8 +108,16 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     // Hesap (Auth) durumu — Kullanıcılar > Öğrenciler sekmesi için salt-okunur çapraz kontrol.
     // Person.authUid backfill'den (canlı) geliyor; FlexOS henüz kendi öğrenci davet/aktivasyon
     // akışını açmadı, o yüzden aktivasyon bilgisi hâlâ canlı `users/{uid}.isActivated`'te —
-    // buraya SADECE okunur, hiç yazılmaz. "Son giriş" Firebase Auth'un kendi `lastSignInTime`'ı
-    // (uydurma veri değil, gerçek metadata).
+    // buraya SADECE okunur, hiç yazılmaz.
+    //
+    // 2026-07-15 GERÇEK BUG: "Son giriş" SADECE `lastSignInTime`'a bakıyordu — bu alan
+    // Firebase Auth'ta SADECE yeni bir kimlik-doğrulama (email/şifre sign-in) olduğunda
+    // güncellenir, MEVCUT oturumun sessizce token yenilemesinde (`lastRefreshTime`, normal
+    // günlük kullanımda çıkış yapıp tekrar girmeyen HERKESTE olan şey) DEĞİŞMEZ. Kanıtlanmış
+    // gerçek örnek: bir öğrenci dün gerçekten kullandı (`lastRefreshTime` dün), ama
+    // `lastSignInTime` hâlâ 19 gün önceki son GERÇEK sign-in'i gösteriyordu — ekranda
+    // "19 gündür giriş yapmadı" gibi yanlış bir sonuç. `lastRefreshTime`/`lastSignInTime`
+    // ikisinin en YENİSİ "gerçek son aktivite"yi doğru yansıtır.
     const accountStatusByPersonId = new Map<string, "aktif" | "askıda" | "pasif">();
     const lastLoginByPersonId = new Map<string, string | null>();
     const withAuthUid = scopedPersons.filter((p) => p.authUid);
@@ -122,7 +130,12 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       const isActivatedByUid = new Map<string, boolean>();
       liveUserDocs.forEach((doc) => { if (doc.exists) isActivatedByUid.set(doc.id, doc.data()?.isActivated === true); });
       const lastSignInByUid = new Map<string, string | null>();
-      authUsersResult.users.forEach((u) => lastSignInByUid.set(u.uid, u.metadata.lastSignInTime ?? null));
+      authUsersResult.users.forEach((u) => {
+        const signIn = u.metadata.lastSignInTime ? new Date(u.metadata.lastSignInTime).getTime() : 0;
+        const refresh = u.metadata.lastRefreshTime ? new Date(u.metadata.lastRefreshTime).getTime() : 0;
+        const latest = Math.max(signIn, refresh);
+        lastSignInByUid.set(u.uid, latest > 0 ? new Date(latest).toISOString() : null);
+      });
       for (const p of withAuthUid) {
         accountStatusByPersonId.set(p.id, isActivatedByUid.get(p.authUid!) ? "aktif" : "askıda");
         lastLoginByPersonId.set(p.id, lastSignInByUid.get(p.authUid!) ?? null);

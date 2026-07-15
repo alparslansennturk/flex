@@ -1,13 +1,26 @@
 import { can, widestScope } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
+import type { ActivityLogEntry } from "../core/activity-log";
 import type { Attendance, AttendanceEntry } from "../core/attendance";
 import { ForbiddenError, ValidationError } from "../errors";
+import type { ActivityLogRepo } from "../repo/activity-log-repo";
 import type { AttendanceRepo } from "../repo/attendance-repo";
 import type { GroupRepo } from "../repo/group-repo";
 
 function nowISO(): ISODateTime {
   return new Date().toISOString();
+}
+
+const TR_MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+function trDate(date: string): string {
+  const [y, m, d] = date.split("-");
+  return `${parseInt(d, 10)} ${TR_MONTHS[parseInt(m, 10) - 1]} ${y}`;
+}
+
+function activityId(): string {
+  return `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function recordId(groupId: string, date: string): string {
@@ -44,6 +57,7 @@ export function isWithinEditWindow(date: string): boolean {
 export interface AttendanceDeps {
   groups: GroupRepo;
   attendance: AttendanceRepo;
+  activityLog: ActivityLogRepo;
 }
 
 export interface StartLessonInput {
@@ -103,6 +117,19 @@ export async function startLesson(
   };
 
   await deps.attendance.save(record);
+
+  const log: ActivityLogEntry = {
+    id: activityId(),
+    tenantId: actor.tenantId,
+    trainerId: group.trainerId ?? actor.uid,
+    groupId: input.groupId,
+    type: "attendance.started",
+    title: "Yoklama Başlatıldı",
+    description: `${group.code} ${trDate(input.date)} yoklaması başlatıldı.`,
+    createdAt: ts,
+  };
+  await deps.activityLog.create(log);
+
   return record;
 }
 
@@ -157,6 +184,36 @@ export async function saveAttendance(
   };
 
   await deps.attendance.save(updated);
+
+  // Gerçek açık→kapalı geçişinde "Bitirildi", zaten kapalı bir kaydın (Yoklama Detay'daki
+  // "Güncelle"/Op'un "yeniden aç") düzenlenmesinde "Güncellendi" — sade yeniden kaydetme
+  // (close=undefined, henüz kapanmamış kayıt) aktivite ÜRETMEZ (mid-ders "Kaydet" spam'i olmasın).
+  if (input.close === true && !existing.attendanceClosed) {
+    const log: ActivityLogEntry = {
+      id: activityId(),
+      tenantId: actor.tenantId,
+      trainerId: group.trainerId ?? actor.uid,
+      groupId: input.groupId,
+      type: "attendance.ended",
+      title: "Yoklama Bitirildi",
+      description: `${group.code} ${trDate(input.date)} yoklaması bitirildi.`,
+      createdAt: updated.updatedAt ?? nowISO(),
+    };
+    await deps.activityLog.create(log);
+  } else if (existing.attendanceClosed) {
+    const log: ActivityLogEntry = {
+      id: activityId(),
+      tenantId: actor.tenantId,
+      trainerId: group.trainerId ?? actor.uid,
+      groupId: input.groupId,
+      type: "attendance.updated",
+      title: "Yoklama Güncellendi",
+      description: `${group.code} ${trDate(input.date)} yoklaması güncellendi.`,
+      createdAt: updated.updatedAt ?? nowISO(),
+    };
+    await deps.activityLog.create(log);
+  }
+
   return updated;
 }
 
@@ -169,7 +226,7 @@ export async function saveAttendance(
 export async function deleteAttendance(
   actor: Actor,
   input: { groupId: EntityId; date: string },
-  deps: AttendanceDeps,
+  deps: Pick<AttendanceDeps, "groups" | "attendance">,
 ): Promise<void> {
   const group = await deps.groups.getById(input.groupId, actor.tenantId);
   if (!group) throw new ValidationError("Grup bulunamadı.");

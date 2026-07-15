@@ -4,9 +4,11 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firestore";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
+import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { gradeSubmission } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
 
 /**
  * PATCH /api/flexos/submissions/[id]/grade — gated (`submission.grade`).
@@ -28,8 +30,10 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
       submissions: firestoreSubmissionRepo,
       groups: firestoreGroupRepo,
       assignments: firestoreAssignmentRepo,
+      activityLog: firestoreActivityLogRepo,
     });
     broadcast(actor.tenantId, { type: "grades.changed", id: submission.id });
+    invalidateActivityLogCache(actor.tenantId);
     return NextResponse.json({ id: submission.id, grade: submission.grade });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

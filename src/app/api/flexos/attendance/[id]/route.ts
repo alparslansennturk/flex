@@ -3,9 +3,11 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAttendanceRepo } from "@/app/lib/server/attendance-repo.firestore";
+import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { saveAttendance, deleteAttendance, type SaveAttendanceInput } from "@/app/lib/domain/services/attendance-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
 
 /**
  * PATCH /api/flexos/attendance/[id] — yoklama kaydet (Kaydet) / kapat (Dersi Bitir) /
@@ -38,8 +40,10 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     const record = await saveAttendance(actor, body, {
       groups: firestoreGroupRepo,
       attendance: firestoreAttendanceRepo,
+      activityLog: firestoreActivityLogRepo,
     });
     broadcast(actor.tenantId, { type: "attendance.changed", id: record.id });
+    invalidateActivityLogCache(actor.tenantId);
     return NextResponse.json({ id: record.id, attendanceClosed: record.attendanceClosed });
   } catch (e) {
     if (e instanceof ForbiddenError) {

@@ -44,7 +44,7 @@ import { toast } from "sonner";
 import {
   CalendarCheck, ClipboardList, Award, Activity, Users, UsersRound,
   Route, Plus, ChevronRight, LibraryBig, ChevronLeft, ChevronDown, PlusCircle,
-  MoreHorizontal,
+  MoreHorizontal, Clock,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
@@ -141,6 +141,7 @@ function QuickActionCard({
   iconBg = "bg-[#F7F8FA]",
   iconColor = "text-[#8E95A3]",
   pulse = false,
+  openInNewTab = false,
   onBeforeNavigate,
 }: {
   icon: React.ReactNode;
@@ -152,6 +153,7 @@ function QuickActionCard({
   iconBg?: string;
   iconColor?: string;
   pulse?: boolean;
+  openInNewTab?: boolean;
   onBeforeNavigate?: () => void;
 }) {
   const router = useRouter();
@@ -159,8 +161,9 @@ function QuickActionCard({
     <div
       onClick={() => {
         onBeforeNavigate?.();
-        if (href) router.push(href);
-        else toast.info("Bu özellik yakında.");
+        if (!href) { toast.info("Bu özellik yakında."); return; }
+        if (openInNewTab) window.open(href, "_blank");
+        else router.push(href);
       }}
       className="bg-white rounded-2xl border border-transparent flex flex-col cursor-pointer min-h-[155px] xl:min-h-[194px] overflow-hidden
                  hover:shadow-[0_16px_48px_-12px_rgba(16,41,76,0.16)] hover:-translate-y-1
@@ -187,8 +190,36 @@ function QuickActionCard({
   );
 }
 
-// ─── Aktivite Paneli (FlexOS'ta eğitmenin sınıf-aktivite log'u henüz yok — boş durum) ──
-function ActivityFeedPlaceholder() {
+// ─── Aktivite Paneli — eğitmen günlük iş logu (2026-07-15). CRM "Aktivite Merkezi"
+// (satış/randevu, flexos_activities) İLE KARIŞTIRILMASIN — bu tamamen ayrı, `flexos_activity_log`
+// koleksiyonundan (`/api/flexos/egitmen-anasayfa/bootstrap` + `.../activity-log`) beslenir.
+// Görsel eski canlı sistemdeki `dashboard/page.tsx::ActivityFeed`'den birebir portlandı.
+export interface ActivityLogItem {
+  id: string;
+  type: "attendance.started" | "attendance.updated" | "attendance.ended" | "grade.given";
+  title: string;
+  description: string;
+  createdAt: string;
+}
+
+const ACTIVITY_FEED_CONFIG: Record<ActivityLogItem["type"], { icon: React.ReactNode; bg: string; color: string; stripe: string }> = {
+  "attendance.started": { icon: <CalendarCheck size={13} strokeWidth={2.2} />, bg: "bg-[#EEF4FD]", color: "text-[#3A7BD5]", stripe: "bg-[#3A7BD5]" },
+  "attendance.updated": { icon: <CalendarCheck size={13} strokeWidth={2.2} />, bg: "bg-[#EEF4FD]", color: "text-[#3A7BD5]", stripe: "bg-[#3A7BD5]" },
+  "attendance.ended":   { icon: <CalendarCheck size={13} strokeWidth={2.2} />, bg: "bg-[#EEF4FD]", color: "text-[#3A7BD5]", stripe: "bg-[#3A7BD5]" },
+  "grade.given":        { icon: <Award        size={13} strokeWidth={2.2} />, bg: "bg-[#E6F5ED]", color: "text-[#009F3E]", stripe: "bg-[#009F3E]" },
+};
+
+function activityTimeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "az önce";
+  if (diffMin < 60) return `${diffMin} dk önce`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH} sa önce`;
+  return `${Math.floor(diffH / 24)} gün önce`;
+}
+
+function ActivityFeed({ items }: { items: ActivityLogItem[] }) {
   return (
     <div className="bg-white rounded-2xl border border-[#E8ECF2] flex flex-col overflow-hidden h-full">
       <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#F0F2F6] shrink-0">
@@ -209,8 +240,34 @@ function ActivityFeedPlaceholder() {
           <span className="text-[10px] font-bold text-[#10294C]">Canlı</span>
         </div>
       </div>
-      <div className="flex-1 min-h-0 flex items-center justify-center text-[12px] text-[#9CA3AF]">
-        Henüz aktivite yok
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {items.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-[12px] text-[#9CA3AF]">
+            Henüz aktivite yok
+          </div>
+        ) : items.map((item, i) => {
+          const cfg = ACTIVITY_FEED_CONFIG[item.type];
+          return (
+            <div
+              key={item.id}
+              className={`flex items-start gap-3 px-4 py-3.5 hover:bg-[#F9FAFB] transition-colors cursor-default relative
+                          ${i < items.length - 1 ? "border-b border-[#F3F4F6]" : ""}`}
+            >
+              <div className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full ${cfg.stripe} opacity-70`} />
+              <div className={`w-7 h-7 rounded-lg ${cfg.bg} ${cfg.color} flex items-center justify-center shrink-0 mt-0.5 ml-2`}>
+                {cfg.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-bold text-[#10294C] leading-snug truncate">{item.title}</p>
+                {item.description ? <p className="text-[11.5px] text-[#6B7280] leading-snug line-clamp-2 mt-0.5">{item.description}</p> : null}
+              </div>
+              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                <Clock size={10} className="text-[#C4C9D4]" />
+                <span className="text-[10.5px] text-[#C4C9D4] font-medium whitespace-nowrap">{activityTimeAgo(item.createdAt)}</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -830,11 +887,39 @@ export default function EgitmenAnaSayfaPage() {
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [templates, setTemplates] = useState<AssignmentTemplateItem[]>([]);
   const [assignments, setAssignments] = useState<ParkourAssignment[]>([]);
+  const [activityLog, setActivityLog] = useState<ActivityLogItem[]>([]);
   const [sharedLoaded, setSharedLoaded] = useState(false);
+  // 2026-07-15 kullanıcı düzeltmesi: aktivite sayısı arttıkça panel taşıp sayfayı
+  // uzatıyordu — eski canlı sistemdeki (`dashboard/page.tsx`) AYNI çözüm: panelin üst
+  // sınırı soldaki kartların bittiği yere `ResizeObserver` ile JS'te ölçülüp sabitleniyor,
+  // fazlası panelin kendi `overflow-y-auto`'suyla İÇERİDE scroll oluyor.
+  const [activityMaxH, setActivityMaxH] = useState<number | undefined>(undefined);
 
+  const cardsRef = useRef<HTMLDivElement>(null);
+  const activityRef = useRef<HTMLDivElement>(null);
   const activeGroupsRef = useRef<GroupItem[]>([]);
   const holidayDatesRef = useRef<Set<string>>(new Set());
   const todayKeyRef = useRef("");
+
+  useEffect(() => {
+    // `authed === null` iken bileşen `<FlexPageLoader />`'a erken dönüyor (aşağıda) —
+    // yani mount anında `cardsRef.current` henüz null olabilir. Boş dep dizisiyle ([])
+    // bu efekt SADECE o ilk (loader) render'da çalışıp bir daha HİÇ tetiklenmiyordu,
+    // ResizeObserver gerçek DOM'a hiç bağlanamıyordu (`activityMaxH` sonsuza dek undefined
+    // kalıyordu — panel yüksekliği hiç sabitlenmiyordu). `authed`/`sharedLoaded` gerçek
+    // içerik render olunca efekt yeniden çalışsın diye dep'e eklendi.
+    const update = () => {
+      if (!cardsRef.current || !activityRef.current) return;
+      const cardsBottom = cardsRef.current.getBoundingClientRect().bottom;
+      const activityTop = activityRef.current.getBoundingClientRect().top;
+      setActivityMaxH(cardsBottom - activityTop);
+    };
+    if (!cardsRef.current) return;
+    const ro = new ResizeObserver(update);
+    ro.observe(cardsRef.current);
+    update();
+    return () => ro.disconnect();
+  }, [authed, sharedLoaded]);
 
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const u = auth.currentUser;
@@ -904,6 +989,7 @@ export default function EgitmenAnaSayfaPage() {
 
       setTemplates(data.templates ?? []);
       setAssignments(data.assignments ?? []);
+      setActivityLog(data.activityLog ?? []);
 
       const holidayItems: HolidayItem[] = data.holidays ?? [];
       const dates = new Set<string>();
@@ -932,6 +1018,14 @@ export default function EgitmenAnaSayfaPage() {
     if (res.ok) setAssignments((await res.json()).items ?? []);
   }, [authHeaders]);
 
+  // Yoklama başlat/bitir + not verme SIK olabilir — tüm bootstrap yerine sadece
+  // aktivite logu hafifçe yenilenir (`refetchAssignments` ile AYNI desen).
+  const refetchActivityLog = useCallback(async () => {
+    const headers = await authHeaders();
+    const res = await fetch("/api/flexos/egitmen-anasayfa/activity-log", { headers });
+    if (res.ok) setActivityLog((await res.json()).items ?? []);
+  }, [authHeaders]);
+
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
@@ -953,6 +1047,7 @@ export default function EgitmenAnaSayfaPage() {
   // olay) artık burada, hafif `refetchAssignments` ile karşılanıyor.
   useRealtimeSync(["groups.changed", "students.changed"], loadBootstrap);
   useRealtimeSync(["assignments.changed"], refetchAssignments);
+  useRealtimeSync(["attendance.changed", "grades.changed"], refetchActivityLog);
 
   if (authed === null) return <FlexPageLoader />;
 
@@ -969,7 +1064,7 @@ export default function EgitmenAnaSayfaPage() {
           <div className="flex flex-col xl:flex-row gap-5">
             <div className="flex-1 min-w-0 flex flex-col gap-5">
               <HomeBanner groupCount={groupCount} studentCount={studentCount} />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <QuickActionCard
                   icon={<CalendarCheck size={20} />}
                   label="Hızlı Yoklama"
@@ -980,6 +1075,7 @@ export default function EgitmenAnaSayfaPage() {
                   iconBg="bg-[#EEF4FD]"
                   iconColor="text-[#3A7BD5]"
                   pulse={attendPulse}
+                  openInNewTab
                   onBeforeNavigate={() => {
                     localStorage.setItem(`flexos_attend_dismissed_${todayKeyRef.current}`, "1");
                     setAttendPulse(false);
@@ -1007,8 +1103,8 @@ export default function EgitmenAnaSayfaPage() {
                 />
               </div>
             </div>
-            <div className="w-full xl:w-[360px] shrink-0">
-              <ActivityFeedPlaceholder />
+            <div ref={activityRef} className="w-full xl:w-[360px] shrink-0" style={{ maxHeight: activityMaxH }}>
+              <ActivityFeed items={activityLog} />
             </div>
           </div>
 

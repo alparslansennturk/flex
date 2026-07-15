@@ -26,10 +26,16 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
   try {
     const users = await firestoreFlexosUserRepo.list(actor.tenantId);
+    // 2026-07-15 GERÇEK BUG: `flexos_users` koleksiyonu personel VE öğrenci giriş
+    // hesaplarını (bkz. `persons/route.ts::provisionStudentLogin`, `roles:["ogrenci"]`
+    // ile AYNI koleksiyona yazar) paylaşıyor — bu uç filtresiz döndürüyordu, öğrenci
+    // hesapları (test dahil) Personel listesinde görünüyordu. Bu sekme SADECE personel
+    // (`kullanicilar/page.tsx` docstring'i: "Sekme 1 — Personel: admin/operasyon/satış").
+    const staffUsers = users.filter((u) => !u.roles.includes("ogrenci"));
     // Gerçek sistem sahibi (2026-07-10 kullanıcı kararı: "beni genel müdür falan listede
     // göremesin, kendime görünmek istiyorum sadece") — kendi kaydı SADECE kendi görüntülerken
     // listede kalır, başka hiçbir role.manage sahibine görünmez.
-    const visibleUsers = users.filter((u) => u.email !== VIEW_TOGGLE_OWNER_EMAIL || caller.email === VIEW_TOGGLE_OWNER_EMAIL);
+    const visibleUsers = staffUsers.filter((u) => u.email !== VIEW_TOGGLE_OWNER_EMAIL || caller.email === VIEW_TOGGLE_OWNER_EMAIL);
 
     // Aktivasyon durumu — "Beklemede" (kod henüz kullanılmadı) `status` alanından (istihdam
     // aktif/pasif toggle'ı) AYRI bir kavram (2026-07-10 kullanıcı: "hâlâ kod girmemişse

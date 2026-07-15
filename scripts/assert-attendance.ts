@@ -10,6 +10,8 @@ import type { Group } from "../src/app/lib/domain/core/group";
 import type { Attendance } from "../src/app/lib/domain/core/attendance";
 import type { GroupRepo } from "../src/app/lib/domain/repo/group-repo";
 import type { AttendanceRepo } from "../src/app/lib/domain/repo/attendance-repo";
+import type { ActivityLogRepo } from "../src/app/lib/domain/repo/activity-log-repo";
+import type { ActivityLogEntry } from "../src/app/lib/domain/core/activity-log";
 import { ForbiddenError, ValidationError } from "../src/app/lib/domain/errors";
 
 const TENANT = "test-tenant";
@@ -31,6 +33,16 @@ function makeGroupRepo(groups: Group[] = []): GroupRepo {
     async delete(id) { map.delete(id); },
   };
 }
+
+function makeActivityLogRepo(store: ActivityLogEntry[] = []): ActivityLogRepo {
+  return {
+    async create(entry) { store.push(entry); },
+    async listRecentForTrainer(tenantId, trainerId) {
+      return store.filter((e) => e.tenantId === tenantId && e.trainerId === trainerId);
+    },
+  };
+}
+const activityLog = makeActivityLogRepo();
 
 function makeAttendanceRepo(records: Attendance[] = []): AttendanceRepo {
   const map = new Map(records.map((r) => [r.id, r]));
@@ -100,7 +112,7 @@ async function main() {
     const groups = makeGroupRepo([group]);
     const attendance = makeAttendanceRepo([]);
     const date = todayStr();
-    const record = await startLesson(trainer1, { groupId: group.id, date }, { groups, attendance });
+    const record = await startLesson(trainer1, { groupId: group.id, date }, { groups, attendance, activityLog });
     assert("Eğitmen kendi grubunda dersi başlatır", record.groupId === group.id && record.date === date);
     assert("sessionHours grup şemasından snapshot alınır", record.sessionHours === 3);
   }
@@ -112,7 +124,7 @@ async function main() {
     const attendance = makeAttendanceRepo([]);
     await assertRejects(
       "Başka eğitmen yabancı grupta dersi başlatamaz (ForbiddenError)",
-      () => startLesson(trainer2, { groupId: group.id, date: todayStr() }, { groups, attendance }),
+      () => startLesson(trainer2, { groupId: group.id, date: todayStr() }, { groups, attendance, activityLog }),
       ForbiddenError,
     );
   }
@@ -130,7 +142,7 @@ async function main() {
     const attendance = makeAttendanceRepo([existing]);
     await assertRejects(
       "Zaten başlatılmış derse tekrar startLesson — ValidationError (üzerine yazmaz)",
-      () => startLesson(trainer1, { groupId: group.id, date }, { groups, attendance }),
+      () => startLesson(trainer1, { groupId: group.id, date }, { groups, attendance, activityLog }),
       ValidationError,
     );
   }
@@ -144,7 +156,7 @@ async function main() {
     const sunday = "2024-01-07"; // bilinen Pazar (2024-01-01 Pazartesi'ydi)
     await assertRejects(
       "Grubun ders günü olmayan tarihte başlatılamaz — ValidationError",
-      () => startLesson(trainer1, { groupId: group.id, date: sunday }, { groups, attendance }),
+      () => startLesson(trainer1, { groupId: group.id, date: sunday }, { groups, attendance, activityLog }),
       ValidationError,
     );
   }
@@ -156,7 +168,7 @@ async function main() {
     const attendance = makeAttendanceRepo([]);
     await assertRejects(
       "Başlatılmamış derse saveAttendance — ValidationError (Önce dersi başlatın)",
-      () => saveAttendance(trainer1, { groupId: group.id, date: todayStr(), entries: {} }, { groups, attendance }),
+      () => saveAttendance(trainer1, { groupId: group.id, date: todayStr(), entries: {} }, { groups, attendance, activityLog }),
       ValidationError,
     );
   }
@@ -172,8 +184,38 @@ async function main() {
       createdAt: new Date().toISOString(), createdBy: "trainer-1",
     };
     const attendance = makeAttendanceRepo([existing]);
-    const updated = await saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: 3 } } }, { groups, attendance });
+    const updated = await saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: 3 } } }, { groups, attendance, activityLog });
     assert("Eğitmen 3 gün içindeki kapalı kaydı düzenleyebilir", updated.entries["person-1"]?.hours === 3);
+  }
+
+  // ── Aktivite logu (2026-07-15 — kullanıcı canlıda "Güncelle" bastı, hareket YOKTU bug'ı) ──
+  {
+    const group = makeGroup({ trainerId: "trainer-1" });
+    const groups = makeGroupRepo([group]);
+    const date = todayStr();
+
+    // 1) startLesson → "attendance.started"
+    const store1: ActivityLogEntry[] = [];
+    const log1 = makeActivityLogRepo(store1);
+    const attendance1 = makeAttendanceRepo([]);
+    await startLesson(trainer1, { groupId: group.id, date }, { groups, attendance: attendance1, activityLog: log1 });
+    assert("startLesson: 'attendance.started' logu düşer", store1.length === 1 && store1[0].type === "attendance.started");
+
+    // 2) mid-ders sade "Kaydet" (close=undefined, henüz kapanmamış) → YENİ log YOK (spam olmasın)
+    await saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: 3 } } }, { groups, attendance: attendance1, activityLog: log1 });
+    assert("saveAttendance mid-ders 'Kaydet' (close=undefined, açık kayıt): YENİ log YOK", store1.length === 1);
+
+    // 3) "Dersi Bitir" (close=true, ilk kapanış) → "attendance.ended"
+    await saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: 3 } }, close: true }, { groups, attendance: attendance1, activityLog: log1 });
+    assert("saveAttendance close:true (ilk kapanış): 'attendance.ended' logu düşer", store1.length === 2 && store1[1].type === "attendance.ended");
+
+    // 4) Yoklama Detay'daki "Güncelle" (kapalı kaydı close:false ile düzenleme) → "attendance.updated"
+    // BU SENARYO kullanıcının canlıda yakaladığı gerçek bug — önceden HİÇ log düşmüyordu.
+    await saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: 2 } }, close: false }, { groups, attendance: attendance1, activityLog: log1 });
+    assert(
+      "saveAttendance close:false (kapalı kaydı 'Güncelle'): 'attendance.updated' logu düşer (2026-07-15 bug fix)",
+      store1.length === 3 && store1[2].type === "attendance.updated",
+    );
   }
 
   // ── eğitmen 3 günden eski kapalı kaydı düzenleyemez ──
@@ -189,7 +231,7 @@ async function main() {
     const attendance = makeAttendanceRepo([existing]);
     await assertRejects(
       "Eğitmen 3 günden eski kapalı kaydı düzenleyemez — ValidationError",
-      () => saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: 3 } } }, { groups, attendance }),
+      () => saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: 3 } } }, { groups, attendance, activityLog }),
       ValidationError,
     );
   }
@@ -205,7 +247,7 @@ async function main() {
       createdAt: new Date().toISOString(), createdBy: "trainer-1",
     };
     const attendance = makeAttendanceRepo([existing]);
-    const updated = await saveAttendance(op, { groupId: group.id, date, entries: { "person-1": { hours: 2 } } }, { groups, attendance });
+    const updated = await saveAttendance(op, { groupId: group.id, date, entries: { "person-1": { hours: 2 } } }, { groups, attendance, activityLog });
     assert("Operasyon 3 gün penceresi dolmuş kaydı yine de düzenleyebilir (org-scope muafiyeti)", updated.entries["person-1"]?.hours === 2);
   }
 
@@ -214,7 +256,7 @@ async function main() {
     const group = makeGroup({ trainerId: "trainer-1" });
     const groups = makeGroupRepo([group]);
     const attendance = makeAttendanceRepo([]);
-    const record = await startLesson(op, { groupId: group.id, date: todayStr() }, { groups, attendance });
+    const record = await startLesson(op, { groupId: group.id, date: todayStr() }, { groups, attendance, activityLog });
     assert("Operasyon başka eğitmenin grubunda dersi başlatabilir", record.groupId === group.id);
   }
 
@@ -231,7 +273,7 @@ async function main() {
     const attendance = makeAttendanceRepo([existing]);
     await assertRejects(
       "Negatif saat girişi reddedilir — ValidationError",
-      () => saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: -1 } } }, { groups, attendance }),
+      () => saveAttendance(trainer1, { groupId: group.id, date, entries: { "person-1": { hours: -1 } } }, { groups, attendance, activityLog }),
       ValidationError,
     );
   }
