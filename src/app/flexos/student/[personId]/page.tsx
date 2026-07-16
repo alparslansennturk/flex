@@ -180,33 +180,37 @@ export default function FlexosStudentDashboard() {
               (FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS) — önceki ayrı/elle yazılmış
               max-w değerleri (960/1200/1480) diğer FlexOS sayfalarıyla tutarsızdı. */}
           <FlexPageContent className="pt-7 pb-12">
+            {/* Başlık + filtre pilleri iki sütunun ÜSTÜNDE, tam genişlik — böylece
+                sağdaki aktivite paneli soldaki ödev kutusunun (border) tam başlangıcıyla
+                hizalanır (2026-07-16: eskiden ayrı bir xl:pt-14 tahminiyle hizalanmaya
+                çalışılıyordu, piksel kayması oluyordu). */}
+            <div className="flex items-end gap-4 mb-7">
+              <h1 className="text-[22px] font-bold text-base-primary-900 leading-tight">{me.groupCode || "Öğrenci Paneli"}</h1>
+            </div>
+
+            <div className="flex items-center gap-2 mb-7">
+              {(["all", "active", "completed"] as Filter[]).map((f) => {
+                const labels: Record<Filter, string> = { all: "Tümü", active: "Aktif Ödevler", completed: "Tamamlananlar" };
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-4 py-1.5 rounded-full text-[13px] border transition-colors cursor-pointer
+                      ${filter === f
+                        ? "bg-white border-surface-300 text-text-primary font-semibold shadow-sm"
+                        : "bg-transparent border-surface-200 text-surface-500 font-medium hover:border-surface-300 hover:text-surface-700"
+                      }`}
+                  >
+                    {labels[f]}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="flex flex-col xl:flex-row gap-6 xl:gap-8 xl:items-start">
 
               {/* ══ Sol: Ödevler ══ */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-end gap-4 mb-7">
-                  <h1 className="text-[22px] font-bold text-base-primary-900 leading-tight">{me.groupCode || "Öğrenci Paneli"}</h1>
-                </div>
-
-                <div className="flex items-center gap-2 mb-7">
-                  {(["all", "active", "completed"] as Filter[]).map((f) => {
-                    const labels: Record<Filter, string> = { all: "Tümü", active: "Aktif Ödevler", completed: "Tamamlananlar" };
-                    return (
-                      <button
-                        key={f}
-                        onClick={() => setFilter(f)}
-                        className={`px-4 py-1.5 rounded-full text-[13px] border transition-colors cursor-pointer
-                          ${filter === f
-                            ? "bg-white border-surface-300 text-text-primary font-semibold shadow-sm"
-                            : "bg-transparent border-surface-200 text-surface-500 font-medium hover:border-surface-300 hover:text-surface-700"
-                          }`}
-                      >
-                        {labels[f]}
-                      </button>
-                    );
-                  })}
-                </div>
-
                 {showActive && activeRows.length > 0 && (
                   <section className="mb-8">
                     <h2 className="text-[18px] font-bold text-text-primary mb-3">Aktif Ödevler</h2>
@@ -238,12 +242,12 @@ export default function FlexosStudentDashboard() {
               </div>
 
               {/* ══ Sağ: Aktiviteler + Duyurular ══ */}
-              <aside className="w-full xl:w-[320px] shrink-0 flex flex-col gap-6 xl:sticky xl:top-7 xl:pt-14">
+              <aside className="w-full xl:w-[320px] shrink-0 flex flex-col gap-6 xl:sticky xl:top-7">
                 <div className="h-[220px]">
                   <ActivityFeed items={activityLog} subtitle="Ödev ve teslim hareketlerin" />
                 </div>
 
-                <div>
+                <div className="bg-white rounded-2xl border border-[#E8ECF2] p-5">
                   <h2 className="text-[15px] font-bold text-text-primary mb-4">Duyurular</h2>
                   {announcements.length === 0 ? (
                     <p className="text-[13px] text-surface-400">Duyuru yok.</p>
