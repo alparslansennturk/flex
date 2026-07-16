@@ -1012,8 +1012,7 @@ export default function EgitmenAnaSayfaPage() {
                 <QuickActionCard
                   icon={<Award size={20} />}
                   label="Sertifikasyon"
-                  href={null}
-                  meta="Yakında"
+                  href="/flexos/sertifikasyon/not"
                   statusText="Not Gir"
                   statusColor="bg-[#6F74D8] text-white"
                   iconBg="bg-[#F1F2FD]"

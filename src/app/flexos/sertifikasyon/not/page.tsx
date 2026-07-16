@@ -345,8 +345,14 @@ export default function SertifikaNotuPage() {
           <div className="grid gap-5" style={{ gridTemplateColumns: "280px minmax(0,1fr)", alignItems: "start" }}>
 
             {/* ===== SOL: Grup seçimi ===== */}
-            <div className="bg-white border border-[#E2E5EA] rounded-[20px] p-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] sticky" style={{ top: 96 }}>
-              <div className="flex items-center gap-[9px] mb-4">
+            {/* Ekran boyunca uzatılmış (2026-07-16): top:96 sticky offset + 32px alt
+                boşlukla `calc(100vh - 128px)` sabit yükseklik, grup listesi kendi
+                içinde kaydırılır (başlık sabit kalır). */}
+            <div
+              className="bg-white border border-[#E2E5EA] rounded-[20px] p-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] sticky flex flex-col"
+              style={{ top: 96, height: "calc(100vh - 128px)" }}
+            >
+              <div className="flex items-center gap-[9px] mb-4 shrink-0">
                 <div className="w-8 h-8 rounded-[10px] bg-[#DDE8F8] text-[#205297] flex items-center justify-center">
                   <BookOpen size={17} />
                 </div>
@@ -355,7 +361,7 @@ export default function SertifikaNotuPage() {
                   <div className="text-[11px] text-[#8E95A3] font-medium">Not vermek için seçin</div>
                 </div>
               </div>
-              <div className="flex flex-col gap-[7px]">
+              <div className="flex flex-col gap-[7px] flex-1 min-h-0 overflow-y-auto">
                 {loadingGroups ? (
                   <p className="text-[12px] text-[#8E95A3] py-4 text-center">Yükleniyor…</p>
                 ) : groups.length === 0 ? (
