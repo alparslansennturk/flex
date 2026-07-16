@@ -14,10 +14,11 @@ import { useParams, useRouter } from "next/navigation";
 import { auth } from "@/app/lib/firebase";
 import {
   Loader2, BookOpen, ClipboardList, ChevronDown,
-  CheckCircle2, RotateCcw, Clock, ArrowRight, FileText, Activity,
+  CheckCircle2, RotateCcw, Clock, ArrowRight, FileText,
 } from "lucide-react";
 import StudentSidebar from "../_components/StudentSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../../_components/FlexHeader";
+import { ActivityFeed, type ActivityFeedItem } from "../../_components/ActivityFeed";
 
 /* ── Types ── */
 
@@ -98,6 +99,7 @@ export default function FlexosStudentDashboard() {
   const [me, setMe] = useState<{ name: string; groupCode?: string } | null>(null);
   const [rows, setRows] = useState<AssignmentRow[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [activityLog, setActivityLog] = useState<ActivityFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedAnn, setSelectedAnn] = useState<AnnouncementItem | null>(null);
@@ -125,6 +127,12 @@ export default function FlexosStudentDashboard() {
       if (annRes.ok) {
         const data = await annRes.json() as { items: { id: string; assignmentId: string; text: string; authorName: string; createdAt: string }[] };
         setAnnouncements(data.items.map((a) => ({ ...a })).reverse());
+      }
+
+      const activityRes = await fetch(`/api/flexos/student/activity?personId=${personId}`, { headers });
+      if (activityRes.ok) {
+        const data = await activityRes.json() as { items: ActivityFeedItem[] };
+        setActivityLog(data.items);
       }
     } finally {
       setLoading(false);
@@ -172,7 +180,7 @@ export default function FlexosStudentDashboard() {
               (FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS) — önceki ayrı/elle yazılmış
               max-w değerleri (960/1200/1480) diğer FlexOS sayfalarıyla tutarsızdı. */}
           <FlexPageContent className="pt-7 pb-12">
-            <div className="flex gap-8 items-start">
+            <div className="flex flex-col xl:flex-row gap-6 xl:gap-8 xl:items-start">
 
               {/* ══ Sol: Ödevler ══ */}
               <div className="flex-1 min-w-0">
@@ -230,32 +238,9 @@ export default function FlexosStudentDashboard() {
               </div>
 
               {/* ══ Sağ: Aktiviteler + Duyurular ══ */}
-              <aside className="w-72 shrink-0 sticky top-7 hidden xl:flex xl:flex-col xl:gap-6 xl:pt-14">
-                {/* Eğitmen Ana Sayfa'daki "En Son Aktiviteler" panelinin BİREBİR aynısı
-                    (2026-07-13, Sınıf Ligi yerine) — o taraf da şu an boş durumda
-                    (henüz gerçek aktivite log'u yok), bu yüzden burada da aynı boş durum. */}
-                <div className="bg-white rounded-2xl border border-[#E8ECF2] flex flex-col overflow-hidden h-[180px]">
-                  <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#F0F2F6] shrink-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#10294C] flex items-center justify-center shrink-0">
-                        <Activity size={16} className="text-white" strokeWidth={2} />
-                      </div>
-                      <div>
-                        <p className="text-[14px] font-bold text-[#10294C] leading-none">En Son Aktiviteler</p>
-                        <p className="text-[11px] text-[#9CA3AF] mt-0.5 leading-none">Ödev ve teslim hareketlerin</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-[#10294C]/10 px-2.5 py-1 rounded-full">
-                      <div className="relative w-1.5 h-1.5">
-                        <span className="absolute inset-0 bg-[#009F3E] rounded-full animate-ping opacity-75" />
-                        <span className="relative block w-1.5 h-1.5 bg-[#009F3E] rounded-full" />
-                      </div>
-                      <span className="text-[10px] font-bold text-[#10294C]">Canlı</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 min-h-0 flex items-center justify-center text-[12px] text-[#9CA3AF]">
-                    Henüz aktivite yok
-                  </div>
+              <aside className="w-full xl:w-[360px] shrink-0 flex flex-col gap-6 xl:sticky xl:top-7 xl:pt-14">
+                <div className="h-[220px]">
+                  <ActivityFeed items={activityLog} subtitle="Ödev ve teslim hareketlerin" />
                 </div>
 
                 <div>

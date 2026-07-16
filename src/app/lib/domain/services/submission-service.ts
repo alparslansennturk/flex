@@ -938,6 +938,54 @@ export async function listAssignmentsForStudent(
   return assignments.map((assignment, i) => ({ assignment, submission: submissions[i] }));
 }
 
+export interface StudentActivityItem {
+  id: string;
+  type: "submission.created" | "grade.given";
+  title: string;
+  description: string;
+  createdAt: ISODateTime;
+}
+
+/**
+ * Öğrenci "En Son Aktiviteler" paneli — kalıcı bir log tutulmuyor, doğrudan kendi
+ * Submission kayıtlarından (teslim + not) türetiliyor. Eğitmenin `flexos_activity_log`'u
+ * (`ActivityLogRepo`) BİLEREK kullanılmadı: o log trainerId+groupId bazlı, grup geneli
+ * ÖZET satırlar tutuyor (ör. "6 öğrenciye not girildi", `personId` alanı yok) — tek bir
+ * öğrenciye ait/filtrelenebilir değil.
+ */
+export async function listRecentActivityForStudent(
+  requesterUid: string,
+  tenantId: string,
+  personId: EntityId,
+  deps: Pick<SubmissionDeps, "persons" | "enrollments" | "assignments" | "submissions">,
+  limit = 8,
+): Promise<StudentActivityItem[]> {
+  const rows = await listAssignmentsForStudent(requesterUid, tenantId, personId, deps);
+
+  const items: StudentActivityItem[] = [];
+  for (const { assignment, submission } of rows) {
+    if (!submission) continue;
+    items.push({
+      id: `submit-${submission.id}-${submission.iteration}`,
+      type: "submission.created",
+      title: submission.iteration > 1 ? "Ödev Yeniden Teslim Edildi" : "Ödev Teslim Edildi",
+      description: assignment.title,
+      createdAt: submission.lastSubmittedAt,
+    });
+    if (submission.gradedAt) {
+      items.push({
+        id: `grade-${submission.id}-${submission.gradedAt}`,
+        type: "grade.given",
+        title: "Not Verildi",
+        description: assignment.title,
+        createdAt: submission.gradedAt,
+      });
+    }
+  }
+
+  return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+}
+
 /** Ödev detay + yükleme sayfası — tek ödev + kendi submission'ı + aktif dosyaları. */
 export async function getAssignmentForStudent(
   requesterUid: string,
