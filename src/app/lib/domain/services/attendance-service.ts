@@ -54,6 +54,36 @@ export function isWithinEditWindow(date: string): boolean {
   return Date.now() - windowBase < 3 * 24 * 60 * 60 * 1000;
 }
 
+const WINDOW_BEFORE_MIN = 15;
+const ISTANBUL_TZ = "Europe/Istanbul";
+
+/**
+ * Sunucunun ("bugün" + "şu an kaç dakika") İstanbul yerel saatine göre hesabı —
+ * `Intl.DateTimeFormat`'a AÇIKÇA `timeZone` verilir, `new Date().getHours()` gibi
+ * çalışma zamanının yerel TZ'sini (Vercel'de genelde UTC) örtük varsaymaz.
+ */
+function istanbulNow(): { dateKey: string; minutesOfDay: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: ISTANBUL_TZ,
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return {
+    dateKey: `${get("year")}-${get("month")}-${get("day")}`,
+    minutesOfDay: parseInt(get("hour"), 10) * 60 + parseInt(get("minute"), 10),
+  };
+}
+
+function parseTimeToMinutes(t?: string): number | null {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  return Number.isNaN(h) || Number.isNaN(m) ? null : h * 60 + m;
+}
+
+function fmtMinsOfDay(mins: number): string {
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
 export interface AttendanceDeps {
   groups: GroupRepo;
   attendance: AttendanceRepo;
@@ -95,6 +125,23 @@ export async function startLesson(
   }
   if (s?.endDate && input.date > s.endDate) {
     throw new ValidationError("Eğitim programı tamamlandı, bu tarihe yoklama girilemez.");
+  }
+
+  // 2026-07-16 GERÇEK BUG FIX: "Dersi Başlat" ders saatinden 15dk öncesine kadar kilitli
+  // olmalı — bu kural ÖNCEDEN SADECE istemcide (`AttendanceCore.tsx::isWithinTimeWindow`)
+  // kontrol ediliyordu, sunucu hiç doğrulamıyordu. Gerçek olay: client'taki bir bug yüzünden
+  // GRP-784'ün 19:00 dersi 15:23'te (rol farketmeksizin) başlatıldı, gerçek bir aktivite
+  // kaydı oluştu; client bug'ı düzeltildi ama sunucu savunmasız kalmıştı. Rol farketmeksizin
+  // HERKES için geçerli — sadece BUGÜNÜN tarihinde (geçmiş tarihe geriye dönük "Yoklama Gir"
+  // akışı bu kısıtla ilgisiz, `isWithinEditWindow` zaten onu ayrıca yönetiyor).
+  if (s?.startTime) {
+    const { dateKey: todayKey, minutesOfDay: nowMins } = istanbulNow();
+    if (input.date === todayKey) {
+      const startMins = parseTimeToMinutes(s.startTime);
+      if (startMins !== null && nowMins < startMins - WINDOW_BEFORE_MIN) {
+        throw new ValidationError(`Yoklama ${fmtMinsOfDay(startMins - WINDOW_BEFORE_MIN)}'den itibaren alınabilir.`);
+      }
+    }
   }
 
   const existing = await deps.attendance.getByGroupAndDate(input.groupId, input.date, actor.tenantId);

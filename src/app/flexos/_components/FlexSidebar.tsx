@@ -300,7 +300,13 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         <FlexLogo variant="white" width={72} />
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {/* 2026-07-16 kullanıcı bulgusu: `<nav>` ile alttaki "Sistem Ayarları/Çıkış" bloğu
+          arasında `marginTop:auto` boş alanı TAMAMEN yutuyordu — uzun ekranda menü öğeleri
+          birbirinden anlamsızca uzak duruyordu, KISA ekranda ise (sidebar hiç scroll
+          olmadığından) toplam içerik 100% yüksekliği aşınca alt blok üstteki öğelere
+          neredeyse yapışıyordu. `<nav>` artık `flex:1 + overflowY:auto` — taşarsa KENDİSİ
+          scroll olur, alt blok her zaman kendi doğal boyutunda hemen altında durur. */}
+      <nav className="fs-nav" style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflowY: "auto" }}>
         {/* Ana Sayfa = tek nav öğesi, hedefi role'e göre değişir (menü değil, "kim girdiyse
             onun ana sayfası" mantığı): role.manage → admin ana sayfa (`/flexos/anasayfa`
             henüz placeholder — sistem SAHİBİ için `canToggleView`/`view.toggle` özel: "Benim
@@ -636,11 +642,11 @@ function SubItem({ label, active, onClick }: { label: string; active: boolean; o
 
 export const S: Record<string, CSSProperties> = {
   sidebar: { height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
-  navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
-  parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
-  itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "11px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },
-  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "9px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
-  subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "9px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
+  navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
+  parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
+  itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },
+  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "7px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
+  subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "7px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   subBar: { position: "absolute", left: 0, top: 8, bottom: 8, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
 };
 
@@ -671,4 +677,7 @@ export const css = `
 @media(min-width:1536px){.fs-sidebar{width:272px;flex-basis:272px}}
 @media(min-width:2560px){.fs-sidebar{width:300px;flex-basis:300px}}
 .fs-navlink:hover{background:rgba(255,255,255,.06);color:#fff!important}
+.fs-nav{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent}
+.fs-nav::-webkit-scrollbar{width:5px}
+.fs-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
 `;

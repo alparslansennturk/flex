@@ -51,8 +51,12 @@ export default function SınıflarPage() {
   const [fEğitmen, setFEğitmen] = useState("");
   const [fSeansIdx, setFSeansIdx] = useState(-1);
   const [fDersSaat, setFDersSaat] = useState("");
-  const [fToplamSaat, setFToplamSaat] = useState("");
   const [fKontenjan, setFKontenjan] = useState("");
+  // Düzenlenen grubun ham schedule'ı — Seans kütüphanesinde eşleşme bulunamazsa (kayıt
+  // sonradan değişmiş/silinmişse, fSeansIdx=-1 kalır) `onSave` bunu geri düşer, "eşleşme
+  // yok" diye grubun GERÇEK gün/saat bilgisini boş diziyle EZMEZ (2026-07-16 gerçek bug fix:
+  // "sınıfı düzenle → kaydet" sonrası seans bilgisi siliniyordu).
+  const [editOrigSchedule, setEditOrigSchedule] = useState<{ days?: number[]; startTime?: string; endTime?: string } | null>(null);
   const [seansOpen, setSeansOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -75,6 +79,14 @@ export default function SınıflarPage() {
   // -- Katalog (Branş→Eğitim→Bölüm cascade + Seans kütüphanesi) — paylaşımlı hook. --
   const { branches, educations, sections, seanslar, loadingEdu, loadingSec, isSectioned, setEducations, setSections } =
     useGroupCatalog(fBrans, fEğitim, standaloneMode === false);
+
+  // 2026-07-16 gerçek bug fix: "Toplam Saat" `Group` üzerinde saklanan bir alan DEĞİL — eskiden
+  // formda sahipsiz bir input'tu (hiç kaydedilmiyordu, "96 yazdım ama 0 kaldı" bug'ı). Artık
+  // kataloktan (bölümlü eğitimde Bölüm'ün kendi saati, değilse Eğitim'in toplam saati) OTOMATİK
+  // türetilen salt-okunur bir alan — Bölüm seçilir seçilmez otomatik dolar.
+  const toplamSaat = isSectioned
+    ? sections.find((s) => s.id === fBölüm)?.hours ?? null
+    : educations.find((e) => e.id === fEğitim)?.totalHours ?? null;
 
   // -- grup listesini gerçek API'den yükle --
   const loadGroups = useCallback(async (signal?: AbortSignal) => {
@@ -161,8 +173,9 @@ export default function SınıflarPage() {
   const resetForm = () => {
     setFŞube(""); setFBrans(""); setFEğitim(""); setFBölüm(""); setFKod("");
     setFTarih(""); setFEğitmen(""); setFSeansIdx(-1); setFDersSaat("");
-    setFToplamSaat(""); setFKontenjan(""); setEğitimTipi("standart");
+    setFKontenjan(""); setEğitimTipi("standart");
     setEditingId(null);
+    setEditOrigSchedule(null);
   };
 
   // -- save --
@@ -171,6 +184,9 @@ export default function SınıflarPage() {
     setSaving(true);
 
     const selSeans = fSeansIdx >= 0 ? seanslar[fSeansIdx] : null;
+    // Düzenlemede seçili seans yoksa (kütüphanede eşleşme bulunamadıysa) grubun MEVCUT
+    // gün/saat bilgisine düş — aksi halde `days: []` gönderilip gerçek schedule silinir.
+    const fallbackSchedule = !selSeans ? editOrigSchedule : null;
 
     const body = {
       code: fKod.trim(),
@@ -182,9 +198,9 @@ export default function SınıflarPage() {
       seansId: selSeans?.id ?? undefined,
       schedule: {
         startDate: fTarih || undefined,
-        days: selSeans?.days ?? [],
-        startTime: selSeans?.startTime ?? undefined,
-        endTime: selSeans?.endTime ?? undefined,
+        days: selSeans?.days ?? fallbackSchedule?.days ?? [],
+        startTime: selSeans?.startTime ?? fallbackSchedule?.startTime ?? undefined,
+        endTime: selSeans?.endTime ?? fallbackSchedule?.endTime ?? undefined,
         sessionHours: fDersSaat ? Number(fDersSaat) : undefined,
       },
       capacity: fKontenjan ? Number(fKontenjan) : undefined,
@@ -226,6 +242,7 @@ export default function SınıflarPage() {
     setFŞube(raw?.branchOfficeId || "");
     setFTarih(raw?.schedule?.startDate?.split("T")[0] || "");
     setFDersSaat(raw?.schedule?.sessionHours ? String(raw.schedule.sessionHours) : "");
+    setEditOrigSchedule(raw?.schedule ? { days: raw.schedule.days, startTime: raw.schedule.startTime, endTime: raw.schedule.endTime } : null);
 
     // seans eşleştir (gün+saat aynı olan seans)
     if (raw?.schedule?.days?.length && raw.schedule.startTime) {
@@ -526,11 +543,12 @@ export default function SınıflarPage() {
                         </span>
                       </label>
 
-                      {/* Toplam Saat */}
+                      {/* Toplam Saat — kataloktan (Bölüm/Eğitim) otomatik, salt-okunur */}
                       <label style={S.fieldWrap}>
                         <span style={S.lbl}>Toplam Saat</span>
                         <span style={{ position: "relative", display: "flex" }}>
-                          <input type="number" value={fToplamSaat} onChange={(e) => setFToplamSaat(e.target.value)} placeholder="0" style={{ ...S.inp, paddingRight: 56 }} />
+                          <input type="text" readOnly value={toplamSaat ?? "—"} placeholder="0"
+                            style={{ ...S.inp, paddingRight: 56, background: "#F7F8FA", color: "#6F7B87", cursor: "default" }} />
                           <span style={S.suffix}>saat</span>
                         </span>
                       </label>

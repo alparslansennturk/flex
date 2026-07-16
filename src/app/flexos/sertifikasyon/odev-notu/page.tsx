@@ -35,15 +35,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Award, BookOpen, Check, ArrowLeft, ClipboardList, ChevronRight, Clock, Loader2 } from "lucide-react";
+import { Award, Check, ArrowLeft, ClipboardList, ChevronRight, Clock, Loader2 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+import { GroupSelectPanel, groupColor, GROUP_COLORS, firstActiveGroupId } from "../_shared/GroupSelectPanel";
 
-interface GroupItem { id: string; code: string; branch: string; enrolled: number }
+interface GroupItem { id: string; code: string; branch: string; enrolled: number; status?: string }
 interface AssignmentItem { id: string; title: string; dueDate?: string; status: string; maxPuan?: number; kind?: "normal" | "proje" }
 interface SubmissionRow { id: string; personId: string; status: string; grade?: number; submittedAt: string; isLate: boolean }
 
@@ -71,14 +72,6 @@ const DURUM_META: Record<TeslimDurum, { label: string; color: string; bg: string
   yok: { label: "Teslim etmedi", color: "#C22B2B", bg: "#FDE1E1", dot: "#E53935" },
 };
 
-const GROUP_COLORS = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#1CB5AE", "#F91079"];
-// Öğrenci avatarları — ÖNCEDEN 2 renkli gradyan (AVATAR_PALETTES) kullanıyordu, kullanıcı
-// tek renk + sistem paletinden (GROUP_COLORS'la AYNI 6 renk) istedi (2026-07-11 kararı).
-function groupColor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash << 5) - hash + id.charCodeAt(i);
-  return GROUP_COLORS[Math.abs(hash) % GROUP_COLORS.length];
-}
 function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toLocaleUpperCase("tr");
 }
@@ -197,10 +190,10 @@ export default function OdevNotuPage() {
       const finalItems = items.length > 0 ? items : DUMMY_GROUPS;
       setGroups(finalItems);
       const deepLinkMatch = deepLinkGroupId && finalItems.some((g) => g.id === deepLinkGroupId) ? deepLinkGroupId : null;
-      setSelectedGroupId((cur) => cur ?? deepLinkMatch ?? finalItems[0]?.id ?? null);
+      setSelectedGroupId((cur) => cur ?? deepLinkMatch ?? firstActiveGroupId(finalItems) ?? null);
     } catch {
       setGroups(DUMMY_GROUPS);
-      setSelectedGroupId((cur) => cur ?? DUMMY_GROUPS[0].id);
+      setSelectedGroupId((cur) => cur ?? firstActiveGroupId(DUMMY_GROUPS) ?? null);
     } finally {
       setLoadingGroups(false);
     }
@@ -404,13 +397,28 @@ export default function OdevNotuPage() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", background: "#EEF0F3" }}>
       <FlexSidebar active="odev-notu" />
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, height: "100%", overflow: "hidden", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
           icon={<Award size={20} color="#fff" />}
           title="Ödev Notu"
           subtitle="Grup ve ödev seçin, teslim durumuna göre puanlayın."
           roleLabel="Eğitmen"
         />
+
+        {/* İçerik satırı (2026-07-16): header'ın ALTINDA, footer'ın ÜSTÜNDE — Gruplar
+            paneli SADECE bu satırın yüksekliği kadar (100vh DEĞİL), VIEW 1/2/loader
+            arasında SABİT kalır (hepsinde görünür, grup değiştirmek her zaman mümkün).
+            SOL (Gruplar) hiç kaymaz, SAĞ kendi `overflow-y-auto`'suyla bağımsız kayar. */}
+        <div
+          style={{ padding: "26px 30px 32px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1, minHeight: 0, overflow: "hidden", display: "flex", gap: 20 }}
+          className="font-inter"
+        >
+          <GroupSelectPanel
+            groups={groups} loading={loadingGroups} selectedId={selectedGroupId} onSelect={setSelectedGroupId}
+            subtitle="Ödevleri görmek için seçin"
+          />
+
+          <div className="flex-1 min-w-0 h-full min-h-0 overflow-y-auto flex flex-col gap-4">
 
         {showLoader ? (
           /* ===== Yükleniyor: hedef görünüm (deep-link ya da puanlama) TAM veriyle hazır
@@ -419,56 +427,10 @@ export default function OdevNotuPage() {
             <Loader2 size={26} className="animate-spin text-[#AEB4C0]" />
           </div>
         ) : !activeAssignmentId ? (
-          /* ===== VIEW 1: Grup + Ödev Seçimi ===== */
-          <div style={{ padding: "26px 30px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }} className="font-inter">
-            <div className="grid gap-5" style={{ gridTemplateColumns: "280px 1fr", alignItems: "start" }}>
-
-              {/* SOL: gruplar */}
-              <div className="bg-white border border-[#E2E5EA] rounded-[20px] p-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] sticky" style={{ top: 96 }}>
-                <div className="flex items-center gap-[9px] mb-4">
-                  <div className="w-8 h-8 rounded-[10px] bg-[#DDE8F8] text-[#205297] flex items-center justify-center">
-                    <BookOpen size={17} />
-                  </div>
-                  <div>
-                    <div className="text-[14px] font-extrabold text-[#1E222B] tracking-tight">Gruplar</div>
-                    <div className="text-[11px] text-[#8E95A3] font-medium">Ödevleri görmek için seçin</div>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-[7px]">
-                  {loadingGroups ? (
-                    <p className="text-[12px] text-[#8E95A3] py-4 text-center">Yükleniyor…</p>
-                  ) : groups.length === 0 ? (
-                    <p className="text-[12px] text-[#8E95A3] py-4 text-center">Henüz grup yok.</p>
-                  ) : (
-                    groups.map((g) => {
-                      const active = g.id === selectedGroupId;
-                      return (
-                        <button
-                          key={g.id}
-                          onClick={() => setSelectedGroupId(g.id)}
-                          className="w-full flex items-center gap-[11px] py-[11px] px-3 rounded-[13px] cursor-pointer transition-all"
-                          style={{
-                            border: active ? "1px solid #AECBF2" : "1px solid #EEF0F3",
-                            background: active ? "#EFF5FE" : "#fff",
-                            boxShadow: active ? "0 4px 14px -8px rgba(32,82,151,.4)" : "none",
-                          }}
-                        >
-                          <div className="rounded-full shrink-0" style={{ width: 4, alignSelf: "stretch", minHeight: 30, background: groupColor(g.id) }} />
-                          <div className="flex-1 min-w-0 text-left">
-                            <div className="text-[13.5px] font-extrabold text-[#1E222B] tracking-tight">{g.code}</div>
-                            <div className="text-[11px] text-[#8E95A3] font-medium mt-0.5">{g.branch} • {g.enrolled} öğrenci</div>
-                          </div>
-                          {active && <Check size={16} strokeWidth={2.6} color="#205297" className="shrink-0" />}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* SAĞ: ödev listesi */}
-              <div className="flex flex-col gap-4 min-w-0">
-                <div className="flex items-center gap-[13px] bg-white border border-[#E2E5EA] rounded-[18px] py-4 px-5 shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)]">
+          /* ===== VIEW 1: Ödev Seçimi ===== */
+          <div className="flex-1 flex flex-col gap-4">
+                {/* header gibi sticky: bu sütunun kendi scroll'u içinde top:0 */}
+                <div className="flex items-center gap-[13px] bg-white border border-[#E2E5EA] rounded-[18px] py-4 px-5 shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] sticky z-[5]" style={{ top: 0 }}>
                   <div className="rounded-full shrink-0" style={{ width: 5, alignSelf: "stretch", minHeight: 40, background: selectedGroup ? groupColor(selectedGroup.id) : "#CDD2DA" }} />
                   <div>
                     <div className="text-[16px] font-extrabold text-[#1E222B] tracking-tight">{selectedGroup?.code ?? "—"} Ödevleri</div>
@@ -532,12 +494,10 @@ export default function OdevNotuPage() {
                     })
                   )}
                 </div>
-              </div>
-            </div>
           </div>
         ) : (
           /* ===== VIEW 2: Ödev Puanlama ===== */
-          <div style={{ padding: "26px 30px 48px" }} className="font-inter flex flex-col gap-4">
+          <div className="flex-1 flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setActiveAssignmentId(null)}
@@ -659,6 +619,9 @@ export default function OdevNotuPage() {
             </div>
           </div>
         )}
+
+          </div>
+        </div>
 
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>

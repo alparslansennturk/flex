@@ -22,6 +22,7 @@ import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
 import { isoWeekday } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import type { GroupApiItem } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import type { Attendance } from "@/app/lib/domain/core/attendance";
+import { calcEstimatedEndDate } from "@/app/lib/domain/services/schedule-calc";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface BranchItem { id: string; name: string }
@@ -53,21 +54,6 @@ function countWeekdaysInMonth(
   }
   return count;
 }
-function calcEstimatedEndDate(startDate: string, totalSessions: number, weekDays: number[], holidayDates: Set<string>): string | null {
-  if (!startDate || totalSessions <= 0 || weekDays.length === 0) return null;
-  const d = new Date(startDate + "T12:00:00");
-  const max = new Date(d); max.setFullYear(max.getFullYear() + 10);
-  let count = 0;
-  while (d <= max) {
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (weekDays.includes(isoWeekday(d)) && !holidayDates.has(key)) {
-      count++;
-      if (count >= totalSessions) return key;
-    }
-    d.setDate(d.getDate() + 1);
-  }
-  return null;
-}
 function toMonthKey(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 function getMonthOptions() {
   const now = new Date();
@@ -94,10 +80,18 @@ function StatCard({ label, value, sub, color, icon }: { label: string; value: nu
 }
 function ProgressBar({ value, max, color = "bg-base-primary-600" }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  // 2026-07-16: sıfırdan gerçek değere dolan giriş animasyonu (StudentEgitimBilgileri.tsx'teki
+  // donut ile aynı desen) — `transition-all` tek başına sadece SONRAKİ değişimleri animasyonlu
+  // yapıyordu, ilk render'da çubuk direkt son genişliğinde beliriyordu.
+  const [animPct, setAnimPct] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setAnimPct(pct), 60);
+    return () => clearTimeout(t);
+  }, [pct]);
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 rounded-full bg-surface-100">
-        <div className={`h-full rounded-full transition-all ${pct === 100 ? "bg-status-success-500" : color}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full transition-all duration-700 ease-out ${pct === 100 ? "bg-status-success-500" : color}`} style={{ width: `${animPct}%` }} />
       </div>
       <span className="text-[11px] font-bold text-surface-400 w-8 text-right">%{pct}</span>
     </div>
@@ -142,7 +136,6 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [branches, setBranches] = useState<BranchItem[]>([]);
   const [trainers, setTrainers] = useState<TrainerItem[]>([]);
-  const [eduTotalHours, setEduTotalHours] = useState<Record<string, number>>({});
   const [stats, setStats] = useState<GroupStats[]>([]);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -189,14 +182,6 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
         while (cur <= end) { dates.add(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
       });
       setHolidayDates(dates);
-    } catch { /* sessiz */ }
-
-    try {
-      const eRes = await fetch("/api/flexos/educations", { headers, cache: "no-store" });
-      const eJson = eRes.ok ? await eRes.json() : { items: [] };
-      const map: Record<string, number> = {};
-      (eJson.items ?? []).forEach((e: { id: string; totalHours?: number }) => { if (e.totalHours) map[e.id] = e.totalHours; });
-      setEduTotalHours(map);
     } catch { /* sessiz */ }
 
     try {
@@ -271,11 +256,16 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
 
       const results: GroupStats[] = await Promise.all(filteredGroups.map(async (g): Promise<GroupStats> => {
         const sessionHours = g.schedule?.sessionHours ?? 3;
-        const totalHours = g.educationId ? eduTotalHours[g.educationId] ?? null : null;
+        // Bölümlü eğitimde `educationTotalHours` TÜM bölümlerin toplamı — grubun bağlı
+        // olduğu bölümün KENDİ saatine öncelik ver (2026-07-16 gerçek bug fix).
+        const totalHours = g.sectionHours ?? g.educationTotalHours ?? null;
         const weekDays = g.schedule?.days ?? [];
         const totalSessions = totalHours && sessionHours ? Math.ceil(totalHours / sessionHours) : null;
-        const estimatedEndDate = g.schedule?.endDate?.split("T")[0]
-          || (g.schedule?.startDate && totalSessions ? calcEstimatedEndDate(g.schedule.startDate, totalSessions, weekDays, holidayDates) : null);
+        // Gerçek zamanlı, tatil-duyarlı hesaplama — `schedule.endDate` (elle girilen, çoğu
+        // grupta boş/stale) ARTIK öncelikli değil (bkz. AttendanceCore.tsx, schedule-calc.ts).
+        const estimatedEndDate = g.schedule?.startDate && totalSessions
+          ? calcEstimatedEndDate(g.schedule.startDate, totalSessions, weekDays, holidayDates)
+          : null;
         const plannedThisMonth = countWeekdaysInMonth(year, month, weekDays, holidayDates, g.schedule?.startDate, estimatedEndDate ?? undefined);
 
         let items: Attendance[] = [];
@@ -302,7 +292,7 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
       setStats(results);
       setLoading(false);
     })();
-  }, [filteredGroups, selectedMonth, holidayDates, groupsLoaded, isOrgWide, eduTotalHours]);
+  }, [filteredGroups, selectedMonth, holidayDates, groupsLoaded, isOrgWide]);
 
   // ── Grup kodu arama ──
   useEffect(() => {

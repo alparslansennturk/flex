@@ -26,9 +26,11 @@
  * Ders İstisnası ("Ders Olmadı" — sebep seç): 2026-07-02'de TAM BAĞLANDI —
  * `flexos_lesson_exceptions` koleksiyonu, `POST/GET/DELETE /api/flexos/lesson-exceptions`,
  * öğrenci-kaynaklı istisnada otomatik devamsızlık yazımı (`createdByException`) dahil.
- * `Group.schedule.endDate` zaten yapılandırılmış alan olduğu için canlıdaki
- * `estimatedEndDate` (holiday-aware hesaplama) yerine DOĞRUDAN kullanılıyor —
- * daha basit ve daha doğru (backend zaten aynı alanla doğruluyor).
+ * Tahmini Bitiş Tarihi: 2026-07-16'da canlıdaki holiday-aware `calcEstimatedEndDate`
+ * hesaplaması (`lib/domain/services/schedule-calc.ts`) buraya da taşındı —
+ * `Group.schedule.endDate` (elle girilen, çoğu grupta boş) ARTIK kullanılmıyor;
+ * başlangıç tarihi + haftalık ders günleri + toplam ders saatinden GERÇEK ZAMANLI
+ * hesaplanıyor, yeni tatil eklenince otomatik güncelleniyor.
  *
  * 🐛 Canlıdaki bug DÜZELTİLDİ: `setHours`/`markAllHours` artık online değerini
  * `prev[personId]?.online ?? person.isOnlineStudent ?? false` ile seed ediyor —
@@ -43,6 +45,7 @@ import { DayCalendarPopover } from "@/app/components/dashboard/attendance/Calend
 import { initials, avatarStyle, isoWeekday, toJsWeekdays } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
 import type { ExceptionReason, ExceptionScope, LessonException } from "@/app/lib/domain/core/lesson-exception";
+import { calcEstimatedEndDate } from "@/app/lib/domain/services/schedule-calc";
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
   CheckCheck, Users, Wifi, CalendarOff, AlertCircle,
@@ -83,6 +86,8 @@ interface GroupItem {
   branch: string;
   trainerId: string;
   educationId: string | null;
+  sectionHours: number | null;
+  educationTotalHours: number | null;
   schedule: GroupSchedule;
 }
 
@@ -110,7 +115,7 @@ interface AttendanceRecord {
 
 const DEFAULT_SESSION_HOURS = 3;
 const WINDOW_BEFORE_MIN = 15;
-const WINDOW_AFTER_MIN = 360;
+const WINDOW_AFTER_MIN = 480; // 8 saat (2026-07-16 kullanıcı düzeltmesi: eskiden 6 saat/360dk)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -287,7 +292,6 @@ export default function AttendanceCore({
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [isOrgScope, setIsOrgScope] = useState(false);
-  const [courseTotalHours, setCourseTotalHours] = useState<number | null>(null);
   const [allTimeRecords, setAllTimeRecords] = useState<AttendanceRecord[]>([]);
   const [monthCancelledCount, setMonthCancelledCount] = useState(0);
   const [branchFilter, setBranchFilter] = useState("");
@@ -412,12 +416,22 @@ export default function AttendanceCore({
   const schedule = selectedGroup?.schedule ?? {};
   const sessionHours = schedule.sessionHours ?? DEFAULT_SESSION_HOURS;
   const selectedWeekDays = useMemo(() => schedule.days ?? [], [schedule.days]);
-  const scheduleEndDateObj = schedule.endDate ? new Date(`${schedule.endDate}T12:00:00`) : null;
+  // Bölümlü eğitimde `Education.totalHours` TÜM bölümlerin toplamı (örn. Grafik paketi 177
+  // saat) — grubun bağlı olduğu bölümün KENDİ saatine (örn. Grafik-2: 96 saat) öncelik ver,
+  // section yoksa (structure="single") education toplamına düş (2026-07-16 gerçek bug fix:
+  // "Toplam Ders" bölüm ayrımı yapmadan tüm paketi gösteriyordu).
+  const courseTotalHours = selectedGroup ? selectedGroup.sectionHours ?? selectedGroup.educationTotalHours ?? null : null;
   const realRecords = useMemo(() => allTimeRecords.filter((r) => Object.keys(r.entries).length > 0 || r.attendanceClosed), [allTimeRecords]);
   const allTimeDoneCount = realRecords.length;
   const courseDoneHours = allTimeDoneCount * sessionHours;
   const courseRemainingHours = courseTotalHours !== null ? Math.max(0, courseTotalHours - courseDoneHours) : null;
   const courseProgressPct = courseTotalHours ? Math.min(100, Math.round((courseDoneHours / courseTotalHours) * 100)) : 0;
+  const estimatedEndDate = useMemo(() => {
+    if (!courseTotalHours || !sessionHours) return null;
+    const totalSessionsNeeded = Math.ceil(courseTotalHours / sessionHours);
+    return calcEstimatedEndDate(schedule.startDate, totalSessionsNeeded, selectedWeekDays, holidayDates);
+  }, [courseTotalHours, sessionHours, schedule.startDate, selectedWeekDays, holidayDates]);
+  const estimatedEndDateObj = estimatedEndDate ? new Date(`${estimatedEndDate}T12:00:00`) : null;
 
   // ── "Bu Ay" (seçili tarihin ayı) — 3 stat kartı, sadece mode="detail" ──
   const selectedMonthKey = toMonthKey(selectedDate);
@@ -441,35 +455,20 @@ export default function AttendanceCore({
     })();
   }, [selectedGroupId]);
 
-  // ── Kurs ilerleme (lacivert bar) — Education.totalHours + tüm-zamanlı yapılan
-  // ders sayısı. Education'da totalHours boşsa (henüz katalogda tanımlanmadıysa)
-  // "—" placeholder kalır; alan doldurulunca otomatik gerçek sayı çıkar.
+  // ── Kurs ilerleme (lacivert bar) — tüm-zamanlı yapılan ders sayısı. `courseTotalHours`
+  // artık `selectedGroup`'un kendi alanlarından türetiliyor (yukarıda), ayrı bir eğitim
+  // fetch'i gerekmiyor — sadece yoklama kayıtları çekiliyor.
   useEffect(() => {
-    if (!selectedGroupId) { setCourseTotalHours(null); setAllTimeRecords([]); return; }
+    if (!selectedGroupId) { setAllTimeRecords([]); return; }
     (async () => {
       const headers = await authHeaders();
-      const educationId = selectedGroup?.educationId;
-      const [eduRes, attRes] = await Promise.all([
-        educationId ? fetch(`/api/flexos/educations/${educationId}`, { headers }) : Promise.resolve(null),
-        fetch(`/api/flexos/attendance?groupId=${selectedGroupId}`, { headers }),
-      ]);
-      if (eduRes?.ok) {
-        const j = await eduRes.json();
-        setCourseTotalHours(j.item?.totalHours ?? null);
-      } else {
-        setCourseTotalHours(null);
-      }
-      if (attRes.ok) {
-        const j = await attRes.json();
+      const res = await fetch(`/api/flexos/attendance?groupId=${selectedGroupId}`, { headers });
+      if (res.ok) {
+        const j = await res.json();
         setAllTimeRecords((j.items ?? []) as AttendanceRecord[]);
       }
     })();
-    // `selectedGroup?.educationId` BİLEREK dep'te — `groups` bu effect ilk çalıştığında henüz
-    // yüklenmemiş olabilir (selectedGroupId preSelectedGroupId'den geliyorsa), o an educationId
-    // undefined kalır ve bir daha asla düzelmezdi (grup değişmeden effect tekrar tetiklenmezdi).
-    // `groups` yüklenince educationId undefined→gerçek değere döner, bu da effect'i doğru
-    // veriyle tekrar tetikler — "ilk açılışta donut yok, başka gruba geçince geliyor" bug'ının fix'i.
-  }, [selectedGroupId, selectedGroup?.educationId]);
+  }, [selectedGroupId]);
 
   // ── İptal ders sayısı (bu ay) — SADECE org-scope (attendance.report.read), "detail" modda.
   useEffect(() => {
@@ -628,11 +627,21 @@ export default function AttendanceCore({
     : false;
 
   const isWithinTimeWindow: boolean = (() => {
+    // `!isToday` durumu zaten yukarıda `true` dönüyor (geçmiş tarih — admin/eğitim-op'un
+    // Yoklama Detay'dan geriye dönük girişi, ayrı bir muafiyet zaten var).
     if (!enforceTimeWindow || !isToday || !sessionTimeRange) return true;
-    if (isOrgScope) return true;
     if (record && (hasPersistedEntries || attendanceClosed)) return true;
     const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-    return nowMins >= sessionTimeRange.start - WINDOW_BEFORE_MIN && nowMins <= sessionTimeRange.end + WINDOW_AFTER_MIN;
+    // 2026-07-16 GERÇEK BUG FIX: "ders saatinden 15dk öncesine kadar kilitli" kuralı
+    // ÖNCEDEN org-scope (admin/eğitim-op) için TAMAMEN atlanıyordu — ders saatinden
+    // SAATLERCE önce "Dersi Başlat"a basılıp gerçek bir ders/aktivite kaydı
+    // oluşturulabiliyordu (kullanıcı bulgusu: GRP-784, 19:00 dersi 15:23'te başlatıldı,
+    // kayıt+aktivite elle temizlendi). 15dk-önce kuralı role bakmaksızın HERKES için
+    // geçerli. Ders saati geldikten SONRA ise org-scope hâlâ muaf (8 saatlik trainer
+    // penceresiyle sınırlı değil — "kilitlendikten sonra admin/eğitim-op girebilir" kuralı).
+    if (nowMins < sessionTimeRange.start - WINDOW_BEFORE_MIN) return false;
+    if (isOrgScope) return true;
+    return nowMins <= sessionTimeRange.end + WINDOW_AFTER_MIN;
   })();
   const isPastExpired = enforceTimeWindow && !isOrgScope && !isToday && !hasPersistedEntries && !attendanceClosed;
   const windowOpenStr = sessionTimeRange ? fmtMins(sessionTimeRange.start - WINDOW_BEFORE_MIN) : null;
@@ -765,18 +774,18 @@ export default function AttendanceCore({
                   {schedule.startDate && (
                     <>
                       <span className="text-white/30 shrink-0">|</span>
-                      <span className="text-white/60 shrink-0">Başlangıç:</span>
+                      <span className="text-white/60 shrink-0">Başlangıç Tarihi:</span>
                       <span className="font-bold text-white shrink-0">
                         {new Date(`${schedule.startDate}T12:00:00`).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
                       </span>
                     </>
                   )}
-                  {schedule.endDate && (
+                  {estimatedEndDateObj && (
                     <>
                       <span className="text-white/30 shrink-0">|</span>
-                      <span className="text-white/60 shrink-0">Bitim:</span>
+                      <span className="text-white/60 shrink-0">Tahmini Bitiş Tarihi:</span>
                       <span className="font-bold text-white shrink-0">
-                        {new Date(`${schedule.endDate}T12:00:00`).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
+                        {estimatedEndDateObj.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}
                       </span>
                     </>
                   )}
@@ -811,7 +820,7 @@ export default function AttendanceCore({
                             {formatMonthDisplay(selectedDate)}
                           </span>
                         </div>
-                        {(schedule.startDate || scheduleEndDateObj) && (
+                        {(schedule.startDate || estimatedEndDateObj) && (
                           <div className="flex items-center gap-3 mt-2.5 text-[12px] 2xl:text-[14px] text-text-placeholder">
                             {schedule.startDate && (
                               <span>
@@ -821,12 +830,12 @@ export default function AttendanceCore({
                                 </span>
                               </span>
                             )}
-                            {schedule.startDate && scheduleEndDateObj && <span className="text-surface-300">|</span>}
-                            {scheduleEndDateObj && (
+                            {schedule.startDate && estimatedEndDateObj && <span className="text-surface-300">|</span>}
+                            {estimatedEndDateObj && (
                               <span>
-                                Tahmini Bitiş:{" "}
+                                Tahmini Bitiş Tarihi:{" "}
                                 <span className="font-semibold text-text-secondary">
-                                  {scheduleEndDateObj.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
+                                  {estimatedEndDateObj.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
                                 </span>
                               </span>
                             )}
@@ -894,7 +903,7 @@ export default function AttendanceCore({
                     {/* ── SAĞ: donut kartı ── */}
                     {courseTotalHours !== null && (
                       <div className="w-[280px] 2xl:w-[320px] shrink-0 border border-surface-200 rounded-2xl px-5 pt-5 pb-3 flex flex-col items-center gap-2 bg-white">
-                        <div key={selectedGroupId ?? "none"} className="relative shrink-0" style={{ width: 130, height: 130 }}>
+                        <div className="relative shrink-0" style={{ width: 130, height: 130 }}>
                           <svg width="130" height="130" viewBox="0 0 164 164" style={{ display: "block" }}>
                             <defs>
                               <linearGradient id="fxDonutArcGrad" x1="0" y1="0" x2="164" y2="164" gradientUnits="userSpaceOnUse">
@@ -910,7 +919,6 @@ export default function AttendanceCore({
                                   stroke="url(#fxDonutArcGrad)" strokeWidth="24" strokeLinecap="round"
                                   strokeDasharray={2 * Math.PI * 58}
                                   strokeDashoffset={2 * Math.PI * 58 * (1 - courseProgressPct / 100)}
-                                  style={{ transition: "stroke-dashoffset .5s ease-out" }}
                                 />
                               </g>
                             )}
@@ -921,7 +929,7 @@ export default function AttendanceCore({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 w-full text-[11px] 2xl:text-[12px]">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 w-fit mx-auto text-[11px] 2xl:text-[12px]">
                           <div className="flex flex-col gap-0.5">
                             <div className="flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full bg-base-primary-400 shrink-0" />

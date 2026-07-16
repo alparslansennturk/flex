@@ -133,6 +133,11 @@ export async function fetchGroupsForActor(actor: Actor, requestedTrainerId?: str
         branch: branchName ?? "",
         sectionId: g.sectionId ?? null,
         sectionName: sec?.name ?? "",
+        // Bölümlü eğitimde `Education.totalHours` TÜM bölümlerin toplamı (örn. 177 saat) —
+        // grubun kendi kurs saati için ÖNCE bölümün kendi `hours`'una (örn. Grafik-2: 96 saat)
+        // bakılmalı, section yoksa (structure="single") education toplamına düşülür.
+        sectionHours: sec?.hours ?? null,
+        educationTotalHours: edu?.totalHours ?? null,
         branchOfficeId: g.branchOfficeId ?? null,
         branchOffice: officeName(g.branchOfficeId),
         trainerId: g.trainerId ?? "",

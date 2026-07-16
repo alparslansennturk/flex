@@ -14,6 +14,7 @@ export interface EducationDoc {
   id: string; name: string; branchId: string;
   audience?: "individual" | "corporate";
   structure?: "single" | "sectioned";
+  totalHours?: number;
 }
 export interface SectionDoc { id: string; educationId: string; name: string; order: number; hours?: number }
 

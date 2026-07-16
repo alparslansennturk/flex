@@ -16,10 +16,9 @@
  *   alanlar — wiring adımında modele eklenecek/eşlenecek (bkz. FLEXOS.md Durum bloğu).
  */
 
-import React, { useEffect, useMemo, useRef, useState, useCallback, CSSProperties } from "react";
+import React, { useEffect, useMemo, useState, useCallback, CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
@@ -92,47 +91,6 @@ interface PersonApiItem {
  */
 interface GroupOption { id: string; code: string; sub: string; educationId?: string; sectionId?: string; enrollmentId?: string; conflictWith?: string }
 
-/** Öğrenci detayı (GET /api/flexos/persons/[id]) — drawer için. */
-interface SaleSummary { id: string; educationName: string; status: string; soldPrice: number; financingFee: number; guardian: { name: string; idNo?: string } | null; date: string }
-interface PaymentLine { id: string; saleId: string; method: string; amount: number; installmentNo: number | null; installmentTotal: number | null; dueDate: string | null; paidAt: string | null; status: string }
-interface PersonDetail {
-  birthDate: string;
-  pii: { phone: string; email: string; address: string; idNo: string; idType: string } | null;
-  sales: SaleSummary[];
-  payments: PaymentLine[];
-  totals: { expected: number; paid: number; remaining: number; rollup: string | null };
-}
-
-const PAY_METHOD_LABEL: Record<string, string> = { cash: "Nakit", card: "Kredi Kartı", transfer: "Havale/EFT", senet: "Senet" };
-const PAY_STATUS_BADGE: Record<string, { label: string; color: string; background: string }> = {
-  paid: { label: "Ödendi", color: "#007A30", background: "#E6F5ED" },
-  planned: { label: "Planlandı", color: "#6F7B87", background: "#EEF0F3" },
-  upcoming: { label: "Yaklaşıyor", color: "#8A5A00", background: "#FFF3DC" },
-  overdue: { label: "Gecikti", color: "#B42318", background: "#FEE4E2" },
-};
-const ROLLUP_BADGE: Record<string, { label: string; color: string; background: string }> = {
-  completed: { label: "Tamamlandı", color: "#007A30", background: "#E6F5ED" },
-  partial: { label: "Kısmi Ödendi", color: "#205297", background: "#DDE8F8" },
-  upcoming: { label: "Yaklaşıyor", color: "#8A5A00", background: "#FFF3DC" },
-  overdue: { label: "Gecikti", color: "#B42318", background: "#FEE4E2" },
-  planned: { label: "Planlandı", color: "#6F7B87", background: "#EEF0F3" },
-};
-const tl = (n: number) => `${n.toLocaleString("tr-TR")} ₺`;
-const fmtDate = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("tr-TR") : "—");
-
-/** Seçili eğitimin ödeme durumu rollup'ı (client; server derivePaymentRollup ile aynı mantık). */
-function clientRollup(payments: PaymentLine[], expected: number): string {
-  const today = new Date().toISOString().slice(0, 10);
-  const in7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
-  const paid = payments.filter((p) => p.paidAt).reduce((a, p) => a + p.amount, 0);
-  if (expected > 0 && paid >= expected) return "completed";
-  const unpaidDue = payments.filter((p) => !p.paidAt && p.dueDate);
-  if (unpaidDue.some((p) => p.dueDate! < today)) return "overdue";
-  if (unpaidDue.some((p) => p.dueDate! >= today && p.dueDate! <= in7)) return "upcoming";
-  if (paid > 0) return "partial";
-  return "planned";
-}
-
 /** Grubun ham programı (GET /api/flexos/groups'tan gelir). */
 interface ScheduleLite { days: number[]; startTime?: string; endTime?: string }
 
@@ -163,11 +121,14 @@ export default function OgrenciHavuzuPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const { caps } = useCapabilities();
   const canAssignGroup = caps.has("group.assign_student");
-  const canEditPerson = caps.has("person.edit");
   // Sunucu switch'ine göre gereken capability değişir (enrollment.transfer VEYA sale.create) —
   // UI-only gate, ikisinden biri varsa buton görünür, gerçek kural sunucuda `transferEnrollment`'ta.
   const canTransfer = caps.has("enrollment.transfer") || caps.has("sale.create");
 
+  // İsimle arama (2026-07-16 — havuzda hiç search yoktu, sadece dropdown filtreler
+  // vardı). Diğer filtrelerin aksine "Filtrele" butonu beklemeden ANINDA uygulanır —
+  // yazarken sonuç filtrelenir, arama kutusu için beklenen davranış budur.
+  const [query, setQuery] = useState("");
   // applied filtreler
   const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
   const [subeFilter, setSubeFilter] = useState("Tümü");
@@ -214,17 +175,6 @@ export default function OgrenciHavuzuPage() {
   const [transferring, setTransferring] = useState(false);
   // Eski kaydın kapanış durumu — sistem tahmin edemez, kullanıcı seçer (bkz transferEnrollment).
   const [transferCloseAs, setTransferCloseAs] = useState<"completed" | "cancelled" | null>(null);
-
-  // ── Öğrenci Detay Drawer state ──
-  const [detailStudent, setDetailStudent] = useState<Student | null>(null);
-  const [detailTab, setDetailTab] = useState<"bilgiler" | "odeme">("bilgiler");
-  const [detail, setDetail] = useState<PersonDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [selectedSaleId, setSelectedSaleId] = useState<string>(""); // Ödeme sekmesi: seçili eğitim/satış
-  const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", phone: "", email: "", gender: "", idNo: "", birthDate: "", address: "", guardianName: "", guardianIdNo: "" });
-  const [guardianSaleId, setGuardianSaleId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const u = auth.currentUser;
@@ -447,123 +397,6 @@ export default function OgrenciHavuzuPage() {
     }
   };
 
-  // ── Öğrenci Detay: aç / düzenle / kaydet ──
-  /** editForm'u (liste + yüklenen detaydan) yeniden kurar. */
-  const buildForm = (st: Student, d: PersonDetail | null) => {
-    const [firstName, ...rest] = st.name.split(" ");
-    const gSale = d?.sales.find((s) => s.guardian);
-    return {
-      firstName, lastName: rest.join(" "),
-      phone: d?.pii?.phone ?? st.phone,
-      email: d?.pii?.email ?? st.email,
-      gender: st.gender,
-      idNo: d?.pii?.idNo ?? "",
-      birthDate: d?.birthDate ?? "",
-      address: d?.pii?.address ?? "",
-      guardianName: gSale?.guardian?.name ?? "",
-      guardianIdNo: gSale?.guardian?.idNo ?? "",
-    };
-  };
-
-  const openDetail = useCallback(async (st: Student) => {
-    setDetailStudent(st);
-    setDetailTab("bilgiler");
-    setEditMode(false);
-    setDetail(null);
-    setGuardianSaleId(null);
-    setEditForm(buildForm(st, null)); // PII/detay gelene kadar liste verisiyle ön-doldur
-    setLoadingDetail(true);
-    try {
-      const res = await fetch(`/api/flexos/persons/${st.id}`, { headers: await authHeaders() });
-      if (!res.ok) throw new Error(String(res.status));
-      const d: PersonDetail = await res.json();
-      setDetail(d);
-      setGuardianSaleId(d.sales.find((s) => s.guardian)?.id ?? null);
-      setSelectedSaleId(d.sales[0]?.id ?? "");
-      setEditForm(buildForm(st, d));
-    } catch {
-      toast.error("Öğrenci detayı yüklenemedi.");
-    } finally {
-      setLoadingDetail(false);
-    }
-  }, [authHeaders]);
-
-  // Sınıf Detay sayfasındaki "Düzenle" → buraya `?person=<personId>` ile döner, öğrenci
-  // detayını otomatik açar (2026-07-10) — mevcut detay/PII/veli formu ikinci kez yazılmadı.
-  const personParamHandled = useRef(false);
-  useEffect(() => {
-    if (personParamHandled.current || students.length === 0) return;
-    const personId = searchParams.get("person");
-    if (!personId) return;
-    const match = students.find((s) => s.id === personId);
-    if (match) { personParamHandled.current = true; openDetail(match); }
-  }, [students, searchParams, openDetail]);
-
-  const closeDetail = () => { if (!saving) { setDetailStudent(null); setEditMode(false); setDetail(null); setGuardianSaleId(null); } };
-  const startEdit = () => setEditMode(true);
-  const cancelEdit = () => {
-    if (detailStudent) setEditForm(buildForm(detailStudent, detail));
-    setEditMode(false);
-  };
-
-  const saveDetail = async () => {
-    if (!detailStudent) return;
-    setSaving(true);
-    try {
-      const headers = await authHeaders();
-      headers["Content-Type"] = "application/json";
-      const res = await fetch(`/api/flexos/persons/${detailStudent.id}`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({
-          firstName: editForm.firstName.trim(),
-          lastName: editForm.lastName.trim(),
-          gender: editForm.gender,
-          birthDate: editForm.birthDate || "",
-          pii: {
-            phone: editForm.phone.trim(),
-            email: editForm.email.trim(),
-            address: editForm.address.trim(),
-            idNo: editForm.idNo.trim(),
-            idType: "tc",
-          },
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(json.error || "Güncelleme başarısız."); return; }
-
-      // Veli — Sale alanı (yalnız mevcut veli kaydı varsa düzenlenir)
-      if (guardianSaleId) {
-        const gres = await fetch(`/api/flexos/sales/${guardianSaleId}`, {
-          method: "PATCH", headers,
-          body: JSON.stringify({ guardian: { name: editForm.guardianName.trim(), idNo: editForm.guardianIdNo.trim() } }),
-        });
-        if (!gres.ok) {
-          const gj = await gres.json().catch(() => ({}));
-          toast.error(gj.error || "Veli bilgisi güncellenemedi.");
-        }
-      }
-
-      toast.success("Öğrenci bilgileri güncellendi.");
-      setEditMode(false);
-      await loadStudents();
-      // detay drawer'ı tazele (PII/veli güncel görünsün)
-      const dres = await fetch(`/api/flexos/persons/${detailStudent.id}`, { headers });
-      if (dres.ok) setDetail(await dres.json());
-      // header isim/tel/email güncelle
-      setDetailStudent((prev) => prev ? {
-        ...prev,
-        name: `${editForm.firstName.trim()} ${editForm.lastName.trim()}`,
-        phone: editForm.phone.trim(),
-        email: editForm.email.trim(),
-        gender: editForm.gender,
-      } : null);
-    } catch {
-      toast.error("Sunucu hatası — güncelleme yapılamadı.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const togglePStatus = (k: StatusKey) =>
     setPStatus((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
   const toggleDropdown = (n: "sube" | "brans" | "egitim") => {
@@ -576,18 +409,19 @@ export default function OgrenciHavuzuPage() {
   };
   const clearFilters = () => {
     setStatusFilter([]); setSubeFilter("Tümü"); setBransFilter("Tümü"); setEgitimFilter("Tümü");
-    setPStatus([]); setPSube("Tümü"); setPBrans("Tümü"); setPEgitim("Tümü"); setPage(1); setOpenDropdown(null);
+    setPStatus([]); setPSube("Tümü"); setPBrans("Tümü"); setPEgitim("Tümü"); setQuery(""); setPage(1); setOpenDropdown(null);
   };
-  const filtered = useMemo(
-    () => students.filter((st) => {
+  const filtered = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase("tr");
+    return students.filter((st) => {
+      if (q && !st.name.toLocaleLowerCase("tr").includes(q)) return false;
       if (statusFilter.length && !statusFilter.includes(st.status)) return false;
       if (subeFilter !== "Tümü" && !st.subeler.includes(subeFilter)) return false;
       if (bransFilter !== "Tümü" && !st.branches.includes(bransFilter)) return false;
       if (egitimFilter !== "Tümü" && !st.groups.some((g) => g.educationName === egitimFilter)) return false;
       return true;
-    }),
-    [students, statusFilter, subeFilter, bransFilter, egitimFilter],
-  );
+    });
+  }, [students, query, statusFilter, subeFilter, bransFilter, egitimFilter]);
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -609,7 +443,7 @@ export default function OgrenciHavuzuPage() {
     return ["Tümü", ...Array.from(set).sort()];
   }, [students]);
 
-  const anyFilter = pStatus.length > 0 || pSube !== "Tümü" || pBrans !== "Tümü" || pEgitim !== "Tümü";
+  const anyFilter = query.trim().length > 0 || pStatus.length > 0 || pSube !== "Tümü" || pBrans !== "Tümü" || pEgitim !== "Tümü";
 
   if (authed === null) return <FlexPageLoader />;
 
@@ -659,6 +493,22 @@ export default function OgrenciHavuzuPage() {
 
             {/* Şube / Branş row */}
             <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
+              {/* İSİM ARAMA */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                <span style={S.sectionLabel}>İsim ara</span>
+                <div style={{ position: "relative", width: 220 }}>
+                  <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "#8E95A3", pointerEvents: "none", display: "flex" }}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.search }} />
+                  </span>
+                  <input
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                    placeholder="Öğrenci adı…"
+                    style={{ ...S.selectBtn, width: "100%", paddingLeft: 36, fontWeight: 500 }}
+                  />
+                </div>
+              </div>
+
               {/* ŞUBE */}
               <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
                 <span style={S.sectionLabel}>Şube</span>
@@ -771,7 +621,7 @@ export default function OgrenciHavuzuPage() {
                     const hasGroup = groupCount > 0;
                     const groupPopupOpen = hoveredGroup === st.id && groupCount > 1;
                     return (
-                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => openDetail(st)}>
+                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => router.push(`/flexos/ogrenciler/${st.id}`)}>
                         {/* Ad Soyad */}
                         <td style={S.cell}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1212,305 +1062,6 @@ export default function OgrenciHavuzuPage() {
         </div>
       )}
 
-      {/* ============ ÖĞRENCİ DETAY BOTTOM SHEET (grup ekleme deseni) ============ */}
-      <AnimatePresence>
-        {detailStudent && (() => {
-        const ds = detailStudent;
-        const ss = ST[ds.status];
-        const idHash = ds.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-        const pal = AV_PALETTES[idHash % AV_PALETTES.length];
-        return (
-          <>
-            <motion.div key="oh-detail-ov" className="fx-sheet-ov"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-              onClick={closeDetail}
-              style={{ position: "fixed", top: 0, bottom: 0, zIndex: 80, background: "rgba(15,31,61,.4)" }} />
-            <motion.div key="oh-detail-sheet" className="fx-sheet"
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              style={{ position: "fixed", bottom: 0, zIndex: 81, height: "70vh", maxHeight: "70vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              {/* Sheet header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "22px 28px 18px", background: "#F7F8FA" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <span style={{ ...S.avatarSm, width: 48, height: 48, fontSize: 16, background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>{initials(ds.name)}</span>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#1E222B", letterSpacing: "-.3px" }}>{ds.name}</h3>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                      <span style={{ ...S.statusBadge, color: ss.color, background: ss.background, fontSize: 11.5, padding: "3px 10px" }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: ss.dot }} />
-                        {ss.label}
-                      </span>
-                      {ds.branches.map((b) => {
-                        const c = BRANS[b] ?? BRANS_FALLBACK;
-                        return <span key={b} style={{ ...S.bransBadge, color: c.color, background: c.background, fontSize: 11.5, padding: "3px 10px" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: c.dot }} />{b}</span>;
-                      })}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {detailTab === "bilgiler" && !editMode && canEditPerson && (
-                    <button className="oh-filter" onClick={startEdit} style={{ ...S.filterBtn, padding: "9px 18px", fontSize: 13 }}>
-                      <span dangerouslySetInnerHTML={{ __html: IC.pencil }} />
-                      Düzenle
-                    </button>
-                  )}
-                  <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={closeDetail}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.x }} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Sekme çubuğu */}
-              <div style={{ display: "flex", gap: 4, padding: "0 28px", borderBottom: "1px solid #E2E5EA", background: "#F7F8FA" }}>
-                {([
-                  { key: "bilgiler" as const, label: "Bilgiler", icon: IC.idCard },
-                  { key: "odeme" as const, label: "Ödeme & Satış", icon: IC.wallet },
-                ]).map((t) => {
-                  const on = detailTab === t.key;
-                  return (
-                    <button key={t.key} onClick={() => { if (!saving) { setDetailTab(t.key); if (t.key === "odeme") setEditMode(false); } }}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 16px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, color: on ? "#205297" : "#8E95A3", borderBottom: on ? "2.5px solid #2867bd" : "2.5px solid transparent", marginBottom: -1 }}>
-                      <span dangerouslySetInnerHTML={{ __html: t.icon }} />
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Sheet body */}
-              <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px 28px" }}>
-                {detailTab === "bilgiler" ? (
-                  !editMode ? (
-                    /* ── Bilgiler · Görüntüleme ── */
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 32px" }}>
-                      <div><div style={S.fieldLabel}>Ad</div><div style={S.fieldValue}>{editForm.firstName || "—"}</div></div>
-                      <div><div style={S.fieldLabel}>Soyad</div><div style={S.fieldValue}>{editForm.lastName || "—"}</div></div>
-                      <div><div style={S.fieldLabel}>Telefon</div><div style={S.fieldValue}>{editForm.phone ? formatTrPhone(editForm.phone) : "—"}</div></div>
-                      <div><div style={S.fieldLabel}>E-posta</div><div style={S.fieldValue}>{editForm.email || "—"}</div></div>
-                      <div><div style={S.fieldLabel}>TC Kimlik No</div><div style={S.fieldValue}>{loadingDetail && !detail ? "…" : (editForm.idNo || "—")}</div></div>
-                      <div><div style={S.fieldLabel}>Doğum Tarihi</div><div style={S.fieldValue}>{loadingDetail && !detail ? "…" : (editForm.birthDate ? fmtDate(editForm.birthDate) : "—")}</div></div>
-                      <div><div style={S.fieldLabel}>Cinsiyet</div><div style={S.fieldValue}>{editForm.gender === "male" ? "Erkek" : editForm.gender === "female" ? "Kadın" : "—"}</div></div>
-                      <div>
-                        <div style={S.fieldLabel}>Gruplar</div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 2 }}>
-                          {ds.groups.length === 0
-                            ? <span style={{ fontSize: 13.5, color: "#8E95A3", fontStyle: "italic" }}>Grup atanmamış</span>
-                            : ds.groups.map((g) => (
-                              <span key={g.label} style={S.groupChip}>
-                                <span dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                                {g.label}
-                              </span>
-                            ))
-                          }
-                        </div>
-                      </div>
-                      <div style={{ gridColumn: "1 / -1" }}>
-                        <div style={S.fieldLabel}>Adres</div>
-                        <div style={S.fieldValue}>{loadingDetail && !detail ? "…" : (editForm.address || "—")}</div>
-                      </div>
-                      {guardianSaleId && (
-                        <div style={{ gridColumn: "1 / -1", paddingTop: 14, borderTop: "1px dashed #E2E5EA" }}>
-                          <div style={{ ...S.fieldLabel, color: "#8A5A00", marginBottom: 10 }}>Veli (18 yaş altı)</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 32px" }}>
-                            <div><div style={S.fieldLabel}>Veli Adı Soyadı</div><div style={S.fieldValue}>{editForm.guardianName || "—"}</div></div>
-                            <div><div style={S.fieldLabel}>Veli TC</div><div style={S.fieldValue}>{editForm.guardianIdNo || "—"}</div></div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* ── Bilgiler · Düzenleme ── */
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px" }}>
-                      <div>
-                        <label style={S.fieldLabel}>Ad</label>
-                        <input style={S.input} value={editForm.firstName} onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))} />
-                      </div>
-                      <div>
-                        <label style={S.fieldLabel}>Soyad</label>
-                        <input style={S.input} value={editForm.lastName} onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))} />
-                      </div>
-                      <div>
-                        <label style={S.fieldLabel}>Telefon</label>
-                        <input style={S.input} value={formatTrPhone(editForm.phone)} inputMode="tel" onChange={(e) => setEditForm((f) => ({ ...f, phone: formatTrPhone(e.target.value) }))} placeholder="0 (5XX) XXX XX XX" />
-                      </div>
-                      <div>
-                        <label style={S.fieldLabel}>E-posta</label>
-                        <input style={S.input} type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} placeholder="ornek@mail.com" />
-                      </div>
-                      <div>
-                        <label style={S.fieldLabel}>TC Kimlik No</label>
-                        <input style={S.input} value={editForm.idNo} inputMode="numeric" maxLength={11} onChange={(e) => setEditForm((f) => ({ ...f, idNo: e.target.value.replace(/\D/g, "") }))} placeholder="11 haneli" />
-                      </div>
-                      <div>
-                        <label style={S.fieldLabel}>Doğum Tarihi</label>
-                        <input style={{ ...S.input, cursor: "pointer" }} type="date" value={editForm.birthDate} onChange={(e) => setEditForm((f) => ({ ...f, birthDate: e.target.value }))} />
-                      </div>
-                      <div>
-                        <label style={S.fieldLabel}>Cinsiyet</label>
-                        <select style={{ ...S.input, cursor: "pointer" }} value={editForm.gender} onChange={(e) => setEditForm((f) => ({ ...f, gender: e.target.value }))}>
-                          <option value="">Belirtilmemiş</option>
-                          <option value="male">Erkek</option>
-                          <option value="female">Kadın</option>
-                        </select>
-                      </div>
-                      <div style={{ gridColumn: "1 / -1" }}>
-                        <label style={S.fieldLabel}>Adres</label>
-                        <textarea style={{ ...S.input, minHeight: 64, resize: "vertical", lineHeight: 1.4 }} value={editForm.address} onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))} placeholder="İletişim adresi" />
-                      </div>
-                      {guardianSaleId && (
-                        <div style={{ gridColumn: "1 / -1", paddingTop: 14, borderTop: "1px dashed #E2E5EA" }}>
-                          <div style={{ ...S.fieldLabel, color: "#8A5A00", marginBottom: 10 }}>Veli (18 yaş altı)</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
-                            <div>
-                              <label style={S.fieldLabel}>Veli Adı Soyadı</label>
-                              <input style={S.input} value={editForm.guardianName} onChange={(e) => setEditForm((f) => ({ ...f, guardianName: e.target.value }))} />
-                            </div>
-                            <div>
-                              <label style={S.fieldLabel}>Veli TC</label>
-                              <input style={S.input} value={editForm.guardianIdNo} inputMode="numeric" maxLength={11} onChange={(e) => setEditForm((f) => ({ ...f, guardianIdNo: e.target.value.replace(/\D/g, "") }))} />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                ) : (
-                  /* ── Ödeme & Satış · salt görüntüleme ── */
-                  loadingDetail && !detail ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 20px" }}>
-                      <FlexSpinner /><div style={{ fontSize: 13, color: "#8E95A3" }}>Ödeme bilgileri yükleniyor…</div>
-                    </div>
-                  ) : !detail || (detail.sales.length === 0 && detail.payments.length === 0) ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "48px 20px", textAlign: "center" }}>
-                      <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.wallet }} />
-                      <div style={{ fontSize: 14.5, fontWeight: 700, color: "#414B59" }}>Ödeme/satış kaydı yok</div>
-                      <div style={{ fontSize: 13, color: "#8E95A3", maxWidth: 300 }}>Bu öğrenciye ait ödeme planı bulunmuyor veya görüntüleme yetkiniz yok.</div>
-                    </div>
-                  ) : (
-                    (() => {
-                      // Seçili eğitim (= satış/enrollment) — selector bunu sürer
-                      const sales = detail.sales;
-                      const sel = sales.find((s) => s.id === selectedSaleId) ?? sales[0];
-                      const selPayments = sel ? detail.payments.filter((p) => p.saleId === sel.id) : [];
-                      const expected = (sel?.soldPrice ?? 0) + (sel?.financingFee ?? 0);
-                      const paid = selPayments.filter((p) => p.paidAt).reduce((a, p) => a + p.amount, 0);
-                      const remaining = Math.max(0, expected - paid);
-                      const rb = ROLLUP_BADGE[clientRollup(selPayments, expected)];
-                      const single = sales.length <= 1;
-                      return (
-                        <>
-                          {/* eğitim seçici (satın aldığı eğitimler) + salt görüntüleme şeridi */}
-                          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                              <span style={S.fieldLabel}>Satın aldığı eğitim{single ? "" : `ler (${sales.length})`}</span>
-                              <div style={{ position: "relative" }}>
-                                <select
-                                  value={sel?.id ?? ""}
-                                  disabled={single}
-                                  onChange={(e) => setSelectedSaleId(e.target.value)}
-                                  style={{ ...S.input, minWidth: 280, appearance: "none", paddingRight: 40, cursor: single ? "default" : "pointer", background: single ? "#EEF0F3" : "#fff", color: single ? "#6F7B87" : "#1E222B" }}
-                                >
-                                  {sales.map((s) => (
-                                    <option key={s.id} value={s.id}>{s.educationName}{s.status === "cancelled" ? " (İptal)" : ""}</option>
-                                  ))}
-                                </select>
-                                <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", opacity: single ? 0.4 : 1 }} dangerouslySetInnerHTML={{ __html: IC.chevDown }} />
-                              </div>
-                            </div>
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: "#EEF0F3", color: "#6F7B87", fontSize: 12, fontWeight: 600 }}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.lock }} /> Salt görüntüleme
-                            </div>
-                          </div>
-
-                          {/* seçili eğitim başlık kartı */}
-                          {sel && (
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "13px 16px", borderRadius: 12, border: "1px solid #E2E5EA", background: "#fff", marginBottom: 14 }}>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.educationName}</div>
-                                <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2 }}>{fmtDate(sel.date)}{sel.status === "cancelled" ? " · İptal edildi" : ""}</div>
-                              </div>
-                              <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                                <div style={{ fontSize: 14.5, fontWeight: 800, color: sel.status === "cancelled" ? "#B42318" : "#1E222B", textDecoration: sel.status === "cancelled" ? "line-through" : "none" }}>{tl(sel.soldPrice)}</div>
-                                {sel.financingFee > 0 && <div style={{ fontSize: 11.5, color: "#8A5A00", fontWeight: 600 }}>+{tl(sel.financingFee)} vade farkı</div>}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* özet kartları (seçili eğitim) */}
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 14 }}>
-                            <div style={S.payStat}><div style={S.payStatLbl}>Toplam</div><div style={{ ...S.payStatVal, color: "#1E222B" }}>{tl(expected)}</div></div>
-                            <div style={S.payStat}><div style={S.payStatLbl}>Ödenen</div><div style={{ ...S.payStatVal, color: "#007A30" }}>{tl(paid)}</div></div>
-                            <div style={S.payStat}><div style={S.payStatLbl}>Kalan</div><div style={{ ...S.payStatVal, color: remaining > 0 ? "#B42318" : "#007A30" }}>{tl(remaining)}</div></div>
-                          </div>
-                          {rb && (
-                            <div style={{ marginBottom: 22 }}>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 13px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, color: rb.color, background: rb.background }}>
-                                <span style={{ width: 7, height: 7, borderRadius: "50%", background: rb.color }} />Ödeme durumu: {rb.label}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* ödeme planı (seçili eğitim) */}
-                          <div>
-                            <div style={S.payecHead}>Ödeme Planı</div>
-                            {selPayments.length === 0 ? (
-                              <div style={{ padding: "18px 16px", borderRadius: 12, border: "1px dashed #E2E5EA", background: "#fff", fontSize: 13, color: "#8E95A3", textAlign: "center" }}>
-                                Bu eğitim için ödeme planı girilmemiş.
-                              </div>
-                            ) : (
-                              <div style={{ border: "1px solid #E2E5EA", borderRadius: 12, overflow: "hidden", background: "#fff" }}>
-                                {selPayments.map((p, i) => {
-                                  const b = PAY_STATUS_BADGE[p.status] ?? PAY_STATUS_BADGE.planned;
-                                  const isInst = p.installmentNo != null;
-                                  return (
-                                    <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: i === 0 ? "none" : "1px solid #EEF0F3" }}>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                                        <span style={{ width: 30, height: 30, borderRadius: 8, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", color: "#6F7B87", fontSize: 12, fontWeight: 700 }}>
-                                          {isInst ? `${p.installmentNo}` : <span dangerouslySetInnerHTML={{ __html: IC.cash }} />}
-                                        </span>
-                                        <div style={{ minWidth: 0 }}>
-                                          <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>
-                                            {PAY_METHOD_LABEL[p.method] ?? p.method}{isInst ? ` · ${p.installmentNo}/${p.installmentTotal}. taksit` : ""}
-                                          </div>
-                                          <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500, marginTop: 1 }}>
-                                            {p.paidAt ? `Ödendi: ${fmtDate(p.paidAt)}` : p.dueDate ? `Vade: ${fmtDate(p.dueDate)}` : "—"}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 12, whiteSpace: "nowrap" }}>
-                                        <span style={{ fontSize: 14, fontWeight: 800, color: "#1E222B" }}>{tl(p.amount)}</span>
-                                        <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: b.color, background: b.background }}>{b.label}</span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      );
-                    })()
-                  )
-                )}
-              </div>
-
-              {/* Sheet footer (düzenleme modunda) */}
-              {detailTab === "bilgiler" && editMode && (
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "16px 28px 22px", borderTop: "1px solid #EEF0F3", background: "#F7F8FA" }}>
-                  <button className="oh-clear" onClick={cancelEdit} disabled={saving}
-                    style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }}>Vazgeç</button>
-                  <button className="oh-filter" onClick={saveDetail}
-                    style={{ ...S.filterBtn, opacity: saving ? 0.55 : 1, pointerEvents: saving ? "none" : "auto" }}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.checkWhiteLg }} />
-                    {saving ? "Kaydediliyor…" : "Kaydet"}
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </>
-        );
-      })()}
-      </AnimatePresence>
     </div>
   );
 }
@@ -1586,6 +1137,7 @@ const IC = {
   dots: sv('<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>', 'width="16" height="16" fill="currentColor" stroke="none"'),
   chevLeftSm: sv('<path d="m15 18-6-6 6-6"/>', 'width="13" height="13" stroke-width="2.4"'),
   searchBig: sv('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', 'width="26" height="26" stroke-width="1.8"'),
+  search: sv('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', 'width="15" height="15" stroke-width="2"'),
   chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
   chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
   pencil: sv('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>', 'width="14" height="14"'),
@@ -1607,14 +1159,9 @@ const globalCss = `
 .oh-ddrow:hover{background:#F5F7FB}
 .oh-row:hover{background:#F7F8FA}
 .oh-iconbtn:hover{background:#F7F8FA;color:#1E222B}
-.oh-detail:hover{border-color:#92b6e8;color:#2867bd;background:#EFF3FA}
 .oh-assign:hover{color:#2867bd;background:#EFF3FA}
 .oh-grow:hover{border-color:#92b6e8 !important;background:#F7F8FA}
 @media(max-width:1599px){.oh-wide-col{display:none}}
-.fx-sheet{left:248px;right:0;max-width:1920px;margin-left:auto;margin-right:auto}
-.fx-sheet-ov{left:248px;right:0}
-@media(min-width:1536px){.fx-sheet,.fx-sheet-ov{left:272px}}
-@media(min-width:2560px){.fx-sheet,.fx-sheet-ov{left:300px}}
 .oh-col-name{width:220px}.oh-col-brans{width:130px}.oh-col-edu{width:170px}.oh-col-stat{width:120px}
 .oh-col-email{width:190px}.oh-col-phone{width:155px}.oh-col-grup{width:150px}.oh-col-islem{width:115px}
 @media(max-width:1599px){

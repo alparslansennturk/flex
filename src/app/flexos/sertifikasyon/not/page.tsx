@@ -54,15 +54,21 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Award, BookOpen, Check } from "lucide-react";
+import { motion } from "framer-motion";
+import { Award, BookOpen, Check, ArrowLeft } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
-import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
+import FlexHeader, { FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+import { GroupSelectPanel, groupColor, firstActiveGroupId } from "../_shared/GroupSelectPanel";
+import { StudentDetailModal } from "../../ogrenciler/_shared/StudentDetailModal";
+import { StudentDetailPanel } from "../../ogrenciler/_shared/StudentDetailPanel";
 
-interface GroupItem { id: string; code: string; branch: string; enrolled: number; certType?: "exam" | "project" }
+const PANEL_T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
+
+interface GroupItem { id: string; code: string; branch: string; enrolled: number; certType?: "exam" | "project"; status?: string }
 
 interface GradeDoc { personId: string; projectGrade?: number; locked?: boolean; components?: Record<string, number> }
 interface OdevKategori { totalMaxPuan: number; earnedByPerson: Record<string, number> }
@@ -74,17 +80,11 @@ const ODEV_DATA_BOS: OdevData = { normal: ODEV_KATEGORI_BOS, proje: ODEV_KATEGOR
 // submission-service.ts::ODEV_TUR_AGIRLIK ile AYNI sabit — SABİT iş kuralı (2026-07-06).
 const ODEV_TUR_AGIRLIK = { normal: 30, proje: 70 };
 
-const GROUP_COLORS = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#1CB5AE", "#F91079"];
 const AVATAR_PALETTES: [string, string][] = [
   ["#689adf", "#2867bd"], ["#F76FA3", "#F91079"], ["#67B5B6", "#1CB5AE"],
   ["#C79BF0", "#8B44D6"], ["#F9B36F", "#E8830F"], ["#7FCE8E", "#2E9E4A"],
 ];
 
-function groupColor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash << 5) - hash + id.charCodeAt(i);
-  return GROUP_COLORS[Math.abs(hash) % GROUP_COLORS.length];
-}
 function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toLocaleUpperCase("tr");
 }
@@ -132,6 +132,17 @@ export default function SertifikaNotuPage() {
   // notları var, onu al"). Aktif/canlı gruplarda bu alan hiç dolmaz, davranış değişmez.
   const [odevNotuOverride, setOdevNotuOverride] = useState<Record<string, number>>({});
 
+  // 2026-07-16 kullanıcı isteği: öğrenciye tıklayınca Öğrenci Bilgi açılır — eğitmen için
+  // modal (Sınıflar'daki AYNI desen), admin/eğitim-op (`canOverrideLock` — bu sayfada zaten
+  // var olan org-scope sinyali) için Yoklama Detay'daki "liste→detay" kayma paneli (aynısı).
+  const [modalPersonId, setModalPersonId] = useState<string | null>(null);
+  const [panelPersonId, setPanelPersonId] = useState<string | null>(null);
+  const [showStudentPanel, setShowStudentPanel] = useState(false);
+  const openStudent = (personId: string) => {
+    if (canOverrideLock) { setPanelPersonId(personId); setShowStudentPanel(true); }
+    else setModalPersonId(personId);
+  };
+
   const loadSettings = useCallback(async () => {
     const headers = await authHeaders();
     const res = await fetch("/api/flexos/certificate-settings", { headers });
@@ -155,7 +166,8 @@ export default function SertifikaNotuPage() {
       if (res.ok) {
         const data = await res.json() as { items: GroupItem[] };
         setGroups(data.items);
-        if (data.items.length > 0) setSelectedId((cur) => cur ?? data.items[0].id);
+        const defaultId = firstActiveGroupId(data.items);
+        if (defaultId) setSelectedId((cur) => cur ?? defaultId);
       }
     } finally {
       setLoadingGroups(false);
@@ -218,10 +230,20 @@ export default function SertifikaNotuPage() {
    * Ödev Notu yüzdesi — hesaplanır, elle girilmez. `normal` %30 + `proje` %70
    * ağırlıklı (`submission-service.ts::combineOdevYuzdesi` ile AYNI formül).
    * Bir kategori hiç yoksa ağırlık diğerine kayar; ikisi de yoksa `null` (veri yok).
+   *
+   * 2026-07-16 GERÇEK BUG (Grup 330, İlayda Arslanoğlu — canlı veriyle kanıtlandı):
+   * `odevNotuOverride` (backfill script'inin 2026-07-09'da bıraktığı ESKİ snapshot,
+   * `Grade.components.odevNotu`) grup GERÇEK canlı ödev/teslim verisine sahip olsa
+   * BİLE koşulsuz önceliklendiriliyordu — öğrenci 8 ödevin hepsinden 100 alsa da
+   * (gerçek hesap %100) eski %80 snapshot'ı gösteriliyordu (24 puan yerine 30 olması
+   * gerekiyordu). Override SADECE grupta hiç canlı ödev/teslim izi yoksa (tamamen
+   * migrasyon verisi, dijital iz yok) kullanılmalı — grupta gerçek `Assignment` varsa
+   * güncel hesap her zaman kazanmalı.
    */
   function odevYuzdesi(personId: string): number | null {
-    if (personId in odevNotuOverride) return odevNotuOverride[personId];
     const { normal, proje } = odevData;
+    const hasLiveData = normal.totalMaxPuan > 0 || proje.totalMaxPuan > 0;
+    if (!hasLiveData && personId in odevNotuOverride) return odevNotuOverride[personId];
     const normalOran = normal.totalMaxPuan > 0 ? (normal.earnedByPerson[personId] ?? 0) / normal.totalMaxPuan : null;
     const projeOran = proje.totalMaxPuan > 0 ? (proje.earnedByPerson[personId] ?? 0) / proje.totalMaxPuan : null;
     if (normalOran == null && projeOran == null) return null;
@@ -332,72 +354,56 @@ export default function SertifikaNotuPage() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", background: "#EEF0F3" }}>
       <FlexSidebar active="sertifika-notu" />
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, height: "100%", overflow: "hidden", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
           icon={<Award size={20} color="#fff" />}
           title="Sertifika Notu"
           subtitle="Grup seçin, öğrencilere sertifika notu girin."
           roleLabel="Eğitmen"
           maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
-        />
-
-        <FlexPageContent className="font-inter" style={{ padding: "26px 0 48px" }}>
-          <div className="grid gap-5" style={{ gridTemplateColumns: "280px minmax(0,1fr)", alignItems: "start" }}>
-
-            {/* ===== SOL: Grup seçimi ===== */}
-            {/* Ekran boyunca uzatılmış (2026-07-16): top:96 sticky offset + 32px alt
-                boşlukla `calc(100vh - 128px)` sabit yükseklik, grup listesi kendi
-                içinde kaydırılır (başlık sabit kalır). */}
-            <div
-              className="bg-white border border-[#E2E5EA] rounded-[20px] p-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] sticky flex flex-col"
-              style={{ top: 96, height: "calc(100vh - 128px)" }}
-            >
-              <div className="flex items-center gap-[9px] mb-4 shrink-0">
-                <div className="w-8 h-8 rounded-[10px] bg-[#DDE8F8] text-[#205297] flex items-center justify-center">
-                  <BookOpen size={17} />
-                </div>
-                <div>
-                  <div className="text-[14px] font-extrabold text-[#1E222B] tracking-tight">Gruplar</div>
-                  <div className="text-[11px] text-[#8E95A3] font-medium">Not vermek için seçin</div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-[7px] flex-1 min-h-0 overflow-y-auto">
-                {loadingGroups ? (
-                  <p className="text-[12px] text-[#8E95A3] py-4 text-center">Yükleniyor…</p>
-                ) : groups.length === 0 ? (
-                  <p className="text-[12px] text-[#8E95A3] py-4 text-center">Henüz grup yok.</p>
-                ) : (
-                  groups.map((g) => {
-                    const active = g.id === selectedId;
-                    return (
-                      <button
-                        key={g.id}
-                        onClick={() => setSelectedId(g.id)}
-                        className="w-full flex items-center gap-[11px] py-[11px] px-3 rounded-[13px] cursor-pointer transition-all"
-                        style={{
-                          border: active ? "1px solid #AECBF2" : "1px solid #EEF0F3",
-                          background: active ? "#EFF5FE" : "#fff",
-                          boxShadow: active ? "0 4px 14px -8px rgba(32,82,151,.4)" : "none",
-                        }}
-                      >
-                        <div className="rounded-full shrink-0" style={{ width: 4, alignSelf: "stretch", minHeight: 30, background: groupColor(g.id) }} />
-                        <div className="flex-1 min-w-0 text-left">
-                          <div className="text-[13.5px] font-extrabold text-[#1E222B] tracking-tight">{g.code}</div>
-                          <div className="text-[11px] text-[#8E95A3] font-medium mt-0.5">{g.branch} • {g.enrolled} öğrenci</div>
-                        </div>
-                        {active && <Check size={16} strokeWidth={2.6} color="#205297" className="shrink-0" />}
-                      </button>
-                    );
-                  })
-                )}
+          left={showStudentPanel ? (
+            <div className="flex items-center gap-[15px]">
+              <button
+                onClick={() => setShowStudentPanel(false)}
+                className="w-[46px] h-[46px] rounded-[13px] flex items-center justify-center cursor-pointer shrink-0"
+                style={{ background: "linear-gradient(135deg,#2867bd,#205297)", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}
+              >
+                <ArrowLeft size={21} color="#fff" />
+              </button>
+              <div>
+                <h1 className="m-0 text-[18px] font-extrabold tracking-tight text-[#1E222B]">Öğrenci Bilgisi</h1>
+                <p className="m-0 mt-0.5 text-[12px] text-[#6F7B87] font-medium">Sertifika Notu / Profil</p>
               </div>
             </div>
+          ) : undefined}
+        />
 
-            {/* ===== SAĞ: Not tablosu ===== */}
-            <div className="flex flex-col gap-4 min-w-0">
+        {/* `panelArea` — Yoklama Detay'daki (`yoklama/detay/page.tsx`) AYNI "liste↔detay
+            kayması" deseni: sidebar/header sabit, sadece bu alan içindeki iki panel kayar. */}
+        <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+          <motion.div initial={false} animate={{ x: showStudentPanel ? "-100%" : 0 }} transition={PANEL_T}
+            className="absolute inset-0 flex flex-col overflow-hidden">
+            {/* İçerik satırı (2026-07-16): header'ın ALTINDA, footer'ın ÜSTÜNDE — Gruplar
+                paneli SADECE bu satırın yüksekliği kadar (üstten sağdaki toolbar'la aynı
+                hizada, alttan footer'dan önce biter), 100vh DEĞİL. Satır kendi sabit
+                yüksekliğine (`flex:1` + `minHeight:0` + `overflow:hidden`) sahip; SOL
+                (Gruplar) hiç kaymaz, SAĞ kendi `overflow-y-auto`'suyla bağımsız kayar. */}
+            <div
+              className={`${FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} flex`}
+              style={{ margin: "0 auto", boxSizing: "border-box", flex: 1, minHeight: 0, overflow: "hidden", padding: "26px 0 32px", gap: 20 }}
+            >
+          <GroupSelectPanel
+            groups={groups} loading={loadingGroups} selectedId={selectedId} onSelect={setSelectedId}
+            subtitle="Not vermek için seçin"
+          />
 
-              {/* toolbar */}
-              <div className="bg-white border border-[#E2E5EA] rounded-[18px] py-4 px-5 shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0 h-full min-h-0 flex flex-col gap-4 font-inter">
+
+              {/* toolbar — sabit, KAYMIYOR (2026-07-16: sticky değil, scroll'un tamamen
+                  dışında — sadece aşağıdaki tablo kutusu kayıyor). `shrink-0` ŞART
+                  (aynı gün bulunan gerçek bug): flex-col kapsayıcıda varsayılan
+                  flex-shrink:1 yüzünden bu kutu sıkışıp küçülüyordu. */}
+              <div className="bg-white border border-[#E2E5EA] rounded-[18px] py-4 px-5 shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] flex items-center justify-between gap-4 flex-wrap shrink-0">
                 <div className="flex items-center gap-[13px] min-w-0">
                   <div className="rounded-full shrink-0" style={{ width: 5, alignSelf: "stretch", minHeight: 40, background: selected ? groupColor(selected.id) : "#CDD2DA" }} />
                   <div>
@@ -413,8 +419,8 @@ export default function SertifikaNotuPage() {
                 </div>
               </div>
 
-              {/* table */}
-              <div className="bg-white border border-[#E2E5EA] rounded-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] overflow-y-hidden overflow-x-auto">
+              {/* table — TEK kayan alan, toolbar'dan bağımsız */}
+              <div className="bg-white border border-[#E2E5EA] rounded-[18px] shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] overflow-y-auto overflow-x-auto flex-1 min-h-0">
                 <div className="grid gap-6 items-center py-[15px] px-[22px] border-b border-[#EEF0F3] bg-[#FBFCFD]" style={{ gridTemplateColumns: gridCols }}>
                   <div className="text-[11.5px] font-bold text-[#8E95A3] tracking-wide">Öğrenci</div>
                   <div aria-hidden />
@@ -455,7 +461,10 @@ export default function SertifikaNotuPage() {
                         className="grid gap-6 items-center py-[13px] px-[22px]"
                         style={{ gridTemplateColumns: gridCols, borderBottom: i < roster.length - 1 ? "1px solid #F2F4F7" : "none" }}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className="flex items-center gap-3 min-w-0 cursor-pointer group w-fit"
+                          onClick={() => openStudent(r.personId)}
+                        >
                           <span
                             className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white text-[13.5px] font-bold"
                             style={{ background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}
@@ -463,13 +472,13 @@ export default function SertifikaNotuPage() {
                             {initials(r.name)}
                           </span>
                           <div className="min-w-0">
-                            <div className="text-[13.5px] font-bold text-[#1E222B] truncate">{r.name}</div>
+                            <div className="text-[13.5px] font-bold text-[#1E222B] truncate group-hover:text-[#205297] transition-colors">{r.name}</div>
                           </div>
                         </div>
                         <div aria-hidden />
                         <div className="flex justify-center">
                           <input
-                            className="gradeInput w-[78px] text-center py-2 px-2 rounded-[10px] border border-[#E2E5EA] bg-white text-[14px] font-bold text-[#1E222B] outline-none"
+                            className="gradeInput w-[78px] text-center py-2 px-2 rounded-[10px] border border-[#E2E5EA] bg-white text-[14px] font-bold text-[#1E222B] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             type="number" min={0} max={100} placeholder="0-100"
                             value={sertifikaNotlari[r.personId] ?? ""}
                             onChange={(e) => setSertifikaNotu(r.personId, e.target.value)}
@@ -539,12 +548,20 @@ export default function SertifikaNotuPage() {
                   </div>
                 </div>
               </div>
-            </div>
           </div>
-        </FlexPageContent>
+            </div>
+          </motion.div>
+
+          <motion.div initial={false} animate={{ x: showStudentPanel ? 0 : "100%" }} transition={PANEL_T}
+            className="absolute inset-0 overflow-y-auto bg-[#EEF0F3]">
+            <StudentDetailPanel personId={panelPersonId} className="font-inter pt-6 pb-8" />
+          </motion.div>
+        </div>
 
         <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
+
+      {modalPersonId && <StudentDetailModal personId={modalPersonId} onClose={() => setModalPersonId(null)} />}
 
       {odevWarnOpen && (
         <div className="fixed inset-0 z-[700] flex items-center justify-center p-6 bg-base-primary-900/40 backdrop-blur-md" onClick={() => setOdevWarnOpen(false)}>

@@ -14,6 +14,7 @@ export interface GroupApiItem {
   id: string; code: string; type: string; status: string;
   educationId: string | null; educationName: string; branch: string;
   sectionId: string | null; sectionName: string;
+  sectionHours: number | null; educationTotalHours: number | null;
   branchOfficeId: string | null; branchOffice: string;
   trainerId: string; trainerName: string;
   schedule: { startDate?: string; days?: number[]; sessionHours?: number; startTime?: string; endTime?: string; endDate?: string };

@@ -123,6 +123,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, { params }: { para
       lastName: person.lastName,
       gender: person.gender ?? "",
       birthDate: person.birthDate ?? "",
+      createdAt: person.createdAt ?? null, // Öğrenci Detay "Kayıt Tarihi" alanı için (2026-07-16)
       pii: allowPII
         ? {
             phone: person.pii?.phone ?? "",

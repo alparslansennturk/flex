@@ -8,7 +8,8 @@
  * (`GroupTable.tsx`) satıra tıklayınca buraya gelinir; RosterDrawer bu mod için KALDIRILDI.
  *
  * Mockup'taki dummy veri (GROUPS[], fake öğrenci üretici) GERÇEK API'lere bağlandı:
- * `GET /api/flexos/groups` (+`/educations` toplam saat için) + `GET /api/flexos/groups/[id]/roster`
+ * `GET /api/flexos/groups` (toplam saat artık `sectionHours`/`educationTotalHours` alanlarıyla
+ * doğrudan burada — ayrı bir `/educations` fetch'i gerekmiyor) + `GET /api/flexos/groups/[id]/roster`
  * + `GET /api/flexos/attendance?groupId=` (Devam% buradan türetilir — ayrı bir "rapor" ucu yok,
  * ham kayıtlardan client-side hesaplanır). Mockup'ın "riskli/donduruldu" öğrenci durumları
  * UYDURMA idi (gerçek domain'de yok) — gerçek `Enrollment.status` (active/completed) kullanıldı.
@@ -32,6 +33,7 @@ import FlexHeader from "../../_components/FlexHeader";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
 import { useCapabilities } from "../../_components/useCapabilities";
+import { StudentDetailModal } from "../../ogrenciler/_shared/StudentDetailModal";
 import { formatTrPhone } from "@/app/lib/phone";
 import {
   type GroupApiItem, type RosterItem,
@@ -41,7 +43,6 @@ import {
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 interface AttendanceRecordLite { id: string; date: string; entries: Record<string, { hours: number }> }
-interface EducationLite { id: string; totalHours?: number }
 
 interface ScheduleLite { days?: number[]; startTime?: string; endTime?: string }
 function parseHM(t?: string): number | null {
@@ -66,11 +67,13 @@ export default function SinifDetayPage() {
   const groupId = params.id;
   const { caps } = useCapabilities();
   const canManage = caps.has("group.assign_student");
+  // Roster satırına tıklama (2026-07-16): admin/op → Öğrenci Detay sayfası, eğitmen → modal.
+  // Aynı `canManage` capability'si (admin/op'ta true) — rol adı değil, mevcut proje deseni.
+  const [detailPersonId, setDetailPersonId] = useState<string | null>(null);
 
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [group, setGroup] = useState<GroupApiItem | null>(null);
-  const [educations, setEducations] = useState<EducationLite[]>([]);
   const [allGroups, setAllGroups] = useState<GroupApiItem[]>([]);
   const [roster, setRoster] = useState<RosterItem[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecordLite[]>([]);
@@ -86,9 +89,8 @@ export default function SinifDetayPage() {
     setLoading(true);
     try {
       const headers = await authHeaders();
-      const [gRes, eRes, rRes, aRes] = await Promise.all([
+      const [gRes, rRes, aRes] = await Promise.all([
         fetch("/api/flexos/groups", { headers }),
-        fetch("/api/flexos/educations", { headers }),
         fetch(`/api/flexos/groups/${groupId}/roster`, { headers }),
         fetch(`/api/flexos/attendance?groupId=${groupId}`, { headers }),
       ]);
@@ -96,7 +98,6 @@ export default function SinifDetayPage() {
       const items: GroupApiItem[] = gJson.items ?? [];
       setAllGroups(items);
       setGroup(items.find((g) => g.id === groupId) ?? null);
-      setEducations(eRes.ok ? (await eRes.json()).items ?? [] : []);
       setRoster(rRes.ok ? (await rRes.json()).items ?? [] : []);
       setAttendance(aRes.ok ? (await aRes.json()).items ?? [] : []);
     } catch {
@@ -350,7 +351,9 @@ export default function SinifDetayPage() {
   else if (capPct < 50) { capHint = "Kontenjan geniş"; capColor = "#8A5A00"; }
   else if (group) { capHint = `${group.capacity - group.enrolled} kişilik yer var`; capColor = "#205297"; }
 
-  const totalHours = group?.educationId ? educations.find((e) => e.id === group.educationId)?.totalHours : undefined;
+  // Bölümlü eğitimde `educationTotalHours` TÜM bölümlerin toplamı — grubun bağlı olduğu
+  // bölümün KENDİ saatine öncelik ver (2026-07-16 gerçek bug fix, bkz. AttendanceCore.tsx).
+  const totalHours = group ? group.sectionHours ?? group.educationTotalHours ?? undefined : undefined;
 
   const q = query.trim().toLocaleLowerCase("tr");
   const filteredRoster = q ? roster.filter((r) => r.name.toLocaleLowerCase("tr").includes(q)) : roster;
@@ -515,7 +518,11 @@ export default function SinifDetayPage() {
                           const isCompleted = r.status === "completed";
                           const rst = isCompleted ? { label: "Tamamlandı", color: "#6F7B87", background: "#EEF0F3", dot: "#AEB4C0" } : { label: "Aktif", color: "#007A30", background: "#E6F5ED", dot: "#009F3E" };
                           return (
-                            <tr key={r.enrollmentId} style={{ borderBottom: "1px solid #EEF0F3" }}>
+                            <tr
+                              key={r.enrollmentId}
+                              style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}
+                              onClick={() => (canManage ? router.push(`/flexos/ogrenciler/${r.personId}`) : setDetailPersonId(r.personId))}
+                            >
                               <td style={S.tdNo}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 26, height: 26, padding: "0 6px", borderRadius: 8, background: "#F2F4F7", color: "#6F7B87", fontSize: 12.5, fontWeight: 800 }}>{i + 1}</span></td>
                               <td style={S.tdFirst}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -537,7 +544,7 @@ export default function SinifDetayPage() {
                                 </div>
                               </td>
                               <td style={S.td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: rst.color, background: rst.background, whiteSpace: "nowrap" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: rst.dot }} />{rst.label}</span></td>
-                              <td style={S.tdRight}>
+                              <td style={S.tdRight} onClick={(e) => e.stopPropagation()}>
                                 <div style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                                   {canManage && !isCompleted && (
                                     <button onClick={() => { setTransferTarget({ enrollmentId: r.enrollmentId, name: r.name }); setSelectedGroupId(""); setCloseAs(null); }} title="Grup Değiştir" style={S.iconBtn}>
@@ -765,6 +772,8 @@ export default function SinifDetayPage() {
           </div>
         </div>
       )}
+
+      {detailPersonId && <StudentDetailModal personId={detailPersonId} onClose={() => setDetailPersonId(null)} />}
     </div>
   );
 }
