@@ -11,11 +11,12 @@ const CSS = `
 `;
 
 /** Tam ekran yükleme ekranı — sayfa ilk açılırken (auth/data bekleniyor). */
-export function FlexPageLoader() {
+export function FlexPageLoader({ text = "Flex Yükleniyor" }: { text?: string }) {
   return (
-    <div style={{ display: "flex", height: "100vh", width: "100%", alignItems: "center", justifyContent: "center", background: "#EEF0F3" }}>
+    <div style={{ display: "flex", height: "100vh", width: "100%", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: "#EEF0F3" }}>
       <style>{CSS}</style>
       <div className="fx-spin" style={{ width: 48, height: 48 }} />
+      {text ? <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#9CA3AF" }}>{text}</p> : null}
     </div>
   );
 }
