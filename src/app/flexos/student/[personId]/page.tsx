@@ -230,7 +230,7 @@ export default function FlexosStudentDashboard() {
                 )}
 
                 {rows.length === 0 && (
-                  <div className="flex flex-col items-center gap-2 py-16 text-surface-400">
+                  <div className="flex flex-col items-center gap-2 py-16 text-surface-400 rounded-2xl border border-dashed border-surface-200 bg-surface-50/60">
                     <BookOpen size={22} />
                     <p className="text-[13px] font-medium">Henüz ödev eklenmedi.</p>
                   </div>
@@ -238,7 +238,7 @@ export default function FlexosStudentDashboard() {
               </div>
 
               {/* ══ Sağ: Aktiviteler + Duyurular ══ */}
-              <aside className="w-full xl:w-[360px] shrink-0 flex flex-col gap-6 xl:sticky xl:top-7 xl:pt-14">
+              <aside className="w-full xl:w-[320px] shrink-0 flex flex-col gap-6 xl:sticky xl:top-7 xl:pt-14">
                 <div className="h-[220px]">
                   <ActivityFeed items={activityLog} subtitle="Ödev ve teslim hareketlerin" />
                 </div>
