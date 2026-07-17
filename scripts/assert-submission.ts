@@ -100,6 +100,9 @@ function makePersonRepo(seed: Person[]): PersonRepo {
     async findByAuthUid(authUid, tenantId) {
       return Array.from(map.values()).find((p) => p.tenantId === tenantId && p.authUid === authUid) ?? null;
     },
+    async getByAuthUids(authUids, tenantId) {
+      return Array.from(map.values()).filter((p) => p.tenantId === tenantId && authUids.includes(p.authUid ?? ""));
+    },
     async list(tenantId) { return Array.from(map.values()).filter((p) => p.tenantId === tenantId); },
     async update(id, tenantId, data) { const p = map.get(id); if (p && p.tenantId === tenantId) map.set(id, { ...p, ...data }); },
     async clearAuthUid(id, tenantId) { const p = map.get(id); if (p && p.tenantId === tenantId) map.set(id, { ...p, authUid: undefined }); },

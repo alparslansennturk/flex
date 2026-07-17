@@ -48,6 +48,9 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
           email: allowPII ? (p?.pii?.email ?? "") : "",
           phone: allowPII ? (p?.pii?.phone ?? "") : "",
           isOnlineStudent: p?.isOnlineStudent ?? false,
+          // Flex Connect üye ekleme — konuşma üyeliği Firebase Auth uid'i taşır
+          // (`ConnectMember.uid`), `personId` (Firestore doc id) DEĞİL.
+          authUid: p?.authUid ?? null,
           assignedAt: e.createdAt,
           status: e.status,
         };

@@ -45,6 +45,7 @@ function makePersonRepo(seed: Person[]): PersonRepo {
     async getByIds(ids, tid) { return ids.map((id) => map.get(id)).filter((p): p is Person => !!p && p.tenantId === tid); },
     async findByIdNo() { return null; },
     async findByAuthUid(authUid, tid) { return [...map.values()].find((p) => p.tenantId === tid && p.authUid === authUid) ?? null; },
+    async getByAuthUids(authUids, tid) { return [...map.values()].filter((p) => p.tenantId === tid && authUids.includes(p.authUid ?? "")); },
     async list(tid) { return [...map.values()].filter((p) => p.tenantId === tid); },
     async update(id, tid, data) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, ...data }); },
     async clearAuthUid(id, tid) { const p = map.get(id); if (p && p.tenantId === tid) map.set(id, { ...p, authUid: undefined }); },

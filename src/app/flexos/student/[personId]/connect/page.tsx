@@ -1,0 +1,354 @@
+"use client";
+
+/**
+ * FlexOS · Flex Connect — öğrenci tam sayfası. Personel sayfasıyla (`/flexos/connect`)
+ * AYNI bileşen mantığı/tasarımı (`_shared/connectClient.ts` paylaşılır), ama:
+ *  - Kimlik `personId` route param'ı + `Person.authUid` eşleşmesiyle (öğrenci route
+ *    ailesi, `/api/flexos/student/connect/*`) — Actor/capability YOK.
+ *  - "Yeni" (create) butonu YOK — Faz 1 kararı: öğrenci konuşma başlatamaz, sadece
+ *    üyesi olduğu grup/dm'i ve audience köprü kanallarını (Öğrenci İşleri vb.) görür.
+ *  - `staff` realm HİÇBİR KOŞULDA listede görünmez (server zaten filtreliyor,
+ *    bkz. `connect-service.ts::listConversationsForPrincipal`).
+ */
+
+import { useEffect, useRef, useState, useCallback, useLayoutEffect, type ComponentType } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Megaphone, Users, Search, Send, ArrowLeft, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { auth } from "@/app/lib/firebase";
+import {
+  type ConversationView, type MessageView, type ConnectConversationType, type TypingSignal,
+  fetchConversations, fetchMessages, postMessage, markConversationRead, subscribeToMessages,
+  subscribeToTyping, sendTypingSignal,
+} from "@/app/flexos/connect/_shared/connectClient";
+import { ConnectIcon } from "@/app/flexos/connect/_shared/ConnectIcon";
+import { TypingIndicator } from "@/app/flexos/connect/_shared/TypingIndicator";
+import { EmojiButton, AttachButton } from "@/app/flexos/connect/_shared/EmojiPicker";
+
+const TYPING_TTL_MS = 6000;
+const TYPING_SEND_THROTTLE_MS = 2000;
+
+type IconComponent = ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
+
+const NAV: { key: ConnectConversationType; label: string; Icon: IconComponent }[] = [
+  { key: "channel", label: "Kanallar", Icon: Megaphone },
+  { key: "group", label: "Gruplar", Icon: Users },
+  { key: "dm", label: "Sohbetler", Icon: ConnectIcon },
+];
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
+}
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+}
+function dayKey(iso: string): string {
+  return new Date(iso).toDateString();
+}
+function dividerLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+  const dOnly = new Date(d); dOnly.setHours(0, 0, 0, 0);
+  if (dOnly.getTime() === today.getTime()) return "Bugün";
+  if (dOnly.getTime() === yesterday.getTime()) return "Dün";
+  return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+}
+
+export default function StudentConnectPage() {
+  const { personId } = useParams<{ personId: string }>();
+  const router = useRouter();
+
+  const [navTab, setNavTab] = useState<ConnectConversationType>("channel");
+  const [query, setQuery] = useState("");
+  const [conversations, setConversations] = useState<ConversationView[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<MessageView[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const firstLoadRef = useRef(true);
+  const [typingSignals, setTypingSignals] = useState<TypingSignal[]>([]);
+  const [tick, setTick] = useState(0);
+  const lastTypingSentRef = useRef(0);
+
+  const loadConversations = useCallback(async () => {
+    setLoadingList(true);
+    try {
+      setConversations(await fetchConversations(personId));
+    } finally {
+      setLoadingList(false);
+    }
+  }, [personId]);
+
+  useEffect(() => { loadConversations(); }, [loadConversations]);
+
+  const selected = conversations.find((c) => c.id === selectedId) ?? null;
+
+  const selectConversation = useCallback(async (id: string) => {
+    setSelectedId(id);
+    firstLoadRef.current = true;
+    // Bug fix (2026-07-18): eski konuşmanın mesajları temizlenmeden yenisi fetch
+    // edilirse, fetch bitene kadar YANLIŞ (önceki) konuşmanın mesajları görünmeye
+    // devam ediyordu.
+    setMessages([]);
+    setLoadingMessages(true);
+    try {
+      setMessages(await fetchMessages(id, personId));
+    } finally {
+      setLoadingMessages(false);
+    }
+    await markConversationRead(id, personId);
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false, unreadCount: 0 } : c)));
+  }, [personId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const unsub = subscribeToMessages(selectedId, () => { fetchMessages(selectedId, personId).then(setMessages); });
+    return unsub;
+  }, [selectedId, personId]);
+
+  useEffect(() => {
+    setTypingSignals([]);
+    if (!selectedId) return;
+    const unsub = subscribeToTyping(selectedId, setTypingSignals);
+    const t = setInterval(() => setTick((v) => v + 1), 1000);
+    return () => { unsub(); clearInterval(t); };
+  }, [selectedId]);
+
+  const activeTypers = typingSignals.filter(
+    (s) => s.uid !== auth.currentUser?.uid && Date.now() - new Date(s.at).getTime() < TYPING_TTL_MS,
+  );
+  void tick;
+
+  // İlk yüklemede anında en alta atla, sonraki yeni mesajlar yumuşak kaysın
+  // (2026-07-18 bug fix — bkz. ConnectWidget.tsx/connect/page.tsx AYNI yorum).
+  useLayoutEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
+    firstLoadRef.current = false;
+  }, [messages]);
+
+  async function send() {
+    const text = draft.trim();
+    if (!text || !selectedId || sending) return;
+    setSending(true);
+    setDraft("");
+    try {
+      const err = await postMessage(selectedId, text, personId);
+      if (err?.error) toast.error(err.error);
+      else loadConversations();
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const filtered = conversations
+    .filter((c) => c.type === navTab)
+    .filter((c) => !query.trim() || c.name.toLocaleLowerCase("tr").includes(query.trim().toLocaleLowerCase("tr")));
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", background: "#EEF0F3", display: "flex", justifyContent: "center" }}>
+    <div className="flex font-inter" style={{ width: "100%", maxWidth: 2560, height: "100%", overflow: "hidden", background: "#FFFFFF" }}>
+      {/* ═══ Kolon 1 · ikon rayı ═══ */}
+      <nav className="flex flex-col items-center shrink-0" style={{ width: 72, height: "100%", background: "#12233B", padding: "16px 0 14px" }}>
+        <button
+          title="Geri" onClick={() => router.push(`/flexos/student/${personId}`)}
+          className="rounded-xl flex items-center justify-center shrink-0 cursor-pointer"
+          style={{ width: 42, height: 42, background: "transparent", border: "1px solid rgba(255,255,255,.15)", color: "#8FA3BE" }}
+        >
+          <ArrowLeft size={19} />
+        </button>
+        <div style={{ width: 28, height: 1, background: "rgba(255,255,255,.1)", margin: "16px 0" }} />
+        <div className="flex flex-col items-center gap-2">
+          {NAV.map(({ key, label, Icon }) => {
+            const active = navTab === key;
+            const count = conversations.filter((c) => c.type === key).reduce((sum, c) => sum + c.unreadCount, 0);
+            return (
+              <button
+                key={key} title={label} onClick={() => setNavTab(key)}
+                className="relative flex items-center justify-center cursor-pointer transition-all"
+                style={{ width: 46, height: 46, borderRadius: 13, border: "none", color: active ? "#fff" : "#8FA3BE", background: active ? "#2867bd" : "transparent" }}
+              >
+                <Icon size={21} strokeWidth={active ? 2.1 : 1.9} />
+                {count > 0 && (
+                  <span className="absolute flex items-center justify-center font-extrabold" style={{ top: -3, right: -3, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: "#E5484D", color: "#fff", fontSize: 10.5, boxShadow: "0 0 0 2px #12233B" }}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* ═══ Kolon 2 · liste ═══ */}
+      <section className="flex flex-col shrink-0" style={{ width: 340, height: "100%", background: "#fff", borderRight: "1px solid #E9EBEF" }}>
+        <div style={{ padding: "20px 20px 14px" }}>
+          <h1 className="mb-4" style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5, color: "#1B1F26" }}>
+            {navTab === "channel" ? "Kanallar" : navTab === "group" ? "Gruplar" : "Sohbetler"}
+          </h1>
+          <div className="relative">
+            <Search size={17} color="#A2A8B2" className="absolute pointer-events-none" style={{ left: 14, top: "50%", transform: "translateY(-50%)" }} />
+            <input
+              value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ara..."
+              className="w-full outline-none"
+              style={{ height: 42, padding: "0 14px 0 40px", borderRadius: 12, border: "1px solid #E9EBEF", background: "#F4F5F7", color: "#1B1F26", fontSize: 14, fontWeight: 500 }}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto" style={{ padding: "0 12px 14px" }}>
+          {loadingList ? (
+            <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-surface-400" /></div>
+          ) : filtered.length === 0 ? (
+            <p className="text-center text-[13px] text-surface-400 mt-6">Henüz konuşma yok.</p>
+          ) : (
+            filtered.map((c) => {
+              const sel = c.id === selectedId;
+              return (
+                <div
+                  key={c.id} onClick={() => selectConversation(c.id)}
+                  className="flex items-center gap-3 cursor-pointer transition-colors"
+                  style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
+                >
+                  <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: c.colorKey ?? (sel ? "#2867bd" : "#EEF1F5"), color: c.colorKey ? "#fff" : sel ? "#fff" : "#5A616C" }}>
+                    {c.type === "dm" ? initials(c.name) : <Users size={20} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-bold" style={{ fontSize: 14.5, color: "#1B1F26" }}>{c.name || "İsimsiz"}</span>
+                      {c.lastMessage && <span style={{ fontSize: 11.5, fontWeight: c.unread ? 700 : 500, color: c.unread ? "#2867bd" : "#A2A8B2" }}>{fmtTime(c.lastMessage.at)}</span>}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <span className="truncate" style={{ fontSize: 13, color: "#6B717C", fontWeight: 500 }}>
+                        {c.lastMessage ? `${c.lastMessage.senderName}: ${c.lastMessage.text}` : "Henüz mesaj yok"}
+                      </span>
+                      {c.unreadCount > 0 && <span className="shrink-0 flex items-center justify-center font-extrabold text-white" style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: "#E5484D", fontSize: 11 }}>{c.unreadCount > 99 ? "99+" : c.unreadCount}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      {/* ═══ Kolon 3 · konuşma ═══ */}
+      <section className="flex-1 min-w-0 flex flex-col" style={{ height: "100%", background: "#F7F8FA" }}>
+        {!selected ? (
+          <div className="flex-1 flex items-center justify-center" style={{ color: "#A2A8B2", fontSize: 13.5 }}>Bir konuşma seçin</div>
+        ) : (
+          <>
+            <header className="flex items-center gap-3 shrink-0" style={{ height: 72, padding: "0 24px", background: "#fff", borderBottom: "1px solid #E9EBEF" }}>
+              <div className="flex items-center justify-center shrink-0" style={{ width: 42, height: 42, borderRadius: 12, background: "#EAF1FB", color: "#2867bd" }}>
+                {selected.type === "dm" ? initials(selected.name) : <Users size={20} />}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate" style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#1B1F26" }}>{selected.name}</h2>
+                  <span className="inline-flex items-center gap-1 shrink-0 font-bold" style={{ fontSize: 11, color: "#2867bd", background: "#EAF1FB", padding: "2px 9px", borderRadius: 999 }}>
+                    {selected.type === "channel" ? "Kanal" : selected.type === "group" ? "Grup" : "Sohbet"}
+                  </span>
+                </div>
+                {selected.writePolicy === "admins" && <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8A909B", fontWeight: 500 }}>Sadece yöneticiler yazabilir</p>}
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto" style={{ padding: "26px 0" }}>
+              <div className="flex flex-col gap-1" style={{ maxWidth: 760, margin: "0 auto", padding: "0 32px" }}>
+                {loadingMessages ? (
+                  <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-surface-400" /></div>
+                ) : (
+                  <>
+                {messages.map((m, i) => {
+                  const prev = messages[i - 1];
+                  const grouped = prev && prev.authorUid === m.authorUid;
+                  const showDivider = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
+                  return (
+                    <div key={m.id}>
+                      {showDivider && (
+                        <div className="flex items-center justify-center" style={{ margin: "14px 0" }}>
+                          <span className="font-bold" style={{ fontSize: 11.5, color: "#8A909B", background: "#EDEEF1", padding: "5px 14px", borderRadius: 999, letterSpacing: ".02em" }}>
+                            {dividerLabel(m.createdAt)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex gap-2.5" style={{ justifyContent: m.isMine ? "flex-end" : "flex-start", marginTop: grouped && !showDivider ? 2 : 12 }}>
+                        {!m.isMine && !grouped && (
+                          <div className="flex items-center justify-center shrink-0 font-bold text-white self-end" style={{ width: 34, height: 34, borderRadius: 11, background: m.colorKey, fontSize: 12 }}>
+                            {initials(m.authorName)}
+                          </div>
+                        )}
+                        {!m.isMine && grouped && <div style={{ width: 34, flexShrink: 0 }} />}
+                        <div className="flex flex-col" style={{ maxWidth: "74%", alignItems: m.isMine ? "flex-end" : "flex-start" }}>
+                          {!m.isMine && !grouped && (
+                            <div className="flex items-baseline gap-2 mb-0.5" style={{ padding: "0 2px" }}>
+                              <span style={{ fontSize: 12.5, fontWeight: 700, color: m.colorKey }}>{m.authorName}</span>
+                            </div>
+                          )}
+                          <div style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
+                            <span style={{ fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450 }}>{m.text}</span>
+                            <span className="block text-right" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>{fmtTime(m.createdAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                  </>
+                )}
+                <div ref={bottomRef} />
+              </div>
+            </div>
+
+            {/* "Yazıyor" göstergesi — scroll alanının DIŞINDA, sabit satır (2026-07-18). */}
+            <div className="shrink-0" style={{ height: 34, marginBottom: 16 }}>
+              <div className="h-full flex items-center" style={{ maxWidth: 760, margin: "0 auto", padding: "0 32px" }}>
+                <TypingIndicator signals={activeTypers} />
+              </div>
+            </div>
+
+            <div className="shrink-0" style={{ padding: "2px 0 18px", background: "#F7F8FA" }}>
+              <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 32px" }}>
+                {selected.writePolicy === "admins" && !selected.isAdmin ? (
+                  <div className="text-center" style={{ fontSize: 12.5, color: "#8A909B", padding: "10px 0" }}>Bu kanala sadece yöneticiler yazabilir.</div>
+                ) : (
+                  <div className="flex items-end gap-1" style={{ background: "#fff", border: "1px solid #E4E6EB", borderRadius: 16, padding: "8px 8px 8px 10px" }}>
+                    <AttachButton />
+                    <textarea
+                      value={draft}
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        const now = Date.now();
+                        if (selectedId && now - lastTypingSentRef.current > TYPING_SEND_THROTTLE_MS) {
+                          lastTypingSentRef.current = now;
+                          sendTypingSignal(selectedId, personId);
+                        }
+                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                      rows={1} placeholder="Bir mesaj yazın…"
+                      className="flex-1 outline-none resize-none"
+                      style={{ border: "none", background: "transparent", fontSize: 14, lineHeight: 1.5, color: "#1B1F26", padding: "9px 2px", maxHeight: 120, minHeight: 24 }}
+                    />
+                    <EmojiButton onPick={(e) => setDraft((d) => d + e)} />
+                    <button
+                      onClick={send} disabled={!draft.trim() || sending} title="Gönder"
+                      className="flex items-center justify-center shrink-0 transition-colors"
+                      style={{ width: 40, height: 40, borderRadius: 11, border: "none", color: "#fff", background: draft.trim() ? "#2867bd" : "#C3CAD4", cursor: draft.trim() ? "pointer" : "default" }}
+                    >
+                      <Send size={17} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+    </div>
+  );
+}

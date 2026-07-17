@@ -19,6 +19,7 @@ import {
 import StudentSidebar from "../_components/StudentSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../../_components/FlexHeader";
 import { ActivityFeed, type ActivityFeedItem } from "../../_components/ActivityFeed";
+import ConnectWidget from "../../_components/ConnectWidget";
 
 /* ── Types ── */
 
@@ -293,6 +294,8 @@ export default function FlexosStudentDashboard() {
           </div>
         </div>
       )}
+
+      <ConnectWidget personId={personId} />
     </div>
   );
 }

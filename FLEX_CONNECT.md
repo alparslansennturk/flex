@@ -15,8 +15,127 @@
 
 > Bu blok ne yapıldığını izler (tasarım/mimari aşağıda, ilerleme burada).
 
-**Şu an:** Mimari kilitlendi (2026-07-18, Opus). **Kod HENÜZ YAZILMADI.**
-**SIRADAKİ İŞ:** Faz 1 — §9.1'den başla.
+### ✅ Faz 1 — çekirdek uçtan uca (2026-07-18, Sonnet oturumu)
+
+Mimari kilitlendikten hemen sonra AYNI oturumda uygulandı — §8 Faz 1'in 9 adımı da bitti:
+
+1. **Domain tipleri** — `domain/core/connect.ts` (ConnectConversation/Member/Message,
+   revize model: `members` alt-koleksiyonu, `memberUids[]`/`reads` YOK, mesajda sadece
+   `authorUid`) + `domain/repo/connect-repo.ts`.
+2. **Firestore rules + index** — `connect_conversations` + `members`/`messages` alt-
+   koleksiyonları, `chats`'teki AYNI "sadece okuma açık, yazma Admin SDK" deseni
+   (`exists()` tabanlı `isConnectMember`). `collectionGroup(members)` için `uid`+`realm`
+   index (composite + fieldOverride) + `connect_conversations` audience composite index.
+   **Gerçekten deploy edildi** (`firebase deploy --only firestore:rules,firestore:indexes`).
+3. **Server repo + `connect-service.ts`** — `createConversation`/`sendMessage`/
+   `listConversationsForPrincipal`/`markRead`/`addMember`/`removeMember`. İzolasyonun
+   kalbi burada: `assertMembersMatchRealm` öğrenciyi `staff` realm'e eklemeyi HER
+   YOLDAN reddeder (create + addMember).
+4. **API route'ları** — İKİ AYRI aile: `/api/flexos/connect/*` (personel,
+   `staffPrincipalFromCaller`) ve `/api/flexos/student/connect/*` (öğrenci,
+   `studentPrincipalFromRequest`, `personId`+`authUid` — Actor/capability YOK). **Kritik
+   güvenlik notu:** `flexos_users` personel VE öğrenci girişini AYNI koleksiyonda tuttuğu
+   için (`roles:["ogrenci"]`) `staffPrincipalFromCaller` önce `persons.findByAuthUid`
+   ile "bu uid bir öğrenci mi" diye kontrol eder — öyleyse staff route'una ASLA giremez,
+   `actorFromCaller`'ın grants=[] ile sessizce "staff" sayması engellenir.
+5. **Kimlik çözümleme** — `server/connect-identity.ts` (uid→ad/renk, `persons`+
+   `flexos_users` batch — bunun için her iki repo'ya YENİ `getByAuthUids` metodu
+   eklendi, additive/geriye-uyumlu) + `server/connect-view.ts` (DM karşı-taraf adı,
+   lastMessage/mesaj render şekli).
+6. **Personel tam sayfa** (`/flexos/connect`) — 3 kolon, tasarımdan birebir renk/spacing.
+   Create modal: realm seçici (Personel/Eğitmen-Öğrenci) + tip (Kanal/Grup/DM) +
+   personel için dizin (`/connect/directory`), eğitmen-öğrenci için KENDİ grubu→roster
+   (`/api/flexos/groups` + `/api/flexos/groups/[id]/roster` — roster'a `authUid` alanı
+   eklendi, additive) + "tüm öğrencilere aç" (audience) toggle'ı bridge kanal için.
+7. **Öğrenci tam sayfa** (`/flexos/student/[personId]/connect`) — aynı bileşen deseni,
+   create UI YOK (Faz 1 kararı).
+8. **Widget** (`_components/ConnectWidget.tsx`) — sağ-alt FAB + mini pencere, "tam ekran
+   aç". Eğitmen Ana Sayfa (`egitmen-anasayfa/page.tsx`) + Öğrenci Ana Sayfa
+   (`student/[personId]/page.tsx`) içine gömüldü — kalan sayfalara yaygınlaştırma
+   (paylaşımlı layout olmadığı için) FAZ 2.
+9. **Test** — `scripts/assert-connect.ts`, 20/20 geçti (izolasyon: öğrenci staff'ı
+   göremez/okuyamaz/yazamaz; audience köprüsü okur-yazamaz; writePolicy; realm
+   doğrulaması; addMember/removeMember yetkisi; tenant izolasyonu). `tsc --noEmit` +
+   `npm run build` temiz, mevcut TÜM assert scriptleri (19 dosya) hâlâ yeşil.
+
+**Gerçek zamanlılık:** Mesaj listesi `onSnapshot` (kanıtlanmış `chats` deseni), konuşma
+listesi API'den fetch + mesaj geldiğinde hafif refetch (tam client-side collectionGroup
+canlı liste Faz 1'de YOK, gereksiz karmaşıklık).
+
+**Bilinçli Faz 1 sınırları (Faz 1-sonu/Faz 2'ye ertelendi):** Topluluk UI/backend'i yok
+(tasarımda modalın "Tür" seçicisinde bile YOK — sadece Kanal/Grup/DM); reaksiyon, okundu-
+tikleri, favoriler/sabitleme, misafir daveti, dosya eki YOK; konuşma meta PATCH (ad/açıklama
+düzenleme) YOK; widget sadece 2 Ana Sayfa'da (paylaşımlı layout yok, ~40 sayfaya gömme işi).
+
+**SIRADAKİ İŞ (2026-07-18'de kapandı):** Canlı doğrulama yapıldı — aşağıdaki blok.
+
+---
+
+### ✅ Canlı doğrulama + UI/gerçek-bug turu (2026-07-18, aynı gün devamı — Sonnet, PC oturumu)
+
+Gerçek admin hesabıyla + gerçek ikinci bir test girişiyle (`scripts/seed-connect-test-login.mjs`,
+kullanım sonrası silindi) canlıda test edildi. Bu turda bulunan/düzeltilen GERÇEK bug'lar:
+
+1. **En kritik bug — admin-only kanalda composer hiç kimseye görünmüyordu.** API,
+   konuşma listesinde "çağıran bu konuşmanın admini mi" bilgisini hiç döndürmüyordu.
+   `writePolicy:"admins"` olan HER kanalda (Kurum Duyuruları gibi) composer, o kanalın
+   admini/owner'ı olsan bile hep gizleniyordu — kullanıcı uzun bir "hiçbir şey
+   değişmiyor" turu yaşadı (dev server/cache sanıldı, asıl sebep bu değildi). Fix:
+   `ConnectConversationView.isAdmin` eklendi (`connect-view.ts`), UI koşulu
+   `writePolicy==="admins" && !isAdmin` oldu. Debug: gerçek Firestore verisi
+   (`admins[]`/`members[]`) doğrudan sorgulanıp gerçek admin uid'iyle karşılaştırıldı,
+   sonra ekrana geçici bir DEBUG satırı basılıp doğrulandı (sonra kaldırıldı).
+2. **Header aksiyon ikonları eksikti** — ilk portta "minimal" diye küçült/ara/bilgi/menü
+   atlanmıştı, kullanıcı ekran görüntüsüyle gösterip geri istedi: küçült (`router.back()`),
+   ara (konuşma içi mesaj filtresi), bilgi (gerçek açıklama+üye listesi paneli —
+   mockup'ın uydurma "428 üye"si yerine GERÇEK sayı), menü ("Konuşmadan Ayrıl" →
+   `DELETE members`).
+3. **İkon yanlıştı** — `lucide-react`'in güncel sürümünde `MessageCircle`'ın path'i
+   değişmiş, tasarımın verdiği SVG'yle eşleşmiyordu ("içi boş" görünüyordu). Path
+   doğrudan gömüldü: `_shared/ConnectIcon.tsx`.
+4. **Scroll bug'ı (iki parça):** (a) konuşma ilk açılırken önce baş gösterip SONRA
+   aşağı kayıyordu — `firstLoadRef` ile ilk yüklemede `behavior:"auto"` (anında),
+   sonrakiler `"smooth"`. (b) konuşma DEĞİŞTİRİNCE eski mesajlar temizlenmeden yeni
+   fetch başlıyordu, kısa süre YANLIŞ (önceki) konuşmanın mesajları görünüyordu —
+   artık tıklar tıklamaz `setMessages([])` + `loadingMessages` spinner.
+5. **Gerçek "yazıyor" presence sistemi kuruldu** — kullanıcı önce görsel bir önizleme
+   istedi (Artifact ile `fcType` animasyonu izole gösterildi), sonra "gerçek presence"
+   dedi. `connect_conversations/{id}/typing/{uid}` (yeni koleksiyon, rules AYNI
+   messages deseni — okuma açık/yazma Admin SDK). Composer'da 2sn throttle'lı sinyal,
+   6sn TTL ile client'ta süzülüyor. **Konum bug'ı:** ilk portta mesaj listesinin
+   İÇİNE konmuştu (tasarımda scroll alanının DIŞINDA, composer'ın üstünde sabit bir
+   satır) — düzeltildi, ayrıca taşma (marginTop fazlalığı → composer'ın arkasında
+   kalma) ve yatay hizasızlık (dış/iç padding farklı matematik kullanıyordu, composer'la
+   birebir aynı yapıya çekildi) ayrı ayrı bulunup düzeltildi. Gerçek test için
+   `scripts/seed-connect-test-login.mjs` (gerçek 2. Firebase Auth hesabı, admin olarak
+   Kurum Duyuruları'na eklenir) yazıldı — kullanıldı, sonra silindi.
+6. **Composer eksikleri tamamlandı** — emoji butonu (gerçek hızlı-seç panosu,
+   `_shared/EmojiPicker.tsx`) + dosya ekle ikonu (görsel, gerçek yükleme Faz 2,
+   disabled+tooltip).
+7. **Okunmamış rozeti gerçek sayıya çevrildi** — sabit nokta yerine kırmızı dairede
+   gerçek mesaj sayısı. `Conversation.messageCount` (her `sendMessage`'da artar) +
+   `Member.readMessageCount` (`markRead`/kendi mesajını gönderince güncellenir) —
+   `unreadCount = messageCount - readMessageCount`, tek tek mesaj taramadan hesaplanır.
+   Nav rayı + widget FAB rozeti de konuşma SAYISI değil toplam okunmamış MESAJ
+   sayısını gösterecek şekilde güncellendi. `seed-connect-demo.mjs` bu sayaca uyacak
+   şekilde güncellenip yeniden çalıştırıldı.
+8. **Responsive genişlik** — ChatGPT'nin önerdiği kademeli yüzde yaklaşımı yerine tek
+   `max-width:2560px + margin:auto` kuralı (aynı sonuç, kesme noktalarında sıçrama yok).
+9. **Dummy veri** — `scripts/seed-connect-demo.mjs`: Kurum Duyuruları tasarımdaki THREAD
+   ile birebir (gerçek admin uid'i son mesajın yazarı) + 5 kanal daha birer önizleme
+   mesajıyla. 4 sahte personel hesabı (Elif Kaya vb., sadece isim/renk için, giriş
+   yapamazlar) `flexos_users`'a yazıldı — CANLI "Kullanıcılar" sayfasında da görünürler,
+   `--clean` ile geri alınabilir.
+
+**Değişmeyen mimari:** İzolasyon, realm modeli, `members`/`messages` alt-koleksiyon
+yapısı, API route ayrımı (staff/student) — hiçbiri bu turda değişmedi, sadece UI/UX
+eksikleri ve bir gerçek yetki-görünürlüğü bug'ı kapatıldı.
+
+**SIRADAKİ İŞ (Mac'te devam):** Kalan "chat kısımları" — kullanıcı Mac'e geçince
+üzerinde konuşulacak, henüz kapsam netleşmedi. Bilinen açık kalanlar: Topluluk
+(Faz 1-sonu), reaksiyon/okundu-tik/favoriler/misafir/dosya eki (Faz 2), widget'ın
+kalan sayfalara yayılması, konuşma meta düzenleme (ad/açıklama PATCH) — hiçbiri
+bu oturumda ele alınmadı.
 
 ---
 

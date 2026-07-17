@@ -7,6 +7,8 @@ export interface FlexosUserRepo {
   getByEmail(email: string, tenantId: string): Promise<FlexosUser | null>;
   /** Firebase Auth uid'ine göre ara — login sonrası "hangi dashboard'a gitsin" için. */
   findByAuthUid(authUid: string, tenantId: string): Promise<FlexosUser | null>;
+  /** Birden fazla auth uid'i tek seferde çözer (Flex Connect kimlik çözümleme — batch). */
+  getByAuthUids(authUids: string[], tenantId: string): Promise<FlexosUser[]>;
   list(tenantId: string): Promise<FlexosUser[]>;
   delete(id: string, tenantId: string): Promise<void>;
 }

@@ -17,6 +17,8 @@ export interface PersonRepo {
   findByIdNo(idNo: string, tenantId: string): Promise<Person | null>;
   /** Firebase auth uid'ine göre ara (`Person.authUid`) — öğrenci portalı sahiplik kontrolü için. */
   findByAuthUid(authUid: string, tenantId: string): Promise<Person | null>;
+  /** Birden fazla auth uid'i tek seferde çözer (Flex Connect kimlik çözümleme — batch). */
+  getByAuthUids(authUids: string[], tenantId: string): Promise<Person[]>;
   /** Kiracıya ait tüm kişileri listele. */
   list(tenantId: string): Promise<Person[]>;
   /** Mevcut kişiyi kısmi güncelle (merge). */

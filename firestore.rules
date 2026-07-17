@@ -506,5 +506,51 @@ service cloud.firestore {
     match /flexos_role_defs/{id} { allow read, write: if false; }
     // Aktivasyon kodları — server-only; public `activation/verify` route'u bile Admin SDK üzerinden okur.
     match /flexos_codes/{id} { allow read, write: if false; }
+
+    // ─── connect_conversations (Flex Connect — BAĞIMSIZ kurumsal mesajlaşma) ──
+    //
+    // Ödev/teslim `chats` koleksiyonuna HİÇ dokunmaz, tamamen ayrı. Tüm yazma
+    // Admin SDK (connect-service.ts) üzerinden — `chats`'teki AYNI "tek kapı"
+    // deseni. Sadece OKUMA açık (`onSnapshot` gerçek-zamanlılık için).
+    //
+    // İzolasyonun bel kemiği: öğrenci `realm:"staff"` bir konuşmayı HİÇBİR
+    // koşulda okuyamaz — ne üye olarak (öğrenci staff'a asla eklenmez, servis
+    // reddeder) ne audience köprüsüyle (audience SADECE realm:"trainer_student"
+    // konuşmalarda anlamlı, aşağıdaki kural bunu AÇIKÇA zorunlu kılar).
+    function isConnectMember(conversationId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/connect_conversations/$(conversationId)/members/$(request.auth.uid));
+    }
+
+    function isConnectAudienceOpen(conversationId) {
+      let conv = get(/databases/$(database)/documents/connect_conversations/$(conversationId)).data;
+      return conv.realm == "trainer_student" && conv.audience == "all_students";
+    }
+
+    match /connect_conversations/{conversationId} {
+      allow read: if isConnectMember(conversationId) ||
+        (resource.data.realm == "trainer_student" && resource.data.audience == "all_students");
+      allow write: if false;
+
+      // Üyelik + okunma + tercih (2026-07-18 revizyonu: memberUids[] ve ayrı
+      // `reads` koleksiyonu YOK — hepsi burada). Kendi dokümanını (lastReadAt/
+      // muted/pinned) + konuşmanın diğer üyelerini (roster/"428 üye") okur.
+      match /members/{uid} {
+        allow read: if isSignedIn() && (uid == request.auth.uid || isConnectMember(conversationId));
+        allow write: if false;
+      }
+
+      match /messages/{messageId} {
+        allow read: if isConnectMember(conversationId) || isConnectAudienceOpen(conversationId);
+        allow write: if false;
+      }
+
+      // "Yazıyor" presence sinyali (2026-07-18) — mesajlarla AYNI okuma kapısı,
+      // yazma SADECE Admin SDK (connect-service.ts::setTypingSignal).
+      match /typing/{uid} {
+        allow read: if isConnectMember(conversationId) || isConnectAudienceOpen(conversationId);
+        allow write: if false;
+      }
+    }
   }
 }

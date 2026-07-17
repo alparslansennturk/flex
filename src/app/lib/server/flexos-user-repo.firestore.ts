@@ -47,6 +47,19 @@ export const firestoreFlexosUserRepo: FlexosUserRepo = {
     return snap.docs[0].data() as FlexosUser;
   },
 
+  async getByAuthUids(authUids, tenantId) {
+    const uniqueIds = [...new Set(authUids)];
+    if (uniqueIds.length === 0) return [];
+    const chunks: string[][] = [];
+    for (let i = 0; i < uniqueIds.length; i += 30) chunks.push(uniqueIds.slice(i, i + 30));
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        adminDb.collection(COLLECTION).where("tenantId", "==", tenantId).where("authUid", "in", chunk).get(),
+      ),
+    );
+    return results.flatMap((snap) => snap.docs.map((d) => d.data() as FlexosUser));
+  },
+
   async list(tenantId) {
     const snap = await adminDb
       .collection(COLLECTION)

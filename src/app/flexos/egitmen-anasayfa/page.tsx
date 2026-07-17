@@ -51,6 +51,7 @@ import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../_components/FlexHeader";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import { ActivityFeed, type ActivityFeedItem } from "../_components/ActivityFeed";
+import ConnectWidget from "../_components/ConnectWidget";
 import Footer from "@/app/components/layout/Footer";
 import OdevOlusturModal, { type AssignmentPrefill } from "./OdevOlusturModal";
 import EditAssignmentModal, { type EditableAssignment, type EditableAttachment } from "../odevler/_shared/EditAssignmentModal";
@@ -1032,6 +1033,8 @@ export default function EgitmenAnaSayfaPage() {
 
         <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
+
+      <ConnectWidget />
     </div>
   );
 }
