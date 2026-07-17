@@ -120,11 +120,13 @@ export async function assignTask(
 
 export interface UpdateAssignmentInput {
   title?: string;
+  subtitle?: string;
   description?: string;
   dueDate?: ISODateTime;
   status?: AssignmentStatus;
   maxPuan?: number;
   kind?: AssignmentKind;
+  icon?: string;
   attachments?: AssignmentAttachment[];
   targetPersonIds?: EntityId[];
 }
@@ -135,6 +137,9 @@ export async function updateAssignment(
   id: string,
   input: UpdateAssignmentInput,
   repo: AssignmentRepo,
+  /** 2026-07-18: sessizce oluşturulmuş taslağın PATCH ile "Ödevi Başlat"a geçmesi de
+   * (bkz. `[id]/route.ts`) POST'taki AYNI "Ödev Verildi" aktivite logunu yazsın diye. */
+  deps?: { activityLog?: ActivityLogRepo },
 ): Promise<Assignment> {
   const existing = await repo.getById(id, actor.tenantId);
   if (!existing) throw new ValidationError("Ödev bulunamadı.");
@@ -143,6 +148,7 @@ export async function updateAssignment(
     throw new ForbiddenError("assignment.edit");
   }
 
+  const wasPublished = existing.status === "published";
   const updated: Assignment = { ...existing };
   if (input.title !== undefined) {
     const t = input.title.trim();
@@ -154,6 +160,8 @@ export async function updateAssignment(
     if (!d) throw new ValidationError("Ödev açıklaması boş olamaz.");
     updated.description = d;
   }
+  if (input.subtitle !== undefined) updated.subtitle = input.subtitle.trim() || undefined;
+  if (input.icon !== undefined) updated.icon = input.icon;
   if (input.dueDate !== undefined) updated.dueDate = input.dueDate;
   if (input.status !== undefined) updated.status = input.status;
   if (input.maxPuan !== undefined) {
@@ -170,6 +178,20 @@ export async function updateAssignment(
   updated.updatedAt = nowISO();
   updated.updatedBy = actor.uid;
   await repo.save(updated);
+
+  if (deps?.activityLog && !wasPublished && updated.status === "published") {
+    await deps.activityLog.create({
+      id: activityId(),
+      tenantId: actor.tenantId,
+      trainerId: updated.trainerId,
+      groupId: updated.groupId,
+      type: "assignment.published",
+      title: "Ödev Verildi",
+      description: updated.title,
+      createdAt: updated.updatedAt,
+    });
+  }
+
   return updated;
 }
 

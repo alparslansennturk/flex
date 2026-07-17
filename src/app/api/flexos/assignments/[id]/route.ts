@@ -3,9 +3,12 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
+import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { updateAssignment, deleteAssignment, type UpdateAssignmentInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { notifyAssignmentPublished } from "@/app/lib/server/assignment-mail";
+import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
 
 /**
  * GET /api/flexos/assignments/[id] — tekil ödev (ör. `/flexos/kolaj` çekiliş ekranının
@@ -41,13 +44,29 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
 
   try {
     const actor = await actorFromCaller(caller);
-    const assignment = await updateAssignment(actor, id, body, firestoreAssignmentRepo);
+    // 2026-07-18: "Ödev Oluştur" modalı artık sürüklenen dosyayı HEMEN yüklemek için
+    // sessizce bir taslak ödev oluşturuyor (bkz. `OdevOlusturModal.tsx::ensureDraftId`)
+    // — o taslağın "Ödevi Başlat"a geçişi de bu PATCH üzerinden olduğu için, POST'taki
+    // AYNI yayın yan etkileri (mail + cache invalidation) burada da tetiklenmeli.
+    const before = await firestoreAssignmentRepo.getById(id, actor.tenantId);
+    const assignment = await updateAssignment(actor, id, body, firestoreAssignmentRepo, { activityLog: firestoreActivityLogRepo });
     // Ödev Parkuru (Ana Sayfa) widget'ı bu event'i dinleyip "Notları Kaydet"in arşivlediği
     // (veya "Ödevi Bitir"in kapattığı) ödevleri gerçek zamanlı düşürsün diye. 2026-07-13:
     // BİLEREK "grades.changed" DEĞİL — o TEK öğrenci notu değiştiğinde N kere ateşleniyor
     // (kota fix, bkz. realtime-hub.ts yorumu).
     broadcast(actor.tenantId, { type: "assignments.changed", id: assignment.id });
-    return NextResponse.json({ id: assignment.id });
+
+    let mail: { sent: number; total: number } | undefined;
+    if (before && before.status !== "published" && assignment.status === "published") {
+      invalidateActivityLogCache(actor.tenantId);
+      try {
+        mail = await notifyAssignmentPublished(assignment);
+      } catch (mailErr) {
+        console.error("[flexos/assignments/:id PATCH] mail gönderim hatası:", mailErr);
+      }
+    }
+
+    return NextResponse.json({ id: assignment.id, mail });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });

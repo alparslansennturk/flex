@@ -121,12 +121,26 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
   const [sablonAktif, setSablonAktif] = useState(false);
   const [sablonAdi, setSablonAdi] = useState("");
   const [saving, setSaving] = useState<"draft" | "publish" | null>(null);
-  const [pickedFiles, setPickedFiles] = useState<File[]>([]);
-  const [uploadingLabel, setUploadingLabel] = useState<string | null>(null);
+  // 2026-07-18 kullanıcı düzeltmesi: dosya artık "Taslak Kaydet"/"Ödevi Başlat"a kadar
+  // BEKLEMİYOR — sürüklenen/seçilen dosya ANINDA yüklenmeye başlıyor (gerçek % ile,
+  // `EditAssignmentModal.tsx`'teki AYNI `UploadJob` deseni). Bunun için ödev, henüz kullanıcı
+  // hiçbir "Kaydet"e basmadan, SESSİZCE `status:"draft"` olarak arka planda oluşturulur
+  // (`ensureDraftId`) — kullanıcının çizdiği ayrım şu: Şablon Yönetimi'nde bir şey kaydetmek
+  // ŞABLONU değiştirir, ama burada ("Ödevi Başlat") artık şablon değil, verilmek ÜZERE olan
+  // somut bir ödev örneğidir; o örneğe eklenen dosya her seferinde farklı olabilir. Kullanıcı
+  // modalı gerçekten YAYINLAMADAN kapatırsa (`handleCancel`) bu sessiz taslak best-effort
+  // silinir — yetim kayıt kalmasın.
+  interface UploadJob { id: string; fileName: string; progress: number; status: "uploading" | "success" | "error"; error?: string }
+  const [jobs, setJobs] = useState<UploadJob[]>([]);
+  const [uploadedAttachments, setUploadedAttachments] = useState<EditableAttachment[]>([]);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const draftPromiseRef = useRef<Promise<string> | null>(null);
+  const submittedRef = useRef(false);
   // 2026-07-17 kullanıcı isteği: "Ödev Teslimi" sayfasındaki (`odevler/teslim/[groupId]/
   // page.tsx`) "Bilgisayardan Yükle"/"Google Drive" iki-butonlu deseni buraya da eklendi.
   // Drive linki gerçek bir yükleme değil — sadece referans link, `assignmentId` beklemeden
-  // hemen locale eklenebilir (bilgisayar dosyalarının aksine, ödev oluşana kadar bekler).
+  // hemen locale eklenebilir (gerçek dosyalar artık AYNI şekilde anında yükleniyor olsa da,
+  // Drive linki hâlâ ayrı — Drive'a bizim tarafımızdan bir upload yapılmıyor, sadece link).
   const [driveMode, setDriveMode] = useState(false);
   const [driveLink, setDriveLink] = useState("");
   const [pickedDriveLinks, setPickedDriveLinks] = useState<EditableAttachment[]>([]);
@@ -151,7 +165,11 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
     setBitisTarihi("");
     setSablonAktif(false);
     setSablonAdi("");
-    setPickedFiles([]);
+    setJobs([]);
+    setUploadedAttachments([]);
+    setDraftId(null);
+    draftPromiseRef.current = null;
+    submittedRef.current = false;
     setPickedDriveLinks([]);
     setDriveMode(false);
     setDriveLink("");
@@ -194,13 +212,19 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
     setDriveMode(false);
   }
 
-  async function submit(status: "draft" | "published") {
-    if (!odevAdi.trim()) { toast.error("Ödev adı zorunludur."); return; }
-    if (!aciklama.trim()) { toast.error("Açıklama zorunludur."); return; }
-    if (!groupId) { toast.error("Grup seçin."); return; }
-
-    setSaving(status === "draft" ? "draft" : "publish");
-    try {
+  /**
+   * İlk dosya sürüklendiğinde/seçildiğinde çağrılır — henüz hiçbir "Kaydet"e basılmamış
+   * olsa bile, gerçek Drive yüklemesinin dayanacağı bir `assignmentId` lazım (attachment
+   * backend'i doğrudan `Assignment.attachments`'a yazıyor, bkz. `submission-service.ts::
+   * completeAttachmentUpload`). Eşzamanlı çoklu dosya seçiminde (`pickFiles` → forEach)
+   * aynı taslağı İKİ KERE oluşturmamak için tek bir promise paylaşılır.
+   */
+  async function ensureDraftId(): Promise<string> {
+    if (draftId) return draftId;
+    if (draftPromiseRef.current) return draftPromiseRef.current;
+    const p = (async () => {
+      if (!odevAdi.trim()) throw new Error("Dosya yüklemeden önce Ödev Adı girin.");
+      if (!groupId) throw new Error("Dosya yüklemeden önce Grup seçin.");
       const headers = await authHeaders();
       const res = await fetch("/api/flexos/assignments", {
         method: "POST",
@@ -210,23 +234,133 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           templateId: prefill?.templateId,
           title: odevAdi.trim(),
           subtitle: altBaslik.trim() || undefined,
-          description: aciklama.trim(),
+          description: aciklama.trim() || "…",
           dueDate: bitisTarihi || undefined,
-          status,
+          status: "draft",
           maxPuan: puan,
           kind: tur,
           icon,
-          // Drive linkleri gerçek yükleme değil, sadece referans — bilgisayar dosyalarının
-          // aksine `assignmentId` beklemeden doğrudan oluşturma isteğine eklenebilir.
-          attachments: pickedDriveLinks.length > 0 ? pickedDriveLinks : undefined,
         }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error ?? "Ödev oluşturulamadı.");
-        return;
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? "Ödev hazırlanamadı.");
       }
-      const created = await res.json() as { id: string; mail?: { sent: number; total: number } };
+      const created = await res.json() as { id: string };
+      setDraftId(created.id);
+      return created.id;
+    })();
+    draftPromiseRef.current = p;
+    try {
+      return await p;
+    } finally {
+      draftPromiseRef.current = null;
+    }
+  }
+
+  async function uploadOne(file: File) {
+    const jobId = `${file.name}-${Date.now()}-${Math.random()}`;
+    setJobs((prev) => [...prev, { id: jobId, fileName: file.name, progress: 0, status: "uploading" }]);
+    const patchJob = (patch: Partial<UploadJob>) =>
+      setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...patch } : j)));
+    try {
+      const id = await ensureDraftId();
+      const attachment = await uploadAssignmentAttachment(id, file, (pct) => patchJob({ progress: pct }));
+      setUploadedAttachments((prev) => [...prev, attachment]);
+      patchJob({ status: "success", progress: 100 });
+    } catch (err: unknown) {
+      patchJob({ status: "error", error: err instanceof Error ? err.message : "Bilinmeyen hata." });
+    }
+  }
+
+  function pickFiles(incoming: FileList | File[]) {
+    Array.from(incoming).forEach((f) => { void uploadOne(f); });
+  }
+
+  /** Kullanıcı gerçekten "Ödevi Başlat"/"Taslak Kaydet"e basmadan modalı kapatırsa
+   * (X / İptal / backdrop) — sessizce oluşturulmuş taslak (varsa) best-effort silinir,
+   * yüklenen dosyayla birlikte yetim kayıt bırakmasın. */
+  function handleCancel() {
+    if (draftId && !submittedRef.current) {
+      const idToDelete = draftId;
+      void (async () => {
+        try {
+          const headers = await authHeaders();
+          await fetch(`/api/flexos/assignments/${idToDelete}`, { method: "DELETE", headers });
+        } catch { /* best-effort */ }
+      })();
+    }
+    onClose();
+  }
+
+  async function submit(status: "draft" | "published") {
+    if (!odevAdi.trim()) { toast.error("Ödev adı zorunludur."); return; }
+    if (!aciklama.trim()) { toast.error("Açıklama zorunludur."); return; }
+    if (!groupId) { toast.error("Grup seçin."); return; }
+    if (jobs.some((j) => j.status === "uploading")) { toast.error("Dosyalar hâlâ yükleniyor, birazdan tekrar deneyin."); return; }
+
+    setSaving(status === "draft" ? "draft" : "publish");
+    try {
+      const headers = await authHeaders();
+      // Gerçek dosyalar (sürükle-bırak/seç) artık DAMLA DAMLA değil, seçilir seçilmez
+      // yükleniyor (`uploadOne`) — o yükleme zaten `assignment.attachments`'a doğrudan
+      // yazıyor. Burada sadece Drive referans linkleri (hiç upload edilmeyen, salt link)
+      // eklenmemişse ekleniyor; gerçek yüklenenler + linkler PATCH'te birlikte gönderiliyor
+      // ki PATCH'in "attachments alanı tamamen DEĞİŞTİRİR" semantiğinde kayıp olmasın.
+      const combinedAttachments = [...uploadedAttachments, ...pickedDriveLinks];
+      let created: { id: string; mail?: { sent: number; total: number } };
+
+      if (draftId) {
+        // İlk dosya bırakıldığında sessizce oluşturulmuş taslak var — tekrar POST ile
+        // ikinci bir ödev YARATMAK yerine AYNI kaydı PATCH'liyoruz.
+        const res = await fetch(`/api/flexos/assignments/${draftId}`, {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: odevAdi.trim(),
+            subtitle: altBaslik.trim() || undefined,
+            description: aciklama.trim(),
+            dueDate: bitisTarihi || undefined,
+            status,
+            maxPuan: puan,
+            kind: tur,
+            icon,
+            attachments: combinedAttachments,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.error ?? "Ödev kaydedilemedi.");
+          return;
+        }
+        created = await res.json() as { id: string; mail?: { sent: number; total: number } };
+      } else {
+        const res = await fetch("/api/flexos/assignments", {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            templateId: prefill?.templateId,
+            title: odevAdi.trim(),
+            subtitle: altBaslik.trim() || undefined,
+            description: aciklama.trim(),
+            dueDate: bitisTarihi || undefined,
+            status,
+            maxPuan: puan,
+            kind: tur,
+            icon,
+            attachments: combinedAttachments.length > 0 ? combinedAttachments : undefined,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.error ?? "Ödev oluşturulamadı.");
+          return;
+        }
+        created = await res.json() as { id: string; mail?: { sent: number; total: number } };
+      }
+
+      submittedRef.current = true;
 
       if (sablonAktif) {
         // Şablonun branşı seçili Gruptan otomatik türetilir — Ödev Ekle'de ayrı bir
@@ -246,22 +380,6 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           }),
         });
         if (!tplRes.ok) toast.error("Ödev oluşturuldu ama şablon kaydedilemedi.");
-      }
-
-      // Dosyalar SEÇİLDİĞİ anda değil, ödev gerçekten oluşturulup bir `id` alınca yüklenir
-      // (Classroom'daki gibi tek adımmış hissi verir — kullanıcı: "aynı anda yüklüyorum").
-      if (pickedFiles.length > 0 && created.id) {
-        let failed = 0;
-        for (let i = 0; i < pickedFiles.length; i++) {
-          setUploadingLabel(`Dosya yükleniyor (${i + 1}/${pickedFiles.length})…`);
-          try {
-            await uploadAssignmentAttachment(created.id, pickedFiles[i]);
-          } catch {
-            failed++;
-          }
-        }
-        setUploadingLabel(null);
-        if (failed > 0) toast.error(`${failed} dosya yüklenemedi, ödevi Düzenle'den tekrar deneyebilirsiniz.`);
       }
 
       if (status === "draft") {
@@ -298,7 +416,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
-          onClick={onClose}
+          onClick={handleCancel}
         >
           <motion.div
             className="w-full flex flex-col bg-white rounded-[22px] shadow-2xl overflow-hidden font-inter transition-shadow duration-150"
@@ -323,7 +441,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
               e.preventDefault();
               setModalDragOver(false);
               if (e.dataTransfer.files.length) {
-                setPickedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
+                pickFiles(e.dataTransfer.files);
                 setDosyaPanelAcik(true);
                 setDriveMode(false);
               }
@@ -344,7 +462,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             className="w-9 h-9 rounded-[10px] border border-[#E2E5EA] bg-white flex items-center justify-center text-[#8E95A3] hover:bg-[#F7F8FA] hover:text-[#414B59] transition-colors cursor-pointer shrink-0"
           >
             <X size={18} />
@@ -449,8 +567,9 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
               <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Grup</label>
               <div className="relative">
                 <select
-                  className="w-full py-2 pr-8 pl-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-semibold text-[#1E222B] outline-none cursor-pointer appearance-none"
-                  value={groupId} onChange={(e) => setGroupId(e.target.value)} disabled={loadingGroups}
+                  className="w-full py-2 pr-8 pl-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-semibold text-[#1E222B] outline-none cursor-pointer appearance-none disabled:cursor-not-allowed disabled:opacity-60"
+                  value={groupId} onChange={(e) => setGroupId(e.target.value)} disabled={loadingGroups || !!draftId}
+                  title={draftId ? "Dosya yüklendi — grup artık değiştirilemez (yeni bir ödev için modalı kapatıp tekrar açın)." : undefined}
                 >
                   {groups.length === 0 && <option value="">{loadingGroups ? "Yükleniyor…" : "Grup yok"}</option>}
                   {groups.map((g) => <option key={g.id} value={g.id}>{g.code} — {g.branch}</option>)}
@@ -523,7 +642,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
               <input
                 ref={dosyaInputRef}
                 type="file" multiple className="hidden"
-                onChange={(e) => { if (e.target.files) { setPickedFiles((prev) => [...prev, ...Array.from(e.target.files!)]); setDosyaPanelAcik(false); } e.target.value = ""; }}
+                onChange={(e) => { if (e.target.files?.length) { pickFiles(e.target.files); setDosyaPanelAcik(false); } e.target.value = ""; }}
               />
               {/* 2026-07-17 (2. tur — düzeltildi): "Ödev Teslimi" sayfasındaki (`odevler/
                   teslim/[groupId]/page.tsx`) GERÇEK desen — küçük "+ Dosya Yükle" butonu
@@ -587,15 +706,19 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
                   )}
                 </AnimatePresence>
               </div>
-              {(pickedFiles.length > 0 || pickedDriveLinks.length > 0) && (
+              {(uploadedAttachments.length > 0 || jobs.length > 0 || pickedDriveLinks.length > 0) && (
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {pickedFiles.map((f, i) => (
-                    <span key={`${f.name}-${i}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold" style={{ background: "#F2F4F7", color: "#414B59" }}>
+                  {uploadedAttachments.map((a) => (
+                    <span key={a.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold" style={{ background: "#F2F4F7", color: "#414B59" }}>
                       <FileText size={11} className="shrink-0" />
-                      <span className="max-w-[140px] truncate">{f.name}</span>
-                      <button type="button" onClick={() => setPickedFiles((prev) => prev.filter((_, idx) => idx !== i))} className="cursor-pointer text-[#AEB4C0] hover:text-[#414B59]">
-                        <X size={11} />
-                      </button>
+                      <span className="max-w-[140px] truncate">{a.fileName}</span>
+                    </span>
+                  ))}
+                  {jobs.filter((j) => j.status !== "success").map((j) => (
+                    <span key={j.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold" style={{ background: j.status === "error" ? "#FDEDEC" : "#F2F4F7", color: j.status === "error" ? "#C0392B" : "#414B59" }}>
+                      {j.status === "uploading" ? <Loader2 size={11} className="animate-spin shrink-0" /> : <FileText size={11} className="shrink-0" />}
+                      <span className="max-w-[140px] truncate">{j.fileName}</span>
+                      <span className="shrink-0">{j.status === "error" ? (j.error ?? "Hata") : `%${j.progress}`}</span>
                     </span>
                   ))}
                   {pickedDriveLinks.map((d) => (
@@ -650,14 +773,14 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
         {/* footer */}
         <div className="flex items-center justify-between gap-3 p-[24px] border-t border-[#EEF0F3] bg-[#FBFCFD]">
           <button
-            type="button" onClick={onClose}
+            type="button" onClick={handleCancel}
             className="py-3 px-5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[13.5px] font-bold cursor-pointer hover:bg-[#F2F4F7] transition-colors"
           >
             İptal
           </button>
-          {uploadingLabel && (
+          {jobs.some((j) => j.status === "uploading") && (
             <span className="text-[12px] font-semibold text-[#8E95A3] flex items-center gap-1.5">
-              <Loader2 size={13} className="animate-spin" /> {uploadingLabel}
+              <Loader2 size={13} className="animate-spin" /> Dosya yükleniyor…
             </span>
           )}
           <div className="flex items-center gap-2.5">
