@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
+import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreEducationRepo, firestoreSectionRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
@@ -27,6 +28,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, { params }: { para
   try {
     const result = await getEducationSummaryForPerson(actor, id, {
       enrollments: firestoreEnrollmentRepo,
+      persons: firestorePersonRepo,
       groups: firestoreGroupRepo,
       educations: firestoreEducationRepo,
       sections: firestoreSectionRepo,

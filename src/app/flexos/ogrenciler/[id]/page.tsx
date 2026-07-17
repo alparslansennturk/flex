@@ -89,9 +89,12 @@ export default function OgrenciDetayPage() {
                   </div>
                   <div className="flex-1 min-w-[220px]">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <h2 className="m-0 text-[22px] font-extrabold tracking-tight text-[#1E222B]">{fullName}</h2>
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12.5px] font-bold" style={{ color: status.color, background: status.background }}>
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: status.dot }} />{status.label}
+                      <h2 className="m-0 text-[22px] font-extrabold tracking-tight text-[#1E222B]">
+                        {fullName}
+                        {person.isOnlineStudent && <span className="ml-1.5 text-[14px] font-bold text-blue-500">(O)</span>}
+                      </h2>
+                      <span className="inline-flex items-center px-4 py-1 rounded-full text-[12.5px] font-bold" style={{ color: status.color, background: status.background }}>
+                        {status.label}
                       </span>
                     </div>
                     <div className="flex items-center gap-4.5 mt-2 flex-wrap">

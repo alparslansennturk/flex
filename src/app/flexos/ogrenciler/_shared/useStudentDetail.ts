@@ -18,6 +18,7 @@ export interface PersonDetail {
   lastName: string;
   gender: string;
   birthDate: string;
+  isOnlineStudent: boolean;
   createdAt: string | null;
   pii: { phone: string; email: string; address: string; idNo: string; idType: string } | null;
   sales: SaleSummary[];

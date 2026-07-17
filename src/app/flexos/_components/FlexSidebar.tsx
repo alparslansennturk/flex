@@ -16,7 +16,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
 import FlexLogo from "@/app/components/ui/FlexLogo";
 import ViewPinModal from "./ViewPinModal";
-import { FlexSpinner } from "./FlexSpinner";
+import { FlexSpinner, isAppBooted, markAppBooted } from "./FlexSpinner";
 
 /**
  * Core/Full — SADECE `/api/flexos/me`'nin `mode` alanından okunur (bkz. o route'taki
@@ -170,7 +170,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         // iskelette takılı kalmasın diye başarısızlıkta da (auth yok, network
         // hatası) kapanıyor; o durumda caps boş/mode null kalır, canSee zaten
         // güvenli tarafta (hiçbir kapılı öğe görünmez).
-        if (!cancelled) setReady(true);
+        if (!cancelled) {
+          setReady(true);
+          markAppBooted();
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -281,9 +284,17 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
     // burada aynen import edip kullanmak yerine AYNI görsel içerik fixed sarmalayıcı
     // içinde tekrarlanıyor — amaç (sayfayı tam kapatmak) FlexPageLoader'ın normal
     // akıştaki halinden farklı, o yüzden birebir import yerine.
+    // 2026-07-17: açılışta (RootPage → hedef sayfa → burası) hâlâ yazılı "Flex
+    // Yükleniyor" ekranından yazısız spinner'a aniden dönüyordu — kullanıcı bunu tek
+    // sürekli yazılı ekran istedi. Uygulama bu sekmede daha önce bir kez tam yüklendiyse
+    // (sayfa geçişi) yazı yok, ilk açılışta (henüz hiç `ready` olmadıysa) yazı var.
+    const booted = isAppBooted();
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#EEF0F3", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#EEF0F3", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
         <FlexSpinner size={48} />
+        {!booted ? (
+          <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#9CA3AF" }}>Flex Yükleniyor</p>
+        ) : null}
       </div>
     );
   }

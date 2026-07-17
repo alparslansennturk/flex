@@ -464,7 +464,6 @@ export default function OdevYonetimiPage() {
                           </div>
                           <div className="flex flex-col gap-0.5 min-w-0">
                             <span className="text-[13.5px] font-bold text-base-primary-900 truncate block">{t.title}</span>
-                            {t.subtitle && <span className="text-[11.5px] text-surface-400 font-medium truncate block">{t.subtitle}</span>}
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
@@ -816,32 +815,39 @@ export default function OdevYonetimiPage() {
                     </div>
                   </div>
 
-                  {/* Ödev Puanı — "Ödev Ekle" ile aynı alan */}
+                  {/* Ödev Puanı — "Ödev Ekle" ile aynı alan. 2026-07-17 kararı: proje türü
+                      Ödev Notu'na hiç girmiyor, puan bu türde anlamsız — devre dışı. */}
                   <div>
                     <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Puanı</label>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <div className="relative shrink-0">
-                        <input
-                          className="w-[120px] py-3 pl-4 pr-[42px] rounded-xl border border-[#E2E5EA] bg-[#FBFCFD] text-[14px] font-extrabold text-[#1E222B] outline-none"
-                          type="number" min={0} value={tplPuan} onChange={(e) => setTplPuan(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="100"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#8E95A3] pointer-events-none">puan</span>
+                    {tplKind === "proje" ? (
+                      <p className="text-[11.5px] font-medium text-[#8E95A3] italic">
+                        Proje ödevlerinde puan kullanılmaz — not Sertifika Notu&apos;ndan elle girilir.
+                      </p>
+                    ) : (
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <div className="relative shrink-0">
+                          <input
+                            className="w-[120px] py-3 pl-4 pr-[42px] rounded-xl border border-[#E2E5EA] bg-[#FBFCFD] text-[14px] font-extrabold text-[#1E222B] outline-none"
+                            type="number" min={0} value={tplPuan} onChange={(e) => setTplPuan(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="100"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#8E95A3] pointer-events-none">puan</span>
+                        </div>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {PUAN_HIZLI.map((p) => {
+                            const aktif = tplPuan === p;
+                            return (
+                              <button
+                                key={p} type="button" onClick={() => setTplPuan(p)}
+                                className="py-1.5 px-3 rounded-lg text-[11.5px] font-bold cursor-pointer transition-all"
+                                style={{ border: `1px solid ${aktif ? "#205297" : "#E2E5EA"}`, background: aktif ? "#EFF5FE" : "#fff", color: aktif ? "#205297" : "#6F7B87" }}
+                              >
+                                {p}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {PUAN_HIZLI.map((p) => {
-                          const aktif = tplPuan === p;
-                          return (
-                            <button
-                              key={p} type="button" onClick={() => setTplPuan(p)}
-                              className="py-1.5 px-3 rounded-lg text-[11.5px] font-bold cursor-pointer transition-all"
-                              style={{ border: `1px solid ${aktif ? "#205297" : "#E2E5EA"}`, background: aktif ? "#EFF5FE" : "#fff", color: aktif ? "#205297" : "#6F7B87" }}
-                            >
-                              {p}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   {canPromoteGlobal && (

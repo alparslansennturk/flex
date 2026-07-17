@@ -603,7 +603,9 @@ async function main() {
     assert("computeOdevYuzdeleri: taslak ödev paydaya girmez (sadece published'ın 100'ü)", result.normal.totalMaxPuan === 100);
   }
 
-  // ── Ödev Notu İÇ ağırlıklandırması — normal %30 + proje %70 (2026-07-06 kararı) ──
+  // ── 2026-07-17 kararı: proje türü ödevler Ödev Notu'na HİÇ girmez (eski 2026-07-06
+  // %30/%70 iç ağırlıklandırma kararının YERİNE geçti) — proje notu artık SADECE
+  // Sertifika Notu'ndan elle girilir, ödev sisteminden otomatik/kısmi bile beslenmez. ──
   {
     const normalOdev = fakeAssignment("hw-normal", "group-agirlik", "trainer-a");
     normalOdev.maxPuan = 100;
@@ -618,12 +620,15 @@ async function main() {
 
     const { session: sP } = await initUpload({ requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "hw-proje", fileName: "p.pdf", fileSize: 1, mimeType: "application/pdf" }, deps);
     const subP = await completeUpload({ requesterUid: "student-uid-1", tenantId: TENANT, uploadId: sP.id }, deps);
-    await gradeSubmission(trainerA, subP.id, 50, deps); // proje: %50
+    await gradeSubmission(trainerA, subP.id, 50, deps); // proje notu girilse bile Ödev Notu'na yansımamalı
 
     const result = await computeOdevYuzdeleri(TENANT, "group-agirlik", deps);
+    assert("computeOdevYuzdeleri: proje türü ödev payda'ya HİÇ girmez (proje.totalMaxPuan=0)", result.proje.totalMaxPuan === 0);
+    assert("computeOdevYuzdeleri: proje türü ödevin notu proje.earnedByPerson'a da yazılmaz", result.proje.earnedByPerson["person-1"] === undefined);
     const percent = combineOdevYuzdesi(result, "person-1");
-    // normal %100 × 0.30 + proje %50 × 0.70 = 30 + 35 = 65
-    assert("combineOdevYuzdesi: normal %100 + proje %50 → ağırlıklı %65", percent === 65);
+    // proje kategorisi tamamen boş kaldığı için normal tek başına %100 ağırlık alır — proje'nin
+    // 50 puanı hesaba hiç girmiyor (eski davranışta %65 çıkardı, artık %100).
+    assert("combineOdevYuzdesi: proje notu görmezden gelinir, sadece normal %100 → %100", percent === 100);
   }
 
   // ── Ödev Notu İÇ ağırlıklandırması — proje kategorisi hiç yoksa ağırlık tamamen normale kayar ──

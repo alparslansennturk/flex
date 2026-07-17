@@ -168,28 +168,38 @@ export function StudentEgitimBilgileri({ trainings, compact = false }: { trainin
               <span className="text-[11px] leading-none font-semibold text-[#8E95A3]">Katılım</span>
             </div>
           </div>
-          {/* Mockup'taki (Öğrenci Bilgi Modal.dc.html) AYNI desen: border sadece row1'in
-              altında ve row3'ün üstünde+altında — row2 (2 satırlı, daha uzun) kendi border'ı
-              YOK, `gap-3`(12px) + komşu satırın 11px padding'i toplamda HER satır arası
-              23px'e eşitleniyor (2026-07-16, kullanıcı: "birebir alsan sorun yok"). */}
-          <div className="flex-1 min-w-[210px] flex flex-col gap-3">
+          {/* 2026-07-17 kullanıcı isteği: 5 satır, HEPSİ eşit aralıklı — her satır arası
+              aynı 11px+11px (border ile) boşluk, "Yapılan Ders"/"Derse Katılım" birbirine
+              yapışık görünmesin diye artık kendi border'ları da var (önceki versiyonda
+              sadece flex `gap-3` vardı, ayrım net değildi). Son satırın (Kalan Ders) alt
+              border'ı yok, üstündeki `pt-[11px]` diğerleriyle aynı ritmi korusun diye kaldı. */}
+          <div className="flex-1 min-w-[210px] flex flex-col">
             <div className="flex items-center justify-between pb-[11px] border-b border-[#F2F4F7]">
               <span className="text-[13px] font-semibold text-[#6F7B87]">Toplam Ders</span>
               <span className="text-[14.5px] font-extrabold text-[#1E222B]">{att.totalHours} saat</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pt-[11px] pb-[11px] border-b border-[#F2F4F7]">
               <span className="text-[13px] font-semibold text-[#6F7B87]">Yapılan Ders</span>
+              <span className="text-[14.5px] font-extrabold text-[#1E222B]">{att.heldHours} saat</span>
+            </div>
+            <div className="flex items-center justify-between pt-[11px] pb-[11px] border-b border-[#F2F4F7]">
+              <span className="text-[13px] font-semibold text-[#6F7B87]">Derse Katılım</span>
               <div className="text-right">
                 <div className="text-[14.5px] font-extrabold text-[#1E222B]">{att.doneHours} saat</div>
-                <div className="text-[11px] leading-none font-semibold text-[#8E95A3] mt-0.5">{att.faceHours}s. yüz yüze · {att.onlineHours}s. online</div>
+                {/* 2026-07-17 kullanıcı isteği: sadece online alan öğrencide yüz yüze/online
+                    kırılımı gösterilmez — zaten hepsinin online olacağı biliniyor, "0s yüz
+                    yüze" yazması gereksiz/kalabalık. */}
+                {!cur.isOnlineStudent && (
+                  <div className="text-[11px] leading-none font-semibold text-[#8E95A3] mt-0.5">{att.faceHours}s. yüz yüze · {att.onlineHours}s. online</div>
+                )}
               </div>
             </div>
-            <div className="flex items-center justify-between pt-[11px] pb-[11px] border-t border-b border-[#F2F4F7]">
+            <div className="flex items-center justify-between pt-[11px] pb-[11px] border-b border-[#F2F4F7]">
               <span className="text-[13px] font-semibold text-[#D93636]">Devamsızlık</span>
               <span className="text-[14.5px] font-extrabold text-[#D93636]">{att.absentHours} saat</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[13px] font-semibold text-[#6F7B87]">Yapılacak Ders</span>
+            <div className="flex items-center justify-between pt-[11px]">
+              <span className="text-[13px] font-semibold text-[#6F7B87]">Kalan Ders</span>
               <span className="text-[14.5px] font-extrabold text-[#1E222B]">{att.upcomingHours} saat</span>
             </div>
           </div>

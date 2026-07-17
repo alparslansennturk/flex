@@ -6,8 +6,11 @@ import { can, widestScope } from "@/app/lib/domain/access/can";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAssignmentTemplateRepo } from "@/app/lib/server/assignment-template-repo.firestore";
+import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { assignTask, type AssignTaskInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { notifyAssignmentPublished } from "@/app/lib/server/assignment-mail";
+import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
 
 /** bootstrap/route.ts da AYNI fonksiyonu çağırır (kod tekrarı yok). */
 export async function fetchAssignmentsForActor(actor: Actor, groupId?: string) {
@@ -59,8 +62,22 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     const assignment = await assignTask(actor, body, firestoreAssignmentRepo, {
       groups: firestoreGroupRepo,
       templates: firestoreAssignmentTemplateRepo,
+      activityLog: firestoreActivityLogRepo,
     });
-    return NextResponse.json({ id: assignment.id }, { status: 201 });
+    if (assignment.status === "published") invalidateActivityLogCache(actor.tenantId);
+
+    // Mail duyurusu SADECE "Ödevi Başlat" (published) için — taslak sessiz kalır.
+    // Best-effort: gönderim hatası ödev oluşturmayı asla başarısız kılmaz.
+    let mail: { sent: number; total: number } | undefined;
+    if (assignment.status === "published") {
+      try {
+        mail = await notifyAssignmentPublished(assignment);
+      } catch (mailErr) {
+        console.error("[flexos/assignments POST] mail gönderim hatası:", mailErr);
+      }
+    }
+
+    return NextResponse.json({ id: assignment.id, mail }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) {
       return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

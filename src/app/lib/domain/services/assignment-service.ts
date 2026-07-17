@@ -7,15 +7,22 @@ import { ForbiddenError, ValidationError } from "../errors";
 import type { AssignmentRepo } from "../repo/assignment-repo";
 import type { AssignmentTemplateRepo } from "../repo/assignment-template-repo";
 import type { GroupRepo } from "../repo/group-repo";
+import type { ActivityLogRepo } from "../repo/activity-log-repo";
 
 function nowISO(): ISODateTime {
   return new Date().toISOString();
+}
+
+function activityId(): string {
+  return `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export interface AssignmentDeps {
   groups: GroupRepo;
   /** `templateId` verilirse `gamifiedType`'ı kopyalamak için opsiyonel — sağlanmazsa kopyalama atlanır. */
   templates?: AssignmentTemplateRepo;
+  /** Ana Sayfa "En Son Aktiviteler" paneli için — sağlanmazsa log atlanır (ör. test'ler). */
+  activityLog?: ActivityLogRepo;
 }
 
 export interface AssignTaskInput {
@@ -94,6 +101,20 @@ export async function assignTask(
   };
 
   await repo.save(assignment);
+
+  if (deps.activityLog && assignment.status === "published") {
+    await deps.activityLog.create({
+      id: activityId(),
+      tenantId: actor.tenantId,
+      trainerId: assignment.trainerId,
+      groupId: assignment.groupId,
+      type: "assignment.published",
+      title: "Ödev Verildi",
+      description: assignment.title,
+      createdAt: assignment.createdAt,
+    });
+  }
+
   return assignment;
 }
 

@@ -493,24 +493,8 @@ export default function OgrenciHavuzuPage() {
 
             {/* Şube / Branş row */}
             <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
-              {/* İSİM ARAMA */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                <span style={S.sectionLabel}>İsim ara</span>
-                <div style={{ position: "relative", width: 220 }}>
-                  <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "#8E95A3", pointerEvents: "none", display: "flex" }}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.search }} />
-                  </span>
-                  <input
-                    value={query}
-                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                    placeholder="Öğrenci adı…"
-                    style={{ ...S.selectBtn, width: "100%", paddingLeft: 36, fontWeight: 500 }}
-                  />
-                </div>
-              </div>
-
               {/* ŞUBE */}
-              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
+              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
                 <span style={S.sectionLabel}>Şube</span>
                 <button className="oh-select" style={{ ...S.selectBtn, minWidth: 190 }} onClick={() => toggleDropdown("sube")}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
@@ -531,7 +515,7 @@ export default function OgrenciHavuzuPage() {
               </div>
 
               {/* BRANŞ */}
-              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
+              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
                 <span style={S.sectionLabel}>Branş</span>
                 <button className="oh-select" style={{ ...S.selectBtn, minWidth: 180 }} onClick={() => toggleDropdown("brans")}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
@@ -555,7 +539,7 @@ export default function OgrenciHavuzuPage() {
               </div>
 
               {/* EĞİTİM */}
-              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
+              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
                 <span style={S.sectionLabel}>Eğitim</span>
                 <button className="oh-select" style={{ ...S.selectBtn, minWidth: 200 }} onClick={() => toggleDropdown("egitim")}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 9, overflow: "hidden", maxWidth: 160, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
@@ -576,16 +560,39 @@ export default function OgrenciHavuzuPage() {
                 )}
               </div>
 
-              <div style={{ flex: 1, minWidth: 10 }} />
+              {/* İSİM ARAMA — 2026-07-17 kullanıcı isteği: Eğitim'den hemen sonra (Filtrele
+                  butonuna YAKIN DURMASIN — önceki turda 48px marginRight ile Filtrele'ye
+                  yaklaştırılmıştı, kullanıcı geri aldı). Diğer filtreler gibi `flexShrink:0`
+                  — Temizle butonu görününce sıkışması gereken SADECE aşağıdaki spacer. */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
+                <span style={S.sectionLabel}>İsim ara</span>
+                <div style={{ position: "relative", width: 220 }}>
+                  <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "#8E95A3", pointerEvents: "none", display: "flex" }}>
+                    <span dangerouslySetInnerHTML={{ __html: IC.search }} />
+                  </span>
+                  <input
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                    placeholder="Öğrenci adı…"
+                    style={{ ...S.selectBtn, width: "100%", paddingLeft: 36, fontWeight: 500 }}
+                  />
+                </div>
+              </div>
+
+              {/* 2026-07-17 GERÇEK BUG fix: Temizle görününce Filtrele aşağı satıra kayıyordu
+                  (satır `flexWrap:wrap`, hiçbir öğe küçülmüyordu, taşan son öğe alt satıra
+                  düşüyordu). Tek esnek öğe bu spacer — Temizle'nin kapladığı genişliği
+                  0'a kadar küçülerek karşılar, diğer hiçbir filtre/buton kaymaz/küçülmez. */}
+              <div style={{ flex: 1, minWidth: 0 }} />
 
               {anyFilter && (
-                <button className="oh-clear" style={S.clearBtn} onClick={clearFilters}>
+                <button className="oh-clear" style={{ ...S.clearBtn, flexShrink: 0 }} onClick={clearFilters}>
                   <span dangerouslySetInnerHTML={{ __html: IC.x }} />
                   Temizle
                 </button>
               )}
 
-              <button className="oh-filter" style={S.filterBtn} onClick={applyFilters}>
+              <button className="oh-filter" style={{ ...S.filterBtn, flexShrink: 0 }} onClick={applyFilters}>
                 <span dangerouslySetInnerHTML={{ __html: IC.funnel }} />
                 Filtrele
               </button>
@@ -1090,7 +1097,7 @@ const S: Record<string, CSSProperties> = {
   th: { padding: "14px 24px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#8E95A3", letterSpacing: ".02em" },
   cell: { padding: "15px 24px", verticalAlign: "middle" },
   avatarSm: { width: 36, height: 36, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12.5, fontWeight: 700 },
-  statusBadge: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
+  statusBadge: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 16px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
   bransBadge: { display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 11px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
   groupChip: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 8, background: "#f1f5f9", border: "1px solid #E2E5EA", fontSize: 13, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" },
   transferIconBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", cursor: "pointer", flex: "0 0 auto" },

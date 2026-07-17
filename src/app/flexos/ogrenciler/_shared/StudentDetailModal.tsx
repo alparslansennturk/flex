@@ -59,10 +59,13 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h2 className="m-0 text-[21px] font-extrabold tracking-tight text-[#1E222B]">{fullName || "Yükleniyor…"}</h2>
+                  <h2 className="m-0 text-[21px] font-extrabold tracking-tight text-[#1E222B]">
+                    {fullName || "Yükleniyor…"}
+                    {person?.isOnlineStudent && <span className="ml-1.5 text-[13px] font-bold text-blue-500">(O)</span>}
+                  </h2>
                   {person && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold" style={{ color: status.color, background: status.background }}>
-                      <span className="w-[7px] h-[7px] rounded-full" style={{ background: status.dot }} />{status.label}
+                    <span className="inline-flex items-center px-4 py-1 rounded-full text-[12px] font-bold" style={{ color: status.color, background: status.background }}>
+                      {status.label}
                     </span>
                   )}
                 </div>

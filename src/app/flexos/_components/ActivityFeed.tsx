@@ -11,14 +11,15 @@
  */
 
 import type { ReactNode } from "react";
-import { CalendarCheck, Award, ClipboardList, Activity, Clock } from "lucide-react";
+import { CalendarCheck, Award, ClipboardList, BookOpen, Activity, Clock } from "lucide-react";
 
 export type ActivityFeedType =
   | "attendance.started"
   | "attendance.updated"
   | "attendance.ended"
   | "grade.given"
-  | "submission.created";
+  | "submission.created"
+  | "assignment.published";
 
 export interface ActivityFeedItem {
   id: string;
@@ -34,6 +35,7 @@ const ACTIVITY_FEED_CONFIG: Record<ActivityFeedType, { icon: ReactNode; bg: stri
   "attendance.ended":   { icon: <CalendarCheck size={13} strokeWidth={2.2} />, bg: "bg-[#EEF4FD]", color: "text-[#3A7BD5]", stripe: "bg-[#3A7BD5]" },
   "grade.given":        { icon: <Award        size={13} strokeWidth={2.2} />, bg: "bg-[#E6F5ED]", color: "text-[#009F3E]", stripe: "bg-[#009F3E]" },
   "submission.created": { icon: <ClipboardList size={13} strokeWidth={2.2} />, bg: "bg-[#FFF4EB]", color: "text-[#FF8D28]", stripe: "bg-[#FF8D28]" },
+  "assignment.published": { icon: <BookOpen    size={13} strokeWidth={2.2} />, bg: "bg-[#F1EEFC]", color: "text-[#6F52D9]", stripe: "bg-[#6F52D9]" },
 };
 
 function activityTimeAgo(iso: string): string {
@@ -96,6 +98,7 @@ export function ActivityFeed({ items, subtitle = "Atölyendeki son hareketler" }
           );
         })}
       </div>
+      <div className="h-7 shrink-0" />
     </div>
   );
 }

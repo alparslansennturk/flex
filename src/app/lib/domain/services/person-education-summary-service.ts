@@ -9,6 +9,7 @@ import { computeOdevYuzdeleri, combineOdevYuzdesi } from "./submission-service";
 import { calcEstimatedEndDate, expandHolidayDates } from "./schedule-calc";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
 import type { GroupRepo } from "../repo/group-repo";
+import type { PersonRepo } from "../repo/person-repo";
 import type { EducationRepo, SectionRepo } from "../repo/catalog-repo";
 import type { TrainerRepo } from "../repo/trainer-repo";
 import type { AttendanceRepo } from "../repo/attendance-repo";
@@ -23,7 +24,11 @@ export interface AttendanceSummary {
   totalSessions: number;
   attendedSessions: number;
   totalHours: number; // bölüm/eğitimin planlanan toplam saati (Section.hours ?? Education.totalHours)
-  doneHours: number; // Yapılan Ders — öğrencinin GERÇEKTEN katıldığı saat
+  /** Yapılan Ders — o güne kadar GERÇEKTEN işlenmiş (Dersi Başlat açılmış) toplam saat,
+   * öğrencinin katılıp katılmadığından BAĞIMSIZ (2026-07-17 kullanıcı isteği: "Yapılan
+   * Ders" öğrencinin geldiği saat değil, dersin işlendiği saat olmalı). */
+  heldHours: number;
+  doneHours: number; // Derse Katılım — öğrencinin GERÇEKTEN katıldığı saat
   faceHours: number;
   onlineHours: number;
   /** Devamsızlık — 2026-07-16 GERÇEK BUG düzeltmesi: eskiden `totalHours - doneHours`
@@ -62,6 +67,10 @@ export interface TrainingSummary {
    * alan DEĞİL (`Group.schedule.endDate` KULLANILMAZ) — yeni tatil eklenince otomatik
    * yansır (2026-07-16, eski canlı sistemdeki davranışın FlexOS'a geri getirilmesi). */
   estimatedEndDate: string | null;
+  /** `Person.isOnlineStudent` (2026-07-17 kullanıcı isteği) — true ise Öğrenci Detay'da
+   * isim yanında "(O)" rozeti çıkar VE yoklama kartındaki yüz yüze/online kırılımı
+   * gizlenir (zaten hepsi online olacağı için gösterimi anlamsız). */
+  isOnlineStudent: boolean;
   attendance: AttendanceSummary | null;
   certificate: CertificateSummary | null;
 }
@@ -107,6 +116,7 @@ function durumFor(toplamNot: number | null): CertificateStatus | null {
 
 export interface EducationSummaryDeps {
   enrollments: EnrollmentRepo;
+  persons: PersonRepo;
   groups: GroupRepo;
   educations: EducationRepo;
   sections: SectionRepo;
@@ -144,6 +154,9 @@ export async function getEducationSummaryForPerson(
   deps: EducationSummaryDeps,
 ): Promise<EducationSummaryResult> {
   if (!can(actor, "person.read")) throw new ForbiddenError("person.read");
+
+  const person = await deps.persons.getById(personId, actor.tenantId);
+  const isOnlineStudent = person?.isOnlineStudent ?? false;
 
   const allEnrollments = await deps.enrollments.listByPerson(personId, actor.tenantId);
   const poolStatus = derivePoolStatus(allEnrollments);
@@ -194,7 +207,7 @@ export async function getEducationSummaryForPerson(
       }
       attendance = {
         pct: totalSessions > 0 ? Math.round((attendedSessions / totalSessions) * 100) : null,
-        totalSessions, attendedSessions, totalHours, doneHours, faceHours, onlineHours,
+        totalSessions, attendedSessions, totalHours, heldHours, doneHours, faceHours, onlineHours,
         absentHours: Math.max(0, heldHours - doneHours),
         upcomingHours: Math.max(0, totalHours - heldHours),
       };
@@ -242,6 +255,7 @@ export async function getEducationSummaryForPerson(
       courseStatus: courseStatusFor(enr.status),
       startDate: group.schedule?.startDate ?? null,
       estimatedEndDate,
+      isOnlineStudent,
       attendance, certificate,
     });
   }

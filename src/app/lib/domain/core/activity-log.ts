@@ -5,10 +5,11 @@ import type { EntityId, ISODateTime, TenantId } from "../base";
  * Merkezi" (`repo/activity-repo.ts`, `flexos_activities` — satış/randevu/case) ile
  * KARIŞTIRILMASIN, tamamen ayrı bir kavram.
  *
- * MVP kapsamı sadece yoklama başlat/bitir + not verildi (2026-07-15 kararı). Genişletilebilir
- * union — ödev ver/sil/arşivle gibi türler istenirse aynı desenle eklenir.
+ * MVP kapsamı yoklama başlat/bitir + not verildi (2026-07-15 kararı) + ödev verildi
+ * (2026-07-17, kullanıcı isteği). Genişletilebilir union — ödev sil/arşivle gibi
+ * türler istenirse aynı desenle eklenir.
  */
-export type ActivityLogType = "attendance.started" | "attendance.updated" | "attendance.ended" | "grade.given";
+export type ActivityLogType = "attendance.started" | "attendance.updated" | "attendance.ended" | "grade.given" | "assignment.published";
 
 export interface ActivityLogEntry {
   id: EntityId;

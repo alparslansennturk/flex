@@ -49,7 +49,7 @@
  * "Ödevi Başlat" tıklamasıyla hem ödevi hem dosyalarını göndermiş olur.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -60,7 +60,8 @@ import {
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from "../odevler/_shared/assignmentIcons";
-import { uploadAssignmentAttachment, ATTACHMENT_MAX_MB } from "../odevler/_shared/uploadAssignmentAttachment";
+import { uploadAssignmentAttachment } from "../odevler/_shared/uploadAssignmentAttachment";
+import type { EditableAttachment } from "../odevler/_shared/EditAssignmentModal";
 import { mapStatus } from "../siniflar/_shared/groupDisplay";
 
 interface GroupItem {
@@ -121,8 +122,21 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
   const [sablonAdi, setSablonAdi] = useState("");
   const [saving, setSaving] = useState<"draft" | "publish" | null>(null);
   const [pickedFiles, setPickedFiles] = useState<File[]>([]);
-  const [dosyaDragOver, setDosyaDragOver] = useState(false);
   const [uploadingLabel, setUploadingLabel] = useState<string | null>(null);
+  // 2026-07-17 kullanıcı isteği: "Ödev Teslimi" sayfasındaki (`odevler/teslim/[groupId]/
+  // page.tsx`) "Bilgisayardan Yükle"/"Google Drive" iki-butonlu deseni buraya da eklendi.
+  // Drive linki gerçek bir yükleme değil — sadece referans link, `assignmentId` beklemeden
+  // hemen locale eklenebilir (bilgisayar dosyalarının aksine, ödev oluşana kadar bekler).
+  const [driveMode, setDriveMode] = useState(false);
+  const [driveLink, setDriveLink] = useState("");
+  const [pickedDriveLinks, setPickedDriveLinks] = useState<EditableAttachment[]>([]);
+  const dosyaInputRef = useRef<HTMLInputElement>(null);
+  // 2026-07-17 (2. tur — kullanıcı düzeltmesi): "Ödev Teslimi"deki GERÇEK desen bu değildi —
+  // (a) küçük "+ Dosya Yükle" butonu sağa doğru genişleyerek 2 buton açar (her zaman açık
+  // kutu değil), (b) sürükle-bırak SADECE o küçük kutuya değil, MODALIN TAMAMINA yapılabilir
+  // (mavi glow tüm modal etrafında çıkar). İkisi de burada birebir portlandı.
+  const [dosyaPanelAcik, setDosyaPanelAcik] = useState(false);
+  const [modalDragOver, setModalDragOver] = useState(false);
 
   // Kütüphane'den bir şablonla açılınca alanları o şablondan doldur; "+Ödev Ver" ile
   // (prefill yok) her açılışta boş forma dön.
@@ -138,6 +152,10 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
     setSablonAktif(false);
     setSablonAdi("");
     setPickedFiles([]);
+    setPickedDriveLinks([]);
+    setDriveMode(false);
+    setDriveLink("");
+    setDosyaPanelAcik(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, prefill?.templateId]);
 
@@ -162,6 +180,20 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
     })();
   }, [open]);
 
+  function addDriveLink() {
+    const url = driveLink.trim();
+    if (!url) return;
+    setPickedDriveLinks((prev) => [...prev, {
+      id: `drive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      fileName: "Google Drive Dosyası",
+      fileSize: 0,
+      mimeType: "application/vnd.google-apps.drive-link",
+      webViewLink: url,
+    }]);
+    setDriveLink("");
+    setDriveMode(false);
+  }
+
   async function submit(status: "draft" | "published") {
     if (!odevAdi.trim()) { toast.error("Ödev adı zorunludur."); return; }
     if (!aciklama.trim()) { toast.error("Açıklama zorunludur."); return; }
@@ -184,6 +216,9 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           maxPuan: puan,
           kind: tur,
           icon,
+          // Drive linkleri gerçek yükleme değil, sadece referans — bilgisayar dosyalarının
+          // aksine `assignmentId` beklemeden doğrudan oluşturma isteğine eklenebilir.
+          attachments: pickedDriveLinks.length > 0 ? pickedDriveLinks : undefined,
         }),
       });
       if (!res.ok) {
@@ -191,7 +226,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
         toast.error(data.error ?? "Ödev oluşturulamadı.");
         return;
       }
-      const created = await res.json() as { id: string };
+      const created = await res.json() as { id: string; mail?: { sent: number; total: number } };
 
       if (sablonAktif) {
         // Şablonun branşı seçili Gruptan otomatik türetilir — Ödev Ekle'de ayrı bir
@@ -229,7 +264,13 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
         if (failed > 0) toast.error(`${failed} dosya yüklenemedi, ödevi Düzenle'den tekrar deneyebilirsiniz.`);
       }
 
-      toast.success(status === "draft" ? "Taslak kaydedildi." : "Ödev başlatıldı.");
+      if (status === "draft") {
+        toast.success("Taslak kaydedildi.");
+      } else if (created.mail) {
+        toast.success(`Ödev başlatıldı — ${created.mail.sent}/${created.mail.total} öğrenciye mail gönderildi.`);
+      } else {
+        toast.success("Ödev başlatıldı.");
+      }
       onClose();
       if (prefill?.gamifiedType && created.id) {
         router.push(`/flexos/${prefill.gamifiedType}?assignmentId=${created.id}`);
@@ -260,13 +301,33 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           onClick={onClose}
         >
           <motion.div
-            className="w-full flex flex-col bg-white rounded-[22px] shadow-2xl overflow-hidden font-inter"
-            style={{ maxWidth: 860, height: "min(820px, calc(100dvh - 32px))" }}
+            className="w-full flex flex-col bg-white rounded-[22px] shadow-2xl overflow-hidden font-inter transition-shadow duration-150"
+            style={{
+              maxWidth: 980, height: "min(640px, calc(100dvh - 32px))",
+              boxShadow: modalDragOver ? "0 0 0 3px #6366f1, 0 0 0 6px rgba(99,102,241,0.15)" : undefined,
+            }}
             initial={{ opacity: 0, scale: 0.98, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
+            onDragEnter={(e) => { e.preventDefault(); setModalDragOver(true); }}
+            onDragOver={(e) => e.preventDefault()}
+            onDragLeave={(e) => {
+              if (e.clientX === 0 && e.clientY === 0) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const inside = e.clientX > rect.left && e.clientX < rect.right && e.clientY > rect.top && e.clientY < rect.bottom;
+              if (!inside) setModalDragOver(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setModalDragOver(false);
+              if (e.dataTransfer.files.length) {
+                setPickedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
+                setDosyaPanelAcik(true);
+                setDriveMode(false);
+              }
+            }}
           >
             {/* header */}
         <div className="flex items-center justify-between gap-4 p-[24px] border-b border-[#EEF0F3]">
@@ -290,9 +351,13 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           </button>
         </div>
 
-        {/* body — kompakt: alanlar küçültüldü, Açıklama serbest kalan boşluğu (flex-1)
-            doldurup gerçekten 4-5 satırlık bir alan olarak büyüyor, boş alan kalmıyor */}
-        <div className="flex-1 min-h-0 flex flex-col gap-4 p-[24px] overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
+        {/* body — 2026-07-17 kullanıcı isteği: dikey yığılan tek sütun sığma sorunu
+            çıkarıyordu ("dik olunca sığma sorunu var") — modal genişletildi (860→1180)
+            ve alanlar iki sütuna bölündü: SOL kimlik/meta alanları, SAĞ Açıklama+Dosya —
+            aynı bilgi artık yarı yükseklikte sığıyor. */}
+        <div className="flex-1 min-h-0 flex gap-6 p-[24px] overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
+          {/* ══ SOL SÜTUN ══ */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4">
           {/* Ödev Adı (üst) + Alt Başlık (alt) solda; İkon seçimi sağda, dikey/uzun buton */}
           <div className="flex gap-2.5 items-stretch shrink-0">
             <div className="flex-1 flex flex-col gap-2 min-w-0">
@@ -402,40 +467,50 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
             </div>
           </div>
 
-          {/* ödev puanı */}
+          {/* ödev puanı — 2026-07-17 kararı: proje türü ödevler Ödev Notu'na hiç girmiyor
+              (bkz. submission-service.ts::computeOdevYuzdeleri), puan bu türde anlamsız —
+              proje seçiliyken tamamen devre dışı, sertifika notu ayrı sayfadan elle girilir. */}
           <div className="shrink-0">
             <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Puanı</label>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="relative shrink-0">
-                <input
-                  className="w-[120px] py-2 pl-3 pr-[42px] rounded-[10px] border border-[#E2E5EA] bg-white text-[14px] font-extrabold text-[#1E222B] outline-none"
-                  type="number" min={0} value={puan} onChange={(e) => setPuan(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="100"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#8E95A3] pointer-events-none">puan</span>
+            {tur === "proje" ? (
+              <p className="text-[11.5px] font-medium text-[#8E95A3] italic">
+                Proje ödevlerinde puan kullanılmaz — not Sertifika Notu'ndan elle girilir.
+              </p>
+            ) : (
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <div className="relative shrink-0">
+                  <input
+                    className="w-[120px] py-2 pl-3 pr-[42px] rounded-[10px] border border-[#E2E5EA] bg-white text-[14px] font-extrabold text-[#1E222B] outline-none"
+                    type="number" min={0} value={puan} onChange={(e) => setPuan(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="100"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#8E95A3] pointer-events-none">puan</span>
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {PUAN_HIZLI.map((p) => {
+                    const aktif = puan === p;
+                    return (
+                      <button
+                        key={p} type="button" onClick={() => setPuan(p)}
+                        className="py-1 px-2.5 rounded-[9px] text-[11.5px] font-bold cursor-pointer transition-all"
+                        style={{ border: `1px solid ${aktif ? "#205297" : "#E2E5EA"}`, background: aktif ? "#EFF5FE" : "#fff", color: aktif ? "#205297" : "#6F7B87" }}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="flex gap-1.5 flex-wrap">
-                {PUAN_HIZLI.map((p) => {
-                  const aktif = puan === p;
-                  return (
-                    <button
-                      key={p} type="button" onClick={() => setPuan(p)}
-                      className="py-1 px-2.5 rounded-[9px] text-[11.5px] font-bold cursor-pointer transition-all"
-                      style={{ border: `1px solid ${aktif ? "#205297" : "#E2E5EA"}`, background: aktif ? "#EFF5FE" : "#fff", color: aktif ? "#205297" : "#6F7B87" }}
-                    >
-                      {p}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            )}
           </div>
+          </div>
+          {/* ══ SAĞ SÜTUN ══ */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4">
 
-          {/* açıklama — sabit 4-5 satır (flex-grow'lu deneme görsel çakışmaya sebep oldu, kaldırıldı) */}
-          <div className="shrink-0">
+          {/* açıklama — sağ sütunda kalan yüksekliği doldurur (flex-1) */}
+          <div className="flex-1 min-h-[110px] flex flex-col">
             <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Açıklama</label>
             <textarea
-              className="w-full py-2 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-medium text-[#1E222B] outline-none resize-none"
-              rows={4}
+              className="w-full flex-1 py-2 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[13px] font-medium text-[#1E222B] outline-none resize-none"
               value={aciklama} onChange={(e) => setAciklama(e.target.value)}
               placeholder="Ödevin detaylarını, beklentileri ve teslim koşullarını yazın..."
             />
@@ -445,32 +520,90 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
           <div className="flex gap-2.5 items-stretch shrink-0">
             <div className="flex-1 min-w-0">
               <label className="block text-[12.5px] font-bold text-[#414B59] mb-2">Ödev Dosyası Yükle</label>
-              <label
-                onDragOver={(e) => { e.preventDefault(); setDosyaDragOver(true); }}
-                onDragLeave={() => setDosyaDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault(); setDosyaDragOver(false);
-                  setPickedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
-                }}
-                className="w-full h-[52px] rounded-[10px] border border-dashed flex items-center justify-start gap-2 px-3.5 cursor-pointer transition-all"
-                style={{ borderColor: dosyaDragOver ? "#6F74D8" : "#D3D8E0", background: dosyaDragOver ? "#F2F2FC" : "#FBFCFD", color: dosyaDragOver ? "#6F74D8" : "#8E95A3" }}
-              >
-                <UploadCloud size={16} className="shrink-0" />
-                <span className="text-[11.5px] font-semibold text-left">
-                  {pickedFiles.length > 0 ? `${pickedFiles.length} dosya seçildi — daha ekleyin` : `Dosyaları sürükleyin veya seçin (${ATTACHMENT_MAX_MB}MB'a kadar)`}
-                </span>
-                <input
-                  type="file" multiple className="hidden"
-                  onChange={(e) => { if (e.target.files) setPickedFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }}
-                />
-              </label>
-              {pickedFiles.length > 0 && (
+              <input
+                ref={dosyaInputRef}
+                type="file" multiple className="hidden"
+                onChange={(e) => { if (e.target.files) { setPickedFiles((prev) => [...prev, ...Array.from(e.target.files!)]); setDosyaPanelAcik(false); } e.target.value = ""; }}
+              />
+              {/* 2026-07-17 (2. tur — düzeltildi): "Ödev Teslimi" sayfasındaki (`odevler/
+                  teslim/[groupId]/page.tsx`) GERÇEK desen — küçük "+ Dosya Yükle" butonu
+                  sağa doğru genişleyerek Bilgisayardan Yükle / Google Drive butonlarını açar.
+                  Sürükle-bırak ise butona değil, modalın TAMAMINA (bkz. yukarıdaki
+                  `onDrop`/`modalDragOver`) — bu kutu sadece tıkla-aç/kapa. */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { const next = !dosyaPanelAcik; setDosyaPanelAcik(next); if (!next) setDriveMode(false); }}
+                  className="h-[44px] shrink-0 flex items-center gap-2 px-3.5 rounded-[10px] border border-dashed cursor-pointer transition-all"
+                  style={{ borderColor: dosyaPanelAcik ? "#6F74D8" : "#D3D8E0", background: dosyaPanelAcik ? "#F2F2FC" : "#FBFCFD", color: dosyaPanelAcik ? "#6F74D8" : "#8E95A3" }}
+                >
+                  <motion.span animate={{ rotate: dosyaPanelAcik ? 45 : 0 }} transition={{ type: "tween", duration: 0.18, ease: "easeInOut" }} className="flex items-center justify-center">
+                    <Plus size={15} strokeWidth={2.4} />
+                  </motion.span>
+                  <span className="text-[11.5px] font-semibold whitespace-nowrap">Dosya Yükle</span>
+                </button>
+
+                <AnimatePresence>
+                  {dosyaPanelAcik && (
+                    <motion.div
+                      key="dosya-panel"
+                      initial={{ width: 0, opacity: 0 }} animate={{ width: 260, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+                      transition={{ type: "tween", duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                      style={{ height: 44, overflow: "hidden", flexShrink: 0 }}
+                    >
+                      {driveMode ? (
+                        <div style={{ height: 44 }} className="flex items-center gap-2 w-full">
+                          <input
+                            value={driveLink}
+                            onChange={(e) => setDriveLink(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") addDriveLink(); }}
+                            placeholder="Google Drive linki..."
+                            autoFocus
+                            style={{ height: 44 }}
+                            className="flex-1 min-w-0 px-3 rounded-[10px] border border-[#E2E5EA] bg-white text-[12px] outline-none focus:border-[#6F74D8] transition-colors"
+                          />
+                          <button onClick={addDriveLink} disabled={!driveLink.trim()} style={{ height: 44, flexShrink: 0 }} className="px-3 bg-[#205297] text-white text-[12px] font-bold rounded-[10px] disabled:opacity-40 cursor-pointer hover:bg-[#183F78] transition-colors whitespace-nowrap">
+                            Ekle
+                          </button>
+                          <button onClick={() => { setDriveMode(false); setDriveLink(""); }} style={{ height: 44, width: 44, flexShrink: 0 }} className="flex items-center justify-center bg-[#F2F4F7] text-[#6F7B87] rounded-[10px] cursor-pointer hover:bg-[#E8EBEF] transition-colors">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ height: 44 }} className="w-full flex items-center gap-1 px-2 border border-dashed rounded-[10px] whitespace-nowrap border-[#D3D8E0] bg-[#FBFCFD]">
+                          <button type="button" onClick={() => dosyaInputRef.current?.click()} className="h-full flex items-center gap-2 px-3 rounded-[8px] text-[12px] font-semibold text-[#414B59] hover:bg-white transition-colors cursor-pointer">
+                            <UploadCloud size={13} className="text-[#8E95A3] shrink-0" />
+                            Bilgisayardan Yükle
+                          </button>
+                          <div className="w-px h-5 bg-[#E2E5EA] shrink-0" />
+                          <button type="button" onClick={() => setDriveMode(true)} className="h-full flex items-center gap-2 px-3 rounded-[8px] text-[12px] font-semibold text-[#414B59] hover:bg-white transition-colors cursor-pointer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src="/icons/google-drive.svg" width={13} height={13} alt="" className="shrink-0" />
+                            Google Drive
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              {(pickedFiles.length > 0 || pickedDriveLinks.length > 0) && (
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {pickedFiles.map((f, i) => (
                     <span key={`${f.name}-${i}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold" style={{ background: "#F2F4F7", color: "#414B59" }}>
                       <FileText size={11} className="shrink-0" />
                       <span className="max-w-[140px] truncate">{f.name}</span>
                       <button type="button" onClick={() => setPickedFiles((prev) => prev.filter((_, idx) => idx !== i))} className="cursor-pointer text-[#AEB4C0] hover:text-[#414B59]">
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                  {pickedDriveLinks.map((d) => (
+                    <span key={d.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold" style={{ background: "#F2F4F7", color: "#414B59" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/icons/google-drive.svg" width={11} height={11} alt="" className="shrink-0" />
+                      <span className="max-w-[140px] truncate">{d.fileName}</span>
+                      <button type="button" onClick={() => setPickedDriveLinks((prev) => prev.filter((x) => x.id !== d.id))} className="cursor-pointer text-[#AEB4C0] hover:text-[#414B59]">
                         <X size={11} />
                       </button>
                     </span>
@@ -511,6 +644,7 @@ export default function OdevOlusturModal({ open, onClose, onCreated, prefill }: 
               />
             </div>
           )}
+          </div>
         </div>
 
         {/* footer */}

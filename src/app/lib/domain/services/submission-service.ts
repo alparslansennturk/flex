@@ -803,11 +803,15 @@ export async function gradeBatch(
 }
 
 /**
- * Ödev Notu'nun İÇ ağırlıklandırması (2026-07-06 kararı, SABİT iş kuralı — Sertifika
- * Ayarları'ndaki dışsal Sertifika/Ödev ağırlığından TAMAMEN AYRI bir eksen):
- * `normal` ödevler nihai Ödev Notu'na %30, `proje` ödevler %70 ağırlıkla katkı yapar.
- * Bir kategori hiç yoksa (o türde yayınlanmış ödev yok) ağırlık diğer kategoriye
- * TAMAMEN kayar (100%) — eksik kategori kimseyi cezalandırmaz.
+ * 2026-07-17 kararı (2026-07-06'daki İÇ ağırlıklandırma kararının YERİNE geçti):
+ * `proje` türü ödevler Ödev Notu'na ARTIK HİÇ GİRMEZ — sadece `normal` ödevler sayılır.
+ * "Proje" kavramı SADECE Sertifika Notu'nda yaşar (`Grade.projectGrade`, elle girilir,
+ * ödev sisteminden bağımsız) — bir ödeve `kind:"proje"` verilse bile o ödevin puanı/
+ * teslimi Ödev Notu hesabına (payda/pay) hiç eklenmez. `ODEV_TUR_AGIRLIK.proje` (70)
+ * artık asla kullanılmaz (proje kategorisi `computeOdevYuzdeleri`'de hep boş kalır,
+ * `combineOdevYuzdesi` "kategori yok" dalına düşüp normalOran'ı ×100 uygular) — sabit
+ * geriye dönük uyumluluk için (`sertifikasyon/not/page.tsx`'in aynı formülü client-side
+ * tekrarlayan kopyası dahil) SİLİNMEDİ, sadece proje'ye hiç veri akmıyor.
  */
 export const ODEV_TUR_AGIRLIK: Record<AssignmentKind, number> = { normal: 30, proje: 70 };
 
@@ -852,14 +856,16 @@ export async function computeOdevYuzdeleri(
   // yansımıyordu. Draft (henüz yayınlanmamış, öğrenciye hiç gitmemiş) hariç HER durum
   // (`published`/`closed`/`archived`) sayılmalı — öğrenciye bir kez atanan ödev, notu
   // girildikten/ödev arşivlendikten sonra da hesaba dahil kalmalı.
-  const published = assignments.filter((a) => a.status !== "draft");
+  // 2026-07-17 kararı: `proje` türü ödevler bu hesaba HİÇ girmez (bkz. ODEV_TUR_AGIRLIK
+  // yorumu) — sadece `normal` ödevler payda/paya dahil edilir, proje kategorisi kasıtlı
+  // olarak hep boş (`bosKategori()`) kalır.
+  const published = assignments.filter((a) => a.status !== "draft" && (a.kind ?? "normal") === "normal");
   const result: OdevYuzdeleriResult = { normal: bosKategori(), proje: bosKategori() };
   const kindByAssignmentId = new Map<string, AssignmentKind>();
 
   for (const a of published) {
-    const kind: AssignmentKind = a.kind ?? "normal";
-    kindByAssignmentId.set(a.id, kind);
-    result[kind].totalMaxPuan += a.maxPuan ?? 100;
+    kindByAssignmentId.set(a.id, "normal");
+    result.normal.totalMaxPuan += a.maxPuan ?? 100;
   }
 
   for (const s of submissions) {
