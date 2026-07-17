@@ -43,6 +43,12 @@ export interface ConnectConversation extends Audit {
   /** SADECE type==="community" — paketlediği grup konuşmalarının id'leri (fiziksel grup DEĞİL, mantıksal fan-out). */
   childIds?: EntityId[];
 
+  /** SADECE type==="group" && realm==="trainer_student" — hangi FlexOS sınıfından
+   * (`Group.id`) oluşturuldu (2026-07-18). Aynı sınıf için ikinci bir "sınıf odası"
+   * oluşturulmasını engeller (dedup) + Topluluk'un `childIds`'i bu conversation'ı
+   * güvenle yeniden kullanabilir. */
+  sourceGroupId?: EntityId;
+
   lastMessage?: { text: string; senderUid: string; at: ISODateTime } | null;
 
   /** Toplam mesaj sayısı — her `sendMessage`'da artar. Okunmamış SAYISINI (badge'deki

@@ -139,6 +139,198 @@ bu oturumda ele alınmadı.
 
 ---
 
+### ✅ Kurumsal Audit Log altyapısı (Faz 2'den önce, 2026-07-18, Mac oturumu)
+
+**Amaç netleştirildi (kullanıcı):** kullanıcı hareketi (mesajlaşma) DEĞİL, YÖNETİMSEL
+işlemlerin kaydı. Yeni append-only `connect_audit/{id}` koleksiyonu — 3 katmanlı
+desen (`domain/core/connect-audit.ts` tip + `domain/repo/connect-audit-repo.ts` PORT,
+BİLİNÇLİ olarak sadece `create` metodu var, update/delete YOK + `server/
+connect-audit-repo.firestore.ts` Firestore impl) `flexos_activity_log` ile AYNI
+kanıtlanmış desenin kopyası. Firestore rules `allow read, write: if false` —
+tamamen server-only, gelecekteki yönetim paneli bir API route üzerinden okuyacak
+(henüz o route yazılmadı).
+
+**Kapsam kararı (kullanıcıyla netleşti — scope creep'ten kaçınmak için):** Faz 1'de
+GERÇEKTEN var olan 3 işlem türüne bağlandı: `createConversation` (kanal/grup/topluluk
+— `channel.create`/`audience_channel.create`/`group.create`/`community.create`, DM
+kapsam dışı bırakıldı), `addMember` (`member.add`), `removeMember` (`member.remove`).
+`ConnectAuditAction` tipi kullanıcının istediği TAM taksonomiyi tanımlıyor (channel/
+group silme, admin ver/al, ayar PATCH, mesaj sil/düzenle, toplu üye ekleme, realm
+değişikliği dahil) ama bu eylemlerin servis fonksiyonları Faz 1'de hiç yok — o yüzden
+gerçek `logAudit(...)` çağrısı eklenmedi, sadece tip hazır. Her biri yazıldığında
+(Faz 2 veya ayrı "yönetim işlemleri" turu) tek satır `logAudit` çağrısı eklenir.
+
+**Uygulama detayları:**
+- `connect-service.ts`: `ConnectDeps`'e `auditLog: ConnectAuditRepo` eklendi. Yeni
+  private `logAudit(...)` yardımcı — best-effort (activity-log/mail ile AYNI ilke:
+  audit yazım hatası asıl işlemi ASLA başarısız kılmaz, `try/catch` + `console.error`).
+  `actorName`/`targetName` mevcut `resolveDisplayName` reuse edilerek çözülüyor.
+- IP/user-agent: yeni `connect-principal.ts::extractConnectRequestMeta(req)`
+  (`x-forwarded-for` — OTP route'undaki AYNI desen). `createConversation`/`addMember`/
+  `removeMember`'a opsiyonel 4./6. parametre (`meta?: ConnectRequestMeta`) eklendi,
+  2 route dosyasından (`conversations/route.ts` POST, `.../members/route.ts` POST+DELETE)
+  geçiriliyor. Öğrenci route'ları bu 3 fonksiyonu hiç çağırmıyor (Faz 1 kararı —
+  öğrencide create/member-yönetimi YOK), dokunulmadı.
+- Test: `scripts/assert-connect.ts` yeni audit bloğu (8 assertion: 3 create action tipi
+  doğru + DM loglanmıyor + member.add/remove + **normal mesaj gönderme LOGLANMIYOR**
+  + her kayıtta actorUid/actorName/tenantId/realm/createdAt dolu) — 28/28 geçti.
+  `tsc --noEmit` + `npm run build` temiz, mevcut 19 assert dosyası (407 assertion) hâlâ yeşil.
+
+**Mimariye dokunulmayan kısım:** `connect_conversations`/`members`/`messages` şeması,
+izolasyon, realm modeli, API route ayrımı (staff/student) — HİÇBİRİ değişmedi, audit
+tamamen additive (yeni koleksiyon + var olan fonksiyonların sonuna log çağrısı).
+
+**SIRADAKİ İŞ:** Yok — bu tur kapandı. Bilinen açık: eksik yönetim işlemleri
+(kanal/grup silme, admin ver/al, ayar PATCH, mesaj sil/düzenle, toplu üye ekleme,
+realm değişikliği) hâlâ kod olarak yok; yazıldıklarında audit hook'u eklenmeli.
+Yönetim panelinden filtreleme/okuma API'si de henüz yok.
+
+---
+
+### ✅ Faz 2 · madde 1 — Favoriler/sabitleme (2026-07-18, Mac oturumu)
+
+Kullanıcı Faz 2'yi karmaşıklık sırasına göre yapmaya karar verdi: 1) Favoriler
+2) Reaksiyonlar 3) Okundu-tikleri 4) Dosya ekleri 5) Misafir daveti. Bu ilk madde
+tamamlandı — veri modelinde zaten var olan `ConnectMember.pinned` alanı UI'ya bağlandı.
+
+- **Backend:** `connect-service.ts::setPinned(principal, conversationId, pinned, deps)`
+  — `markRead` ile AYNI ilke (üye değilse no-op), yetki gerekmez (kişisel tercih).
+  **Audit Log'a YAZILMAZ** (yönetimsel işlem değil). İki route: `/api/flexos/connect/
+  conversations/[id]/pin` (staff) + `/api/flexos/student/connect/conversations/[id]/pin`
+  (student) — `read` route'unun birebir kopyası deseni.
+- `connect-view.ts::ConnectConversationView` + `connectClient.ts::ConversationView`'a
+  `pinned: boolean` eklendi (`member?.pinned ?? false`).
+- **UI — SADECE personel sayfası (`/flexos/connect`):** rail'e 5. nav öğesi "Favoriler"
+  (`star`, `Star` ikonu — gerçek bir `ConnectConversationType` DEĞİL, yerel `NavKey`
+  birleşimi, tüm tiplerden `pinned` olanları cross-type gösterir). Kolon 2 segment
+  kontrolü `Tümü/Okunmamış` → `Tümü/Okunmamış/Sabitlenen` (3 segment, tasarımın
+  `filters` dizisiyle birebir). Header "..." menüsüne "Favorilere Ekle"/"Favorilerden
+  Çıkar" eklendi (`Star`/`StarOff` ikonu — ilk versiyonda "Sabitle" yazıyordu, kullanıcı
+  düzeltti: ikon/sekme "Favoriler" diyorsa aksiyon da "favorilere ekle" demeli, "sabitle"
+  farklı bir kavram çağrıştırıyor. İyimser güncelleme + hata durumunda geri alma.
+- **Öğrenci sayfasına (`/flexos/student/[personId]/connect`) UI eklenmedi** — o sayfada
+  "..." menüsü/rail chrome'u hiç yok (Faz 1'de bilinçli minimal tutulmuş), sadece
+  Favoriler için o UI'yı sıfırdan kurmak scope creep olurdu. Backend (route) simetrik
+  olarak zaten hazır — istenirse ileride ucuz bir ekleme.
+- **Test:** `scripts/assert-connect.ts`'e 4 yeni assertion (kendi tercihini ayarlama,
+  kaldırma, audience-only için no-op, audit'e yazılmadığı doğrulaması) — 32/32 geçti.
+  `tsc --noEmit` + `npm run build` temiz, 19 assert dosyası hâlâ yeşil.
+- **Görsel doğrulama yapılmadı** — sayfa Firebase Auth login gerektiriyor, bu oturumda
+  canlı bir kullanıcı oturumu yoktu. Kullanıcı canlıda "Favoriler" sekmesini + "..."
+  menüsündeki sabitle/kaldır'ı elle kontrol etmeli.
+
+**SIRADAKİ İŞ:** Faz 2 madde 2 — Reaksiyonlar.
+
+---
+
+### ✅ "Yeni Konuşma" modalı gerçek tasarıma göre yeniden yapıldı + DM akışı + Topluluk (2026-07-18, aynı oturum)
+
+Kullanıcı gerçek ekran görüntülerini (`Flex Connect.dc.html`ün gerçek `createTypes`/
+`groupChoices` render script'i) gösterip önceki modalın YANLIŞ olduğunu belirtti:
+(1) tasarım 780px yatay, benimki 640px dikeydi; (2) "Kimin İçin" (realm seçici) diye
+bir adım tasarımda HİÇ yok, ben uydurmuştum; (3) DM bir TÜR seçeneği DEĞİL —
+tasarımda sadece Kanal/Grup/Topluluk var; (4) Grup seçilince gerçek sınıflar
+listelenip roster ANINDA altına eklenmeli; (5) Topluluk (`kodları vardı` — design
+script'inde tam mantığı zaten yazılıydı, sadece UI'ya hiç bağlanmamıştı) gerçek
+sınıf seçip otomatik "Genel Duyuru" kanalı kurmalı.
+
+**DM'in yeni modeli (kullanıcı tarif etti):** ayrı bir "oluştur" akışı YOK. Rayda
+personel için 2 yeni ikon — **Personel** + **Öğrenciler** — eğitmen için 1 yeni
+ikon — **Eğitmenlerim**. Birine tıklayınca Kolon 2'de o dizin (var olan DM önizlemesiyle
+birlikte) listelenir; bir kişiye tıklayınca var olan DM açılır ya da ANINDA oluşturulur.
+
+**Backend (gerçek yeni iş):**
+1. `GET /api/flexos/connect/student-directory` — eğitmenin KENDİ gruplarındaki
+   (`Group.trainerId===principal.trainerId`) tüm öğrenciler, dedup.
+2. `GET /api/flexos/student/connect/trainer-directory` — öğrencinin aktif/tamamlanmış
+   kayıtlarındaki grupların eğitmen(ler)i (`Group.trainerId`→`flexos_trainers`→`authUid`), dedup.
+3. `connect-service.ts::createConversation` — Faz 1 kararı ("öğrenci oluşturamaz")
+   HÂLÂ geçerli, TEK dar istisna: `type:"dm"` + `realm:"trainer_student"` + hedef
+   GERÇEKTEN öğrencinin KENDİ enrollment/grup kaydındaki eğitmeni ise (`isStudentsOwnTrainer`
+   — client'a güvenmeden sunucu kendi enrollment→grup→trainer zincirini yeniden hesaplar).
+   `ConnectDeps`'e SADECE bu doğrulama için `enrollments`/`groups`/`trainers` repo'ları eklendi.
+4. **DM dedup** (`findExistingDm`) — aynı iki kişi arasında zaten bir DM varsa dizinden
+   tekrar tıklanınca YENİ kopya oluşturulmaz, var olanı döner (iki yönlü de çalışır).
+5. **Sınıf odası dedup** (`ConnectConversation.sourceGroupId` yeni alan + `ConnectRepo.
+   findBySourceGroupId`) — aynı FlexOS sınıfı için ikinci "sınıf odası" oluşturulmaz,
+   var olanı yeniden kullanır. Hem Grup/Sınıf akışında hem Topluluk'un sınıf-odası
+   oluşturma adımında AYNI mekanizma.
+6. `connect-view.ts`/`connectClient.ts` — dm tipi konuşmalara `peerUid` eklendi (dizinden
+   birine tıklayınca "bununla zaten DM var mı" eşleşmesi için).
+7. `/api/flexos/student/connect/conversations` route'una POST eklendi (önceden sadece
+   GET vardı — öğrenci route ailesinde hiç create endpoint'i yoktu).
+
+**"Yeni Konuşma" modalı — TAMAMEN yeniden yazıldı (`connect/page.tsx`):**
+- 780px, tasarımın `createTypes`/2-kolon gövde/footer yapısıyla birebir. "Kimin İçin"
+  adımı TAMAMEN kaldırıldı — realm artık türe göre türetiliyor.
+- **Kanal:** varsayılan `staff` + Yayıncılar (personel çipleri); "Tüm öğrencilere aç"
+  açılırsa `trainer_student`+audience (eski bridge-channel özelliği KORUNDU, tasarımda
+  yoktu ama FLEX_CONNECT.md'nin çekirdek mimarisi — kaldırılamaz).
+  Tür ikonları tasarımla birebir: Kanal=Megaphone, Grup=UsersRound, Topluluk=Users
+  (design script'inin `ICONS.group`/`ICONS.community`'siyle bit-bit eşleşen SVG path'ler).
+- **Grup:** yeni "Sınıf" | "Personel" alt-sekmesi (tasarımda yok, kullanıcının "sınıf
+  seçilince roster otomatik eklensin" isteğini karşılamak + var olan personel-iş-grubu
+  kapasitesini kaybetmemek için eklendi — şeffaf bir ek). "Sınıf" modu: gerçek
+  `/api/flexos/groups` listesi (GRP-784 gibi), seçince roster (`/api/flexos/groups/
+  [id]/roster`) ANINDA altına isim isim eklenir, `sourceGroupId` ile gönderilir.
+- **Topluluk:** gerçek sınıf listesi (checkbox, ≥2 seçim zorunlu), reach sayısı
+  `Group.enrolled` alanından (roster fetch gerekmez, tasarımın statik sayısının
+  yerine gerçek veri). Oluşturunca: seçili her sınıf için sınıf odası oluştur/yeniden-
+  kullan (sırayla, `sourceGroupId` dedup) → union roster'la otomatik "{ad} — Genel
+  Duyuru" kanalı → topluluk kaydı (`childIds`=sınıf odaları). Kullanıcı topluluğun
+  KENDİSİNE değil, gerçek iletişimin olduğu Genel Duyuru kanalına yönlendirilir
+  (topluluk için rayda henüz bir sekme yok, Faz 1-sonu; boş bir ekran açmak yerine
+  faydalı olan kanala gidilir).
+- `GroupItem` client tipi `enrolled: number` aldı (`/api/flexos/groups` zaten dönüyordu,
+  sadece client tipi eksikti).
+
+**Test:** `scripts/assert-connect.ts`'e 10 yeni assertion — öğrenci hâlâ kanal/grup
+oluşturamıyor, kendi eğitmeni OLMAYANA DM açamıyor, kendi eğitmenine açabiliyor, DM
+dedup (iki yönlü), sourceGroupId dedup. **38/38 geçti.** `tsc --noEmit` + `npm run build`
+temiz, 19 assert dosyası (445 assertion) hâlâ yeşil.
+
+**Görsel doğrulama yapılmadı** (Firebase Auth login gerektiriyor) — kullanıcı canlıda
+Personel/Öğrenciler/Eğitmenlerim dizinlerini + yeni modalı elle kontrol etmeli.
+
+**SIRADAKİ İŞ:** Faz 2 madde 2 — Reaksiyonlar (kullanıcı onaylarsa).
+
+---
+
+### ✅ Küçült/Kapat ayrımı + widget ikon düzeltmesi (2026-07-18, aynı oturum)
+
+Kullanıcı bulgusu: tam ekran sayfasındaki "küçült" butonu aslında `router.back()`
+yapıyordu — widget her zaman kapalı state'le mount olduğu için bu sohbetin
+TAMAMEN kapanması gibi hissettiriyordu, gerçek bir "küçült/widget'a dön" davranışı
+yoktu. Fix: `ConnectWidget.tsx`'e `requestConnectWidgetReopen()` (sessionStorage
+bayrağı) eklendi — widget mount olduğunda bayrak varsa otomatik `open:true` ile
+mini pencerede açılıyor. `connect/page.tsx` header'ında artık İKİ ayrı buton var:
+**Küçült** (bayrağı set edip `router.back()` — widget'a dönüldüğünde mini pencere
+açık görünür) ve **Kapat** (`X`, sadece `router.back()` — widget kapalı/sadece FAB
+kalır). Ayrıca widget'ın mini pencere header'ındaki "Tam ekran aç" ikonu (`ChevronLeft`
+135° döndürülmüş bir hack'ti) kullanıcının verdiği gerçek Lucide `ExternalLink` SVG
+path'iyle birebir eşleşti, artık gerçek `ExternalLink` ikonu kullanılıyor.
+
+`tsc --noEmit` + `npm run build` temiz. Sadece personel tam sayfası + widget
+etkilendi (öğrenci tam sayfasında zaten küçült/menü header'ı yok).
+
+---
+
+### ✅ İlk yüklemede otomatik konuşma seçimi (2026-07-18, aynı oturum)
+
+Kullanıcı bulgusu: tam ekranı açıp hiçbir konuşma seçmezsen üstte header/bar HİÇ
+görünmüyordu (Kolon 3 sadece `selected` doluyken render ediliyordu). Çözüm: sayfa
+ilk yüklendiğinde hâlâ hiçbir şey seçili değilse, liste zaten en son mesaja göre
+azalan sıralı olduğu için (`connect-view.ts` sort) en üstteki (channel/group/dm,
+community hariç) konuşma otomatik seçiliyor + o konuşmanın türüne göre rail sekmesi
+de değişiyor (liste satırı da vurgulanmış görünsün diye). `autoSelectedRef` ile
+SADECE ilk yüklemede tetiklenir — mesaj gönderince tetiklenen sonraki
+`loadConversations()` çağrıları kullanıcının seçimini yerinden oynatmaz. Hem
+personel (`connect/page.tsx`) hem öğrenci (`student/[personId]/connect/page.tsx`)
+sayfasına aynı fix eklendi (yapısal olarak ikisinde de aynı eksiklik vardı).
+`tsc --noEmit` + `npm run build` temiz.
+
+---
+
 ## 0. Değişmez ilkeler
 
 1. **BAĞIMSIZ.** Flex Connect, ödev/teslim sistemine ASLA dokunmaz. Mevcut
@@ -227,6 +419,32 @@ editedAt?:    Timestamp
 > **Not (revizyon 3):** `authorName` TUTULMAZ. Ad değişince geçmiş bozulmasın + tek
 > doğruluk kaynağı user koleksiyonu olsun diye. Render sırasında uid→ad/renk çözülür
 > (bkz. §5 kimlik çözümleme).
+
+### `connect_audit/{id}` (2026-07-18 eklendi — kurumsal Audit Log)
+Kullanıcı hareketi (mesajlaşma) DEĞİL, YÖNETİMSEL işlem kaydı. Ayrı, düz koleksiyon
+(alt-koleksiyon DEĞİL) — gelecekteki yönetim panelinden tek koleksiyonu tarayıp
+filtrelemek için. Append-only: repo katmanı sadece `create` sunar.
+```
+id:               string
+action:           ConnectAuditAction   // bkz. domain/core/connect-audit.ts — TAM taksonomi
+actorUid:         string
+actorName:        string
+conversationId:   string
+conversationName: string
+targetUid?:       string
+targetName?:      string
+realm:            "staff" | "trainer_student"
+tenantId:         string
+metadata?:        Record<string, unknown>
+createdAt:        Timestamp
+ip?:              string
+userAgent?:       string
+```
+> Faz 1'de gerçekten yazılan action'lar: `channel.create`, `group.create`,
+> `community.create`, `audience_channel.create`, `member.add`, `member.remove`.
+> Diğerleri (channel.delete, admin.grant/revoke, conversation.settings.update,
+> message.delete/edit, member.bulk_add, realm.change) tipte tanımlı ama servis
+> fonksiyonu henüz yok — yazıldıklarında `logAudit(...)` çağrısı eklenir.
 
 ---
 

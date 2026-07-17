@@ -65,6 +65,16 @@ export const firestoreConnectRepo: ConnectRepo = {
     await adminDb.collection(CONVERSATIONS).doc(id).delete();
   },
 
+  async findBySourceGroupId(tenantId, sourceGroupId) {
+    const snap = await adminDb
+      .collection(CONVERSATIONS)
+      .where("tenantId", "==", tenantId)
+      .where("sourceGroupId", "==", sourceGroupId)
+      .limit(1)
+      .get();
+    return snap.empty ? null : (snap.docs[0].data() as ConnectConversation);
+  },
+
   async saveMember(conversationId, member) {
     await adminDb.collection(CONVERSATIONS).doc(conversationId).collection(MEMBERS).doc(member.uid).set(clean(member));
   },

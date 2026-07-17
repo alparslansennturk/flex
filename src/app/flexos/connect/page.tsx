@@ -7,8 +7,11 @@
  * ikon rayı var (tasarımın kendisi böyle: `width:100vw;height:100vh`).
  *
  * Faz 1 kapsamı (2026-07-18 kullanıcı kararı, değiştirilmez): Kanal + Grup + DM +
- * gerçek zamanlı + temel composer. Topluluk/Favoriler/reaksiyon/okundu-tik/misafir
- * FAZ 2. Mimari: `FLEX_CONNECT.md`.
+ * gerçek zamanlı + temel composer. Topluluk/reaksiyon/okundu-tik/misafir FAZ 2.
+ * Favoriler Faz 2'nin ilk maddesi olarak eklendi (2026-07-18, "star" rail sekmesi +
+ * "Sabitlenen" segmenti (liste filtresi, tasarımdaki kelime) + "..." menüsünde
+ * Favorilere Ekle/Çıkar — SADECE personel sayfasında, öğrenci sayfasında henüz
+ * menü/rail chrome'u yok). Mimari: `FLEX_CONNECT.md`.
  *
  * İki realm oluşturma akışı burada birleşir:
  *  - `staff` (personel arası) — üye seçici = personel dizini (`/connect/directory`).
@@ -22,16 +25,18 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Megaphone, Users, Plus, Search, Send, X, ChevronDown, Check, Loader2,
-  Minimize2, Info, MoreVertical, LogOut,
+  Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, Loader2,
+  Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type ConnectConversationType, type ConnectRealm,
   type ConversationDetail, type TypingSignal,
-  fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, createConversation,
+  fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
   subscribeToMessages, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
+  setConversationPinned,
 } from "./_shared/connectClient";
+import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { ConnectIcon } from "./_shared/ConnectIcon";
 import { TypingIndicator } from "./_shared/TypingIndicator";
 import { EmojiButton, AttachButton } from "./_shared/EmojiPicker";
@@ -45,15 +50,27 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
-interface GroupItem { id: string; code: string; branch: string }
+interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
 type IconComponent = ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
 
-const NAV: { key: ConnectConversationType; label: string; Icon: IconComponent }[] = [
+/** `star` = Favoriler (Faz 2, cross-type pinned filtresi); `staffDirectory`/
+ * `studentDirectory` = Personel/Öğrenciler dizini (2026-07-18 kullanıcı isteği —
+ * DM için ayrı bir "oluştur" akışı YOK, dizinden bir kişiye tıklayınca var olan
+ * DM açılır ya da anında oluşturulur). Hiçbiri gerçek bir `ConnectConversationType`
+ * DEĞİL, sadece rail'de hangi görünümün aktif olduğunu tutan yerel anahtarlar. */
+type NavKey = ConnectConversationType | "star" | "staffDirectory" | "studentDirectory";
+
+const NAV: { key: NavKey; label: string; Icon: IconComponent }[] = [
   { key: "channel", label: "Kanallar", Icon: Megaphone },
   { key: "group", label: "Gruplar", Icon: Users },
   { key: "dm", label: "Sohbetler", Icon: ConnectIcon },
+  { key: "staffDirectory", label: "Personel", Icon: Contact },
+  { key: "studentDirectory", label: "Öğrenciler", Icon: GraduationCap },
+  { key: "star", label: "Favoriler", Icon: Star },
 ];
+
+type ListFilter = "all" | "unread" | "pinned";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -78,9 +95,9 @@ function dividerLabel(iso: string): string {
 
 export default function FlexConnectPage() {
   const router = useRouter();
-  const [navTab, setNavTab] = useState<ConnectConversationType>("channel");
+  const [navTab, setNavTab] = useState<NavKey>("channel");
   const [query, setQuery] = useState("");
-  const [onlyUnread, setOnlyUnread] = useState(false);
+  const [listFilter, setListFilter] = useState<ListFilter>("all");
 
   const [conversations, setConversations] = useState<ConversationView[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -93,6 +110,11 @@ export default function FlexConnectPage() {
   const firstLoadRef = useRef(true);
 
   const [createOpen, setCreateOpen] = useState(false);
+
+  // "Personel"/"Öğrenciler" rail dizinleri (2026-07-18) — DM için AYRI bir "oluştur"
+  // akışı yok, dizinden birine tıklayınca var olan DM açılır ya da anında oluşturulur.
+  const [staffDirectoryList, setStaffDirectoryList] = useState<DirectoryUser[]>([]);
+  const [studentDirectoryList, setStudentDirectoryList] = useState<DirectoryUser[]>([]);
 
   // Üstteki 4 aksiyon ikonu (küçült/ara/bilgi/menü) — tasarımda vardı, ilk
   // portta "minimal" diye atlanmıştı, kullanıcı geri istedi (2026-07-18).
@@ -119,6 +141,10 @@ export default function FlexConnectPage() {
   }, []);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
+  useEffect(() => {
+    fetchDirectory().then(setStaffDirectoryList);
+    fetchStudentDirectory().then(setStudentDirectoryList);
+  }, []);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
@@ -143,6 +169,43 @@ export default function FlexConnectPage() {
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false, unreadCount: 0 } : c)));
   }, []);
 
+  /** Personel/Öğrenciler dizininden birine tıklama — AYRI bir "oluştur" akışı yok
+   * (2026-07-18 kullanıcı isteği): var olan DM varsa direkt açılır, yoksa anında
+   * oluşturulup açılır (server zaten aynı iki kişi arasında dedup ediyor). */
+  const openDirectMessage = useCallback(
+    async (targetUid: string, realm: ConnectRealm) => {
+      const existing = conversations.find((c) => c.type === "dm" && c.peerUid === targetUid);
+      if (existing) {
+        setNavTab("dm");
+        await selectConversation(existing.id);
+        return;
+      }
+      const result = await createConversation({ realm, type: "dm", name: "", memberUids: [targetUid] });
+      if ("error" in result) { toast.error(result.error); return; }
+      await loadConversations();
+      setNavTab("dm");
+      await selectConversation(result.id);
+    },
+    [conversations, loadConversations, selectConversation],
+  );
+
+  // İlk yüklemede hiçbir şey seçili değilse üstteki (en son mesajı olan — liste
+  // zaten `connect-view.ts`'de mesaj tarihine göre azalan sıralı) konuşma otomatik
+  // seçilir (kullanıcı bulgusu: boş seçim ekranında üst header/bar hiç görünmüyordu).
+  // Sekme de o konuşmanın türüne geçer ki liste satırı da vurgulanmış görünsün.
+  // SADECE ilk yüklemede — sonraki `loadConversations()` çağrıları (mesaj gönderince
+  // vb.) kullanıcının seçimini yerinden oynatmaz.
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (autoSelectedRef.current || loadingList || conversations.length === 0) return;
+    const candidates = conversations.filter((c) => c.type === "channel" || c.type === "group" || c.type === "dm");
+    if (candidates.length === 0) return;
+    autoSelectedRef.current = true;
+    const top = candidates[0];
+    setNavTab(top.type);
+    selectConversation(top.id);
+  }, [conversations, loadingList, selectConversation]);
+
   useEffect(() => {
     if (!infoOpen || !selectedId) return;
     fetchConversationDetail(selectedId).then(setDetail);
@@ -158,6 +221,20 @@ export default function FlexConnectPage() {
       setSelectedId(null);
     } else {
       toast.error("Ayrılamadın, tekrar dene.");
+    }
+  }
+
+  /** Favorilere ekle/çıkar — kişisel tercih (Faz 2). İyimser güncelleme,
+   * başarısız olursa geri alınır. */
+  async function handleTogglePin() {
+    if (!selectedId || !selected) return;
+    setMenuOpen(false);
+    const next = !selected.pinned;
+    setConversations((prev) => prev.map((c) => (c.id === selectedId ? { ...c, pinned: next } : c)));
+    const ok = await setConversationPinned(selectedId, next);
+    if (!ok) {
+      setConversations((prev) => prev.map((c) => (c.id === selectedId ? { ...c, pinned: !next } : c)));
+      toast.error("Sabitleme değiştirilemedi.");
     }
   }
 
@@ -205,9 +282,17 @@ export default function FlexConnectPage() {
   }
 
   const filtered = conversations
-    .filter((c) => c.type === navTab)
-    .filter((c) => !onlyUnread || c.unread)
+    .filter((c) => (navTab === "star" ? c.pinned : c.type === navTab))
+    .filter((c) => listFilter !== "unread" || c.unread)
+    .filter((c) => listFilter !== "pinned" || c.pinned)
     .filter((c) => !query.trim() || c.name.toLocaleLowerCase("tr").includes(query.trim().toLocaleLowerCase("tr")));
+
+  // "Personel"/"Öğrenciler" dizin görünümü — konuşma listesi DEĞİL, kişi listesi
+  // (var olan DM'i varsa önizlemesiyle birlikte gösterir, yoksa tıklayınca oluşturur).
+  const directoryList = navTab === "staffDirectory" ? staffDirectoryList : navTab === "studentDirectory" ? studentDirectoryList : null;
+  const filteredDirectory = directoryList?.filter(
+    (u) => !query.trim() || u.name.toLocaleLowerCase("tr").includes(query.trim().toLocaleLowerCase("tr")),
+  ) ?? null;
 
   const visibleMessages = messageQuery.trim()
     ? messages.filter((m) => m.text.toLocaleLowerCase("tr").includes(messageQuery.trim().toLocaleLowerCase("tr")))
@@ -230,7 +315,7 @@ export default function FlexConnectPage() {
         <div className="flex flex-col items-center gap-2">
           {NAV.map(({ key, label, Icon }) => {
             const active = navTab === key;
-            const count = conversations.filter((c) => c.type === key).reduce((sum, c) => sum + c.unreadCount, 0);
+            const count = key === "star" ? 0 : conversations.filter((c) => c.type === key).reduce((sum, c) => sum + c.unreadCount, 0);
             return (
               <button
                 key={key} title={label} onClick={() => setNavTab(key)}
@@ -259,15 +344,18 @@ export default function FlexConnectPage() {
         <div style={{ padding: "20px 20px 14px" }}>
           <div className="flex items-center justify-between mb-4">
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5, color: "#1B1F26" }}>
-              {navTab === "channel" ? "Kanallar" : navTab === "group" ? "Gruplar" : "Sohbetler"}
+              {navTab === "channel" ? "Kanallar" : navTab === "group" ? "Gruplar" : navTab === "star" ? "Favoriler"
+                : navTab === "staffDirectory" ? "Personel" : navTab === "studentDirectory" ? "Öğrenciler" : "Sohbetler"}
             </h1>
-            <button
-              onClick={() => setCreateOpen(true)} title="Yeni"
-              className="flex items-center justify-center cursor-pointer transition-all"
-              style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C" }}
-            >
-              <Plus size={18} />
-            </button>
+            {directoryList === null && (
+              <button
+                onClick={() => setCreateOpen(true)} title="Yeni"
+                className="flex items-center justify-center cursor-pointer transition-all"
+                style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C" }}
+              >
+                <Plus size={18} />
+              </button>
+            )}
           </div>
           <div className="relative">
             <Search size={17} color="#A2A8B2" className="absolute pointer-events-none" style={{ left: 14, top: "50%", transform: "translateY(-50%)" }} />
@@ -279,20 +367,54 @@ export default function FlexConnectPage() {
           </div>
         </div>
 
-        <div style={{ padding: "0 20px 12px" }} className="flex gap-1.5">
-          {[{ key: false, label: "Tümü" }, { key: true, label: "Okunmamış" }].map((f) => (
-            <button
-              key={String(f.key)} onClick={() => setOnlyUnread(f.key)}
-              className="cursor-pointer transition-all font-bold"
-              style={{ padding: "6px 13px", borderRadius: 9, border: "1px solid transparent", fontSize: 12.5, background: onlyUnread === f.key ? "#EAF1FB" : "transparent", color: onlyUnread === f.key ? "#205297" : "#8A909B" }}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {directoryList === null && (
+          <div style={{ padding: "0 20px 12px" }} className="flex gap-1.5">
+            {([{ key: "all", label: "Tümü" }, { key: "unread", label: "Okunmamış" }, { key: "pinned", label: "Sabitlenen" }] as { key: ListFilter; label: string }[]).map((f) => (
+              <button
+                key={f.key} onClick={() => setListFilter(f.key)}
+                className="cursor-pointer transition-all font-bold"
+                style={{ padding: "6px 13px", borderRadius: 9, border: "1px solid transparent", fontSize: 12.5, background: listFilter === f.key ? "#EAF1FB" : "transparent", color: listFilter === f.key ? "#205297" : "#8A909B" }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto" style={{ padding: "0 12px 14px" }}>
-          {loadingList ? (
+          {filteredDirectory !== null ? (
+            filteredDirectory.length === 0 ? (
+              <p className="text-center text-[13px] text-surface-400 mt-6">Kimse bulunamadı.</p>
+            ) : (
+              filteredDirectory.map((u) => {
+                const conv = conversations.find((c) => c.type === "dm" && c.peerUid === u.uid);
+                const sel = !!conv && conv.id === selectedId;
+                return (
+                  <div
+                    key={u.uid} onClick={() => openDirectMessage(u.uid, navTab === "staffDirectory" ? "staff" : "trainer_student")}
+                    className="flex items-center gap-3 cursor-pointer transition-colors"
+                    style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
+                  >
+                    <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}>
+                      {initials(u.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-bold" style={{ fontSize: 14.5, color: "#1B1F26" }}>{u.name}</span>
+                        {conv?.lastMessage && <span style={{ fontSize: 11.5, fontWeight: conv.unread ? 700 : 500, color: conv.unread ? "#2867bd" : "#A2A8B2" }}>{fmtTime(conv.lastMessage.at)}</span>}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <span className="truncate" style={{ fontSize: 13, color: "#6B717C", fontWeight: 500 }}>
+                          {conv?.lastMessage ? `${conv.lastMessage.senderName}: ${conv.lastMessage.text}` : "Henüz mesaj yok"}
+                        </span>
+                        {!!conv && conv.unreadCount > 0 && <span className="shrink-0 flex items-center justify-center font-extrabold text-white" style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: "#E5484D", fontSize: 11 }}>{conv.unreadCount > 99 ? "99+" : conv.unreadCount}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )
+          ) : loadingList ? (
             <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-surface-400" /></div>
           ) : filtered.length === 0 ? (
             <p className="text-center text-[13px] text-surface-400 mt-6">Henüz konuşma yok.</p>
@@ -350,8 +472,21 @@ export default function FlexConnectPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button title="Pencereye küçült" onClick={() => router.back()} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: "#5A616C" }}>
+                  <button
+                    title="Küçült (widget'a dön)"
+                    onClick={() => { requestConnectWidgetReopen(); router.back(); }}
+                    className="flex items-center justify-center cursor-pointer transition-colors"
+                    style={{ width: 38, height: 38, borderRadius: 10, color: "#5A616C" }}
+                  >
                     <Minimize2 size={17} />
+                  </button>
+                  <button
+                    title="Kapat"
+                    onClick={() => router.back()}
+                    className="flex items-center justify-center cursor-pointer transition-colors"
+                    style={{ width: 38, height: 38, borderRadius: 10, color: "#5A616C" }}
+                  >
+                    <X size={17} />
                   </button>
                   <div style={{ width: 1, height: 22, background: "#E9EBEF", margin: "0 3px" }} />
                   <button title="Mesajlarda ara" onClick={() => { setSearchOpen((v) => !v); setMessageQuery(""); }} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: searchOpen ? "#2867bd" : "#5A616C", background: searchOpen ? "#EAF1FB" : "transparent" }}>
@@ -366,6 +501,9 @@ export default function FlexConnectPage() {
                     </button>
                     {menuOpen && (
                       <div className="absolute" style={{ right: 0, top: "100%", marginTop: 6, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.25)", zIndex: 30, overflow: "hidden", minWidth: 180 }}>
+                        <button onClick={handleTogglePin} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                          {selected.pinned ? <StarOff size={14} /> : <Star size={14} />} {selected.pinned ? "Favorilerden Çıkar" : "Favorilere Ekle"}
+                        </button>
                         <button onClick={handleLeave} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                           <LogOut size={14} /> Konuşmadan Ayrıl
                         </button>
@@ -529,34 +667,59 @@ export default function FlexConnectPage() {
       <CreateConversationModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(id) => { setCreateOpen(false); loadConversations().then(() => selectConversation(id)); }}
+        onCreated={(id, createdType) => { setCreateOpen(false); setNavTab(createdType); loadConversations().then(() => selectConversation(id)); }}
       />
     </div>
     </div>
   );
 }
 
-function CreateConversationModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
-  const [type, setType] = useState<ConnectConversationType>("channel");
-  const [realm, setRealm] = useState<ConnectRealm>("staff");
+/**
+ * "Yeni Konuşma" modalı — tasarımla (`Flex Connect.dc.html`) birebir: Kanal/Grup/
+ * Topluluk (DM YOK — 2026-07-18 kullanıcı düzeltmesi: DM'in ayrı bir "oluştur"
+ * akışı yok, Personel/Öğrenciler dizininden başlatılıyor, bkz. `openDirectMessage`).
+ * 780px genişlik, 2 kolonlu gövde (sol: ad/açıklama, sağ: türe özel panel).
+ *
+ * Realm artık AYRI bir adım DEĞİL — türe göre TÜRETİLİYOR: Kanal varsayılan
+ * `staff` (Yayıncılar=personel), "Tüm öğrencilere aç" açılırsa `trainer_student`+
+ * audience. Grup varsayılan `trainer_student`+gerçek sınıf/roster ("Sınıf" modu,
+ * kullanıcı isteği: sınıf seçilince roster ANINDA altına eklenir), "Personel" moduna
+ * geçilirse `staff`+personel çipleri (var olan iş grubu kapasitesi, kaybolmasın diye
+ * korundu). Topluluk gerçek sınıflardan ≥2 seçip otomatik "Genel Duyuru" kanalı +
+ * sınıf odaları (`sourceGroupId` ile dedup) oluşturur.
+ */
+function CreateConversationModal({
+  open, onClose, onCreated,
+}: { open: boolean; onClose: () => void; onCreated: (id: string, type: ConnectConversationType) => void }) {
+  type CreateType = "channel" | "group" | "community";
+  const [type, setType] = useState<CreateType>("channel");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [audience, setAudience] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Kanal
+  const [audience, setAudience] = useState(false);
   const [staffDirectory, setStaffDirectory] = useState<DirectoryUser[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(true);
   const [selectedStaffUids, setSelectedStaffUids] = useState<string[]>([]);
 
+  // Grup — "Sınıf" (gerçek sınıf odası) veya "Personel" (staff iş grubu)
+  const [groupMode, setGroupMode] = useState<"class" | "staff">("class");
   const [myGroups, setMyGroups] = useState<GroupItem[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [roster, setRoster] = useState<RosterItem[]>([]);
-  const [selectedStudentUid, setSelectedStudentUid] = useState("");
+  const [rosterLoading, setRosterLoading] = useState(false);
+
+  // Topluluk
+  const [selectedCommunityGroupIds, setSelectedCommunityGroupIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
-    setType("channel"); setRealm("staff"); setName(""); setDescription(""); setAudience(false);
-    setSelectedStaffUids([]); setSelectedGroupId(""); setRoster([]); setSelectedStudentUid("");
-    fetchDirectory().then(setStaffDirectory);
+    setType("channel"); setName(""); setDescription(""); setAudience(false);
+    setSelectedStaffUids([]); setGroupMode("class"); setSelectedGroupId(""); setRoster([]);
+    setSelectedCommunityGroupIds([]);
+    setDirectoryLoading(true);
+    fetchDirectory().then((d) => { setStaffDirectory(d); setDirectoryLoading(false); });
     (async () => {
       const headers = await authHeaders();
       const res = await fetch("/api/flexos/groups", { headers });
@@ -564,48 +727,129 @@ function CreateConversationModal({ open, onClose, onCreated }: { open: boolean; 
     })();
   }, [open]);
 
+  // Sınıf seçilince roster ANINDA altına eklenir (kullanıcı isteği, 2026-07-18).
   useEffect(() => {
-    if (realm !== "trainer_student" || !selectedGroupId) { setRoster([]); return; }
+    if (type !== "group" || groupMode !== "class" || !selectedGroupId) { setRoster([]); return; }
+    setRosterLoading(true);
     (async () => {
       const headers = await authHeaders();
       const res = await fetch(`/api/flexos/groups/${selectedGroupId}/roster`, { headers });
       if (res.ok) setRoster((await res.json() as { items: RosterItem[] }).items.filter((r) => r.authUid));
+      setRosterLoading(false);
     })();
-  }, [realm, selectedGroupId]);
+  }, [type, groupMode, selectedGroupId]);
 
   if (!open) return null;
 
-  const isBridgeChannel = realm === "trainer_student" && type === "channel";
+  const communityReach = myGroups
+    .filter((g) => selectedCommunityGroupIds.includes(g.id))
+    .reduce((sum, g) => sum + (g.enrolled ?? 0), 0);
+
   const canSubmit =
     name.trim().length > 0 &&
-    (type === "dm"
-      ? realm === "staff" ? !!selectedStaffUids[0] : !!selectedStudentUid
-      : isBridgeChannel ? audience : realm === "staff" ? selectedStaffUids.length > 0 : roster.length > 0);
+    (type === "channel"
+      ? audience || selectedStaffUids.length > 0
+      : type === "group"
+        ? groupMode === "class"
+          ? !!selectedGroupId
+          : selectedStaffUids.length > 0
+        : selectedCommunityGroupIds.length >= 2);
+
+  async function fetchRosterFor(groupId: string): Promise<RosterItem[]> {
+    const headers = await authHeaders();
+    const res = await fetch(`/api/flexos/groups/${groupId}/roster`, { headers });
+    if (!res.ok) return [];
+    return (await res.json() as { items: RosterItem[] }).items.filter((r) => r.authUid);
+  }
 
   async function submit() {
     if (!canSubmit || saving) return;
     setSaving(true);
     try {
-      const memberUids =
-        type === "dm"
-          ? [realm === "staff" ? selectedStaffUids[0] : selectedStudentUid]
-          : isBridgeChannel
-            ? []
-            : realm === "staff"
-              ? selectedStaffUids
-              : roster.map((r) => r.authUid!).filter(Boolean);
+      if (type === "channel") {
+        const result = await createConversation({
+          realm: audience ? "trainer_student" : "staff",
+          type: "channel", name: name.trim(), description: description.trim() || undefined,
+          memberUids: audience ? [] : selectedStaffUids,
+          audience: audience ? "all_students" : undefined,
+        });
+        if ("error" in result) { toast.error(result.error); return; }
+        toast.success("Kanal oluşturuldu.");
+        onCreated(result.id, "channel");
+        return;
+      }
 
-      const result = await createConversation({
-        realm, type, name: name.trim(), description: description.trim() || undefined,
-        memberUids, audience: isBridgeChannel ? "all_students" : undefined,
+      if (type === "group") {
+        if (groupMode === "class") {
+          const result = await createConversation({
+            realm: "trainer_student", type: "group", name: name.trim(), description: description.trim() || undefined,
+            memberUids: roster.map((r) => r.authUid!).filter(Boolean),
+            sourceGroupId: selectedGroupId,
+          });
+          if ("error" in result) { toast.error(result.error); return; }
+          toast.success("Grup oluşturuldu.");
+          onCreated(result.id, "group");
+        } else {
+          const result = await createConversation({
+            realm: "staff", type: "group", name: name.trim(), description: description.trim() || undefined,
+            memberUids: selectedStaffUids,
+          });
+          if ("error" in result) { toast.error(result.error); return; }
+          toast.success("Grup oluşturuldu.");
+          onCreated(result.id, "group");
+        }
+        return;
+      }
+
+      // Topluluk: her seçili sınıf için sınıf odası oluştur/yeniden-kullan (server
+      // `sourceGroupId` ile dedup ediyor) → union roster'la otomatik "Genel Duyuru"
+      // kanalı → son olarak topluluk kaydının kendisi (childIds = sınıf odaları).
+      const rosters = await Promise.all(selectedCommunityGroupIds.map(async (groupId) => ({ groupId, items: await fetchRosterFor(groupId) })));
+      const groupConvIds: string[] = [];
+      const allAuthUids = new Set<string>();
+      for (const { groupId, items } of rosters) {
+        const g = myGroups.find((mg) => mg.id === groupId);
+        const conv = await createConversation({
+          realm: "trainer_student", type: "group",
+          name: g ? `${g.code} — Sınıf Odası` : "Sınıf Odası",
+          memberUids: items.map((r) => r.authUid!).filter(Boolean),
+          sourceGroupId: groupId,
+        });
+        if ("error" in conv) { toast.error(conv.error); return; }
+        groupConvIds.push(conv.id);
+        items.forEach((r) => r.authUid && allAuthUids.add(r.authUid));
+      }
+      const channelResult = await createConversation({
+        realm: "trainer_student", type: "channel", name: `${name.trim()} — Genel Duyuru`,
+        memberUids: [...allAuthUids],
       });
-      if ("error" in result) { toast.error(result.error); return; }
-      toast.success(type === "channel" ? "Kanal oluşturuldu." : type === "group" ? "Grup oluşturuldu." : "Sohbet başlatıldı.");
-      onCreated(result.id);
+      if ("error" in channelResult) { toast.error(channelResult.error); return; }
+      const communityResult = await createConversation({
+        realm: "trainer_student", type: "community", name: name.trim(), description: description.trim() || undefined,
+        memberUids: [], childIds: groupConvIds,
+      });
+      if ("error" in communityResult) { toast.error(communityResult.error); return; }
+      toast.success("Topluluk oluşturuldu.");
+      // Topluluğun kendisi henüz rayda gösterilecek bir sekme yok (Faz 1-sonu) —
+      // gerçek iletişim "Genel Duyuru" kanalında olduğu için ORAYA açılır.
+      onCreated(channelResult.id, "channel");
     } finally {
       setSaving(false);
     }
   }
+
+  const createTitle = type === "community" ? "Yeni Topluluk Oluştur" : type === "group" ? "Yeni Grup Oluştur" : "Yeni Kanal Oluştur";
+  const createSubtitle =
+    type === "community" ? "Birden çok sınıfını tek çatı altında topla ve hepsine birden duyuru yap."
+      : type === "group" ? "Üyelerin karşılıklı yazışabileceği bir grup kurun."
+        : "Duyurularınızı tek yerden paylaşacağınız bir kanal kurun.";
+  const nameLabel = type === "community" ? "Topluluk Adı" : type === "group" ? "Grup Adı" : "Kanal Adı";
+  const namePlaceholder = type === "community" ? "ör. Grafik Tasarım Öğrencileri" : type === "group" ? "ör. Grafik Tasarım A Grubu" : "ör. Kurum Duyuruları";
+  const visibilityNote =
+    type === "community" ? `Genel Duyuru · ${communityReach} üyeye ulaşır`
+      : type === "group" ? (groupMode === "class" ? "Özel — yalnızca sınıf öğrencileri" : "Özel — yalnızca eklenen üyeler")
+        : audience ? "Herkese açık — tüm öğrenciler görür" : "Herkese açık — tüm kurum görür";
+  const createCta = type === "community" ? "Topluluğu Oluştur" : type === "group" ? "Grubu Oluştur" : "Kanalı Oluştur";
 
   return (
     <AnimatePresence>
@@ -617,139 +861,238 @@ function CreateConversationModal({ open, onClose, onCreated }: { open: boolean; 
       >
         <motion.div
           className="bg-white flex flex-col"
-          style={{ width: "100%", maxWidth: 640, maxHeight: "calc(100vh - 48px)", overflowY: "auto", borderRadius: 20, boxShadow: "0 30px 80px -20px rgba(18,35,59,.5)" }}
+          style={{ width: "100%", maxWidth: 780, maxHeight: "calc(100vh - 48px)", overflowY: "auto", borderRadius: 20, boxShadow: "0 30px 80px -20px rgba(18,35,59,.5)" }}
           initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.98 }}
           transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-start justify-between gap-3.5" style={{ padding: "22px 26px 18px", borderBottom: "1px solid #EEF0F3" }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#1B1F26" }}>Yeni Konuşma</h3>
-              <p style={{ margin: "3px 0 0", fontSize: 13, color: "#8A909B", fontWeight: 500 }}>Kanal, grup ya da özel mesaj başlatın.</p>
+              <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#1B1F26" }}>{createTitle}</h3>
+              <p style={{ margin: "3px 0 0", fontSize: 13, color: "#8A909B", fontWeight: 500 }}>{createSubtitle}</p>
             </div>
             <button onClick={onClose} className="flex items-center justify-center cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E4E6EB", color: "#6B717C" }}><X size={18} /></button>
           </div>
 
-          <div style={{ padding: "20px 26px 26px" }} className="flex flex-col gap-5">
-            <div>
-              <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Kimin İçin</label>
-              <div className="grid grid-cols-2 gap-2.5">
-                {[{ key: "staff" as const, label: "Personel", desc: "Kendi ekibinizle" }, { key: "trainer_student" as const, label: "Eğitmen–Öğrenci", desc: "Sınıf/öğrenci" }].map((r) => {
-                  const sel = realm === r.key;
-                  return (
-                    <button key={r.key} onClick={() => setRealm(r.key)} className="text-left cursor-pointer transition-all" style={{ padding: "12px 14px", borderRadius: 13, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#1B1F26" }}>{r.label}</div>
-                      <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>{r.desc}</div>
-                    </button>
-                  );
-                })}
-              </div>
+          <div style={{ padding: "20px 26px 8px" }}>
+            <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Tür</label>
+            <div className="grid grid-cols-3 gap-2.5 mb-5">
+              {[
+                { key: "channel" as const, label: "Kanal", desc: "Tek yönlü duyuru", Icon: Megaphone as IconComponent },
+                { key: "group" as const, label: "Grup", desc: "Karşılıklı sohbet", Icon: UsersRound as IconComponent },
+                { key: "community" as const, label: "Topluluk", desc: "Grupları birleştir", Icon: Users as IconComponent },
+              ].map((t) => {
+                const sel = type === t.key;
+                return (
+                  <button key={t.key} onClick={() => setType(t.key)} className="flex items-center gap-3 cursor-pointer transition-all text-left" style={{ padding: "14px 15px", borderRadius: 13, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}>
+                    <div className="flex items-center justify-center shrink-0" style={{ width: 40, height: 40, borderRadius: 11, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}><t.Icon size={19} /></div>
+                    <div className="flex-1 min-w-0">
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#1B1F26" }}>{t.label}</div>
+                      <div style={{ fontSize: 11.5, color: "#8A909B", fontWeight: 500, marginTop: 1 }}>{t.desc}</div>
+                    </div>
+                    <span className="relative rounded-full flex items-center justify-center shrink-0" style={{ width: 19, height: 19, background: sel ? "#2867bd" : "transparent", border: sel ? "none" : "2px solid #CDD2DA" }}>
+                      {sel && <Check size={10} strokeWidth={3.6} color="#fff" />}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
-            <div>
-              <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Tür</label>
-              <div className="grid grid-cols-3 gap-2.5">
-                {[{ key: "channel" as const, label: "Kanal", Icon: Megaphone as IconComponent }, { key: "group" as const, label: "Grup", Icon: Users as IconComponent }, { key: "dm" as const, label: "DM", Icon: ConnectIcon as IconComponent }].map((t) => {
-                  const sel = type === t.key;
-                  return (
-                    <button key={t.key} onClick={() => setType(t.key)} className="flex items-center gap-2.5 cursor-pointer transition-all" style={{ padding: "12px 13px", borderRadius: 13, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}>
-                      <div className="flex items-center justify-center shrink-0" style={{ width: 34, height: 34, borderRadius: 10, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}><t.Icon size={16} /></div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#1B1F26" }}>{t.label}</span>
-                      {sel && <Check size={14} strokeWidth={2.8} color="#2867bd" className="ml-auto" />}
+            <div className="grid grid-cols-2 gap-6 items-start">
+              <div>
+                <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>{nameLabel}</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder={namePlaceholder} className="w-full outline-none" style={{ height: 44, padding: "0 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 14, fontWeight: 600, marginBottom: 18 }} />
+                <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>Açıklama <span style={{ fontWeight: 600, color: "#C3CAD4", textTransform: "none", letterSpacing: 0 }}>· opsiyonel</span></label>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder={`Bu ${type === "group" ? "grubun" : type === "community" ? "topluluğun" : "kanalın"} amacını kısaca yazın…`} className="w-full outline-none resize-none" style={{ padding: "11px 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 13.5 }} />
+              </div>
+
+              <div>
+                {type === "channel" && (
+                  <>
+                    <button onClick={() => setAudience((v) => !v)} className="flex items-center justify-between cursor-pointer w-full" style={{ padding: "12px 14px", borderRadius: 12, border: `1px solid ${audience ? "#DCE9FB" : "#E4E6EB"}`, background: audience ? "#F4F8FE" : "#fff", marginBottom: 14 }}>
+                      <div className="text-left">
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1B1F26" }}>Tüm öğrencilere aç</div>
+                        <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>Öğrenciler üye olmadan okur, SADECE yöneticiler yazar.</div>
+                      </div>
+                      <span className="relative rounded-full shrink-0" style={{ width: 34, height: 19, background: audience ? "#2867bd" : "#CDD2DA" }}>
+                        <span className="absolute rounded-full bg-white shadow transition-all" style={{ top: 2, left: audience ? 17 : 2, width: 15, height: 15 }} />
+                      </span>
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {type !== "dm" && (
-              <div>
-                <label className="block font-bold" style={{ fontSize: 11.5, color: "#8A909B", marginBottom: 8 }}>{type === "channel" ? "Kanal Adı" : "Grup Adı"}</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder={realm === "trainer_student" ? "ör. Öğrenci İşleri" : "ör. Pazarlama Ekibi"} className="w-full outline-none" style={{ height: 44, padding: "0 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 14, fontWeight: 600 }} />
-                <label className="block font-bold" style={{ fontSize: 11.5, color: "#8A909B", margin: "14px 0 8px" }}>Açıklama <span style={{ fontWeight: 500, color: "#C3CAD4" }}>· opsiyonel</span></label>
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full outline-none resize-none" style={{ padding: "11px 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 13.5 }} />
-              </div>
-            )}
-
-            {isBridgeChannel && (
-              <button onClick={() => setAudience((v) => !v)} className="flex items-center justify-between cursor-pointer w-full" style={{ padding: "12px 14px", borderRadius: 12, border: `1px solid ${audience ? "#DCE9FB" : "#E4E6EB"}`, background: audience ? "#F4F8FE" : "#fff" }}>
-                <div className="text-left">
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1B1F26" }}>Tüm öğrencilere aç</div>
-                  <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>Öğrenciler üye olmadan okur, SADECE yöneticiler yazar.</div>
-                </div>
-                <span className="relative rounded-full shrink-0" style={{ width: 34, height: 19, background: audience ? "#2867bd" : "#CDD2DA" }}>
-                  <span className="absolute rounded-full bg-white shadow transition-all" style={{ top: 2, left: audience ? 17 : 2, width: 15, height: 15 }} />
-                </span>
-              </button>
-            )}
-
-            {!isBridgeChannel && realm === "staff" && (
-              <div>
-                <label className="block font-bold" style={{ fontSize: 11.5, color: "#8A909B", marginBottom: 9 }}>{type === "dm" ? "Kiminle" : "Üyeler"} <span style={{ color: "#2867bd" }}>· {selectedStaffUids.length} seçili</span></label>
-                <div className="flex flex-wrap gap-2" style={{ maxHeight: 160, overflowY: "auto" }}>
-                  {staffDirectory.map((u) => {
-                    const sel = selectedStaffUids.includes(u.uid);
-                    return (
-                      <button
-                        key={u.uid}
-                        onClick={() => {
-                          if (type === "dm") setSelectedStaffUids([u.uid]);
-                          else setSelectedStaffUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]));
-                        }}
-                        className="inline-flex items-center gap-1.5 cursor-pointer transition-all"
-                        style={{ padding: "7px 13px", borderRadius: 999, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#EAF1FB" : "#fff", color: sel ? "#205297" : "#4A515C", fontSize: 13, fontWeight: 700 }}
-                      >
-                        {u.name}
-                      </button>
-                    );
-                  })}
-                  {staffDirectory.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Personel bulunamadı.</p>}
-                </div>
-              </div>
-            )}
-
-            {!isBridgeChannel && realm === "trainer_student" && (
-              <div className="flex flex-col gap-3">
-                <div>
-                  <label className="block font-bold" style={{ fontSize: 11.5, color: "#8A909B", marginBottom: 8 }}>Grup</label>
-                  <div className="relative">
-                    <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="w-full outline-none cursor-pointer appearance-none" style={{ height: 42, padding: "0 30px 0 12px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 13.5, fontWeight: 600 }}>
-                      <option value="">Grup seçin…</option>
-                      {myGroups.map((g) => <option key={g.id} value={g.id}>{g.code} — {g.branch}</option>)}
-                    </select>
-                    <ChevronDown size={14} color="#8E95A3" className="absolute pointer-events-none" style={{ right: 10, top: "50%", transform: "translateY(-50%)" }} />
-                  </div>
-                </div>
-                {selectedGroupId && type === "group" && (
-                  <p style={{ fontSize: 12, color: "#8A909B" }}>Bu grubun tüm öğrencileri ({roster.length}) otomatik eklenecek.</p>
+                    {!audience && (
+                      <>
+                        <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Yayıncılar <span style={{ color: "#2867bd", textTransform: "none" }}>· {selectedStaffUids.length} seçili</span></label>
+                        <div className="flex flex-wrap gap-2" style={{ minHeight: 160, maxHeight: 160, overflowY: "auto" }}>
+                          {directoryLoading ? (
+                            <div className="w-full flex items-center justify-center"><Loader2 size={16} className="animate-spin text-surface-400" /></div>
+                          ) : (
+                            <>
+                              {staffDirectory.map((u) => {
+                                const sel = selectedStaffUids.includes(u.uid);
+                                return (
+                                  <button
+                                    key={u.uid}
+                                    onClick={() => setSelectedStaffUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
+                                    className="inline-flex items-center gap-1.5 cursor-pointer transition-all"
+                                    style={{ padding: "7px 13px", borderRadius: 999, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#EAF1FB" : "#fff", color: sel ? "#205297" : "#4A515C", fontSize: 13, fontWeight: 700 }}
+                                  >
+                                    {u.name}
+                                  </button>
+                                );
+                              })}
+                              {staffDirectory.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Personel bulunamadı.</p>}
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
-                {selectedGroupId && type === "dm" && (
-                  <div className="flex flex-wrap gap-2" style={{ maxHeight: 160, overflowY: "auto" }}>
-                    {roster.map((r) => {
-                      const sel = selectedStudentUid === r.authUid;
-                      return (
-                        <button key={r.personId} onClick={() => setSelectedStudentUid(r.authUid!)} className="inline-flex items-center gap-1.5 cursor-pointer transition-all" style={{ padding: "7px 13px", borderRadius: 999, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#EAF1FB" : "#fff", color: sel ? "#205297" : "#4A515C", fontSize: 13, fontWeight: 700 }}>
-                          {r.name}
+
+                {type === "group" && (
+                  <>
+                    <div className="flex gap-1.5 mb-3">
+                      {([{ key: "class", label: "Sınıf" }, { key: "staff", label: "Personel" }] as { key: "class" | "staff"; label: string }[]).map((m) => (
+                        <button
+                          key={m.key} onClick={() => setGroupMode(m.key)}
+                          className="cursor-pointer transition-all font-bold"
+                          style={{ padding: "6px 13px", borderRadius: 9, border: "1px solid transparent", fontSize: 12.5, background: groupMode === m.key ? "#EAF1FB" : "transparent", color: groupMode === m.key ? "#205297" : "#8A909B" }}
+                        >
+                          {m.label}
                         </button>
-                      );
-                    })}
-                    {roster.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Bu grupta öğrenci girişi olan kimse yok.</p>}
-                  </div>
+                      ))}
+                    </div>
+
+                    {groupMode === "class" ? (
+                      <>
+                        <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Sınıflarım</label>
+                        <div className="flex flex-col gap-2" style={{ maxHeight: 190, overflowY: "auto" }}>
+                          {myGroups.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Kendi adınıza kayıtlı sınıf bulunamadı.</p>}
+                          {myGroups.map((g) => {
+                            const sel = selectedGroupId === g.id;
+                            return (
+                              <button
+                                key={g.id}
+                                onClick={() => { setSelectedGroupId(g.id); if (!name.trim()) setName(g.code); }}
+                                className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
+                                style={{ padding: "9px 11px", borderRadius: 12, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}
+                              >
+                                <div className="flex items-center justify-center shrink-0" style={{ width: 34, height: 34, borderRadius: 10, background: "#EEF1F5", color: "#5A616C" }}><UsersRound size={17} /></div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="truncate" style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>{g.code} — {g.branch}</div>
+                                  <div style={{ fontSize: 11.5, color: "#8A909B", fontWeight: 500 }}>{g.enrolled ?? 0} öğrenci</div>
+                                </div>
+                                <span className="relative rounded-md flex items-center justify-center shrink-0" style={{ width: 20, height: 20, background: sel ? "#2867bd" : "transparent", border: sel ? "none" : "2px solid #CDD2DA" }}>
+                                  {sel && <Check size={12} strokeWidth={3.4} color="#fff" />}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {selectedGroupId && (
+                          <div className="mt-3">
+                            <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Eklenecek Üyeler <span style={{ color: "#2867bd", textTransform: "none" }}>· {roster.length}</span></label>
+                            <div className="flex flex-wrap gap-2" style={{ minHeight: 60, maxHeight: 120, overflowY: "auto" }}>
+                              {rosterLoading ? (
+                                <div className="w-full flex items-center justify-center"><Loader2 size={16} className="animate-spin text-surface-400" /></div>
+                              ) : roster.length === 0 ? (
+                                <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Bu sınıfta öğrenci girişi olan kimse yok.</p>
+                              ) : (
+                                roster.map((r) => (
+                                  <span key={r.personId} className="inline-flex items-center" style={{ padding: "6px 12px", borderRadius: 999, border: "1.5px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 12.5, fontWeight: 700 }}>
+                                    {r.name}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Üyeler <span style={{ color: "#2867bd", textTransform: "none" }}>· {selectedStaffUids.length} seçili</span></label>
+                        <div className="flex flex-wrap gap-2" style={{ minHeight: 160, maxHeight: 160, overflowY: "auto" }}>
+                          {directoryLoading ? (
+                            <div className="w-full flex items-center justify-center"><Loader2 size={16} className="animate-spin text-surface-400" /></div>
+                          ) : (
+                            <>
+                              {staffDirectory.map((u) => {
+                                const sel = selectedStaffUids.includes(u.uid);
+                                return (
+                                  <button
+                                    key={u.uid}
+                                    onClick={() => setSelectedStaffUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
+                                    className="inline-flex items-center gap-1.5 cursor-pointer transition-all"
+                                    style={{ padding: "7px 13px", borderRadius: 999, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#EAF1FB" : "#fff", color: sel ? "#205297" : "#4A515C", fontSize: 13, fontWeight: 700 }}
+                                  >
+                                    {u.name}
+                                  </button>
+                                );
+                              })}
+                              {staffDirectory.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Personel bulunamadı.</p>}
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+
+                {type === "community" && (
+                  <>
+                    <label className="flex items-center gap-1.5 font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 4 }}>
+                      Sınıfları Birleştir <span style={{ color: "#2867bd", textTransform: "none" }}>· {selectedCommunityGroupIds.length} sınıf</span>
+                    </label>
+                    <p style={{ margin: "0 0 11px", fontSize: 12, color: "#A2A8B2", fontWeight: 500 }}>Seçtiğin sınıflar tek toplulukta toplanır. Genel Duyuru&apos;ya yazdığın mesaj hepsine aynı anda gider.</p>
+                    <div className="flex flex-col gap-2" style={{ maxHeight: 190, overflowY: "auto" }}>
+                      {myGroups.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Kendi adınıza kayıtlı sınıf bulunamadı.</p>}
+                      {myGroups.map((g) => {
+                        const sel = selectedCommunityGroupIds.includes(g.id);
+                        return (
+                          <button
+                            key={g.id}
+                            onClick={() => setSelectedCommunityGroupIds((prev) => (sel ? prev.filter((x) => x !== g.id) : [...prev, g.id]))}
+                            className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
+                            style={{ padding: "9px 11px", borderRadius: 12, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}
+                          >
+                            <div className="flex items-center justify-center shrink-0" style={{ width: 34, height: 34, borderRadius: 10, background: "#EEF1F5", color: "#5A616C" }}><UsersRound size={17} /></div>
+                            <div className="flex-1 min-w-0">
+                              <div className="truncate" style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>{g.code} — {g.branch}</div>
+                              <div style={{ fontSize: 11.5, color: "#8A909B", fontWeight: 500 }}>{g.enrolled ?? 0} öğrenci</div>
+                            </div>
+                            <span className="relative rounded-md flex items-center justify-center shrink-0" style={{ width: 20, height: 20, background: sel ? "#2867bd" : "transparent", border: sel ? "none" : "2px solid #CDD2DA" }}>
+                              {sel && <Check size={12} strokeWidth={3.4} color="#fff" />}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2.5 mt-3.5" style={{ padding: "11px 13px", borderRadius: 11, background: "#F4F8FE", border: "1px solid #DCE9FB" }}>
+                      <Megaphone size={16} color="#2867bd" className="shrink-0" />
+                      <span style={{ fontSize: 12, color: "#3B5876", fontWeight: 600, lineHeight: 1.4 }}>
+                        Otomatik <strong>Genel Duyuru</strong> kanalı oluşturulur — <strong>{communityReach} üyeye</strong> tek seferde ulaşırsın.
+                      </span>
+                    </div>
+                  </>
                 )}
               </div>
-            )}
+            </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5" style={{ padding: "16px 26px 22px", borderTop: "1px solid #EEF0F3" }}>
-            <button onClick={onClose} className="cursor-pointer" style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 14, fontWeight: 600 }}>Vazgeç</button>
-            <button
-              onClick={submit} disabled={!canSubmit || saving}
-              className="inline-flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-              style={{ padding: "11px 20px", borderRadius: 11, border: "none", background: canSubmit ? "#2867bd" : "#C3CAD4", color: "#fff", fontSize: 14, fontWeight: 700 }}
-            >
-              {saving && <Loader2 size={14} className="animate-spin" />}
-              {type === "channel" ? "Kanalı Oluştur" : type === "group" ? "Grubu Oluştur" : "Sohbeti Başlat"}
-            </button>
+          <div className="flex items-center justify-between gap-3" style={{ padding: "18px 26px 22px", marginTop: 8 }}>
+            <div className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#8A909B", fontWeight: 500 }}>
+              {visibilityNote}
+            </div>
+            <div className="flex gap-2.5">
+              <button onClick={onClose} className="cursor-pointer" style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 14, fontWeight: 600 }}>Vazgeç</button>
+              <button
+                onClick={submit} disabled={!canSubmit || saving}
+                className="inline-flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                style={{ padding: "11px 20px", borderRadius: 11, border: "none", background: canSubmit ? "#2867bd" : "#C3CAD4", color: "#fff", fontSize: 14, fontWeight: 700 }}
+              >
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                {createCta}
+              </button>
+            </div>
           </div>
         </motion.div>
       </motion.div>

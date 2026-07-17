@@ -23,6 +23,11 @@ export interface ConnectConversationView {
    * composer'ı göster/gizle kararı BUNA bakar (2026-07-18 bug fix: önceden hiç
    * kontrol edilmiyordu, admin bile kendi kanalına yazamıyor gibi görünüyordu). */
   isAdmin: boolean;
+  /** Kişisel sabitleme tercihi (Favoriler, Faz 2) — üye değilse (audience-only) hep false. */
+  pinned: boolean;
+  /** SADECE type==="dm" — karşı tarafın uid'i. Dizinden (Personel/Öğrenciler/
+   * Eğitmenlerim) bir kişiye tıklayınca "bununla zaten DM var mı" eşleşmesi için. */
+  peerUid?: string;
 }
 
 /**
@@ -81,6 +86,8 @@ export async function buildConversationViews(
         unreadCount,
         isMember: !!member,
         isAdmin: conversation.admins.includes(principalUid),
+        pinned: member?.pinned ?? false,
+        peerUid,
       };
     })
     .sort((a, b) => (b.lastMessage?.at ?? "").localeCompare(a.lastMessage?.at ?? ""));

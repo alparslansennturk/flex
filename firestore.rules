@@ -552,5 +552,11 @@ service cloud.firestore {
         allow write: if false;
       }
     }
+
+    // Connect Audit Log — kullanıcı hareketi DEĞİL, yönetimsel işlem kaydı
+    // (kanal/grup/topluluk oluşturma, üye ekle/çıkar, vb.). Server-only,
+    // `flexos_activity_log`'daki AYNI desen: client hiçbir zaman okuyamaz/yazamaz,
+    // gelecekteki yönetim paneli bir API route üzerinden (Admin SDK) okur.
+    match /connect_audit/{id} { allow read, write: if false; }
   }
 }

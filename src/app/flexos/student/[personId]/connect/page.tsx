@@ -13,13 +13,13 @@
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect, type ComponentType } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Megaphone, Users, Search, Send, ArrowLeft, Loader2 } from "lucide-react";
+import { Megaphone, Users, Search, Send, ArrowLeft, Loader2, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import {
-  type ConversationView, type MessageView, type ConnectConversationType, type TypingSignal,
+  type ConversationView, type MessageView, type ConnectConversationType, type DirectoryUser, type TypingSignal,
   fetchConversations, fetchMessages, postMessage, markConversationRead, subscribeToMessages,
-  subscribeToTyping, sendTypingSignal,
+  subscribeToTyping, sendTypingSignal, fetchTrainerDirectory, createConversation,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { ConnectIcon } from "@/app/flexos/connect/_shared/ConnectIcon";
 import { TypingIndicator } from "@/app/flexos/connect/_shared/TypingIndicator";
@@ -30,10 +30,16 @@ const TYPING_SEND_THROTTLE_MS = 2000;
 
 type IconComponent = ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
 
-const NAV: { key: ConnectConversationType; label: string; Icon: IconComponent }[] = [
+/** `trainerDirectory` = "Eğitmenlerim" (2026-07-18 kullanıcı isteği) — gerçek bir
+ * `ConnectConversationType` DEĞİL, kayıtlı olduğu grupların eğitmen(ler)ini
+ * gösteren dizin. Tıklayınca var olan DM açılır ya da anında oluşturulur. */
+type NavKey = ConnectConversationType | "trainerDirectory";
+
+const NAV: { key: NavKey; label: string; Icon: IconComponent }[] = [
   { key: "channel", label: "Kanallar", Icon: Megaphone },
   { key: "group", label: "Gruplar", Icon: Users },
   { key: "dm", label: "Sohbetler", Icon: ConnectIcon },
+  { key: "trainerDirectory", label: "Eğitmenlerim", Icon: GraduationCap },
 ];
 
 function initials(name: string): string {
@@ -60,9 +66,10 @@ export default function StudentConnectPage() {
   const { personId } = useParams<{ personId: string }>();
   const router = useRouter();
 
-  const [navTab, setNavTab] = useState<ConnectConversationType>("channel");
+  const [navTab, setNavTab] = useState<NavKey>("channel");
   const [query, setQuery] = useState("");
   const [conversations, setConversations] = useState<ConversationView[]>([]);
+  const [trainerDirectoryList, setTrainerDirectoryList] = useState<DirectoryUser[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageView[]>([]);
@@ -85,6 +92,7 @@ export default function StudentConnectPage() {
   }, [personId]);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
+  useEffect(() => { fetchTrainerDirectory(personId).then(setTrainerDirectoryList); }, [personId]);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
@@ -104,6 +112,39 @@ export default function StudentConnectPage() {
     await markConversationRead(id, personId);
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false, unreadCount: 0 } : c)));
   }, [personId]);
+
+  /** "Eğitmenlerim" dizininden birine tıklama — var olan DM açılır ya da (server
+   * "kendi eğitmenim mi" doğrulamasını kendi yapar) anında oluşturulur. */
+  const openDirectMessage = useCallback(
+    async (targetUid: string) => {
+      const existing = conversations.find((c) => c.type === "dm" && c.peerUid === targetUid);
+      if (existing) {
+        setNavTab("dm");
+        await selectConversation(existing.id);
+        return;
+      }
+      const result = await createConversation({ realm: "trainer_student", type: "dm", name: "", memberUids: [targetUid] }, personId);
+      if ("error" in result) { toast.error(result.error); return; }
+      await loadConversations();
+      setNavTab("dm");
+      await selectConversation(result.id);
+    },
+    [conversations, loadConversations, personId, selectConversation],
+  );
+
+  // İlk yüklemede hiçbir şey seçili değilse üstteki (en son mesajı olan) konuşma
+  // otomatik seçilir — `connect/page.tsx`'teki AYNI fix (2026-07-18 kullanıcı bulgusu:
+  // boş seçim ekranında header/bar hiç görünmüyordu). SADECE ilk yüklemede.
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (autoSelectedRef.current || loadingList || conversations.length === 0) return;
+    const candidates = conversations.filter((c) => c.type === "channel" || c.type === "group" || c.type === "dm");
+    if (candidates.length === 0) return;
+    autoSelectedRef.current = true;
+    const top = candidates[0];
+    setNavTab(top.type);
+    selectConversation(top.id);
+  }, [conversations, loadingList, selectConversation]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -149,6 +190,11 @@ export default function StudentConnectPage() {
     .filter((c) => c.type === navTab)
     .filter((c) => !query.trim() || c.name.toLocaleLowerCase("tr").includes(query.trim().toLocaleLowerCase("tr")));
 
+  const filteredTrainerDirectory =
+    navTab === "trainerDirectory"
+      ? trainerDirectoryList.filter((u) => !query.trim() || u.name.toLocaleLowerCase("tr").includes(query.trim().toLocaleLowerCase("tr")))
+      : null;
+
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", background: "#EEF0F3", display: "flex", justifyContent: "center" }}>
     <div className="flex font-inter" style={{ width: "100%", maxWidth: 2560, height: "100%", overflow: "hidden", background: "#FFFFFF" }}>
@@ -188,7 +234,7 @@ export default function StudentConnectPage() {
       <section className="flex flex-col shrink-0" style={{ width: 340, height: "100%", background: "#fff", borderRight: "1px solid #E9EBEF" }}>
         <div style={{ padding: "20px 20px 14px" }}>
           <h1 className="mb-4" style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5, color: "#1B1F26" }}>
-            {navTab === "channel" ? "Kanallar" : navTab === "group" ? "Gruplar" : "Sohbetler"}
+            {navTab === "channel" ? "Kanallar" : navTab === "group" ? "Gruplar" : navTab === "trainerDirectory" ? "Eğitmenlerim" : "Sohbetler"}
           </h1>
           <div className="relative">
             <Search size={17} color="#A2A8B2" className="absolute pointer-events-none" style={{ left: 14, top: "50%", transform: "translateY(-50%)" }} />
@@ -201,7 +247,39 @@ export default function StudentConnectPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto" style={{ padding: "0 12px 14px" }}>
-          {loadingList ? (
+          {filteredTrainerDirectory !== null ? (
+            filteredTrainerDirectory.length === 0 ? (
+              <p className="text-center text-[13px] text-surface-400 mt-6">Kimse bulunamadı.</p>
+            ) : (
+              filteredTrainerDirectory.map((u) => {
+                const conv = conversations.find((c) => c.type === "dm" && c.peerUid === u.uid);
+                const sel = !!conv && conv.id === selectedId;
+                return (
+                  <div
+                    key={u.uid} onClick={() => openDirectMessage(u.uid)}
+                    className="flex items-center gap-3 cursor-pointer transition-colors"
+                    style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
+                  >
+                    <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}>
+                      {initials(u.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-bold" style={{ fontSize: 14.5, color: "#1B1F26" }}>{u.name}</span>
+                        {conv?.lastMessage && <span style={{ fontSize: 11.5, fontWeight: conv.unread ? 700 : 500, color: conv.unread ? "#2867bd" : "#A2A8B2" }}>{fmtTime(conv.lastMessage.at)}</span>}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <span className="truncate" style={{ fontSize: 13, color: "#6B717C", fontWeight: 500 }}>
+                          {conv?.lastMessage ? `${conv.lastMessage.senderName}: ${conv.lastMessage.text}` : "Henüz mesaj yok"}
+                        </span>
+                        {!!conv && conv.unreadCount > 0 && <span className="shrink-0 flex items-center justify-center font-extrabold text-white" style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: "#E5484D", fontSize: 11 }}>{conv.unreadCount > 99 ? "99+" : conv.unreadCount}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )
+          ) : loadingList ? (
             <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-surface-400" /></div>
           ) : filtered.length === 0 ? (
             <p className="text-center text-[13px] text-surface-400 mt-6">Henüz konuşma yok.</p>

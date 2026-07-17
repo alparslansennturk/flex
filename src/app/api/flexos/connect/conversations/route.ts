@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
-import { staffPrincipalFromCaller } from "@/app/lib/server/connect-principal";
+import { staffPrincipalFromCaller, extractConnectRequestMeta } from "@/app/lib/server/connect-principal";
 import { connectDeps } from "@/app/lib/server/connect-deps";
 import { buildConversationViews } from "@/app/lib/server/connect-view";
 import {
@@ -38,7 +38,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const conversation = await createConversation(principal, body, connectDeps);
+    const conversation = await createConversation(principal, body, connectDeps, extractConnectRequestMeta(req));
     return NextResponse.json({ id: conversation.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

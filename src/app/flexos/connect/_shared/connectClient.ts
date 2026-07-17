@@ -25,6 +25,10 @@ export interface ConversationView {
   unreadCount: number;
   isMember: boolean;
   isAdmin: boolean;
+  pinned: boolean;
+  /** SADECE type==="dm" — karşı tarafın uid'i (Personel/Öğrenciler/Eğitmenlerim
+   * dizininden birine tıklayınca var olan DM'i bulmak için). */
+  peerUid?: string;
 }
 
 export interface MessageView {
@@ -88,9 +92,38 @@ export async function markConversationRead(conversationId: string, personId?: st
   await fetch(`${base(personId)}/conversations/${conversationId}/read${qs(personId)}`, { method: "POST", headers });
 }
 
+/** Sabitle/sabitlemeyi kaldır — kişisel tercih, yetki gerektirmez (Faz 2, Favoriler). */
+export async function setConversationPinned(conversationId: string, pinned: boolean, personId?: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/conversations/${conversationId}/pin${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ pinned }),
+  });
+  return res.ok;
+}
+
 export async function fetchDirectory(): Promise<DirectoryUser[]> {
   const headers = await authHeaders();
   const res = await fetch("/api/flexos/connect/directory", { headers });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { items: DirectoryUser[] };
+  return data.items;
+}
+
+/** Personel raydaki "Öğrenciler" — eğitmenin KENDİ öğrencileri, dedup (DM için). */
+export async function fetchStudentDirectory(): Promise<DirectoryUser[]> {
+  const headers = await authHeaders();
+  const res = await fetch("/api/flexos/connect/student-directory", { headers });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { items: DirectoryUser[] };
+  return data.items;
+}
+
+/** Öğrenci raydaki "Eğitmenlerim" — kayıtlı olduğu grupların eğitmen(ler)i (DM için). */
+export async function fetchTrainerDirectory(personId: string): Promise<DirectoryUser[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`/api/flexos/student/connect/trainer-directory?personId=${personId}`, { headers });
   if (!res.ok) return [];
   const data = (await res.json()) as { items: DirectoryUser[] };
   return data.items;
@@ -140,11 +173,15 @@ export interface CreateConversationBody {
   colorKey?: string;
   memberUids: string[];
   audience?: "all_students";
+  childIds?: string[];
+  sourceGroupId?: string;
 }
 
-export async function createConversation(body: CreateConversationBody): Promise<{ id: string } | { error: string }> {
+/** `personId` verilirse öğrenci route ailesine gider — Faz 1'de SADECE "kendi
+ * eğitmenine DM" istisnası için (bkz. `connect-service.ts::createConversation`). */
+export async function createConversation(body: CreateConversationBody, personId?: string): Promise<{ id: string } | { error: string }> {
   const headers = await authHeaders();
-  const res = await fetch("/api/flexos/connect/conversations", {
+  const res = await fetch(`${base(personId)}/conversations${qs(personId)}`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify(body),

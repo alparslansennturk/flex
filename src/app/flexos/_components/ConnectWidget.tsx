@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronLeft, Search, Send, Users, Loader2 } from "lucide-react";
+import { X, ChevronLeft, ExternalLink, Search, Send, Users, Loader2 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type TypingSignal,
@@ -32,6 +32,19 @@ const TYPING_SEND_THROTTLE_MS = 2000;
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
+}
+
+const REOPEN_STORAGE_KEY = "flex-connect-widget-reopen";
+
+/**
+ * Tam ekran sayfasındaki "Küçült" butonu bunu çağırıp `router.back()` yapar —
+ * widget bu sayfaya dönüldüğünde otomatik mini pencerede AÇIK gösterilir (2026-07-18
+ * kullanıcı bulgusu: "küçült"e basınca sohbet tamamen kapanıyormuş gibi hissediyordu,
+ * çünkü widget her zaman kapalı state'le mount oluyordu). "Kapat" (X) butonu bunu
+ * ÇAĞIRMAZ — o durumda widget normal kapalı haliyle (sadece FAB) kalır.
+ */
+export function requestConnectWidgetReopen(): void {
+  if (typeof window !== "undefined") sessionStorage.setItem(REOPEN_STORAGE_KEY, "1");
 }
 
 export default function ConnectWidget({ personId }: { personId?: string }) {
@@ -57,6 +70,14 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
   const loadConversations = useCallback(async () => {
     setConversations(await fetchConversations(personId));
   }, [personId]);
+
+  // Tam ekrandan "Küçült" ile dönülünce widget otomatik mini pencerede açılsın.
+  useEffect(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem(REOPEN_STORAGE_KEY) === "1") {
+      sessionStorage.removeItem(REOPEN_STORAGE_KEY);
+      setOpen(true);
+    }
+  }, []);
 
   // 2026-07-18 bug fix: rozet (kapalı FAB'daki kırmızı okunmamış sayısı) SADECE
   // widget açıkken veri çekildiği için widget hiç açılmadan asla görünmüyordu —
@@ -147,7 +168,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                 </div>
               </div>
               <button title="Tam ekran aç" onClick={() => router.push(fullPageHref)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 32, height: 32, borderRadius: 9, color: "#8FA3BE" }}>
-                <ChevronLeft size={16} style={{ transform: "rotate(135deg)" }} />
+                <ExternalLink size={16} />
               </button>
               <button title="Kapat" onClick={() => setOpen(false)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 32, height: 32, borderRadius: 9, color: "#8FA3BE" }}>
                 <X size={17} />

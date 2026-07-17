@@ -4,11 +4,18 @@
  * npx tsx scripts/assert-connect.ts
  */
 import type { ConnectConversation, ConnectMember, ConnectMessage } from "../src/app/lib/domain/core/connect";
+import type { ConnectAuditEntry } from "../src/app/lib/domain/core/connect-audit";
 import type { ConnectRepo } from "../src/app/lib/domain/repo/connect-repo";
 import type { PersonRepo } from "../src/app/lib/domain/repo/person-repo";
 import type { FlexosUserRepo } from "../src/app/lib/domain/repo/flexos-user-repo";
+import type { EnrollmentRepo } from "../src/app/lib/domain/repo/enrollment-repo";
+import type { GroupRepo } from "../src/app/lib/domain/repo/group-repo";
+import type { TrainerRepo } from "../src/app/lib/domain/repo/trainer-repo";
 import type { Person } from "../src/app/lib/domain/core/person";
 import type { FlexosUser } from "../src/app/lib/domain/core/flexos-user";
+import type { Enrollment } from "../src/app/lib/domain/core/enrollment";
+import type { Group } from "../src/app/lib/domain/core/group";
+import type { Trainer } from "../src/app/lib/domain/core/trainer";
 import {
   createConversation,
   listConversationsForPrincipal,
@@ -17,6 +24,7 @@ import {
   markRead,
   addMember,
   removeMember,
+  setPinned,
   type ConnectPrincipal,
   type ConnectDeps,
 } from "../src/app/lib/domain/services/connect-service";
@@ -47,6 +55,9 @@ function makeConnectRepo(): ConnectRepo {
       return ids.map((id) => conversations.get(id)).filter((c): c is ConnectConversation => !!c && c.tenantId === tenantId);
     },
     async deleteConversation(id) { conversations.delete(id); members.delete(id); messages.delete(id); },
+    async findBySourceGroupId(tenantId, sourceGroupId) {
+      return [...conversations.values()].find((c) => c.tenantId === tenantId && c.sourceGroupId === sourceGroupId) ?? null;
+    },
     async saveMember(conversationId, member) {
       if (!members.has(conversationId)) members.set(conversationId, new Map());
       members.get(conversationId)!.set(member.uid, { ...member });
@@ -106,6 +117,47 @@ function makePersonRepo(seed: Person[]): PersonRepo {
   };
 }
 
+function makeGroupRepo(seed: Group[]): GroupRepo {
+  const map = new Map(seed.map((g) => [g.id, g]));
+  return {
+    nextId: () => `group-${map.size + 1}`,
+    async save(g) { map.set(g.id, { ...g }); },
+    async getById(id, tid) { const g = map.get(id); return g && g.tenantId === tid ? g : null; },
+    async list(tid, trainerId) { return [...map.values()].filter((g) => g.tenantId === tid && (!trainerId || g.trainerId === trainerId)); },
+    async delete(id) { map.delete(id); },
+  };
+}
+
+function makeEnrollmentRepo(seed: Enrollment[]): EnrollmentRepo {
+  const map = new Map(seed.map((e) => [e.id, e]));
+  return {
+    nextId: () => `enr-${map.size + 1}`,
+    async save(e) { map.set(e.id, { ...e }); },
+    async getById(id, tid) { const e = map.get(id); return e && e.tenantId === tid ? e : null; },
+    async findActive(personId, groupId, tid) {
+      return [...map.values()].find((e) => e.tenantId === tid && e.personId === personId && e.groupId === groupId && e.status === "active") ?? null;
+    },
+    async list(tid) { return [...map.values()].filter((e) => e.tenantId === tid); },
+    async listByGroup(groupId, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.groupId === groupId); },
+    async listByGroupIds(groupIds, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.groupId && groupIds.includes(e.groupId)); },
+    async listBySale(saleId, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.saleId === saleId); },
+    async listByPerson(personId, tid) { return [...map.values()].filter((e) => e.tenantId === tid && e.personId === personId); },
+    async delete(id) { map.delete(id); },
+  };
+}
+
+function makeTrainerRepo(seed: Trainer[]): TrainerRepo {
+  const map = new Map(seed.map((t) => [t.id, t]));
+  return {
+    nextId: () => `trainer-${map.size + 1}`,
+    async save(t) { map.set(t.id, { ...t }); },
+    async getById(id, tid) { const t = map.get(id); return t && t.tenantId === tid ? t : null; },
+    async list(tid) { return [...map.values()].filter((t) => t.tenantId === tid); },
+    async delete(id) { map.delete(id); },
+    async findByAuthUid(authUid, tid) { return [...map.values()].find((t) => t.tenantId === tid && t.authUid === authUid) ?? null; },
+  };
+}
+
 function makeFlexosUserRepo(seed: FlexosUser[]): FlexosUserRepo {
   const map = new Map(seed.map((u) => [u.id, u]));
   return {
@@ -152,8 +204,30 @@ async function main() {
     fakeFlexosUser("trainer-1", "user-trainer", ["egitmen"]),
   ]);
 
-  function deps(): ConnectDeps {
-    return { conversations: makeConnectRepo(), persons, flexosUsers };
+  // person-1 (student-1) trainer-doc-1'in group-1'ine kayıtlı → "kendi eğitmenine
+  // DM" istisnasını test etmek için (trainer-doc-1'in authUid'i trainer-1).
+  const groups = makeGroupRepo([
+    { id: "group-1", tenantId: TENANT, code: "GRP-1", status: "active", type: "standart", trainerId: "trainer-doc-1", schedule: { startDate: "2026-01-01", days: [1, 3], sessionHours: 2 }, createdAt: new Date().toISOString(), createdBy: "seed" },
+  ]);
+  const enrollments = makeEnrollmentRepo([
+    { id: "enr-1", tenantId: TENANT, personId: "person-1", groupId: "group-1", status: "active", createdAt: new Date().toISOString(), createdBy: "seed" },
+  ]);
+  const trainers = makeTrainerRepo([
+    { id: "trainer-doc-1", tenantId: TENANT, name: "Trainer One", email: "trainer1@test.com", branchOffices: [], status: "aktif", competencies: {}, authUid: "trainer-1", createdAt: new Date().toISOString(), createdBy: "seed" },
+  ]);
+
+  function deps(): ConnectDeps & { auditEntries: ConnectAuditEntry[] } {
+    const auditEntries: ConnectAuditEntry[] = [];
+    return {
+      conversations: makeConnectRepo(),
+      persons,
+      flexosUsers,
+      auditLog: { async create(e) { auditEntries.push(e); } },
+      auditEntries,
+      enrollments,
+      groups,
+      trainers,
+    };
   }
 
   // ── createConversation: realm/tip doğrulaması ──
@@ -289,6 +363,113 @@ async function main() {
     const bridge = await createConversation(staffA, { realm: "trainer_student", type: "channel", name: "Kurum Duyuruları", memberUids: [], audience: "all_students" }, d);
     await markRead(student, bridge.id, d); // üye değil, ama hata atmamalı
     assert("markRead: üye olmayan (audience-only) okuyucu için no-op, hata yok", true);
+  }
+
+  // ── Audit Log: yönetimsel işlemler loglanır, mesaj gönderme loglanmaz ──
+  {
+    const d = deps();
+    const channel = await createConversation(staffA, { realm: "staff", type: "channel", name: "Duyurular", memberUids: [] }, d);
+    const group = await createConversation(staffA, { realm: "staff", type: "group", name: "Ekip", memberUids: [] }, d);
+    const bridge = await createConversation(
+      staffA,
+      { realm: "trainer_student", type: "channel", name: "Öğrenci İşleri", memberUids: [], audience: "all_students" },
+      d,
+    );
+    const dm = await createConversation(staffA, { realm: "staff", type: "dm", name: "", memberUids: [staffB.uid] }, d);
+
+    assert(
+      "Audit: kanal oluşturma loglanır (channel.create)",
+      d.auditEntries.some((e) => e.action === "channel.create" && e.conversationId === channel.id),
+    );
+    assert(
+      "Audit: grup oluşturma loglanır (group.create)",
+      d.auditEntries.some((e) => e.action === "group.create" && e.conversationId === group.id),
+    );
+    assert(
+      "Audit: audience kanalı oluşturma ayrı action ile loglanır (audience_channel.create)",
+      d.auditEntries.some((e) => e.action === "audience_channel.create" && e.conversationId === bridge.id),
+    );
+    assert("Audit: DM oluşturma loglanmaz (kapsam dışı)", !d.auditEntries.some((e) => e.conversationId === dm.id));
+
+    await addMember(staffA, group.id, staffB.uid, "member", d);
+    assert(
+      "Audit: üye ekleme loglanır (member.add) + targetUid doğru",
+      d.auditEntries.some((e) => e.action === "member.add" && e.conversationId === group.id && e.targetUid === staffB.uid),
+    );
+
+    await removeMember(staffA, group.id, staffB.uid, d);
+    assert(
+      "Audit: üye çıkarma loglanır (member.remove) + targetUid doğru",
+      d.auditEntries.some((e) => e.action === "member.remove" && e.conversationId === group.id && e.targetUid === staffB.uid),
+    );
+
+    const beforeMsgAudit = d.auditEntries.length;
+    await sendMessage(staffA, group.id, "merhaba", d);
+    assert("Audit: normal mesaj gönderme LOGLANMAZ", d.auditEntries.length === beforeMsgAudit);
+
+    assert(
+      "Audit: her kayıtta actorUid/actorName/tenantId/realm/createdAt dolu",
+      d.auditEntries.every((e) => e.actorUid && e.actorName && e.tenantId === TENANT && e.realm && e.createdAt),
+    );
+  }
+
+  // ── Favoriler/sabitleme: kişisel tercih, audit'e YAZILMAZ ──
+  {
+    const d = deps();
+    const channel = await createConversation(staffA, { realm: "staff", type: "channel", name: "Duyurular", memberUids: [] }, d);
+    const bridge = await createConversation(
+      staffA,
+      { realm: "trainer_student", type: "channel", name: "Öğrenci İşleri", memberUids: [], audience: "all_students" },
+      d,
+    );
+
+    await setPinned(staffA, channel.id, true, d);
+    const member = await d.conversations.getMember(channel.id, staffA.uid);
+    assert("setPinned: üye kendi sabitleme tercihini ayarlayabilir", member?.pinned === true);
+
+    await setPinned(staffA, channel.id, false, d);
+    const memberAfter = await d.conversations.getMember(channel.id, staffA.uid);
+    assert("setPinned: sabitlemeyi kaldırma çalışır", memberAfter?.pinned === false);
+
+    await setPinned(student, bridge.id, true, d); // üye değil (audience-only) — no-op
+    assert(
+      "setPinned: üye olmayan (audience-only) okuyucu için no-op, hata yok",
+      (await d.conversations.getMember(bridge.id, student.uid)) === null,
+    );
+
+    assert("Audit: sabitleme kişisel tercih olduğu için loglanmaz", !d.auditEntries.some((e) => e.conversationId === channel.id && e.action.includes("pin")));
+  }
+
+  // ── Öğrenci "kendi eğitmenine DM" istisnası (2026-07-18) ──
+  {
+    const d = deps();
+    await assertRejects(
+      "createConversation: öğrenci hâlâ kanal/grup oluşturamaz — ForbiddenError",
+      () => createConversation(student, { realm: "trainer_student", type: "channel", name: "X", memberUids: [] }, d),
+      ForbiddenError,
+    );
+    await assertRejects(
+      "createConversation: öğrenci KENDİ eğitmeni OLMAYAN birine DM açamaz — ForbiddenError",
+      () => createConversation(student2, { realm: "trainer_student", type: "dm", name: "", memberUids: ["trainer-1"] }, d),
+      ForbiddenError,
+    );
+
+    const dm = await createConversation(student, { realm: "trainer_student", type: "dm", name: "", memberUids: ["trainer-1"] }, d);
+    assert("createConversation: öğrenci KENDİ eğitmenine DM açabilir", dm.realm === "trainer_student" && dm.type === "dm");
+
+    const dmAgain = await createConversation(student, { realm: "trainer_student", type: "dm", name: "", memberUids: ["trainer-1"] }, d);
+    assert("createConversation: aynı DM tekrar tıklanınca ÇOĞALMAZ (dedup)", dmAgain.id === dm.id);
+
+    const fromTrainerSide = await createConversation(trainer, { realm: "trainer_student", type: "dm", name: "", memberUids: ["student-1"] }, d);
+    assert("createConversation: DM dedup İKİ yönlü de çalışır (eğitmen tarafından da aynı konuşma)", fromTrainerSide.id === dm.id);
+  }
+
+  // ── Sınıf odası dedup (sourceGroupId) ──
+  {
+    const d = deps();
+    const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası", memberUids: [], sourceGroupId: "group-1" }, d);
+    const again = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası (tekrar)", memberUids: [], sourceGroupId: "group-1" }, d);
+    assert("createConversation: aynı sourceGroupId için ikinci 'sınıf odası' ÇOĞALMAZ", again.id === group.id);
   }
 
   // ── Tenant izolasyonu ──

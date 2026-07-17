@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
-import { staffPrincipalFromCaller } from "@/app/lib/server/connect-principal";
+import { staffPrincipalFromCaller, extractConnectRequestMeta } from "@/app/lib/server/connect-principal";
 import { connectDeps } from "@/app/lib/server/connect-deps";
 import { resolveConnectIdentities } from "@/app/lib/server/connect-identity";
 import { addMember, listMembers, removeMember } from "@/app/lib/domain/services/connect-service";
@@ -40,7 +40,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   if (!body.uid) return NextResponse.json({ error: "uid zorunlu." }, { status: 400 });
 
   try {
-    await addMember(principal, id, body.uid, body.role ?? "member", connectDeps);
+    await addMember(principal, id, body.uid, body.role ?? "member", connectDeps, extractConnectRequestMeta(req));
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
@@ -59,7 +59,7 @@ export const DELETE = withAuth(async (req: NextRequest, caller, ctx: { params: P
   if (!targetUid) return NextResponse.json({ error: "uid zorunlu." }, { status: 400 });
 
   try {
-    await removeMember(principal, id, targetUid, connectDeps);
+    await removeMember(principal, id, targetUid, connectDeps, extractConnectRequestMeta(req));
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

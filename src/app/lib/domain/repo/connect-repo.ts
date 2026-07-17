@@ -14,6 +14,8 @@ export interface ConnectRepo {
   listConversationsByAudience(tenantId: string, realm: ConnectRealm, audience: string): Promise<ConnectConversation[]>;
   getConversationsByIds(ids: string[], tenantId: string): Promise<ConnectConversation[]>;
   deleteConversation(id: string, tenantId: string): Promise<void>;
+  /** `sourceGroupId` ile eşleşen konuşma (varsa) — sınıf odası dedup'ı için. */
+  findBySourceGroupId(tenantId: string, sourceGroupId: string): Promise<ConnectConversation | null>;
 
   saveMember(conversationId: string, member: ConnectMember): Promise<void>;
   getMember(conversationId: string, uid: string): Promise<ConnectMember | null>;

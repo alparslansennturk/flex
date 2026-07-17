@@ -4,6 +4,14 @@ import type { Caller } from "../with-auth";
 import { actorFromCaller, DEFAULT_TENANT } from "./auth-actor";
 import { firestorePersonRepo } from "./person-repo.firestore";
 import type { ConnectPrincipal } from "../domain/services/connect-service";
+import type { ConnectRequestMeta } from "../domain/core/connect-audit";
+
+/** Audit Log için ip/user-agent — `api/otp/route.ts`'teki AYNI `x-forwarded-for` deseni. */
+export function extractConnectRequestMeta(req: NextRequest): ConnectRequestMeta {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const userAgent = req.headers.get("user-agent") ?? undefined;
+  return { ip: ip || undefined, userAgent };
+}
 
 /**
  * Personel çağıranı çözer — `/api/flexos/connect/*` (staff route ailesi).
