@@ -327,8 +327,9 @@ function ActiveParkourCard({ assignment, groupCode, onArchived, onFinished, onEd
             önceki konum/badge stili yanlış bulundu, buraya taşındı). */}
         {groupCode && <div className="text-[11px] font-bold text-[#8E95A3] tracking-wide mb-0.5">{groupCode}</div>}
         <h4 className="text-[17px] text-[#10294C] font-bold leading-tight truncate">{assignment.title}</h4>
+        {/* 2026-07-18 kullanıcı isteği: ana açıklama karttan kaldırıldı — alt başlıktan
+            sonrası boş kalsın, tam açıklama zaten detaya tıklanınca görünüyor. */}
         {assignment.subtitle && <p className="text-[12.5px] text-[#6F7B87] font-semibold truncate mt-0.5">{assignment.subtitle}</p>}
-        {assignment.description && <p className="text-[13px] text-[#8E95A3] leading-relaxed line-clamp-2 mt-1">{assignment.description}</p>}
       </div>
       <div className="bg-[#F7F8FA] rounded-2xl p-3.5 flex justify-between mb-3 border border-[#EEF0F3]">
         <div className="flex flex-col">

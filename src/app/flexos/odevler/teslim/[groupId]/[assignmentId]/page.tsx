@@ -20,6 +20,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { auth, db } from "@/app/lib/firebase";
 import { collection, onSnapshot, orderBy, query, type Timestamp } from "firebase/firestore";
 import { toast } from "sonner";
@@ -325,7 +326,14 @@ export default function OdevTeslimDetayPage() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", background: "#EEF0F3" }}>
       <FlexSidebar active="odev-teslimi" />
-      <div style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* 2026-07-18 kullanıcı isteği: öğrenci tarafındaki ödev detayıyla AYNI framer-motion
+          açılış (fade+slide-up, 0.22s, modallardaki AYNI cubic-bezier). */}
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+        style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      >
         <FlexHeader
           left={
             <div className="flex items-center gap-3">
@@ -525,7 +533,7 @@ export default function OdevTeslimDetayPage() {
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

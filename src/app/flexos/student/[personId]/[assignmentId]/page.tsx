@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { auth, db } from "@/app/lib/firebase";
 import { collection, onSnapshot, orderBy, query, type Timestamp } from "firebase/firestore";
 import { toast } from "sonner";
@@ -396,7 +397,14 @@ export default function FlexosStudentAssignmentDetail() {
     <div className="flex h-screen overflow-hidden bg-white font-inter antialiased text-text-primary">
       <StudentSidebar personId={personId} />
 
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      {/* 2026-07-18 kullanıcı isteği: ödev detayı sert bir "pop" ile değil, hafif bir
+          fade+slide-up ile açılsın — modallarda kullanılan AYNI framer-motion değerleri
+          (0.22s, cubic-bezier [0.4,0,0.2,1], bkz. OdevOlusturModal.tsx/EditAssignmentModal.tsx). */}
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+        className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <header className="shrink-0 h-14 bg-white border-b border-surface-200 flex items-center gap-3 px-6">
           <button
             onClick={() => router.push(`/flexos/student/${personId}`)}
@@ -662,7 +670,7 @@ export default function FlexosStudentAssignmentDetail() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
