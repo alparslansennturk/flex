@@ -471,7 +471,20 @@ export default function FlexConnectMobile() {
   const canCreate = createType === "community" ? cName.trim().length > 0 && cGroups.length >= 2 : cName.trim().length > 0;
 
   // ── Stil sabitleri (tasarımdaki AYNI değerler) ──
-  const shellStyle: React.CSSProperties = { position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: T.bg, color: T.text, transition: "background .3s, color .3s", fontFamily: "'Inter', system-ui, sans-serif" };
+  // `height:"100dvh"` + `inset:0` birlikte — SADECE `inset:0` bazı iOS standalone
+  // (Ana Ekrana Ekle) sürümlerinde gerçek ekran yüksekliğini tam kapsamıyor,
+  // altta boşluk kalıyordu (2026-07-19 kullanıcı bulgusu: "üst iphone kendi barı
+  // var ama alt boş"). `100dvh` (dynamic viewport height) daha güvenilir.
+  const shellStyle: React.CSSProperties = { position: "fixed", inset: 0, height: "100dvh", width: "100vw", display: "flex", flexDirection: "column", background: T.bg, color: T.text, transition: "background .3s, color .3s", fontFamily: "'Inter', system-ui, sans-serif" };
+
+  // Kök `html`/`body` arkaplanı da senkron tutulur — `shellStyle` gerçek ekranı
+  // tam kaplamazsa (dvh/inset yuvarlama farkı) altta/üstte görünecek olan renk
+  // en azından uygulamanın kendi arkaplanıyla AYNI olsun, beyaz/siyah çakma
+  // (flash) olmasın.
+  useEffect(() => {
+    document.documentElement.style.background = T.bg;
+    document.body.style.background = T.bg;
+  }, [T.bg]);
   // `paddingTop: env(safe-area-inset-top)` — iOS'ta PWA olarak kurulunca (Ana
   // Ekrana Ekle + `statusBarStyle:"black-translucent"`) durum çubuğu içeriğin
   // ÜSTÜNE bindiği için gerekiyor (2026-07-19 kullanıcı bulgusu: "Safari'de üst
