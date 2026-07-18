@@ -21,10 +21,16 @@ import {
   listConversationsForPrincipal,
   sendMessage,
   listMessages,
+  editMessage,
+  deleteMessageForEveryone,
+  deleteMessageForMe,
+  setMessageReaction,
   markRead,
   addMember,
   removeMember,
   setPinned,
+  updateConversationMeta,
+  deleteConversation,
   type ConnectPrincipal,
   type ConnectDeps,
 } from "../src/app/lib/domain/services/connect-service";
@@ -35,7 +41,7 @@ const TENANT = "test-tenant";
 function makeConnectRepo(): ConnectRepo {
   const conversations = new Map<string, ConnectConversation>();
   const members = new Map<string, Map<string, ConnectMember>>();
-  const messages = new Map<string, ConnectMessage[]>();
+  const messages = new Map<string, Map<string, ConnectMessage>>();
   const typing = new Map<string, Map<string, { uid: string; name: string; at: string }>>();
   let convSeq = 0;
   let msgSeq = 0;
@@ -74,10 +80,13 @@ function makeConnectRepo(): ConnectRepo {
       return result;
     },
     async saveMessage(conversationId, message) {
-      if (!messages.has(conversationId)) messages.set(conversationId, []);
-      messages.get(conversationId)!.push({ ...message });
+      if (!messages.has(conversationId)) messages.set(conversationId, new Map());
+      messages.get(conversationId)!.set(message.id, { ...message });
     },
-    async listMessages(conversationId) { return [...(messages.get(conversationId) ?? [])]; },
+    async getMessage(conversationId, messageId) { return messages.get(conversationId)?.get(messageId) ?? null; },
+    async listMessages(conversationId) {
+      return [...(messages.get(conversationId)?.values() ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
     async setTyping(conversationId, uid, name, at) {
       if (!typing.has(conversationId)) typing.set(conversationId, new Map());
       typing.get(conversationId)!.set(uid, { uid, name, at });
@@ -193,6 +202,7 @@ async function main() {
   // ── Aktörler ──
   const staffA: ConnectPrincipal = { tenantId: TENANT, uid: "staff-a", kind: "staff" };
   const staffB: ConnectPrincipal = { tenantId: TENANT, uid: "staff-b", kind: "staff" };
+  const staffC: ConnectPrincipal = { tenantId: TENANT, uid: "staff-c", kind: "staff" };
   const trainer: ConnectPrincipal = { tenantId: TENANT, uid: "trainer-1", kind: "staff", trainerId: "trainer-doc-1" };
   const student: ConnectPrincipal = { tenantId: TENANT, uid: "student-1", kind: "student", personId: "person-1" };
   const student2: ConnectPrincipal = { tenantId: TENANT, uid: "student-2", kind: "student", personId: "person-2" };
@@ -201,6 +211,7 @@ async function main() {
   const flexosUsers = makeFlexosUserRepo([
     fakeFlexosUser("staff-a", "user-a", ["admin"]),
     fakeFlexosUser("staff-b", "user-b", ["admin"]),
+    fakeFlexosUser("staff-c", "user-c", ["admin"]),
     fakeFlexosUser("trainer-1", "user-trainer", ["egitmen"]),
   ]);
 
@@ -324,6 +335,31 @@ async function main() {
     );
   }
 
+  // ── "Personel Kanalı" (broadcastToAllStaff) — 2026-07-18 kullanıcı isteği ──
+  {
+    const d = deps();
+    const channel = await createConversation(
+      staffA,
+      { realm: "staff", type: "channel", name: "Şirket Duyuruları", memberUids: [staffB.uid], broadcastToAllStaff: true },
+      d,
+    );
+
+    const memberC = await d.conversations.getMember(channel.id, staffC.uid);
+    assert("broadcastToAllStaff: seçilmeyen personel de OTOMATİK okuyucu/member olur", memberC !== null);
+    assert("broadcastToAllStaff: seçilmeyen personel admins'e GİRMEZ", !channel.admins.includes(staffC.uid));
+    assert("broadcastToAllStaff: seçilen Yayıncı (staffB) admins'e girer", channel.admins.includes(staffB.uid));
+
+    await assertRejects(
+      "broadcastToAllStaff: seçilmeyen (okuyucu) personel kanala YAZAMAZ — ForbiddenError",
+      () => sendMessage(staffC, channel.id, "ben de yazmak istiyorum", d),
+      ForbiddenError,
+    );
+
+    await sendMessage(staffB, channel.id, "duyuru metni", d);
+    const msgs = await listMessages(staffA, channel.id, d);
+    assert("broadcastToAllStaff: seçilen Yayıncı gerçekten yazabiliyor", msgs.some((m) => m.text === "duyuru metni"));
+  }
+
   // ── addMember / removeMember yetkisi ──
   {
     const d = deps();
@@ -355,6 +391,35 @@ async function main() {
     await removeMember(trainer, group.id, student.uid, d);
     const member = await d.conversations.getMember(group.id, student.uid);
     assert("removeMember: başarılı çıkarma sonrası üyelik yok", member === null);
+  }
+
+  // ── Misafir daveti (Faz 2 madde 4, 2026-07-18) — var olan hesap, açıklayıcı etiket ──
+  {
+    const d = deps();
+    const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası 6", memberUids: [] }, d);
+    await addMember(trainer, group.id, staffB.uid, "guest", d, undefined, "Yardımcı Eğitmen");
+    const guest = await d.conversations.getMember(group.id, staffB.uid);
+    assert("addMember: misafir role='guest' ile eklenir", guest?.role === "guest");
+    assert("addMember: guestTitle rozet olarak saklanır", guest?.guestTitle === "Yardımcı Eğitmen");
+  }
+
+  // ── Dosya ekleri (Faz 2 madde 5, 2026-07-18) — WhatsApp gibi metin BOŞ olabilir ──
+  {
+    const d = deps();
+    const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası 7", memberUids: [student.uid] }, d);
+    const attachment = { driveFileId: "drv-1", webViewLink: "https://drive.google.com/file/d/drv-1/view", fileName: "notlar.pdf", fileSize: 12345, mimeType: "application/pdf" };
+
+    await assertRejects(
+      "sendMessage: ek YOKKEN boş metin reddedilir — ValidationError",
+      () => sendMessage(trainer, group.id, "", d),
+      ValidationError,
+    );
+
+    const msg = await sendMessage(trainer, group.id, "", d, [attachment]);
+    assert("sendMessage: ek VARKEN boş metin kabul edilir (WhatsApp gibi)", msg.text === "" && msg.attachments?.[0]?.driveFileId === "drv-1");
+
+    const conv = await d.conversations.getConversationById(group.id, TENANT);
+    assert("sendMessage: sadece ekli mesajda lastMessage önizlemesi dosya adını gösterir", conv?.lastMessage?.text === "📎 notlar.pdf");
   }
 
   // ── markRead: üye değilse no-op (hata atmaz) ──
@@ -470,6 +535,307 @@ async function main() {
     const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası", memberUids: [], sourceGroupId: "group-1" }, d);
     const again = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası (tekrar)", memberUids: [], sourceGroupId: "group-1" }, d);
     assert("createConversation: aynı sourceGroupId için ikinci 'sınıf odası' ÇOĞALMAZ", again.id === group.id);
+  }
+
+  // ── Mesaj düzenle/sil — WhatsApp birebir (2026-07-18) ──
+  {
+    const d = deps();
+    const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası 3", memberUids: [student.uid] }, d);
+    const msg = await sendMessage(student, group.id, "ilk mesaj", d);
+
+    await assertRejects(
+      "editMessage: yazar OLMAYAN düzenleyemez — ForbiddenError",
+      () => editMessage(trainer, group.id, msg.id, "başkası düzenledi", d),
+      ForbiddenError,
+    );
+    const edited = await editMessage(student, group.id, msg.id, "düzenlenmiş mesaj", d);
+    assert("editMessage: yazar kendi mesajını düzenleyebilir", edited.text === "düzenlenmiş mesaj" && !!edited.editedAt);
+    const convAfterEdit = await d.conversations.getConversationById(group.id, TENANT);
+    assert("editMessage: son mesaj önizlemesi (lastMessage) de güncellenir", convAfterEdit?.lastMessage?.text === "düzenlenmiş mesaj");
+
+    await assertRejects(
+      "deleteMessageForEveryone: yazar OLMAYAN silemez — ForbiddenError",
+      () => deleteMessageForEveryone(trainer, group.id, msg.id, d),
+      ForbiddenError,
+    );
+    await deleteMessageForEveryone(student, group.id, msg.id, d);
+    const afterDelete = await d.conversations.getMessage(group.id, msg.id);
+    assert("deleteMessageForEveryone: text temizlenir + deletedForEveryone=true", afterDelete?.text === "" && afterDelete?.deletedForEveryone === true);
+    const convAfterDelete = await d.conversations.getConversationById(group.id, TENANT);
+    assert("deleteMessageForEveryone: lastMessage önizlemesi 'Bu mesaj silindi' olur", convAfterDelete?.lastMessage?.text === "Bu mesaj silindi");
+
+    await assertRejects(
+      "editMessage: 'herkes için silinmiş' mesaj düzenlenemez — ValidationError",
+      () => editMessage(student, group.id, msg.id, "tekrar dene", d),
+      ValidationError,
+    );
+  }
+
+  // ── "Benim için sil" — SADECE çağıranın görünümünden kaybolur ──
+  {
+    const d = deps();
+    const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası 4", memberUids: [student.uid] }, d);
+    const msg = await sendMessage(trainer, group.id, "herkese görünen mesaj", d);
+
+    await deleteMessageForMe(student, group.id, msg.id, d);
+    const studentView = await listMessages(student, group.id, d);
+    const trainerView = await listMessages(trainer, group.id, d);
+    assert("deleteMessageForMe: SADECE çağıranın listesinden kaybolur", !studentView.some((m) => m.id === msg.id));
+    assert("deleteMessageForMe: diğerleri mesajı NORMAL görmeye devam eder", trainerView.some((m) => m.id === msg.id));
+  }
+
+  // ── Reaksiyonlar — WhatsApp tarzı, kişi başına TEK emoji (Faz 2 madde 2, 2026-07-18) ──
+  {
+    const d = deps();
+    const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası 5", memberUids: [student.uid] }, d);
+    const msg = await sendMessage(trainer, group.id, "duyuru metni", d);
+
+    await setMessageReaction(student, group.id, msg.id, "👍", d);
+    let got = await d.conversations.getMessage(group.id, msg.id);
+    assert("setMessageReaction: reaksiyon eklenir", got?.reactions?.[student.uid] === "👍");
+
+    await setMessageReaction(student, group.id, msg.id, "❤️", d);
+    got = await d.conversations.getMessage(group.id, msg.id);
+    assert("setMessageReaction: farklı emojiye basınca DEĞİŞİR (kişi başına tek emoji)", got?.reactions?.[student.uid] === "❤️");
+
+    await setMessageReaction(student, group.id, msg.id, "❤️", d);
+    got = await d.conversations.getMessage(group.id, msg.id);
+    assert("setMessageReaction: AYNI emojiye tekrar basınca KALDIRILIR (toggle)", got?.reactions?.[student.uid] === undefined);
+
+    // Audience-only (member dokümanı olmayan) okuyucu da reaksiyon verebilir.
+    const bridge = await createConversation(staffA, { realm: "trainer_student", type: "channel", name: "Öğrenci İşleri", memberUids: [], audience: "all_students" }, d);
+    const bridgeMsg = await sendMessage(staffA, bridge.id, "duyuru", d);
+    await setMessageReaction(student, bridge.id, bridgeMsg.id, "🎉", d);
+    const bridgeMsgAfter = await d.conversations.getMessage(bridge.id, bridgeMsg.id);
+    assert("setMessageReaction: audience-only okuyucu (member dokümanı yok) da reaksiyon verebilir", bridgeMsgAfter?.reactions?.[student.uid] === "🎉");
+
+    await assertRejects(
+      "setMessageReaction: üye OLMADIĞI gruba (okuma yetkisi yok) reaksiyon veremez — ForbiddenError",
+      () => setMessageReaction(student2, group.id, msg.id, "😮", d),
+      ForbiddenError,
+    );
+
+    await deleteMessageForEveryone(trainer, group.id, msg.id, d);
+    await assertRejects(
+      "setMessageReaction: 'herkes için silinmiş' mesaja reaksiyon verilemez — ValidationError",
+      () => setMessageReaction(trainer, group.id, msg.id, "👍", d),
+      ValidationError,
+    );
+  }
+
+  // ── Topluluk akışı — WhatsApp topluluğu ile AYNI mantık (2026-07-18 kullanıcı
+  // netleştirmesi): Genel Duyuru'yu SADECE eğitmen yazar, öğrenci okur; bundled
+  // gruplara eğitmen ayrı ayrı da yazabilir; gruplar birbirini GÖREMEZ. ──
+  {
+    const d = deps();
+    const groupA = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Grafik-1", memberUids: [student.uid] }, d);
+    const groupB = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Grafik-2", memberUids: [student2.uid] }, d);
+    const genelDuyuru = await createConversation(
+      trainer,
+      { realm: "trainer_student", type: "channel", name: "Grafik Topluluğu — Genel Duyuru", memberUids: [], readerUids: [student.uid, student2.uid] },
+      d,
+    );
+
+    await assertRejects(
+      "Topluluk/Genel Duyuru: öğrenci (readerUids ile eklenen) YAZAMAZ — ForbiddenError",
+      () => sendMessage(student, genelDuyuru.id, "ben de yazayım", d),
+      ForbiddenError,
+    );
+    await sendMessage(trainer, genelDuyuru.id, "Herkese duyuru", d);
+    const duyuruMsgs = await listMessages(student, genelDuyuru.id, d);
+    assert("Topluluk/Genel Duyuru: öğrenci OKUYABİLİR", duyuruMsgs.some((m) => m.text === "Herkese duyuru"));
+
+    await sendMessage(trainer, groupA.id, "Grafik-1'e özel not", d);
+    await sendMessage(trainer, groupB.id, "Grafik-2'ye özel not", d);
+    assert("Topluluk: eğitmen bundled gruplara AYRI AYRI da yazabilir (Grafik-1)", (await listMessages(trainer, groupA.id, d)).length === 1);
+    assert("Topluluk: eğitmen bundled gruplara AYRI AYRI da yazabilir (Grafik-2)", (await listMessages(trainer, groupB.id, d)).length === 1);
+
+    await assertRejects(
+      "Topluluk: Grafik-1'deki öğrenci Grafik-2'yi GÖREMEZ/okuyamaz — ForbiddenError",
+      () => listMessages(student, groupB.id, d),
+      ForbiddenError,
+    );
+  }
+
+  // ── updateConversationMeta — ad/açıklama/yayıncı düzenleme (2026-07-18, son 2 madde) ──
+  {
+    const d = deps();
+    const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Sınıf Odası 9", memberUids: [] }, d);
+
+    await assertRejects(
+      "updateConversationMeta: admin OLMAYAN düzenleyemez — ForbiddenError",
+      () => updateConversationMeta(student, group.id, { name: "Yeni Ad" }, d),
+      ForbiddenError,
+    );
+
+    const updated = await updateConversationMeta(trainer, group.id, { name: "Yeni Ad", description: "Yeni açıklama" }, d);
+    assert("updateConversationMeta: admin ad/açıklama değiştirebilir", updated.name === "Yeni Ad" && updated.description === "Yeni açıklama");
+
+    const persisted = await d.conversations.getConversationById(group.id, TENANT);
+    assert("updateConversationMeta: değişiklik kalıcı olarak kaydedilir", persisted?.name === "Yeni Ad");
+
+    await assertRejects(
+      "updateConversationMeta: boş ad reddedilir — ValidationError",
+      () => updateConversationMeta(trainer, group.id, { name: "   " }, d),
+      ValidationError,
+    );
+
+    const dm = await createConversation(trainer, { realm: "trainer_student", type: "dm", name: "", memberUids: [student.uid] }, d);
+    await assertRejects(
+      "updateConversationMeta: DM düzenlenemez — ValidationError",
+      () => updateConversationMeta(trainer, dm.id, { name: "X" }, d),
+      ValidationError,
+    );
+
+    const channel = await createConversation(
+      staffA,
+      { realm: "staff", type: "channel", name: "Duyurular", memberUids: [staffB.uid] },
+      d,
+    );
+    await assertRejects(
+      "updateConversationMeta: staff kanalına öğrenci Yayıncı olarak eklenemez — ForbiddenError",
+      () => updateConversationMeta(staffA, channel.id, { adminUids: [staffB.uid, student.uid] }, d),
+      ForbiddenError,
+    );
+    const withNewAdmin = await updateConversationMeta(staffA, channel.id, { adminUids: [staffC.uid] }, d);
+    assert(
+      "updateConversationMeta: yayıncı listesi güncellenir (owner her zaman kalır)",
+      withNewAdmin.admins.includes(staffC.uid) && withNewAdmin.admins.includes(staffA.uid) && !withNewAdmin.admins.includes(staffB.uid),
+    );
+
+    const settingsAudit = d.auditEntries.filter((e) => e.action === "conversation.settings.update");
+    assert("Audit: ad/açıklama/yayıncı değişikliği conversation.settings.update olarak loglanır", settingsAudit.length >= 2);
+
+    const staffCMember = await d.conversations.getMember(channel.id, staffC.uid);
+    assert("updateConversationMeta: yeni Yayıncı için members dokümanı oluşturulur (role=admin, okuyabilir)", staffCMember?.role === "admin");
+  }
+
+  // ── updateConversationMeta — Topluluk'a sonradan yeni grup ekleme (2026-07-18, kullanıcı isteği) ──
+  {
+    const d = deps();
+    const groupA = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Grafik-1", memberUids: [] }, d);
+    const groupB = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Grafik-2", memberUids: [] }, d);
+    const groupC = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Grafik-3 (yeni açılan)", memberUids: [] }, d);
+    const otherGroup = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "İlgisiz Grup", memberUids: [] }, d);
+    const community = await createConversation(
+      trainer,
+      { realm: "trainer_student", type: "community", name: "Grafik Topluluğu", memberUids: [], childIds: [groupA.id, groupB.id] },
+      d,
+    );
+
+    await assertRejects(
+      "updateConversationMeta: childIds sadece topluluklarda düzenlenebilir — ValidationError",
+      () => updateConversationMeta(trainer, groupA.id, { childIds: [groupA.id, groupB.id] }, d),
+      ValidationError,
+    );
+
+    const withNewChild = await updateConversationMeta(trainer, community.id, { childIds: [groupA.id, groupB.id, groupC.id] }, d);
+    assert("updateConversationMeta: yeni açılan grup topluluğa eklenir", !!withNewChild.childIds?.includes(groupC.id));
+    assert("updateConversationMeta: eski gruplar listede kalır", !!withNewChild.childIds?.includes(groupA.id) && !!withNewChild.childIds?.includes(groupB.id));
+
+    await assertRejects(
+      "updateConversationMeta: var olmayan bir grup id'si reddedilir — ValidationError",
+      () => updateConversationMeta(trainer, community.id, { childIds: ["hic-yok-boyle-bir-id", groupA.id] }, d),
+      ValidationError,
+    );
+
+    await assertRejects(
+      "updateConversationMeta: grup TİPİNDE olmayan bir konuşma topluluğa eklenemez — ValidationError",
+      () => updateConversationMeta(trainer, community.id, { childIds: [groupA.id, community.id] }, d),
+      ValidationError,
+    );
+
+    const childAudit = d.auditEntries.filter((e) => e.action === "community.child_groups.update");
+    assert("Audit: topluluk grup listesi değişikliği community.child_groups.update olarak loglanır", childAudit.some((e) => e.conversationId === community.id));
+
+    void otherGroup; // sadece "ilgisiz konuşmayı ekleme" senaryosu için referans, ayrı assertion gerekmiyor
+  }
+
+  // ── announcementChannelId — Topluluğa eklenen grubun rosteru GERÇEKTEN Genel
+  // Duyuru'ya okuyucu olur (2026-07-18, "sadece childIds listesi yetmez" bulgusu) ──
+  {
+    const d = deps();
+    const groupA = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Grafik-1", memberUids: [student.uid] }, d);
+    const groupB = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Grafik-2", memberUids: [] }, d);
+    const groupC = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Grafik-3 (yeni açılan)", memberUids: [student2.uid] }, d);
+    const genelDuyuru = await createConversation(
+      trainer,
+      { realm: "trainer_student", type: "channel", name: "Grafik Topluluğu — Genel Duyuru", memberUids: [], readerUids: [student.uid] },
+      d,
+    );
+    const community = await createConversation(
+      trainer,
+      { realm: "trainer_student", type: "community", name: "Grafik Topluluğu", memberUids: [], childIds: [groupA.id, groupB.id], announcementChannelId: genelDuyuru.id },
+      d,
+    );
+
+    assert(
+      "announcementChannelId: eklenmeden ÖNCE Grafik-3'ün öğrencisi Genel Duyuru okuyucusu DEĞİL",
+      (await d.conversations.getMember(genelDuyuru.id, student2.uid)) === null,
+    );
+
+    await updateConversationMeta(trainer, community.id, { childIds: [groupA.id, groupB.id, groupC.id] }, d);
+
+    const newReader = await d.conversations.getMember(genelDuyuru.id, student2.uid);
+    assert("announcementChannelId: Grafik-3 eklenince rosteru OTOMATİK Genel Duyuru okuyucusu olur", newReader?.role === "member");
+    const genelDuyuruMsgs = await sendMessage(trainer, genelDuyuru.id, "Yeni duyuru", d) && (await listMessages(student2, genelDuyuru.id, d));
+    assert("announcementChannelId: yeni eklenen öğrenci Genel Duyuru mesajlarını GERÇEKTEN okuyabiliyor", genelDuyuruMsgs.some((m) => m.text === "Yeni duyuru"));
+
+    const existingReader = await d.conversations.getMember(genelDuyuru.id, student.uid);
+    assert("announcementChannelId: zaten okuyucu olan (Grafik-1) tekrar eklenmez/bozulmaz", existingReader?.role === "member");
+  }
+
+  // ── deleteConversation — konuşma silme (2026-07-18, kullanıcı isteği: "grup silme kanal silme topluluk silme olmalı") ──
+  {
+    const d = deps();
+    const channel = await createConversation(staffA, { realm: "staff", type: "channel", name: "Silinecek Kanal", memberUids: [] }, d);
+    const group = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Silinecek Grup", memberUids: [student.uid] }, d);
+    const groupA2 = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Topluluk Alt-1", memberUids: [] }, d);
+    const groupB2 = await createConversation(trainer, { realm: "trainer_student", type: "group", name: "Topluluk Alt-2", memberUids: [] }, d);
+    const community = await createConversation(
+      trainer,
+      { realm: "trainer_student", type: "community", name: "Silinecek Topluluk", memberUids: [], childIds: [groupA2.id, groupB2.id] },
+      d,
+    );
+    const dm = await createConversation(staffA, { realm: "staff", type: "dm", name: "", memberUids: [staffB.uid] }, d);
+    await updateConversationMeta(staffA, channel.id, { adminUids: [staffC.uid] }, d); // staffC → Yayıncı (admin), owner DEĞİL
+
+    await assertRejects(
+      "deleteConversation: admin (owner DEĞİL) silemez — ForbiddenError",
+      () => deleteConversation(staffC, channel.id, d),
+      ForbiddenError,
+    );
+    await assertRejects(
+      "deleteConversation: DM silinemez — ValidationError",
+      () => deleteConversation(staffA, dm.id, d),
+      ValidationError,
+    );
+    await sendMessage(trainer, group.id, "silinmeden önce bir mesaj", d);
+
+    await deleteConversation(staffA, channel.id, d);
+    assert("deleteConversation: kanal silinir (getConversationById → null)", (await d.conversations.getConversationById(channel.id, TENANT)) === null);
+    assert(
+      "Audit: kanal silme channel.delete olarak loglanır",
+      d.auditEntries.some((e) => e.action === "channel.delete" && e.conversationId === channel.id),
+    );
+
+    await deleteConversation(trainer, group.id, d);
+    assert("deleteConversation: grup silinince alt-koleksiyon (members) da temizlenir", (await d.conversations.listMembers(group.id)).length === 0);
+    assert("deleteConversation: grup silinince alt-koleksiyon (messages) da temizlenir", (await d.conversations.listMessages(group.id)).length === 0);
+    assert(
+      "Audit: grup silme group.delete olarak loglanır",
+      d.auditEntries.some((e) => e.action === "group.delete" && e.conversationId === group.id),
+    );
+
+    await deleteConversation(trainer, community.id, d);
+    assert(
+      "Audit: topluluk silme community.delete olarak loglanır",
+      d.auditEntries.some((e) => e.action === "community.delete" && e.conversationId === community.id),
+    );
+    assert(
+      "deleteConversation: topluluk silinince paketlediği gruplar ETKİLENMEZ",
+      (await d.conversations.getConversationById(groupA2.id, TENANT)) !== null && (await d.conversations.getConversationById(groupB2.id, TENANT)) !== null,
+    );
   }
 
   // ── Tenant izolasyonu ──

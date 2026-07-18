@@ -18,6 +18,8 @@ export type ConnectAuditAction =
   | "group.create"
   | "group.delete"
   | "community.create"
+  | "community.delete"
+  | "community.child_groups.update"
   | "member.add"
   | "member.remove"
   | "member.bulk_add"

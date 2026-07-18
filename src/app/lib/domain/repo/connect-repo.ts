@@ -25,6 +25,7 @@ export interface ConnectRepo {
   listMembershipsForUid(uid: string): Promise<{ conversationId: string; member: ConnectMember }[]>;
 
   saveMessage(conversationId: string, message: ConnectMessage): Promise<void>;
+  getMessage(conversationId: string, messageId: string): Promise<ConnectMessage | null>;
   listMessages(conversationId: string, limit?: number): Promise<ConnectMessage[]>;
 
   /** Ephemeral "yazıyor" sinyali — `at`e bakarak client tarafında bayatlığı (TTL) süzülür,

@@ -19,7 +19,6 @@ import {
 import StudentSidebar from "../_components/StudentSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../../_components/FlexHeader";
 import { ActivityFeed, type ActivityFeedItem } from "../../_components/ActivityFeed";
-import ConnectWidget from "../../_components/ConnectWidget";
 
 /* ── Types ── */
 
@@ -175,6 +174,7 @@ export default function FlexosStudentDashboard() {
           roleLabel={me.groupCode ? `${me.groupCode} · Öğrenci` : "Öğrenci"}
           maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
           displayNameOverride={me.name}
+          connectPersonId={personId}
         />
         <main className="flex-1 overflow-y-auto overflow-x-clip [scrollbar-gutter:stable]">
           {/* Merkezi genişlik (2026-07-13): Eğitmen Ana Sayfa'daki AYNI `FlexPageContent`
@@ -294,8 +294,6 @@ export default function FlexosStudentDashboard() {
           </div>
         </div>
       )}
-
-      <ConnectWidget personId={personId} />
     </div>
   );
 }

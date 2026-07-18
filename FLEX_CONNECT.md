@@ -292,7 +292,473 @@ temiz, 19 assert dosyası (445 assertion) hâlâ yeşil.
 **Görsel doğrulama yapılmadı** (Firebase Auth login gerektiriyor) — kullanıcı canlıda
 Personel/Öğrenciler/Eğitmenlerim dizinlerini + yeni modalı elle kontrol etmeli.
 
-**SIRADAKİ İŞ:** Faz 2 madde 2 — Reaksiyonlar (kullanıcı onaylarsa).
+**SIRADAKİ İŞ:** Faz 2 madde 2 — Reaksiyonlar — AŞAĞIDA tamamlandı, bkz. sıradaki blok.
+
+---
+
+### ✅ Faz 2 madde 2 — Reaksiyonlar (2026-07-18, aynı oturum)
+
+WhatsApp tarzı — kişi başına TEK emoji: `ConnectMessage.reactions?: Record<uid,emoji>`.
+Aynı emojiye tekrar basmak kaldırır (toggle); farklı emojiye basmak DEĞİŞTİRİR (bir
+öncekini otomatik siler, iki reaksiyon aynı anda tutulmaz). **Yazma yetkisi GEREKMEZ,
+sadece okuma** — WhatsApp kanallarındaki AYNI davranış: broadcast kanalda salt-okunur
+üyeler VE audience-only (member dokümanı olmayan) okuyucular da tepki verebilir.
+Silinmiş ("herkes için") bir mesaja reaksiyon verilemez.
+
+- Yeni servis fonksiyonu `setMessageReaction` (`assertCanRead` yeter, `assertCanWrite`
+  DEĞİL). Yeni route'lar: `POST .../messages/[messageId]/reactions` (personel +
+  öğrenci). `connect-view.ts::buildMessageViews` ham `reactions` map'ini `reactionCounts`
+  (emoji→sayı, render'a hazır) + `myReaction` (çağıranın kendi seçimi) olarak çözüyor.
+- **UI (hem personel hem öğrenci tam sayfası):** mesaj balonunun hover menüsüne
+  (Düzenle/Sil'in yanına) yeni bir gülen-yüz ikonu eklendi — tıklayınca 6 yaygın
+  emojiden oluşan hızlı-seç panosu açılıyor (`_shared/EmojiPicker.tsx::ReactionQuickPick`,
+  composer'ın `EmojiButton`'ından AYRI, paylaşımlı bileşen). Balonun altında gerçek
+  sayılarla reaksiyon rozetleri (`😂 3`) — kendi reaksiyonun vurgulu, tekrar tıklayınca
+  kaldırır. İyimser (optimistic) güncelleme, hata olursa mesajlar yeniden çekilir.
+  **Widget bu turda da kapsam dışı** (Favoriler/düzenle-sil ile AYNI karar).
+
+**Test:** `scripts/assert-connect.ts`'e 6 yeni assertion (ekle/değiştir/kaldır toggle,
+audience-only okuyucu da verebilir, üye olmayan veremez, silinmiş mesaja verilemez) —
+**63/63 geçti.** `tsc --noEmit` + `npm run build` temiz, 19 assert dosyası (510
+assertion) hâlâ yeşil.
+
+**Kalan Faz 2:** Okundu-tikleri, misafir daveti, dosya ekleri.
+
+---
+
+### ✅ Faz 2 madde 3 — Okundu-tikleri (2026-07-18, aynı oturum)
+
+WhatsApp tek/çift tik, YENİ bir "okundu" kaydı OLMADAN — var olan `Member.lastReadAt`
+(zaten `markRead`/mesaj gönderirken güncelleniyordu) yeniden kullanıldı: bir mesaj
+`isMine` ise ve DİĞER tüm üyelerin `lastReadAt`'i o mesajın `createdAt`'inden SONRA
+ise çift mavi tik (`readByAll`), değilse tek gri tik. Grup/topluluk gibi çok üyeli
+konuşmalarda WhatsApp'taki gibi "HERKES okuyunca" mavi olur.
+
+- `connect-view.ts::buildMessageViews`'e yeni opsiyonel parametre: diğer üyelerin
+  `lastReadAt` listesi. İki messages GET route'u (personel + öğrenci) artık
+  `listMembers` de çağırıp bu listeyi hesaplayıp geçiriyor.
+- UI: mesaj zaman damgasının yanında `Check`/`CheckCheck` ikonu (SADECE kendi
+  mesajında). Yeni servis fonksiyonu/route YOK — tamamen var olan veriden türetildi,
+  bu yüzden hızlı bir ekti.
+
+`tsc --noEmit` + `npm run build` temiz, `assert-connect.ts` 63/63 (değişmedi —
+saf view-katmanı hesaplaması, ayrı test gerektirmedi).
+
+**Kalan Faz 2:** Misafir daveti, dosya ekleri.
+
+---
+
+### ✅ Faz 2 madde 4 — Misafir daveti (2026-07-18, aynı oturum)
+
+Kullanıcı kapsamı netleştirdi: e-postayla YENİ hesap açma YOK (o ayrı/büyük bir iş,
+ertelendi) — misafir = sistemde ZATEN hesabı olan biri (başka bir eğitmen, personel,
+hatta başka bir öğrenci). Backend'de neredeyse hiçbir şey değişmedi çünkü
+`addMember`/`ConnectMemberRole` zaten "guest" rolünü destekliyordu, sadece hiç
+kullanılmıyordu:
+
+- `ConnectMember`'a yeni `guestTitle?: string` (Yardımcı Eğitmen/Gözlemci/Konuk/Veli
+  gibi açıklayıcı rozet — YETKİYİ ETKİLEMEZ, misafir normal üye gibi okur/yazar,
+  ayrı bir kısıtlı izin katmanı bilinçli olarak YOK). `addMember` yeni opsiyonel
+  parametre alıyor, `POST .../members` route'una `guestTitle` eklendi.
+- **UI (personel sayfası, "Bilgi" paneli, SADECE grup türünde + admin'seniz):**
+  "Misafir Ekle" — isim arayınca zaten sayfada yüklü iki dizinden (Personel +
+  eğitmenin kendi Öğrencileri, YENİ bir fetch YOK) sonuç çıkıyor, seçip rozet
+  (Yardımcı Eğitmen vb.) seçip ekliyorsun. Üye listesinde mor "Misafir" rozeti.
+
+**Test:** `scripts/assert-connect.ts`'e 2 yeni assertion — **65/65 geçti.**
+`tsc --noEmit` + `npm run build` temiz, 19 assert dosyası (517 assertion) hâlâ yeşil.
+
+**Kalan Faz 2:** Dosya ekleri (son madde).
+
+---
+
+### ✅ Widget popup taşma bug'ı + Faz 2 madde 5 — Dosya ekleri → **FAZ 2 TAMAMLANDI** (2026-07-18, aynı oturum)
+
+**Önce gerçek bir bug:** kullanıcı widget'ta kısa mesajlarda (özellikle kendi
+mesajlarında) düzenle/reaksiyon popup'ının panelin dışına taştığını bildirdi. Kök
+neden: hover ikonları balonun kenarından SABİT piksel offsetle (`-56`/`-62`)
+konumlandırılıyordu — kısa (veya çok uzun) balonlarda bu sabit offset panelin
+kenarını aşabiliyordu. **Kalıcı çözüm** (widget + personel + öğrenci sayfası,
+üçünde de aynı desen vardı): ikon satırı artık balonun ÜSTÜNDE (`bottom:"100%"`)
+ve balonun KENDİ kenarına hizalı (`[isMine?"right":"left"]:0`, offset YOK) — bu
+balon genişliğinden bağımsız her zaman panel içinde kalır. Alt popup'lar (reaksiyon
+panosu, "..." menüsü) da AYNI mantıkla ikon satırının ÜSTÜNE açılıyor.
+
+**Faz 2 madde 5 — Dosya ekleri:** Araştırma sonucu gerçek altyapı bulundu: FlexOS'ta
+dosyalar Firebase Storage'a DEĞİL, kurumun Google Drive'ına yükleniyor (OAuth2,
+`googledrive.ts`). Ödev eklerindeki "resumable + 256KB chunk-proxy" karmaşıklığı
+BİLİNÇLİ olarak KULLANILMADI (250MB'a kadar büyük dosyalar için gerekliydi) — Connect
+ekleri için basit tek-seferlik yükleme yeterli (`uploadBufferToFolder`), Vercel'in
+4.5MB istek gövdesi sınırı altında kalınarak (`MAX_ATTACHMENT_BYTES = 4MB`).
+
+- `ConnectMessage.attachments?: ConnectAttachment[]` (`driveFileId, webViewLink,
+  fileName, fileSize, mimeType` — assignment eklerinin AYNI şekli). `sendMessage`
+  artık opsiyonel `attachments` parametresi alıyor, **metin BOŞ olabilir eğer ek
+  varsa** (WhatsApp gibi, sadece dosya gönderebilirsin). `lastMessage` önizlemesi
+  ek-only mesajda `📎 {dosyaAdı}` gösterir.
+- Yeni route'lar (`.../messages/attachment` POST, personel + öğrenci): dosyayı Drive'a
+  yükler (`ensureFolderPath(["Flex Connect", conversationId])` + `uploadBufferToFolder`
+  + `setPublicReadPermission`), MIME (`ALLOWED_MIME_TYPES` — assignment'lerle AYNI
+  liste) + boyut (4MB) doğrular, sonra `sendMessage`'ı ek bilgisiyle çağırır.
+- **UI (üç yerde de — personel/öğrenci/widget):** eskiden pasif "yakında" olan ataç
+  ikonu artık GERÇEK dosya seçici (`AttachButton` bileşeni yeniden yazıldı, gizli
+  `<input type=file>`). Dosya seçilince o an yazıda ne varsa altyazı (caption)
+  olarak gider, anında yüklenip gönderilir (spinner). Mesaj balonunda dosya kartı
+  (ikon+ad+boyut), tıklayınca Drive'da yeni sekmede açılır. Görsel önizleme
+  (thumbnail) YOK — bilinçli sadeleştirme, hepsi aynı generic kart.
+
+**Test:** `scripts/assert-connect.ts`'e 3 yeni assertion (ek yokken boş metin
+reddedilir, ek varken kabul edilir, lastMessage önizlemesi dosya adını gösterir) —
+**68/68 geçti.** `tsc --noEmit` + `npm run build` temiz, 19 assert dosyası (523
+assertion) hâlâ yeşil.
+
+---
+
+## 🎉 FAZ 2 TAMAMLANDI (2026-07-18)
+
+Tüm 6 madde bitti: Favoriler/sabitleme, Reaksiyonlar, Okundu-tikleri, Misafir
+daveti, Dosya ekleri, Yazıyor göstergesi (Faz 1'de zaten vardı). Ayrıca bu Faz 2
+turunda plan dışı ama gerçek kullanıcı ihtiyacından doğan büyük ek işler de
+tamamlandı: Kurumsal Audit Log, DM akışının komple yeniden tasarımı (Personel/
+Öğrenciler/Eğitmenlerim dizinleri), Kanal'ın "Personel Kanalı"/"Öğrenci Kanalı"
+ayrımı + gerçek yazma-yetkisi düzeltmesi, Grup'un Sınıf/Personel modu, mesaj
+düzenle/sil (WhatsApp birebir), ve Faz 1-sonu için planlanan Topluluk (community)
+de plandan ÖNCE tam olarak bitirildi.
+
+**Kalıcı olarak kapsam dışı (2026-07-18, kullanıcı kararı):** Flex Connect'e
+dışarıdan katılım YOK — e-posta daveti, telefon numarasıyla ekleme, QR davet, link
+ile gruba katılma. Şirket içinde tek sistem bu olduğu için herkesin zaten FlexOS
+hesabı var; misafir ekleme SADECE var olan hesaplar arasından arama ile olur
+(`guestTitle` salt görsel etiket, yetki değiştirmez). Bu bir "eksik" değil, bilinçli
+tasarım sınırı — tekrar gündeme gelmeyecek.
+
+### ✅ 2 küçük ek madde tamamlandı (2026-07-18, aynı oturum)
+
+- **Dosya eki görsel önizlemesi** — `_shared/AttachmentView.tsx` (yeni paylaşımlı
+  bileşen, 3 sohbet ekranında da kullanılıyor): `image/*` mimeType'lar için Drive
+  `https://drive.google.com/thumbnail?id=...&sz=w500` üzerinden gerçek küçük resim
+  gösterir (public-read zaten açık — `setPublicReadPermission`), yüklenemezse
+  (`onError`) otomatik eski genel dosya kartına düşer. Diğer türler (pdf/doc/zip vb.)
+  değişmeden genel dosya kartı kalır.
+- **Favoriler'in widget karşılığı** — widget'ta rail/tab yapısı olmadığı için tam
+  sayfadaki gibi ayrı bir "star" sekmesi yerine: (1) arama kutusunun yanına tek bir
+  yıldız toggle butonu (`showPinnedOnly`) — listeyi sadece sabitlenenlere filtreler,
+  (2) açık konuşma başlığına küçük bir yıldız butonu — o an açık sohbeti favoriye
+  ekler/çıkarır (`setConversationPinned`, tam sayfayla aynı iyimser-güncelleme
+  deseni). Backend zaten vardı (`ConversationView.pinned`), sadece widget UI eklendi.
+
+### 🎉 DESKTOP TAMAMEN BİTTİ — son 2 madde + izolasyon doğrulaması (2026-07-18, aynı oturum)
+
+Kullanıcı en riskli yerin yetki/izolasyon katmanı olduğunu vurguladı (öğrenci
+şirketin iç yazışmasını görürse felaket). Kod yazmadan önce 3 katman tek tek
+doğrulandı:
+
+1. **Servis katmanı** — `scripts/assert-connect.ts` (76/76 geçti). Kilit fonksiyon
+   `assertMembersMatchRealm`: `resolveUidKind` ÖNCE `persons` koleksiyonuna bakar
+   (varsa "student" döner, `flexosUsers`'da ne yazarsa yazsın) — yani bir uid HEM
+   `persons` HEM `flexosUsers`'da olsa bile güvenli yöne (öğrenci) düşer. `unknown`
+   uid → `ValidationError` (fail-closed, sessizce izin verilmez).
+2. **API katmanı** — `staffPrincipalFromCaller`: çağıranın `persons` kaydı VARSA
+   `null` döner, `withAuth` 403 ile keser — öğrenci `/api/flexos/connect/*` route
+   ailesine (staff realm) HİÇBİR ŞEKİLDE giremez, service fonksiyonları hiç
+   çalışmaz. `studentPrincipalFromRequest`: `personId` + `person.authUid===caller.uid`
+   zorunlu, başkasının personId'siyla asla çalışmaz.
+3. **Firestore rules (ikinci savunma, client raw SDK için)** — `connect_conversations`
+   read: `isConnectMember` (gerçek `members/{uid}` dokümanı) VEYA `realm=="trainer_student"
+   && audience=="all_students"` — realm:"staff" konuşmalar audience dalından ASLA
+   geçemez (alan sabit `realm=="trainer_student"` şartına bağlı). `allow write: if
+   false` her yerde — tüm yazma Admin SDK üzerinden.
+
+Sonuç: öğrenci hiçbir yoldan (server bug'ı hariç) staff realm'e giremez. Kod
+tarafında hiçbir açık bulunmadı, mevcut mimari zaten doğruydu.
+
+Ardından kalan son 2 madde bitirildi:
+
+- **Konuşma meta düzenleme (ad/açıklama)** — `updateConversationMeta` (yeni servis
+  fonksiyonu, `connect-service.ts`), `PATCH /api/flexos/connect/conversations/[id]`
+  (SADECE personel route'u — öğrenci hiçbir zaman owner/admin olamaz, ayrıca
+  route eklenmedi). Yetki: `conversation.admins.includes(principal.uid)` (addMember
+  ile AYNI kural). DM düzenlenemez. `conversation.settings.update` audit action'ı
+  (taksonomide zaten vardı) artık gerçekten kullanılıyor. Personel sayfasında
+  "Bilgi" panelinde Pencil ikonuyla (SADECE admin'e görünür) inline form. (Yayıncı
+  listesi düzenleme UI'ı da bu turda geldi — bkz. aşağıdaki bölüm.) 8 yeni assertion.
+- **Widget'ın kalan sayfalara yaygınlaştırılması** — tek tek ~35 sayfayı elle
+  düzenlemek yerine, ortak `FlexHeader.tsx`'e (tüm personel sayfaları + öğrenci Ana
+  Sayfa'nın kullandığı TEK paylaşımlı bileşen) yeni `connectPersonId?` prop'uyla
+  `<ConnectWidget>` gömüldü — widget zaten `position:fixed` bir FAB olduğu için
+  header'ın kendi layout'unu hiç etkilemez. Tek satırlık bir değişiklik ~35 sayfaya
+  otomatik yayıldı. Personel sayfalarında prop verilmez (`/api/flexos/connect/*`),
+  öğrenci Ana Sayfa'da `connectPersonId={personId}` verilir (`/api/flexos/student/
+  connect/*`). Önceki 2 elle-gömme (`egitmen-anasayfa`, öğrenci Ana Sayfa) kaldırıldı
+  (çifte widget olmasın diye). Flex Connect'in KENDİ 2 tam sayfası (`connect/page.tsx`,
+  öğrenci `connect/page.tsx`) zaten FlexHeader KULLANMIYOR — o yüzden onlarda widget
+  otomatik ÇIKMAZ (istenen davranış, zaten mesajlaşma ekranındasın). Öğrencinin ödev
+  detay sayfası (`student/[personId]/[assignmentId]`) kendi özel header'ını kullandığı
+  için kapsam dışı bırakıldı (ayrı, küçük bir iş — istenirse sonra eklenir).
+
+**Desktop artık TAMAMEN bitti** — Faz 1, Faz 1-sonu (Topluluk), Faz 2 (6 madde),
++ bu son 2 madde. Kalan tek şey Faz 3 (PWA mobil), henüz tasarım bekleniyor.
+
+### ✅ Menü dışına tıklayınca kapanma + Kanal/Grup/Topluluk yönetimi genişletildi (2026-07-18, aynı gün devamı)
+
+**Bug fix — boş yere tıklayınca menüler kapanmıyordu:** header "..." menüsü,
+mesaj "..." menüsü, reaksiyon seç panosu — hiçbiri dışarı tıklayınca kapanmıyordu.
+Yeni paylaşımlı hook `_shared/useCloseDropdownsOnOutsideClick.ts` (tek `mousedown`
+dinleyici, `data-connect-dropdown` attribute'u dışına her tıklamada verilen TÜM
+kapatma fonksiyonlarını çağırır) 3 sohbet ekranının hepsine eklendi.
+
+**Kullanıcı bulgusu — "sadece isim değil, üye ekleme/çıkarma ve silme de olmalı":**
+Düzenleme özelliği gerçekten çok dar kalmıştı, aynı oturumda genişletildi:
+
+- **Silme (kanal/grup/topluluk)** — `deleteConversation` (yeni servis fonksiyonu),
+  `DELETE /api/flexos/connect/conversations/[id]`. Yetki: **SADECE owner** (admin/
+  Yayıncı yeterli değil — en yüksek yetki, addMember/removeMember'daki admin
+  kuralından daha sıkı). DM silinemez (zaten "ayrıl" var). Alt-koleksiyonlar
+  (`members`/`messages`/`typing`) `connect-repo.firestore.ts`'de `adminDb.
+  recursiveDelete(ref)` ile temizlenir — ESKİDEN sadece parent doc siliniyordu,
+  yetim alt-doküman kalıyordu (bu turda fark edilen gerçek bug). Drive'daki
+  `Flex Connect/{id}` eki klasörü de best-effort silinir. Topluluk silinince
+  paketlediği grup konuşmaları ETKİLENMEZ (bağımsız kayıtlar). UI: header "..."
+  menüsünde "Kanalı/Grubu/Topluluğu Sil" (SADECE owner'a görünür, `window.confirm`
+  ile onay — codebase'teki mevcut desen).
+- **Üye ekle/çıkar (misafir dışında normal üye de)** — "Misafir Ekle" bölümü
+  "Üye/Misafir" rol seçenekli hale geldi (backend zaten `role` parametresi
+  destekliyordu, sadece UI kısıtlıydı), kapsam grup'tan kanala da genişledi. Üye
+  listesindeki her satıra (sahip HARİÇ) "Çıkar" (X) butonu eklendi — `removeMember`
+  servis fonksiyonu zaten vardı, sadece client wrapper (`removeConversationMember`)
+  + UI eksikti.
+- **Kanal: Yayıncı ekle/çıkar** — "Düzenle" formuna (channel type'ta) staff
+  checkbox listesi eklendi, `detail.admins`'ten (yeni `ConversationDetail.admins`/
+  `ownerUid` alanları) seed edilir. Gerçek bug fix: `updateConversationMeta`
+  `adminUids` değiştiğinde artık YENİ Yayıncı için `members/{uid}` dokümanı da
+  oluşturuluyor (`role:"admin"`) — ESKİDEN sadece `conversation.admins[]` diziye
+  ekleniyordu, Firestore rules `isConnectMember` buna bakmadığı için yeni Yayıncı
+  admins'e girse de KENDİ mesajlarını bile okuyamıyordu (yazabiliyordu ama
+  göremiyordu — sessiz, ciddi bir UX bug'ıydı). Yayıncılıktan çıkarılan kovulmaz,
+  sadece "admin" rozeti "member"e geri düşer (WhatsApp'ta da öyle).
+- **Topluluk: sonradan yeni grup ekleme** — `updateConversationMeta`'ya `childIds`
+  desteği eklendi (tam liste replace, ≥2 grup + tip="group" + tenant eşleşmesi
+  doğrulanır). **Kritik mimari bulgu:** Topluluk kaydının `childIds`'i hiçbir yerde
+  OKUNMUYORDU — gerçek erişim, toplulukla birlikte oluşturulan ayrı "Genel Duyuru"
+  kanalının `readerUids`'inden geliyor, ikisi birbirine hiç bağlı değildi (sadece
+  isimle eşleşiyorlardı). Sadece `childIds` güncellemek yeni grubun öğrencilerine
+  HİÇBİR ŞEY kazandırmıyordu (sessiz, yanıltıcı bir "çalışıyormuş gibi görünen"
+  özellik olurdu). Kullanıcıya bu soruldu → **"gerçek bağ kur"** seçildi. Çözüm:
+  yeni alan `ConnectConversation.announcementChannelId` (topluluk oluşturulurken
+  Genel Duyuru kanalının id'si kaydedilir) + `updateConversationMeta` artık
+  `childIds`'e YENİ eklenen her grubun rosterini bu kanala GERÇEKTEN okuyucu
+  (`members/{uid}`, `role:"member"`) olarak ekliyor. Grup çıkarılırsa okuyucu
+  OTOMATİK silinmez (kasıtlı — başka yoldan erişimi olabilir, güvenli taraf).
+  UI: Bilgi panelinde "Yeni Grup Ekle" (kendi sınıflarım listesi, tıklayınca
+  sınıf-odası dedup'la oluşturulur/bulunur + topluluğa eklenir). Eski (bu alan
+  olmadan kurulmuş) topluluklarda uyarı gösterilir ("otomatik göremez").
+- **Doğrulama:** 76→96 assertion (silme/üye-admin-senkron/childIds/
+  announcementChannelId hepsi test edildi), 0 başarısız.
+
+### 🎉🎉 DESKTOP KESİN TAMAMLANDI — mesaj popup'ları + "oluştur" tarzı düzenleme modalı (2026-07-18, aynı gün sonu)
+
+Yukarıdaki menü/z-index bug'ı 3 kez farklı belirtiyle geri geldi (header'ın
+altında, bir sonraki mesajın altında) — kök neden CSS-relative `position:
+absolute` konumlamanın scrollable konteynerin clipping/stacking-context
+davranışına bağımlı olmasıydı. **Kesin çözüm:** reaksiyon panosu + Düzenle/Sil
+menüsü artık `position:fixed` + `document.body`'ye **portal** ile açılıyor
+(`_shared/popoverPosition.ts` — tıklanan butonun gerçek viewport koordinatından
+yukarı/aşağı yön hesaplar), 3 ekranın hepsinde (personel/öğrenci/widget).
+İkon satırı hover'da görünür (tıklama gerekmez), mesaj satırının kendisi
+`hover:z-[60]` ile öne çıkar.
+
+Ardından kullanıcı "Düzenle" akışını da yeniden istedi — Bilgi panelindeki
+inline form yerine **"oluştur" modalıyla birebir aynı görünümde ayrı bir
+modal** (`page.tsx` içinde inline JSX, header'da Bilgi'nin SOLUNA eklenen
+kalem butonuyla açılır). Kanal/Grup/Topluluk hepsinde ad+açıklama, kanalda
+ayrıca Yayıncı checkbox'ı, toplulukta ayrıca mevcut gruplar + "Yeni Grup Ekle"
+(Bilgi panelinden BURAYA taşındı). İlk versiyonda modal açılışı `GET .../[id]`
+fetch'ini bekliyordu (~1sn gecikme) — **kök çözüm:** `admins`/`ownerUid`/
+`childIds`/`announcementChannelId`/`description` konuşma LISTESI API'sine
+(`connect-view.ts::ConnectConversationView`) eklendi — bu veri zaten sunucuda
+mevcuttu, ayrı bir istek hiç gerekmiyormuş. Modal artık **tamamen senkron**
+açılıyor, `updateConversationMeta` de güncellenmiş `admins`/`childIds`'i
+response'ta döndürüp `conversations` state'ine doğrudan yazıyor (yeniden
+fetch yok).
+
+**Desktop artık kesinlikle bitti** — Faz 1, Faz 1-sonu, Faz 2 (6 madde), 2 küçük
+madde, silme/üye-yönetimi/Yayıncı/Topluluk-grup-ekleme, ve şimdi de mesaj
+popup'ları + düzenleme modalı. Kalan tek şey Faz 3 (PWA mobil, tasarım bekliyor)
++ öğrencinin ödev-detay sayfasına widget eklenmesi (ayrı, küçük, istenirse
+sonra).
+
+---
+
+### ✅ İlk mesaj popup'ı + gerçek yükleme yüzdesi (2026-07-18, aynı oturum)
+
+Bir önceki turdaki "popup balonun üstüne aç" fix'i YENİ bir bug açtı: konuşmanın
+EN ÜSTÜNDEKİ mesajda (üstünde başka mesaj/boşluk yoksa) yukarı açılan popup
+başlığın arkasında kalıp erişilemez oluyordu — kullanıcı bulgusu. **Çözüm: yön artık
+dinamik** — `i > 0` (ilk mesaj DEĞİLSE) yukarı açılır, ilk mesajda İSTİSNAİ olarak
+aşağı açılır (`openMenuUpward`/`i>0` her üç dosyada — widget/personel/öğrenci).
+Karmaşık bir "gerçek boşluk ölç" (collision detection) yerine bilinçli basit bir
+sezgisel kural — pratikte yeterli, sadece ilk mesaj özel durum.
+
+**Ayrıca kullanıcı isteği: dosya yüklerken gerçek yüzde göstersin.** `fetch` upload
+progress vermiyor — `connectClient.ts::sendMessageWithAttachment` artık `XMLHttpRequest`
+kullanıyor (`upload.onprogress`), gerçek `%0-100` client'a akıyor. `AttachButton`
+artık spinner değil gerçek sayı gösteriyor (`%37` gibi), yüklenirken pasif.
+
+`tsc --noEmit` + `npm run build` temiz, `assert-connect.ts` 68/68 (bu ikisi saf
+UI/client-side, backend değişmedi).
+
+---
+
+### ✅ "Herkes için sil" artık Drive'daki dosyayı da GERÇEKTEN siliyor (2026-07-18, aynı oturum)
+
+Kullanıcı bulgusu — GERÇEK bir bug: dosya ekli bir mesaj "herkes için" silinince
+Firestore'daki mesaj `deletedForEveryone:true` oluyordu ama **Drive'daki gerçek
+dosya hiç silinmiyordu** — yetim (orphan) kalıyordu, hem gereksiz depolama hem
+(dosya URL'i biri tarafından not alınmışsa) potansiyel erişim riski. Düzeltildi:
+
+- `deleteMessageForEveryone` artık SİLİNMEDEN ÖNCEKİ mesajı (attachments dahil)
+  döndürüyor VE Firestore'daki kayıttan `attachments` alanını da temizliyor.
+- Her iki DELETE route'u (personel + öğrenci) artık dönen ekleri `deleteFromDrive`
+  ile Drive'dan da siliyor — best-effort (`Promise.allSettled`, bir Drive hatası
+  asıl silme işlemini ASLA geri almaz, sadece loglanır).
+- **"Benim için sil" Drive'a DOKUNMAZ** (bilinçli — dosya diğerleri için hâlâ geçerli,
+  sadece "herkes için sil" gerçek/kalıcı silme anlamına gelir, WhatsApp'taki gibi).
+
+**Klasör yapısı netleştirildi (kullanıcı vurguladı — kesin ayrım gerekiyordu):**
+`{Drive kökü}/Flex Connect/{conversationId}/...` — ödev eklerinin kullandığı
+`{Drive kökü}/{grup}/{ödev}/{öğrenci}/...` yapısından TAMAMEN ayrı bir isim/dal,
+aynı paylaşımlı kök altında ama asla kesişmez (zaten baştan böyle kurulmuştu, bu
+turda sadece doğrulandı/netleştirildi).
+
+**Yükleme yüzdesinin bazen direkt %100 görünmesi:** Bug değil — küçük dosyalarda
+(birkaç yüz KB) tarayıcı yükleme o kadar hızlı bitiyor ki ara yüzde event'i hiç
+gelmeden tek seferde %100'e atlıyor (fiziksel bir sınır, `XMLHttpRequest`'in kendi
+davranışı). Büyük/yavaş bağlantıda gerçek artan yüzde görünür.
+
+`tsc --noEmit` + `npm run build` temiz, `assert-connect.ts` 68/68 hâlâ yeşil,
+19 assert dosyası regresyon vermedi.
+
+---
+
+### ✅ Mesaj düzenle/sil/reaksiyon/okundu-tikleri widget'a taşındı (2026-07-18, aynı oturum)
+
+Kullanıcı sordu: "en son yapılanları widget'ta da yapalım, neden eksik, uzun mu sürer."
+Backend zaten paylaşımlıydı (`connectClient.ts`), sadece UI'ya bağlanmamıştı — hızlı bir
+port oldu. `ConnectWidget.tsx`'in mini mesaj balonuna tam sayfayla AYNI davranış eklendi:
+hover'da beliren Sil/Düzenle menüsü + reaksiyon hızlı-seç panosu + reaksiyon rozetleri +
+tek/çift okundu tiki + "düzenleme modu" composer şeridi. Daha dar panel (380px) için
+ikon/menü boyutları küçültüldü (22px ikon kutuları, 12px yazı) ama mantık birebir aynı.
+
+**Favoriler widget'ta HÂLÂ yok** — o ayrı bir konu: widget'ta rail/sekme kavramı yok
+(sadece düz liste + arama), "Favoriler" için ekrana nasıl bir giriş noktası ekleneceği
+ayrı bir küçük tasarım kararı gerektiriyor (ör. arama kutusunun yanına bir filtre ikonu).
+İstenirse ayrı bir turda eklenir.
+
+`tsc --noEmit` + `npm run build` temiz, `assert-connect.ts` 63/63 (backend değişmedi).
+
+---
+
+### ✅ Mesaj düzenle/sil — WhatsApp birebir (2026-07-18, aynı oturum)
+
+Kullanıcı isteği: "aynı whatsapp gibi, birebir." İki silme modu + düzenleme:
+
+- **Düzenle:** SADECE yazar. `ConnectMessage.editedAt` (zaten tipte vardı, hiç
+  kullanılmıyordu) artık gerçekten set ediliyor; UI zaman damgasının yanında
+  "Düzenlendi" gösteriyor. Silinmiş ("herkes için") bir mesaj düzenlenemez.
+- **"Herkes İçin Sil"** — SADECE yazar. `text` kalıcı temizlenir + `deletedForEveryone:
+  true`, HERKESTE "Bu mesaj silindi" (italik gri) placeholder'ı görünür.
+- **"Benim İçin Sil"** — yetki gerekmez, yazar dahil HERKES kullanabilir. Yeni
+  `hiddenFor: string[]` alanı — SADECE o kişinin `listMessages` sonucundan filtrelenir,
+  mesaj diğerleri için hiç değişmez.
+- `ConnectConversation.lastMessage`'a `messageId` eklendi — düzenlenen/silinen mesaj
+  o an listede gösterilen ÖNİZLEME ise (liste ekranındaki son mesaj satırı) önizleme
+  de senkron güncelleniyor (düzenlemede yeni metin, "herkes için sil"de "Bu mesaj silindi").
+- Yeni repo metodu `ConnectRepo.getMessage`. Yeni servis fonksiyonları: `editMessage`,
+  `deleteMessageForEveryone`, `deleteMessageForMe`. Yeni route'lar: `PATCH`/`DELETE
+  ?scope=everyone|me` — hem `/api/flexos/connect/conversations/[id]/messages/
+  [messageId]` (personel) hem öğrenci karşılığı.
+- **UI (hem personel hem öğrenci tam sayfası):** mesaj balonunun üzerine gelince
+  (`group`/`group-hover` — hover'da beliren "..." ikonu) küçük bir menü: kendi
+  mesajında Düzenle/Herkes İçin Sil/Benim İçin Sil, başkasının mesajında sadece
+  Benim İçin Sil. Düzenle composer'ı "düzenleme moduna" alır (üstte "Mesajı
+  düzenliyorsun" şeridi + iptal). **Widget (mini pencere) bu turda kapsam dışı**
+  (Favoriler'de olduğu gibi — widget'a yaygınlaştırma ayrı, daha ucuz bir iş).
+
+**Test:** `scripts/assert-connect.ts`'e 9 yeni assertion (yazar olmayan düzenleyemez/
+silemez, düzenleme lastMessage'ı günceller, silinen mesaj düzenlenemez, "benim için
+sil" SADECE çağırandan kaybolur diğerleri normal görür) — **57/57 geçti.**
+`tsc --noEmit` + `npm run build` temiz, 19 assert dosyası (504 assertion) hâlâ yeşil.
+
+---
+
+### ✅ Kanal = "Personel Kanalı" | "Öğrenci Kanalı" + gerçek bug fix'ler (2026-07-18, aynı oturum)
+
+Kullanıcı 3 ayrı şey bildirdi: (1) Kanal oluşturdaki "Yayıncılar" listesi de diğerleri
+gibi liste+checkbox olsun (chip grid değil) — yapıldı. (2) "Yayıncılar ne demek,
+kimlerin duyuru yapabileceğini mi anlatıyor?" sorusuna cevap ararken GERÇEK bir bug
+bulundu: seçilen "Yayıncılar" `admins[]`'e hiç eklenmiyordu, SADECE oluşturan admin
+oluyordu — seçilenler sessizce salt-okunur "member" kalıyordu (isim/davranış
+uyuşmuyordu). (3) Kullanıcı bunun üzerine mimariyi netleştirdi: **Kanal artık 2
+alt-türle başlıyor — "Personel Kanalı" | "Öğrenci Kanalı".**
+
+- **Personel Kanalı** (`realm:"staff"`, yeni `broadcastToAllStaff:true`): TÜM aktif
+  personel OTOMATİK okuyucu/member olur — server `flexosUsers.list()` ile KENDİSİ
+  hesaplar (client'a güvenilmez, `isStudentsOwnTrainer` ile AYNI ilke). Seçilen
+  Yayıncılar `admins[]`'e girer (gerçekten yazabilir), seçilmeyenler salt-okunur kalır.
+- **Öğrenci Kanalı** (`realm:"trainer_student"`, `audience:"all_students"` — eski
+  "Tüm öğrencilere aç" toggle'ının yerini aldı): TÜM öğrenciler mevcut audience
+  mekanizmasıyla otomatik okur, seçilen Yayıncılar (personel dizininden, örn.
+  "Aysun Kaya — Öğrenci İşleri Sorumlusu") admins'e girip yazar.
+- **"Tüm personele aç" için Firestore-rules tabanlı bir audience DEĞERİ eklenmedi**
+  (ör. `all_staff`) — bilinçli mimari karar: rules seviyesinde "bu uid öğrenci mi"
+  sorgusu yapılamıyor (`persons` koleksiyonu authUid ile değil personId ile
+  keyleniyor, rules sadece `get()`/`exists()` yapabilir, query yapamaz), yani böyle
+  bir audience değeri EKLENSEYDİ bir öğrencinin ham Firestore SDK ile (`onSnapshot`)
+  staff kanalını doğrudan okuyabilmesi gibi GERÇEK bir izolasyon açığı olurdu.
+  Onun yerine Topluluk'un "Genel Duyuru" kanalıyla AYNI, zaten güvenli desen
+  kullanıldı: gerçek `member` dokümanları materyalize edilir (`isConnectMember`
+  rule'u zaten var, yeni risk yok).
+- Grup/Topluluk listelerindeki `minHeight`/`maxHeight` uyuşmazlığı (200/220 gibi)
+  DÜZELTİLDİ — Kanal panelini yeniden yazarken yanlışlıkla bu uyuşmazlık oradan da
+  kopyalanmıştı, "veri gelince modal 1sn sonra yükseliyor" bug'ı BUYDU (daha önce
+  chip grid'de çözülmüştü, liste tasarımına geçerken tekrar bozulmuştu). Artık
+  Kanal + Grup/Personel ikisinde de 200/200 sabit.
+
+**Test:** `scripts/assert-connect.ts`'e 5 yeni assertion (seçilmeyen personel otomatik
+okuyucu olur ama admin değildir/yazamaz, seçilen Yayıncı admin olur ve gerçekten
+yazabilir) — **43/43 geçti.** `tsc --noEmit` + `npm run build` temiz, 19 assert
+dosyası (490 assertion) hâlâ yeşil.
+
+---
+
+### ✅ Topluluk davranışı doğrulandı + GERÇEK bir yazma-yetkisi bug'ı bulundu/düzeltildi (2026-07-18, aynı oturum)
+
+Kullanıcı Topluluk'un WhatsApp topluluğuyla aynı olup olmadığını sordu: "Genel Duyuru'yu
+SADECE ben yazarım, öğrenci yazamaz; ama gruplara ayrı ayrı da yazabilirim; gruplar
+birbirini göremez." Doğrularken **gerçek bir bug** bulundu: Topluluk'un otomatik
+"Genel Duyuru" kanalı oluşturulurken bundled sınıfların TÜM öğrenci roster'ı
+`memberUids` olarak gönderiliyordu — ama channel tipinde `memberUids` artık (bir
+önceki turdaki "Yayıncılar" fix'i yüzünden) `admins[]`'e giriyor, yani **öğrenciler
+de yanlışlıkla yazabilir hale geliyordu.** Kullanıcının istediğinin TAM TERSİ.
+
+**Fix — `CreateConversationInput`'a yeni `readerUids?: string[]` alanı:** SADECE
+type==="channel" için, admin/Yayıncı OLMADAN salt-okunur üye eklemek için (`memberUids`
+= yazarlar/admins, `readerUids` = okuyucular). Topluluk'un Genel Duyuru kanalı artık
+`memberUids: []` (Yayıncı yok, sadece eğitmen/owner yazar) + `readerUids: [...union
+roster]` (bundled sınıfların öğrencileri okur, yazamaz) gönderiyor.
+
+**Doğrulanan/test edilen gerçek davranış (kullanıcının 3 maddesi):**
+1. Genel Duyuru — SADECE eğitmen yazar, bundled sınıfların öğrencisi okur ama YAZAMAZ.
+2. Eğitmen bundled sınıfların HER BİRİNE ayrı ayrı da yazabilir (kendi "sınıf odası"
+   grup konuşması, `writePolicy:"members"`, zaten üye/owner).
+3. Bundled gruplar birbirini GÖREMEZ — her biri ayrı `connect_conversations` dokümanı,
+   ayrı `members` alt-koleksiyonu; Grafik-1'deki öğrencinin Grafik-2'de üyelik kaydı
+   hiç yok, bu YAPISAL olarak zaten garanti (ekstra kod gerekmedi).
+
+**Test:** `scripts/assert-connect.ts`'e 5 yeni assertion (Genel Duyuru'da öğrenci
+yazamaz/okur, eğitmen her iki bundled gruba da ayrı ayrı yazabilir, gruplar arası
+izolasyon) — **48/48 geçti.** `tsc --noEmit` + `npm run build` temiz, 19 assert
+dosyası (495 assertion) hâlâ yeşil.
 
 ---
 
@@ -312,6 +778,16 @@ path'iyle birebir eşleşti, artık gerçek `ExternalLink` ikonu kullanılıyor.
 
 `tsc --noEmit` + `npm run build` temiz. Sadece personel tam sayfası + widget
 etkilendi (öğrenci tam sayfasında zaten küçült/menü header'ı yok).
+
+**Sonradan düzeltme (aynı oturum, kullanıcı UX spesifikasyonu verdi):** FAB'a
+DOĞRUDAN tıklama artık HER ZAMAN tam ekran açıyor (varsayılan davranış). Mini
+pencere artık SADECE masaüstünde (`matchMedia("(hover: hover) and (pointer: fine)")`)
+FAB'ın üzerine gelince çıkan bir hover popover'daki "Mini Sohbeti Aç" seçeneğinden
+açılıyor — ileri kullanıcı kısayolu. Mobilde hover yok, tıklama zaten tam ekrana
+gider. Widget zaten açıkken FAB'a tıklama onu kapatır (X, değişmedi). Terminoloji
+netleşti: mini penceredeki "Tam Ekrana Geç" (`ExternalLink`), tam ekrandaki
+"Mini Moda Geç" (eski "Küçült", davranış AYNI — `requestConnectWidgetReopen` +
+`router.back()`).
 
 ---
 
@@ -605,8 +1081,114 @@ misafir daveti (guest role: yardımcı eğitmen/veli/konuk) · dosya ekleri (mev
 upload altyapısı reuse) · yazıyor göstergesi.
 
 ### FAZ 3 — PWA mobil
-Çizimler gelince. AYNI backend/veri, ayrı responsive arayüz (WhatsApp-tarzı liste→tam ekran).
-manifest.json + service worker + "Ana Ekrana Ekle". Backend DEĞİŞMEZ.
+Çizimler HAZIR (2026-07-18) — AYNI backend/veri, ayrı responsive arayüz (WhatsApp-tarzı liste→tam ekran).
+manifest.json + service worker + "Ana Ekrana Ekle". Backend DEĞİŞMEZ — yeni bir
+altyapı kurulmayacak, sadece yeni UI katmanı.
+
+**Push notification — SONA bırakıldı (2026-07-18, kullanıcı kararı):** Mesaj
+geldiğinde öğrenciye bildirim gitmesi KESİN gerekiyor ("normalde aslında olacak,
+mutlaka" — **"whatsapp gibi düşün, aynısı olacak"**: app kapalı/arka plandayken
+bile sistem bildirimi düşer, gönderen adı + mesaj önizlemesi görünür, dokununca
+o sohbet açılır) ama Faz 3'ün İLK işi değil — UI bittikten sonra en son
+eklenecek. Gerçek yeni altyapı gerektiren TEK parça budur (service worker push
+subscription + backend'de token saklama/tetikleme, Web Push standardı). Mevcut
+`NotificationBell`/`/users/{uid}/notifications` sistemi (bkz. hafıza
+`notification_system_status`) ayrı bir sistem (ödev duyuruları için, uygulama
+İÇİNDEYKEN zil ikonu) — WhatsApp tarzı push, app KAPALIYKEN de çalışması
+gerektiği için ayrı/ek bir mekanizma (service worker), tasarımlar gelince netleşir.
+Ayrıca: bildirim kapatılsa/silinse BİLE uygulama ikonunda okunmamış sayısı rozet
+olarak kalmalı (WhatsApp'taki ikon rozeti) — bu, push'tan BAĞIMSIZ ayrı bir API
+(Badging API, `navigator.setAppBadge(count)`), aynı "en sona" kapsamına dahil.
+
+**PWA ikonu:** Şimdilik GEÇİCİ bir ikon kullanılacak (kullanıcı: "masaüstü ikonu
+geçici yaparız şimdilik") — final marka ikonu sonra gelir, `manifest.json`
+kurulumunu bloklamaz.
+
+### ✅ Faz 3 — Mobil UI ilk turu kuruldu (2026-07-18, aynı gün)
+
+Tasarım dosyaları (`Flex Connect Mobil.dc.html` + `support.js`) incelendi, kullanıcı
+"BİREBİR aynı, yorum katma, düzenlemeleri sonra yaparız" dedi. 2 mimari karar
+netleştirildi: (1) **ayrı route** `src/app/flexos/connect/mobile/page.tsx` (PWA
+manifest'i kendi scope'una sahip olsun diye, masaüstü sayfayı hiç etkilemez), (2)
+**splash/login YOK** — FlexOS zaten oturum açtırıyor, PWA açılınca direkt sekmeli
+uygulamaya girer (tasarımdaki login demo/inceleme amaçlıydı).
+
+**Gerçek veriyle bağlı (tam çalışır):** 4 sekme (Sohbetler/Kanallar/Personel/
+Ayarlar — `fetchConversations`/`fetchDirectory`), Kanallar sekmesi gerçek
+realm+type kombinasyonuna göre 5 bölüme ayrılır (Kurum Duyuruları=channel+staff,
+Öğrenci İşleri=channel+trainer_student, Sınıf Kanalları=group+trainer_student,
+Personel Grupları=group+staff [tasarımda yoktu, gerçek veri kaybolmasın diye
+eklendi], Topluluklar=community), sohbet detayı (gerçek mesaj/gerçek-zamanlı/
+gerçek yazıyor-göstergesi [tasarımdaki sabit-açık göstergeydi, DÜZELTİLDİ],
+okundu-tiki, reaksiyon/dosya eki GÖSTERİMİ, gün ayırıcı, mesaj gruplama), Kanal/
+Grup/Topluluk oluşturma (gerçek `createConversation`, Topluluk'ta masaüstüyle
+AYNI çok adımlı akış — sınıf odası dedup + Genel Duyuru + announcementChannelId),
+Personel dizininden dokununca DM aç/oluştur (masaüstündeki `openDirectMessage`
+ile AYNI mantık), tema (Sistem/Light/Dark, gerçek `matchMedia`), çıkış (gerçek
+`signOut`), profil kartı (gerçek `users/{uid}` adı, FlexHeader ile AYNI desen).
+
+**Bilinçli olarak ATLANAN (backend karşılığı yok / tasarımda da pasif —
+kullanıcı: "düzenlemeleri sonra yaparız"):** presence (çevrimiçi/derste/rahatsız
+etmeyin — Connect'te hiç presence altyapısı yok), Personel'de departman
+gruplaması (DirectoryUser'da departman alanı yok, düz liste), "çalışma saatleri
+dışı" uyarı banner'ı (gerçek çalışma-saati kaydı yok), composer'daki emoji/ek
+ikonları (tasarımda da onClick YOK, salt görsel — masaüstündeki tam çalışan
+dosya eki BİLEREK bağlanmadı), mesaj düzenle/sil/reaksiyon-EKLEME (tasarımın
+kendisinde bu etkileşim hiç yok, sadece var olan reaksiyonlar gösteriliyor),
+kanalda "Herkes Yazabilir" izni (backend'de kanal writePolicy her zaman
+"admins" — mevcut domain modelinde karşılığı yok, toggle görsel duruyor),
+Bildirimler ekranı (sadece UI + local state — push altyapısı en sona bırakıldı).
+
+**Bilgi mimarisi düzeltmesi (2026-07-18, kullanıcı kararı — "whatsapp gibi
+düşün"):** İlk turda "Sohbetler" SADECE DM'leri gösteriyordu, kanal/grup/topluluk
+sadece "Kanallar" tabında görünüyordu (tasarımın KENDİ `submitCreate` kodu da
+bu konuda çelişkiliydi: grup/topluluk oluşturunca 'chats' tabına yönlendiriyordu
+ama statik liste onları hep 'channels'ta gösteriyordu — muhtemelen demo'nun
+kusuru). Kullanıcı netleştirdi: **"Sohbetler" WhatsApp'ın "Chats" ekranı gibi
+TEK BİRLEŞİK liste olacak** — DM+Grup+Kanal+Topluluk hepsi birlikte, en son
+mesaja göre sıralı (`fetchConversations` zaten bu sırayla döner), tıklayınca
+AYNI sohbet ekranı açılır. **"Kanallar" tabı KALDI** — ayrıca kategorize/keşfet
+görünümü olarak (masaüstündeki gibi bölümlere ayrılmış), aynı konuşmalar HER
+İKİ yerde de görünüyor. Personel sekmesine de aynı gün bir **Personel/Öğrenciler
+segment toggle** eklendi (masaüstünde ayrı rail sekmeleri "Personel"/
+"Öğrenciler" var, mobilde 5. bir alt-tab açmak yerine aynı tab içinde geçiş —
+öğrenciye dokununca `trainer_student` realm'inde DM açılıyor/oluşturuluyor,
+`openDirectMessage` masaüstüyle aynı mantık).
+
+**Henüz YAPILMAYAN (Faz 3'ün geri kalanı):** `manifest.json` + service worker
+kaydı + "Ana Ekrana Ekle", push notification + App Badge (bilinçli en sona
+bırakıldı), PWA ikonu (geçici bile henüz yok). Tip kontrolü/lint temiz. Kullanıcı
+tarayıcıda GÖRSEL olarak henüz doğrulamadı (bu ortamda tarayıcı testi yok).
+
+### ✅ PWA altyapısı kuruldu — manifest + service worker + geçici ikon (2026-07-18, aynı gün)
+
+- **Manifest** — `public/manifest-connect-mobile.json` (ayrı isimli, ana FlexOS'un
+  ileride kendi manifest'i olursa çakışmasın diye). `start_url`/`scope`:
+  `/flexos/connect/mobile` — SADECE bu route'u kapsar. `display:"standalone"`,
+  `theme_color:"#2867bd"`.
+- **Geçici ikon** — statik dosya yerine `src/app/api/pwa/connect-mobile-icon/
+  route.tsx` (`next/og` `ImageResponse`, `?size=192|512`) — mavi kare zemin +
+  beyaz "FC" harfleri. Final marka ikonu gelince bu route (ya da statik hale
+  getirilmiş versiyonu) değiştirilir, manifest'teki referans aynı kalır. `curl`
+  ile doğrulandı: gerçek 192×192 ve 512×512 PNG dönüyor.
+- **Service worker** — `public/sw-connect-mobile.js`, SADECE kurulabilirlik
+  kriterini karşılayacak minimal bir `fetch` handler'ı var (gerçek offline/cache
+  stratejisi YOK — kasıtlı, bayat önbellek riskini şimdiden almamak için).
+  `layout.tsx`'te (SADECE bu route'a özel, masaüstünü etkilemez) sayfa içinden
+  `navigator.serviceWorker.register(..., { scope: "/flexos/connect/mobile/" })`
+  ile kaydediliyor.
+- **`layout.tsx`** — Next.js Metadata API (`manifest`, `appleWebApp`, `viewport`
+  → `viewportFit:"cover"` + `themeColor`) — Android VE iOS "Ana Ekrana Ekle"
+  için gerekli meta'lar.
+- **Doğrulama:** `curl` ile manifest/ikon/SW route'larının hepsi 200 döndüğü ve
+  ikonun gerçek PNG olduğu doğrulandı. Bilinen zararsız not: `tsc --noEmit`,
+  Next'in dev-modu otomatik ürettiği `.next/dev/types/validator.ts` dosyasında
+  (git'e hiç girmeyen, `.next/` içinde, build artifact) geçici bir tip uyuşmazlığı
+  gösteriyor — sayfa runtime'da GERÇEKTEN çalışıyor (curl 200), dev server
+  yeniden başlatılınca kendiliğinden düzelir, gerçek bir kod hatası DEĞİL.
+
+**Hâlâ eksik:** Push notification + App Badge (bilinçli en sona), final marka
+ikonu, kullanıcının kendi cihazında GÖRSEL/kurulum testi.
 
 ---
 

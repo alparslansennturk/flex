@@ -1,5 +1,6 @@
 import type { ISODateTime } from "../base";
 import type {
+  ConnectAttachment,
   ConnectConversation,
   ConnectConversationType,
   ConnectMember,
@@ -129,8 +130,26 @@ export interface CreateConversationInput {
   memberUids: string[]; // oluşturanı İÇERMEZ — otomatik owner olarak eklenir
   audience?: "all_students";
   childIds?: string[]; // sadece type==="community"
+  /** SADECE type==="community" (2026-07-18) — bkz. `ConnectConversation.announcementChannelId`. */
+  announcementChannelId?: string;
   /** SADECE type==="group" && realm==="trainer_student" — bkz. `ConnectConversation.sourceGroupId`. */
   sourceGroupId?: string;
+  /**
+   * SADECE type==="channel" && realm==="staff" (2026-07-18 kullanıcı isteği:
+   * "Personel Kanalı" — herkes okur, seçilen Yayıncılar yazar). TÜM aktif personel
+   * otomatik okuyucu/member yapılır — server KENDİSİ hesaplar (`flexosUsers.list`),
+   * client'a güvenilmez. `memberUids` (Yayıncılar) bunların write/admin hakkı
+   * almasını sağlar, okuyucu listesini BELİRLEMEZ.
+   */
+  broadcastToAllStaff?: boolean;
+  /**
+   * SADECE type==="channel" — admin/Yayıncı OLMADAN, salt-okunur üye eklemek için
+   * (2026-07-18: Topluluk'un "Genel Duyuru" kanalı — bundled sınıfların öğrencileri
+   * OKUR ama SADECE eğitmen yazar; `memberUids` burada BOŞ bırakılır, çünkü channel
+   * için `memberUids` admins'e girer). Belirsiz "kim yazar kim okur" karışıklığını
+   * önlemek için `memberUids`'ten (yazarlar) BİLİNÇLİ olarak ayrı bir alan.
+   */
+  readerUids?: string[];
 }
 
 /**
@@ -224,8 +243,24 @@ export async function createConversation(
     if (existing) return existing;
   }
 
-  const allMemberUids = [...new Set([principal.uid, ...input.memberUids])];
-  await assertMembersMatchRealm(allMemberUids, input.realm, principal.tenantId, deps);
+  // Yayıncılar (+ oluşturan) — kanalda GERÇEKTEN yazabilecekler (admins). "Personel
+  // Kanalı" (broadcastToAllStaff) okuyucu listesini bundan AYRI, aşağıda genişletir —
+  // Yayıncı seçimi okuyucu kümesini BELİRLEMEZ, sadece yazma hakkı verir.
+  const explicitMemberUids = [...new Set([principal.uid, ...input.memberUids])];
+
+  let readerUids = explicitMemberUids;
+  if (input.type === "channel") {
+    const extraReaders = new Set(readerUids);
+    if (input.realm === "staff" && input.broadcastToAllStaff) {
+      const allStaff = await deps.flexosUsers.list(principal.tenantId);
+      allStaff
+        .filter((u) => u.authUid && u.status === "aktif" && u.roles.some((r) => r !== "ogrenci"))
+        .forEach((u) => extraReaders.add(u.authUid!));
+    }
+    for (const uid of input.readerUids ?? []) extraReaders.add(uid);
+    readerUids = [...extraReaders];
+  }
+  await assertMembersMatchRealm(readerUids, input.realm, principal.tenantId, deps);
 
   const writePolicy: ConnectWritePolicy = input.type === "channel" ? "admins" : "members";
   const now = nowISO();
@@ -239,9 +274,15 @@ export async function createConversation(
     description: input.description?.trim() || undefined,
     colorKey: input.colorKey,
     writePolicy,
-    admins: [principal.uid],
+    // Kanal: "Yayıncılar" olarak seçilenler GERÇEKTEN yazabilsin diye admins'e de
+    // eklenir (2026-07-18 kullanıcı bulgusu — önceden SADECE oluşturan admin
+    // oluyordu, seçilen "Yayıncılar" sessizce salt-okunur üye kalıyordu, isim/
+    // gerçek davranış uyuşmuyordu). Grup/topluluk/dm'de değişmedi (writePolicy
+    // "members" olduğu için admins sadece ekle/çıkar yetkisinde rol oynar).
+    admins: input.type === "channel" ? explicitMemberUids : [principal.uid],
     audience: input.audience,
     childIds: input.type === "community" ? input.childIds : undefined,
+    announcementChannelId: input.type === "community" ? input.announcementChannelId : undefined,
     sourceGroupId: input.type === "group" ? input.sourceGroupId : undefined,
     lastMessage: null,
     messageCount: 0,
@@ -252,7 +293,7 @@ export async function createConversation(
   await deps.conversations.saveConversation(conversation);
 
   await Promise.all(
-    allMemberUids.map((uid) =>
+    readerUids.map((uid) =>
       deps.conversations.saveMember(conversation.id, {
         uid,
         realm: input.realm,
@@ -276,7 +317,7 @@ export async function createConversation(
           : null;
   if (auditAction) {
     await logAudit(deps, principal, conversation, auditAction, {
-      metadata: { type: input.type, audience: input.audience ?? null, memberCount: allMemberUids.length },
+      metadata: { type: input.type, audience: input.audience ?? null, broadcastToAllStaff: !!input.broadcastToAllStaff, memberCount: readerUids.length },
       meta,
     });
   }
@@ -351,9 +392,12 @@ export async function sendMessage(
   conversationId: string,
   text: string,
   deps: ConnectDeps,
+  /** Faz 2 madde 5 (2026-07-18) — WhatsApp gibi: metin BOŞ olabilir, ek varsa yeterli. */
+  attachments?: ConnectAttachment[],
 ): Promise<ConnectMessage> {
   const trimmed = text.trim();
-  if (!trimmed) throw new ValidationError("Mesaj boş olamaz.");
+  const hasAttachment = !!attachments && attachments.length > 0;
+  if (!trimmed && !hasAttachment) throw new ValidationError("Mesaj boş olamaz.");
   if (trimmed.length > MAX_MESSAGE_LEN) throw new ValidationError(`Mesaj ${MAX_MESSAGE_LEN} karakteri aşamaz.`);
 
   const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
@@ -367,12 +411,13 @@ export async function sendMessage(
     authorUid: principal.uid,
     text: trimmed,
     createdAt: now,
+    attachments: hasAttachment ? attachments : undefined,
   };
   const newMessageCount = (conversation.messageCount ?? 0) + 1;
   await deps.conversations.saveMessage(conversationId, message);
   await deps.conversations.saveConversation({
     ...conversation,
-    lastMessage: { text: trimmed, senderUid: principal.uid, at: now },
+    lastMessage: { messageId: message.id, text: trimmed || `📎 ${attachments![0].fileName}`, senderUid: principal.uid, at: now },
     messageCount: newMessageCount,
     updatedAt: now,
     updatedBy: principal.uid,
@@ -396,7 +441,118 @@ export async function listMessages(
   if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
   const member = await deps.conversations.getMember(conversationId, principal.uid);
   assertCanRead(conversation, member);
-  return deps.conversations.listMessages(conversationId, limit);
+  const messages = await deps.conversations.listMessages(conversationId, limit);
+  // "Benim için sil" — SADECE bu çağıranın görünümünden kaybolur, mesaj bozulmaz.
+  return messages.filter((m) => !m.hiddenFor?.includes(principal.uid));
+}
+
+/**
+ * Mesaj düzenle (WhatsApp — 2026-07-18) — SADECE yazar düzenleyebilir. Silinmiş
+ * ("herkes için") bir mesaj düzenlenemez. Konuşmanın ANLIK önizlemesi (`lastMessage`)
+ * de bu mesajsa güncellenir (messageId ile eşleştirilir).
+ */
+export async function editMessage(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  messageId: string,
+  text: string,
+  deps: ConnectDeps,
+): Promise<ConnectMessage> {
+  const trimmed = text.trim();
+  if (!trimmed) throw new ValidationError("Mesaj boş olamaz.");
+  if (trimmed.length > MAX_MESSAGE_LEN) throw new ValidationError(`Mesaj ${MAX_MESSAGE_LEN} karakteri aşamaz.`);
+
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
+  const message = await deps.conversations.getMessage(conversationId, messageId);
+  if (!message) throw new ValidationError("Mesaj bulunamadı.");
+  if (message.authorUid !== principal.uid) throw new ForbiddenError("connect.message.edit");
+  if (message.deletedForEveryone) throw new ValidationError("Silinmiş bir mesaj düzenlenemez.");
+
+  const now = nowISO();
+  const updated: ConnectMessage = { ...message, text: trimmed, editedAt: now };
+  await deps.conversations.saveMessage(conversationId, updated);
+
+  if (conversation.lastMessage?.messageId === messageId) {
+    await deps.conversations.saveConversation({ ...conversation, lastMessage: { ...conversation.lastMessage, text: trimmed } });
+  }
+  return updated;
+}
+
+/**
+ * "Herkes için sil" (WhatsApp) — SADECE yazar silebilir. `text` VE `attachments`
+ * kalıcı temizlenir, HERKESTE "Bu mesaj silindi" placeholder'ı gösterilir
+ * (`deletedForEveryone`). Dönüş değeri SİLİNMEDEN ÖNCEKİ mesaj (attachments dahil)
+ * — çağıran route bununla Drive'daki gerçek dosyayı da temizler (2026-07-18
+ * kullanıcı bulgusu: eskiden mesaj "silinsin" ama Drive'daki dosya YETİM kalıyordu).
+ */
+export async function deleteMessageForEveryone(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  messageId: string,
+  deps: ConnectDeps,
+): Promise<ConnectMessage> {
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
+  const message = await deps.conversations.getMessage(conversationId, messageId);
+  if (!message) throw new ValidationError("Mesaj bulunamadı.");
+  if (message.authorUid !== principal.uid) throw new ForbiddenError("connect.message.delete");
+
+  await deps.conversations.saveMessage(conversationId, { ...message, text: "", deletedForEveryone: true, attachments: undefined });
+
+  if (conversation.lastMessage?.messageId === messageId) {
+    await deps.conversations.saveConversation({
+      ...conversation,
+      lastMessage: { ...conversation.lastMessage, text: "Bu mesaj silindi" },
+    });
+  }
+  return message;
+}
+
+/**
+ * "Benim için sil" (WhatsApp) — yetki gerekmez, HERKES (yazar dahil) kendi
+ * görünümünden gizleyebilir. Mesaj diğerleri için DEĞİŞMEZ.
+ */
+export async function deleteMessageForMe(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  messageId: string,
+  deps: ConnectDeps,
+): Promise<void> {
+  const message = await deps.conversations.getMessage(conversationId, messageId);
+  if (!message) throw new ValidationError("Mesaj bulunamadı.");
+  if (message.hiddenFor?.includes(principal.uid)) return;
+  await deps.conversations.saveMessage(conversationId, { ...message, hiddenFor: [...(message.hiddenFor ?? []), principal.uid] });
+}
+
+/**
+ * Reaksiyon ver/değiştir/kaldır (Faz 2 madde 2, WhatsApp — 2026-07-18). Yazma
+ * yetkisi GEREKMEZ, SADECE okuma (`assertCanRead`) — broadcast kanalında salt-okunur
+ * üyeler VE audience-only (member dokümanı olmayan) okuyucular da tepki verebilir,
+ * tam WhatsApp kanallarındaki davranış. `emoji:null` → kaldır. Aynı emojiye tekrar
+ * basmak da kaldırır (toggle).
+ */
+export async function setMessageReaction(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  messageId: string,
+  emoji: string | null,
+  deps: ConnectDeps,
+): Promise<void> {
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
+  const member = await deps.conversations.getMember(conversationId, principal.uid);
+  assertCanRead(conversation, member); // okuma yetkisi yeter — audience-only (member dokümanı olmayan) okuyucu da tepki verebilir
+
+  const message = await deps.conversations.getMessage(conversationId, messageId);
+  if (!message) throw new ValidationError("Mesaj bulunamadı.");
+  if (message.deletedForEveryone) throw new ValidationError("Silinmiş bir mesaja reaksiyon verilemez.");
+
+  const reactions = { ...(message.reactions ?? {}) };
+  if (emoji === null || reactions[principal.uid] === emoji) delete reactions[principal.uid];
+  else reactions[principal.uid] = emoji;
+
+  await deps.conversations.saveMessage(conversationId, { ...message, reactions });
 }
 
 /**
@@ -486,6 +642,11 @@ export async function addMember(
   role: ConnectMemberRole,
   deps: ConnectDeps,
   meta?: ConnectRequestMeta,
+  /** SADECE role==="guest" (Faz 2 madde 4, 2026-07-18) — tasarımdaki "Yardımcı
+   * Eğitmen/Gözlemci/Konuk/Veli" gibi açıklayıcı etiket. Yetki/izolasyonu ETKİLEMEZ,
+   * SADECE üye listesinde görünen bir rozet — misafir de normal üye gibi okur/yazar
+   * (grubun writePolicy'sine göre), ayrı bir kısıtlı yetki katmanı YOK (kapsam kararı). */
+  guestTitle?: string,
 ): Promise<void> {
   const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
   if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
@@ -500,10 +661,11 @@ export async function addMember(
     realm: conversation.realm,
     role,
     joinedAt: nowISO(),
+    guestTitle: role === "guest" ? guestTitle : undefined,
   });
 
   const targetName = await resolveDisplayName(targetUid, principal.tenantId, deps);
-  await logAudit(deps, principal, conversation, "member.add", { targetUid, targetName, metadata: { role }, meta });
+  await logAudit(deps, principal, conversation, "member.add", { targetUid, targetName, metadata: { role, guestTitle }, meta });
 }
 
 /** Üye çıkar — owner/admin BAŞKASINI çıkarabilir; herkes KENDİNİ çıkarabilir (ayrıl). */
@@ -524,6 +686,148 @@ export async function removeMember(
 
   const targetName = await resolveDisplayName(targetUid, principal.tenantId, deps);
   await logAudit(deps, principal, conversation, "member.remove", { targetUid, targetName, metadata: { isSelf }, meta });
+}
+
+export interface UpdateConversationMetaInput {
+  name?: string;
+  description?: string;
+  /** Yeni "Yayıncılar" listesi — SADECE type==="channel" (2026-07-18, son 2 madde). */
+  adminUids?: string[];
+  /** Toplulukta yeni grup ekle/çıkar — TAM liste (mevcut + eklenen - çıkarılan),
+   * SADECE type==="community" (2026-07-18, kullanıcı isteği: "yeni grup açıldı
+   * onu da var olan topluluğa dahil edebiliyor muyum"). */
+  childIds?: string[];
+}
+
+/**
+ * Kanal/grup/topluluk adı, açıklaması, (kanalda) yayıncı listesi, (toplulukta)
+ * grup listesi — kuruluş sonrası düzenleme. SADECE owner/admin. DM düzenlenemez
+ * (adı karşı taraftan çözülür, sabit). `admins` değişirse realm uyuşmazlığı
+ * (öğrenci→staff) `assertMembersMatchRealm` ile AYNI şekilde reddedilir —
+ * addMember'daki kural.
+ */
+export async function updateConversationMeta(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  input: UpdateConversationMetaInput,
+  deps: ConnectDeps,
+  meta?: ConnectRequestMeta,
+): Promise<ConnectConversation> {
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
+  if (conversation.type === "dm") throw new ValidationError("DM düzenlenemez.");
+  if (!conversation.admins.includes(principal.uid)) throw new ForbiddenError("connect.conversation.update");
+
+  const updated: ConnectConversation = { ...conversation };
+  const changedFields: string[] = [];
+
+  if (input.name !== undefined) {
+    const trimmed = input.name.trim();
+    if (!trimmed) throw new ValidationError("Ad boş olamaz.");
+    updated.name = trimmed;
+    changedFields.push("name");
+  }
+  if (input.description !== undefined) {
+    updated.description = input.description.trim() || undefined;
+    changedFields.push("description");
+  }
+  if (input.adminUids !== undefined) {
+    if (conversation.type !== "channel") throw new ValidationError("Yayıncı listesi sadece kanallarda düzenlenebilir.");
+    const nextAdmins = Array.from(new Set([conversation.ownerUid, ...input.adminUids]));
+    await assertMembersMatchRealm(nextAdmins, conversation.realm, principal.tenantId, deps);
+    updated.admins = nextAdmins;
+    changedFields.push("admins");
+  }
+  if (input.childIds !== undefined) {
+    if (conversation.type !== "community") throw new ValidationError("Grup listesi sadece topluluklarda düzenlenebilir.");
+    if (input.childIds.length < 2) throw new ValidationError("Topluluk en az 2 grup içermelidir.");
+    const children = await deps.conversations.getConversationsByIds(input.childIds, principal.tenantId);
+    if (children.length !== new Set(input.childIds).size) throw new ValidationError("Seçilen gruplardan biri bulunamadı.");
+    if (children.some((c) => c.type !== "group")) throw new ValidationError("Topluluk sadece grup konuşmalarını içerebilir.");
+    updated.childIds = [...new Set(input.childIds)];
+    changedFields.push("childIds");
+  }
+
+  if (changedFields.length === 0) return conversation;
+
+  // Yeni Yayıncı'nın gerçekten okuyabilmesi için `members/{uid}` dokümanı da
+  // gerekir (Firestore rules `isConnectMember` buna bakar) — SADECE admins[]'e
+  // eklemek yetmez (2026-07-18 bulgusu, admin ekleme UI'ı ile birlikte fark
+  // edildi). Çıkarılanlar üyelikten ATILMAZ, SADECE "admin" rozeti geri "member"
+  // olur (okuyucu olarak kalır — WhatsApp'ta da Yayıncılıktan çıkarma gruptan
+  // atmaz).
+  if (input.adminUids !== undefined) {
+    const oldAdmins = new Set(conversation.admins);
+    const newAdmins = new Set(updated.admins);
+    for (const uid of updated.admins) {
+      if (oldAdmins.has(uid)) continue;
+      const existing = await deps.conversations.getMember(conversationId, uid);
+      await deps.conversations.saveMember(conversationId, {
+        ...(existing ?? { uid, realm: conversation.realm, joinedAt: nowISO() }),
+        role: "admin",
+      });
+    }
+    for (const uid of conversation.admins) {
+      if (newAdmins.has(uid) || uid === conversation.ownerUid) continue;
+      const existing = await deps.conversations.getMember(conversationId, uid);
+      if (existing && existing.role === "admin") {
+        await deps.conversations.saveMember(conversationId, { ...existing, role: "member" });
+      }
+    }
+  }
+
+  // Topluluğa YENİ eklenen grubun rosteru, bağlı "Genel Duyuru" kanalına GERÇEKTEN
+  // okuyucu olarak eklenir (2026-07-18, kullanıcı isteği — sadece `childIds` listesi
+  // güncellemek yeterli değil, aksi halde yeni grubun öğrencileri duyuruyu hiç
+  // görmez). `announcementChannelId` yoksa (eski topluluklar) sessizce atlanır —
+  // childIds yine de güncellenir, sadece otomatik köprü kurulamaz.
+  if (input.childIds !== undefined && conversation.announcementChannelId) {
+    const oldChildren = new Set(conversation.childIds ?? []);
+    const newlyAdded = updated.childIds!.filter((id) => !oldChildren.has(id));
+    for (const groupConvId of newlyAdded) {
+      const roster = await deps.conversations.listMembers(groupConvId);
+      for (const m of roster) {
+        const existing = await deps.conversations.getMember(conversation.announcementChannelId, m.uid);
+        if (existing) continue; // zaten okuyucu (ör. başka bir gruptan zaten eklenmiş)
+        await deps.conversations.saveMember(conversation.announcementChannelId, {
+          uid: m.uid,
+          realm: "trainer_student",
+          role: "member",
+          joinedAt: nowISO(),
+        });
+      }
+    }
+  }
+
+  await deps.conversations.saveConversation(updated);
+  const action: ConnectAuditAction = changedFields.includes("childIds") ? "community.child_groups.update" : "conversation.settings.update";
+  await logAudit(deps, principal, conversation, action, { metadata: { changedFields }, meta });
+  return updated;
+}
+
+/**
+ * Konuşmayı SİL — SADECE owner (admin/yayıncı yeterli değil, en yüksek yetki).
+ * DM silinemez (ayrılma zaten var). Alt-koleksiyonlar (`members`/`messages`/
+ * `typing`) repo katmanında `recursiveDelete` ile temizlenir. Topluluk silinince
+ * paketlediği grup konuşmaları ETKİLENMEZ (`childIds` sadece topluluğun kendi
+ * dokümanında, bağımsız konuşmalar).
+ */
+export async function deleteConversation(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  deps: ConnectDeps,
+  meta?: ConnectRequestMeta,
+): Promise<void> {
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
+  if (conversation.type === "dm") throw new ValidationError("DM silinemez.");
+  if (conversation.ownerUid !== principal.uid) throw new ForbiddenError("connect.conversation.delete");
+
+  await deps.conversations.deleteConversation(conversationId, principal.tenantId);
+
+  const action: ConnectAuditAction =
+    conversation.type === "channel" ? "channel.delete" : conversation.type === "group" ? "group.delete" : "community.delete";
+  await logAudit(deps, principal, conversation, action, { meta });
 }
 
 export async function listMembers(

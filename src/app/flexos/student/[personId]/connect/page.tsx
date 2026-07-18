@@ -12,18 +12,23 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect, type ComponentType } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
-import { Megaphone, Users, Search, Send, ArrowLeft, Loader2, GraduationCap } from "lucide-react";
+import { Megaphone, Users, Search, Send, ArrowLeft, Loader2, GraduationCap, MoreVertical, Pencil, Trash2, X, Smile, Check, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type ConnectConversationType, type DirectoryUser, type TypingSignal,
   fetchConversations, fetchMessages, postMessage, markConversationRead, subscribeToMessages,
-  subscribeToTyping, sendTypingSignal, fetchTrainerDirectory, createConversation,
+  subscribeToTyping, sendTypingSignal, fetchTrainerDirectory, createConversation, editMessage, deleteMessage, setMessageReaction,
+  sendMessageWithAttachment,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { ConnectIcon } from "@/app/flexos/connect/_shared/ConnectIcon";
 import { TypingIndicator } from "@/app/flexos/connect/_shared/TypingIndicator";
-import { EmojiButton, AttachButton } from "@/app/flexos/connect/_shared/EmojiPicker";
+import { EmojiButton, AttachButton, ReactionQuickPick } from "@/app/flexos/connect/_shared/EmojiPicker";
+import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
+import { useCloseDropdownsOnOutsideClick } from "@/app/flexos/connect/_shared/useCloseDropdownsOnOutsideClick";
+import { computePopoverPosition, type PopoverPosition } from "@/app/flexos/connect/_shared/popoverPosition";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
@@ -48,6 +53,9 @@ function initials(name: string): string {
 }
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+}
+function fmtFileSize(bytes: number): string {
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 function dayKey(iso: string): string {
   return new Date(iso).toDateString();
@@ -76,8 +84,26 @@ export default function StudentConnectPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const firstLoadRef = useRef(true);
+  // Mesaj düzenle/sil (WhatsApp — 2026-07-18).
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+  // Reaksiyonlar (Faz 2 madde 2 — 2026-07-18).
+  const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+  // Reaksiyon/menü popup'ları artık `position:fixed` + `document.body`'ye portal
+  // ile açılır (2026-07-18, tekrarlayan bug: CSS-relative konumlama scrollable
+  // konteyner içinde header'ın/bir sonraki mesajın arkasında kalabiliyordu — bkz.
+  // `_shared/popoverPosition.ts`). Tek popup açık olduğu için TEK paylaşımlı state.
+  const [popoverPos, setPopoverPos] = useState<PopoverPosition | null>(null);
+
+  // Boş yere tıklayınca aç kalan menüleri kapat (2026-07-18 kullanıcı bulgusu).
+  useCloseDropdownsOnOutsideClick([
+    () => setOpenMessageMenuId(null),
+    () => setOpenReactionPickerId(null),
+  ]);
+
   const [typingSignals, setTypingSignals] = useState<TypingSignal[]>([]);
   const [tick, setTick] = useState(0);
   const lastTypingSentRef = useRef(0);
@@ -104,6 +130,7 @@ export default function StudentConnectPage() {
     // devam ediyordu.
     setMessages([]);
     setLoadingMessages(true);
+    setEditingMessageId(null); setOpenMessageMenuId(null); setOpenReactionPickerId(null); setDraft("");
     try {
       setMessages(await fetchMessages(id, personId));
     } finally {
@@ -178,12 +205,68 @@ export default function StudentConnectPage() {
     setSending(true);
     setDraft("");
     try {
+      if (editingMessageId) {
+        const err = await editMessage(selectedId, editingMessageId, text, personId);
+        if (err?.error) toast.error(err.error);
+        else setMessages((prev) => prev.map((m) => (m.id === editingMessageId ? { ...m, text, editedAt: new Date().toISOString() } : m)));
+        setEditingMessageId(null);
+        return;
+      }
       const err = await postMessage(selectedId, text, personId);
       if (err?.error) toast.error(err.error);
       else loadConversations();
     } finally {
       setSending(false);
     }
+  }
+
+  async function handleAttachFile(file: File) {
+    if (!selectedId || uploadProgress != null) return;
+    setUploadProgress(0);
+    try {
+      const err = await sendMessageWithAttachment(selectedId, file, draft.trim(), personId, setUploadProgress);
+      if (err?.error) toast.error(err.error);
+      else { setDraft(""); loadConversations(); }
+    } finally {
+      setUploadProgress(null);
+    }
+  }
+
+  function startEditMessage(m: MessageView) {
+    setEditingMessageId(m.id);
+    setDraft(m.text);
+    setOpenMessageMenuId(null);
+  }
+
+  async function handleDeleteMessage(messageId: string, scope: "everyone" | "me") {
+    setOpenMessageMenuId(null);
+    if (!selectedId) return;
+    const ok = await deleteMessage(selectedId, messageId, scope, personId);
+    if (!ok) { toast.error("Silinemedi, tekrar dene."); return; }
+    if (scope === "everyone") {
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, text: "", deletedForEveryone: true } : m)));
+    } else {
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    }
+  }
+
+  async function handleReact(messageId: string, emoji: string) {
+    setOpenReactionPickerId(null);
+    if (!selectedId) return;
+    const target = messages.find((m) => m.id === messageId);
+    const next = target?.myReaction === emoji ? null : emoji;
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const counts = { ...(m.reactionCounts ?? {}) };
+        if (m.myReaction) counts[m.myReaction] = Math.max(0, (counts[m.myReaction] ?? 1) - 1);
+        if (next) counts[next] = (counts[next] ?? 0) + 1;
+        Object.keys(counts).forEach((k) => { if (counts[k] <= 0) delete counts[k]; });
+        return { ...m, myReaction: next ?? undefined, reactionCounts: Object.keys(counts).length ? counts : undefined };
+      }),
+    );
+    const ok = await setMessageReaction(selectedId, messageId, next, personId);
+    if (!ok) fetchMessages(selectedId, personId).then(setMessages);
   }
 
   const filtered = conversations
@@ -345,8 +428,9 @@ export default function StudentConnectPage() {
                   const prev = messages[i - 1];
                   const grouped = prev && prev.authorUid === m.authorUid;
                   const showDivider = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
+                  const menuActive = openMessageMenuId === m.id || openReactionPickerId === m.id;
                   return (
-                    <div key={m.id}>
+                    <div key={m.id} className="hover:z-[60]" style={{ position: "relative", zIndex: menuActive ? 60 : undefined }}>
                       {showDivider && (
                         <div className="flex items-center justify-center" style={{ margin: "14px 0" }}>
                           <span className="font-bold" style={{ fontSize: 11.5, color: "#8A909B", background: "#EDEEF1", padding: "5px 14px", borderRadius: 999, letterSpacing: ".02em" }}>
@@ -367,10 +451,101 @@ export default function StudentConnectPage() {
                               <span style={{ fontSize: 12.5, fontWeight: 700, color: m.colorKey }}>{m.authorName}</span>
                             </div>
                           )}
-                          <div style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
-                            <span style={{ fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450 }}>{m.text}</span>
-                            <span className="block text-right" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>{fmtTime(m.createdAt)}</span>
+                          <div className="group" style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
+                            {m.deletedForEveryone ? (
+                              <span style={{ fontSize: 13.5, lineHeight: 1.5, color: "#A2A8B2", fontStyle: "italic" }}>Bu mesaj silindi</span>
+                            ) : (
+                              <>
+                                {m.text && <span style={{ fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450 }}>{m.text}</span>}
+                                {m.attachments?.map((a) => (
+                                  <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={m.text ? 6 : 0} />
+                                ))}
+                              </>
+                            )}
+                            <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
+                              {m.editedAt && !m.deletedForEveryone && "Düzenlendi · "}{fmtTime(m.createdAt)}
+                              {m.isMine && !m.deletedForEveryone && (
+                                m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />
+                              )}
+                            </span>
+
+                            {!m.deletedForEveryone && (
+                              <div
+                                className={`absolute transition-opacity flex items-center gap-1 ${menuActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                                style={{ top: "100%", marginTop: 4, [m.isMine ? "right" : "left"]: 0 }}
+                              >
+                                <div className="relative" data-connect-dropdown>
+                                  <button
+                                    onClick={(e) => {
+                                      setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 130));
+                                      setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
+                                      setOpenMessageMenuId(null);
+                                    }}
+                                    className="flex items-center justify-center cursor-pointer"
+                                    style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                                  >
+                                    <Smile size={13} />
+                                  </button>
+                                  {openReactionPickerId === m.id && popoverPos && createPortal(
+                                    <div className="fixed" data-connect-dropdown style={{ ...popoverPos, zIndex: 9999 }}>
+                                      <ReactionQuickPick activeEmoji={m.myReaction} onPick={(emoji) => handleReact(m.id, emoji)} />
+                                    </div>,
+                                    document.body,
+                                  )}
+                                </div>
+                                <div className="relative" data-connect-dropdown>
+                                  <button
+                                    onClick={(e) => {
+                                      setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 170));
+                                      setOpenMessageMenuId((v) => (v === m.id ? null : m.id));
+                                      setOpenReactionPickerId(null);
+                                    }}
+                                    className="flex items-center justify-center cursor-pointer"
+                                    style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                                  >
+                                    <MoreVertical size={13} />
+                                  </button>
+                                  {openMessageMenuId === m.id && popoverPos && createPortal(
+                                    <div
+                                      className="fixed"
+                                      data-connect-dropdown
+                                      style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 170, overflow: "hidden" }}
+                                    >
+                                      {m.isMine && (
+                                        <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                          <Pencil size={13} /> Düzenle
+                                        </button>
+                                      )}
+                                      {m.isMine && (
+                                        <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                                          <Trash2 size={13} /> Herkes İçin Sil
+                                        </button>
+                                      )}
+                                      <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <X size={13} /> Benim İçin Sil
+                                      </button>
+                                    </div>,
+                                    document.body,
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
+                          {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
+                            <div className="flex gap-1 flex-wrap" style={{ marginTop: 4, justifyContent: m.isMine ? "flex-end" : "flex-start" }}>
+                              {Object.entries(m.reactionCounts).map(([emoji, count]) => (
+                                <button
+                                  key={emoji}
+                                  onClick={() => handleReact(m.id, emoji)}
+                                  className="inline-flex items-center gap-1 cursor-pointer transition-all"
+                                  style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${m.myReaction === emoji ? "#2867bd" : "#E4E6EB"}`, background: m.myReaction === emoji ? "#EAF1FB" : "#fff", fontSize: 12 }}
+                                >
+                                  <span>{emoji}</span>
+                                  <span style={{ fontWeight: 700, color: m.myReaction === emoji ? "#205297" : "#6B717C" }}>{count}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -394,8 +569,17 @@ export default function StudentConnectPage() {
                 {selected.writePolicy === "admins" && !selected.isAdmin ? (
                   <div className="text-center" style={{ fontSize: 12.5, color: "#8A909B", padding: "10px 0" }}>Bu kanala sadece yöneticiler yazabilir.</div>
                 ) : (
+                  <>
+                  {editingMessageId && (
+                    <div className="flex items-center justify-between" style={{ padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: "#EAF1FB" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#205297" }}>Mesajı düzenliyorsun</span>
+                      <button onClick={() => { setEditingMessageId(null); setDraft(""); }} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-end gap-1" style={{ background: "#fff", border: "1px solid #E4E6EB", borderRadius: 16, padding: "8px 8px 8px 10px" }}>
-                    <AttachButton />
+                    <AttachButton onFileSelected={handleAttachFile} uploadProgress={uploadProgress} />
                     <textarea
                       value={draft}
                       onChange={(e) => {
@@ -420,6 +604,7 @@ export default function StudentConnectPage() {
                       <Send size={17} />
                     </button>
                   </div>
+                  </>
                 )}
               </div>
             </div>

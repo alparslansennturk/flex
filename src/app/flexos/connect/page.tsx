@@ -21,12 +21,13 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect, type ComponentType } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, Loader2,
-  Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap,
+  Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
+  Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import {
@@ -34,12 +35,16 @@ import {
   type ConversationDetail, type TypingSignal,
   fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
   subscribeToMessages, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
-  setConversationPinned,
+  setConversationPinned, editMessage, deleteMessage, setMessageReaction, addConversationMember, sendMessageWithAttachment,
+  updateConversationMeta, deleteConversationById, removeConversationMember,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { ConnectIcon } from "./_shared/ConnectIcon";
 import { TypingIndicator } from "./_shared/TypingIndicator";
-import { EmojiButton, AttachButton } from "./_shared/EmojiPicker";
+import { EmojiButton, AttachButton, ReactionQuickPick } from "./_shared/EmojiPicker";
+import { AttachmentView } from "./_shared/AttachmentView";
+import { useCloseDropdownsOnOutsideClick } from "./_shared/useCloseDropdownsOnOutsideClick";
+import { computePopoverPosition, type PopoverPosition } from "./_shared/popoverPosition";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
@@ -79,6 +84,9 @@ function initials(name: string): string {
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
+function fmtFileSize(bytes: number): string {
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 function dayKey(iso: string): string {
   return new Date(iso).toDateString();
 }
@@ -106,8 +114,22 @@ export default function FlexConnectPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const firstLoadRef = useRef(true);
+
+  // Mesaj düzenle/sil (WhatsApp — 2026-07-18).
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+  // Reaksiyonlar (Faz 2 madde 2 — 2026-07-18).
+  const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
+  // İkon satırı HOVER'da görünür (kullanıcı netleştirmesi, 2026-07-18: "konuşma
+  // üzerine gelince görünsün ama düzenleyip açmak için tıklamalıyım"). Reaksiyon/
+  // menü popup'ları artık `position:fixed` + `document.body`'ye portal ile açılır
+  // (2026-07-18, tekrarlayan bug: CSS-relative konumlama scrollable konteyner
+  // içinde header'ın/bir sonraki mesajın arkasında kalabiliyordu — bkz.
+  // `_shared/popoverPosition.ts`). Tek popup açık olduğu için TEK paylaşımlı state.
+  const [popoverPos, setPopoverPos] = useState<PopoverPosition | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -123,6 +145,43 @@ export default function FlexConnectPage() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
+
+  // Boş yere tıklayınca aç kalan menüleri kapat (2026-07-18 kullanıcı bulgusu).
+  useCloseDropdownsOnOutsideClick([
+    () => setMenuOpen(false),
+    () => setOpenMessageMenuId(null),
+    () => setOpenReactionPickerId(null),
+  ]);
+
+  // Ad/açıklama/Yayıncı/grup listesi düzenleme (2026-07-18) — SADECE owner/admin,
+  // "oluştur" modalıyla AYNI görünümde ayrı bir modal (kullanıcı isteği: "yandan
+  // açılan değil de oluştururken gelen modal gelse"). "Bilgi" paneli artık SADECE
+  // bilgi/üye yönetimi gösterir, düzenleme header'daki ayrı butondan açılır.
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  // Kanal Yayıncı düzenleme (2026-07-18, kullanıcı isteği) — owner her zaman
+  // zımnen dahil, burada sadece OWNER DIŞINDAKİ Yayıncılar tutulur.
+  const [editAdminUids, setEditAdminUids] = useState<string[]>([]);
+  const [savingMeta, setSavingMeta] = useState(false);
+
+  // Topluluğa sonradan yeni grup ekleme (2026-07-18, kullanıcı isteği: "yeni grup
+  // açıldı onu da var olan topluluğa dahil edebiliyor muyum") — kendi sınıflarım
+  // listesi, "Yeni Grup Ekle" bölümünde SADECE type==="community" && isAdmin.
+  const [myGroupsForCommunity, setMyGroupsForCommunity] = useState<GroupItem[]>([]);
+  const [addingChildGroupId, setAddingChildGroupId] = useState<string | null>(null);
+
+  // Misafir daveti (Faz 2 madde 4 — 2026-07-18, kullanıcı kararı: sadece VAR OLAN
+  // hesaplar — e-postayla yeni hesap açma YOK). Aday listesi personel ∪ eğitmenin
+  // kendi öğrencileri (zaten sayfada yüklü dizinler, yeni fetch yok). "Veli" etiketi
+  // sadece açıklayıcı metin — gerçek bir veli hesabı yoksa listede çıkmaz.
+  const GUEST_TITLES = ["Yardımcı Eğitmen", "Gözlemci", "Konuk", "Veli"];
+  const [guestQuery, setGuestQuery] = useState("");
+  const [selectedGuestUid, setSelectedGuestUid] = useState("");
+  const [guestTitle, setGuestTitle] = useState(GUEST_TITLES[0]);
+  // Üye ekleme (2026-07-18, kullanıcı isteği: "sadece ekle çıkar değil... üye
+  // ekleme falan gibi") — "Misafir Ekle" bölümü artık Üye/Misafir seçenekli.
+  const [addMemberRole, setAddMemberRole] = useState<"member" | "guest">("member");
 
   // Gerçek "yazıyor" presence (2026-07-18) — `typingSignals` ham Firestore verisi,
   // `tick` sadece TTL'i geçmiş sinyalleri yeni bir Firestore yazması olmadan da
@@ -150,7 +209,8 @@ export default function FlexConnectPage() {
 
   const selectConversation = useCallback(async (id: string) => {
     setSelectedId(id);
-    setSearchOpen(false); setMessageQuery(""); setInfoOpen(false); setMenuOpen(false); setDetail(null);
+    setSearchOpen(false); setMessageQuery(""); setInfoOpen(false); setMenuOpen(false); setDetail(null); setEditModalOpen(false);
+    setEditingMessageId(null); setOpenMessageMenuId(null); setOpenReactionPickerId(null); setDraft("");
     firstLoadRef.current = true;
     // Bug fix (2026-07-18, kullanıcı bulgusu): eski mesajlar state'te kalıp yeni
     // konuşmanın verisi gelene kadar YANLIŞLIKLA görünmeye devam ediyordu (fetch
@@ -207,9 +267,114 @@ export default function FlexConnectPage() {
   }, [conversations, loadingList, selectConversation]);
 
   useEffect(() => {
+    setGuestQuery(""); setSelectedGuestUid(""); setGuestTitle(GUEST_TITLES[0]); setAddMemberRole("member");
     if (!infoOpen || !selectedId) return;
     fetchConversationDetail(selectedId).then(setDetail);
   }, [infoOpen, selectedId]);
+
+  useEffect(() => {
+    if (!editModalOpen || selected?.type !== "community") return;
+    (async () => {
+      const headers = await authHeaders();
+      const res = await fetch("/api/flexos/groups", { headers });
+      if (res.ok) setMyGroupsForCommunity((await res.json() as { items: GroupItem[] }).items);
+    })();
+  }, [editModalOpen, selected?.type]);
+
+  // Modal TAMAMEN senkron açılır — fetch YOK (2026-07-18 kullanıcı bulgusu:
+  // "Yayıncılar 1sn sonra geliyor"). `admins`/`ownerUid`/`childIds` zaten
+  // konuşma LISTESINDE geliyor (bkz. `connect-view.ts`), ayrı bir
+  // `GET .../[id]` çağrısına gerek yok.
+  function openEditModal() {
+    if (!selected) return;
+    setEditName(selected.name);
+    setEditDescription(selected.description ?? "");
+    setEditAdminUids(selected.admins.filter((uid) => uid !== selected.ownerUid));
+    setEditModalOpen(true);
+  }
+
+  async function handleSaveMeta() {
+    if (!selectedId || !editName.trim()) return;
+    setSavingMeta(true);
+    const result = await updateConversationMeta(selectedId, {
+      name: editName.trim(),
+      description: editDescription.trim(),
+      ...(selected?.type === "channel" ? { adminUids: editAdminUids } : {}),
+    });
+    setSavingMeta(false);
+    if (!result.ok) { toast.error(result.error ?? "Kaydedilemedi."); return; }
+    // `conversations` listesi doğrudan güncellenir (server yanıtı zaten yeni
+    // admins/childIds'i döndürüyor) — ayrı bir fetch gerekmez (2026-07-18).
+    setConversations((prev) => prev.map((c) => (c.id === selectedId
+      ? { ...c, name: editName.trim(), description: editDescription.trim() || undefined, admins: result.admins ?? c.admins, childIds: result.childIds ?? c.childIds }
+      : c)));
+    if (detail?.id === selectedId) fetchConversationDetail(selectedId).then(setDetail); // Bilgi paneli açıksa o da tazelensin
+    setEditModalOpen(false);
+    toast.success("Kaydedildi.");
+  }
+
+  const guestCandidates = !guestQuery.trim() || !detail
+    ? []
+    : [...staffDirectoryList, ...studentDirectoryList]
+        .filter((u) => !detail.members.some((m) => m.uid === u.uid))
+        .filter((u) => u.name.toLocaleLowerCase("tr").includes(guestQuery.trim().toLocaleLowerCase("tr")));
+
+  async function handleAddGuest() {
+    if (!selectedId || !selectedGuestUid) return;
+    const result = await addConversationMember(selectedId, selectedGuestUid, addMemberRole, addMemberRole === "guest" ? guestTitle : undefined);
+    if (result?.error) { toast.error(result.error); return; }
+    toast.success(addMemberRole === "guest" ? "Misafir eklendi." : "Üye eklendi.");
+    setGuestQuery(""); setSelectedGuestUid("");
+    fetchConversationDetail(selectedId).then(setDetail);
+  }
+
+  async function handleRemoveMember(uid: string) {
+    if (!selectedId) return;
+    if (!window.confirm("Bu üyeyi konuşmadan çıkarmak istediğine emin misin?")) return;
+    const ok = await removeConversationMember(selectedId, uid);
+    if (!ok) { toast.error("Çıkarılamadı."); return; }
+    toast.success("Üye çıkarıldı.");
+    fetchConversationDetail(selectedId).then(setDetail);
+  }
+
+  async function handleDeleteConversation() {
+    if (!selected || !selectedId) return;
+    const label = selected.type === "channel" ? "kanal" : selected.type === "community" ? "topluluk" : "grup";
+    if (!window.confirm(`"${selected.name || "Bu " + label}" KALICI olarak silinecek — tüm mesajlar ve dosyalar silinir. Emin misin?`)) return;
+    setMenuOpen(false);
+    const result = await deleteConversationById(selectedId);
+    if (!result.ok) { toast.error(result.error ?? "Silinemedi."); return; }
+    toast.success(`${label.charAt(0).toUpperCase()}${label.slice(1)} silindi.`);
+    setConversations((prev) => prev.filter((c) => c.id !== selectedId));
+    setSelectedId(null);
+  }
+
+  /** Topluluğa yeni grup ekle (2026-07-18) — sınıfın "sınıf odası" konuşması
+   * yoksa `sourceGroupId` dedup'ıyla oluşturulur/bulunur, sonra topluluğun
+   * `childIds`'ine eklenir — servis katmanı bağlı Genel Duyuru kanalına rosteru
+   * OTOMATİK okuyucu ekler (bkz. `updateConversationMeta`). */
+  async function handleAddGroupToCommunity(g: GroupItem) {
+    if (!selectedId || !detail) return;
+    setAddingChildGroupId(g.id);
+    try {
+      const headers = await authHeaders();
+      const rosterRes = await fetch(`/api/flexos/groups/${g.id}/roster`, { headers });
+      const roster = rosterRes.ok ? ((await rosterRes.json()) as { items: RosterItem[] }).items.filter((r) => r.authUid) : [];
+      const convResult = await createConversation({
+        realm: "trainer_student", type: "group", name: `${g.code} — Sınıf Odası`,
+        memberUids: roster.map((r) => r.authUid!), sourceGroupId: g.id,
+      });
+      if ("error" in convResult) { toast.error(convResult.error); return; }
+      if (detail.childIds?.includes(convResult.id)) { toast.error("Bu sınıf zaten toplulukta."); return; }
+      const nextChildIds = [...(detail.childIds ?? []), convResult.id];
+      const result = await updateConversationMeta(selectedId, { childIds: nextChildIds });
+      if (!result.ok) { toast.error(result.error ?? "Eklenemedi."); return; }
+      toast.success(`"${g.code}" topluluğa eklendi.`);
+      fetchConversationDetail(selectedId).then(setDetail);
+    } finally {
+      setAddingChildGroupId(null);
+    }
+  }
 
   async function handleLeave() {
     if (!selectedId || !auth.currentUser) return;
@@ -273,12 +438,72 @@ export default function FlexConnectPage() {
     setSending(true);
     setDraft("");
     try {
+      if (editingMessageId) {
+        const err = await editMessage(selectedId, editingMessageId, text);
+        if (err?.error) toast.error(err.error);
+        else setMessages((prev) => prev.map((m) => (m.id === editingMessageId ? { ...m, text, editedAt: new Date().toISOString() } : m)));
+        setEditingMessageId(null);
+        return;
+      }
       const err = await postMessage(selectedId, text);
       if (err?.error) toast.error(err.error);
       else loadConversations(); // lastMessage/unread önizlemesi tazelensin
     } finally {
       setSending(false);
     }
+  }
+
+  /** Dosya eki gönder (Faz 2 madde 5 — 2026-07-18) — o an yazıda ne varsa altyazı
+   * (caption) olarak gider, WhatsApp gibi metin BOŞ da olabilir. */
+  async function handleAttachFile(file: File) {
+    if (!selectedId || uploadProgress != null) return;
+    setUploadProgress(0);
+    try {
+      const err = await sendMessageWithAttachment(selectedId, file, draft.trim(), undefined, setUploadProgress);
+      if (err?.error) toast.error(err.error);
+      else { setDraft(""); loadConversations(); }
+    } finally {
+      setUploadProgress(null);
+    }
+  }
+
+  function startEditMessage(m: MessageView) {
+    setEditingMessageId(m.id);
+    setDraft(m.text);
+    setOpenMessageMenuId(null);
+  }
+
+  async function handleDeleteMessage(messageId: string, scope: "everyone" | "me") {
+    setOpenMessageMenuId(null);
+    if (!selectedId) return;
+    const ok = await deleteMessage(selectedId, messageId, scope);
+    if (!ok) { toast.error("Silinemedi, tekrar dene."); return; }
+    if (scope === "everyone") {
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, text: "", deletedForEveryone: true } : m)));
+    } else {
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    }
+  }
+
+  /** Reaksiyon ver/değiştir/kaldır — iyimser güncelleme, aynı emojiye tekrar
+   * basmak kaldırır (WhatsApp — 2026-07-18). Başarısız olursa mesajlar yeniden çekilir. */
+  async function handleReact(messageId: string, emoji: string) {
+    setOpenReactionPickerId(null);
+    if (!selectedId) return;
+    const target = messages.find((m) => m.id === messageId);
+    const next = target?.myReaction === emoji ? null : emoji;
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const counts = { ...(m.reactionCounts ?? {}) };
+        if (m.myReaction) counts[m.myReaction] = Math.max(0, (counts[m.myReaction] ?? 1) - 1);
+        if (next) counts[next] = (counts[next] ?? 0) + 1;
+        Object.keys(counts).forEach((k) => { if (counts[k] <= 0) delete counts[k]; });
+        return { ...m, myReaction: next ?? undefined, reactionCounts: Object.keys(counts).length ? counts : undefined };
+      }),
+    );
+    const ok = await setMessageReaction(selectedId, messageId, next);
+    if (!ok) fetchMessages(selectedId).then(setMessages);
   }
 
   const filtered = conversations
@@ -473,7 +698,7 @@ export default function FlexConnectPage() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
-                    title="Küçült (widget'a dön)"
+                    title="Mini Moda Geç"
                     onClick={() => { requestConnectWidgetReopen(); router.back(); }}
                     className="flex items-center justify-center cursor-pointer transition-colors"
                     style={{ width: 38, height: 38, borderRadius: 10, color: "#5A616C" }}
@@ -492,10 +717,15 @@ export default function FlexConnectPage() {
                   <button title="Mesajlarda ara" onClick={() => { setSearchOpen((v) => !v); setMessageQuery(""); }} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: searchOpen ? "#2867bd" : "#5A616C", background: searchOpen ? "#EAF1FB" : "transparent" }}>
                     <Search size={17} />
                   </button>
+                  {selected.type !== "dm" && selected.isAdmin && (
+                    <button title="Düzenle" onClick={openEditModal} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: "#5A616C" }}>
+                      <Pencil size={17} />
+                    </button>
+                  )}
                   <button title="Bilgi" onClick={() => setInfoOpen((v) => !v)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: infoOpen ? "#2867bd" : "#5A616C", background: infoOpen ? "#EAF1FB" : "transparent" }}>
                     <Info size={17} />
                   </button>
-                  <div className="relative">
+                  <div className="relative" data-connect-dropdown>
                     <button title="Menü" onClick={() => setMenuOpen((v) => !v)} className="flex items-center justify-center cursor-pointer transition-colors" style={{ width: 38, height: 38, borderRadius: 10, color: menuOpen ? "#2867bd" : "#5A616C", background: menuOpen ? "#EAF1FB" : "transparent" }}>
                       <MoreVertical size={17} />
                     </button>
@@ -504,9 +734,16 @@ export default function FlexConnectPage() {
                         <button onClick={handleTogglePin} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                           {selected.pinned ? <StarOff size={14} /> : <Star size={14} />} {selected.pinned ? "Favorilerden Çıkar" : "Favorilere Ekle"}
                         </button>
-                        <button onClick={handleLeave} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
-                          <LogOut size={14} /> Konuşmadan Ayrıl
-                        </button>
+                        {!selected.isOwner && (
+                          <button onClick={handleLeave} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                            <LogOut size={14} /> Konuşmadan Ayrıl
+                          </button>
+                        )}
+                        {selected.isOwner && selected.type !== "dm" && (
+                          <button onClick={handleDeleteConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                            <Trash2 size={14} /> {selected.type === "channel" ? "Kanalı Sil" : selected.type === "community" ? "Topluluğu Sil" : "Grubu Sil"}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -538,8 +775,9 @@ export default function FlexConnectPage() {
                   const prev = visibleMessages[i - 1];
                   const grouped = prev && prev.authorUid === m.authorUid;
                   const showDivider = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
+                  const menuActive = openMessageMenuId === m.id || openReactionPickerId === m.id;
                   return (
-                    <div key={m.id}>
+                    <div key={m.id} className="hover:z-[60]" style={{ position: "relative", zIndex: menuActive ? 60 : undefined }}>
                       {showDivider && (
                         <div className="flex items-center justify-center" style={{ margin: "14px 0" }}>
                           <span className="font-bold" style={{ fontSize: 11.5, color: "#8A909B", background: "#EDEEF1", padding: "5px 14px", borderRadius: 999, letterSpacing: ".02em" }}>
@@ -560,10 +798,105 @@ export default function FlexConnectPage() {
                               <span style={{ fontSize: 12.5, fontWeight: 700, color: m.colorKey }}>{m.authorName}</span>
                             </div>
                           )}
-                          <div style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
-                            <span style={{ fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450 }}>{m.text}</span>
-                            <span className="block text-right" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>{fmtTime(m.createdAt)}</span>
+                          <div className="group" style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
+                            {m.deletedForEveryone ? (
+                              <span style={{ fontSize: 13.5, lineHeight: 1.5, color: "#A2A8B2", fontStyle: "italic" }}>Bu mesaj silindi</span>
+                            ) : (
+                              <>
+                                {m.text && <span style={{ fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450 }}>{m.text}</span>}
+                                {m.attachments?.map((a) => (
+                                  <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={m.text ? 6 : 0} />
+                                ))}
+                              </>
+                            )}
+                            <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
+                              {m.editedAt && !m.deletedForEveryone && "Düzenlendi · "}{fmtTime(m.createdAt)}
+                              {/* Okundu-tikleri (Faz 2 madde 3, 2026-07-18) — SADECE kendi
+                                  mesajında, WhatsApp'taki AYNI tek/çift tik mantığı. */}
+                              {m.isMine && !m.deletedForEveryone && (
+                                m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />
+                              )}
+                            </span>
+
+                            {/* Reaksiyon + düzenle/sil menüsü (WhatsApp — 2026-07-18) — hover'da
+                                belirir, silinmiş mesajda hiç gösterilmez. */}
+                            {!m.deletedForEveryone && (
+                              <div
+                                className={`absolute transition-opacity flex items-center gap-1 ${menuActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                                style={{ top: "100%", marginTop: 4, [m.isMine ? "right" : "left"]: 0 }}
+                              >
+                                <div className="relative" data-connect-dropdown>
+                                  <button
+                                    onClick={(e) => {
+                                      setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 130));
+                                      setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
+                                      setOpenMessageMenuId(null);
+                                    }}
+                                    className="flex items-center justify-center cursor-pointer"
+                                    style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                                  >
+                                    <Smile size={13} />
+                                  </button>
+                                  {openReactionPickerId === m.id && popoverPos && createPortal(
+                                    <div className="fixed" data-connect-dropdown style={{ ...popoverPos, zIndex: 9999 }}>
+                                      <ReactionQuickPick activeEmoji={m.myReaction} onPick={(emoji) => handleReact(m.id, emoji)} />
+                                    </div>,
+                                    document.body,
+                                  )}
+                                </div>
+                                <div className="relative" data-connect-dropdown>
+                                  <button
+                                    onClick={(e) => {
+                                      setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 170));
+                                      setOpenMessageMenuId((v) => (v === m.id ? null : m.id));
+                                      setOpenReactionPickerId(null);
+                                    }}
+                                    className="flex items-center justify-center cursor-pointer"
+                                    style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                                  >
+                                    <MoreVertical size={13} />
+                                  </button>
+                                  {openMessageMenuId === m.id && popoverPos && createPortal(
+                                    <div
+                                      className="fixed"
+                                      data-connect-dropdown
+                                      style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 170, overflow: "hidden" }}
+                                    >
+                                      {m.isMine && (
+                                        <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                          <Pencil size={13} /> Düzenle
+                                        </button>
+                                      )}
+                                      {m.isMine && (
+                                        <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                                          <Trash2 size={13} /> Herkes İçin Sil
+                                        </button>
+                                      )}
+                                      <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <X size={13} /> Benim İçin Sil
+                                      </button>
+                                    </div>,
+                                    document.body,
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
+                          {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
+                            <div className="flex gap-1 flex-wrap" style={{ marginTop: 4, justifyContent: m.isMine ? "flex-end" : "flex-start" }}>
+                              {Object.entries(m.reactionCounts).map(([emoji, count]) => (
+                                <button
+                                  key={emoji}
+                                  onClick={() => handleReact(m.id, emoji)}
+                                  className="inline-flex items-center gap-1 cursor-pointer transition-all"
+                                  style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${m.myReaction === emoji ? "#2867bd" : "#E4E6EB"}`, background: m.myReaction === emoji ? "#EAF1FB" : "#fff", fontSize: 12 }}
+                                >
+                                  <span>{emoji}</span>
+                                  <span style={{ fontWeight: 700, color: m.myReaction === emoji ? "#205297" : "#6B717C" }}>{count}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -589,8 +922,17 @@ export default function FlexConnectPage() {
                 {selected.writePolicy === "admins" && !selected.isAdmin ? (
                   <div className="text-center" style={{ fontSize: 12.5, color: "#8A909B", padding: "10px 0" }}>Bu kanala sadece yöneticiler yazabilir.</div>
                 ) : (
+                  <>
+                  {editingMessageId && (
+                    <div className="flex items-center justify-between" style={{ padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: "#EAF1FB" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#205297" }}>Mesajı düzenliyorsun</span>
+                      <button onClick={() => { setEditingMessageId(null); setDraft(""); }} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-end gap-1" style={{ background: "#fff", border: "1px solid #E4E6EB", borderRadius: 16, padding: "8px 8px 8px 10px" }}>
-                    <AttachButton />
+                    <AttachButton onFileSelected={handleAttachFile} uploadProgress={uploadProgress} />
                     <textarea
                       value={draft}
                       onChange={(e) => {
@@ -615,6 +957,7 @@ export default function FlexConnectPage() {
                       <Send size={17} />
                     </button>
                   </div>
+                  </>
                 )}
               </div>
             </div>
@@ -651,9 +994,65 @@ export default function FlexConnectPage() {
                               {(m.role === "owner" || m.role === "admin") && (
                                 <span className="ml-auto shrink-0" style={{ fontSize: 10, fontWeight: 700, color: "#2867bd" }}>{m.role === "owner" ? "Sahip" : "Yönetici"}</span>
                               )}
+                              {m.role === "guest" && (
+                                <span className="ml-auto shrink-0 font-bold" style={{ fontSize: 10, color: "#6C5CE7", background: "#EDE9F7", padding: "2px 8px", borderRadius: 999 }}>{m.guestTitle || "Misafir"}</span>
+                              )}
+                              {/* Üye çıkar (2026-07-18, kullanıcı isteği) — SADECE admin, sahip HARİÇ. */}
+                              {selected?.isAdmin && m.uid !== detail.ownerUid && (
+                                <button title="Çıkar" onClick={() => handleRemoveMember(m.uid)} className="shrink-0 cursor-pointer flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: 6, color: "#A2A8B2" }}>
+                                  <X size={13} />
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
+
+                        {/* Üye/Misafir ekle (Faz 2 madde 4 + 2026-07-18 genişletme: "sadece ekle
+                            çıkar değil... üye ekleme falan" — artık kanal da dahil, rol seçilebilir). */}
+                        {(selected?.type === "group" || selected?.type === "channel") && selected.isAdmin && (
+                          <div className="mt-4 pt-4" style={{ borderTop: "1px solid #EEF0F3" }}>
+                            <div className="flex gap-1.5 mb-2.5">
+                              {([{ key: "member", label: "Üye" }, { key: "guest", label: "Misafir" }] as { key: "member" | "guest"; label: string }[]).map((r) => (
+                                <button
+                                  key={r.key} onClick={() => setAddMemberRole(r.key)}
+                                  className="cursor-pointer transition-all font-bold" style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid transparent", fontSize: 12, background: addMemberRole === r.key ? "#EAF1FB" : "transparent", color: addMemberRole === r.key ? "#205297" : "#8A909B" }}
+                                >
+                                  {r.label}
+                                </button>
+                              ))}
+                            </div>
+                            <input
+                              value={guestQuery} onChange={(e) => { setGuestQuery(e.target.value); setSelectedGuestUid(""); }}
+                              placeholder="İsim ara (personel/öğrenci)..." className="w-full outline-none"
+                              style={{ height: 36, padding: "0 12px", borderRadius: 9, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 12.5, marginBottom: 8 }}
+                            />
+                            {guestQuery.trim() && !selectedGuestUid && (
+                              <div className="flex flex-col gap-1 mb-2" style={{ maxHeight: 130, overflowY: "auto" }}>
+                                {guestCandidates.length === 0 && <p style={{ fontSize: 11.5, color: "#A2A8B2" }}>Bulunamadı.</p>}
+                                {guestCandidates.map((u) => (
+                                  <button key={u.uid} onClick={() => setSelectedGuestUid(u.uid)} className="text-left cursor-pointer transition-colors" style={{ padding: "6px 8px", borderRadius: 8, border: "none", background: "transparent", fontSize: 12.5, fontWeight: 600, color: "#1B1F26" }}>
+                                    {u.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {selectedGuestUid && (
+                              <div className="flex flex-col gap-1.5">
+                                <p style={{ fontSize: 12, color: "#8A909B" }}>
+                                  Seçilen: <strong style={{ color: "#1B1F26" }}>{[...staffDirectoryList, ...studentDirectoryList].find((u) => u.uid === selectedGuestUid)?.name}</strong>
+                                </p>
+                                <div className="flex gap-1.5">
+                                  {addMemberRole === "guest" && (
+                                    <select value={guestTitle} onChange={(e) => setGuestTitle(e.target.value)} className="flex-1 outline-none cursor-pointer" style={{ height: 34, borderRadius: 9, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 12, padding: "0 8px" }}>
+                                      {GUEST_TITLES.map((t) => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                  )}
+                                  <button onClick={handleAddGuest} className="cursor-pointer" style={{ padding: "0 14px", borderRadius: 9, border: "none", background: "#2867bd", color: "#fff", fontSize: 12, fontWeight: 700, flex: addMemberRole === "guest" ? undefined : 1 }}>Ekle</button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -669,6 +1068,136 @@ export default function FlexConnectPage() {
         onClose={() => setCreateOpen(false)}
         onCreated={(id, createdType) => { setCreateOpen(false); setNavTab(createdType); loadConversations().then(() => selectConversation(id)); }}
       />
+
+      {/* Konuşma düzenleme — "oluştur" modalıyla AYNI görünüm (2026-07-18 kullanıcı
+          isteği: "yandan açılan değil de oluştururken gelen modal gelse"). Tür
+          sabit (değiştirilemez), sadece ad/açıklama + (kanal) Yayıncı + (topluluk)
+          grup listesi düzenlenir. */}
+      <AnimatePresence>
+        {editModalOpen && selected && (
+          <motion.div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+            style={{ background: "rgba(18,35,59,.42)" }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+            onClick={() => setEditModalOpen(false)}
+          >
+            <motion.div
+              className="bg-white flex flex-col"
+              style={{ width: "100%", maxWidth: 640, maxHeight: "calc(100vh - 48px)", overflowY: "auto", borderRadius: 20, boxShadow: "0 30px 80px -20px rgba(18,35,59,.5)" }}
+              initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3.5" style={{ padding: "22px 26px 18px", borderBottom: "1px solid #EEF0F3" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#1B1F26" }}>
+                    {selected.type === "channel" ? "Kanalı Düzenle" : selected.type === "community" ? "Topluluğu Düzenle" : "Grubu Düzenle"}
+                  </h3>
+                  <p style={{ margin: "3px 0 0", fontSize: 13, color: "#8A909B", fontWeight: 500 }}>Ad, açıklama{selected.type === "channel" ? " ve Yayıncılar" : selected.type === "community" ? " ve gruplar" : ""} güncellenebilir.</p>
+                </div>
+                <button onClick={() => setEditModalOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E4E6EB", color: "#6B717C" }}><X size={18} /></button>
+              </div>
+
+              <div style={{ padding: "20px 26px 8px" }}>
+                <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>
+                  {selected.type === "community" ? "Topluluk Adı" : selected.type === "group" ? "Grup Adı" : "Kanal Adı"}
+                </label>
+                <input
+                  value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus
+                  className="w-full outline-none" style={{ height: 44, padding: "0 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 14, fontWeight: 600, marginBottom: 18 }}
+                />
+                <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 8 }}>Açıklama <span style={{ fontWeight: 600, color: "#C3CAD4", textTransform: "none", letterSpacing: 0 }}>· opsiyonel</span></label>
+                <textarea
+                  value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={2}
+                  className="w-full outline-none resize-none" style={{ padding: "11px 14px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#FBFCFD", fontSize: 13.5, marginBottom: 18 }}
+                />
+
+                {selected.type === "channel" && (
+                  <>
+                    <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>
+                      Yayıncılar <span style={{ color: "#2867bd", textTransform: "none" }}>· {editAdminUids.length} seçili</span>
+                    </label>
+                    <div className="flex flex-col gap-1.5 mb-2" style={{ maxHeight: 220, overflowY: "auto" }}>
+                      {staffDirectoryList.filter((u) => u.uid !== selected.ownerUid).map((u) => {
+                        const sel = editAdminUids.includes(u.uid);
+                        return (
+                          <button
+                            key={u.uid}
+                            onClick={() => setEditAdminUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
+                            className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
+                            style={{ padding: "8px 11px", borderRadius: 11, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}
+                          >
+                            <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 30, height: 30, borderRadius: 9, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C", fontSize: 11.5 }}>
+                              {initials(u.name)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="truncate" style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>{u.name}</div>
+                              {u.title && <div className="truncate" style={{ fontSize: 11.5, color: "#8A909B", fontWeight: 500 }}>{u.title}</div>}
+                            </div>
+                            <span className="relative rounded-md flex items-center justify-center shrink-0" style={{ width: 20, height: 20, background: sel ? "#2867bd" : "transparent", border: sel ? "none" : "2px solid #CDD2DA" }}>
+                              {sel && <Check size={12} strokeWidth={3.4} color="#fff" />}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {selected.type === "community" && (
+                  <>
+                    <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>
+                      Bu Toplulukta <span style={{ color: "#2867bd", textTransform: "none" }}>· {selected.childIds?.length ?? 0} grup</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {(selected.childIds ?? []).map((id) => (
+                        <span key={id} className="inline-flex items-center" style={{ padding: "6px 12px", borderRadius: 999, border: "1.5px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 12.5, fontWeight: 700 }}>
+                          {conversations.find((c) => c.id === id)?.name ?? "Grup"}
+                        </span>
+                      ))}
+                    </div>
+                    <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Yeni Grup Ekle</label>
+                    {!selected.announcementChannelId && (
+                      <p style={{ fontSize: 11.5, color: "#B8860B", background: "#FEF6E0", padding: "8px 10px", borderRadius: 9, marginBottom: 9 }}>
+                        Bu topluluk eski sürümle kurulmuş — eklenen grubun öğrencileri Genel Duyuru&apos;yu otomatik göremez.
+                      </p>
+                    )}
+                    <div className="flex flex-col gap-1.5 mb-2" style={{ maxHeight: 190, overflowY: "auto" }}>
+                      {myGroupsForCommunity.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Kendi adınıza kayıtlı sınıf bulunamadı.</p>}
+                      {myGroupsForCommunity.map((g) => (
+                        <button
+                          key={g.id} disabled={addingChildGroupId === g.id} onClick={() => handleAddGroupToCommunity(g)}
+                          className="flex items-center gap-2.5 cursor-pointer transition-colors disabled:opacity-50 text-left"
+                          style={{ padding: "9px 11px", borderRadius: 12, border: "1.5px solid #E4E6EB", background: "#fff" }}
+                        >
+                          <div className="flex items-center justify-center shrink-0" style={{ width: 34, height: 34, borderRadius: 10, background: "#EEF1F5", color: "#5A616C" }}><UsersRound size={17} /></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="truncate" style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>{g.code} — {g.branch}</div>
+                            <div style={{ fontSize: 11.5, color: "#8A909B" }}>{g.enrolled ?? 0} öğrenci</div>
+                          </div>
+                          {addingChildGroupId === g.id ? <Loader2 size={15} className="animate-spin shrink-0" /> : <Plus size={16} className="shrink-0" color="#2867bd" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5" style={{ padding: "18px 26px 22px", marginTop: 8 }}>
+                <button onClick={() => setEditModalOpen(false)} className="cursor-pointer" style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C", fontSize: 14, fontWeight: 600 }}>Vazgeç</button>
+                <button
+                  onClick={handleSaveMeta} disabled={savingMeta || !editName.trim()}
+                  className="inline-flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                  style={{ padding: "11px 20px", borderRadius: 11, border: "none", background: editName.trim() ? "#2867bd" : "#C3CAD4", color: "#fff", fontSize: 14, fontWeight: 700 }}
+                >
+                  {savingMeta && <Loader2 size={14} className="animate-spin" />}
+                  Güncelle
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
     </div>
   );
@@ -680,9 +1209,12 @@ export default function FlexConnectPage() {
  * akışı yok, Personel/Öğrenciler dizininden başlatılıyor, bkz. `openDirectMessage`).
  * 780px genişlik, 2 kolonlu gövde (sol: ad/açıklama, sağ: türe özel panel).
  *
- * Realm artık AYRI bir adım DEĞİL — türe göre TÜRETİLİYOR: Kanal varsayılan
- * `staff` (Yayıncılar=personel), "Tüm öğrencilere aç" açılırsa `trainer_student`+
- * audience. Grup varsayılan `trainer_student`+gerçek sınıf/roster ("Sınıf" modu,
+ * Realm artık AYRI bir adım DEĞİL — türe göre TÜRETİLİYOR: Kanal "Personel Kanalı" |
+ * "Öğrenci Kanalı" seçimiyle başlar (2026-07-18 kullanıcı isteği). Personel Kanalı'nda
+ * TÜM aktif personel otomatik okuyucu olur (`broadcastToAllStaff`, server hesaplar),
+ * Yayıncı seçilenler YAZABİLİR olur (admins'e girer). Öğrenci Kanalı'nda TÜM öğrenciler
+ * otomatik okur (`audience:"all_students"`, mevcut mekanizma), Yayıncı seçilenler yazar.
+ * Grup varsayılan `trainer_student`+gerçek sınıf/roster ("Sınıf" modu,
  * kullanıcı isteği: sınıf seçilince roster ANINDA altına eklenir), "Personel" moduna
  * geçilirse `staff`+personel çipleri (var olan iş grubu kapasitesi, kaybolmasın diye
  * korundu). Topluluk gerçek sınıflardan ≥2 seçip otomatik "Genel Duyuru" kanalı +
@@ -697,8 +1229,10 @@ function CreateConversationModal({
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Kanal
-  const [audience, setAudience] = useState(false);
+  // Kanal — "Personel Kanalı" (tüm personel otomatik okur) veya "Öğrenci Kanalı"
+  // (tüm öğrenciler otomatik okur, audience:"all_students"). İkisinde de Yayıncılar
+  // seçilenler yazabilir (admins).
+  const [channelAudience, setChannelAudience] = useState<"staff" | "students">("staff");
   const [staffDirectory, setStaffDirectory] = useState<DirectoryUser[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [selectedStaffUids, setSelectedStaffUids] = useState<string[]>([]);
@@ -715,7 +1249,7 @@ function CreateConversationModal({
 
   useEffect(() => {
     if (!open) return;
-    setType("channel"); setName(""); setDescription(""); setAudience(false);
+    setType("channel"); setName(""); setDescription(""); setChannelAudience("staff");
     setSelectedStaffUids([]); setGroupMode("class"); setSelectedGroupId(""); setRoster([]);
     setSelectedCommunityGroupIds([]);
     setDirectoryLoading(true);
@@ -748,7 +1282,7 @@ function CreateConversationModal({
   const canSubmit =
     name.trim().length > 0 &&
     (type === "channel"
-      ? audience || selectedStaffUids.length > 0
+      ? true // oluşturan zaten yazabilir (owner/admin), Yayıncı seçimi zorunlu değil
       : type === "group"
         ? groupMode === "class"
           ? !!selectedGroupId
@@ -768,10 +1302,11 @@ function CreateConversationModal({
     try {
       if (type === "channel") {
         const result = await createConversation({
-          realm: audience ? "trainer_student" : "staff",
+          realm: channelAudience === "students" ? "trainer_student" : "staff",
           type: "channel", name: name.trim(), description: description.trim() || undefined,
-          memberUids: audience ? [] : selectedStaffUids,
-          audience: audience ? "all_students" : undefined,
+          memberUids: selectedStaffUids,
+          audience: channelAudience === "students" ? "all_students" : undefined,
+          broadcastToAllStaff: channelAudience === "staff",
         });
         if ("error" in result) { toast.error(result.error); return; }
         toast.success("Kanal oluşturuldu.");
@@ -821,12 +1356,18 @@ function CreateConversationModal({
       }
       const channelResult = await createConversation({
         realm: "trainer_student", type: "channel", name: `${name.trim()} — Genel Duyuru`,
-        memberUids: [...allAuthUids],
+        // memberUids BOŞ: kanalda Yayıncı YOK, SADECE eğitmen (owner) yazar.
+        // Bundled sınıfların öğrencileri readerUids ile salt-okunur eklenir —
+        // "ben yazarım, öğrenci yazamaz" (kullanıcı isteği, 2026-07-18).
+        memberUids: [], readerUids: [...allAuthUids],
       });
       if ("error" in channelResult) { toast.error(channelResult.error); return; }
       const communityResult = await createConversation({
         realm: "trainer_student", type: "community", name: name.trim(), description: description.trim() || undefined,
         memberUids: [], childIds: groupConvIds,
+        // Bağlantı (2026-07-18) — sonradan topluluğa yeni grup eklenince o grubun
+        // rosteru OTOMATİK bu kanala okuyucu olarak eklenebilsin diye.
+        announcementChannelId: channelResult.id,
       });
       if ("error" in communityResult) { toast.error(communityResult.error); return; }
       toast.success("Topluluk oluşturuldu.");
@@ -848,7 +1389,7 @@ function CreateConversationModal({
   const visibilityNote =
     type === "community" ? `Genel Duyuru · ${communityReach} üyeye ulaşır`
       : type === "group" ? (groupMode === "class" ? "Özel — yalnızca sınıf öğrencileri" : "Özel — yalnızca eklenen üyeler")
-        : audience ? "Herkese açık — tüm öğrenciler görür" : "Herkese açık — tüm kurum görür";
+        : channelAudience === "students" ? "Herkese açık — tüm öğrenciler otomatik okur" : "Herkese açık — tüm personel otomatik okur";
   const createCta = type === "community" ? "Topluluğu Oluştur" : type === "group" ? "Grubu Oluştur" : "Kanalı Oluştur";
 
   return (
@@ -909,42 +1450,57 @@ function CreateConversationModal({
               <div>
                 {type === "channel" && (
                   <>
-                    <button onClick={() => setAudience((v) => !v)} className="flex items-center justify-between cursor-pointer w-full" style={{ padding: "12px 14px", borderRadius: 12, border: `1px solid ${audience ? "#DCE9FB" : "#E4E6EB"}`, background: audience ? "#F4F8FE" : "#fff", marginBottom: 14 }}>
-                      <div className="text-left">
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1B1F26" }}>Tüm öğrencilere aç</div>
-                        <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>Öğrenciler üye olmadan okur, SADECE yöneticiler yazar.</div>
-                      </div>
-                      <span className="relative rounded-full shrink-0" style={{ width: 34, height: 19, background: audience ? "#2867bd" : "#CDD2DA" }}>
-                        <span className="absolute rounded-full bg-white shadow transition-all" style={{ top: 2, left: audience ? 17 : 2, width: 15, height: 15 }} />
-                      </span>
-                    </button>
-                    {!audience && (
-                      <>
-                        <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Yayıncılar <span style={{ color: "#2867bd", textTransform: "none" }}>· {selectedStaffUids.length} seçili</span></label>
-                        <div className="flex flex-wrap gap-2" style={{ minHeight: 160, maxHeight: 160, overflowY: "auto" }}>
-                          {directoryLoading ? (
-                            <div className="w-full flex items-center justify-center"><Loader2 size={16} className="animate-spin text-surface-400" /></div>
-                          ) : (
-                            <>
-                              {staffDirectory.map((u) => {
-                                const sel = selectedStaffUids.includes(u.uid);
-                                return (
-                                  <button
-                                    key={u.uid}
-                                    onClick={() => setSelectedStaffUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
-                                    className="inline-flex items-center gap-1.5 cursor-pointer transition-all"
-                                    style={{ padding: "7px 13px", borderRadius: 999, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#EAF1FB" : "#fff", color: sel ? "#205297" : "#4A515C", fontSize: 13, fontWeight: 700 }}
-                                  >
-                                    {u.name}
-                                  </button>
-                                );
-                              })}
-                              {staffDirectory.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Personel bulunamadı.</p>}
-                            </>
-                          )}
-                        </div>
-                      </>
-                    )}
+                    <div className="flex gap-1.5 mb-2">
+                      {([{ key: "staff", label: "Personel Kanalı" }, { key: "students", label: "Öğrenci Kanalı" }] as { key: "staff" | "students"; label: string }[]).map((m) => (
+                        <button
+                          key={m.key} onClick={() => setChannelAudience(m.key)}
+                          className="cursor-pointer transition-all font-bold"
+                          style={{ padding: "6px 13px", borderRadius: 9, border: "1px solid transparent", fontSize: 12.5, background: channelAudience === m.key ? "#EAF1FB" : "transparent", color: channelAudience === m.key ? "#205297" : "#8A909B" }}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p style={{ margin: "0 0 12px", fontSize: 12, color: "#A2A8B2", fontWeight: 500 }}>
+                      {channelAudience === "staff"
+                        ? "Tüm personel üye olmadan otomatik okur; aşağıda seçtiğin Yayıncılar yazabilir."
+                        : "Tüm öğrenciler üye olmadan otomatik okur; aşağıda seçtiğin Yayıncılar (personel) yazabilir."}
+                    </p>
+                    <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Yayıncılar <span style={{ color: "#2867bd", textTransform: "none" }}>· {selectedStaffUids.length} seçili</span></label>
+                    {/* minHeight === maxHeight: dizin yüklenirken (boş) → yüklendikten
+                        sonra arası modal aniden büyümesin (2026-07-18 kullanıcı bulgusu:
+                        "kanal seçince önce yayıncı olmadan geliyor, 1sn sonra yükseliyor"). */}
+                    <div className="flex flex-col gap-1.5" style={{ minHeight: 200, maxHeight: 200, overflowY: "auto" }}>
+                      {directoryLoading ? (
+                        <div className="w-full flex items-center justify-center py-6"><Loader2 size={16} className="animate-spin text-surface-400" /></div>
+                      ) : (
+                        <>
+                          {staffDirectory.map((u) => {
+                            const sel = selectedStaffUids.includes(u.uid);
+                            return (
+                              <button
+                                key={u.uid}
+                                onClick={() => setSelectedStaffUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
+                                className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
+                                style={{ padding: "8px 11px", borderRadius: 11, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}
+                              >
+                                <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 30, height: 30, borderRadius: 9, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C", fontSize: 11.5 }}>
+                                  {initials(u.name)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="truncate" style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>{u.name}</div>
+                                  {u.title && <div className="truncate" style={{ fontSize: 11.5, color: "#8A909B", fontWeight: 500 }}>{u.title}</div>}
+                                </div>
+                                <span className="relative rounded-md flex items-center justify-center shrink-0" style={{ width: 20, height: 20, background: sel ? "#2867bd" : "transparent", border: sel ? "none" : "2px solid #CDD2DA" }}>
+                                  {sel && <Check size={12} strokeWidth={3.4} color="#fff" />}
+                                </span>
+                              </button>
+                            );
+                          })}
+                          {staffDirectory.length === 0 && <p style={{ fontSize: 12.5, color: "#A2A8B2" }}>Personel bulunamadı.</p>}
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
 
@@ -1010,9 +1566,12 @@ function CreateConversationModal({
                     ) : (
                       <>
                         <label className="block font-bold uppercase" style={{ fontSize: 11.5, color: "#8A909B", letterSpacing: ".05em", marginBottom: 9 }}>Üyeler <span style={{ color: "#2867bd", textTransform: "none" }}>· {selectedStaffUids.length} seçili</span></label>
-                        <div className="flex flex-wrap gap-2" style={{ minHeight: 160, maxHeight: 160, overflowY: "auto" }}>
+                        {/* Liste menü + checkbox (2026-07-18 kullanıcı isteği: çip
+                            grid yerine, Sınıflarım/Topluluk satırlarıyla AYNI desen —
+                            tek tek işaretleyip sonra "Oluştur"a basılıyor). */}
+                        <div className="flex flex-col gap-1.5" style={{ minHeight: 200, maxHeight: 200, overflowY: "auto" }}>
                           {directoryLoading ? (
-                            <div className="w-full flex items-center justify-center"><Loader2 size={16} className="animate-spin text-surface-400" /></div>
+                            <div className="w-full flex items-center justify-center py-6"><Loader2 size={16} className="animate-spin text-surface-400" /></div>
                           ) : (
                             <>
                               {staffDirectory.map((u) => {
@@ -1021,10 +1580,19 @@ function CreateConversationModal({
                                   <button
                                     key={u.uid}
                                     onClick={() => setSelectedStaffUids((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
-                                    className="inline-flex items-center gap-1.5 cursor-pointer transition-all"
-                                    style={{ padding: "7px 13px", borderRadius: 999, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#EAF1FB" : "#fff", color: sel ? "#205297" : "#4A515C", fontSize: 13, fontWeight: 700 }}
+                                    className="flex items-center gap-2.5 cursor-pointer transition-all text-left"
+                                    style={{ padding: "8px 11px", borderRadius: 11, border: `1.5px solid ${sel ? "#2867bd" : "#E4E6EB"}`, background: sel ? "#F4F8FE" : "#fff" }}
                                   >
-                                    {u.name}
+                                    <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 30, height: 30, borderRadius: 9, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C", fontSize: 11.5 }}>
+                                      {initials(u.name)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="truncate" style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>{u.name}</div>
+                                      {u.title && <div className="truncate" style={{ fontSize: 11.5, color: "#8A909B", fontWeight: 500 }}>{u.title}</div>}
+                                    </div>
+                                    <span className="relative rounded-md flex items-center justify-center shrink-0" style={{ width: 20, height: 20, background: sel ? "#2867bd" : "transparent", border: sel ? "none" : "2px solid #CDD2DA" }}>
+                                      {sel && <Check size={12} strokeWidth={3.4} color="#fff" />}
+                                    </span>
                                   </button>
                                 );
                               })}

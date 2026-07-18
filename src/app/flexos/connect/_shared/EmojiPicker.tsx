@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Smile, Paperclip } from "lucide-react";
 
 const QUICK_EMOJIS = ["😀", "😂", "👍", "🎉", "❤️", "🙏", "😍", "🔥", "👏", "😢", "🤔", "✅", "🚀", "😅", "🙌", "💯", "👀", "🎊"];
@@ -44,15 +44,58 @@ export function EmojiButton({ onPick, size = 40 }: { onPick: (emoji: string) => 
   );
 }
 
-/** Dosya ekle — görsel olarak tasarımda var, gerçek yükleme FAZ 2 (bkz. FLEX_CONNECT.md). */
-export function AttachButton({ size = 40 }: { size?: number }) {
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+/** Mesaj reaksiyon hızlı-seç panosu (WhatsApp tarzı, Faz 2 madde 2 — 2026-07-18).
+ * Composer'ın `EmojiButton`'ından AYRI: sadece 6 yaygın emoji, mesaj balonunun
+ * hemen üstünde/yanında açılır. `activeEmoji` doluysa o buton vurgulanır (kendi
+ * reaksiyonun). */
+export function ReactionQuickPick({ onPick, activeEmoji }: { onPick: (emoji: string) => void; activeEmoji?: string }) {
   return (
-    <button
-      type="button" title="Dosya ekle (yakında)" disabled
-      className="flex items-center justify-center shrink-0"
-      style={{ width: size, height: size, borderRadius: 11, border: "none", background: "transparent", color: "#C3CAD4", cursor: "not-allowed" }}
+    <div
+      className="flex items-center gap-0.5"
+      style={{ background: "#fff", border: "1px solid #E4E6EB", borderRadius: 999, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", padding: "4px 5px" }}
     >
-      <Paperclip size={size >= 40 ? 19 : 16} />
-    </button>
+      {QUICK_REACTIONS.map((e) => (
+        <button
+          key={e} type="button" onClick={() => onPick(e)}
+          className="flex items-center justify-center cursor-pointer transition-transform"
+          style={{ width: 27, height: 27, border: "none", borderRadius: "50%", background: activeEmoji === e ? "#EAF1FB" : "transparent", fontSize: 16 }}
+        >
+          {e}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Dosya ekle (Faz 2 madde 5 — 2026-07-18): gerçek dosya seçici, `onFileSelected`
+ * çağıranın (page.tsx) upload+gönder akışını tetikler. `uploadProgress` doluyken
+ * (0-100) gerçek yüzde gösterir (kullanıcı isteği — sadece spinner değil, sayı
+ * görmek istedi), `null`/`undefined` iken normal ataç ikonu. */
+export function AttachButton({
+  size = 40, onFileSelected, uploadProgress,
+}: { size?: number; onFileSelected: (file: File) => void; uploadProgress?: number | null }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const uploading = uploadProgress != null;
+  return (
+    <>
+      <input
+        ref={inputRef} type="file" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileSelected(f); e.target.value = ""; }}
+      />
+      <button
+        type="button" title={uploading ? `Yükleniyor · %${uploadProgress}` : "Dosya ekle"} disabled={uploading}
+        onClick={() => inputRef.current?.click()}
+        className="flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+        style={{ width: size, height: size, borderRadius: 11, border: "none", background: "transparent", color: uploading ? "#2867bd" : "#6B717C", cursor: uploading ? "default" : "pointer" }}
+      >
+        {uploading ? (
+          <span style={{ fontSize: size >= 40 ? 10.5 : 9.5, fontWeight: 800 }}>%{uploadProgress}</span>
+        ) : (
+          <Paperclip size={size >= 40 ? 19 : 16} />
+        )}
+      </button>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 // NOT: Sadece server-side import edilmeli (firebase-admin client'ta çalışmaz).
-import type { ConnectConversation, ConnectMember } from "../domain/core/connect";
+import type { ConnectAttachment, ConnectConversation, ConnectMember } from "../domain/core/connect";
 import { firestoreConnectRepo } from "./connect-repo.firestore";
 import { resolveConnectIdentities } from "./connect-identity";
 
@@ -9,6 +9,7 @@ export interface ConnectConversationView {
   realm: ConnectConversation["realm"];
   type: ConnectConversation["type"];
   name: string; // dm için karşı tarafın adı, diğerlerinde conversation.name
+  description?: string;
   colorKey?: string;
   writePolicy: ConnectConversation["writePolicy"];
   audience?: string;
@@ -23,11 +24,21 @@ export interface ConnectConversationView {
    * composer'ı göster/gizle kararı BUNA bakar (2026-07-18 bug fix: önceden hiç
    * kontrol edilmiyordu, admin bile kendi kanalına yazamıyor gibi görünüyordu). */
   isAdmin: boolean;
+  /** Çağıran bu konuşmanın SAHİBİ mi — silme gibi en-yüksek-yetki işlemler SADECE
+   * owner'a açılır (2026-07-18, admin/yayıncı yeterli değil). */
+  isOwner: boolean;
   /** Kişisel sabitleme tercihi (Favoriler, Faz 2) — üye değilse (audience-only) hep false. */
   pinned: boolean;
   /** SADECE type==="dm" — karşı tarafın uid'i. Dizinden (Personel/Öğrenciler/
    * Eğitmenlerim) bir kişiye tıklayınca "bununla zaten DM var mı" eşleşmesi için. */
   peerUid?: string;
+  /** Düzenleme modalının ANINDA (fetch beklemeden) açılabilmesi için (2026-07-18
+   * kullanıcı bulgusu: "Yayıncılar 1sn sonra geliyor") — liste zaten bu veriyi
+   * taşıyor, ayrı bir `GET .../[id]` çağrısına hiç gerek yok. */
+  admins: string[];
+  ownerUid: string;
+  childIds?: string[];
+  announcementChannelId?: string;
 }
 
 /**
@@ -78,6 +89,7 @@ export async function buildConversationViews(
         realm: conversation.realm,
         type: conversation.type,
         name,
+        description: conversation.description,
         colorKey,
         writePolicy: conversation.writePolicy,
         audience: conversation.audience,
@@ -86,8 +98,13 @@ export async function buildConversationViews(
         unreadCount,
         isMember: !!member,
         isAdmin: conversation.admins.includes(principalUid),
+        isOwner: conversation.ownerUid === principalUid,
         pinned: member?.pinned ?? false,
         peerUid,
+        admins: conversation.admins,
+        ownerUid: conversation.ownerUid,
+        childIds: conversation.childIds,
+        announcementChannelId: conversation.announcementChannelId,
       };
     })
     .sort((a, b) => (b.lastMessage?.at ?? "").localeCompare(a.lastMessage?.at ?? ""));
@@ -101,24 +118,57 @@ export interface ConnectMessageView {
   isMine: boolean;
   text: string;
   createdAt: string;
+  /** Düzenlenmişse dolu — UI "Düzenlendi" etiketi gösterir (WhatsApp, 2026-07-18). */
+  editedAt?: string;
+  /** "Herkes için sil" — true ise `text` zaten boş, UI "Bu mesaj silindi" placeholder'ı gösterir. */
+  deletedForEveryone?: boolean;
+  /** emoji → kaç kişi seçti (gruplu, render'a hazır — Faz 2 madde 2, 2026-07-18). */
+  reactionCounts?: Record<string, number>;
+  /** Çağıranın KENDİ reaksiyonu (varsa) — UI kendi seçtiği emojiyi vurgular. */
+  myReaction?: string;
+  /** SADECE isMine — okundu-tikleri (Faz 2 madde 3, 2026-07-18): DİĞER tüm üyeler
+   * bu mesajdan SONRA okumuşsa (lastReadAt >= createdAt) true — WhatsApp'taki çift
+   * mavi tik. Yeni bir "okundu" kaydı YOK, var olan `Member.lastReadAt`'ten türetilir. */
+  readByAll?: boolean;
+  /** Faz 2 madde 5 (2026-07-18) — dosya eki(leri), doğrudan geçirilir. */
+  attachments?: ConnectAttachment[];
 }
 
 export async function buildMessageViews(
-  messages: { id: string; authorUid: string; text: string; createdAt: string }[],
+  messages: {
+    id: string; authorUid: string; text: string; createdAt: string; editedAt?: string;
+    deletedForEveryone?: boolean; reactions?: Record<string, string>; attachments?: ConnectAttachment[];
+  }[],
   principalUid: string,
   tenantId: string,
+  /** Okundu-tikleri için: DİĞER üyelerin (çağıran hariç) `lastReadAt` değerleri. */
+  otherMembersLastReadAt: string[] = [],
 ): Promise<ConnectMessageView[]> {
   const identities = await resolveConnectIdentities(
     messages.map((m) => m.authorUid),
     tenantId,
   );
-  return messages.map((m) => ({
-    id: m.id,
-    authorUid: m.authorUid,
-    authorName: identities[m.authorUid]?.name ?? "Kullanıcı",
-    colorKey: identities[m.authorUid]?.colorKey ?? "#3A7BD5",
-    isMine: m.authorUid === principalUid,
-    text: m.text,
-    createdAt: m.createdAt,
-  }));
+  return messages.map((m) => {
+    const reactionCounts: Record<string, number> = {};
+    for (const emoji of Object.values(m.reactions ?? {})) reactionCounts[emoji] = (reactionCounts[emoji] ?? 0) + 1;
+    const isMine = m.authorUid === principalUid;
+    const readByAll = isMine && otherMembersLastReadAt.length > 0
+      ? otherMembersLastReadAt.every((t) => t >= m.createdAt)
+      : undefined;
+    return {
+      id: m.id,
+      authorUid: m.authorUid,
+      authorName: identities[m.authorUid]?.name ?? "Kullanıcı",
+      colorKey: identities[m.authorUid]?.colorKey ?? "#3A7BD5",
+      isMine,
+      readByAll,
+      text: m.text,
+      createdAt: m.createdAt,
+      editedAt: m.editedAt,
+      deletedForEveryone: m.deletedForEveryone,
+      reactionCounts: Object.keys(reactionCounts).length > 0 ? reactionCounts : undefined,
+      myReaction: m.reactions?.[principalUid],
+      attachments: m.attachments,
+    };
+  });
 }

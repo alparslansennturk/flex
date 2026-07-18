@@ -1,0 +1,17 @@
+{
+  "name": "Flex Connect",
+  "short_name": "Flex Connect",
+  "description": "Kurumsal Eğitim İletişim Platformu",
+  "start_url": "/flexos/connect/mobile",
+  "scope": "/flexos/connect/mobile",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F5F7",
+  "theme_color": "#2867bd",
+  "icons": [
+    { "src": "/api/pwa/connect-mobile-icon?size=192", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/api/pwa/connect-mobile-icon?size=512", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/api/pwa/connect-mobile-icon?size=192", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/api/pwa/connect-mobile-icon?size=512", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

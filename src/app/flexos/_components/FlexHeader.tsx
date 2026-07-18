@@ -10,6 +10,7 @@ import React, { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/app/lib/firebase";
 import NotificationBell from "@/app/components/notifications/NotificationBell";
+import ConnectWidget from "./ConnectWidget";
 
 // Sayfa değişince FlexHeader yeniden mount olur (paylaşımlı layout yok) — FlexSidebar'daki
 // capsCache deseniyle aynı: isim bir kez çekilir, sonraki mount'larda cache'ten okunur.
@@ -40,6 +41,13 @@ interface FlexHeaderProps {
    *  ismi zaten kendi API'sinden (ör. Person.firstName/lastName) bilen çağıranlar için
    *  (öğrenci sayfası: `users/{uid}` legacy dokümanı FlexOS-only hesaplarda hiç yok). */
   displayNameOverride?: string;
+  /** Flex Connect widget'ı yaygınlaştırma (2026-07-18, kalan son madde) — FlexHeader
+   * kullanan HER sayfa artık otomatik widget alır (tek noktadan, ~35 sayfa). Öğrenci
+   * sayfaları bu prop'u vererek `/api/flexos/student/connect/*` route ailesine
+   * yönlendirir; personel sayfaları vermez (varsayılan `/api/flexos/connect/*`).
+   * SADECE Connect'in kendi tam-sayfaları FlexHeader'ı hiç KULLANMAZ (bkz. oradaki
+   * yorum) — bu yüzden ayrı bir "gizle" prop'una gerek yok. */
+  connectPersonId?: string;
 }
 
 // Diğer FlexOS sayfalarının (Eğitim Yönetimi, Sınıflar, Eğitmenler, Satış Yap…) standart
@@ -78,7 +86,7 @@ export function FlexPageContent({ children, className, style }: { children: Reac
   );
 }
 
-export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, maxWidthClassName, left, displayNameOverride }: FlexHeaderProps) {
+export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, maxWidthClassName, left, displayNameOverride, connectPersonId }: FlexHeaderProps) {
   const [displayName, setDisplayName] = useState(displayNameOverride ?? nameCache ?? "");
 
   useEffect(() => {
@@ -109,6 +117,8 @@ export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel 
   const firstName = displayName.split(" ")[0] || "";
 
   return (
+    <>
+    <ConnectWidget personId={connectPersonId} />
     <header style={{ position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 2px 6px rgba(15,31,61,.04)" }}>
       <div
         style={{ maxWidth: maxWidthClassName ? undefined : maxWidth, margin: "0 auto", width: maxWidthClassName ? undefined : "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: maxWidthClassName ? "20px 0" : "20px 36px" }}
@@ -145,5 +155,6 @@ export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel 
         </div>
       </div>
     </header>
+    </>
   );
 }

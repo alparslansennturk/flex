@@ -59,10 +59,14 @@ export const firestoreConnectRepo: ConnectRepo = {
   },
 
   async deleteConversation(id, tenantId) {
-    const snap = await adminDb.collection(CONVERSATIONS).doc(id).get();
+    const ref = adminDb.collection(CONVERSATIONS).doc(id);
+    const snap = await ref.get();
     if (!snap.exists) return;
     if ((snap.data() as ConnectConversation).tenantId !== tenantId) return;
-    await adminDb.collection(CONVERSATIONS).doc(id).delete();
+    // `recursiveDelete` — Firestore parent doc silme alt-koleksiyonları (members/
+    // messages/typing) OTOMATİK silmez, elle temizlenmezse yetim doküman kalır
+    // (2026-07-18, konuşma silme özelliği eklenirken fark edildi).
+    await adminDb.recursiveDelete(ref);
   },
 
   async findBySourceGroupId(tenantId, sourceGroupId) {
@@ -110,6 +114,12 @@ export const firestoreConnectRepo: ConnectRepo = {
 
   async saveMessage(conversationId, message) {
     await adminDb.collection(CONVERSATIONS).doc(conversationId).collection(MESSAGES).doc(message.id).set(clean(message));
+  },
+
+  async getMessage(conversationId, messageId) {
+    const snap = await adminDb.collection(CONVERSATIONS).doc(conversationId).collection(MESSAGES).doc(messageId).get();
+    if (!snap.exists) return null;
+    return snap.data() as ConnectMessage;
   },
 
   async listMessages(conversationId, limit) {

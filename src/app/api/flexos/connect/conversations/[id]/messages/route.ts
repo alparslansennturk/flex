@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { staffPrincipalFromCaller } from "@/app/lib/server/connect-principal";
 import { connectDeps } from "@/app/lib/server/connect-deps";
 import { buildMessageViews } from "@/app/lib/server/connect-view";
-import { listMessages, sendMessage } from "@/app/lib/domain/services/connect-service";
+import { listMessages, listMembers, sendMessage } from "@/app/lib/domain/services/connect-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 /**
@@ -19,7 +19,11 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
 
   try {
     const messages = await listMessages(principal, id, connectDeps);
-    const views = await buildMessageViews(messages, principal.uid, principal.tenantId);
+    // Okundu-tikleri (Faz 2 madde 3) — DİĞER üyelerin `lastReadAt`'i, var olan
+    // veriden türetilir, yeni bir "okundu" kaydı YOK.
+    const members = await listMembers(principal, id, connectDeps);
+    const otherReadAts = members.filter((m) => m.uid !== principal.uid).map((m) => m.lastReadAt).filter((t): t is string => !!t);
+    const views = await buildMessageViews(messages, principal.uid, principal.tenantId, otherReadAts);
     return NextResponse.json({ items: views });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

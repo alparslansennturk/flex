@@ -31,7 +31,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   const principal = await staffPrincipalFromCaller(caller);
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
-  let body: { uid?: string; role?: ConnectMemberRole };
+  let body: { uid?: string; role?: ConnectMemberRole; guestTitle?: string };
   try {
     body = await req.json();
   } catch {
@@ -40,7 +40,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   if (!body.uid) return NextResponse.json({ error: "uid zorunlu." }, { status: 400 });
 
   try {
-    await addMember(principal, id, body.uid, body.role ?? "member", connectDeps, extractConnectRequestMeta(req));
+    await addMember(principal, id, body.uid, body.role ?? "member", connectDeps, extractConnectRequestMeta(req), body.guestTitle);
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
