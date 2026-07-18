@@ -16,7 +16,42 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Ödev mail bildirimi (Brevo) + Ödev Notu'nda "proje" ayrımı + çok sayıda UI düzeltmesi (2026-07-17, Mac oturumu — EN GÜNCEL)
+### ✅ FlexOS CANLIYA ALINDI + Flex Connect (Faz 1-3) tamamlandı, Mobil PWA production'da (2026-07-18/19, Mac oturumu — EN GÜNCEL)
+
+**En önemli mimari değişiklik: FlexOS artık TEK canlı sistem.** Kullanıcı bu iki
+günde eski (pasif) canlı Flex Core'u devre dışı bıraktı — artık gerçek
+öğrencilere FlexOS üzerinden ödev veriyor ve yoklama alıyor. `main` branch =
+production, `flexos` branch = geliştirme (aynı commit'e senkron tutuluyor,
+`git push origin flexos:main` ile). Bundan sonraki TÜM işler bu aktif-canlı
+sistemin üzerine ekleniyor — "henüz canlıya çıkmadı" varsayımı ARTIK GEÇERSİZ.
+
+**Flex Connect (madde 96'daki "henüz tasarım/kod yok" notu KAPANDI) — tam
+detay `FLEX_CONNECT.md`'de, özet:**
+- **Faz 1** (çekirdek: kanal/grup/DM/topluluk, iki-realm izolasyonu, widget) tamamlandı.
+- **Faz 2** (Audit Log, Favoriler, reaksiyonlar, okundu-tiki, misafir daveti,
+  dosya ekleri) tamamlandı + kanal/grup/topluluk **silme**, **üye yönetimi**,
+  **düzenleme modalı**, mesaj popup'larının `position:fixed`+portal'a taşınması
+  (scrollable konteyner clipping/z-index bug'larının kesin çözümü) eklendi.
+- **Faz 3 (Mobil PWA)** — `/flexos/connect/mobile`, ayrı route, gerçek veriyle
+  4 sekme (Sohbetler=WhatsApp-tarzı birleşik liste, Kanallar=kategorize
+  görünüm, Personel+Öğrenciler toggle, Ayarlar), gerçek mesajlaşma/oluşturma
+  akışları, PWA altyapısı (manifest+geçici ikon+service worker), gerçek
+  Splash+Login (aynı FlexOS hesabı). **Production'a alındı, kullanıcı kendi
+  telefonuna kurdu, 2 gerçek bug bulunup düzeltildi** (iOS standalone modda
+  durum çubuğu + alt boşluk — `env(safe-area-inset-*)` + `100dvh`). Sıradaki:
+  3-4 gerçek öğrenciyle canlı pilot (bkz. hafıza `flexos_connect_mobile_pilot_plan`).
+
+**SIRADAKİ İŞ:** Flex Connect Mobil'de kullanıcının kendi cihazında bulacağı
+görsel/UX ince ayarlar + push bildirimi/App Badge (bilinçli en sona bırakıldı)
++ final marka ikonu. Ayrıca bu dosyanın altındaki (madde 100-103, 2026-07-14
+tarihli) "SIRADAKİ İŞ" listesindeki Flex Connect maddesi artık kapandı, diğer
+maddeler (arşiv ödev Firestore-seviyesi filtre, yorum/globals.css, bildirim
+listener tekilleştirmesi vb.) hâlâ açık olabilir — kod durumu doğrulanmadan
+güvenilmesin.
+
+---
+
+### ✅ Ödev mail bildirimi (Brevo) + Ödev Notu'nda "proje" ayrımı + çok sayıda UI düzeltmesi (2026-07-17, Mac oturumu)
 
 **1) Ödev verilince öğrencilere mail — eski (pasif) canlı sistemde vardı, FlexOS'a hiç taşınmamıştı, kullanıcı bulgusu.** Yeni `lib/server/assignment-mail.ts::notifyAssignmentPublished` — `POST /api/flexos/assignments` ile bir ödev **published** (taslak değil) olarak oluşunca gruptaki (veya `targetPersonIds` doluysa sadece hedef kişilere) tüm **aktif** öğrencilere Brevo üzerinden mail gidiyor (`lib/email.ts::sendMail`, FlexOS'ta zaten şifre sıfırlama/kullanıcı kodu için canlı — aynı altyapı reuse edildi, yeni env/kurulum gerekmedi). Mail içinde ödev başlığı/alt başlık/son teslim tarihi + öğrenci portalına giden bir "Ödevi Görüntüle" butonu var. Best-effort: gönderim hatası ödev oluşturmayı asla başarısız kılmaz, sonuç (`{sent,total}`) `OdevOlusturModal.tsx`'teki başarı toast'ında gösteriliyor ("X/Y öğrenciye mail gönderildi").
 
