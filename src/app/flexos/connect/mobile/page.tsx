@@ -6,9 +6,13 @@
  * bırakıldı). Ayrı route (`/flexos/connect/mobile`) — PWA manifest'i kendi start_url/scope'una
  * sahip olsun diye, masaüstü `/flexos/connect` sayfasını hiç etkilemez.
  *
- * Splash/Login ekranları BİLİNÇLİ OLARAK YOK — kullanıcı kararı: FlexOS zaten oturum açtırıyor,
- * mobil PWA açılınca direkt sekmeli uygulamaya girer (tasarımdaki splash/login inceleme/demo
- * amaçlıydı, gerçek FlexOS auth'uyla çakışan ikinci bir giriş sistemi kurulmadı).
+ * Splash + Login GERÇEK (2026-07-19 kullanıcı düzeltmesi — "ilk seferde login olmalı, app'ler
+ * öyle, sonra logout olmadan sormuyor. Splash olsun"). `onAuthStateChanged` ile: kontrol
+ * bitene kadar Splash, oturum YOKSA gerçek Login (AYNI FlexOS hesabı — `signInWithEmailAndPassword`,
+ * `/flexos/giris`'teki İLE AYNI mekanizma, ayrı bir kullanıcı sistemi DEĞİL), oturum VARSA
+ * (Firebase `browserLocalPersistence` sayesinde bir dahaki açılışta zaten kalıcı) direkt
+ * sekmeli uygulama. Çıkış yapınca da AYNI PWA içinde Login ekranına döner — ayrı bir web
+ * sayfasına atmaz (app'lerdeki gibi).
  *
  * Tasarımda backend karşılığı OLMAYAN / demo amaçlı elemanlar bilinçli olarak atlandı (kullanıcı:
  * "düzenlemeleri sonra yaparız" — hepsi ileride eklenebilir):
@@ -32,8 +36,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
+import {
+  signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
+  type User,
+} from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { toast } from "sonner";
 import { auth, db } from "@/app/lib/firebase";
@@ -105,6 +111,8 @@ const ICONS: Record<string, string> = {
   smile: '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/>',
   file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+  mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
 };
 
 function Icon({ k, size = 20, sw = 2, color = "currentColor" }: { k: string; size?: number; sw?: number; color?: string }) {
@@ -141,7 +149,35 @@ function tokens(dark: boolean): Tokens {
 const iconFor = (type: ConversationView["type"], key?: string) => key ?? (type === "group" ? "group" : type === "community" ? "community" : "channel");
 
 export default function FlexConnectMobile() {
-  const router = useRouter();
+  // ── Auth kapısı (2026-07-19) — `undefined`: kontrol ediliyor (Splash),
+  // `null`: oturum yok (Login), `User`: oturum var (direkt uygulama). Firebase
+  // `browserLocalPersistence` sayesinde bir kez giriş yapınca çıkış yapana kadar
+  // tekrar sormaz (kullanıcı: "app'lerde öyle").
+  const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
+  useEffect(() => onAuthStateChanged(auth, setAuthUser), []);
+
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  async function handleLogin(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!loginEmail.trim() || !loginPassword || loggingIn) return;
+    setLoginError("");
+    setLoggingIn(true);
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      const cred = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+      const token = await cred.user.getIdToken();
+      document.cookie = `flex-token=${token}; path=/; max-age=2592000; SameSite=Lax`;
+      setLoginPassword("");
+    } catch {
+      setLoginError("E-posta veya şifre hatalı.");
+    } finally {
+      setLoggingIn(false);
+    }
+  }
 
   // ── Tema (Sistem/Light/Dark) — tasarımdaki gibi 3 seçenek, gerçek çalışır ──
   const [themePref, setThemePref] = useState<ThemePref>("system");
@@ -405,7 +441,8 @@ export default function FlexConnectMobile() {
 
   async function handleLogout() {
     await signOut(auth);
-    router.push("/flexos/giris");
+    // Ayrı bir sayfaya YÖNLENDİRME yok — `onAuthStateChanged` authUser'ı null
+    // yapınca AYNI PWA içinde Login ekranı gösterilir (native app davranışı).
   }
 
   // ── Türetilmiş listeler ──
@@ -435,7 +472,12 @@ export default function FlexConnectMobile() {
 
   // ── Stil sabitleri (tasarımdaki AYNI değerler) ──
   const shellStyle: React.CSSProperties = { position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: T.bg, color: T.text, transition: "background .3s, color .3s", fontFamily: "'Inter', system-ui, sans-serif" };
-  const topBarStyle: React.CSSProperties = { flex: "0 0 auto", padding: "10px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between", background: T.topBar };
+  // `paddingTop: env(safe-area-inset-top)` — iOS'ta PWA olarak kurulunca (Ana
+  // Ekrana Ekle + `statusBarStyle:"black-translucent"`) durum çubuğu içeriğin
+  // ÜSTÜNE bindiği için gerekiyor (2026-07-19 kullanıcı bulgusu: "Safari'de üst
+  // kısım telefonun kendi barı arkasında kalmış, Chrome'da sorun yok" — Android
+  // Chrome PWA'da durum çubuğu içeriği itiyor, iOS Safari'de İTMİYOR, üstüne biniyor).
+  const topBarStyle: React.CSSProperties = { flex: "0 0 auto", padding: "10px 16px 8px", paddingTop: "max(10px, env(safe-area-inset-top))", display: "flex", alignItems: "center", justifyContent: "space-between", background: T.topBar };
   const topTitleStyle: React.CSSProperties = { margin: "1px 0 0", fontSize: 24, fontWeight: 800, letterSpacing: "-.6px", color: T.text };
   const topAddBtnStyle: React.CSSProperties = { width: 40, height: 40, borderRadius: 12, border: "none", background: T.brand, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", boxShadow: "0 6px 14px -6px rgba(40,103,189,.6)" };
   const screenColStyle: React.CSSProperties = { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg };
@@ -446,7 +488,63 @@ export default function FlexConnectMobile() {
 
   return (
     <div style={shellStyle}>
-      {screen === "app" && (
+      {authUser === undefined && (
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: dark ? "#0E1420" : "#FFFFFF" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+            <div style={{ width: 88, height: 88, borderRadius: 26, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 20px 44px -14px rgba(40,103,189,.7)" }}>
+              <Icon k="chat" size={46} sw={2} color="#fff" />
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-.6px", color: T.text }}>Flex Connect</div>
+              <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 6, color: T.text2 }}>Kurumsal Eğitim İletişim Platformu</div>
+            </div>
+          </div>
+          <div style={{ position: "absolute", bottom: 64, left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 26, height: 26, border: `3px solid ${dark ? "#26314A" : "#E4E8EF"}`, borderTopColor: "#2867bd", borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} />
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: T.text2 }}>güvenli bağlantı kuruluyor…</span>
+          </div>
+        </div>
+      )}
+
+      {authUser === null && (
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: T.bg2 }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ width: 60, height: 60, borderRadius: 18, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 14px 30px -12px rgba(40,103,189,.6)", marginBottom: 26 }}>
+              <Icon k="chat" size={30} sw={2.1} color="#fff" />
+            </div>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-.5px", color: T.text }}>Tekrar hoş geldiniz</h1>
+            <p style={{ margin: "8px 0 30px", fontSize: 14, fontWeight: 500, lineHeight: 1.5, color: T.text2 }}>Kurum hesabınızla giriş yaparak eğitmen ve öğrenci işleri ile güvenle iletişim kurun.</p>
+
+            <form onSubmit={handleLogin}>
+              <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Kurum E-postası</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
+                <Icon k="mail" size={18} color={T.muted} />
+                <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="ad.soyad@kurum.edu.tr" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+              </div>
+
+              <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Şifre</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: loginError ? 10 : 16 }}>
+                <Icon k="lock" size={18} color={T.muted} />
+                <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+              </div>
+              {loginError && <p style={{ margin: "0 0 12px", fontSize: 12.5, fontWeight: 600, color: "#D93636" }}>{loginError}</p>}
+
+              <button type="submit" disabled={loggingIn} style={{ width: "100%", height: 52, border: "none", borderRadius: 14, background: "#2867bd", color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", marginTop: 8, boxShadow: "0 12px 26px -12px rgba(40,103,189,.7)" }}>
+                {loggingIn ? "Giriş yapılıyor…" : "Giriş Yap"}
+              </button>
+              <button
+                type="button" onClick={() => toast("Yakında kullanıma açılacak.")}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", height: 48, border: `1px solid ${T.border}`, borderRadius: 14, background: "transparent", color: T.brandText, fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", marginTop: 10 }}
+              >
+                <Icon k="lock" size={16} />Tek kullanımlık kod ile giriş
+              </button>
+            </form>
+          </div>
+          <p style={{ textAlign: "center", fontSize: 11.5, fontWeight: 500, paddingBottom: 8, color: T.muted }}>Yalnızca kurum onaylı hesaplar erişebilir · KVKK uyumlu</p>
+        </div>
+      )}
+
+      {authUser && screen === "app" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
           {tab === "chats" && (
             <div style={screenColStyle}>
@@ -673,9 +771,9 @@ export default function FlexConnectMobile() {
       )}
 
       {/* ============ CHAT / CHANNEL DETAIL ============ */}
-      {screen === "chat" && selected && (
+      {authUser && screen === "chat" && selected && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={backToApp} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
             <div style={selected.type === "dm" ? { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: selected.colorKey ?? T.brand, color: "#fff", fontSize: 14, fontWeight: 700 } : { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.brandBg, color: T.brand }}>
               {selected.type === "dm" ? initials(selected.name) : <Icon k={iconFor(selected.type)} size={20} sw={2} />}
@@ -776,9 +874,9 @@ export default function FlexConnectMobile() {
       )}
 
       {/* ============ CREATE SCREEN ============ */}
-      {screen === "create" && (
+      {authUser && screen === "create" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={() => setScreen("app")} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="close" size={22} sw={2.2} /></button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>{createType === "community" ? "Topluluk Oluştur" : createType === "group" ? "Grup Oluştur" : "Kanal Oluştur"}</div>
@@ -894,9 +992,9 @@ export default function FlexConnectMobile() {
       )}
 
       {/* ============ BILDIRIMLER ============ */}
-      {screen === "notif" && (
+      {authUser && screen === "notif" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
-          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Bildirimler</div>

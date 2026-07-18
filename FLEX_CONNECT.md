@@ -1190,6 +1190,37 @@ tarayıcıda GÖRSEL olarak henüz doğrulamadı (bu ortamda tarayıcı testi yo
 **Hâlâ eksik:** Push notification + App Badge (bilinçli en sona), final marka
 ikonu, kullanıcının kendi cihazında GÖRSEL/kurulum testi.
 
+### ✅ Kurulum test edildi — gerçek Splash+Login eklendi + iOS safe-area bug'ı düzeltildi (2026-07-19)
+
+Kullanıcı telefonuna GERÇEKTEN kurdu (Ana Ekrana Ekle çalıştı) — ilk canlı doğrulama.
+İki bulgu:
+
+1. **"Login olmayacak mı" / "ilk seferde login olmalı, app'ler öyle, sonra logout
+   olmadan sormuyor. Splash olsun"** — önceki turda splash/login bilinçli atlanmıştı
+   (varsayım: her zaman zaten oturum açık olur). Kullanıcı düzeltti: gerçek bir
+   auth kapısı olmalı. Eklendi: `onAuthStateChanged` ile 3 durum — kontrol
+   bitene kadar Splash (logo+spinner), oturum YOKSA gerçek Login (AYNI FlexOS
+   hesabı — `signInWithEmailAndPassword` + `setPersistence(browserLocalPersistence)`,
+   `/flexos/giris`'teki İLE AYNI mekanizma, ayrı kullanıcı sistemi DEĞİL —
+   kullanıcı: "flexos pass ile buradaki kullanıcı bilgileri aynı olacak zaten"),
+   oturum VARSA direkt uygulama. `browserLocalPersistence` sayesinde bir kez
+   giriş yapınca çıkış yapılmadan bir daha sormuyor (native app davranışı).
+   **Oturumu Kapat** artık `/flexos/giris`'e YÖNLENDİRMİYOR — `signOut` sonrası
+   `onAuthStateChanged` authUser'ı null yapıp AYNI PWA içinde Login ekranını
+   gösteriyor (ayrı bir web sayfasına atmadan). "Tek kullanımlık kod ile giriş"
+   butonu görsel olarak duruyor, henüz bağlanmadı (ayrı/belirsiz bir akış, sonra).
+2. **iOS Safari'de üst kısım telefonun durum çubuğunun ARKASINDA kalıyordu**
+   (Chrome'da sorun yoktu, Safari'de "Ana Ekrana Ekle" ile kurulunca da vardı,
+   doğrudan Safari'de sorun yoktu) — kök neden: `layout.tsx`'teki
+   `statusBarStyle:"black-translucent"` iOS'ta durum çubuğunu İÇERİĞİN ÜSTÜNE
+   şeffaf bindiriyor (Android Chrome'da PWA durum çubuğu içeriği İTİYOR, iOS'ta
+   İTMİYOR) — sadece standalone/kurulu modda ortaya çıkan bir fark, bu yüzden
+   düz Safali sekmesinde hiç görünmüyordu. Çözüm: tüm üst bar'lara (ana tab
+   header'ı + sohbet/oluştur/bildirim ekran başlıkları + login ekranı)
+   `paddingTop:"max(Npx, env(safe-area-inset-top))"` eklendi — `env()` değeri
+   sadece gerçek safe-area'sı olan cihazlarda/standalone modda sıfırdan büyük
+   olduğu için normal tarayıcıda hiçbir şeyi bozmuyor.
+
 ---
 
 ## 9. Yeniden kullanım (mevcut FlexOS'tan)
