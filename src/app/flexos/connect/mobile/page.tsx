@@ -55,6 +55,17 @@ import {
   setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled,
 } from "@/app/flexos/connect/_shared/connectClient";
 
+// Bazı Promise'ler (SW aktivasyonu, FCM token isteği) başarısız olduğunda REJECT
+// etmek yerine sonsuza kadar askıda kalabiliyor (özellikle iOS Safari'de) — bu
+// durumda kullanıcıya ne hata ne de başarı geri bildirimi gitmiyordu ("hiç tepki
+// yok"). Zaman aşımı ekleyip hangi adımda takıldığını görünür kılıyoruz.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} zaman aşımına uğradı (${ms / 1000}sn)`)), ms)),
+  ]);
+}
+
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
 
@@ -582,13 +593,17 @@ export default function FlexConnectMobile() {
       if (permission !== "granted") { toast.error("Bildirim izni verilmedi — tarayıcı/telefon ayarlarından açabilirsin."); return; }
       const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
       if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı."); return; }
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await withTimeout(navigator.serviceWorker.ready, 8000, "Servis çalışanı hazır olma");
       // Önceki bir denemeden (farklı VAPID key/eski kurulum) kalmış push subscription
       // varsa getToken() Safari'de sessizce/anlaşılmaz bir hatayla patlıyor
       // ("applicationServerKey" çakışması) — önce temizle.
       const existingSub = await registration.pushManager.getSubscription().catch(() => null);
       if (existingSub) await existingSub.unsubscribe().catch(() => {});
-      const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
+      const token = await withTimeout(
+        getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }),
+        8000,
+        "FCM token isteği",
+      );
       if (!token) { toast.error("Cihaz kaydı alınamadı (token boş döndü)."); return; }
       const registered = await registerPushToken(token, studentPersonId ?? undefined);
       if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene."); return; }
