@@ -1,11 +1,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { onIdTokenChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/app/lib/firebase';
 import { UserDocument } from '@/app/types/user';
 import { COLLECTIONS, ROLES, UserPermission, PERMISSIONS } from '@/app/lib/constants';
+
+const CONNECT_MOBILE_PREFIX = '/flexos/connect/mobile';
 
 const ROLES_CONFIG: Record<string, { permissions: UserPermission[] }> = {
   [ROLES.ADMIN]: {
@@ -35,10 +38,14 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
+  const pathname = usePathname();
+  const isConnectMobile = pathname?.startsWith(CONNECT_MOBILE_PREFIX) ?? false;
   const [user, setUser] = useState<UserDocument | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !isConnectMobile);
 
   useEffect(() => {
+    if (isConnectMobile) return;
+
     let unsubscribeDoc: (() => void) | null = null;
     let unsubscribeAuth: (() => void) | null = null;
     let activeUid: string | null = null;
@@ -120,7 +127,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeDoc = null;
       }
     };
-  }, []);
+  }, [isConnectMobile]);
 
   /** 1. YETKİ KAYNAĞI ANALİZİ */
   const getPermissionSource = (permission: UserPermission): 'override' | 'role' | 'legacy' | 'none' => {
