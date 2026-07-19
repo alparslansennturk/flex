@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
 import { onIdTokenChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/app/lib/firebase';
@@ -37,14 +36,20 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+// `usePathname()` (RSC streaming/hydration sırasında bir "kabuk" render'ında
+// henüz doğru path'i vermeyebiliyor, 2026-07-19 kullanıcı bulgusu: mobil
+// Connect'te auth guard'ı hâlâ tetikleniyordu) yerine ham `window.location` —
+// React router context'inin zamanlamasından tamamen bağımsız, garantili.
+function isConnectMobilePath(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname.startsWith(CONNECT_MOBILE_PREFIX);
+}
+
 export const UserProvider = ({ children }: { children: ReactNode }) => {
-  const pathname = usePathname();
-  const isConnectMobile = pathname?.startsWith(CONNECT_MOBILE_PREFIX) ?? false;
   const [user, setUser] = useState<UserDocument | null>(null);
-  const [loading, setLoading] = useState(() => !isConnectMobile);
+  const [loading, setLoading] = useState(() => !isConnectMobilePath());
 
   useEffect(() => {
-    if (isConnectMobile) return;
+    if (isConnectMobilePath()) return;
 
     let unsubscribeDoc: (() => void) | null = null;
     let unsubscribeAuth: (() => void) | null = null;
@@ -127,7 +132,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeDoc = null;
       }
     };
-  }, [isConnectMobile]);
+  }, []);
 
   /** 1. YETKİ KAYNAĞI ANALİZİ */
   const getPermissionSource = (permission: UserPermission): 'override' | 'role' | 'legacy' | 'none' => {
