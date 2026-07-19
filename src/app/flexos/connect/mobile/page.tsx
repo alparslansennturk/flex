@@ -150,6 +150,13 @@ function tokens(dark: boolean): Tokens {
 const iconFor = (type: ConversationView["type"], key?: string) => key ?? (type === "group" ? "group" : type === "community" ? "community" : "channel");
 
 export default function FlexConnectMobile() {
+  // İlk client hydration tamamlanana kadar HİÇBİR ŞEY basılmaz — SSR'ın statik
+  // (varsayılan state'lerle üretilmiş) HTML'i ile JS devreye girdikten sonraki
+  // gerçek durum arasındaki tek kareli farkın (kullanıcı bulgusu: "geldi gitti")
+  // görünür olmasını engeller. `useEffect` SADECE mount sonrası çalışır.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // ── Auth kapısı (2026-07-19) — `undefined`: kontrol ediliyor (Splash),
   // `null`: oturum yok (Login), `User`: oturum var (direkt uygulama). Firebase
   // `browserLocalPersistence` sayesinde bir kez giriş yapınca çıkış yapana kadar
@@ -232,11 +239,16 @@ export default function FlexConnectMobile() {
   }
 
   // ── Tema (Sistem/Light/Dark) — tasarımdaki gibi 3 seçenek, gerçek çalışır ──
+  // İlk değer bir `useEffect` bekleyip sonradan set edilirse, koyu-mod kullanan
+  // cihazlarda ilk kare AÇIK renkle basılıp hemen ardından koyuya dönüyordu
+  // (splash'taki "flaş" şikayetinin bir parçası) — `matchMedia` senkron okunabilen
+  // bir API, lazy initializer ile İLK client render'da doğru değer kullanılır.
   const [themePref, setThemePref] = useState<ThemePref>("system");
-  const [systemDark, setSystemDark] = useState(false);
+  const [systemDark, setSystemDark] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setSystemDark(mq.matches);
     const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
@@ -567,6 +579,10 @@ export default function FlexConnectMobile() {
   // `justifyContent:"center"` ile bu 52px'in TAM ortasına oturur (padding tahminiyle
   // değil, flexbox'ın kesin ortalamasıyla).
   const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "0 8px", paddingBottom: "max(4px, env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
+
+  if (!mounted) {
+    return <div style={{ position: "fixed", inset: 0, height: "100dvh", width: "100vw", background: "#F4F5F7" }} />;
+  }
 
   return (
     <div style={shellStyle}>
