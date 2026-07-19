@@ -152,13 +152,6 @@ function tokens(dark: boolean): Tokens {
 const iconFor = (type: ConversationView["type"], key?: string) => key ?? (type === "group" ? "group" : type === "community" ? "community" : "channel");
 
 export default function FlexConnectMobile() {
-  // İlk client hydration tamamlanana kadar HİÇBİR ŞEY basılmaz — SSR'ın statik
-  // (varsayılan state'lerle üretilmiş) HTML'i ile JS devreye girdikten sonraki
-  // gerçek durum arasındaki tek kareli farkın (kullanıcı bulgusu: "geldi gitti")
-  // görünür olmasını engeller. `useEffect` SADECE mount sonrası çalışır.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   // ── Auth kapısı (2026-07-19) — `undefined`: kontrol ediliyor (Splash),
   // `null`: oturum yok (Login), `User`: oturum var (direkt uygulama). Firebase
   // `browserLocalPersistence` sayesinde bir kez giriş yapınca çıkış yapana kadar
@@ -581,10 +574,6 @@ export default function FlexConnectMobile() {
   // `justifyContent:"center"` ile bu 52px'in TAM ortasına oturur (padding tahminiyle
   // değil, flexbox'ın kesin ortalamasıyla).
   const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
-
-  if (!mounted) {
-    return <div style={{ position: "fixed", inset: 0, height: "100dvh", width: "100vw", background: "#F4F5F7" }} />;
-  }
 
   return (
     <div style={shellStyle}>
