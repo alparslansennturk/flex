@@ -36,6 +36,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
   type User,
@@ -46,7 +47,7 @@ import { auth, db } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type TypingSignal,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
-  sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
+  sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
 } from "@/app/flexos/connect/_shared/connectClient";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
@@ -156,6 +157,44 @@ export default function FlexConnectMobile() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   useEffect(() => onAuthStateChanged(auth, setAuthUser), []);
 
+  // Splash en az 1000ms görünür kalır (WhatsApp akışı) — auth kontrolü daha
+  // hızlı bitse bile ekran "çakmasın", sonra 400ms fade-out ile alttaki
+  // Login/uygulamaya erir (bkz. AnimatePresence'lı splash render'ı aşağıda).
+  const [minSplashElapsed, setMinSplashElapsed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMinSplashElapsed(true), 1000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Rol tespiti (2026-07-19) — AYNI kurulu PWA (`/flexos/connect/mobile`, manifest
+  // scope'u bu URL'e sabit, ayrı bir route'a yönlendirme PWA modundan çıkarır) hem
+  // personel hem öğrenci girişini kabul eder. `/api/flexos/me`'nin `landing` alanı
+  // (`resolveFlexosLanding`'in masaüstünde kullandığı AYNI kaynak) öğrenciyse
+  // (`/flexos/student/{personId}`) öğrenci moduna geçilir — dizin/oluşturma gibi
+  // personel-özel veri ve eylemler öğrenciye HİÇ gösterilmez (bkz. aşağıdaki
+  // `studentPersonId` kullanımları). `undefined`: henüz bilinmiyor.
+  const [studentPersonId, setStudentPersonId] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!authUser) { setStudentPersonId(undefined); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await authUser.getIdToken();
+        const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` } });
+        const data = res.ok ? (await res.json() as { landing?: string }) : {};
+        const match = typeof data.landing === "string" ? data.landing.match(/^\/flexos\/student\/([^/]+)/) : null;
+        if (!cancelled) setStudentPersonId(match ? match[1] : null);
+      } catch {
+        if (!cancelled) setStudentPersonId(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authUser]);
+
+  // Rol bilinene kadar Splash'ta kalınır — personel-özel bir fetch'in öğrenci için
+  // bir an bile tetiklenmemesi ("staff realm hiç görünmez" garantisi) BUNA bağlı.
+  const showSplash = authUser === undefined || !minSplashElapsed || (!!authUser && studentPersonId === undefined);
+
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -225,17 +264,28 @@ export default function FlexConnectMobile() {
   // AYNI "Personel" tabının içinde segment toggle.
   const [staffTabView, setStaffTabView] = useState<"staff" | "students">("staff");
   const [studentDirectory, setStudentDirectory] = useState<DirectoryUser[]>([]);
+  /** Öğrenci modu — "Eğitmenim" (kayıtlı olduğu grupların eğitmen(ler)i, DM için). */
+  const [trainerDirectory, setTrainerDirectory] = useState<DirectoryUser[]>([]);
 
   const loadConversations = useCallback(async () => {
+    if (studentPersonId === undefined) return;
     setLoadingList(true);
     try {
-      setConversations(await fetchConversations());
+      setConversations(await fetchConversations(studentPersonId ?? undefined));
     } finally {
       setLoadingList(false);
     }
-  }, []);
+  }, [studentPersonId]);
   useEffect(() => { loadConversations(); }, [loadConversations]);
-  useEffect(() => { fetchDirectory().then(setStaffDirectory); fetchStudentDirectory().then(setStudentDirectory); }, []);
+  useEffect(() => {
+    if (studentPersonId === undefined) return;
+    if (studentPersonId) {
+      fetchTrainerDirectory(studentPersonId).then(setTrainerDirectory);
+    } else {
+      fetchDirectory().then(setStaffDirectory);
+      fetchStudentDirectory().then(setStudentDirectory);
+    }
+  }, [studentPersonId]);
 
   // PWA service worker kaydı (2026-07-18) — SADECE bu route'un scope'unda,
   // masaüstünü etkilemez. Minimal SW (bkz. `public/sw-connect-mobile.js`) —
@@ -268,11 +318,11 @@ export default function FlexConnectMobile() {
     firstLoadRef.current = true;
     setLoadingMessages(true);
     try {
-      setMessages(await fetchMessages(id));
+      setMessages(await fetchMessages(id, studentPersonId ?? undefined));
     } finally {
       setLoadingMessages(false);
     }
-    await markConversationRead(id);
+    await markConversationRead(id, studentPersonId ?? undefined);
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false, unreadCount: 0 } : c)));
   }
   function backToApp() {
@@ -280,12 +330,12 @@ export default function FlexConnectMobile() {
     setSelectedId(null);
   }
 
-  /** Personel/Öğrenciler dizininden tıklayınca var olan DM'i aç, yoksa oluştur —
-   * masaüstündeki (`connect/page.tsx::openDirectMessage`) AYNI mantık. */
+  /** Personel/Öğrenciler/Eğitmenim dizininden tıklayınca var olan DM'i aç, yoksa
+   * oluştur — masaüstündeki (`connect/page.tsx::openDirectMessage`) AYNI mantık. */
   async function openDirectMessage(uid: string, realm: "staff" | "trainer_student") {
     const existing = conversations.find((c) => c.type === "dm" && c.peerUid === uid);
     if (existing) { openChat(existing.id); return; }
-    const result = await createConversation({ realm, type: "dm", name: "", memberUids: [uid] });
+    const result = await createConversation({ realm, type: "dm", name: "", memberUids: [uid] }, studentPersonId ?? undefined);
     if ("error" in result) { toast.error(result.error); return; }
     await loadConversations();
     openChat(result.id);
@@ -318,10 +368,10 @@ export default function FlexConnectMobile() {
     if (!text || !selectedId || sending) return;
     setSending(true);
     setDraft("");
-    const err = await postMessage(selectedId, text);
+    const err = await postMessage(selectedId, text, studentPersonId ?? undefined);
     setSending(false);
     if (err?.error) { toast.error(err.error); setDraft(text); return; }
-    setMessages(await fetchMessages(selectedId));
+    setMessages(await fetchMessages(selectedId, studentPersonId ?? undefined));
     loadConversations();
   }
   function onDraftChange(v: string) {
@@ -330,7 +380,7 @@ export default function FlexConnectMobile() {
     const now = Date.now();
     if (now - lastTypingSentRef.current > 2000) {
       lastTypingSentRef.current = now;
-      sendTypingSignal(selectedId);
+      sendTypingSignal(selectedId, studentPersonId ?? undefined);
     }
   }
 
@@ -465,6 +515,7 @@ export default function FlexConnectMobile() {
   const sq = staffQuery.trim().toLocaleLowerCase("tr");
   const staffTabSource = staffTabView === "staff" ? staffDirectory : studentDirectory;
   const staffRows = staffTabSource.filter((u) => !sq || u.name.toLocaleLowerCase("tr").includes(sq) || (u.title ?? "").toLocaleLowerCase("tr").includes(sq));
+  const trainerRows = trainerDirectory.filter((u) => !sq || u.name.toLocaleLowerCase("tr").includes(sq) || (u.title ?? "").toLocaleLowerCase("tr").includes(sq));
 
   const memberCandidates = staffDirectory.filter((u) => !memberQuery.trim() || u.name.toLocaleLowerCase("tr").includes(memberQuery.trim().toLocaleLowerCase("tr")));
   const reachCount = myGroups.filter((g) => cGroups.includes(g.id)).reduce((a, g) => a + (g.enrolled ?? 0), 0);
@@ -497,27 +548,34 @@ export default function FlexConnectMobile() {
   const searchWrapStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, height: 44, padding: "0 14px", borderRadius: 13, border: `1px solid ${T.border}`, background: T.field };
   const searchFieldStyle: React.CSSProperties = { flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14, fontWeight: 500, color: T.text };
   const avatarBox = (color: string, sz = 48): React.CSSProperties => ({ position: "relative", width: sz, height: sz, borderRadius: 15, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: sz * 0.34, fontWeight: 700, background: color });
-  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "6px 8px 0", paddingBottom: "max(6px, env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
+  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "4px 8px 0", paddingBottom: "max(4px, env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
 
   return (
     <div style={shellStyle}>
-      {authUser === undefined && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: dark ? "#0E1420" : "#FFFFFF" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
-            <div style={{ width: 88, height: 88, borderRadius: 26, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 20px 44px -14px rgba(40,103,189,.7)" }}>
-              <Icon k="chat" size={46} sw={2} color="#fff" />
+      <AnimatePresence>
+        {showSplash && (
+          <motion.div
+            key="splash"
+            style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: dark ? "#0E1420" : "#FFFFFF" }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+              <div style={{ width: 88, height: 88, borderRadius: 26, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 20px 44px -14px rgba(40,103,189,.7)" }}>
+                <Icon k="chat" size={46} sw={2} color="#fff" />
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-.6px", color: T.text }}>Flex Connect</div>
+                <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 6, color: T.text2 }}>Kurumsal Eğitim İletişim Platformu</div>
+              </div>
             </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-.6px", color: T.text }}>Flex Connect</div>
-              <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 6, color: T.text2 }}>Kurumsal Eğitim İletişim Platformu</div>
+            <div style={{ position: "absolute", bottom: 64, left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+              <div style={{ width: 26, height: 26, border: `3px solid ${dark ? "#26314A" : "#E4E8EF"}`, borderTopColor: "#2867bd", borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} />
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: T.text2 }}>güvenli bağlantı kuruluyor…</span>
             </div>
-          </div>
-          <div style={{ position: "absolute", bottom: 64, left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <div style={{ width: 26, height: 26, border: `3px solid ${dark ? "#26314A" : "#E4E8EF"}`, borderTopColor: "#2867bd", borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} />
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: T.text2 }}>güvenli bağlantı kuruluyor…</span>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {authUser === null && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: T.bg2 }}>
@@ -560,13 +618,13 @@ export default function FlexConnectMobile() {
       {authUser && screen === "app" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
           {tab === "chats" && (
-            <div style={screenColStyle}>
+            <motion.div key="chats" style={screenColStyle} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
               <div style={topBarStyle}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
                   <h1 style={topTitleStyle}>Sohbetler</h1>
                 </div>
-                <button onClick={() => setSheetOpen(true)} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>
+                {!studentPersonId && <button onClick={() => setSheetOpen(true)} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
               </div>
               <div style={{ padding: "4px 16px 12px", flex: "0 0 auto" }}>
                 <div style={searchWrapStyle}>
@@ -588,7 +646,7 @@ export default function FlexConnectMobile() {
                       <div style={avatarBox(c.colorKey ?? T.brand, 48)}>{c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: 14.5, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
+                          <span style={{ fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
                           <span style={{ fontSize: 11.5, fontWeight: c.unread ? 700 : 500, color: c.unread ? T.brand : T.muted, flex: "0 0 auto", paddingLeft: 8 }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 3 }}>
@@ -600,17 +658,17 @@ export default function FlexConnectMobile() {
                   ))
                 )}
               </div>
-            </div>
+            </motion.div>
           )}
 
           {tab === "channels" && (
-            <div style={screenColStyle}>
+            <motion.div key="channels" style={screenColStyle} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
               <div style={topBarStyle}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
                   <h1 style={topTitleStyle}>Kanallar</h1>
                 </div>
-                <button onClick={() => setSheetOpen(true)} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>
+                {!studentPersonId && <button onClick={() => setSheetOpen(true)} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
               </div>
               <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
                 {channelSections.length === 0 && !loadingList && <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz kanal/grup/topluluk yok.</p>}
@@ -631,7 +689,7 @@ export default function FlexConnectMobile() {
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                              <span style={{ fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
                               <span style={{ fontSize: 11, fontWeight: c.unreadCount ? 700 : 500, color: c.unreadCount ? T.brand : T.muted, flex: "0 0 auto" }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 2 }}>
@@ -645,47 +703,49 @@ export default function FlexConnectMobile() {
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
 
           {tab === "staff" && (
-            <div style={screenColStyle}>
+            <motion.div key="staff" style={screenColStyle} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
               <div style={topBarStyle}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
-                  <h1 style={topTitleStyle}>Personel</h1>
+                  <h1 style={topTitleStyle}>{studentPersonId ? "Eğitmenim" : "Personel"}</h1>
                 </div>
               </div>
-              <div style={{ padding: "4px 16px 0", flex: "0 0 auto" }}>
-                {/* Personel/Öğrenciler geçişi (2026-07-18) — masaüstünde ayrı rail
-                    sekmeleri, mobilde 5. bir alt-tab açmak yerine AYNI tab içinde. */}
-                <div style={{ display: "inline-flex", padding: 3, borderRadius: 11, background: T.card2, border: `1px solid ${T.border}`, gap: 3, marginBottom: 12 }}>
-                  {([{ k: "staff" as const, l: "Personel" }, { k: "students" as const, l: "Öğrenciler" }]).map((o) => {
-                    const sel = staffTabView === o.k;
-                    return (
-                      <button
-                        key={o.k} onClick={() => setStaffTabView(o.k)}
-                        style={{ padding: "7px 14px", borderRadius: 8, border: "none", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: sel ? T.card : "transparent", color: sel ? T.brand : T.text2 }}
-                      >
-                        {o.l}
-                      </button>
-                    );
-                  })}
+              {!studentPersonId && (
+                <div style={{ padding: "4px 16px 0", flex: "0 0 auto" }}>
+                  {/* Personel/Öğrenciler geçişi (2026-07-18) — masaüstünde ayrı rail
+                      sekmeleri, mobilde 5. bir alt-tab açmak yerine AYNI tab içinde. */}
+                  <div style={{ display: "inline-flex", padding: 3, borderRadius: 11, background: T.card2, border: `1px solid ${T.border}`, gap: 3, marginBottom: 12 }}>
+                    {([{ k: "staff" as const, l: "Personel" }, { k: "students" as const, l: "Öğrenciler" }]).map((o) => {
+                      const sel = staffTabView === o.k;
+                      return (
+                        <button
+                          key={o.k} onClick={() => setStaffTabView(o.k)}
+                          style={{ padding: "7px 14px", borderRadius: 8, border: "none", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", background: sel ? T.card : "transparent", color: sel ? T.brand : T.text2 }}
+                        >
+                          {o.l}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
               <div style={{ padding: "0 16px 12px", flex: "0 0 auto" }}>
                 <div style={searchWrapStyle}>
                   <Icon k="search" size={17} color={T.muted} />
-                  <input value={staffQuery} onChange={(e) => setStaffQuery(e.target.value)} placeholder={staffTabView === "staff" ? "Personel ara..." : "Öğrenci ara..."} style={searchFieldStyle} />
+                  <input value={staffQuery} onChange={(e) => setStaffQuery(e.target.value)} placeholder={studentPersonId ? "Eğitmen ara..." : (staffTabView === "staff" ? "Personel ara..." : "Öğrenci ara...")} style={searchFieldStyle} />
                 </div>
               </div>
               <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px" }}>
                 <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-                  {staffRows.length === 0 && <p style={{ textAlign: "center", padding: 16, fontSize: 13, color: T.muted }}>Kimse bulunamadı.</p>}
-                  {staffRows.map((p, i) => (
+                  {(studentPersonId ? trainerRows : staffRows).length === 0 && <p style={{ textAlign: "center", padding: 16, fontSize: 13, color: T.muted }}>Kimse bulunamadı.</p>}
+                  {(studentPersonId ? trainerRows : staffRows).map((p, i, arr) => (
                     <button
-                      key={p.uid} onClick={() => openDirectMessage(p.uid, staffTabView === "staff" ? "staff" : "trainer_student")}
-                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < staffRows.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
+                      key={p.uid} onClick={() => openDirectMessage(p.uid, studentPersonId ? "trainer_student" : (staffTabView === "staff" ? "staff" : "trainer_student"))}
+                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
                     >
                       <div style={avatarBox(T.brand, 42)}>{initials(p.name)}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -697,11 +757,11 @@ export default function FlexConnectMobile() {
                   ))}
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {tab === "settings" && (
-            <div style={screenColStyle}>
+            <motion.div key="settings" style={screenColStyle} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
               <div style={topBarStyle}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
@@ -760,7 +820,7 @@ export default function FlexConnectMobile() {
                 </button>
                 <p style={{ textAlign: "center", fontSize: 11, fontWeight: 500, marginTop: 14, color: T.muted }}>Flex Connect PWA · Sürüm 1.0.0</p>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* BOTTOM NAV */}
@@ -768,13 +828,13 @@ export default function FlexConnectMobile() {
             {[
               { k: "chats" as Tab, l: "Sohbetler", icon: "chat" },
               { k: "channels" as Tab, l: "Kanallar", icon: "channel" },
-              { k: "staff" as Tab, l: "Personel", icon: "group" },
+              { k: "staff" as Tab, l: studentPersonId ? "Eğitmenim" : "Kullanıcılar", icon: "group" },
               { k: "settings" as Tab, l: "Ayarlar", icon: "settings" },
             ].map((b) => {
               const active = tab === b.k;
               return (
-                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 0 2px", border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.muted, fontFamily: "inherit" }}>
-                  <Icon k={b.icon} size={23} sw={active ? 2.2 : 1.9} />
+                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "6px 0 4px", border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
+                  <Icon k={b.icon} size={28} sw={active ? 2.1 : 1.8} />
                   <span style={{ fontSize: 10.5, fontWeight: active ? 800 : 600 }}>{b.l}</span>
                 </button>
               );
@@ -785,7 +845,7 @@ export default function FlexConnectMobile() {
 
       {/* ============ CHAT / CHANNEL DETAIL ============ */}
       {authUser && screen === "chat" && selected && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
+        <motion.div key="chat" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}>
           <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={backToApp} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
             <div style={selected.type === "dm" ? { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: selected.colorKey ?? T.brand, color: "#fff", fontSize: 14, fontWeight: 700 } : { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.brandBg, color: T.brand }}>
@@ -878,17 +938,17 @@ export default function FlexConnectMobile() {
                 value={draft} onChange={(e) => onDraftChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
                 placeholder="Bir mesaj yazın…"
-                style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 450, color: T.text, padding: "8px 2px", minWidth: 0 }}
+                style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 16, fontWeight: 450, color: T.text, padding: "8px 2px", minWidth: 0 }}
               />
               <button onClick={send} style={{ width: 38, height: 38, borderRadius: 11, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", background: draft.trim() ? T.brand : (dark ? "#33405A" : "#C3CAD4"), flex: "0 0 auto", transition: "background .15s" }}><Icon k="send" size={18} sw={2.1} /></button>
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* ============ CREATE SCREEN ============ */}
       {authUser && screen === "create" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
+        <motion.div key="create" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}>
           <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={() => setScreen("app")} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="close" size={22} sw={2.2} /></button>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1001,12 +1061,12 @@ export default function FlexConnectMobile() {
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* ============ BILDIRIMLER ============ */}
       {authUser && screen === "notif" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
+        <motion.div key="notif" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}>
           <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1062,7 +1122,7 @@ export default function FlexConnectMobile() {
             </div>
             <p style={{ textAlign: "center", fontSize: 11.5, fontWeight: 500, color: T.muted, margin: "16px 8px 0", lineHeight: 1.4 }}>Acil kurum duyuruları sessiz saatlerde de iletilir.</p>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* ============ BOTTOM SHEET ============ */}
