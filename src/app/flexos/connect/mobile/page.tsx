@@ -553,11 +553,15 @@ export default function FlexConnectMobile() {
   const canCreate = createType === "community" ? cName.trim().length > 0 && cGroups.length >= 2 : cName.trim().length > 0;
 
   // ── Stil sabitleri (tasarımdaki AYNI değerler) ──
-  // `height:"100dvh"` + `inset:0` birlikte — SADECE `inset:0` bazı iOS standalone
-  // (Ana Ekrana Ekle) sürümlerinde gerçek ekran yüksekliğini tam kapsamıyor,
-  // altta boşluk kalıyordu (2026-07-19 kullanıcı bulgusu: "üst iphone kendi barı
-  // var ama alt boş"). `100dvh` (dynamic viewport height) daha güvenilir.
-  const shellStyle: React.CSSProperties = { position: "fixed", inset: 0, height: viewportHeight ? `${viewportHeight}px` : "100dvh", width: "100vw", display: "flex", flexDirection: "column", background: T.bg, color: T.text, transition: "background .3s, color .3s", fontFamily: "'Inter', system-ui, sans-serif" };
+  // `position:fixed` + `inset:0` ile AYNI ANDA açık bir `height` vermek CSS'te
+  // "aşırı kısıtlanmış" bir durum — spec `bottom`'u yok sayıp sadece `top:0` +
+  // `height` ile kutuyu çizer. `window.innerHeight`/`visualViewport.height` iOS
+  // standalone'da home-indicator safe-area'yı HARİÇ tutan değeri verdiği için bu
+  // `height` her zaman gerçek ekrandan kısa kalıp altta boşluk bırakıyordu
+  // (2026-07-19 kullanıcı bulgusu). `minHeight` kullanınca `top:0`+`bottom:0`
+  // kendi otomatik hesabıyla (zaten mümkün en büyük değer) gerçek ekranı kapsar,
+  // JS ölçümü sadece tarayıcı bozulursa devreye giren bir taban olur.
+  const shellStyle: React.CSSProperties = { position: "fixed", inset: 0, minHeight: viewportHeight ? `${viewportHeight}px` : "100dvh", width: "100vw", display: "flex", flexDirection: "column", background: T.bg, color: T.text, transition: "background .3s, color .3s", fontFamily: "'Inter', system-ui, sans-serif" };
 
   // Kök `html`/`body` arkaplanı da senkron tutulur — `shellStyle` gerçek ekranı
   // tam kaplamazsa (dvh/inset yuvarlama farkı) altta/üstte görünecek olan renk
