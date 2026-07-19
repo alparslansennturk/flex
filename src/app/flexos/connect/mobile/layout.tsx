@@ -5,6 +5,8 @@ import type { Metadata, Viewport } from "next";
  * `layout.tsx` ile SADECE bu route'a uygulanır, masaüstü FlexOS'u etkilemez
  * (bkz. FLEX_CONNECT.md Faz 3 — ayrı route kararı).
  */
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Flex Connect",
   manifest: "/manifest-connect-mobile.json",

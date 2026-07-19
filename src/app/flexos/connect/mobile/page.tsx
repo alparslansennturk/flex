@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 /**
  * FlexOS · Flex Connect — Mobil PWA (Faz 3). Tasarım kaynağı: `Flex Connect Mobil.dc.html`
  * (kullanıcı isteği: BİREBİR aynı UI, yorum/iyileştirme katılmadı — düzenlemeler sonraya
