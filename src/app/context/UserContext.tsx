@@ -37,20 +37,31 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 // `usePathname()` (RSC streaming/hydration sırasında bir "kabuk" render'ında
-// henüz doğru path'i vermeyebiliyor, 2026-07-19 kullanıcı bulgusu: mobil
-// Connect'te auth guard'ı hâlâ tetikleniyordu) yerine ham `window.location` —
-// React router context'inin zamanlamasından tamamen bağımsız, garantili.
-function isConnectMobilePath(): boolean {
-  return typeof window !== 'undefined' && window.location.pathname.startsWith(CONNECT_MOBILE_PREFIX);
+// henüz doğru path'i vermeyebiliyor) yerine ham `window.location` — React
+// router context'inin zamanlamasından tamamen bağımsız, garantili.
+//
+// GERÇEK KÖK NEDEN (2026-07-19, teşhis logu ile doğrulandı): Firebase Auth
+// SDK'nın kendi arka plandaki gizli yardımcı iframe'i (`/__/auth/iframe`,
+// bu projede Hosting yapılandırılmadığı için 404 dönüyor ve genel 404
+// sayfamıza, dolayısıyla YİNE kök layout'a/UserProvider'a düşüyor) KENDİ
+// `window.location` bağlamında çalışıyor — path kontrolü orada hep yanlış
+// sonuç veriyordu. O iframe içindeki `doLogout()` ise `flex-token` cookie'sini
+// GERÇEKTEN temizliyordu (same-origin, path paylaşımlı) — görünmez ama gerçek
+// bir yan etkiydi. Bu guard artık path'e EK OLARAK "bir iframe içindeyiz"
+// durumunu da kapsıyor — bu tür yardımcı/arka plan bağlamlarında UserProvider'ın
+// hiçbir zaman kendi auth/cookie mantığını çalıştırmasına gerek yok.
+function shouldSkipAuthGuard(): boolean {
+  if (typeof window === 'undefined') return false;
+  const isInIframe = window.self !== window.top;
+  return isInIframe || window.location.pathname.startsWith(CONNECT_MOBILE_PREFIX);
 }
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserDocument | null>(null);
-  const [loading, setLoading] = useState(() => !isConnectMobilePath());
+  const [loading, setLoading] = useState(() => !shouldSkipAuthGuard());
 
   useEffect(() => {
-    console.log(`[DIAG][${new Date().toISOString().slice(11, 23)}] effect ran, location.pathname=${typeof window !== 'undefined' ? window.location.pathname : 'no-window'}, isConnectMobilePath=${isConnectMobilePath()}`);
-    if (isConnectMobilePath()) return;
+    if (shouldSkipAuthGuard()) return;
 
     let unsubscribeDoc: (() => void) | null = null;
     let unsubscribeAuth: (() => void) | null = null;
