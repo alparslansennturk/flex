@@ -153,6 +153,22 @@ function tokens(dark: boolean): Tokens {
 const iconFor = (type: ConversationView["type"], key?: string) => key ?? (type === "group" ? "group" : type === "community" ? "community" : "channel");
 
 export default function FlexConnectMobile() {
+  // `100dvh` bazı tarayıcı/PWA kombinasyonlarında (2026-07-19 kullanıcı bulgusu:
+  // Chrome iOS "Ana Ekrana Ekle") gerçek görünür yüksekliği tam vermiyor, altta
+  // boşluk kalıyor — CSS birimine güvenmek yerine gerçek yüksekliği doğrudan
+  // tarayıcıdan ölçüyoruz, hangi tarayıcı olursa olsun kesin doğru değer.
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const update = () => setViewportHeight(window.visualViewport?.height ?? window.innerHeight);
+    update();
+    window.visualViewport?.addEventListener("resize", update);
+    window.addEventListener("resize", update);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   // ── Auth kapısı (2026-07-19) — `undefined`: kontrol ediliyor (Splash),
   // `null`: oturum yok (Login), `User`: oturum var (direkt uygulama). Firebase
   // `browserLocalPersistence` sayesinde bir kez giriş yapınca çıkış yapana kadar
@@ -532,7 +548,7 @@ export default function FlexConnectMobile() {
   // (Ana Ekrana Ekle) sürümlerinde gerçek ekran yüksekliğini tam kapsamıyor,
   // altta boşluk kalıyordu (2026-07-19 kullanıcı bulgusu: "üst iphone kendi barı
   // var ama alt boş"). `100dvh` (dynamic viewport height) daha güvenilir.
-  const shellStyle: React.CSSProperties = { position: "fixed", inset: 0, height: "100dvh", width: "100vw", display: "flex", flexDirection: "column", background: T.bg, color: T.text, transition: "background .3s, color .3s", fontFamily: "'Inter', system-ui, sans-serif" };
+  const shellStyle: React.CSSProperties = { position: "fixed", inset: 0, height: viewportHeight ? `${viewportHeight}px` : "100dvh", width: "100vw", display: "flex", flexDirection: "column", background: T.bg, color: T.text, transition: "background .3s, color .3s", fontFamily: "'Inter', system-ui, sans-serif" };
 
   // Kök `html`/`body` arkaplanı da senkron tutulur — `shellStyle` gerçek ekranı
   // tam kaplamazsa (dvh/inset yuvarlama farkı) altta/üstte görünecek olan renk
