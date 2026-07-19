@@ -49,6 +49,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(() => !isConnectMobilePath());
 
   useEffect(() => {
+    console.log(`[DIAG][${new Date().toISOString().slice(11, 23)}] effect ran, location.pathname=${typeof window !== 'undefined' ? window.location.pathname : 'no-window'}, isConnectMobilePath=${isConnectMobilePath()}`);
     if (isConnectMobilePath()) return;
 
     let unsubscribeDoc: (() => void) | null = null;
