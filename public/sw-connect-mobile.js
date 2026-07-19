@@ -42,8 +42,8 @@ self.addEventListener("push", (event) => {
       }
       await self.registration.showNotification(title, {
         body,
-        icon: "/api/pwa/connect-mobile-icon?size=192",
-        badge: "/api/pwa/connect-mobile-icon?size=192",
+        icon: "/connect-icon-192.png",
+        badge: "/connect-icon-192.png",
         data: { conversationId },
         tag: conversationId || undefined,
       });

@@ -59,18 +59,13 @@ export default function SplashGate({ children }: { children: React.ReactNode }) 
             transition={{ duration: 0.4, ease: "easeOut" }}
           >
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
-              <div style={{ width: 88, height: 88, borderRadius: 26, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 20px 44px -14px rgba(40,103,189,.7)" }}>
-                <svg width={46} height={46} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-                  <path d="M8 12h.01" />
-                  <path d="M12 12h.01" />
-                  <path d="M16 12h.01" />
-                </svg>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-.6px", color: systemDark ? "#E7EBF3" : "#1B1F26" }}>Flex Connect</div>
-                <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 6, color: systemDark ? "#9AA4B8" : "#6B717C" }}>Kurumsal Eğitim İletişim Platformu</div>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={systemDark ? "/assets/Mobile-Splash-Logo-White.svg" : "/assets/Mobile-Splash-Logo.svg"}
+                alt="Flex Connect"
+                style={{ width: 210, height: "auto" }}
+              />
+              <div style={{ fontSize: 13.5, fontWeight: 500, color: systemDark ? "#9AA4B8" : "#6B717C" }}>Kurumsal Eğitim İletişim Platformu</div>
             </div>
           </motion.div>
         )}
