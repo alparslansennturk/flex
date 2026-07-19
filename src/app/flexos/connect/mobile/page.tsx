@@ -583,8 +583,13 @@ export default function FlexConnectMobile() {
       const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
       if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı."); return; }
       const registration = await navigator.serviceWorker.ready;
+      // Önceki bir denemeden (farklı VAPID key/eski kurulum) kalmış push subscription
+      // varsa getToken() Safari'de sessizce/anlaşılmaz bir hatayla patlıyor
+      // ("applicationServerKey" çakışması) — önce temizle.
+      const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+      if (existingSub) await existingSub.unsubscribe().catch(() => {});
       const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
-      if (!token) { toast.error("Cihaz kaydı alınamadı."); return; }
+      if (!token) { toast.error("Cihaz kaydı alınamadı (token boş döndü)."); return; }
       const registered = await registerPushToken(token, studentPersonId ?? undefined);
       if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene."); return; }
       pushTokenRef.current = token;
@@ -592,7 +597,8 @@ export default function FlexConnectMobile() {
       setNotifPush(true);
     } catch (e) {
       console.error("[connect-mobile] push izin akışı hatası:", e);
-      toast.error("Bildirimler açılamadı.");
+      const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      toast.error(`Bildirimler açılamadı — ${detail}`, { duration: 8000 });
     }
   }
 
