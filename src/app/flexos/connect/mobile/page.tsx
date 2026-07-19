@@ -38,7 +38,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
   type User,
@@ -46,6 +46,7 @@ import {
 import { doc, getDoc } from "firebase/firestore";
 import { toast } from "sonner";
 import { auth, db } from "@/app/lib/firebase";
+import { useMarkConnectReady } from "./SplashGate";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type TypingSignal,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
@@ -159,15 +160,6 @@ export default function FlexConnectMobile() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   useEffect(() => onAuthStateChanged(auth, setAuthUser), []);
 
-  // Splash en az 1000ms görünür kalır (WhatsApp akışı) — auth kontrolü daha
-  // hızlı bitse bile ekran "çakmasın", sonra 400ms fade-out ile alttaki
-  // Login/uygulamaya erir (bkz. AnimatePresence'lı splash render'ı aşağıda).
-  const [minSplashElapsed, setMinSplashElapsed] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setMinSplashElapsed(true), 1000);
-    return () => clearTimeout(t);
-  }, []);
-
   // Rol tespiti (2026-07-19) — AYNI kurulu PWA (`/flexos/connect/mobile`, manifest
   // scope'u bu URL'e sabit, ayrı bir route'a yönlendirme PWA modundan çıkarır) hem
   // personel hem öğrenci girişini kabul eder. `/api/flexos/me`'nin `landing` alanı
@@ -193,22 +185,16 @@ export default function FlexConnectMobile() {
     return () => { cancelled = true; };
   }, [authUser]);
 
-  // Rol bilinene VE min. süre dolana kadar Splash koşulları "aktif" sayılır —
-  // personel-özel bir fetch'in öğrenci için bir an bile tetiklenmemesi ("staff realm
-  // hiç görünmez" garantisi) buna bağlı.
-  const splashConditionsActive = authUser === undefined || !minSplashElapsed || (!!authUser && studentPersonId === undefined);
-
-  // Splash TEK YÖNLÜ bir kilitle kapanır (2026-07-19 kullanıcı bulgusu: "geldi gitti
-  // geldi gitti" — Firebase `onAuthStateChanged` iOS PWA'da IndexedDB persistence tam
-  // yüklenmeden bir kere `null` ile, hemen ardından gerçek kullanıcıyla tekrar
-  // tetiklenebiliyor; bu tür ara durum sıçramaları `authUser`/`studentPersonId`'yi
-  // titretse bile Splash bir kere kapandıktan sonra ASLA yeniden açılmaz — WhatsApp/
-  // Twitter'daki gibi tek seferlik giriş).
-  const [splashDismissed, setSplashDismissed] = useState(false);
+  // Splash artık bu sayfada DEĞİL, `SplashGate`'te (layout.tsx) yaşıyor — sayfa
+  // arkada sessizce yeniden kurulsa bile (2026-07-19 kullanıcı bulgusu: "duraksıyor,
+  // gene logoyu çıkarıyor") üstteki Splash bundan etkilenmiyor, tek yaptığımız
+  // "hazırım" sinyalini vermek. Rol de bilinene kadar hazır sayılmaz — personel-özel
+  // fetch'lerin öğrenci için bir an bile tetiklenmemesi ("staff realm hiç görünmez"
+  // garantisi) zaten `studentPersonId === undefined` kontrolleriyle ayrıca sağlanıyor.
+  const markConnectReady = useMarkConnectReady();
   useEffect(() => {
-    if (!splashConditionsActive && !splashDismissed) setSplashDismissed(true);
-  }, [splashConditionsActive, splashDismissed]);
-  const showSplash = !splashDismissed;
+    if (authUser !== undefined && (!authUser || studentPersonId !== undefined)) markConnectReady();
+  }, [authUser, studentPersonId, markConnectReady]);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -577,31 +563,6 @@ export default function FlexConnectMobile() {
 
   return (
     <div style={shellStyle}>
-      <AnimatePresence>
-        {showSplash && (
-          <motion.div
-            key="splash"
-            style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: dark ? "#0E1420" : "#FFFFFF" }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
-              <div style={{ width: 88, height: 88, borderRadius: 26, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 20px 44px -14px rgba(40,103,189,.7)" }}>
-                <Icon k="chat" size={46} sw={2} color="#fff" />
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-.6px", color: T.text }}>Flex Connect</div>
-                <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 6, color: T.text2 }}>Kurumsal Eğitim İletişim Platformu</div>
-              </div>
-            </div>
-            <div style={{ position: "absolute", bottom: 64, left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-              <div style={{ width: 26, height: 26, border: `3px solid ${dark ? "#26314A" : "#E4E8EF"}`, borderTopColor: "#2867bd", borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} />
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: T.text2 }}>güvenli bağlantı kuruluyor…</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {authUser === null && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: T.bg2 }}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import SplashGate from "./SplashGate";
 
 /**
  * Flex Connect Mobil PWA — manifest + "Ana Ekrana Ekle" meta'ları. Ayrı bir
@@ -27,5 +28,5 @@ export const viewport: Viewport = {
 };
 
 export default function ConnectMobileLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <SplashGate>{children}</SplashGate>;
 }
