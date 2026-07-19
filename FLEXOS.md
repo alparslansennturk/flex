@@ -16,7 +16,75 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Flex Connect Mobil — kritik oturum/cache bug zinciri çözüldü + UI/UX ince ayar turu (2026-07-19 gece, Mac oturumu — EN GÜNCEL)
+### ✅ Flex Connect Mobil — push bildirimi + badge + iOS alt-boşluk kapatma + final marka ikonu/splash (2026-07-19 gece, PC oturumu — EN GÜNCEL)
+
+**Bugünkü işin özeti — sırayla:**
+
+1. **iOS Safari PWA'da alt boşluk — uzun teşhis zinciri.** Kök neden bir
+   önceki (Mac) oturumunda "çözüldü" denen şey aslında kalıcı değildi. Ekrana
+   geçici bir runtime teşhis paneli eklenip (`window.innerHeight`,
+   `visualViewport.height`, `document.documentElement.clientHeight`,
+   `screen.height`, `env(safe-area-inset-bottom)` probe'u, shell/nav gerçek
+   `getBoundingClientRect()`) gerçek cihazdan ölçüm alındı: iOS standalone'da
+   **üçü de** `screen.height`'tan **47px kısa** geliyor — bu, `env(safe-area-
+   inset-bottom)`'un kendisinden (34px) bile büyük bir açık, yani JS'ten gelen
+   HİÇBİR viewport ölçümü gerçek fiziksel ekranı vermiyor.
+   - 1. deneme: `shellStyle`'da `position:fixed;inset:0` ile AYNI ANDA açık
+     `height` verilmesi CSS'te "aşırı kısıtlanmış" durum yaratıyordu (spec
+     `bottom`'u yok sayıyor) — `height`→`minHeight` yapıldı. Mimari olarak
+     doğruydu ama tek başına gerçek cihazdaki 47px'i kapatmadı.
+   - 2. deneme: WebKit'e özel `-webkit-fill-available` (`style jsx` +
+     `!important`, SADECE iOS'ta, scoped class) — bu da fark yaratmadı.
+   - **Nihai çözüm (pes edip gizleme stratejisi):** `isIOS` tespiti
+     (`navigator.userAgent`) eklendi. SADECE iOS'ta: bottom-nav zemini
+     `T.bg`'ye (zaten `body`/`html`'e JS ile senkron tutulan renk) eşitlendi,
+     sert `borderTop` yerine hafif üst `boxShadow` kondu, padding sıkılaştırıldı
+     (ikonlar dibe yakın). Login ekranı ve `SplashGate.tsx`'in açık-tema zemin
+     rengi de aynı nedenle `T.bg`/`#F4F5F7`'ye çekildi. Android/masaüstü hiç
+     etkilenmedi (`isIOS` dışında eski stil aynen kaldı). Kullanıcı onayı:
+     "böyle kesinlikle daha iyi oldu." **Not: bu bir gizleme/disguise, WebKit'in
+     kendi ölçüm açığı hâlâ orada — geometrik gerçek çözüm bulunamadı.**
+   - Teşhis paneli iş bitince kaldırıldı.
+
+2. **Push bildirimi + uygulama ikonu badge + sessize alma — uçtan uca (Web
+   Push/FCM).** Yeni Firestore koleksiyonu `connect_push_subscriptions/{uid}`
+   (token'lar + genel açık/kapalı tercihi). `setMuted` (`ConnectMember.muted`
+   tipte zaten vardı, servise/route'a bağlandı — WhatsApp gibi konuşma bazlı
+   sessize alma). `notifyNewMessage` (`connect-push-service.ts`) her mesaj
+   gönderiminde (4 route: personel+öğrenci × metin+ek) tetikleniyor —
+   sessize/kapalı alıcılara göndermiyor, badge rakamını TÜM konuşmalardaki
+   gerçek okunmamış toplamından (`messageCount - readMessageCount`, mesaj
+   taraması yapmadan) hesaplıyor, ölü FCM token'larını otomatik temizliyor.
+   8 yeni API route (register/unregister/settings/mute × personel/öğrenci).
+   Service worker'a `push`+`notificationclick` handler'ları eklendi — BİLEREK
+   "data-only" FCM payload (`notification` alanı YOK) kullanılıyor, yoksa FCM
+   arka planda kendi bildirimini gösterip bizim `setAppBadge` mantığımızı hiç
+   çalıştırmayabilirdi. İstemci: Ayarlar'daki "Push Bildirimleri" anahtarı
+   gerçek izin/token akışına bağlandı, sohbet başlığına sessize alma zil ikonu
+   eklendi, badge `conversations`'taki gerçek okunmamış toplamıyla senkron.
+   VAPID public key Firebase Console'dan alınıp `.env.local` + Vercel
+   (Production+Preview, `vercel link` ile CLI'dan) ortam değişkenine eklendi,
+   production'da bundle'da doğrulandı. Ayrıca: logout'ta `tab`/`screen`
+   state'i sıfırlanmıyordu (Ayarlar'dan çıkan bir sonraki girişte yine
+   Ayarlar'da açılıyordu) — `handleLogout`'ta düzeltildi.
+
+3. **Final marka ikonu + splash logosu.** Kullanıcı 3 yeni SVG verdi
+   (`public/assets/Mobile-Desktop-Icon.svg`, `Mobile-Splash-Logo.svg`,
+   `-White.svg`). Desktop/PWA ikonu `sharp` ile 192/512px + apple-touch-icon
+   (180px) PNG'e render edilip manifest + `layout.tsx` metadata'sına bağlandı;
+   eski geçici "FC" harfli dinamik `next/og` ikon route'u tamamen kaldırıldı.
+   `SplashGate.tsx`'teki placeholder konuşma-balonu ikonu gerçek logoyla
+   değiştirildi (açık temada renkli, koyu temada beyaz varyant).
+
+**SIRADAKİ İŞ:** Push bildirimi + badge + mute gerçek cihazda uçtan uca
+doğrulanmadı (kod push edildi, kullanıcı henüz test etmedi). Yeni marka ikonu
+da cihazda doğrulanmadı — iOS ikon önbelleği "yapışkan" olabilir, PWA'nın
+silinip yeniden kurulması gerekebilir. iOS alt-boşluk konusu KAPANMADI, sadece
+gizlendi — ileride WebKit güncellemesi/başka bir yaklaşım gerekebilir.
+
+---
+
+### ✅ Flex Connect Mobil — kritik oturum/cache bug zinciri çözüldü + UI/UX ince ayar turu (2026-07-19 gece, Mac oturumu)
 
 **Bugünkü işin özeti — sırayla:**
 
