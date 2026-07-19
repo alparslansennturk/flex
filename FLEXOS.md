@@ -16,7 +16,96 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ FlexOS CANLIYA ALINDI + Flex Connect (Faz 1-3) tamamlandı, Mobil PWA production'da (2026-07-18/19, Mac oturumu — EN GÜNCEL)
+### ✅ Flex Connect Mobil — kritik oturum/cache bug zinciri çözüldü + UI/UX ince ayar turu (2026-07-19 gece, Mac oturumu — EN GÜNCEL)
+
+**Bugünkü işin özeti — sırayla:**
+
+1. **UI ince ayar** (kullanıcı isteği): alt bar boşluğu → üst/alt 16px eşit padding
+   (flexbox merkezleme, `bottomNavStyle`/buton stilleri), ikonlar 23px→28px,
+   pasif ikon rengi `T.muted`→`T.text2` (daha belirgin), "Personel" alt-sekme
+   etiketi → "Kullanıcılar" (içerideki Personel/Öğrenciler toggle AYNEN kaldı),
+   fontlar (sohbet/kanal ismi, mesaj balonu, input) 13-14px→16-17px.
+2. **Geçişler**: framer-motion zaten yüklüydü, tab/ekran geçişlerine sade
+   opacity fade eklendi (x-slide DENENDİ, "sert" bulunup kaldırıldı).
+3. **Öğrenci mobil ayrımı** — AYRI ROUTE AÇILMADI (PWA scope'u
+   `/flexos/connect/mobile`'a sabit, farklı path standalone modundan çıkarır).
+   Aynı sayfa, giriş sonrası `/api/flexos/me`'nin `landing` alanına bakıp
+   öğrenci mi personel mi anlıyor (masaüstünün kullandığı AYNI mekanizma).
+   Öğrenciyse: "Kullanıcılar"→"Eğitmenim" (`fetchTrainerDirectory`), "+" (yeni
+   sohbet) gizli, personel dizinine hiç istek atılmıyor. Server'da da bağımsız
+   engel var (`connect-service.ts` zaten `createConversation`'ı personel
+   dışına kapatıyor) — çift katmanlı.
+4. **Firestore read amplifikasyonu** (kullanıcı: "935 sonra 300,300 read
+   spike'ı gördüm") — `listMessages` GET route'ları (personel+öğrenci) limit
+   VERMEDEN çağrılıyordu, her `onSnapshot`/gönderme tetiklenişinde konuşmanın
+   TÜM geçmişi yeniden okunuyordu. `limit=60` eklendi, kök neden kapandı.
+5. **KRİTİK bug zinciri — "splash geldi gitti", gecikmeli giriş, garip oturum
+   davranışı:**
+   - Kök `src/app/layout.tsx`'teki `UserProvider` (`UserContext.tsx`) TÜM
+     uygulamayı sarıyor, mobil Connect "ayrı route" olsa da React ağacı hâlâ
+     onun İÇİNDEYDİ. `UserProvider` kendi `loading` state'i false olana kadar
+     children'ını hiç render etmiyordu (`{!loading && children}`).
+   - GERÇEK kök neden (Playwright ile canlı konsol logları izlenerek
+     bulundu): bu "SENARYO-B: 3sn sonra doLogout()" (flex-token cookie'sini
+     GERÇEKTEN temizleyen) kod, asıl mobil sayfadan DEĞİL, Firebase Auth
+     SDK'nın arka planda açtığı gizli yardımcı `iframe`'den
+     (`/__/auth/iframe`, bu projede Firebase Hosting yok, 404 dönüp bizim
+     genel 404/kök layout'a düşüyor) geliyordu — o iframe'in KENDİ
+     `window.location`'ı farklı olduğu için path kontrolü orada işe
+     yaramıyordu. **Görünmez ama gerçek bir cookie-temizleme yan etkisiydi.**
+   - Fix: `UserContext.tsx`'e `shouldSkipAuthGuard()` — path
+     (`/flexos/connect/mobile`) VEYA `window.self !== window.top` (iframe
+     içindeyiz) ise auth/cookie mantığı hiç çalışmıyor. Canlıda doğrulandı
+     (Playwright): o loglar artık hiç çıkmıyor, masaüstünde regresyon yok.
+   - Ayrıca: Vercel Authentication (SSO koruması) projede
+     `all_except_custom_domains` olarak açık — SADECE `flex-one-iota.vercel.app`
+     korumasız, TÜM diğer `.vercel.app` adresleri (otomatik deploy URL'leri
+     DAHİL) Vercel'in kendi login ekranına düşüyor. Kullanıcı yanlış adresten
+     PWA kurmuştu, o yüzden "Vercel şifresiyle giriyorum" diyordu. **Öğrencilere
+     paylaşılacak link KESİNLİKLE `flex-one-iota.vercel.app` olmalı.**
+   - "Vercel Toolbar" bizim KENDİ kodumuz — `VercelToolbarWrapper.tsx`, kök
+     layout'ta, SADECE `user.roles.includes("admin")` ise gösteriyor (gerçek
+     Vercel platform toolbar'ı değil, gerçek öğrencilerde hiç çıkmaz).
+   - Vercel edge cache de sorundu (`x-vercel-cache: HIT`, `x-nextjs-stale-time:
+     300`) — `Cache-Control: no-store` header'ı yetmedi, route'a
+     `export const dynamic = "force-dynamic"` eklendi (hem `page.tsx` hem
+     `layout.tsx`).
+   - Servis çalışanından (`sw-connect-mobile.js`) `skipWaiting`/`clients.claim`
+     kaldırıldı — sayfa yüklenirken kontrolün anında el değiştirmesi bazı
+     kaynakların yeniden tetiklenmesine yol açıyordu.
+6. **Kalıntı splash titremesi** (zaten-giriş-yapılmış oturumda yeniden
+   açılışta): React'in kendiliğinden "hydration mismatch" kurtarma davranışı
+   (SADECE bu route'ta oluyor, tam kökü BULUNAMADI — layout.tsx'in
+   viewport/metadata export'ları, styled-jsx, force-dynamic tek tek test
+   edildi, hiçbiri sebep değildi) sayfayı (`page.tsx`) arkada sessizce bir kez
+   yeniden kuruyor, bu da sayfanın kendi splash state'ini resetleyip splash'ı
+   geri getiriyordu. **Mimari çözüm** (kullanıcı önerisi): splash artık
+   `page.tsx`'in DEĞİL, yeni `SplashGate.tsx` (layout.tsx'te, sayfanın ÜSTÜNDE)
+   bileşeninin state'i — sayfa sadece `useMarkConnectReady()` ile "hazırım"
+   diyor, idempotent, sayfa kaç kere sessizce yeniden kurulursa kurulsun
+   `SplashGate` etkilenmiyor. Canlıda doğrulandı (Playwright ile zaman
+   damgalı snapshot): splash tek seferde temiz açılıp kapanıyor.
+7. **100dvh Chrome-iOS-PWA'da yetersiz kalıyordu** (kullanıcı: "Chrome'da Ana
+   Ekrana Ekle'de alt bar tam oturmuyor, tarayıcı barının olduğu yerde
+   boşluk var") — CSS birimine güvenmek yerine `window.visualViewport.height`
+   ile gerçek yükseklik JS'te ölçülüp piksel olarak veriliyor artık.
+
+**Doğrulama yöntemi notu:** Bu oturumda `vercel` CLI (deployment/alias
+inceleme) + Playwright (gerçek tarayıcı, canlı konsol/network/hydration
+hataları) kullanıldı — kullanıcının kendi cihaz raporları + canlı teşhis
+birlikte kök nedenleri buldu. Sadece kullanıcı raporuna güvenip körlemesine
+fix atmak (ilk birkaç deneme) işe yaramadı, gerçek veri şart oldu.
+
+**SIRADAKİ İŞ:** Kullanıcı PC'ye geçti, oradan devam edecek. Açık kalanlar:
+splash'ın GÖRSEL tasarımı ("daha sonra tasarım yaparız" dendi, alttaki
+loader/yazı zaten kaldırıldı), Chrome-iOS `viewportHeight` fix'inin cihazda
+doğrulanması, hydration mismatch'in tam kökü (zararsız hale getirildi ama
+hâlâ açıklanamadı), 3-4 gerçek öğrenciyle canlı pilot hâlâ bekliyor, push
+bildirimi/App Badge/final marka ikonu hâlâ kapsam dışı bırakıldı.
+
+---
+
+### ✅ FlexOS CANLIYA ALINDI + Flex Connect (Faz 1-3) tamamlandı, Mobil PWA production'da (2026-07-18/19, Mac oturumu)
 
 **En önemli mimari değişiklik: FlexOS artık TEK canlı sistem.** Kullanıcı bu iki
 günde eski (pasif) canlı Flex Core'u devre dışı bıraktı — artık gerçek
