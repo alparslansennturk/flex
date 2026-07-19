@@ -18,7 +18,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
   try {
-    const messages = await listMessages(principal, id, connectDeps);
+    const messages = await listMessages(principal, id, connectDeps, 60);
     // Okundu-tikleri (Faz 2 madde 3) — DİĞER üyelerin `lastReadAt`'i, var olan
     // veriden türetilir, yeni bir "okundu" kaydı YOK.
     const members = await listMembers(principal, id, connectDeps);

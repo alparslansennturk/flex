@@ -12,7 +12,7 @@ export const GET = withAuth(async (req: NextRequest, caller, ctx: { params: Prom
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
   try {
-    const messages = await listMessages(principal, id, connectDeps);
+    const messages = await listMessages(principal, id, connectDeps, 60);
     const members = await listMembers(principal, id, connectDeps);
     const otherReadAts = members.filter((m) => m.uid !== principal.uid).map((m) => m.lastReadAt).filter((t): t is string => !!t);
     const views = await buildMessageViews(messages, principal.uid, principal.tenantId, otherReadAts);
