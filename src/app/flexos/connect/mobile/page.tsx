@@ -614,7 +614,7 @@ export default function FlexConnectMobile() {
   // yerine üstte hafif bir gölge bar'ı "sistem çubuğu" gibi ayırır. Android/masaüstü
   // etkilenmesin diye `isIOS` dışında eski beyaz/koyu-translucent + border aynen kalır.
   const bottomNavStyle: React.CSSProperties = isIOS
-    ? { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", background: T.bg, boxShadow: "0 -1px 8px rgba(0,0,0,0.06)" }
+    ? { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "6px 8px 5px", background: T.bg, boxShadow: "0 -1px 8px rgba(0,0,0,0.06)" }
     : { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
 
   return (
