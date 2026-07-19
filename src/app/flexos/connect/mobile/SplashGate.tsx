@@ -54,7 +54,7 @@ export default function SplashGate({ children }: { children: React.ReactNode }) 
         {showSplash && (
           <motion.div
             key="connect-splash"
-            style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: systemDark ? "#0E1420" : "#FFFFFF" }}
+            style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: systemDark ? "#0E1420" : "#F4F5F7" }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
           >

@@ -614,13 +614,13 @@ export default function FlexConnectMobile() {
   // yerine üstte hafif bir gölge bar'ı "sistem çubuğu" gibi ayırır. Android/masaüstü
   // etkilenmesin diye `isIOS` dışında eski beyaz/koyu-translucent + border aynen kalır.
   const bottomNavStyle: React.CSSProperties = isIOS
-    ? { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "6px 8px 5px", background: T.bg, boxShadow: "0 -1px 8px rgba(0,0,0,0.06)" }
+    ? { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "10px 8px 5px", background: T.bg, boxShadow: "0 -1px 8px rgba(0,0,0,0.06)" }
     : { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
 
   return (
     <div className="fc-shell-ios-fill" style={shellStyle}>
       {authUser === null && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: T.bg2 }}>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: isIOS ? T.bg : T.bg2 }}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <div style={{ width: 60, height: 60, borderRadius: 18, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 14px 30px -12px rgba(40,103,189,.6)", marginBottom: 26 }}>
               <Icon k="chat" size={30} sw={2.1} color="#fff" />
