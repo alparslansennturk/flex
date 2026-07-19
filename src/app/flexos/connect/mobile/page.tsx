@@ -197,6 +197,16 @@ export default function FlexConnectMobile() {
     setIsIOS(/iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1));
   }, []);
 
+  // iOS'ta Notification.requestPermission() SADECE Ana Ekran'a eklenip standalone
+  // açılan PWA'da native izin diyaloğu gösterir — normal Safari sekmesinde sessizce
+  // (diyalogsuz) "denied" döner ve uygulama Ayarlar > Bildirimler'de HİÇ görünmez.
+  // Bu yüzden izin istemeden ÖNCE standalone kontrolü şart (2026-07-19).
+  const [isStandalone, setIsStandalone] = useState(false);
+  useEffect(() => {
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true);
+  }, []);
+
   // Rol tespiti (2026-07-19) — AYNI kurulu PWA (`/flexos/connect/mobile`, manifest
   // scope'u bu URL'e sabit, ayrı bir route'a yönlendirme PWA modundan çıkarır) hem
   // personel hem öğrenci girişini kabul eder. `/api/flexos/me`'nin `landing` alanı
@@ -561,6 +571,10 @@ export default function FlexConnectMobile() {
       await setPushNotificationsEnabled(false, studentPersonId ?? undefined);
       return;
     }
+    if (isIOS && !isStandalone) {
+      toast.error("Bildirimleri açmak için önce bu uygulamayı Ana Ekrana ekle (Paylaş → Ana Ekrana Ekle), sonra oradan aç.");
+      return;
+    }
     try {
       const messaging = await getMessagingIfSupported();
       if (!messaging) { toast.error("Bu tarayıcı push bildirimini desteklemiyor."); return; }
@@ -571,8 +585,9 @@ export default function FlexConnectMobile() {
       const registration = await navigator.serviceWorker.ready;
       const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
       if (!token) { toast.error("Cihaz kaydı alınamadı."); return; }
+      const registered = await registerPushToken(token, studentPersonId ?? undefined);
+      if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene."); return; }
       pushTokenRef.current = token;
-      await registerPushToken(token, studentPersonId ?? undefined);
       await setPushNotificationsEnabled(true, studentPersonId ?? undefined);
       setNotifPush(true);
     } catch (e) {
