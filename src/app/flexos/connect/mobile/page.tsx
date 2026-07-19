@@ -157,15 +157,24 @@ export default function FlexConnectMobile() {
   // Chrome iOS "Ana Ekrana Ekle") gerçek görünür yüksekliği tam vermiyor, altta
   // boşluk kalıyor — CSS birimine güvenmek yerine gerçek yüksekliği doğrudan
   // tarayıcıdan ölçüyoruz, hangi tarayıcı olursa olsun kesin doğru değer.
+  // iOS Safari standalone'da ilk ölçüm bazen sayfa tam yerleşmeden (safe-area
+  // hesabı bitmeden) alınıyor ve bir daha güncellenmiyor (resize tetiklenmiyor)
+  // — bu yüzden birkaç gecikmeli yeniden-ölçüm + `pageshow` dinleyicisi var.
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   useEffect(() => {
-    const update = () => setViewportHeight(window.visualViewport?.height ?? window.innerHeight);
+    const update = () => setViewportHeight(Math.max(window.visualViewport?.height ?? 0, window.innerHeight));
     update();
+    const settleTimers = [50, 300, 800, 1500].map((ms) => window.setTimeout(update, ms));
     window.visualViewport?.addEventListener("resize", update);
     window.addEventListener("resize", update);
+    window.addEventListener("pageshow", update);
+    window.addEventListener("orientationchange", update);
     return () => {
+      settleTimers.forEach((id) => window.clearTimeout(id));
       window.visualViewport?.removeEventListener("resize", update);
       window.removeEventListener("resize", update);
+      window.removeEventListener("pageshow", update);
+      window.removeEventListener("orientationchange", update);
     };
   }, []);
 
@@ -571,11 +580,11 @@ export default function FlexConnectMobile() {
   const searchFieldStyle: React.CSSProperties = { flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14, fontWeight: 500, color: T.text };
   const avatarBox = (color: string, sz = 48): React.CSSProperties => ({ position: "relative", width: sz, height: sz, borderRadius: 15, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: sz * 0.34, fontWeight: 700, background: color });
   // Satır (ikon+etiket) SABİT 52px — native iOS tab bar (49pt) ile aynı mertebede.
-  // Altındaki `paddingBottom` SADECE home-indicator güvenli alanı (iPhone'da ~34px,
-  // küçültülemez/küçültülmemeli — her native app'te aynı boş şerit vardır). İkonlar
+  // `env(safe-area-inset-bottom)` bilinçli olarak eklenmedi (2026-07-19 kullanıcı
+  // kararı): ikonlar ekranın en dibine kadar boşluksuz oturmalı. İkonlar
   // `justifyContent:"center"` ile bu 52px'in TAM ortasına oturur (padding tahminiyle
   // değil, flexbox'ın kesin ortalamasıyla).
-  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
+  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
 
   return (
     <div style={shellStyle}>
