@@ -72,13 +72,6 @@ export default function SplashGate({ children }: { children: React.ReactNode }) 
                 <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 6, color: systemDark ? "#9AA4B8" : "#6B717C" }}>Kurumsal Eğitim İletişim Platformu</div>
               </div>
             </div>
-            <div style={{ position: "absolute", bottom: 64, left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-              <div style={{ width: 26, height: 26, border: `3px solid ${systemDark ? "#26314A" : "#E4E8EF"}`, borderTopColor: "#2867bd", borderRadius: "50%", animation: "connectSplashSpin .8s linear infinite" }} />
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: systemDark ? "#9AA4B8" : "#6B717C" }}>güvenli bağlantı kuruluyor…</span>
-            </div>
-            <style jsx global>{`
-              @keyframes connectSplashSpin { to { transform: rotate(360deg); } }
-            `}</style>
           </motion.div>
         )}
       </AnimatePresence>
