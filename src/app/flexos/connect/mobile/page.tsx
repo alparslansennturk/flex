@@ -619,6 +619,16 @@ export default function FlexConnectMobile() {
   // (2026-07-19 kullanıcı bulgusu). `minHeight` kullanınca `top:0`+`bottom:0`
   // kendi otomatik hesabıyla (zaten mümkün en büyük değer) gerçek ekranı kapsar,
   // JS ölçümü sadece tarayıcı bozulursa devreye giren bir taban olur.
+  // GERÇEK ÖLÇÜM (2026-07-19, cihaz teşhis paneli): `window.innerHeight` /
+  // `visualViewport.height` / `document.documentElement.clientHeight` iOS
+  // standalone PWA'da ÜÇÜ DE `screen.height`'tan 47px kısa geliyor (`env(safe-area-
+  // inset-bottom)`'un kendisinden bile — 34px — büyük bir açık) — yani JS'ten
+  // gelen HİÇBİR viewport ölçümü gerçek fiziksel ekranı vermiyor, `minHeight` bu
+  // eksik değere kilitleniyor. `.fc-shell-ios-fill` class'ı (aşağıdaki `style jsx`)
+  // SADECE bunu anlayan WebKit'te (iOS Safari/Chrome-iOS, ikisi de aynı motor)
+  // `-webkit-fill-available` ile ezip JS'ten bağımsız gerçek ekranı hedefliyor;
+  // anlamayan tarayıcılar (Android/desktop) declare'ı geçersiz sayıp yok sayar,
+  // bu satırdaki `minHeight` (100dvh/JS px) DEĞİŞMEDEN kalır.
   const shellStyle: React.CSSProperties = { position: "fixed", inset: 0, minHeight: viewportHeight ? `${viewportHeight}px` : "100dvh", width: "100vw", display: "flex", flexDirection: "column", background: T.bg, color: T.text, transition: "background .3s, color .3s", fontFamily: "'Inter', system-ui, sans-serif" };
 
   // Kök `html`/`body` arkaplanı da senkron tutulur — `shellStyle` gerçek ekranı
@@ -649,7 +659,7 @@ export default function FlexConnectMobile() {
   const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
 
   return (
-    <div ref={shellRef} style={shellStyle}>
+    <div ref={shellRef} className="fc-shell-ios-fill" style={shellStyle}>
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 999999, background: "rgba(0,0,0,.92)", color: "#5CFF8A", fontFamily: "monospace", fontSize: 9.5, lineHeight: 1.5, padding: "8px 8px", whiteSpace: "pre-wrap", maxHeight: "55vh", overflow: "auto" }}>
         {diag}
       </div>
@@ -1232,6 +1242,9 @@ export default function FlexConnectMobile() {
       <style jsx global>{`
         @keyframes fcType { 0%,60%,100% { transform: translateY(0); opacity:.5; } 30% { transform: translateY(-3px); opacity:1; } }
         @keyframes fcSpin { to { transform:rotate(360deg); } }
+      `}</style>
+      <style jsx>{`
+        .fc-shell-ios-fill { min-height: -webkit-fill-available !important; }
       `}</style>
     </div>
   );
