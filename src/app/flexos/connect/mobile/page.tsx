@@ -185,63 +185,14 @@ export default function FlexConnectMobile() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   useEffect(() => onAuthStateChanged(auth, setAuthUser), []);
 
-  // ── GEÇİCİ TEŞHİS PANELİ (2026-07-19) — alt boşluk kök nedenini varsayımsız,
-  // gerçek runtime ölçümleriyle bulmak için. Kaldırılacak, kalıcı değil.
-  const shellRef = useRef<HTMLDivElement>(null);
-  const bottomNavRef = useRef<HTMLDivElement>(null);
-  const [diag, setDiag] = useState<string>("ölçülüyor…");
+  // iOS (Safari/Chrome-iOS, ikisi de aynı WebKit motoru) tespiti — 47px'lik
+  // viewport açığı SADECE bu platformda var (Android/masaüstü etkilenmemeli),
+  // bu yüzden aşağıdaki gri-zemin+shadow gizleme stili yalnızca burada devrede.
+  const [isIOS, setIsIOS] = useState(false);
   useEffect(() => {
-    const measure = () => {
-      const lines: string[] = [];
-      lines.push(`innerH=${window.innerHeight} outerH=${window.outerHeight}`);
-      lines.push(`vvH=${window.visualViewport?.height ?? "yok"} vvOffTop=${window.visualViewport?.offsetTop ?? "yok"} vvPageTop=${window.visualViewport?.pageTop ?? "yok"}`);
-      lines.push(`docEl.clientH=${document.documentElement.clientHeight} docEl.scrollH=${document.documentElement.scrollHeight}`);
-      lines.push(`body.clientH=${document.body.clientHeight} body.scrollH=${document.body.scrollHeight}`);
-      lines.push(`screen.h=${window.screen?.height ?? "yok"} screen.availH=${window.screen?.availHeight ?? "yok"}`);
-
-      const probe = document.createElement("div");
-      probe.style.cssText = "position:fixed;left:0;bottom:0;width:1px;height:env(safe-area-inset-bottom);pointer-events:none;visibility:hidden;";
-      document.body.appendChild(probe);
-      const safeBottom = probe.getBoundingClientRect().height;
-      document.body.removeChild(probe);
-      lines.push(`env(safe-area-inset-bottom)=${safeBottom}px`);
-
-      if (shellRef.current) {
-        const r = shellRef.current.getBoundingClientRect();
-        lines.push(`SHELL rect: top=${r.top.toFixed(1)} bottom=${r.bottom.toFixed(1)} h=${r.height.toFixed(1)} offsetH=${shellRef.current.offsetHeight}`);
-        lines.push(`SHELL gap-to-innerH=${(window.innerHeight - r.bottom).toFixed(1)}px gap-to-screenH=${((window.screen?.height ?? 0) - r.bottom).toFixed(1)}px`);
-      } else {
-        lines.push("SHELL rect: ref yok");
-      }
-
-      if (bottomNavRef.current) {
-        const r = bottomNavRef.current.getBoundingClientRect();
-        lines.push(`NAV rect: top=${r.top.toFixed(1)} bottom=${r.bottom.toFixed(1)} h=${r.height.toFixed(1)} offsetTop=${bottomNavRef.current.offsetTop}`);
-        lines.push(`NAV gap-to-innerH=${(window.innerHeight - r.bottom).toFixed(1)}px gap-to-screenH=${((window.screen?.height ?? 0) - r.bottom).toFixed(1)}px`);
-      } else {
-        lines.push("NAV rect: ref yok (bu ekranda render edilmiyor)");
-      }
-
-      lines.push("── DOM ZİNCİRİ (shell'den html'e) ──");
-      let el: HTMLElement | null = shellRef.current;
-      while (el) {
-        const cs = getComputedStyle(el);
-        const r = el.getBoundingClientRect();
-        const tag = el === document.documentElement ? "html" : el.tagName.toLowerCase();
-        lines.push(`${tag}: h=${r.height.toFixed(1)} top=${r.top.toFixed(1)} bottom=${r.bottom.toFixed(1)} pos=${cs.position} transform=${cs.transform === "none" ? "none" : "VAR!"} overflow=${cs.overflow}`);
-        if (el === document.documentElement) break;
-        el = el.parentElement;
-      }
-
-      setDiag(lines.join("\n"));
-    };
-    const t = [0, 100, 500, 1200].map((ms) => window.setTimeout(measure, ms));
-    window.addEventListener("resize", measure);
-    return () => {
-      t.forEach((id) => window.clearTimeout(id));
-      window.removeEventListener("resize", measure);
-    };
-  }, [authUser]);
+    const ua = window.navigator.userAgent;
+    setIsIOS(/iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1));
+  }, []);
 
   // Rol tespiti (2026-07-19) — AYNI kurulu PWA (`/flexos/connect/mobile`, manifest
   // scope'u bu URL'e sabit, ayrı bir route'a yönlendirme PWA modundan çıkarır) hem
@@ -656,13 +607,18 @@ export default function FlexConnectMobile() {
   // kararı): ikonlar ekranın en dibine kadar boşluksuz oturmalı. İkonlar
   // `justifyContent:"center"` ile bu 52px'in TAM ortasına oturur (padding tahminiyle
   // değil, flexbox'ın kesin ortalamasıyla).
-  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
+  // iOS'ta viewport ölçümü gerçek ekranı vermediği için (47px açık, bkz. yukarıdaki
+  // teşhis notu) geometrik olarak kapatamadık — bunun yerine SADECE iOS'ta bar'ın
+  // zeminini `body`nin arkaplanıyla (`T.bg`, zaten JS ile senkron tutuluyor) birebir
+  // aynı yapıyoruz: renk aynı olunca alttaki açık görünmez olur, sert `borderTop`
+  // yerine üstte hafif bir gölge bar'ı "sistem çubuğu" gibi ayırır. Android/masaüstü
+  // etkilenmesin diye `isIOS` dışında eski beyaz/koyu-translucent + border aynen kalır.
+  const bottomNavStyle: React.CSSProperties = isIOS
+    ? { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", background: T.bg, boxShadow: "0 -1px 8px rgba(0,0,0,0.06)" }
+    : { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
 
   return (
-    <div ref={shellRef} className="fc-shell-ios-fill" style={shellStyle}>
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 999999, background: "rgba(0,0,0,.92)", color: "#5CFF8A", fontFamily: "monospace", fontSize: 9.5, lineHeight: 1.5, padding: "8px 8px", whiteSpace: "pre-wrap", maxHeight: "55vh", overflow: "auto" }}>
-        {diag}
-      </div>
+    <div className="fc-shell-ios-fill" style={shellStyle}>
       {authUser === null && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: T.bg2 }}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -910,7 +866,7 @@ export default function FlexConnectMobile() {
           )}
 
           {/* BOTTOM NAV */}
-          <div ref={bottomNavRef} style={bottomNavStyle}>
+          <div style={bottomNavStyle}>
             {[
               { k: "chats" as Tab, l: "Sohbetler", icon: "chat" },
               { k: "channels" as Tab, l: "Kanallar", icon: "channel" },
