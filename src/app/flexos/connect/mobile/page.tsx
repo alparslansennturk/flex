@@ -191,9 +191,22 @@ export default function FlexConnectMobile() {
     return () => { cancelled = true; };
   }, [authUser]);
 
-  // Rol bilinene kadar Splash'ta kalınır — personel-özel bir fetch'in öğrenci için
-  // bir an bile tetiklenmemesi ("staff realm hiç görünmez" garantisi) BUNA bağlı.
-  const showSplash = authUser === undefined || !minSplashElapsed || (!!authUser && studentPersonId === undefined);
+  // Rol bilinene VE min. süre dolana kadar Splash koşulları "aktif" sayılır —
+  // personel-özel bir fetch'in öğrenci için bir an bile tetiklenmemesi ("staff realm
+  // hiç görünmez" garantisi) buna bağlı.
+  const splashConditionsActive = authUser === undefined || !minSplashElapsed || (!!authUser && studentPersonId === undefined);
+
+  // Splash TEK YÖNLÜ bir kilitle kapanır (2026-07-19 kullanıcı bulgusu: "geldi gitti
+  // geldi gitti" — Firebase `onAuthStateChanged` iOS PWA'da IndexedDB persistence tam
+  // yüklenmeden bir kere `null` ile, hemen ardından gerçek kullanıcıyla tekrar
+  // tetiklenebiliyor; bu tür ara durum sıçramaları `authUser`/`studentPersonId`'yi
+  // titretse bile Splash bir kere kapandıktan sonra ASLA yeniden açılmaz — WhatsApp/
+  // Twitter'daki gibi tek seferlik giriş).
+  const [splashDismissed, setSplashDismissed] = useState(false);
+  useEffect(() => {
+    if (!splashConditionsActive && !splashDismissed) setSplashDismissed(true);
+  }, [splashConditionsActive, splashDismissed]);
+  const showSplash = !splashDismissed;
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -548,7 +561,12 @@ export default function FlexConnectMobile() {
   const searchWrapStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, height: 44, padding: "0 14px", borderRadius: 13, border: `1px solid ${T.border}`, background: T.field };
   const searchFieldStyle: React.CSSProperties = { flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14, fontWeight: 500, color: T.text };
   const avatarBox = (color: string, sz = 48): React.CSSProperties => ({ position: "relative", width: sz, height: sz, borderRadius: 15, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: sz * 0.34, fontWeight: 700, background: color });
-  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "4px 8px 0", paddingBottom: "max(4px, env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
+  // Satır (ikon+etiket) SABİT 52px — native iOS tab bar (49pt) ile aynı mertebede.
+  // Altındaki `paddingBottom` SADECE home-indicator güvenli alanı (iPhone'da ~34px,
+  // küçültülemez/küçültülmemeli — her native app'te aynı boş şerit vardır). İkonlar
+  // `justifyContent:"center"` ile bu 52px'in TAM ortasına oturur (padding tahminiyle
+  // değil, flexbox'ın kesin ortalamasıyla).
+  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "0 8px", paddingBottom: "max(4px, env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
 
   return (
     <div style={shellStyle}>
@@ -618,7 +636,7 @@ export default function FlexConnectMobile() {
       {authUser && screen === "app" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
           {tab === "chats" && (
-            <motion.div key="chats" style={screenColStyle} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
+            <motion.div key="chats" style={screenColStyle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: "easeOut" }}>
               <div style={topBarStyle}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
@@ -646,7 +664,7 @@ export default function FlexConnectMobile() {
                       <div style={avatarBox(c.colorKey ?? T.brand, 48)}>{c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
+                          <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
                           <span style={{ fontSize: 11.5, fontWeight: c.unread ? 700 : 500, color: c.unread ? T.brand : T.muted, flex: "0 0 auto", paddingLeft: 8 }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 3 }}>
@@ -662,7 +680,7 @@ export default function FlexConnectMobile() {
           )}
 
           {tab === "channels" && (
-            <motion.div key="channels" style={screenColStyle} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
+            <motion.div key="channels" style={screenColStyle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: "easeOut" }}>
               <div style={topBarStyle}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
@@ -689,7 +707,7 @@ export default function FlexConnectMobile() {
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                              <span style={{ fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                              <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
                               <span style={{ fontSize: 11, fontWeight: c.unreadCount ? 700 : 500, color: c.unreadCount ? T.brand : T.muted, flex: "0 0 auto" }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 2 }}>
@@ -707,7 +725,7 @@ export default function FlexConnectMobile() {
           )}
 
           {tab === "staff" && (
-            <motion.div key="staff" style={screenColStyle} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
+            <motion.div key="staff" style={screenColStyle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: "easeOut" }}>
               <div style={topBarStyle}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
@@ -761,7 +779,7 @@ export default function FlexConnectMobile() {
           )}
 
           {tab === "settings" && (
-            <motion.div key="settings" style={screenColStyle} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
+            <motion.div key="settings" style={screenColStyle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: "easeOut" }}>
               <div style={topBarStyle}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
@@ -833,7 +851,7 @@ export default function FlexConnectMobile() {
             ].map((b) => {
               const active = tab === b.k;
               return (
-                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "6px 0 4px", border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
+                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, height: 52, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
                   <Icon k={b.icon} size={28} sw={active ? 2.1 : 1.8} />
                   <span style={{ fontSize: 10.5, fontWeight: active ? 800 : 600 }}>{b.l}</span>
                 </button>
@@ -845,7 +863,7 @@ export default function FlexConnectMobile() {
 
       {/* ============ CHAT / CHANNEL DETAIL ============ */}
       {authUser && screen === "chat" && selected && (
-        <motion.div key="chat" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}>
+        <motion.div key="chat" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={backToApp} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
             <div style={selected.type === "dm" ? { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: selected.colorKey ?? T.brand, color: "#fff", fontSize: 14, fontWeight: 700 } : { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.brandBg, color: T.brand }}>
@@ -894,7 +912,7 @@ export default function FlexConnectMobile() {
                                 </div>
                               </div>
                             ))}
-                            {m.text && <span style={{ fontSize: 14, lineHeight: 1.45, color: T.text, fontWeight: 450 }}>{m.text}</span>}
+                            {m.text && <span style={{ fontSize: 16, lineHeight: 1.45, color: T.text, fontWeight: 450 }}>{m.text}</span>}
                             <span style={{ display: "block", textAlign: "right", fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, marginTop: 2 }}>
                               {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (m.readByAll ? " ✓✓" : " ✓")}
                             </span>
@@ -938,7 +956,7 @@ export default function FlexConnectMobile() {
                 value={draft} onChange={(e) => onDraftChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
                 placeholder="Bir mesaj yazın…"
-                style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 16, fontWeight: 450, color: T.text, padding: "8px 2px", minWidth: 0 }}
+                style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 17, fontWeight: 450, color: T.text, padding: "8px 2px", minWidth: 0 }}
               />
               <button onClick={send} style={{ width: 38, height: 38, borderRadius: 11, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", background: draft.trim() ? T.brand : (dark ? "#33405A" : "#C3CAD4"), flex: "0 0 auto", transition: "background .15s" }}><Icon k="send" size={18} sw={2.1} /></button>
             </div>
@@ -948,7 +966,7 @@ export default function FlexConnectMobile() {
 
       {/* ============ CREATE SCREEN ============ */}
       {authUser && screen === "create" && (
-        <motion.div key="create" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}>
+        <motion.div key="create" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={() => setScreen("app")} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="close" size={22} sw={2.2} /></button>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1066,7 +1084,7 @@ export default function FlexConnectMobile() {
 
       {/* ============ BILDIRIMLER ============ */}
       {authUser && screen === "notif" && (
-        <motion.div key="notif" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}>
+        <motion.div key="notif" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
             <div style={{ flex: 1, minWidth: 0 }}>
