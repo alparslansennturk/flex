@@ -580,7 +580,7 @@ export default function FlexConnectMobile() {
   // küçültülemez/küçültülmemeli — her native app'te aynı boş şerit vardır). İkonlar
   // `justifyContent:"center"` ile bu 52px'in TAM ortasına oturur (padding tahminiyle
   // değil, flexbox'ın kesin ortalamasıyla).
-  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "0 8px", paddingBottom: "max(4px, env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
+  const bottomNavStyle: React.CSSProperties = { flex: "0 0 auto", display: "flex", alignItems: "stretch", padding: "16px 8px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))", background: dark ? "#141A26F2" : "#FFFFFFF2", borderTop: `1px solid ${T.border}`, backdropFilter: "blur(12px)" };
 
   if (!mounted) {
     return <div style={{ position: "fixed", inset: 0, height: "100dvh", width: "100vw", background: "#F4F5F7" }} />;
@@ -869,7 +869,7 @@ export default function FlexConnectMobile() {
             ].map((b) => {
               const active = tab === b.k;
               return (
-                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, height: 52, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
+                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
                   <Icon k={b.icon} size={28} sw={active ? 2.1 : 1.8} />
                   <span style={{ fontSize: 10.5, fontWeight: active ? 800 : 600 }}>{b.l}</span>
                 </button>
