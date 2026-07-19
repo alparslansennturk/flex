@@ -29,6 +29,8 @@ export interface ConversationView {
   /** Konuşmanın SAHİBİ mi — silme gibi en-yüksek-yetki işlemler SADECE owner'a görünür. */
   isOwner: boolean;
   pinned: boolean;
+  /** Kişisel sessize alma tercihi (2026-07-19) — sessize alınmış konuşmalarda push gitmez. */
+  muted: boolean;
   /** SADECE type==="dm" — karşı tarafın uid'i (Personel/Öğrenciler/Eğitmenlerim
    * dizininden birine tıklayınca var olan DM'i bulmak için). */
   peerUid?: string;
@@ -193,6 +195,57 @@ export async function setConversationPinned(conversationId: string, pinned: bool
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ pinned }),
+  });
+  return res.ok;
+}
+
+/** Sessize al/kaldır — kişisel tercih, yetki gerektirmez (2026-07-19, push bildirimi bu bayrağı okur). */
+export async function setConversationMuted(conversationId: string, muted: boolean, personId?: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/conversations/${conversationId}/mute${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ muted }),
+  });
+  return res.ok;
+}
+
+/** Bu cihazın FCM token'ını kaydet — bildirim izni verilince çağrılır. */
+export async function registerPushToken(token: string, personId?: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/push/register${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  return res.ok;
+}
+
+/** Çıkış yaparken bu cihazın token'ını sil — kalıcı olmayan bir cihazda tekrar push almasın. */
+export async function unregisterPushToken(token: string, personId?: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/push/unregister${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  return res.ok;
+}
+
+/** Genel bildirim tercihi (aç/kapat) — token kayıtlı olmasa bile okunabilir (varsayılan false). */
+export async function fetchPushSettings(personId?: string): Promise<{ notificationsEnabled: boolean }> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/push/settings${qs(personId)}`, { headers });
+  if (!res.ok) return { notificationsEnabled: false };
+  return (await res.json()) as { notificationsEnabled: boolean };
+}
+
+export async function setPushNotificationsEnabled(enabled: boolean, personId?: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/push/settings${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
   });
   return res.ok;
 }

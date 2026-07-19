@@ -29,6 +29,8 @@ export interface ConnectConversationView {
   isOwner: boolean;
   /** Kişisel sabitleme tercihi (Favoriler, Faz 2) — üye değilse (audience-only) hep false. */
   pinned: boolean;
+  /** Kişisel sessize alma tercihi (2026-07-19, push bildirimi) — üye değilse hep false. */
+  muted: boolean;
   /** SADECE type==="dm" — karşı tarafın uid'i. Dizinden (Personel/Öğrenciler/
    * Eğitmenlerim) bir kişiye tıklayınca "bununla zaten DM var mı" eşleşmesi için. */
   peerUid?: string;
@@ -100,6 +102,7 @@ export async function buildConversationViews(
         isAdmin: conversation.admins.includes(principalUid),
         isOwner: conversation.ownerUid === principalUid,
         pinned: member?.pinned ?? false,
+        muted: member?.muted ?? false,
         peerUid,
         admins: conversation.admins,
         ownerUid: conversation.ownerUid,

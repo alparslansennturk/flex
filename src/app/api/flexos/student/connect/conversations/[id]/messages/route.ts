@@ -4,6 +4,8 @@ import { studentPrincipalFromRequest } from "@/app/lib/server/connect-principal"
 import { connectDeps } from "@/app/lib/server/connect-deps";
 import { buildMessageViews } from "@/app/lib/server/connect-view";
 import { listMessages, listMembers, sendMessage } from "@/app/lib/domain/services/connect-service";
+import { notifyNewMessage } from "@/app/lib/domain/services/connect-push-service";
+import { firestoreConnectPushRepo } from "@/app/lib/server/connect-push-repo.firestore";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 export const GET = withAuth(async (req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
@@ -41,6 +43,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     // writePolicy servis katmanında uygulanır — öğrenci sadece üye olduğu group/dm'e
     // yazabilir; audience kanalları (writePolicy:"admins") ASLA yazamaz (sadece okur).
     const message = await sendMessage(principal, id, body.text ?? "", connectDeps);
+    await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
     return NextResponse.json({ id: message.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

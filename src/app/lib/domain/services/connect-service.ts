@@ -588,7 +588,24 @@ export async function setPinned(
   await deps.conversations.saveMember(conversationId, { ...member, pinned });
 }
 
-async function resolveDisplayName(
+/**
+ * Sessize alma (2026-07-19) — `setPinned` ile AYNI ilke: sadece kendi member
+ * dokümanı, yetki gerektirmez, Audit Log'a yazılmaz. `connect-push-service.ts`
+ * `notifyNewMessage` bu bayrağı okuyup sessize alınmış konuşmalardan push
+ * göndermez (mesajın kendisi yine de normal akar, sadece bildirim tetiklenmez).
+ */
+export async function setMuted(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  muted: boolean,
+  deps: ConnectDeps,
+): Promise<void> {
+  const member = await deps.conversations.getMember(conversationId, principal.uid);
+  if (!member) return;
+  await deps.conversations.saveMember(conversationId, { ...member, muted });
+}
+
+export async function resolveDisplayName(
   uid: string,
   tenantId: string,
   deps: Pick<ConnectDeps, "persons" | "flexosUsers">,

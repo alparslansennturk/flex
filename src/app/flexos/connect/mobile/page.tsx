@@ -44,13 +44,15 @@ import {
   type User,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { onMessage, getToken } from "firebase/messaging";
 import { toast } from "sonner";
-import { auth, db } from "@/app/lib/firebase";
+import { auth, db, getMessagingIfSupported } from "@/app/lib/firebase";
 import { useMarkConnectReady } from "./SplashGate";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type TypingSignal,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
+  setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled,
 } from "@/app/flexos/connect/_shared/connectClient";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
@@ -96,6 +98,7 @@ const ICONS: Record<string, string> = {
   community: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   cap: '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  bellOff: '<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" x2="23" y1="1" y2="23"/>',
   settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
   moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
@@ -351,6 +354,15 @@ export default function FlexConnectMobile() {
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
+  /** Sessize al/kaldır (2026-07-19) — WhatsApp gibi, sohbet başlığındaki zil ikonuna
+   * dokununca. `conversations` state'i güncellenir, `selected` ondan türediği için
+   * ayrıca senkron etmeye gerek yok. */
+  async function toggleMute(id: string, nextMuted: boolean) {
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, muted: nextMuted } : c)));
+    const ok = await setConversationMuted(id, nextMuted, studentPersonId ?? undefined);
+    if (!ok) setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, muted: !nextMuted } : c)));
+  }
+
   async function openChat(id: string) {
     setSelectedId(id);
     setScreen("chat");
@@ -520,19 +532,94 @@ export default function FlexConnectMobile() {
     }
   }
 
-  // ── Ayarlar / Bildirimler (local state — gerçek push altyapısı YOK, kullanıcı
-  // kararıyla en sona bırakıldı, bkz. FLEX_CONNECT.md Faz 3). ──
-  const [notifPush, setNotifPush] = useState(true);
+  // ── Ayarlar / Bildirimler (2026-07-19 — gerçek push altyapısına bağlandı,
+  // bkz. connect-push-service.ts). `notifPush` artık sunucudaki gerçek tercihi
+  // yansıtıyor (mount'ta `fetchPushSettings` ile okunuyor). ──
+  const [notifPush, setNotifPush] = useState(false);
   const [afterHoursWarn, setAfterHoursWarn] = useState(false);
   const [soundVibe, setSoundVibe] = useState(true);
   const [quiet, setQuiet] = useState(false);
   const [quietFrom] = useState("22:00");
   const [quietTo] = useState("08:00");
+  const pushTokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!authUser || studentPersonId === undefined) return;
+    fetchPushSettings(studentPersonId ?? undefined).then((s) => setNotifPush(s.notificationsEnabled));
+  }, [authUser, studentPersonId]);
+
+  /**
+   * Bildirimlere izin ver + FCM token kaydet (2026-07-19) — WhatsApp'taki gibi
+   * kullanıcı jestiyle (butona basınca) tetiklenir, sayfa açılır açılmaz OTOMATİK
+   * SORULMAZ (iOS Safari standalone bunu zaten şart koşuyor). Kapatmada token
+   * SİLİNMEZ, sadece sunucu tarafı gönderim durdurulur (tekrar açınca izin
+   * tekrar istenmesin diye).
+   */
+  async function toggleNotifPush() {
+    if (notifPush) {
+      setNotifPush(false);
+      await setPushNotificationsEnabled(false, studentPersonId ?? undefined);
+      return;
+    }
+    try {
+      const messaging = await getMessagingIfSupported();
+      if (!messaging) { toast.error("Bu tarayıcı push bildirimini desteklemiyor."); return; }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") { toast.error("Bildirim izni verilmedi — tarayıcı/telefon ayarlarından açabilirsin."); return; }
+      const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+      if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı."); return; }
+      const registration = await navigator.serviceWorker.ready;
+      const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
+      if (!token) { toast.error("Cihaz kaydı alınamadı."); return; }
+      pushTokenRef.current = token;
+      await registerPushToken(token, studentPersonId ?? undefined);
+      await setPushNotificationsEnabled(true, studentPersonId ?? undefined);
+      setNotifPush(true);
+    } catch (e) {
+      console.error("[connect-mobile] push izin akışı hatası:", e);
+      toast.error("Bildirimler açılamadı.");
+    }
+  }
+
+  // Uygulama açıkken (foreground) gelen push — sistem banner'ı GÖSTERİLMEZ (Firestore
+  // onSnapshot zaten canlı günceller), sadece uygulama ikonu badge'i senkron tutulur.
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    getMessagingIfSupported().then((messaging) => {
+      if (!messaging) return;
+      unsub = onMessage(messaging, (payload) => {
+        const badge = payload.data?.badge;
+        if (badge !== undefined && "setAppBadge" in navigator) {
+          (navigator as Navigator & { setAppBadge?: (n: number) => Promise<void> }).setAppBadge?.(Number(badge)).catch(() => {});
+        }
+      });
+    });
+    return () => unsub?.();
+  }, []);
+
+  // Uygulama açıkken/öne gelince ikon badge'ini `conversations`'taki gerçek
+  // okunmamış toplamıyla senkron tutar — arka planda kapalıyken güncellemeyi
+  // `sw-connect-mobile.js`'teki `push` handler (sunucunun hesapladığı değerle) yapar.
+  useEffect(() => {
+    const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (!nav.setAppBadge || !nav.clearAppBadge) return;
+    const total = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    (total > 0 ? nav.setAppBadge(total) : nav.clearAppBadge()).catch(() => {});
+  }, [conversations]);
 
   async function handleLogout() {
+    if (pushTokenRef.current) {
+      await unregisterPushToken(pushTokenRef.current, studentPersonId ?? undefined).catch(() => {});
+    }
     await signOut(auth);
     // Ayrı bir sayfaya YÖNLENDİRME yok — `onAuthStateChanged` authUser'ı null
     // yapınca AYNI PWA içinde Login ekranı gösterilir (native app davranışı).
+    // `tab`/`screen` component'in kendi state'i, sayfa yenilenmediği için logout
+    // sırasında hangi sekmedeysen (ör. Ayarlar) öyle kalıyordu — bir sonraki
+    // girişte de aynı sekmeden açılıyordu (2026-07-19 kullanıcı bulgusu). Çıkışta
+    // varsayılana döndürülür ki her giriş Sohbetler'den başlasın.
+    setTab("chats");
+    setScreen("app");
   }
 
   // ── Türetilmiş listeler ──
@@ -900,6 +987,7 @@ export default function FlexConnectMobile() {
               </div>
               {selected.writePolicy === "admins" && <div style={{ fontSize: 11.5, fontWeight: 600, color: T.text2, marginTop: 2 }}>Sadece yöneticiler yazabilir</div>}
             </div>
+            <button onClick={() => toggleMute(selected.id, !selected.muted)} aria-label={selected.muted ? "Sessize almayı kaldır" : "Sessize al"} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: selected.muted ? T.brand : T.text2, flex: "0 0 auto" }}><Icon k={selected.muted ? "bellOff" : "bell"} size={19} sw={2} /></button>
             <button style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}><Icon k="dots" size={20} /></button>
           </div>
 
@@ -1119,7 +1207,7 @@ export default function FlexConnectMobile() {
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
               {[
-                { title: "Push Bildirimleri", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: () => setNotifPush((v) => !v) },
+                { title: "Push Bildirimleri", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: toggleNotifPush },
                 { title: "Çalışma Saati Uyarıları", sub: "22:00 sonrası gönderilen mesajlarda uyarı göster", icon: "clock", val: afterHoursWarn, onToggle: () => setAfterHoursWarn((v) => !v) },
                 { title: "Ses & Titreşim", sub: "Bildirim sesi ve titreşim", icon: "bell", val: soundVibe, onToggle: () => setSoundVibe((v) => !v) },
               ].map((r, i, arr) => (

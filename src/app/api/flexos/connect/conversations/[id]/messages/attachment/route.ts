@@ -3,6 +3,8 @@ import { withAuth } from "@/app/lib/with-auth";
 import { staffPrincipalFromCaller } from "@/app/lib/server/connect-principal";
 import { connectDeps } from "@/app/lib/server/connect-deps";
 import { sendMessage } from "@/app/lib/domain/services/connect-service";
+import { notifyNewMessage } from "@/app/lib/domain/services/connect-push-service";
+import { firestoreConnectPushRepo } from "@/app/lib/server/connect-push-repo.firestore";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { ensureFolderPath, uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
 import { ALLOWED_MIME_TYPES } from "@/app/types/storage";
@@ -45,6 +47,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     const message = await sendMessage(principal, id, text, connectDeps, [
       { driveFileId: fileId, webViewLink, fileName: file.name, fileSize: file.size, mimeType },
     ]);
+    await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
     return NextResponse.json({ id: message.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
