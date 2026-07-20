@@ -122,7 +122,7 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
-type Screen = "app" | "chat" | "create" | "notif" | "help" | "password" | "starred";
+type Screen = "app" | "chat" | "create" | "notif" | "help" | "password" | "starred" | "legal" | "legal-kvkk";
 type Tab = "chats" | "channels" | "staff" | "settings";
 type ThemePref = "light" | "dark" | "system";
 
@@ -1382,6 +1382,7 @@ export default function FlexConnectMobile() {
                     { title: "Bildirimler", sub: "Anlık bildirimler", icon: "bell", onClick: () => setScreen("notif") },
                     { title: "Yıldızlı Mesajlarım", sub: "Tüm sohbetlerden yıldızlanan mesajlar", icon: "star", onClick: openStarred },
                     { title: "Gizlilik & Güvenlik", sub: "Şifre değiştir", icon: "shield", onClick: () => setScreen("password") },
+                    { title: "Yasal Bilgilendirmeler", sub: "KVKK, gizlilik politikası, kullanım koşulları", icon: "file", onClick: () => setScreen("legal") },
                   ].map((r, i, arr) => (
                     <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k={r.icon} size={18} sw={2} /></div>
@@ -2000,6 +2001,117 @@ export default function FlexConnectMobile() {
                 </button>
               ))
             )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ============ YASAL BİLGİLENDİRMELER — liste ============ */}
+      {authUser && screen === "legal" && (
+        <motion.div key="legal" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Yasal Bilgilendirmeler</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+              {[
+                { title: "KVKK Aydınlatma Metni", onClick: () => setScreen("legal-kvkk") },
+                { title: "Gizlilik Politikası", onClick: () => toast("Yakında eklenecek.") },
+                { title: "Kullanım Koşulları", onClick: () => toast("Yakında eklenecek.") },
+                { title: "Sürüm Bilgisi", onClick: () => toast("Yakında eklenecek.") },
+              ].map((r, i, arr) => (
+                <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k="file" size={18} sw={2} /></div>
+                  <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</div>
+                  <Icon k="chev" size={18} color={T.chev} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ============ KVKK AYDINLATMA METNİ ============ */}
+      {authUser && screen === "legal-kvkk" && (
+        <motion.div key="legal-kvkk" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+            <button onClick={() => setScreen("legal")} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>KVKK Aydınlatma Metni</div>
+              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>Son Güncelleme: 20.07.2026</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 32px" }}>
+            <p style={{ fontSize: 13.5, lineHeight: 1.6, color: T.text, margin: "0 0 20px" }}>
+              Bu Aydınlatma Metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu (&quot;KVKK&quot;) kapsamında,
+              Arı Bilgi Bilişim Teknolojileri Akademisi tarafından geliştirilen Flex Connect uygulamasını kullanan
+              öğrenciler, akademik personel ve yöneticilerin kişisel verilerinin işlenmesine ilişkin usul ve
+              esaslar hakkında bilgi vermek amacıyla hazırlanmıştır.
+            </p>
+            {([
+              { h: "1. Veri Sorumlusu", p: ["6698 sayılı KVKK kapsamında veri sorumlusu Arı Bilgi Bilişim Teknolojileri Akademisi olarak faaliyet göstermektedir."] },
+              {
+                h: "2. İşlenen Kişisel Veriler",
+                p: ["Flex Connect uygulaması kapsamında aşağıdaki kişisel veriler işlenebilmektedir:"],
+                b: ["Ad ve Soyad", "Kurumsal e-posta adresi", "Kullanıcı rolü (Öğrenci, Akademisyen, Yönetici vb.)", "Bölüm / Program bilgisi", "Ders, laboratuvar veya grup bilgileri", "Kullanıcının uygulama içerisinde oluşturduğu mesajlar ve paylaşımlar (iletişim hizmetinin sunulabilmesi amacıyla)", "Bildirim tercihleri ve cihaz bildirim bilgileri (bildirim özelliğinin kullanılması halinde)", "Kimlik doğrulama ve oturum kayıtları"],
+                after: ["Flex Connect, kullanıcıların konum bilgisi, telefon rehberi, kamera, mikrofon veya benzeri kişisel verilerine kullanıcı izni olmaksızın erişmez."],
+              },
+              {
+                h: "3. Kişisel Verilerin İşlenme Amaçları",
+                p: ["Toplanan kişisel veriler aşağıdaki amaçlarla işlenmektedir:"],
+                b: ["Kullanıcı hesabının oluşturulması ve yönetilmesi", "Kimlik doğrulama işlemlerinin gerçekleştirilmesi", "Mesajlaşma ve iletişim hizmetlerinin sunulması", "Ders, laboratuvar ve grup süreçlerinin yürütülmesi", "Duyuru ve bildirimlerin kullanıcılara ulaştırılması", "Anket ve geri bildirim süreçlerinin yönetilmesi", "Sistem güvenliğinin sağlanması", "Teknik destek hizmetlerinin sunulması", "Yasal yükümlülüklerin yerine getirilmesi"],
+              },
+              {
+                h: "4. Kişisel Verilerin Aktarılması",
+                p: ["Kişisel veriler;"],
+                b: ["uygulamanın güvenli şekilde çalıştırılması", "kimlik doğrulama hizmetlerinin sağlanması", "bildirim gönderilmesi", "veri barındırma hizmetlerinin yürütülmesi"],
+                after: ["amaçlarıyla hizmet alınan teknoloji sağlayıcılarıyla sınırlı olmak üzere paylaşılabilir.", "Bunun dışında kişisel veriler, ilgili mevzuat kapsamında yetkili kamu kurum ve kuruluşlarının hukuka uygun talepleri dışında üçüncü kişilerle paylaşılmaz."],
+              },
+              {
+                h: "5. Kişisel Verilerin Toplanma Yöntemi",
+                p: ["Kişisel veriler;"],
+                b: ["kullanıcı tarafından uygulamaya girilen bilgiler", "kurumsal kullanıcı kayıtları", "uygulama kullanım süreçleri", "elektronik ortamlar"],
+                after: ["aracılığıyla otomatik yöntemlerle toplanmaktadır."],
+              },
+              {
+                h: "6. Kişisel Verilerin Saklanması",
+                p: ["Kişisel veriler; ilgili mevzuatta öngörülen süreler boyunca veya işleme amacının gerektirdiği süre kadar güvenli şekilde saklanmaktadır.", "Saklama süresi sona eren veriler ilgili mevzuata uygun olarak silinir, yok edilir veya anonim hale getirilir."],
+              },
+              {
+                h: "7. Veri Güvenliği",
+                p: ["Flex Connect kapsamında kişisel verilerin gizliliğini ve güvenliğini sağlamak amacıyla uygun teknik ve idari tedbirler uygulanmaktadır.", "Bu kapsamda;"],
+                b: ["güvenli bağlantılar kullanılmakta", "yetkilendirme kontrolleri uygulanmakta", "erişimler sınırlandırılmakta", "veri güvenliğini artırıcı güncel teknolojiler kullanılmaktadır"],
+              },
+              {
+                h: "8. KVKK Kapsamındaki Haklarınız",
+                p: ["6698 sayılı KVKK'nın 11. maddesi kapsamında kullanıcılar;"],
+                b: ["kişisel verilerinin işlenip işlenmediğini öğrenme", "işlenen verilere ilişkin bilgi talep etme", "verilerin düzeltilmesini isteme", "verilerin silinmesini veya yok edilmesini talep etme", "işlenen verilerin aktarıldığı üçüncü kişileri öğrenme", "kanuna aykırı işleme nedeniyle zararın giderilmesini talep etme"],
+                after: ["haklarına sahiptir."],
+              },
+              {
+                h: "9. İletişim",
+                p: ["KVKK kapsamındaki taleplerinizi aşağıdaki iletişim adresi üzerinden iletebilirsiniz.", "Veri Sorumlusu: Arı Bilgi Bilişim Teknolojileri Akademisi", "E-posta: alparslan.sennturk@gmail.com"],
+              },
+            ]).map((s) => (
+              <div key={s.h} style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: T.text, marginBottom: 8 }}>{s.h}</div>
+                {s.p.map((line, i) => (
+                  <p key={i} style={{ fontSize: 13.5, lineHeight: 1.6, color: T.text2, margin: "0 0 8px" }}>{line}</p>
+                ))}
+                {s.b && (
+                  <ul style={{ margin: "0 0 8px", paddingLeft: 20 }}>
+                    {s.b.map((item, i) => (
+                      <li key={i} style={{ fontSize: 13.5, lineHeight: 1.6, color: T.text2, marginBottom: 4 }}>{item}</li>
+                    ))}
+                  </ul>
+                )}
+                {s.after?.map((line, i) => (
+                  <p key={i} style={{ fontSize: 13.5, lineHeight: 1.6, color: T.text2, margin: "0 0 8px" }}>{line}</p>
+                ))}
+              </div>
+            ))}
           </div>
         </motion.div>
       )}
