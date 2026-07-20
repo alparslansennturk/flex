@@ -28,9 +28,10 @@ import { toast } from "sonner";
 import {
   Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
-  ChevronDown, Reply, Copy,
+  ChevronDown, Reply, Copy, Bell, BellOff,
 } from "lucide-react";
-import { auth } from "@/app/lib/firebase";
+import { onMessage, getToken } from "firebase/messaging";
+import { auth, getMessagingIfSupported } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type ConnectConversationType, type ConnectRealm,
   type ConversationDetail, type TypingSignal, type ConnectReplySnapshot, type StarredMessageView, type PresenceSignal, type PresenceStatus,
@@ -39,6 +40,7 @@ import {
   setConversationPinned, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
   updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, fetchStarredMessages,
   subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
+  registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { ConnectIcon } from "./_shared/ConnectIcon";
@@ -51,6 +53,15 @@ import { usePresenceHeartbeat } from "./_shared/usePresenceHeartbeat";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
+
+// Bazı Promise'ler (SW aktivasyonu, FCM token isteği) sonsuza kadar askıda
+// kalabiliyor — `connect/mobile/page.tsx`'teki AYNI yardımcı, aynı gerekçe.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} zaman aşımına uğradı (${ms / 1000}sn)`)), ms)),
+  ]);
+}
 
 async function authHeaders(): Promise<Record<string, string>> {
   const u = auth.currentUser;
@@ -230,6 +241,76 @@ export default function FlexConnectPage() {
   const [presenceMenuOpen, setPresenceMenuOpen] = useState(false);
   usePresenceHeartbeat(true);
 
+  // Masaüstü push bildirimleri (2026-07-20) — mobildeki `toggleNotifPush` ile
+  // AYNI akış (izin iste → FCM token al → sunucuya kaydet), iOS/standalone
+  // kısıtı YOK (masaüstü tarayıcı). SW: `public/sw-connect-desktop.js`,
+  // scope `/flexos/connect` (mobilinkiyle ÇAKIŞMAZ, ayrı registration).
+  const [notifPush, setNotifPush] = useState(false);
+  const [notifPushLoading, setNotifPushLoading] = useState(false);
+  const pushTokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    fetchPushSettings().then((s) => setNotifPush(s.notificationsEnabled));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw-connect-desktop.js", { scope: "/flexos/connect" }).catch((err) => {
+      console.error("[connect] service worker kaydı başarısız:", err);
+    });
+  }, []);
+
+  async function toggleNotifPush() {
+    if (notifPushLoading) return;
+    if (notifPush) {
+      setNotifPush(false);
+      await setPushNotificationsEnabled(false);
+      return;
+    }
+    setNotifPushLoading(true);
+    const toastId = toast.loading("Bildirimler etkinleştiriliyor...");
+    try {
+      const messaging = await getMessagingIfSupported();
+      if (!messaging) { toast.error("Bu tarayıcı push bildirimini desteklemiyor.", { id: toastId }); return; }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") { toast.error("Bildirim izni verilmedi — tarayıcı ayarlarından açabilirsin.", { id: toastId }); return; }
+      const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+      if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı.", { id: toastId }); return; }
+      const registration = await withTimeout(navigator.serviceWorker.ready, 8000, "Servis çalışanı hazır olma");
+      const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+      if (existingSub) await existingSub.unsubscribe().catch(() => {});
+      const token = await withTimeout(
+        getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }),
+        8000,
+        "FCM token isteği",
+      );
+      if (!token) { toast.error("Cihaz kaydı alınamadı (token boş döndü).", { id: toastId }); return; }
+      const registered = await registerPushToken(token);
+      if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene.", { id: toastId }); return; }
+      pushTokenRef.current = token;
+      await setPushNotificationsEnabled(true);
+      setNotifPush(true);
+      toast.success("Bildirimler açıldı.", { id: toastId });
+    } catch (e) {
+      console.error("[connect] push izin akışı hatası:", e);
+      const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      toast.error(`Bildirimler açılamadı — ${detail}`, { id: toastId, duration: 8000 });
+    } finally {
+      setNotifPushLoading(false);
+    }
+  }
+
+  // Sekme açıkken (foreground) gelen push — sistem banner'ı GÖSTERİLMEZ (Firestore
+  // onSnapshot zaten canlı günceller), mobildeki AYNI ilke.
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    getMessagingIfSupported().then((messaging) => {
+      if (!messaging) return;
+      unsub = onMessage(messaging, () => {});
+    });
+    return () => unsub?.();
+  }, []);
+
   // Üstteki 4 aksiyon ikonu (küçült/ara/bilgi/menü) — tasarımda vardı, ilk
   // portta "minimal" diye atlanmıştı, kullanıcı geri istedi (2026-07-18).
   const [searchOpen, setSearchOpen] = useState(false);
@@ -372,6 +453,34 @@ export default function FlexConnectPage() {
     setNavTab(top.type);
     selectConversation(top.id);
   }, [conversations, loadingList, selectConversation]);
+
+  // Masaüstü push — bildirime tıklama: (1) sekme zaten açık: SW `postMessage`
+  // yollar, burada ilgili sohbeti açarız. (2) soğuk başlangıç: `?openConversation=`
+  // URL param'ı.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "flex-connect-open-conversation" && event.data.conversationId) {
+        const conv = conversations.find((c) => c.id === event.data.conversationId);
+        if (conv) setNavTab(conv.type);
+        selectConversation(event.data.conversationId);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
+  }, [conversations, selectConversation]);
+
+  useEffect(() => {
+    if (loadingList) return;
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("openConversation");
+    if (!fromUrl) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    autoSelectedRef.current = true; // deep-link geldiyse "ilk konuşmayı otomatik seç" devre dışı kalsın
+    const conv = conversations.find((c) => c.id === fromUrl);
+    if (conv) setNavTab(conv.type);
+    selectConversation(fromUrl);
+  }, [loadingList, conversations, selectConversation]);
 
   useEffect(() => {
     setGuestQuery(""); setSelectedGuestUid(""); setGuestTitle(GUEST_TITLES[0]); setAddMemberRole("member");
@@ -738,6 +847,15 @@ export default function FlexConnectPage() {
             style={{ width: 40, height: 40, borderRadius: 12, border: "none", color: "#8FA3BE", background: "transparent" }}
           >
             <Star size={19} />
+          </button>
+          <button
+            title={notifPush ? "Masaüstü bildirimleri açık — kapatmak için tıkla" : "Masaüstü bildirimlerini aç"}
+            onClick={toggleNotifPush}
+            disabled={notifPushLoading}
+            className="flex items-center justify-center cursor-pointer transition-all"
+            style={{ width: 40, height: 40, borderRadius: 12, border: "none", color: notifPush ? "#2867bd" : "#8FA3BE", background: notifPush ? "#EAF1FB" : "transparent" }}
+          >
+            {notifPushLoading ? <Loader2 size={18} className="animate-spin" /> : notifPush ? <Bell size={19} /> : <BellOff size={19} />}
           </button>
           <div className="relative" data-connect-dropdown>
             <button

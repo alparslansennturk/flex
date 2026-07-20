@@ -91,6 +91,14 @@ const nextConfig: NextConfig = {
         source: "/flexos/connect/mobile",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
+      {
+        source: "/sw-connect-desktop.js",
+        headers: [{ key: "Cache-Control", value: "no-cache" }],
+      },
+      {
+        source: "/flexos/connect",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
     ];
   },
 };
