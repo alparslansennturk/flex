@@ -16,7 +16,47 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Flex Connect — Presence + masaüstü push + KVKK/Yasal Bilgilendirmeler + masaüstü Ayarlar modalı (2026-07-20, PC oturumu 3 — EN GÜNCEL)
+### ✅ Randevu Takvimi — satış randevuları, Aktivite Merkezi'ne canlı bağlı (2026-07-21 — EN GÜNCEL)
+
+**Kritik bug bulundu+düzeltildi:** Aktivite Merkezi'nde "Randevu Oluşturulacak"
+seçilip tarih/saat onaylandığında GERÇEKTE hiçbir randevu kaydı oluşmuyordu —
+sadece `Activity.nextActionDate` set ediliyor, `Case.status` değişiyordu.
+Domain'de bunun için zaten hazır bekleyen bir `Appointment` koleksiyonu
+(`flexos_appointments`) vardı ama hiçbir kod yolu ona gerçekten yazmıyordu.
+`aktivite-merkezi/page.tsx::saveAct()` düzeltildi — artık `POST
+/api/flexos/activities` çağrısına `appointment:{scheduledAt,assignedToUid,
+assignedToName,meetingType}` gönderiyor, gerçek `Appointment` dokümanı oluşuyor.
+
+**Yeni sayfa** (`/flexos/randevu-takvimi`, tasarımdan `Randevu Takvimi.dc.html`
+birebir port): Hafta/Gün takvim görünümü, Oluştur/Düzenle modalı, Detay
+popup'ı, İptal onayı. Realtime: Firestore `onSnapshot` DEĞİL, Aktivite Merkezi
+ile AYNI `useRealtimeSync(["activities.changed"])` SSE deseni — bir tarafta
+randevu oluşturulunca/düzenlenince diğer taraf ~1sn içinde otomatik güncelleniyor.
+
+**Domain eklentisi:** `Appointment`'a `assignedToName`/`meetingType`
+(Telefon/Yüz Yüze/Online Görüşme) eklendi. Yeni `updateAppointment()` servisi
+(düzenle+iptal, `appointment.create` yetkisini reuse eder — ayrı bir
+`appointment.edit` izni İCAT EDİLMEDİ) + yeni `PATCH /api/flexos/appointments/[id]`.
+`GET /api/flexos/appointments` telefon (PII gating'li)/danışman-adı/kanal ile
+zenginleştirildi — MEVCUT alanlar korundu, Satış Dashboard'daki "Bugünkü
+Randevular" kartı regresyona uğramadı.
+
+**"Satış Danışmanı" listesi** gerçek bir rol/kullanıcı sorgusu DEĞİL — Aktivite
+Merkezi'ndeki AYNI sabit `SORUMLU_LIST` (+ giriş yapan kullanıcı) reuse edildi,
+uydurma bir rol icat edilmedi (TODO olarak zaten işaretliydi).
+
+**Sidebar:** Randevu Takvimi, Aktivite Merkezi alt menüsünden Satışlar alt
+menüsüne taşındı (kullanıcı isteği — URL değişmedi, sadece sidebar konumu).
+Genel alt-menü satır boşluğu hafifçe daraltıldı (`SubItem` padding 7px→6px,
+TÜM akordiyonlara yansıyor).
+
+**SIRADAKİ:** Gerçek cihazda uçtan uca test edilmedi — Aktivite Merkezi'nde
+randevu oluşturup takvimde görünüp görünmediği, takvimden düzenle/iptal edip
+Aktivite Merkezi'ne yansıyıp yansımadığı kullanıcı tarafından doğrulanacak.
+
+---
+
+### ✅ Flex Connect — Presence + masaüstü push + KVKK/Yasal Bilgilendirmeler + masaüstü Ayarlar modalı (2026-07-20, PC oturumu 3)
 
 **Presence (çevrimiçi/derste/rahatsız etmeyin):** `connect_presence/{uid}` tek
 global doküman (typing'deki `onSnapshot` deseniyle aynı, konuşmadan bağımsız).
