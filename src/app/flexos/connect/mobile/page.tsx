@@ -1260,7 +1260,7 @@ export default function FlexConnectMobile() {
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
               {[
-                { title: "Push Bildirimleri", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: toggleNotifPush, loading: notifPushLoading },
+                { title: "Anlık Bildirimler", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: toggleNotifPush, loading: notifPushLoading },
                 { title: "Çalışma Saati Uyarıları", sub: "22:00 sonrası gönderilen mesajlarda uyarı göster", icon: "clock", val: afterHoursWarn, onToggle: () => setAfterHoursWarn((v) => !v) },
                 { title: "Ses & Titreşim", sub: "Bildirim sesi ve titreşim", icon: "bell", val: soundVibe, onToggle: () => setSoundVibe((v) => !v) },
               ].map((r, i, arr) => (
