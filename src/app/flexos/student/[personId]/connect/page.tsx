@@ -30,6 +30,7 @@ import { EmojiButton, AttachButton, ReactionQuickPick } from "@/app/flexos/conne
 import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
 import { useCloseDropdownsOnOutsideClick } from "@/app/flexos/connect/_shared/useCloseDropdownsOnOutsideClick";
 import { computePopoverPosition, type PopoverPosition } from "@/app/flexos/connect/_shared/popoverPosition";
+import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
@@ -102,8 +103,11 @@ export default function StudentConnectPage() {
   const [query, setQuery] = useState("");
   const [conversations, setConversations] = useState<ConversationView[]>([]);
   const [trainerDirectoryList, setTrainerDirectoryList] = useState<DirectoryUser[]>([]);
-  // Presence (2026-07-20) — SADECE görüntüleme, öğrenci durum seçemez.
+  // Presence (2026-07-20) — öğrenci kendi durumunu SEÇEMEZ, ama heartbeat gönderir
+  // (basit otomatik çevrimiçi/çevrimdışı — kullanıcı isteği: "diğer öğrencilerin
+  // çevrimiçi olup olmadıklarını görmeliyim").
   const [presenceMap, setPresenceMap] = useState<Map<string, PresenceSignal>>(new Map());
+  usePresenceHeartbeat(true, personId);
   const [loadingList, setLoadingList] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageView[]>([]);

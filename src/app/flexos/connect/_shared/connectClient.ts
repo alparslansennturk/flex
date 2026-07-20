@@ -572,9 +572,9 @@ export function subscribeToPresence(uids: string[], onChange: (signals: Presence
   return () => unsubs.forEach((u) => u());
 }
 
-export async function sendHeartbeat(): Promise<void> {
+export async function sendHeartbeat(personId?: string): Promise<void> {
   const headers = await authHeaders();
-  await fetch("/api/flexos/connect/presence/heartbeat", { method: "POST", headers }).catch(() => {});
+  await fetch(`${base(personId)}/presence/heartbeat${qs(personId)}`, { method: "POST", headers }).catch(() => {});
 }
 
 export async function setMyPresenceStatus(status: PresenceStatus): Promise<void> {

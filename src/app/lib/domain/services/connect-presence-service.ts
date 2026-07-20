@@ -3,9 +3,10 @@ import type { ConnectPresenceRepo } from "../repo/connect-presence-repo";
 import type { ConnectPrincipal } from "./connect-service";
 
 /**
- * Flex Connect presence servisi — SADECE personel (`principal.kind==="staff"`)
- * durum taşır/günceller. Öğrenciler presence göstermez, bu bilinçli bir kapsam
- * kararı (2026-07-20) — bkz. FLEXOS.md Durum/İlerleme.
+ * Flex Connect presence servisi. Manuel durum seçimi (Derste/Rahatsız Etmeyin)
+ * SADECE personel içindir (2026-07-20). Heartbeat ise HERKESTEN (staff+student,
+ * 2026-07-20 revizyonu) gelir — öğrenciler için basit otomatik çevrimiçi/çevrimdışı
+ * (`status` hep "online" varsayılanında kalır, hiç manuel değiştirilmez).
  */
 export async function setPresenceStatus(
   principal: ConnectPrincipal,
@@ -17,7 +18,6 @@ export async function setPresenceStatus(
 }
 
 export async function heartbeat(principal: ConnectPrincipal, presenceRepo: ConnectPresenceRepo): Promise<void> {
-  if (principal.kind !== "staff") return;
   await presenceRepo.heartbeat(principal.uid, principal.tenantId, new Date().toISOString());
 }
 

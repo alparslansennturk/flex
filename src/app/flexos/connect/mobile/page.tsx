@@ -375,7 +375,7 @@ export default function FlexConnectMobile() {
   const [presenceMap, setPresenceMap] = useState<Map<string, PresenceSignal>>(new Map());
   const [myPresenceStatus, setMyPresenceStatusLocal] = useState<PresenceStatus>("online");
   const [presenceSheetOpen, setPresenceSheetOpen] = useState(false);
-  usePresenceHeartbeat(studentPersonId === null);
+  usePresenceHeartbeat(studentPersonId !== undefined, studentPersonId ?? undefined);
 
   const loadConversations = useCallback(async () => {
     if (studentPersonId === undefined) return;
@@ -428,14 +428,14 @@ export default function FlexConnectMobile() {
   }, [studentPersonId]);
 
   useEffect(() => {
-    const uids = [...staffDirectory, ...trainerDirectory].map((u) => u.uid);
+    const uids = [...staffDirectory, ...trainerDirectory, ...studentDirectory].map((u) => u.uid);
     if (uids.length === 0) return;
     return subscribeToPresence(uids, (signals) => {
       setPresenceMap(new Map(signals.map((s) => [s.uid, s])));
       const mine = signals.find((s) => s.uid === auth.currentUser?.uid);
       if (mine) setMyPresenceStatusLocal(mine.status);
     });
-  }, [staffDirectory, trainerDirectory]);
+  }, [staffDirectory, trainerDirectory, studentDirectory]);
 
   // PWA service worker kaydı (2026-07-18) — SADECE bu route'un scope'unda,
   // masaüstünü etkilemez. Minimal SW (bkz. `public/sw-connect-mobile.js`) —

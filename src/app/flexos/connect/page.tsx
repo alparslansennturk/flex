@@ -298,18 +298,19 @@ export default function FlexConnectPage() {
     fetchStudentDirectory().then(setStudentDirectoryList);
   }, []);
 
-  // Personel roster'ı yüklendikçe presence aboneliği (kendi uid'imiz dahil).
+  // Personel + öğrenci roster'ı yüklendikçe presence aboneliği (kendi uid'imiz
+  // dahil). Öğrenciler için basit otomatik çevrimiçi/çevrimdışı (2026-07-20
+  // revizyonu — kullanıcı isteği: "diğer öğrencilerin çevrimiçi olup olmadıklarını
+  // görmeliyim"), manuel durum seçimi YOK, sadece heartbeat.
   useEffect(() => {
-    if (staffDirectoryList.length === 0) return;
-    return subscribeToPresence(
-      staffDirectoryList.map((u) => u.uid),
-      (signals) => {
-        setPresenceMap(new Map(signals.map((s) => [s.uid, s])));
-        const mine = signals.find((s) => s.uid === auth.currentUser?.uid);
-        if (mine) setMyPresenceStatusLocal(mine.status);
-      },
-    );
-  }, [staffDirectoryList]);
+    const uids = [...staffDirectoryList, ...studentDirectoryList].map((u) => u.uid);
+    if (uids.length === 0) return;
+    return subscribeToPresence(uids, (signals) => {
+      setPresenceMap(new Map(signals.map((s) => [s.uid, s])));
+      const mine = signals.find((s) => s.uid === auth.currentUser?.uid);
+      if (mine) setMyPresenceStatusLocal(mine.status);
+    });
+  }, [staffDirectoryList, studentDirectoryList]);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
@@ -738,14 +739,14 @@ export default function FlexConnectPage() {
           >
             <Star size={19} />
           </button>
-          <div className="relative">
+          <div className="relative" data-connect-dropdown>
             <button
-              title={`${auth.currentUser?.displayName ?? "Sen"} — ${presenceLabel(presenceMap.get(auth.currentUser?.uid ?? ""))}`}
+              title={`${staffDirectoryList.find((u) => u.uid === auth.currentUser?.uid)?.name ?? auth.currentUser?.displayName ?? "Sen"} — ${presenceLabel(presenceMap.get(auth.currentUser?.uid ?? ""))}`}
               onClick={() => setPresenceMenuOpen((v) => !v)}
               className="relative rounded-full flex items-center justify-center font-bold text-white cursor-pointer"
               style={{ width: 38, height: 38, background: "#3A587E", fontSize: 13, border: "none" }}
             >
-              {initials(auth.currentUser?.displayName || auth.currentUser?.email || "Sen")}
+              {initials(staffDirectoryList.find((u) => u.uid === auth.currentUser?.uid)?.name || auth.currentUser?.displayName || auth.currentUser?.email || "Sen")}
               <span className="absolute" style={{ bottom: -2, right: -2, width: 11, height: 11, borderRadius: "50%", background: myPresenceStatus === "online" ? "#22C55E" : "#F59E0B", boxShadow: "0 0 0 2px #12233B" }} />
             </button>
             {presenceMenuOpen && (
