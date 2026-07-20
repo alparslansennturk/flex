@@ -16,7 +16,70 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Flex Connect Mobil — push bildirimi gerçek cihaz doğrulaması (3 gerçek bug) + Ayarlar ekranı temizliği (2026-07-20, PC oturumu — EN GÜNCEL)
+### ✅ Flex Connect — WhatsApp'a yakın mesaj/menü güncellemesi + "24 hep geri geliyor" fix + Sohbeti Sil (2026-07-20, PC oturumu — EN GÜNCEL)
+
+**"24 hep geri geliyor" çözüldü:** Audience-only okuyucular (üye kaydı olmayanlar,
+ör. "Kurum Duyuruları" gibi audience:"all_students" kanalları) için `markRead`
+Faz 1'de sessizce no-op ediyordu ("basitlik kararı") — okunmamış sayısı HİÇ
+kalıcı olmuyordu. Artık ilk okumada gerçek bir member dokümanı oluşturuluyor;
+bonus olarak bu kişiler artık o kanaldan push bildirimi de alacak (önceden hiç
+almıyorlardı, gizli bir eksikti — `notifyNewMessage` alıcı listesi `listMembers`'tan
+geliyor).
+
+**"Sohbeti Sil"** (DM'e özel, WhatsApp'taki gibi KİŞİSEL gizleme — kalıcı silme
+DEĞİL): `ConnectMember.hiddenAtMessageCount` — silen kişinin listesinden kaybolur,
+karşı taraf hiç etkilenmez, karşı taraf yeni mesaj yazınca otomatik geri görünür.
+Öğrenci-eğitmen DM'sinde SADECE eğitmen kullanabilir, personel-personel DM'de
+ikisi de. Masaüstünde DM menüsündeki eski "Konuşmadan Ayrıl" yerine geçti, mobilde
+ölü duran 3-nokta butonu artık gerçek bir menü açıyor.
+
+**Büyük WhatsApp-parity güncellemesi** (kullanıcının detaylı spesifikasyonu +
+ekran görüntüsü referans alındı, Plan mode ile onaylanıp uygulandı):
+- **Sistem mesajları**: gruba üye eklenince (hem toplu oluşturmada hem tekil
+  eklemede) "N kişi gruba eklendi" otomatik mesaj (`ConnectMessage.kind:"system"`).
+- **Reply/Reply Privately**: `ConnectMessage.replyTo` (statik anlık görüntü,
+  canlı referans DEĞİL). Özelden Yanıtla SADECE grup mesajında + başkasının
+  mesajında + personelde (öğrenci menüde hiç görmüyor, mevcut "öğrenci
+  keyfi DM açamaz" mimarisiyle çakışmasın diye) — yazarın DM'i aç/oluştur +
+  alıntı composer'a ön-dolu.
+- **Star (Yıldızla)**: `ConnectMessage.starredBy` (kişi başına bağımsız,
+  `hiddenFor` ile aynı desen). Ayrı bir "Yıldızlı Mesajlar" ekranı YOK
+  (kullanıcı kararı) — sadece küçük bir yıldız göstergesi.
+- **Balon layout'u**: saat artık metinle AYNI satır akışında (flex yerine düz
+  `inline` akış — kısa mesajda yanında, uzun mesajda otomatik son satıra düşer,
+  ekstra JS ölçüm gerekmez). SADECE metin mesajlarında; dosya eki mesajlarında
+  eski (ekin altında, sağda) düzen korundu.
+- **Unified menü**: masaüstünde eski ayrı kalem-butonu + `MoreVertical` menüsü
+  TEK bir chevron ikonuna indirgendi (Düzenle/Yanıtla/Yıldızla/Kopyala/[Özelden
+  Yanıtla]/Sil). Mobilde bu menü **basılı tutunca** açılıyor (~450ms eşik),
+  balonun sağına 4px boşlukla, `createPortal(document.body)` ile HER ZAMAN
+  altındaki mesajların üzerinde kalıyor (masaüstündeki `computePopoverPosition`
+  deseniyle aynı ilke — scroll konteynerinin z-index'inin dışına taşınır).
+  **Mobilde önceden Düzenle/Sil/Reaksiyon-ekleme HİÇ yoktu** — bu güncellemeyle
+  ilk kez geldi (önceden sadece görüntüleme vardı).
+- **Konuşma başlangıcı**: "Sohbet [tarih] tarihinde başladı" kartı — SADECE
+  `messages.length < 60` iken (sunucu `limitToLast(60)` çekiyor, sayfalama yok,
+  daha kalabalık sohbette bu gerçek başlangıç olmayabilir, gerçek veriye sadık
+  kalmak için böyle sınırlandı).
+- **Attachment birleştirme**: mobil artık masaüstüyle AYNI paylaşılan
+  `AttachmentView` component'ini kullanıyor (resim önizlemesi dahil) — kendi
+  duplicate/resim-önizlemesiz kartı kaldırıldı. `AttachmentView`'e `dark?`
+  prop'u eklendi (masaüstü her zaman açık tema, mobil koyu/açık).
+
+**Kapsam dışı bırakılanlar (bilinçli):** KVKK/Gizlilik Politikası metni (gerçek
+hukuki metin gerektirir), "Yıldızlı Mesajlar" ayrı ekranı, öğrenci tarafında
+Özelden Yanıtla (mimari kısıtlama), student desktop sayfası (`/flexos/student/
+[personId]/connect`) bu güncellemenin DIŞINDA kaldı (plan sadece personel
+masaüstü + mobil PWA'yı kapsıyordu).
+
+**SIRADAKİ İŞ:** Bu büyük güncelleme gerçek cihazda henüz uçtan uca test
+edilmedi — özellikle mobildeki basılı-tutma menüsünün konumlanması/z-index'i,
+Reply Privately akışı, ve sistem mesajlarının gerçek bir grup üyesi eklenince
+doğru göründüğü doğrulanmalı.
+
+---
+
+### ✅ Flex Connect Mobil — push bildirimi gerçek cihaz doğrulaması (3 gerçek bug) + Ayarlar ekranı temizliği (2026-07-20, PC oturumu)
 
 **Push bildirimi — gerçek cihazda test edilirken sırayla 3 gerçek bug bulundu/çözüldü:**
 1. iOS'ta `Notification.requestPermission()` SADECE Ana Ekrana eklenmiş (standalone) PWA'da diyalog gösteriyor, Safari sekmesinde sessizce hiçbir şey olmuyor — `isStandalone` tespiti eklendi, standalone değilse net uyarı.

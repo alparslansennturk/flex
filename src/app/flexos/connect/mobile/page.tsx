@@ -38,6 +38,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
@@ -50,11 +51,13 @@ import { toast } from "sonner";
 import { auth, db, getMessagingIfSupported } from "@/app/lib/firebase";
 import { useMarkConnectReady } from "./SplashGate";
 import {
-  type ConversationView, type MessageView, type DirectoryUser, type TypingSignal,
+  type ConversationView, type MessageView, type DirectoryUser, type TypingSignal, type ConnectReplySnapshot,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
-  setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, reportIssue,
+  setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, reportIssue, hideConversation,
+  editMessage, deleteMessage, setMessageReaction, toggleMessageStar,
 } from "@/app/flexos/connect/_shared/connectClient";
+import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
 
 // Bazı Promise'ler (SW aktivasyonu, FCM token isteği) başarısız olduğunda REJECT
 // etmek yerine sonsuza kadar askıda kalabiliyor (özellikle iOS Safari'de) — bu
@@ -134,6 +137,11 @@ const ICONS: Record<string, string> = {
   lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   bulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5a5.5 5.5 0 1 0-9 0c.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  reply: '<polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
 };
 
 function Icon({ k, size = 20, sw = 2, color = "currentColor" }: { k: string; size?: number; sw?: number; color?: string }) {
@@ -387,6 +395,16 @@ export default function FlexConnectMobile() {
   const lastTypingSentRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const firstLoadRef = useRef(true);
+  const draftInputRef = useRef<HTMLInputElement>(null);
+
+  // Mesaj menüsü (2026-07-20) — basılı tutunca açılır, WhatsApp'taki gibi Yanıtla/
+  // Yıldızla/Kopyala/[Düzenle]/[Özelden Yanıtla]/Sil. `menuMsg` menünün AÇIK OLDUĞU
+  // mesaj + konumu (balonun sağına 4px, aşağı doğru — bkz. `openMessageMenu`).
+  const [menuMsg, setMenuMsg] = useState<MessageView | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ConnectReplySnapshot | null>(null);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
@@ -403,6 +421,10 @@ export default function FlexConnectMobile() {
     setSelectedId(id);
     setScreen("chat");
     setMessages([]);
+    setChatMenuOpen(false);
+    setEditingMessageId(null);
+    setReplyingTo(null);
+    setMenuMsg(null);
     firstLoadRef.current = true;
     setLoadingMessages(true);
     try {
@@ -418,6 +440,22 @@ export default function FlexConnectMobile() {
     setSelectedId(null);
   }
 
+  // "Sohbeti Sil" (2026-07-20) — SADECE type==="dm" ve SADECE personel (öğrenci
+  // için karşılığı yok, `hideConversationForMe` yetki kuralı gereği). WhatsApp'taki
+  // gibi kişisel gizleme — masaüstüyle (`connect/page.tsx::handleHideConversation`)
+  // AYNI mantık, mesajlar silinmez, karşı taraf etkilenmez.
+  const [chatMenuOpen, setChatMenuOpen] = useState(false);
+  async function handleHideConversation() {
+    if (!selected || !selectedId) return;
+    setChatMenuOpen(false);
+    if (!window.confirm(`"${selected.name || "Bu sohbet"}" listenden gizlenecek. Karşı taraf yeni mesaj yazarsa tekrar görünür. Emin misin?`)) return;
+    const ok = await hideConversation(selectedId);
+    if (!ok) { toast.error("Gizlenemedi, tekrar dene."); return; }
+    toast.success("Sohbet gizlendi.");
+    setConversations((prev) => prev.filter((c) => c.id !== selectedId));
+    backToApp();
+  }
+
   /** Personel/Öğrenciler/Eğitmenim dizininden tıklayınca var olan DM'i aç, yoksa
    * oluştur — masaüstündeki (`connect/page.tsx::openDirectMessage`) AYNI mantık. */
   async function openDirectMessage(uid: string, realm: "staff" | "trainer_student") {
@@ -431,9 +469,14 @@ export default function FlexConnectMobile() {
 
   useEffect(() => {
     if (!selectedId || screen !== "chat") return;
-    const unsub = subscribeToMessages(selectedId, () => { fetchMessages(selectedId).then(setMessages); });
+    // `studentPersonId` EKSİKTİ (2026-07-20 bulgusu) — öğrenci kendi sohbetindeyken
+    // gerçek-zamanlı bir değişiklik (silme/düzenleme) geldiğinde bu satır personel
+    // rotasına gidip 403 alıyordu, `fetchMessages` bunu SESSİZCE boş diziye çeviriyor
+    // (bkz. connectClient.ts::fetchMessages `if (!res.ok) return []`) — mesajlar
+    // görünürden kaybolabiliyordu.
+    const unsub = subscribeToMessages(selectedId, () => { fetchMessages(selectedId, studentPersonId ?? undefined).then(setMessages); });
     return unsub;
-  }, [selectedId, screen]);
+  }, [selectedId, screen, studentPersonId]);
 
   useEffect(() => {
     setTypingSignals([]);
@@ -456,9 +499,18 @@ export default function FlexConnectMobile() {
     if (!text || !selectedId || sending) return;
     setSending(true);
     setDraft("");
-    const err = await postMessage(selectedId, text, studentPersonId ?? undefined);
+    if (editingMessageId) {
+      const err = await editMessage(selectedId, editingMessageId, text, studentPersonId ?? undefined);
+      setSending(false);
+      if (err?.error) { toast.error(err.error); setDraft(text); return; }
+      setMessages((prev) => prev.map((m) => (m.id === editingMessageId ? { ...m, text, editedAt: new Date().toISOString() } : m)));
+      setEditingMessageId(null);
+      return;
+    }
+    const err = await postMessage(selectedId, text, studentPersonId ?? undefined, replyingTo ?? undefined);
     setSending(false);
     if (err?.error) { toast.error(err.error); setDraft(text); return; }
+    setReplyingTo(null);
     setMessages(await fetchMessages(selectedId, studentPersonId ?? undefined));
     loadConversations();
   }
@@ -470,6 +522,100 @@ export default function FlexConnectMobile() {
       lastTypingSentRef.current = now;
       sendTypingSignal(selectedId, studentPersonId ?? undefined);
     }
+  }
+
+  // ── Mesaj menüsü (2026-07-20) — long-press ile açılır, WhatsApp'taki eylem seti ──
+  function startEditMessage(m: MessageView) {
+    setEditingMessageId(m.id);
+    setReplyingTo(null);
+    setDraft(m.text);
+    setMenuMsg(null);
+    draftInputRef.current?.focus();
+  }
+
+  function startReply(m: MessageView) {
+    setEditingMessageId(null);
+    setReplyingTo({ messageId: m.id, authorUid: m.authorUid, authorName: m.authorName, textSnippet: m.text.slice(0, 120) });
+    setMenuMsg(null);
+    draftInputRef.current?.focus();
+  }
+
+  /** Özelden Yanıtla (2026-07-20) — SADECE grup + başkasının mesajı + personel
+   * (öğrenci menüde bu seçeneği hiç görmez, bkz. render). */
+  async function startReplyPrivately(m: MessageView) {
+    setMenuMsg(null);
+    if (!selected) return;
+    await openDirectMessage(m.authorUid, selected.realm);
+    setEditingMessageId(null);
+    setReplyingTo({ messageId: m.id, authorUid: m.authorUid, authorName: m.authorName, textSnippet: m.text.slice(0, 120) });
+    draftInputRef.current?.focus();
+  }
+
+  async function handleToggleStar(m: MessageView) {
+    setMenuMsg(null);
+    if (!selectedId) return;
+    const next = !m.starred;
+    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, starred: next } : x)));
+    const ok = await toggleMessageStar(selectedId, m.id, next, studentPersonId ?? undefined);
+    if (!ok) setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, starred: !next } : x)));
+  }
+
+  function handleCopy(m: MessageView) {
+    setMenuMsg(null);
+    if (!m.text) return;
+    navigator.clipboard.writeText(m.text).then(() => toast.success("Kopyalandı."));
+  }
+
+  async function handleDeleteMessage(messageId: string, scope: "everyone" | "me") {
+    setMenuMsg(null);
+    if (!selectedId) return;
+    const ok = await deleteMessage(selectedId, messageId, scope, studentPersonId ?? undefined);
+    if (!ok) { toast.error("Silinemedi, tekrar dene."); return; }
+    if (scope === "everyone") {
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, text: "", deletedForEveryone: true } : m)));
+    } else {
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    }
+  }
+
+  async function handleReact(messageId: string, emoji: string) {
+    if (!selectedId) return;
+    const target = messages.find((m) => m.id === messageId);
+    const next = target?.myReaction === emoji ? null : emoji;
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const counts = { ...(m.reactionCounts ?? {}) };
+        if (m.myReaction) counts[m.myReaction] = Math.max(0, (counts[m.myReaction] ?? 1) - 1);
+        if (next) counts[next] = (counts[next] ?? 0) + 1;
+        Object.keys(counts).forEach((k) => { if (counts[k] <= 0) delete counts[k]; });
+        return { ...m, myReaction: next ?? undefined, reactionCounts: Object.keys(counts).length ? counts : undefined };
+      }),
+    );
+    const ok = await setMessageReaction(selectedId, messageId, next, studentPersonId ?? undefined);
+    if (!ok) fetchMessages(selectedId, studentPersonId ?? undefined).then(setMessages);
+  }
+
+  /** Long-press (2026-07-20) — ~450ms eşik, erken bırakılırsa/parmak kayarsa iptal.
+   * Menü konumu: balonun SAĞINA 4px, aşağı doğru — `createPortal(document.body)` +
+   * `position:fixed` (masaüstündeki `computePopoverPosition` deseniyle AYNI ilke,
+   * scroll konteynerinin z-index'inin dışına taşınır, altındaki mesajların ÜZERİNDE
+   * kalır). Viewport taşmasına karşı basit clamp.
+   */
+  function startLongPress(m: MessageView, e: React.TouchEvent | React.MouseEvent) {
+    if (m.deletedForEveryone || m.kind === "system") return;
+    const target = e.currentTarget as HTMLElement;
+    longPressTimer.current = setTimeout(() => {
+      const rect = target.getBoundingClientRect();
+      const MENU_W = 190;
+      const left = Math.min(rect.right + 4, window.innerWidth - MENU_W - 8);
+      const top = Math.min(rect.top, window.innerHeight - 320);
+      setMenuPos({ top, left });
+      setMenuMsg(m);
+    }, 450);
+  }
+  function cancelLongPress() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
   }
 
   // ── Bottom sheet + Oluştur ekranı ──
@@ -1134,17 +1280,52 @@ export default function FlexConnectMobile() {
               {selected.writePolicy === "admins" && <div style={{ fontSize: 11.5, fontWeight: 600, color: T.text2, marginTop: 2 }}>Sadece yöneticiler yazabilir</div>}
             </div>
             <button onClick={() => toggleMute(selected.id, !selected.muted)} aria-label={selected.muted ? "Sessize almayı kaldır" : "Sessize al"} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: selected.muted ? T.brand : T.text2, flex: "0 0 auto" }}><Icon k={selected.muted ? "bellOff" : "bell"} size={19} sw={2} /></button>
-            <button style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}><Icon k="dots" size={20} /></button>
+            {selected.type === "dm" && !studentPersonId && (
+              <div style={{ position: "relative", flex: "0 0 auto" }}>
+                <button onClick={() => setChatMenuOpen((v) => !v)} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: chatMenuOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: chatMenuOpen ? T.brand : T.text2 }}><Icon k="dots" size={20} /></button>
+                {chatMenuOpen && (
+                  <>
+                    <div onClick={() => setChatMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
+                    <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.35)", zIndex: 91, overflow: "hidden", minWidth: 170 }}>
+                      <button onClick={handleHideConversation} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                        <Icon k="trash" size={15} sw={2} /> Sohbeti Sil
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
             {loadingMessages ? (
               <div className="flex justify-center py-8"><div style={{ width: 22, height: 22, border: `3px solid ${T.border}`, borderTopColor: T.brand, borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} /></div>
             ) : (
-              messages.map((m, i) => {
+              <>
+              {/* "Sohbet başladı" kartı (2026-07-20, WhatsApp gibi) — masaüstüyle AYNI
+                  gate: `messages.length < 60` (sunucu `limitToLast(60)` çekiyor,
+                  sayfalama yok — daha kalabalık sohbette bu gerçek başlangıç olmayabilir). */}
+              {messages.length > 0 && messages.length < 60 && selected && (
+                <div style={{ display: "flex", justifyContent: "center", margin: "4px 0 10px" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.text2, background: dark ? T.card2 : "#EDEEF1", padding: "6px 15px", borderRadius: 12, textAlign: "center", lineHeight: 1.4, maxWidth: 220 }}>
+                    Sohbet {new Date(selected.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} tarihinde başladı
+                  </span>
+                </div>
+              )}
+              {messages.map((m, i) => {
                 const prev = messages[i - 1];
+                if (m.kind === "system") {
+                  return (
+                    <div key={m.id} style={{ display: "flex", justifyContent: "center", margin: "8px 0" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.text2, background: dark ? T.card2 : "#EDEEF1", padding: "4px 13px", borderRadius: 999 }}>
+                        {m.systemEvent?.count ?? 0} kişi gruba eklendi
+                      </span>
+                    </div>
+                  );
+                }
                 const grouped = !!prev && prev.authorUid === m.authorUid && !m.deletedForEveryone;
                 const showDivider = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
+                const hasAttachments = !!m.attachments && m.attachments.length > 0;
                 return (
                   <div key={m.id}>
                     {showDivider && (
@@ -1160,20 +1341,46 @@ export default function FlexConnectMobile() {
                             <span style={{ fontSize: 13.5, color: T.muted, fontStyle: "italic" }}>Bu mesaj silindi</span>
                           </div>
                         ) : (
-                          <div style={{ background: m.isMine ? T.ownBubble : T.otherBubble, border: `1px solid ${m.isMine ? T.ownBorder : T.otherBorder}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "8px 12px 6px" }}>
-                            {m.attachments?.map((a) => (
-                              <div key={a.driveFileId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", marginBottom: 7, borderRadius: 10, background: dark ? "#233150" : (m.isMine ? "#DCEAFB" : "#F4F6F9"), border: `1px solid ${m.isMine ? T.ownBorder : T.border}` }}>
-                                <div style={{ width: 34, height: 34, borderRadius: 9, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}><Icon k="file" size={16} sw={2} color="#fff" /></div>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.fileName}</div>
-                                  <div style={{ fontSize: 11, fontWeight: 500, color: T.text2 }}>{fmtFileSize(a.fileSize)}</div>
-                                </div>
+                          <div
+                            onTouchStart={(e) => startLongPress(m, e)}
+                            onTouchEnd={cancelLongPress}
+                            onTouchMove={cancelLongPress}
+                            onMouseDown={(e) => startLongPress(m, e)}
+                            onMouseUp={cancelLongPress}
+                            onMouseLeave={cancelLongPress}
+                            style={{ position: "relative", background: m.isMine ? T.ownBubble : T.otherBubble, border: `1px solid ${m.isMine ? T.ownBorder : T.otherBorder}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "8px 12px 6px", userSelect: "none" }}
+                          >
+                            {m.starred && (
+                              <span style={{ position: "absolute", top: -5, [m.isMine ? "left" : "right"]: -5, background: dark ? T.bg : "#fff", borderRadius: "50%" } as React.CSSProperties}>
+                                <Icon k="star" size={13} color="#F5A623" sw={2.2} />
+                              </span>
+                            )}
+                            {m.replyTo && (
+                              <div style={{ borderLeft: `3px solid ${T.brand}`, background: dark ? "rgba(127,169,236,.12)" : "rgba(40,103,189,.07)", borderRadius: 6, padding: "4px 8px", marginBottom: 6 }}>
+                                <div style={{ fontSize: 11.5, fontWeight: 700, color: T.brand }}>{m.replyTo.authorName}</div>
+                                <div style={{ fontSize: 12, color: T.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.replyTo.textSnippet}</div>
                               </div>
-                            ))}
-                            {m.text && <span style={{ fontSize: 16, lineHeight: 1.45, color: T.text, fontWeight: 450 }}>{m.text}</span>}
-                            <span style={{ display: "block", textAlign: "right", fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, marginTop: 2 }}>
-                              {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (m.readByAll ? " ✓✓" : " ✓")}
-                            </span>
+                            )}
+                            {hasAttachments ? (
+                              <>
+                                {m.attachments!.map((a) => (
+                                  <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={0} dark={dark} />
+                                ))}
+                                {m.text && <span style={{ display: "block", fontSize: 16, lineHeight: 1.45, color: T.text, fontWeight: 450, marginTop: 6 }}>{m.text}</span>}
+                                <span style={{ display: "block", textAlign: "right", fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, marginTop: 2 }}>
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (m.readByAll ? " ✓✓" : " ✓")}
+                                </span>
+                              </>
+                            ) : (
+                              // Metin+saat AYNI satır akışında (2026-07-20, WhatsApp gibi) — masaüstüyle
+                              // AYNI teknik: saat "inline-flex" bir birim olarak metnin peşine eklenir.
+                              <span style={{ fontSize: 16, lineHeight: 1.6, color: T.text, fontWeight: 450 }}>
+                                {m.text}
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, whiteSpace: "nowrap", verticalAlign: "bottom" }}>
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (m.readByAll ? " ✓✓" : " ✓")}
+                                </span>
+                              </span>
+                            )}
                           </div>
                         )}
                         {m.afterHours && !m.deletedForEveryone && (
@@ -1182,9 +1389,13 @@ export default function FlexConnectMobile() {
                         {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
                           <div style={{ display: "flex", gap: 6, marginTop: 5 }}>
                             {Object.entries(m.reactionCounts).map(([emoji, count]) => (
-                              <span key={emoji} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, background: T.card, border: `1px solid ${T.border}`, fontSize: 11.5, fontWeight: 700, color: T.text2 }}>
+                              <button
+                                key={emoji}
+                                onClick={() => handleReact(m.id, emoji)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, border: `1px solid ${m.myReaction === emoji ? T.brand : T.border}`, background: m.myReaction === emoji ? T.brandBg : T.card, fontSize: 11.5, fontWeight: 700, color: T.text2, cursor: "pointer", fontFamily: "inherit" }}
+                              >
                                 <span style={{ fontSize: 12 }}>{emoji}</span>{count}
-                              </span>
+                              </button>
                             ))}
                           </div>
                         )}
@@ -1192,7 +1403,45 @@ export default function FlexConnectMobile() {
                     </div>
                   </div>
                 );
-              })
+              })}
+              </>
+            )}
+            {menuMsg && menuPos && createPortal(
+              <>
+                <div onClick={() => setMenuMsg(null)} style={{ position: "fixed", inset: 0, zIndex: 95 }} />
+                <div style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 96, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.4)", minWidth: 190, overflow: "hidden" }}>
+                  {menuMsg.isMine && (
+                    <button onClick={() => startEditMessage(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="pencil" size={14} sw={2} /> Düzenle
+                    </button>
+                  )}
+                  <button onClick={() => startReply(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="reply" size={14} sw={2} /> Yanıtla
+                  </button>
+                  <button onClick={() => handleToggleStar(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="star" size={14} sw={2} /> {menuMsg.starred ? "Yıldızı Kaldır" : "Yıldızla"}
+                  </button>
+                  {menuMsg.text && (
+                    <button onClick={() => handleCopy(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="copy" size={14} sw={2} /> Kopyala
+                    </button>
+                  )}
+                  {selected?.type === "group" && !menuMsg.isMine && !studentPersonId && (
+                    <button onClick={() => startReplyPrivately(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="reply" size={14} sw={2} /> Özelden Yanıtla
+                    </button>
+                  )}
+                  {menuMsg.isMine && (
+                    <button onClick={() => handleDeleteMessage(menuMsg.id, "everyone")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="trash" size={14} sw={2} /> Herkes İçin Sil
+                    </button>
+                  )}
+                  <button onClick={() => handleDeleteMessage(menuMsg.id, "me")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="close" size={14} sw={2} /> Benim İçin Sil
+                  </button>
+                </div>
+              </>,
+              document.body,
             )}
             {activeTypers.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
@@ -1208,12 +1457,32 @@ export default function FlexConnectMobile() {
           </div>
 
           <div style={{ flex: "0 0 auto", padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", background: T.topBar }}>
+            {editingMessageId && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: T.brandBg }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: T.brand }}>Mesajı düzenliyorsun</span>
+                <button onClick={() => { setEditingMessageId(null); setDraft(""); }} style={{ width: 22, height: 22, borderRadius: 7, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.brand }}>
+                  <Icon k="close" size={14} sw={2} />
+                </button>
+              </div>
+            )}
+            {replyingTo && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: T.brandBg, borderLeft: `3px solid ${T.brand}` }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.brand }}>{replyingTo.authorName}</div>
+                  <div style={{ fontSize: 12, color: T.brand, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{replyingTo.textSnippet}</div>
+                </div>
+                <button onClick={() => setReplyingTo(null)} style={{ width: 22, height: 22, borderRadius: 7, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.brand, flex: "0 0 auto" }}>
+                  <Icon k="close" size={14} sw={2} />
+                </button>
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 16, padding: "5px 6px 5px 8px" }}>
               {/* Emoji/ek ikonları tasarımda da pasif (onClick yok) — gerçek dosya eki
                   masaüstünde tam çalışıyor, mobile'a bağlamak "sonra" kapsamında. */}
               <button style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}><Icon k="smile" size={21} sw={1.9} /></button>
               <button style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}><Icon k="attach" size={21} sw={1.9} /></button>
               <input
+                ref={draftInputRef}
                 value={draft} onChange={(e) => onDraftChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
                 placeholder="Bir mesaj yazın…"

@@ -32,7 +32,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   const principal = await studentPrincipalFromRequest(req, caller);
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
-  let body: { text?: string };
+  let body: { text?: string; replyTo?: { messageId: string; authorUid: string; authorName: string; textSnippet: string } };
   try {
     body = await req.json();
   } catch {
@@ -42,7 +42,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   try {
     // writePolicy servis katmanında uygulanır — öğrenci sadece üye olduğu group/dm'e
     // yazabilir; audience kanalları (writePolicy:"admins") ASLA yazamaz (sadece okur).
-    const message = await sendMessage(principal, id, body.text ?? "", connectDeps);
+    const message = await sendMessage(principal, id, body.text ?? "", connectDeps, undefined, body.replyTo);
     await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
     return NextResponse.json({ id: message.id }, { status: 201 });
   } catch (e) {

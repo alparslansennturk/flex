@@ -28,15 +28,16 @@ import { toast } from "sonner";
 import {
   Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
+  ChevronDown, Reply, Copy,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type ConnectConversationType, type ConnectRealm,
-  type ConversationDetail, type TypingSignal,
+  type ConversationDetail, type TypingSignal, type ConnectReplySnapshot,
   fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
   subscribeToMessages, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
-  setConversationPinned, editMessage, deleteMessage, setMessageReaction, addConversationMember, sendMessageWithAttachment,
-  updateConversationMeta, deleteConversationById, removeConversationMember,
+  setConversationPinned, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
+  updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { ConnectIcon } from "./_shared/ConnectIcon";
@@ -121,6 +122,10 @@ export default function FlexConnectPage() {
   // Mesaj düzenle/sil (WhatsApp — 2026-07-18).
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+  // Yanıtlama (2026-07-20) — bkz. `ConnectReplySnapshot`. Düzenleme ile aynı anda
+  // AÇIK OLAMAZ (biri başlayınca diğeri temizlenir).
+  const [replyingTo, setReplyingTo] = useState<ConnectReplySnapshot | null>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement>(null);
   // Reaksiyonlar (Faz 2 madde 2 — 2026-07-18).
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   // İkon satırı HOVER'da görünür (kullanıcı netleştirmesi, 2026-07-18: "konuşma
@@ -210,7 +215,7 @@ export default function FlexConnectPage() {
   const selectConversation = useCallback(async (id: string) => {
     setSelectedId(id);
     setSearchOpen(false); setMessageQuery(""); setInfoOpen(false); setMenuOpen(false); setDetail(null); setEditModalOpen(false);
-    setEditingMessageId(null); setOpenMessageMenuId(null); setOpenReactionPickerId(null); setDraft("");
+    setEditingMessageId(null); setReplyingTo(null); setOpenMessageMenuId(null); setOpenReactionPickerId(null); setDraft("");
     firstLoadRef.current = true;
     // Bug fix (2026-07-18, kullanıcı bulgusu): eski mesajlar state'te kalıp yeni
     // konuşmanın verisi gelene kadar YANLIŞLIKLA görünmeye devam ediyordu (fetch
@@ -389,6 +394,22 @@ export default function FlexConnectPage() {
     }
   }
 
+  /**
+   * "Sohbeti Sil" (2026-07-20) — SADECE `type==="dm"`. WhatsApp'taki gibi kişisel
+   * gizleme: karşı tarafın görünümü etkilenmez, mesajlar SİLİNMEZ, karşı taraf
+   * yeni mesaj yazınca DM listende otomatik geri görünür.
+   */
+  async function handleHideConversation() {
+    if (!selected || !selectedId) return;
+    setMenuOpen(false);
+    if (!window.confirm(`"${selected.name || "Bu sohbet"}" listenden gizlenecek. Karşı taraf yeni mesaj yazarsa tekrar görünür. Emin misin?`)) return;
+    const ok = await hideConversation(selectedId);
+    if (!ok) { toast.error("Gizlenemedi, tekrar dene."); return; }
+    toast.success("Sohbet gizlendi.");
+    setConversations((prev) => prev.filter((c) => c.id !== selectedId));
+    setSelectedId(null);
+  }
+
   /** Favorilere ekle/çıkar — kişisel tercih (Faz 2). İyimser güncelleme,
    * başarısız olursa geri alınır. */
   async function handleTogglePin() {
@@ -445,9 +466,10 @@ export default function FlexConnectPage() {
         setEditingMessageId(null);
         return;
       }
-      const err = await postMessage(selectedId, text);
+      const err = await postMessage(selectedId, text, undefined, replyingTo ?? undefined);
       if (err?.error) toast.error(err.error);
       else loadConversations(); // lastMessage/unread önizlemesi tazelensin
+      setReplyingTo(null);
     } finally {
       setSending(false);
     }
@@ -469,8 +491,44 @@ export default function FlexConnectPage() {
 
   function startEditMessage(m: MessageView) {
     setEditingMessageId(m.id);
+    setReplyingTo(null);
     setDraft(m.text);
     setOpenMessageMenuId(null);
+  }
+
+  /** Yanıtla (2026-07-20) — aynı konuşma içinde alıntı, WhatsApp gibi. */
+  function startReply(m: MessageView) {
+    setEditingMessageId(null);
+    setReplyingTo({ messageId: m.id, authorUid: m.authorUid, authorName: m.authorName, textSnippet: m.text.slice(0, 120) });
+    setOpenMessageMenuId(null);
+    draftInputRef.current?.focus();
+  }
+
+  /** Özelden Yanıtla (2026-07-20) — SADECE grup mesajı + başkasının mesajı. Yazarın
+   * DM'ini aç/oluştur (`openDirectMessage` reuse), alıntıyı o DM'in composer'ına koy. */
+  async function startReplyPrivately(m: MessageView) {
+    setOpenMessageMenuId(null);
+    if (!selected) return;
+    await openDirectMessage(m.authorUid, selected.realm);
+    setEditingMessageId(null);
+    setReplyingTo({ messageId: m.id, authorUid: m.authorUid, authorName: m.authorName, textSnippet: m.text.slice(0, 120) });
+    draftInputRef.current?.focus();
+  }
+
+  /** Yıldızla/kaldır (2026-07-20) — reaksiyonla AYNI iyimser güncelleme deseni. */
+  async function handleToggleStar(m: MessageView) {
+    setOpenMessageMenuId(null);
+    if (!selectedId) return;
+    const next = !m.starred;
+    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, starred: next } : x)));
+    const ok = await toggleMessageStar(selectedId, m.id, next);
+    if (!ok) setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, starred: !next } : x)));
+  }
+
+  function handleCopy(m: MessageView) {
+    setOpenMessageMenuId(null);
+    if (!m.text) return;
+    navigator.clipboard.writeText(m.text).then(() => toast.success("Kopyalandı."));
   }
 
   async function handleDeleteMessage(messageId: string, scope: "everyone" | "me") {
@@ -734,7 +792,7 @@ export default function FlexConnectPage() {
                         <button onClick={handleTogglePin} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                           {selected.pinned ? <StarOff size={14} /> : <Star size={14} />} {selected.pinned ? "Favorilerden Çıkar" : "Favorilere Ekle"}
                         </button>
-                        {!selected.isOwner && (
+                        {selected.type !== "dm" && !selected.isOwner && (
                           <button onClick={handleLeave} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                             <LogOut size={14} /> Konuşmadan Ayrıl
                           </button>
@@ -742,6 +800,11 @@ export default function FlexConnectPage() {
                         {selected.isOwner && selected.type !== "dm" && (
                           <button onClick={handleDeleteConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                             <Trash2 size={14} /> {selected.type === "channel" ? "Kanalı Sil" : selected.type === "community" ? "Topluluğu Sil" : "Grubu Sil"}
+                          </button>
+                        )}
+                        {selected.type === "dm" && (
+                          <button onClick={handleHideConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                            <Trash2 size={14} /> Sohbeti Sil
                           </button>
                         )}
                       </div>
@@ -771,8 +834,27 @@ export default function FlexConnectPage() {
                 {messageQuery.trim() && visibleMessages.length === 0 && (
                   <p className="text-center" style={{ fontSize: 13, color: "#A2A8B2", marginTop: 24 }}>Sonuç bulunamadı.</p>
                 )}
+                {/* "Sohbet başladı" kartı (2026-07-20, WhatsApp gibi) — SADECE `messages.length < 60`
+                    (`listMessages` sunucuda `limitToLast(60)` çekiyor, sayfalama YOK — daha kalabalık
+                    bir konuşmada bu gerçekten "en eski mesaj" olmayabilir, o yüzden emin olmadan gösterilmez). */}
+                {!messageQuery.trim() && !loadingMessages && messages.length > 0 && messages.length < 60 && selected && (
+                  <div className="flex items-center justify-center" style={{ margin: "6px 0 14px" }}>
+                    <span className="text-center font-semibold" style={{ fontSize: 11.5, color: "#8A909B", background: "#EDEEF1", padding: "7px 16px", borderRadius: 12, lineHeight: 1.4, maxWidth: 260 }}>
+                      Sohbet {new Date(selected.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} tarihinde başladı
+                    </span>
+                  </div>
+                )}
                 {visibleMessages.map((m, i) => {
                   const prev = visibleMessages[i - 1];
+                  if (m.kind === "system") {
+                    return (
+                      <div key={m.id} className="flex items-center justify-center" style={{ margin: "10px 0" }}>
+                        <span className="font-bold" style={{ fontSize: 11.5, color: "#8A909B", background: "#EDEEF1", padding: "5px 14px", borderRadius: 999, letterSpacing: ".02em" }}>
+                          {m.systemEvent?.count ?? 0} kişi gruba eklendi
+                        </span>
+                      </div>
+                    );
+                  }
                   const grouped = prev && prev.authorUid === m.authorUid;
                   const showDivider = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
                   const menuActive = openMessageMenuId === m.id || openReactionPickerId === m.id;
@@ -799,24 +881,45 @@ export default function FlexConnectPage() {
                             </div>
                           )}
                           <div className="group" style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
+                            {/* Yıldız göstergesi (2026-07-20) — sadece küçük bir ikon, ayrı bir
+                                "Yıldızlı Mesajlar" ekranı YOK (kullanıcı kararı). */}
+                            {m.starred && (
+                              <Star size={12} color="#F5A623" fill="#F5A623" style={{ position: "absolute", top: -5, [m.isMine ? "left" : "right"]: -5 }} />
+                            )}
+                            {/* Yanıtlama alıntısı (2026-07-20) — statik anlık görüntü, orijinale
+                                scroll YOK (kapsam dışı, bkz. plan). */}
+                            {m.replyTo && !m.deletedForEveryone && (
+                              <div style={{ borderLeft: "3px solid #2867bd", background: "rgba(40,103,189,.07)", borderRadius: 6, padding: "4px 8px", marginBottom: 6 }}>
+                                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#2867bd" }}>{m.replyTo.authorName}</div>
+                                <div style={{ fontSize: 12, color: "#6B717C", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.replyTo.textSnippet}</div>
+                              </div>
+                            )}
                             {m.deletedForEveryone ? (
                               <span style={{ fontSize: 13.5, lineHeight: 1.5, color: "#A2A8B2", fontStyle: "italic" }}>Bu mesaj silindi</span>
-                            ) : (
+                            ) : m.attachments?.length ? (
                               <>
-                                {m.text && <span style={{ fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450 }}>{m.text}</span>}
-                                {m.attachments?.map((a) => (
-                                  <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={m.text ? 6 : 0} />
+                                {m.attachments.map((a) => (
+                                  <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={0} />
                                 ))}
+                                {m.text && <span style={{ display: "block", fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450, marginTop: 6 }}>{m.text}</span>}
+                                <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
+                                  {m.isMine && (m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />)}
+                                </span>
                               </>
+                            ) : (
+                              // Metin+saat AYNI satır akışında (2026-07-20, WhatsApp gibi) — flex
+                              // yerine düz `inline` metin akışı: saat "inline-flex" bir birim olarak
+                              // metnin PEŞİNE eklenir, kısa mesajda ("ok") yanına, uzun mesajda
+                              // otomatik son satıra taşar — ekstra JS ölçüm/hesap GEREKMEZ.
+                              <span style={{ fontSize: 14, lineHeight: 1.7, color: "#26303D", fontWeight: 450 }}>
+                                {m.text}
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", whiteSpace: "nowrap", verticalAlign: "bottom" }}>
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
+                                  {m.isMine && (m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />)}
+                                </span>
+                              </span>
                             )}
-                            <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
-                              {m.editedAt && !m.deletedForEveryone && "Düzenlendi · "}{fmtTime(m.createdAt)}
-                              {/* Okundu-tikleri (Faz 2 madde 3, 2026-07-18) — SADECE kendi
-                                  mesajında, WhatsApp'taki AYNI tek/çift tik mantığı. */}
-                              {m.isMine && !m.deletedForEveryone && (
-                                m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />
-                              )}
-                            </span>
 
                             {/* Reaksiyon + düzenle/sil menüsü (WhatsApp — 2026-07-18) — hover'da
                                 belirir, silinmiş mesajda hiç gösterilmez. */}
@@ -854,17 +957,35 @@ export default function FlexConnectPage() {
                                     className="flex items-center justify-center cursor-pointer"
                                     style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
                                   >
-                                    <MoreVertical size={13} />
+                                    <ChevronDown size={14} />
                                   </button>
+                                  {/* Unified menü (2026-07-20, WhatsApp referansı) — Düzenle/Reply/
+                                      Favorite/Copy/[Özelden Yanıtla]/Sil TEK chevron menüsünde. */}
                                   {openMessageMenuId === m.id && popoverPos && createPortal(
                                     <div
                                       className="fixed"
                                       data-connect-dropdown
-                                      style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 170, overflow: "hidden" }}
+                                      style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 190, overflow: "hidden" }}
                                     >
                                       {m.isMine && (
                                         <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                                           <Pencil size={13} /> Düzenle
+                                        </button>
+                                      )}
+                                      <button onClick={() => startReply(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <Reply size={13} /> Yanıtla
+                                      </button>
+                                      <button onClick={() => handleToggleStar(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        {m.starred ? <StarOff size={13} /> : <Star size={13} />} {m.starred ? "Yıldızı Kaldır" : "Yıldızla"}
+                                      </button>
+                                      {m.text && (
+                                        <button onClick={() => handleCopy(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                          <Copy size={13} /> Kopyala
+                                        </button>
+                                      )}
+                                      {selected?.type === "group" && !m.isMine && (
+                                        <button onClick={() => startReplyPrivately(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                          <Reply size={13} /> Özelden Yanıtla
                                         </button>
                                       )}
                                       {m.isMine && (
@@ -934,9 +1055,21 @@ export default function FlexConnectPage() {
                       </button>
                     </div>
                   )}
+                  {replyingTo && (
+                    <div className="flex items-center justify-between" style={{ padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: "#EAF1FB", borderLeft: "3px solid #2867bd" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: "#205297" }}>{replyingTo.authorName}</div>
+                        <div style={{ fontSize: 12, color: "#4A6FA5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{replyingTo.textSnippet}</div>
+                      </div>
+                      <button onClick={() => setReplyingTo(null)} className="flex items-center justify-center cursor-pointer shrink-0" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-end gap-1" style={{ background: "#fff", border: "1px solid #E4E6EB", borderRadius: 16, padding: "8px 8px 8px 10px" }}>
                     <AttachButton onFileSelected={handleAttachFile} uploadProgress={uploadProgress} />
                     <textarea
+                      ref={draftInputRef}
                       value={draft}
                       onChange={(e) => {
                         setDraft(e.target.value);

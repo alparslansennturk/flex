@@ -40,6 +40,16 @@ export interface ConversationView {
   ownerUid: string;
   childIds?: string[];
   announcementChannelId?: string;
+  /** Konuşma listesinin en üstünde "Sohbet [tarih] başladı" kartı için (2026-07-20). */
+  createdAt: string;
+}
+
+/** Yanıtlama alıntısı (2026-07-20) — statik anlık görüntü, canlı referans DEĞİL. */
+export interface ConnectReplySnapshot {
+  messageId: string;
+  authorUid: string;
+  authorName: string;
+  textSnippet: string;
 }
 
 export interface MessageView {
@@ -60,6 +70,14 @@ export interface MessageView {
   attachments?: ConnectAttachment[];
   /** Kurumsal kural (2026-07-20) — öğrenci→eğitmen DM'de 22:00-09:00 arası gönderildi. */
   afterHours?: boolean;
+  /** SADECE "system" mesajlarını ayırt eder (2026-07-20) — yoksa "text" varsayılır. */
+  kind?: "text" | "system";
+  /** SADECE kind==="system" — "{count} kişi gruba eklendi" render'ı için. */
+  systemEvent?: { type: "members_added"; count: number };
+  /** Yanıtlama alıntısı (2026-07-20). */
+  replyTo?: ConnectReplySnapshot;
+  /** Çağıran bu mesajı yıldızlamış mı. */
+  starred?: boolean;
 }
 
 export interface ConnectAttachment {
@@ -105,12 +123,18 @@ export async function fetchMessages(conversationId: string, personId?: string): 
   return data.items;
 }
 
-export async function postMessage(conversationId: string, text: string, personId?: string): Promise<{ error?: string } | null> {
+export async function postMessage(
+  conversationId: string,
+  text: string,
+  personId?: string,
+  /** Yanıtlama (2026-07-20) — "Yanıtla"/"Özelden Yanıtla" ile seçilen kaynak mesajın anlık görüntüsü. */
+  replyTo?: ConnectReplySnapshot,
+): Promise<{ error?: string } | null> {
   const headers = await authHeaders();
   const res = await fetch(`${base(personId)}/conversations/${conversationId}/messages${qs(personId)}`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, replyTo }),
   });
   if (!res.ok) return (await res.json().catch(() => ({}))) as { error?: string };
   return null;
@@ -181,6 +205,17 @@ export async function setMessageReaction(conversationId: string, messageId: stri
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ emoji }),
+  });
+  return res.ok;
+}
+
+/** Yıldızla/kaldır (2026-07-20) — reaksiyonla AYNI ilke, okuma yetkisi yeter. */
+export async function toggleMessageStar(conversationId: string, messageId: string, starred: boolean, personId?: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/conversations/${conversationId}/messages/${messageId}/star${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ starred }),
   });
   return res.ok;
 }
@@ -388,6 +423,17 @@ export async function leaveConversation(conversationId: string, uid: string): Pr
     method: "DELETE",
     headers,
   });
+  return res.ok;
+}
+
+/**
+ * "Sohbeti Sil" (2026-07-20) — SADECE personel için (öğrenci tarafında karşılığı
+ * YOK, `hideConversationForMe` yetki kuralı gereği). WhatsApp'taki gibi kişisel
+ * gizleme — karşı tarafın görünümünü etkilemez, mesajları silmez.
+ */
+export async function hideConversation(conversationId: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`/api/flexos/connect/conversations/${conversationId}/hide`, { method: "POST", headers });
   return res.ok;
 }
 

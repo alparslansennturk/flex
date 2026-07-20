@@ -87,6 +87,13 @@ export interface ConnectMember {
    * "Gözlemci"/"Konuk"/"Veli" gibi açıklayıcı etiket, üye listesinde rozet olarak
    * gösterilir. Yetkiyi ETKİLEMEZ (bkz. `connect-service.ts::addMember`). */
   guestTitle?: string;
+  /** SADECE type==="dm" (2026-07-20) — "Sohbeti Sil" (WhatsApp'taki gibi KİŞİSEL
+   * gizleme, gerçek/kalıcı silme DEĞİL): tıklandığı andaki `Conversation.messageCount`
+   * değeri. Listelemede `conversation.messageCount <= hiddenAtMessageCount` ise DM
+   * gizlenir; karşı taraftan YENİ mesaj gelip `messageCount` artınca otomatik geri
+   * görünür (bkz. `connect-service.ts::hideConversationForMe`/`listConversationsForPrincipal`).
+   * Karşı tarafın kendi görünümünü HİÇ etkilemez. */
+  hiddenAtMessageCount?: number;
 }
 
 /** Mesaj eki (Faz 2 madde 5, 2026-07-18) — Google Drive'a yükleniyor (assignment
@@ -130,4 +137,22 @@ export interface ConnectMessage {
    * tercih DEĞİL, herkeste her zaman açık). Mesaj engellenmez/geciktirilmez, sadece
    * her iki tarafa da "mesai saati dışı" olarak işaretlenir (bkz. `sendMessage`). */
   afterHours?: boolean;
+  /** SADECE "system" mesajlarını "text" mesajlarından ayırt eder (2026-07-20,
+   * WhatsApp'taki "X gruba eklendi" gibi satırlar). Yoksa "text" varsayılır
+   * (geriye dönük uyumlu — mevcut mesajlarda bu alan hiç yok). */
+  kind?: "text" | "system";
+  /** SADECE kind==="system". İleride başka event tipleri eklenebilir diye union
+   * açık bırakıldı. `authorUid`/`text` sistem mesajlarında anlamsız (boş geçilir). */
+  systemEvent?: { type: "members_added"; count: number };
+  /** Yanıtlama (2026-07-20) — CANLI referans DEĞİL, gönderim anındaki statik
+   * anlık görüntü (`lastMessage` denormalizasyonuyla AYNI ilke): orijinal mesaj
+   * sonradan düzenlense/silinse bile bu alıntı SABİT kalır. "Özelden Yanıtla"da
+   * (grup mesajı → yazarın DM'i) `messageId` FARKLI bir konuşmaya ait olabilir —
+   * bilerek "orijinale git" navigasyonu YOK, sadece görsel alıntı. */
+  replyTo?: { messageId: string; authorUid: string; authorName: string; textSnippet: string };
+  /** Yıldızlama (2026-07-20) — kişi başına bağımsız, `hiddenFor` ile AYNI desen
+   * (Record değil, uid dizisi — reaksiyonun aksine kişi başı TEK bir emoji değil
+   * salt boolean olduğu için dizi yeterli/basit). Ayrı bir "Yıldızlı Mesajlar"
+   * ekranı YOK (kullanıcı kararı) — sadece mesaj üzerinde küçük bir gösterge. */
+  starredBy?: string[];
 }

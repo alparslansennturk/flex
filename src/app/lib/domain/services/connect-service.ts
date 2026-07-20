@@ -29,6 +29,31 @@ function auditId(): string {
 }
 
 /**
+ * "X kişi gruba eklendi" sistem mesajı (2026-07-20, WhatsApp'taki gibi) — normal
+ * mesajlarla AYNI `messages` alt-koleksiyonuna yazılır (okunmamış sayısı/sıralama
+ * bozulmasın diye `messageCount` de AYNI şekilde artırılır). SADECE `type==="group"`
+ * konuşmalarda çağrılır (`createConversation` roster seed'i + `addMember`).
+ */
+async function insertSystemMessage(
+  conversation: ConnectConversation,
+  count: number,
+  deps: Pick<ConnectDeps, "conversations">,
+): Promise<void> {
+  if (count <= 0) return;
+  const ts = nowISO();
+  const message: ConnectMessage = {
+    id: deps.conversations.nextMessageId(),
+    authorUid: "system",
+    text: "",
+    createdAt: ts,
+    kind: "system",
+    systemEvent: { type: "members_added", count },
+  };
+  await deps.conversations.saveMessage(conversation.id, message);
+  await deps.conversations.saveConversation({ ...conversation, messageCount: (conversation.messageCount ?? 0) + 1, updatedAt: ts });
+}
+
+/**
  * Flex Connect çağıranı — mevcut `Actor`/capability modeliyle KARIŞTIRILMAZ.
  * Personel `actorFromCaller` (with-auth Caller → Actor) üzerinden, öğrenci
  * `personId` + `Person.authUid` eşleşmesiyle (diğer öğrenci route'larıyla AYNI
@@ -327,6 +352,13 @@ export async function createConversation(
     ),
   );
 
+  // "N kişi gruba eklendi" sistem mesajı (2026-07-20) — SADECE grup, oluşturan
+  // (owner) kendi eklediği için sayılmaz (WhatsApp'ta da "You added X" oluşturan
+  // hariç sayılır).
+  if (input.type === "group") {
+    await insertSystemMessage(conversation, readerUids.length - 1, deps);
+  }
+
   // Yönetimsel işlem — kanal/grup/topluluk oluşturma audit'e yazılır (dm hariç,
   // kullanıcının kapsam listesinde DM oluşturma yok).
   const auditAction: ConnectAuditAction | null =
@@ -407,7 +439,38 @@ export async function listConversationsForPrincipal(
     if (!memberMap.has(conversation.id)) results.push({ conversation, member: null });
   }
 
-  return results;
+  // "Sohbeti Sil" (kişisel gizleme, 2026-07-20) — karşı taraftan YENİ mesaj gelip
+  // messageCount artana kadar bu DM listeden düşer (bkz. `hideConversationForMe`).
+  return results.filter(
+    ({ conversation, member }) =>
+      !(conversation.type === "dm" && member?.hiddenAtMessageCount !== undefined && conversation.messageCount <= member.hiddenAtMessageCount),
+  );
+}
+
+/**
+ * "Sohbeti Sil" (2026-07-20 kullanıcı kararı) — WhatsApp'taki "Sohbeti Sil" gibi
+ * KİŞİSEL bir gizleme, gerçek/kalıcı silme DEĞİL: SADECE çağıranın kendi listesinden
+ * kaybolur, karşı tarafın görünümü HİÇ etkilenmez, mesajlar SİLİNMEZ. Karşı taraf
+ * yeni mesaj yazarsa `messageCount` artar ve DM otomatik geri görünür.
+ * SADECE `type==="dm"`. Yetki: `realm==="trainer_student"` DM'lerde SADECE personel
+ * (eğitmen) gizleyebilir, öğrenci gizleyemez (kullanıcı kararı) — `realm==="staff"`
+ * DM'lerinde iki taraf da personel olduğu için (öğrenci staff realm'e giremez) bu
+ * kısıtlama otomatik olarak geçersiz kalır.
+ */
+export async function hideConversationForMe(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  deps: ConnectDeps,
+): Promise<void> {
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
+  if (conversation.type !== "dm") throw new ValidationError("Bu işlem sadece birebir sohbetler için geçerli.");
+  if (conversation.realm === "trainer_student" && principal.kind !== "staff") {
+    throw new ForbiddenError("connect.conversation.hide");
+  }
+  const member = await deps.conversations.getMember(conversationId, principal.uid);
+  if (!member) throw new ValidationError("Bu konuşmanın üyesi değilsin.");
+  await deps.conversations.saveMember(conversationId, { ...member, hiddenAtMessageCount: conversation.messageCount ?? 0 });
 }
 
 /** Mesaj gönder — `writePolicy` uygulanır (channel=admins, group/dm/community=members). */
@@ -418,6 +481,8 @@ export async function sendMessage(
   deps: ConnectDeps,
   /** Faz 2 madde 5 (2026-07-18) — WhatsApp gibi: metin BOŞ olabilir, ek varsa yeterli. */
   attachments?: ConnectAttachment[],
+  /** Yanıtlama (2026-07-20) — statik anlık görüntü, bkz. `ConnectMessage.replyTo` yorumu. */
+  replyTo?: ConnectMessage["replyTo"],
 ): Promise<ConnectMessage> {
   const trimmed = text.trim();
   const hasAttachment = !!attachments && attachments.length > 0;
@@ -437,6 +502,7 @@ export async function sendMessage(
     createdAt: now,
     attachments: hasAttachment ? attachments : undefined,
     afterHours: isAfterHoursStudentToTrainerDm(principal, conversation) || undefined,
+    replyTo,
   };
   const newMessageCount = (conversation.messageCount ?? 0) + 1;
   await deps.conversations.saveMessage(conversationId, message);
@@ -581,18 +647,63 @@ export async function setMessageReaction(
 }
 
 /**
- * Okundu işaretle — SADECE zaten üye olunan konuşmalarda anlamlı (üye dokümanı
- * yoksa no-op, bkz. FLEX_CONNECT.md: audience-only okuyucular için Faz 1'de
- * sunucu tarafı okunmamış sayacı tutulmaz, basitlik kararı).
+ * Yıldızla/kaldır (2026-07-20) — reaksiyonla AYNI yetki ilkesi: SADECE okuma
+ * yeterli (`assertCanRead`), audience-only okuyucu da yıldızlayabilir. Kişi
+ * başına bağımsız (`starredBy` dizisi) — ayrı bir "Yıldızlı Mesajlar" ekranı
+ * YOK (kullanıcı kararı), sadece mesaj üzerinde küçük bir gösterge.
+ */
+export async function toggleMessageStar(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  messageId: string,
+  starred: boolean,
+  deps: ConnectDeps,
+): Promise<void> {
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
+  const member = await deps.conversations.getMember(conversationId, principal.uid);
+  assertCanRead(conversation, member);
+
+  const message = await deps.conversations.getMessage(conversationId, messageId);
+  if (!message) throw new ValidationError("Mesaj bulunamadı.");
+
+  const starredBy = new Set(message.starredBy ?? []);
+  if (starred) starredBy.add(principal.uid);
+  else starredBy.delete(principal.uid);
+
+  await deps.conversations.saveMessage(conversationId, { ...message, starredBy: [...starredBy] });
+}
+
+/**
+ * Okundu işaretle. Audience-only okuyucular (üye dokümanı yok — ör. "Kurum
+ * Duyuruları" gibi audience:"all_students" kanalları) için Faz 1'de burada
+ * sessizce no-op ediliyordu ("basitlik kararı") — bu yüzden okunmamış sayısı HİÇ
+ * kalıcı olmuyor, ekrana her girişte sunucudan gelen eski sayı geri geliyordu
+ * (2026-07-20 kullanıcı bulgusu: "24 hep geri geliyor"). Artık İLK okumada gerçek
+ * bir member dokümanı oluşturuluyor (role:"member") — bundan sonra bu kişi için
+ * hem okunmamış sayısı HEM push bildirimleri (bkz. `notifyNewMessage` — alıcı
+ * listesi `listMembers`'tan geliyor) gerçek çalışır. Kanalın yazma yetkisi
+ * SADECE `conversation.admins` dizisine bakıyor (`assertCanWrite`), bu doküman
+ * yazma iznini HİÇ etkilemez — audience okuyucusu hâlâ sadece okuyucu.
  */
 export async function markRead(principal: ConnectPrincipal, conversationId: string, deps: ConnectDeps): Promise<void> {
-  const member = await deps.conversations.getMember(conversationId, principal.uid);
-  if (!member) return;
   const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) return;
+  const member = await deps.conversations.getMember(conversationId, principal.uid);
+  const ts = nowISO();
+  if (!member) {
+    const audienceOpen = conversation.realm === "trainer_student" && conversation.audience === "all_students";
+    if (!audienceOpen) return;
+    await deps.conversations.saveMember(conversationId, {
+      uid: principal.uid, realm: conversation.realm, role: "member",
+      joinedAt: ts, lastReadAt: ts, readMessageCount: conversation.messageCount ?? 0,
+    });
+    return;
+  }
   await deps.conversations.saveMember(conversationId, {
     ...member,
-    lastReadAt: nowISO(),
-    readMessageCount: conversation?.messageCount ?? member.readMessageCount ?? 0,
+    lastReadAt: ts,
+    readMessageCount: conversation.messageCount ?? member.readMessageCount ?? 0,
   });
 }
 
@@ -705,6 +816,12 @@ export async function addMember(
     joinedAt: nowISO(),
     guestTitle: role === "guest" ? guestTitle : undefined,
   });
+
+  // "1 kişi gruba eklendi" sistem mesajı (2026-07-20) — SADECE grup, createConversation'ın
+  // toplu roster seed'iyle AYNI ilke (bkz. `insertSystemMessage`).
+  if (conversation.type === "group") {
+    await insertSystemMessage(conversation, 1, deps);
+  }
 
   const targetName = await resolveDisplayName(targetUid, principal.tenantId, deps);
   await logAudit(deps, principal, conversation, "member.add", { targetUid, targetName, metadata: { role, guestTitle }, meta });

@@ -41,6 +41,8 @@ export interface ConnectConversationView {
   ownerUid: string;
   childIds?: string[];
   announcementChannelId?: string;
+  /** Konuşma listesinin en üstünde "Sohbet [tarih] başladı" kartı için (2026-07-20). */
+  createdAt: string;
 }
 
 /**
@@ -108,6 +110,7 @@ export async function buildConversationViews(
         ownerUid: conversation.ownerUid,
         childIds: conversation.childIds,
         announcementChannelId: conversation.announcementChannelId,
+        createdAt: conversation.createdAt,
       };
     })
     .sort((a, b) => (b.lastMessage?.at ?? "").localeCompare(a.lastMessage?.at ?? ""));
@@ -137,13 +140,23 @@ export interface ConnectMessageView {
   attachments?: ConnectAttachment[];
   /** Kurumsal kural (2026-07-20) — öğrenci→eğitmen DM'de 22:00-09:00 arası gönderildi. */
   afterHours?: boolean;
+  /** SADECE "system" mesajlarını ayırt eder (2026-07-20) — yoksa "text" (bkz. `ConnectMessage.kind`). */
+  kind?: "text" | "system";
+  /** SADECE kind==="system" — "{count} kişi gruba eklendi" render'ı için. */
+  systemEvent?: { type: "members_added"; count: number };
+  /** Yanıtlama alıntısı (2026-07-20) — statik anlık görüntü, bkz. `ConnectMessage.replyTo`. */
+  replyTo?: { messageId: string; authorUid: string; authorName: string; textSnippet: string };
+  /** Çağıran bu mesajı yıldızlamış mı — `starredBy` listesi client'a HİÇ taşınmaz, sadece kendi durumu. */
+  starred?: boolean;
 }
 
 export async function buildMessageViews(
   messages: {
     id: string; authorUid: string; text: string; createdAt: string; editedAt?: string;
     deletedForEveryone?: boolean; reactions?: Record<string, string>; attachments?: ConnectAttachment[];
-    afterHours?: boolean;
+    afterHours?: boolean; kind?: "text" | "system"; systemEvent?: { type: "members_added"; count: number };
+    replyTo?: { messageId: string; authorUid: string; authorName: string; textSnippet: string };
+    starredBy?: string[];
   }[],
   principalUid: string,
   tenantId: string,
@@ -176,6 +189,10 @@ export async function buildMessageViews(
       myReaction: m.reactions?.[principalUid],
       attachments: m.attachments,
       afterHours: m.afterHours,
+      kind: m.kind,
+      systemEvent: m.systemEvent,
+      replyTo: m.replyTo,
+      starred: m.starredBy?.includes(principalUid) ?? false,
     };
   });
 }

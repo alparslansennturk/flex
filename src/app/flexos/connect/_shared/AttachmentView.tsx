@@ -13,11 +13,14 @@ export function AttachmentView({
   fmtFileSize,
   marginTop,
   compact = false,
+  dark = false,
 }: {
   attachment: ConnectAttachment;
   fmtFileSize: (bytes: number) => string;
   marginTop: number;
   compact?: boolean;
+  /** Mobil koyu tema (2026-07-20) — masaüstü her zaman açık tema, varsayılan false. */
+  dark?: boolean;
 }) {
   const [imgError, setImgError] = useState(false);
   const isImage = a.mimeType.startsWith("image/") && !imgError;
@@ -28,7 +31,7 @@ export function AttachmentView({
         href={a.webViewLink}
         target="_blank"
         rel="noopener noreferrer"
-        style={{ display: "block", marginTop, borderRadius: compact ? 9 : 10, overflow: "hidden", border: "1px solid #E4E6EB", maxWidth: compact ? 200 : 260 }}
+        style={{ display: "block", marginTop, borderRadius: compact ? 9 : 10, overflow: "hidden", border: `1px solid ${dark ? "#33405A" : "#E4E6EB"}`, maxWidth: compact ? 200 : 260 }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -47,12 +50,12 @@ export function AttachmentView({
       target="_blank"
       rel="noopener noreferrer"
       className="flex items-center gap-2 cursor-pointer transition-colors"
-      style={{ marginTop, padding: compact ? "6px 8px" : "8px 10px", borderRadius: compact ? 9 : 10, border: "1px solid #E4E6EB", background: "#FBFCFD", textDecoration: "none" }}
+      style={{ marginTop, padding: compact ? "6px 8px" : "8px 10px", borderRadius: compact ? 9 : 10, border: `1px solid ${dark ? "#33405A" : "#E4E6EB"}`, background: dark ? "#233150" : "#FBFCFD", textDecoration: "none" }}
     >
-      <FileText size={compact ? 15 : 18} color="#2867bd" className="shrink-0" />
+      <FileText size={compact ? 15 : 18} color={dark ? "#7FA9EC" : "#2867bd"} className="shrink-0" />
       <div className="flex-1 min-w-0">
-        <div className="truncate" style={{ fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: "#1B1F26" }}>{a.fileName}</div>
-        <div style={{ fontSize: compact ? 10 : 11, color: "#8A909B" }}>{fmtFileSize(a.fileSize)}</div>
+        <div className="truncate" style={{ fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: dark ? "#E7EAEF" : "#1B1F26" }}>{a.fileName}</div>
+        <div style={{ fontSize: compact ? 10 : 11, color: dark ? "#8B95A7" : "#8A909B" }}>{fmtFileSize(a.fileSize)}</div>
       </div>
     </a>
   );

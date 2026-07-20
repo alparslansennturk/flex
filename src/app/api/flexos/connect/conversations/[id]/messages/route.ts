@@ -40,7 +40,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   const principal = await staffPrincipalFromCaller(caller);
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
-  let body: { text?: string };
+  let body: { text?: string; replyTo?: { messageId: string; authorUid: string; authorName: string; textSnippet: string } };
   try {
     body = await req.json();
   } catch {
@@ -48,7 +48,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   }
 
   try {
-    const message = await sendMessage(principal, id, body.text ?? "", connectDeps);
+    const message = await sendMessage(principal, id, body.text ?? "", connectDeps, undefined, body.replyTo);
     await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
     return NextResponse.json({ id: message.id }, { status: 201 });
   } catch (e) {
