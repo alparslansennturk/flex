@@ -562,6 +562,7 @@ export default function FlexConnectMobile() {
   // bkz. connect-push-service.ts). `notifPush` artık sunucudaki gerçek tercihi
   // yansıtıyor (mount'ta `fetchPushSettings` ile okunuyor). ──
   const [notifPush, setNotifPush] = useState(false);
+  const [notifPushLoading, setNotifPushLoading] = useState(false);
   const [afterHoursWarn, setAfterHoursWarn] = useState(false);
   const [soundVibe, setSoundVibe] = useState(true);
   const [quiet, setQuiet] = useState(false);
@@ -582,6 +583,7 @@ export default function FlexConnectMobile() {
    * tekrar istenmesin diye).
    */
   async function toggleNotifPush() {
+    if (notifPushLoading) return;
     if (notifPush) {
       setNotifPush(false);
       await setPushNotificationsEnabled(false, studentPersonId ?? undefined);
@@ -591,6 +593,10 @@ export default function FlexConnectMobile() {
       toast.error("Bildirimleri açmak için önce bu uygulamayı Ana Ekrana ekle (Paylaş → Ana Ekrana Ekle), sonra oradan aç.");
       return;
     }
+    // FCM token alma + iki ayrı sunucu isteği (kayıt + tercih) zincirlemesi 1-4sn
+    // sürebiliyor — bu süre boyunca görsel geri bildirim olmazsa kullanıcı "basmadı"
+    // sanıyor (2026-07-20 kullanıcı bulgusu). Anahtarın yanında dönen bir gösterge var.
+    setNotifPushLoading(true);
     try {
       const messaging = await getMessagingIfSupported();
       if (!messaging) { toast.error("Bu tarayıcı push bildirimini desteklemiyor."); return; }
@@ -619,6 +625,8 @@ export default function FlexConnectMobile() {
       console.error("[connect-mobile] push izin akışı hatası:", e);
       const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
       toast.error(`Bildirimler açılamadı — ${detail}`, { duration: 8000 });
+    } finally {
+      setNotifPushLoading(false);
     }
   }
 
@@ -1248,7 +1256,7 @@ export default function FlexConnectMobile() {
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
               {[
-                { title: "Push Bildirimleri", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: toggleNotifPush },
+                { title: "Push Bildirimleri", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: toggleNotifPush, loading: notifPushLoading },
                 { title: "Çalışma Saati Uyarıları", sub: "22:00 sonrası gönderilen mesajlarda uyarı göster", icon: "clock", val: afterHoursWarn, onToggle: () => setAfterHoursWarn((v) => !v) },
                 { title: "Ses & Titreşim", sub: "Bildirim sesi ve titreşim", icon: "bell", val: soundVibe, onToggle: () => setSoundVibe((v) => !v) },
               ].map((r, i, arr) => (
@@ -1258,8 +1266,16 @@ export default function FlexConnectMobile() {
                     <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{r.title}</div>
                     <div style={{ fontSize: 11.5, fontWeight: 500, color: T.text2, marginTop: 2, lineHeight: 1.35 }}>{r.sub}</div>
                   </div>
-                  <button onClick={r.onToggle} role="switch" aria-checked={r.val} aria-label={r.title} style={{ width: 46, height: 28, borderRadius: 999, border: "none", cursor: "pointer", flex: "0 0 auto", background: r.val ? T.brand : (dark ? "#33405A" : "#D4D8DF"), position: "relative", transition: "background .18s", padding: 0 }}>
-                    <span style={{ position: "absolute", top: 3, left: r.val ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
+                  <button onClick={r.onToggle} role="switch" aria-checked={r.val} aria-busy={r.loading} aria-label={r.title} style={{ width: 46, height: 28, borderRadius: 999, border: "none", cursor: r.loading ? "wait" : "pointer", pointerEvents: r.loading ? "none" : undefined, opacity: r.loading ? 0.75 : 1, flex: "0 0 auto", background: r.val ? T.brand : (dark ? "#33405A" : "#D4D8DF"), position: "relative", transition: "background .18s", padding: 0 }}>
+                    {r.loading ? (
+                      <motion.span
+                        style={{ position: "absolute", top: 3, left: 3, width: 22, height: 22, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,.35)", borderTopColor: "#fff", boxSizing: "border-box" }}
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 0.7, ease: "linear" }}
+                      />
+                    ) : (
+                      <span style={{ position: "absolute", top: 3, left: r.val ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
+                    )}
                   </button>
                 </div>
               ))}
