@@ -400,19 +400,25 @@ export default function FlexConnectPage() {
     fetchStudentDirectory().then(setStudentDirectoryList);
   }, []);
 
-  // Personel + öğrenci roster'ı yüklendikçe presence aboneliği (kendi uid'imiz
-  // dahil). Öğrenciler için basit otomatik çevrimiçi/çevrimdışı (2026-07-20
-  // revizyonu — kullanıcı isteği: "diğer öğrencilerin çevrimiçi olup olmadıklarını
-  // görmeliyim"), manuel durum seçimi YOK, sadece heartbeat.
+  // Presence aboneliği — SADECE gerçekten ekranda görünebilecek kişiler
+  // (2026-07-20 okuma-optimizasyonu kullanıcı isteği: "39k okuma olmuş, azalsın").
+  // Önceden TÜM personel+öğrenci rosterına (yüzlerce kişi olabilir) her sayfa
+  // yüklemesinde abone oluyordu — artık SADECE aktif dizin sekmesi (Personel/
+  // Öğrenciler) + konuşma listesindeki DM karşı tarafları + kendi uid'imiz.
   useEffect(() => {
-    const uids = [...staffDirectoryList, ...studentDirectoryList].map((u) => u.uid);
+    const directoryUids = navTab === "staffDirectory" ? staffDirectoryList.map((u) => u.uid)
+      : navTab === "studentDirectory" ? studentDirectoryList.map((u) => u.uid)
+      : [];
+    const dmPeerUids = conversations.filter((c) => c.type === "dm" && c.peerUid).map((c) => c.peerUid as string);
+    const myUid = auth.currentUser?.uid;
+    const uids = [...new Set([...directoryUids, ...dmPeerUids, ...(myUid ? [myUid] : [])])];
     if (uids.length === 0) return;
     return subscribeToPresence(uids, (signals) => {
       setPresenceMap(new Map(signals.map((s) => [s.uid, s])));
-      const mine = signals.find((s) => s.uid === auth.currentUser?.uid);
+      const mine = signals.find((s) => s.uid === myUid);
       if (mine) setMyPresenceStatusLocal(mine.status);
     });
-  }, [staffDirectoryList, studentDirectoryList]);
+  }, [navTab, staffDirectoryList, studentDirectoryList, conversations]);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 

@@ -427,15 +427,25 @@ export default function FlexConnectMobile() {
     }
   }, [studentPersonId]);
 
+  // Presence aboneliği — SADECE gerçekten ekranda görünebilecek kişiler
+  // (2026-07-20 okuma-optimizasyonu: "39k okuma olmuş, azalsın"). Önceden TÜM
+  // personel+öğrenci rosterına her sayfa yüklemesinde abone oluyordu — artık
+  // SADECE "Kullanıcılar"/"Eğitmenim" sekmesi aktifken o listeye + konuşma
+  // listesindeki DM karşı taraflarına + kendi uid'imize.
   useEffect(() => {
-    const uids = [...staffDirectory, ...trainerDirectory, ...studentDirectory].map((u) => u.uid);
+    const directoryUids = tab !== "staff" ? []
+      : studentPersonId ? trainerDirectory.map((u) => u.uid)
+      : staffTabView === "staff" ? staffDirectory.map((u) => u.uid) : studentDirectory.map((u) => u.uid);
+    const dmPeerUids = conversations.filter((c) => c.type === "dm" && c.peerUid).map((c) => c.peerUid as string);
+    const myUid = auth.currentUser?.uid;
+    const uids = [...new Set([...directoryUids, ...dmPeerUids, ...(myUid ? [myUid] : [])])];
     if (uids.length === 0) return;
     return subscribeToPresence(uids, (signals) => {
       setPresenceMap(new Map(signals.map((s) => [s.uid, s])));
-      const mine = signals.find((s) => s.uid === auth.currentUser?.uid);
+      const mine = signals.find((s) => s.uid === myUid);
       if (mine) setMyPresenceStatusLocal(mine.status);
     });
-  }, [staffDirectory, trainerDirectory, studentDirectory]);
+  }, [tab, staffTabView, studentPersonId, staffDirectory, trainerDirectory, studentDirectory, conversations]);
 
   // PWA service worker kaydı (2026-07-18) — SADECE bu route'un scope'unda,
   // masaüstünü etkilemez. Minimal SW (bkz. `public/sw-connect-mobile.js`) —
