@@ -355,6 +355,23 @@ export default function FlexConnectPage() {
     [conversations, loadConversations, selectConversation],
   );
 
+  // İlk yüklemede hiçbir şey seçili değilse üstteki (en son mesajı olan — liste
+  // zaten `connect-view.ts`'de mesaj tarihine göre azalan sıralı) konuşma otomatik
+  // seçilir (kullanıcı bulgusu: boş seçim ekranında üst header/bar hiç görünmüyordu).
+  // Sekme de o konuşmanın türüne geçer ki liste satırı da vurgulanmış görünsün.
+  // SADECE ilk yüklemede — sonraki `loadConversations()` çağrıları (mesaj gönderince
+  // vb.) kullanıcının seçimini yerinden oynatmaz.
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (autoSelectedRef.current || loadingList || conversations.length === 0) return;
+    const candidates = conversations.filter((c) => c.type === "channel" || c.type === "group" || c.type === "dm");
+    if (candidates.length === 0) return;
+    autoSelectedRef.current = true;
+    const top = candidates[0];
+    setNavTab(top.type);
+    selectConversation(top.id);
+  }, [conversations, loadingList, selectConversation]);
+
   useEffect(() => {
     setGuestQuery(""); setSelectedGuestUid(""); setGuestTitle(GUEST_TITLES[0]); setAddMemberRole("member");
     if (!infoOpen || !selectedId) return;
