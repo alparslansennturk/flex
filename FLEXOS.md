@@ -16,7 +16,28 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Flex Connect Mobil — push bildirimi + badge + iOS alt-boşluk kapatma + final marka ikonu/splash (2026-07-19 gece, PC oturumu — EN GÜNCEL)
+### ✅ Flex Connect Mobil — push bildirimi gerçek cihaz doğrulaması (3 gerçek bug) + Ayarlar ekranı temizliği (2026-07-20, PC oturumu — EN GÜNCEL)
+
+**Push bildirimi — gerçek cihazda test edilirken sırayla 3 gerçek bug bulundu/çözüldü:**
+1. iOS'ta `Notification.requestPermission()` SADECE Ana Ekrana eklenmiş (standalone) PWA'da diyalog gösteriyor, Safari sekmesinde sessizce hiçbir şey olmuyor — `isStandalone` tespiti eklendi, standalone değilse net uyarı.
+2. **GERÇEK KÖK NEDEN** (kullanıcı bulgusu: "izin verdim ama hiç tepki yok"): service worker kaydı `scope:"/flexos/connect/mobile/"` (SONDA `/`) kullanıyordu, manifest'in `scope`/`start_url`'ü ise `/flexos/connect/mobile` (sonda `/` YOK) — sayfanın kendi URL'i kendi SW'sinin scope'una prefix olarak GİRMİYORDU, bu yüzden `navigator.serviceWorker.ready` sonsuza kadar askıda kalıyordu (dialog/hata YOK, "hiç tepki yok" tam da bu). Scope manifest'le birebir eşitlendi.
+3. `getToken()` öncesi cihazda önceki bir denemeden (farklı VAPID key'le) kalmış push subscription varsa sessizce/anlaşılmaz patlıyordu — önce `unsubscribe` eklendi. Ayrıca SW-ready + getToken adımlarına 8sn `withTimeout` + gerçek JS hata adı/mesajını gösteren toast eklendi (artık hiçbir adım sessizce sonsuza kadar takılı kalamaz).
+4. UX: anahtara basınca 1-4sn süren (FCM token + 2 sunucu isteği) zincir boyunca görsel geri bildirim yoktu, kullanıcı "basmadı" sanıyordu — dönen gösterge + `toast.loading` ("Bildirimler etkinleştiriliyor...") → aynı toastId üzerinden success/error'a güncelleniyor.
+5. "Push Bildirimleri" → **"Anlık Bildirimler"** (kullanıcı: "push" terimi çoğu kullanıcı için anlaşılır değil).
+
+**Sahte/işlevsiz UI temizliği** (kullanıcı sert tepkisi: "öğrenci onları gerçek sanacak, neden vakit kaybettirdin"): Bildirimler ekranındaki "Ses & Titreşim", "Sessiz Saatler", "Çalışma Saati Uyarıları" anahtarları hiçbir backend'e bağlı değildi (sadece local state, hiç okunmuyordu) — üçü de kaldırıldı.
+
+**Yerine gerçek kurumsal kural geldi** (kişisel açma/kapama YOK, herkeste sabit): öğrenci → eğitmen DM'de (`realm:"trainer_student"`, `type:"dm"`), İstanbul saatiyle 22:00-09:00 arası gönderilen mesajlar `ConnectMessage.afterHours` ile işaretlenir, hem öğrenciye hem eğitmene "🌙 Mesai saati dışı" etiketi görünür (mobil + masaüstü `connect/page.tsx`) — mesaj ENGELLENMEZ/geciktirilmez, sadece etiketlenir. Amaç: kurumun öğrenci-eğitmen arası kontrolsüz iletişim riskini azaltma isteği (`connect-service.ts::isAfterHoursStudentToTrainerDm`).
+
+**Profil bug'ı çözüldü:** Ayarlar'daki profil ismi soğuk PWA açılışında sonsuza kadar "…" kalabiliyordu (`auth.currentUser` mount'ta TEK SEFERLİK okunuyordu, Firebase Auth oturumu henüz geri yüklenmemişse o an `null` çıkıp effect bir daha hiç çalışmıyordu) — artık zaten izlenen `authUser` state'ine bağlı. Unvan sabit **"Eğitmen"** oldu — gerçek dahili unvan (Firestore `users.title`, ör. "Yönetici"/Admin) Connect'te ARTIK HİÇ okunmuyor/gösterilmiyor (kullanıcı: Admin kimliği öğrenciye asla sızmasın).
+
+**Ayarlar ekranı denetimi** (kullanıcının "burada boş boş çok şey var" turu): "Dil" satırı kaldırıldı (çoklu-dil altyapısı hiç yok, "Türkçe" yazan tıklanamaz satırın anlamı yoktu). "Gizlilik & Güvenlik" artık GERÇEK bir Şifre Değiştir ekranı (Firebase Auth `reauthenticateWithCredential`+`updatePassword`) — KVKK/Gizlilik Politikası metni BİLEREK eklenmedi (gerçek hukuki metin gerektirir, uydurma metin sahte bir toggle'dan daha kötü olurdu). Yeni **"❓ Yardım ve Geri Bildirim"** bölümü: "Sorun Bildir"/"Öneri Gönder" → açıklama kutusu → gönder + altında "Sürüm v1.0.0" (eski alt yazıdan taşındı). Öğrenciyse gönderim Aktivite Merkezi'ne **"destek"** kategorisinde bir talep olarak düşer (yeni koleksiyon AÇILMADI, var olan Case/Activity sistemi kullanıldı — `case-service.ts::reportStudentIssue`, YENİ route `api/flexos/student/connect/report-issue`, `case.create` yetkisi GEREKMEZ, dar kapsamlı self-servis eylem, açık "destek" talebi varsa mevcut talebe not olarak eklenir — case.ts'teki genel dedup kuralıyla aynı). Personelse (Case bir Person'a/öğrenciye bağlı olmak zorunda, personelin böyle bir kaydı yok) `mailto:` yedeği kullanılır.
+
+**SIRADAKİ İŞ:** Tüm bu değişiklikler (push scope fix'i + yeni Ayarlar ekranı) gerçek cihazda uçtan uca son bir kez doğrulanmalı — özellikle "Sorun Bildir"in gönderdiği talebin Aktivite Merkezi'nde göründüğü ve Şifre Değiştir'in gerçekten çalıştığı. KVKK/Gizlilik Politikası metni kullanıcıdan/hukuk tarafından gelirse ayrıca eklenecek.
+
+---
+
+### ✅ Flex Connect Mobil — push bildirimi + badge + iOS alt-boşluk kapatma + final marka ikonu/splash (2026-07-19 gece, PC oturumu)
 
 **Bugünkü işin özeti — sırayla:**
 

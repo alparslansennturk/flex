@@ -41,6 +41,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
+  reauthenticateWithCredential, EmailAuthProvider, updatePassword,
   type User,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -52,7 +53,7 @@ import {
   type ConversationView, type MessageView, type DirectoryUser, type TypingSignal,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
-  setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled,
+  setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, reportIssue,
 } from "@/app/flexos/connect/_shared/connectClient";
 
 // Bazı Promise'ler (SW aktivasyonu, FCM token isteği) başarısız olduğunda REJECT
@@ -98,7 +99,7 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
-type Screen = "app" | "chat" | "create" | "notif";
+type Screen = "app" | "chat" | "create" | "notif" | "help" | "password";
 type Tab = "chats" | "channels" | "staff" | "settings";
 type ThemePref = "light" | "dark" | "system";
 
@@ -131,6 +132,8 @@ const ICONS: Record<string, string> = {
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
   mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
   lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  bulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5a5.5 5.5 0 1 0-9 0c.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
 };
 
 function Icon({ k, size = 20, sw = 2, color = "currentColor" }: { k: string; size?: number; sw?: number; color?: string }) {
@@ -299,23 +302,30 @@ export default function FlexConnectMobile() {
   const [screen, setScreen] = useState<Screen>("app");
   const [tab, setTab] = useState<Tab>("chats");
   const [profileName, setProfileName] = useState("");
-  const [profileTitle, setProfileTitle] = useState("Yönetici");
+  // Sabit "Eğitmen" (2026-07-20 kullanıcı kararı) — Flex Connect'te personelin
+  // gerçek dahili unvanı (`users.title`, ör. "Yönetici"/Admin) HİÇ gösterilmez,
+  // öğrenciye/karşı tarafa kurumsal hiyerarşi sızmasın diye. Firestore'dan artık
+  // OKUNMUYOR bile — önceki kod `data?.title` varsa üzerine yazıyordu.
+  const [profileTitle] = useState("Eğitmen");
 
   useEffect(() => {
+    // ÖNCEDEN `auth.currentUser`'ı mount'ta bir kere okuyordu — Firebase Auth
+    // oturumu henüz geri yüklenmemişse (soğuk PWA açılışında sık) `currentUser`
+    // o an null olup effect sessizce hiç çalışmıyordu, isim SONSUZA KADAR "…"
+    // kalıyordu (2026-07-20 kullanıcı bulgusu). Artık zaten izlenen `authUser`
+    // state'ine bağlı — auth geç çözülse bile effect gecikmeli de olsa çalışır.
+    if (!authUser) return;
     (async () => {
-      const u = auth.currentUser;
-      if (!u) return;
       try {
-        const snap = await getDoc(doc(db, "users", u.uid));
-        const data = snap.exists() ? (snap.data() as { name?: string; surname?: string; title?: string }) : null;
+        const snap = await getDoc(doc(db, "users", authUser.uid));
+        const data = snap.exists() ? (snap.data() as { name?: string; surname?: string }) : null;
         const full = [data?.name, data?.surname].filter(Boolean).join(" ").trim();
-        setProfileName(full || u.displayName || u.email || "Kullanıcı");
-        if (data?.title) setProfileTitle(data.title);
+        setProfileName(full || authUser.displayName || authUser.email || "Kullanıcı");
       } catch {
-        setProfileName(u.displayName || u.email || "Kullanıcı");
+        setProfileName(authUser.displayName || authUser.email || "Kullanıcı");
       }
     })();
-  }, []);
+  }, [authUser]);
 
   // ── Konuşmalar / dizin ──
   const [conversations, setConversations] = useState<ConversationView[]>([]);
@@ -569,6 +579,75 @@ export default function FlexConnectMobile() {
     if (!authUser || studentPersonId === undefined) return;
     fetchPushSettings(studentPersonId ?? undefined).then((s) => setNotifPush(s.notificationsEnabled));
   }, [authUser, studentPersonId]);
+
+  // ── Yardım ve Geri Bildirim (2026-07-20) — "Sorun Bildir"/"Öneri Gönder". Öğrenci
+  // için Aktivite Merkezi'ne "destek" talebi olarak düşer (bkz. `reportIssue`,
+  // `case-service.ts::reportStudentIssue`). Personelin buna denk bir Person/Case
+  // kaydı OLMADIĞI için (Case bir müşteriye bağlıdır) personelde `mailto:` yedeği
+  // kullanılır — ikisi de GERÇEK bir yere ulaşır, hiçbiri dekoratif değil.
+  const [helpKind, setHelpKind] = useState<"sorun" | "oneri">("sorun");
+  const [helpMessage, setHelpMessage] = useState("");
+  const [helpSending, setHelpSending] = useState(false);
+
+  function openHelp(kind: "sorun" | "oneri") {
+    setHelpKind(kind);
+    setHelpMessage("");
+    setScreen("help");
+  }
+
+  async function submitHelp() {
+    const trimmed = helpMessage.trim();
+    if (!trimmed || helpSending) return;
+    setHelpSending(true);
+    try {
+      if (studentPersonId) {
+        const ok = await reportIssue(helpKind, trimmed, studentPersonId);
+        if (!ok) { toast.error("Gönderilemedi — tekrar dene."); return; }
+      } else {
+        const subject = helpKind === "sorun" ? "Flex Connect — Sorun Bildirimi" : "Flex Connect — Öneri";
+        const body = `${trimmed}\n\n— ${profileName || "Kullanıcı"}`;
+        window.location.href = `mailto:alparslan.sennturk@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      }
+      toast.success("Gönderildi, teşekkürler.");
+      setHelpMessage("");
+      setScreen("app"); setTab("settings");
+    } catch (e) {
+      console.error("[connect-mobile] yardım/geri bildirim gönderim hatası:", e);
+      toast.error("Gönderilemedi — tekrar dene.");
+    } finally {
+      setHelpSending(false);
+    }
+  }
+
+  // ── Gizlilik & Güvenlik — Şifre Değiştir (2026-07-20) — GERÇEK Firebase Auth
+  // çağrısı: reauthenticateWithCredential (mevcut şifreyi doğrular) + updatePassword.
+  // KVKK/Gizlilik Politikası metni BİLEREK eklenmedi — gerçek hukuki metin
+  // gerektiriyor, uydurma metin koymak sahte bir toggle koymaktan daha kötü olurdu.
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  async function changePassword() {
+    if (!authUser || !authUser.email || changingPassword) return;
+    if (!currentPassword) { toast.error("Mevcut şifreni gir."); return; }
+    if (newPassword.length < 6) { toast.error("Yeni şifre en az 6 karakter olmalı."); return; }
+    if (newPassword !== confirmPassword) { toast.error("Yeni şifreler eşleşmiyor."); return; }
+    setChangingPassword(true);
+    try {
+      const cred = EmailAuthProvider.credential(authUser.email, currentPassword);
+      await reauthenticateWithCredential(authUser, cred);
+      await updatePassword(authUser, newPassword);
+      toast.success("Şifren değiştirildi.");
+      setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+      setScreen("app"); setTab("settings");
+    } catch (e) {
+      console.error("[connect-mobile] şifre değiştirme hatası:", e);
+      toast.error("Şifre değiştirilemedi — mevcut şifreni doğru girdiğinden emin ol.");
+    } finally {
+      setChangingPassword(false);
+    }
+  }
 
   /**
    * Bildirimlere izin ver + FCM token kaydet (2026-07-19) — WhatsApp'taki gibi
@@ -977,11 +1056,10 @@ export default function FlexConnectMobile() {
                 <div style={{ fontSize: 12, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".05em", margin: "0 2px 9px" }}>Tercihler</div>
                 <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden", marginBottom: 20 }}>
                   {[
-                    { title: "Bildirimler", sub: "Push, çalışma saati, sessiz saatler", icon: "bell", onClick: () => setScreen("notif") },
-                    { title: "Dil", sub: "Türkçe", icon: "globe" },
-                    { title: "Gizlilik & Güvenlik", sub: "KVKK, oturumlar", icon: "shield" },
+                    { title: "Bildirimler", sub: "Anlık bildirimler", icon: "bell", onClick: () => setScreen("notif") },
+                    { title: "Gizlilik & Güvenlik", sub: "Şifre değiştir", icon: "shield", onClick: () => setScreen("password") },
                   ].map((r, i, arr) => (
-                    <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: r.onClick ? "pointer" : "default" }}>
+                    <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k={r.icon} size={18} sw={2} /></div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</div>
@@ -992,10 +1070,30 @@ export default function FlexConnectMobile() {
                   ))}
                 </div>
 
+                <div style={{ fontSize: 12, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".05em", margin: "0 2px 9px" }}>❓ Yardım ve Geri Bildirim</div>
+                <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden", marginBottom: 20 }}>
+                  {[
+                    { title: "Sorun Bildir", sub: "Karşılaştığın teknik bir sorunu ilet", icon: "alert", onClick: () => openHelp("sorun") },
+                    { title: "Öneri Gönder", sub: "Aklındaki bir fikri paylaş", icon: "bulb", onClick: () => openHelp("oneri") },
+                  ].map((r, i, arr) => (
+                    <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k={r.icon} size={18} sw={2} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{r.title}</div>
+                        <div style={{ fontSize: 11.5, fontWeight: 500, color: T.text2, marginTop: 1 }}>{r.sub}</div>
+                      </div>
+                      <Icon k="chev" size={18} color={T.chev} />
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 15px" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.text2 }}>Sürüm</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>v1.0.0</span>
+                  </div>
+                </div>
+
                 <button onClick={handleLogout} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9, width: "100%", height: 50, border: `1px solid ${dark ? "#4A2A2E" : "#F3D9D9"}`, borderRadius: 14, background: dark ? "#2A1A1D" : "#FEF2F2", color: "#D93636", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>
                   <Icon k="logout" size={17} sw={2} />Oturumu Kapat
                 </button>
-                <p style={{ textAlign: "center", fontSize: 11, fontWeight: 500, marginTop: 14, color: T.muted }}>Flex Connect PWA · Sürüm 1.0.0</p>
               </div>
             </motion.div>
           )}
@@ -1280,6 +1378,73 @@ export default function FlexConnectMobile() {
                 </div>
               ))}
             </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ============ YARDIM & GERİ BİLDİRİM ============ */}
+      {authUser && screen === "help" && (
+        <motion.div key="help" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>{helpKind === "sorun" ? "Sorun Bildir" : "Öneri Gönder"}</div>
+              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>{helpKind === "sorun" ? "Karşılaştığın sorunu anlat, inceleyelim" : "Fikrini bizimle paylaş"}</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Açıklama</label>
+            <textarea
+              value={helpMessage}
+              onChange={(e) => setHelpMessage(e.target.value)}
+              placeholder={helpKind === "sorun" ? "Ne oldu, ne zaman oldu, hangi ekrandaydın?" : "Aklındaki fikri anlat…"}
+              rows={8}
+              style={{ width: "100%", padding: 14, borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text, fontFamily: "inherit", resize: "none", boxSizing: "border-box" }}
+            />
+            <button
+              onClick={submitHelp}
+              disabled={!helpMessage.trim() || helpSending}
+              style={{ width: "100%", height: 50, border: "none", borderRadius: 14, background: helpMessage.trim() ? "#2867bd" : (dark ? "#33405A" : "#C3CAD4"), color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: helpMessage.trim() ? "pointer" : "default", marginTop: 14 }}
+            >
+              {helpSending ? "Gönderiliyor…" : "Gönder"}
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ============ GİZLİLİK & GÜVENLİK — ŞİFRE DEĞİŞTİR ============ */}
+      {authUser && screen === "password" && (
+        <motion.div key="password" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Şifre Değiştir</div>
+              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>Gizlilik & Güvenlik</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Mevcut Şifre</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
+              <Icon k="lock" size={18} color={T.muted} />
+              <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+            </div>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Yeni Şifre</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
+              <Icon k="lock" size={18} color={T.muted} />
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="En az 6 karakter" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+            </div>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Yeni Şifre (Tekrar)</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, height: 50, padding: "0 14px", borderRadius: 14, border: `1px solid ${T.border}`, background: T.field, marginBottom: 16 }}>
+              <Icon k="lock" size={18} color={T.muted} />
+              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14.5, fontWeight: 500, color: T.text }} />
+            </div>
+            <button
+              onClick={changePassword}
+              disabled={changingPassword}
+              style={{ width: "100%", height: 50, border: "none", borderRadius: 14, background: "#2867bd", color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+            >
+              {changingPassword ? "Güncelleniyor…" : "Şifreyi Güncelle"}
+            </button>
           </div>
         </motion.div>
       )}

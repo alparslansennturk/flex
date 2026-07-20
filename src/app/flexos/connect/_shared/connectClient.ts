@@ -253,6 +253,23 @@ export async function setPushNotificationsEnabled(enabled: boolean, personId?: s
 }
 
 /**
+ * Flex Connect Mobil "Sorun Bildir" / "Öneri Gönder" (2026-07-20) — SADECE öğrenci
+ * route ailesinde var (`personId` zorunlu, `case.create` yetkisi gerektirmeyen dar
+ * kapsamlı self-servis uç nokta). Personel tarafında karşılığı YOK — bkz.
+ * `mobile/page.tsx`'teki `mailto:` yedeği (Case bir Person'a bağlı olmak zorunda,
+ * personelin buna denk bir kaydı yok).
+ */
+export async function reportIssue(kind: "sorun" | "oneri", message: string, personId: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`/api/flexos/student/connect/report-issue?personId=${personId}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, message }),
+  });
+  return res.ok;
+}
+
+/**
  * Ad/açıklama/yayıncı listesi düzenleme (2026-07-18, kalan 2 madde) —
  * SADECE personel (öğrenci hiçbir zaman owner/admin olamaz, bkz. `updateConversationMeta`).
  */

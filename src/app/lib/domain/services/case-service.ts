@@ -97,6 +97,60 @@ export async function createCase(
 }
 
 // ─────────────────────────────────────────────
+// reportStudentIssue — Flex Connect "Sorun Bildir"/"Öneri Gönder" (2026-07-20)
+// ─────────────────────────────────────────────
+
+export interface ReportStudentIssueDeps {
+  cases: CaseRepo;
+  activities: ActivityRepo;
+}
+
+/**
+ * Öğrencinin Flex Connect'ten gönderdiği serbest metni Aktivite Merkezi'ne
+ * "destek" talebi olarak düşürür — `createCase`'in aksine `can()` YETKİ KONTROLÜNDEN
+ * BİLEREK GEÇMEZ: bu, personelin genel "case.create" yetkisiyle KARIŞTIRILMAMASI
+ * gereken, öğrencinin SADECE KENDİ personId'sine dar kapsamlı bir self-servis eylemi.
+ * Dedup: açık bir "destek" talebi varsa yeni Case AÇILMAZ, var olana aktivite olarak
+ * eklenir (case.ts'teki genel dedup kuralıyla AYNI mantık, tip'e daraltılmış).
+ */
+export async function reportStudentIssue(
+  tenantId: string,
+  personId: EntityId,
+  authorUid: string,
+  kind: "sorun" | "oneri",
+  message: string,
+  deps: ReportStudentIssueDeps,
+): Promise<{ caseId: EntityId }> {
+  const trimmed = message.trim();
+  if (!trimmed) throw new ValidationError("Açıklama boş olamaz.");
+  const note = `${kind === "sorun" ? "[Sorun Bildirimi]" : "[Öneri]"} ${trimmed}`;
+  const ts = nowISO();
+
+  const openDestek = (await deps.cases.listOpenByPerson(personId, tenantId)).find((c) => c.type === "destek");
+  if (openDestek) {
+    const activity: Activity = {
+      id: deps.activities.nextId(), tenantId, caseId: openDestek.id, personId,
+      type: "not", note, createdAt: ts, createdBy: authorUid,
+    };
+    await deps.activities.save(activity);
+    await deps.cases.save({ ...openDestek, activityCount: (openDestek.activityCount ?? 0) + 1, lastActivityAt: ts });
+    return { caseId: openDestek.id };
+  }
+
+  const newCase: Case = {
+    id: deps.cases.nextId(), tenantId, personId, channel: "web", type: "destek", status: "yeni",
+    activityCount: 1, lastActivityAt: ts, createdAt: ts, createdBy: authorUid,
+  };
+  const activity: Activity = {
+    id: deps.activities.nextId(), tenantId, caseId: newCase.id, personId,
+    type: "not", note, createdAt: ts, createdBy: authorUid,
+  };
+  await deps.cases.save(newCase);
+  await deps.activities.save(activity);
+  return { caseId: newCase.id };
+}
+
+// ─────────────────────────────────────────────
 // addActivity — mevcut talebe aktivite ekle
 // ─────────────────────────────────────────────
 
