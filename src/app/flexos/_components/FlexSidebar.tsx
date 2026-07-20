@@ -77,10 +77,10 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const eduActive = active === "egitimler" || active === "ayarlar";
   const [eduOpen, setEduOpen] = useState(eduActive); // aktif alt sayfadaysak başta açık
 
-  const salesActive = active === "satis-yap" || active === "satis-liste" || active === "paket-yonetimi" || active === "kampanya-yonetimi";
+  const salesActive = active === "satis-yap" || active === "satis-liste" || active === "paket-yonetimi" || active === "kampanya-yonetimi" || active === "randevu-takvimi";
   const [salesOpen, setSalesOpen] = useState(salesActive);
 
-  const aktiviteActive = active === "aktivite-merkezi" || active === "aktiviteler" || active === "randevu-takvimi";
+  const aktiviteActive = active === "aktivite-merkezi" || active === "aktiviteler";
   const [aktiviteOpen, setAktiviteOpen] = useState(aktiviteActive);
 
   const yoklamaActive = active === "yoklamalar" || active === "yoklama-al" || active === "yoklama-detay" || active === "yoklama-raporu";
@@ -403,6 +403,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                     {canSee("sale.read", false) && <SubItem label="Satış Listesi" active={active === "satis-liste"} onClick={go("/flexos/satislar/satis-liste")} />}
                     {canSee("bundle.read", false) && <SubItem label="Paket Yönetimi" active={active === "paket-yonetimi"} onClick={go("/flexos/satislar/paket-yonetimi")} />}
                     {canSee("campaign.read", false) && <SubItem label="Kampanya Yönetimi" active={active === "kampanya-yonetimi"} onClick={go("/flexos/satislar/kampanya-yonetimi")} />}
+                    {canSee("appointment.read", false) && <SubItem label="Randevu Takvimi" active={active === "randevu-takvimi"} onClick={go("/flexos/randevu-takvimi")} />}
                   </div>
                 </motion.div>
               )}
@@ -526,7 +527,6 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                     <SubItem label="Aktiviteler" active={active === "aktiviteler" || active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
-                    <SubItem label="Randevu Takvimi" active={active === "randevu-takvimi"} onClick={go("/flexos/randevu-takvimi")} />
                   </div>
                 </motion.div>
               )}
@@ -656,8 +656,8 @@ export const S: Record<string, CSSProperties> = {
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
   itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },
-  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "7px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
-  subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "7px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
+  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "6px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
+  subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "6px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   subBar: { position: "absolute", left: 0, top: 8, bottom: 8, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
 };
 

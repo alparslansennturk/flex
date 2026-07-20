@@ -3,7 +3,7 @@ import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Case, CaseChannel, CaseOutcome, CaseStatus, CaseType } from "../crm/case";
 import type { Activity, ActivityType } from "../crm/activity";
-import type { Appointment } from "../crm/appointment";
+import type { Appointment, AppointmentMeetingType, AppointmentStatus } from "../crm/appointment";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { CaseRepo } from "../repo/case-repo";
 import type { ActivityRepo } from "../repo/activity-repo";
@@ -164,6 +164,8 @@ export interface AddActivityInput {
   appointment?: {
     scheduledAt: ISODateTime;
     assignedToUid?: string;
+    assignedToName?: string;
+    meetingType?: AppointmentMeetingType;
     note?: string;
   };
   /** Talebi kapat (outcome zorunlu). */
@@ -230,6 +232,8 @@ export async function addActivity(
       activityId: activity.id,
       scheduledAt: input.appointment.scheduledAt,
       assignedToUid: input.appointment.assignedToUid,
+      assignedToName: input.appointment.assignedToName,
+      meetingType: input.appointment.meetingType,
       note: input.appointment.note,
       status: "bekliyor",
       createdAt: ts,
@@ -299,5 +303,84 @@ export async function updateCase(
   };
 
   await caseRepo.save(updated);
+  return updated;
+}
+
+// ─────────────────────────────────────────────
+// updateAppointment — randevu düzenle/iptal et (Randevu Takvimi, 2026-07-21)
+// ─────────────────────────────────────────────
+
+export interface UpdateAppointmentInput {
+  id: EntityId;
+  scheduledAt?: ISODateTime;
+  assignedToUid?: string;
+  assignedToName?: string;
+  meetingType?: AppointmentMeetingType;
+  note?: string;
+  /** İptal için `"iptal"`. */
+  status?: AppointmentStatus;
+}
+
+export interface UpdateAppointmentDeps {
+  appointments: AppointmentRepo;
+  cases: CaseRepo;
+  activities: ActivityRepo;
+}
+
+/**
+ * Ayrı bir `appointment.edit` yetkisi YOK (bilinçli — registry'de sadece
+ * create/read var) — `appointment.create` reuse edilir, kim randevu
+ * oluşturabiliyorsa düzenleyip iptal de edebilir.
+ *
+ * Düzenleme/iptal `Case.status`'u DEĞİŞTİRMEZ (iptal edilen bir randevu talebi
+ * geri açmaz/kapatmaz) — sadece zaman çizelgesine audit amaçlı bir `Activity`
+ * düşer, Aktivite Merkezi'nin "Geçmiş Aksiyonlar" panelinde görünsün diye.
+ */
+export async function updateAppointment(
+  actor: Actor,
+  input: UpdateAppointmentInput,
+  deps: UpdateAppointmentDeps,
+): Promise<Appointment> {
+  if (!can(actor, "appointment.create")) throw new ForbiddenError("appointment.create");
+
+  const existing = await deps.appointments.getById(input.id, actor.tenantId);
+  if (!existing) throw new ValidationError("Randevu bulunamadı.");
+
+  const ts = nowISO();
+  const updated: Appointment = {
+    ...existing,
+    ...(input.scheduledAt !== undefined && { scheduledAt: input.scheduledAt }),
+    ...(input.assignedToUid !== undefined && { assignedToUid: input.assignedToUid }),
+    ...(input.assignedToName !== undefined && { assignedToName: input.assignedToName }),
+    ...(input.meetingType !== undefined && { meetingType: input.meetingType }),
+    ...(input.note !== undefined && { note: input.note }),
+    ...(input.status !== undefined && { status: input.status }),
+    updatedAt: ts,
+    updatedBy: actor.uid,
+  };
+  await deps.appointments.save(updated);
+
+  const existingCase = await deps.cases.getById(existing.caseId, actor.tenantId);
+  if (existingCase) {
+    const note = input.status === "iptal" ? "Randevu iptal edildi." : "Randevu güncellendi.";
+    await deps.activities.save({
+      id: deps.activities.nextId(),
+      tenantId: actor.tenantId,
+      caseId: existingCase.id,
+      personId: existingCase.personId,
+      type: "randevu",
+      note,
+      createdAt: ts,
+      createdBy: actor.uid,
+    });
+    await deps.cases.save({
+      ...existingCase,
+      activityCount: existingCase.activityCount + 1,
+      lastActivityAt: ts,
+      updatedAt: ts,
+      updatedBy: actor.uid,
+    });
+  }
+
   return updated;
 }

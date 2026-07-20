@@ -22,6 +22,8 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     firestorePersonRepo.list(actor.tenantId),
   ]);
   const personMap = new Map(persons.map((p) => [p.id, p]));
+  // `cases/route.ts`'teki AYNI PII gating — telefon sadece bu yetkiye sahip roller görür.
+  const showPII = can(actor, "person.read.pii");
 
   const items = appointments.map((a) => {
     const person = personMap.get(a.personId);
@@ -30,9 +32,13 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       caseId: a.caseId,
       personId: a.personId,
       personName: person ? `${person.firstName} ${person.lastName}` : "—",
+      personPhone: showPII ? (person?.pii?.phone ?? null) : null,
       scheduledAt: a.scheduledAt,
       note: a.note ?? null,
       status: a.status,
+      assignedToName: a.assignedToName ?? null,
+      // Eski kayıtlarda yok — Randevu Takvimi bu alanı YOKSA "telefon" varsayar.
+      meetingType: a.meetingType ?? "telefon",
     };
   });
 

@@ -485,6 +485,10 @@ export default function AktiviteMerkeziPage() {
           }
         }
         // Aksiyon notunu + planlanan sonraki adımı kaydet (timeline + sayaç).
+        // "Randevu Oluşturulacak" + tarih/saat girildiyse GERÇEK bir Appointment
+        // kaydı da oluşur (2026-07-21 düzeltmesi — önceden SADECE nextActionDate
+        // set ediliyordu, Randevu Takvimi'nde hiç görünmüyordu çünkü appointment
+        // alanı hiç gönderilmiyordu).
         const res = await fetch("/api/flexos/activities", {
           method: "POST",
           headers: await authHeaders(),
@@ -494,6 +498,14 @@ export default function AktiviteMerkeziPage() {
             note: draftNote.trim() || undefined,
             nextActionType: SONRAKI_TO_ACTTYPE[draftSonrakiTip] || "not",
             nextActionDate: nextDate,
+            ...(dtEnabled && nextDate ? {
+              appointment: {
+                scheduledAt: nextDate,
+                assignedToUid: auth.currentUser?.uid,
+                assignedToName: draftSorumlu || meName,
+                meetingType: "telefon",
+              },
+            } : {}),
           }),
         });
         if (!res.ok) {
