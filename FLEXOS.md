@@ -16,7 +16,56 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Flex Connect — hover/uzun-basma menü konumlama fix + push bug (badge/tıklama) + ana bildirim ziline bağlanma (2026-07-20, PC oturumu 2 — EN GÜNCEL)
+### ✅ Flex Connect — Presence + masaüstü push + KVKK/Yasal Bilgilendirmeler + masaüstü Ayarlar modalı (2026-07-20, PC oturumu 3 — EN GÜNCEL)
+
+**Presence (çevrimiçi/derste/rahatsız etmeyin):** `connect_presence/{uid}` tek
+global doküman (typing'deki `onSnapshot` deseniyle aynı, konuşmadan bağımsız).
+Personel manuel 3 durum seçer (yeşil/turuncu/turuncu — "derste"/"rahatsız
+etmeyin" aynı renk, tooltip'le ayrılır); öğrenciler SADECE otomatik
+çevrimiçi/çevrimdışı gösterir (heartbeat var, manuel seçim yok) — kullanıcı
+canlı testte "diğer öğrencilerin çevrimiçi olup olmadığını görmeliyim" deyince
+kapsam sonradan genişletildi. Heartbeat 20sn/TTL 45sn. Durum seçici: mobilde
+Ayarlar profil kartı, masaüstünde kendi avatarından açılan pull-down.
+İki gerçek bug bulundu+düzeltildi: (1) kendi durum popover'ına
+`data-connect-dropdown` eklenmemişti, seçim mousedown'da menüyü kapatıp hiç
+işlemiyordu; (2) kendi baş harfleri `auth.currentUser.displayName`'e
+güveniyordu (boşsa e-postadan yanlış "AA" gibi kısaltma), artık personel
+dizinindeki gerçek addan.
+
+**Masaüstü push bildirimleri:** Mobildeki akışın (izin→FCM token→sunucuya
+kaydet→SW notificationclick) masaüstü karşılığı. Ayrı SW (`sw-connect-desktop.js`,
+scope `/flexos/connect`, mobilinkiyle ÇAKIŞMAZ) — notificationclick hedefi
+`self.registration.scope`'tan türetildiği için script generic. Backend
+değişmedi (bir kullanıcının birden fazla token'ı zaten destekleniyordu).
+**Bildirim SESİ** ayrı, kontrol edilebilir bir tercih oldu (varsayılan KAPALI)
+— `connect_push_subscriptions.soundEnabled`, SW `showNotification({silent})`.
+
+**Yasal Bilgilendirmeler:** Kullanıcının verdiği gerçek KVKK Aydınlatma Metni
+(Arı Bilgi Bilişim Teknolojileri Akademisi) hem mobil (Ayarlar > Yasal
+Bilgilendirmeler) hem masaüstünde eklendi. Gizlilik Politikası/Kullanım
+Koşulları/Sürüm Bilgisi henüz placeholder ("yakında eklenecek") — gerçek
+metinler geldiğinde doldurulacak.
+
+**Masaüstü Ayarlar modalı:** Kullanıcı isteği ("ayrı zil yerine bir ayarlar
+menüsü yap, bildirim ayarlarını içine al") — nav rail'deki zil dropdown'ı
+kaldırıldı, tek "Ayarlar" (gear) butonu + modal (Bildirimler toggle'ları +
+Yasal Bilgilendirmeler alt-liste). KVKK görünümü diğerlerinden DAHA GENİŞ/BÜYÜK
+(760px, 88vh, büyütülmüş font) — kullanıcı bulgusu: "dar, daha genişlemesine
+ve büyük olmalı".
+
+**Diğer küçük fix'ler:** Masaüstü (personel+öğrenci) mesaj listesine
+`paddingBottom` eklendi — en alttaki mesajın chevron menüsü artık sayfa dışına
+taşmıyor. Önceki bir commit'te (beb737e) yanlışlıkla silinmiş "ilk yüklemede
+en üstteki konuşmayı otomatik seç" mantığı geri kondu.
+
+**SIRADAKİ:** Bugünkü TÜM işler (Presence, masaüstü push, Ayarlar modalı) gerçek
+cihaz/tarayıcıda kullanıcı tarafından test edildi ve onaylandı. Kalan gerçek
+eksik: Gizlilik Politikası/Kullanım Koşulları/Sürüm Bilgisi metinleri (kullanıcı/
+kurum verince eklenecek).
+
+---
+
+### ✅ Flex Connect — hover/uzun-basma menü konumlama fix + push bug (badge/tıklama) + ana bildirim ziline bağlanma (2026-07-20, PC oturumu 2)
 
 **Menü konumlama** (kullanıcı bulgusu: "üzerine gelmeye çalışırken menüler sürekli
 kayboluyor"): masaüstünde chevron (Düzenle/Yanıtla/Yıldızla/Kopyala/Sil menüsü)

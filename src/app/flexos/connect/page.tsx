@@ -1685,7 +1685,14 @@ export default function FlexConnectPage() {
 
     {settingsOpen && (
       <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 200, background: "rgba(10,15,25,.4)" }} onClick={() => setSettingsOpen(false)}>
-        <div onClick={(e) => e.stopPropagation()} className="flex flex-col" style={{ width: 460, maxHeight: "78vh", background: "#fff", borderRadius: 18, boxShadow: "0 30px 80px -20px rgba(18,35,59,.45)", overflow: "hidden" }}>
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="flex flex-col"
+          // KVKK metni uzun/okuma amaçlı — diğer görünümlerden (Bildirimler/Yasal
+          // liste) DAHA GENİŞ ve DAHA UZUN (2026-07-20 kullanıcı bulgusu: "dar,
+          // daha genişlemesine ve büyük olmalı").
+          style={{ width: settingsView === "kvkk" ? 760 : 460, maxHeight: settingsView === "kvkk" ? "88vh" : "78vh", background: "#fff", borderRadius: 18, boxShadow: "0 30px 80px -20px rgba(18,35,59,.45)", overflow: "hidden", transition: "width .2s ease" }}
+        >
           <div className="flex items-center justify-between shrink-0" style={{ padding: "16px 20px", borderBottom: "1px solid #EEF0F3" }}>
             <div className="flex items-center gap-2">
               {settingsView !== "main" && (
@@ -1773,9 +1780,9 @@ export default function FlexConnectPage() {
           )}
 
           {settingsView === "kvkk" && (
-            <div className="flex-1 overflow-y-auto" style={{ padding: "16px 20px 24px" }}>
-              <p style={{ fontSize: 11.5, fontWeight: 600, color: "#8A909B", margin: "0 0 14px" }}>Son Güncelleme: 20.07.2026</p>
-              <p style={{ fontSize: 13, lineHeight: 1.6, color: "#1B1F26", margin: "0 0 18px" }}>
+            <div className="flex-1 overflow-y-auto" style={{ padding: "22px 34px 32px" }}>
+              <p style={{ fontSize: 12.5, fontWeight: 600, color: "#8A909B", margin: "0 0 16px" }}>Son Güncelleme: 20.07.2026</p>
+              <p style={{ fontSize: 14.5, lineHeight: 1.7, color: "#1B1F26", margin: "0 0 22px" }}>
                 Bu Aydınlatma Metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu (&quot;KVKK&quot;) kapsamında,
                 Arı Bilgi Bilişim Teknolojileri Akademisi tarafından geliştirilen Flex Connect uygulamasını kullanan
                 öğrenciler, akademik personel ve yöneticilerin kişisel verilerinin işlenmesine ilişkin usul ve
@@ -1826,20 +1833,20 @@ export default function FlexConnectPage() {
                   p: ["KVKK kapsamındaki taleplerinizi aşağıdaki iletişim adresi üzerinden iletebilirsiniz.", "Veri Sorumlusu: Arı Bilgi Bilişim Teknolojileri Akademisi", "E-posta: alparslan.sennturk@gmail.com"],
                 },
               ]).map((s) => (
-                <div key={s.h} style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#1B1F26", marginBottom: 7 }}>{s.h}</div>
+                <div key={s.h} style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 15.5, fontWeight: 800, color: "#1B1F26", marginBottom: 9 }}>{s.h}</div>
                   {s.p.map((line, i) => (
-                    <p key={i} style={{ fontSize: 13, lineHeight: 1.6, color: "#6B717C", margin: "0 0 7px" }}>{line}</p>
+                    <p key={i} style={{ fontSize: 14, lineHeight: 1.7, color: "#4A5160", margin: "0 0 9px" }}>{line}</p>
                   ))}
                   {s.b && (
-                    <ul style={{ margin: "0 0 7px", paddingLeft: 20 }}>
+                    <ul style={{ margin: "0 0 9px", paddingLeft: 22 }}>
                       {s.b.map((item, i) => (
-                        <li key={i} style={{ fontSize: 13, lineHeight: 1.6, color: "#6B717C", marginBottom: 3 }}>{item}</li>
+                        <li key={i} style={{ fontSize: 14, lineHeight: 1.7, color: "#4A5160", marginBottom: 5 }}>{item}</li>
                       ))}
                     </ul>
                   )}
                   {s.after?.map((line, i) => (
-                    <p key={i} style={{ fontSize: 13, lineHeight: 1.6, color: "#6B717C", margin: "0 0 7px" }}>{line}</p>
+                    <p key={i} style={{ fontSize: 14, lineHeight: 1.7, color: "#4A5160", margin: "0 0 9px" }}>{line}</p>
                   ))}
                 </div>
               ))}
