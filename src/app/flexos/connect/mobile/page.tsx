@@ -638,9 +638,14 @@ export default function FlexConnectMobile() {
     const target = e.currentTarget as HTMLElement;
     longPressTimer.current = setTimeout(() => {
       const rect = target.getBoundingClientRect();
-      const MENU_W = 200;
-      const left = Math.min(rect.right + 4, window.innerWidth - MENU_W - 8);
-      const top = Math.min(rect.top, window.innerHeight - 380);
+      const MENU_W = 260;
+      const MENU_H_EST = 460;
+      // Hizalama (2026-07-20 kullanıcı kararı): kendi mesajım (sağda) ise menü
+      // sohbet alanının SAĞ kenarına hizalanır (balonun kendisi zaten sağa
+      // yapışık); karşı tarafın mesajıysa (solda) menü BASILI TUTULAN balonun
+      // SOL kenarına hizalanır — hangi mesaja basıldıysa tam onun üzerinde belirir.
+      const left = m.isMine ? window.innerWidth - MENU_W - 16 : Math.max(8, rect.left);
+      const top = Math.min(rect.top, window.innerHeight - MENU_H_EST - 16);
       setMenuPos({ top, left });
       setMenuMsg(m);
     }, 450);
@@ -1455,46 +1460,46 @@ export default function FlexConnectMobile() {
                 {/* Emoji şeridi + eylem listesi TEK panel, üstte emoji AYRI bir "Tepki Ver"
                     tıklamasına gerek kalmadan direkt açık (kullanıcı kararı: "tepki ver menü
                     yok direk menünün en üstünde emoji tepki satırı açılıyor"). */}
-                <div style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 96, background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, boxShadow: "0 20px 50px -15px rgba(18,35,59,.5)", minWidth: 200, overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "8px 6px", borderBottom: `1px solid ${T.border2}` }}>
+                <div style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 96, background: T.card, border: `1px solid ${T.border}`, borderRadius: 18, boxShadow: "0 24px 60px -15px rgba(18,35,59,.55)", width: 260, overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "10px 8px", borderBottom: `1px solid ${T.border2}` }}>
                     {QUICK_REACTIONS.map((e) => (
                       <button
                         key={e}
                         onClick={() => { handleReact(menuMsg.id, e); setMenuMsg(null); }}
-                        style={{ width: 32, height: 32, border: "none", borderRadius: "50%", background: menuMsg.myReaction === e ? T.brandBg : "transparent", fontSize: 18, cursor: "pointer" }}
+                        style={{ width: 40, height: 40, border: "none", borderRadius: "50%", background: menuMsg.myReaction === e ? T.brandBg : "transparent", fontSize: 23, cursor: "pointer" }}
                       >
                         {e}
                       </button>
                     ))}
                   </div>
                   {menuMsg.isMine && (
-                    <button onClick={() => startEditMessage(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <Icon k="pencil" size={14} sw={2} /> Düzenle
+                    <button onClick={() => startEditMessage(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="pencil" size={19} sw={2} /> Düzenle
                     </button>
                   )}
-                  <button onClick={() => startReply(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                    <Icon k="reply" size={14} sw={2} /> Yanıtla
+                  <button onClick={() => startReply(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="reply" size={19} sw={2} /> Yanıtla
                   </button>
-                  <button onClick={() => handleToggleStar(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                    <Icon k="star" size={14} sw={2} /> {menuMsg.starred ? "Yıldızı Kaldır" : "Yıldızla"}
+                  <button onClick={() => handleToggleStar(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="star" size={19} sw={2} /> {menuMsg.starred ? "Yıldızı Kaldır" : "Yıldızla"}
                   </button>
                   {menuMsg.text && (
-                    <button onClick={() => handleCopy(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <Icon k="copy" size={14} sw={2} /> Kopyala
+                    <button onClick={() => handleCopy(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="copy" size={19} sw={2} /> Kopyala
                     </button>
                   )}
                   {selected?.type === "group" && !menuMsg.isMine && !studentPersonId && (
-                    <button onClick={() => startReplyPrivately(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <Icon k="reply" size={14} sw={2} /> Özelden Yanıtla
+                    <button onClick={() => startReplyPrivately(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="reply" size={19} sw={2} /> Özelden Yanıtla
                     </button>
                   )}
                   {menuMsg.isMine && (
-                    <button onClick={() => handleDeleteMessage(menuMsg.id, "everyone")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <Icon k="trash" size={14} sw={2} /> Herkes İçin Sil
+                    <button onClick={() => handleDeleteMessage(menuMsg.id, "everyone")} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="trash" size={19} sw={2} /> Herkes İçin Sil
                     </button>
                   )}
-                  <button onClick={() => handleDeleteMessage(menuMsg.id, "me")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                    <Icon k="close" size={14} sw={2} /> Benim İçin Sil
+                  <button onClick={() => handleDeleteMessage(menuMsg.id, "me")} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", fontSize: 16, fontWeight: 600, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="close" size={19} sw={2} /> Benim İçin Sil
                   </button>
                 </div>
               </>,
