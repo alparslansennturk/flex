@@ -19,9 +19,10 @@ import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type ConnectConversationType, type DirectoryUser, type TypingSignal, type ConnectReplySnapshot,
+  type PresenceSignal,
   fetchConversations, fetchMessages, postMessage, markConversationRead, subscribeToMessages,
   subscribeToTyping, sendTypingSignal, fetchTrainerDirectory, createConversation, editMessage, deleteMessage, setMessageReaction, toggleMessageStar,
-  sendMessageWithAttachment,
+  sendMessageWithAttachment, subscribeToPresence, isPresenceOffline,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { ConnectIcon } from "@/app/flexos/connect/_shared/ConnectIcon";
 import { TypingIndicator } from "@/app/flexos/connect/_shared/TypingIndicator";
@@ -51,6 +52,29 @@ function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
 }
+/** Presence — SADECE eğitmenler taşır, öğrenci burada sadece GÖRÜR (durum seçici YOK). */
+function presenceColor(signal: PresenceSignal | undefined): string {
+  if (isPresenceOffline(signal)) return "#E5484D";
+  if (signal!.status === "online") return "#22C55E";
+  return "#F59E0B";
+}
+function presenceLabel(signal: PresenceSignal | undefined): string {
+  if (isPresenceOffline(signal)) return "Çevrimdışı";
+  if (signal!.status === "online") return "Çevrimiçi";
+  if (signal!.status === "in_class") return "Derste";
+  return "Rahatsız Etmeyin";
+}
+function PresenceDot({ signal }: { signal: PresenceSignal | undefined }) {
+  if (!signal) return null;
+  return (
+    <span
+      title={presenceLabel(signal)}
+      aria-label={presenceLabel(signal)}
+      className="absolute"
+      style={{ bottom: -2, right: -2, width: 11, height: 11, borderRadius: "50%", background: presenceColor(signal), boxShadow: "0 0 0 2px #fff" }}
+    />
+  );
+}
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
@@ -78,6 +102,8 @@ export default function StudentConnectPage() {
   const [query, setQuery] = useState("");
   const [conversations, setConversations] = useState<ConversationView[]>([]);
   const [trainerDirectoryList, setTrainerDirectoryList] = useState<DirectoryUser[]>([]);
+  // Presence (2026-07-20) — SADECE görüntüleme, öğrenci durum seçemez.
+  const [presenceMap, setPresenceMap] = useState<Map<string, PresenceSignal>>(new Map());
   const [loadingList, setLoadingList] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageView[]>([]);
@@ -124,6 +150,12 @@ export default function StudentConnectPage() {
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
   useEffect(() => { fetchTrainerDirectory(personId).then(setTrainerDirectoryList); }, [personId]);
+
+  useEffect(() => {
+    const uids = trainerDirectoryList.map((u) => u.uid);
+    if (uids.length === 0) return;
+    return subscribeToPresence(uids, (signals) => setPresenceMap(new Map(signals.map((s) => [s.uid, s]))));
+  }, [trainerDirectoryList]);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
@@ -358,8 +390,9 @@ export default function StudentConnectPage() {
                     className="flex items-center gap-3 cursor-pointer transition-colors"
                     style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
                   >
-                    <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}>
+                    <div className="relative flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}>
                       {initials(u.name)}
+                      <PresenceDot signal={presenceMap.get(u.uid)} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
@@ -390,8 +423,9 @@ export default function StudentConnectPage() {
                   className="flex items-center gap-3 cursor-pointer transition-colors"
                   style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
                 >
-                  <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: c.colorKey ?? (sel ? "#2867bd" : "#EEF1F5"), color: c.colorKey ? "#fff" : sel ? "#fff" : "#5A616C" }}>
+                  <div className="relative flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: c.colorKey ?? (sel ? "#2867bd" : "#EEF1F5"), color: c.colorKey ? "#fff" : sel ? "#fff" : "#5A616C" }}>
                     {c.type === "dm" ? initials(c.name) : <Users size={20} />}
+                    {c.type === "dm" && <PresenceDot signal={presenceMap.get(c.peerUid ?? "")} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -419,8 +453,9 @@ export default function StudentConnectPage() {
         ) : (
           <>
             <header className="flex items-center gap-3 shrink-0" style={{ height: 72, padding: "0 24px", background: "#fff", borderBottom: "1px solid #E9EBEF" }}>
-              <div className="flex items-center justify-center shrink-0" style={{ width: 42, height: 42, borderRadius: 12, background: "#EAF1FB", color: "#2867bd" }}>
+              <div className="relative flex items-center justify-center shrink-0" style={{ width: 42, height: 42, borderRadius: 12, background: "#EAF1FB", color: "#2867bd" }}>
                 {selected.type === "dm" ? initials(selected.name) : <Users size={20} />}
+                {selected.type === "dm" && <PresenceDot signal={presenceMap.get(selected.peerUid ?? "")} />}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">

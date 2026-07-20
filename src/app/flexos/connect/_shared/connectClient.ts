@@ -5,7 +5,7 @@
  * verilmezse personel route ailesine (`/api/flexos/connect/*`) gider (bkz.
  * `connect-principal.ts`: iki ayrı kimlik çözümleme mekanizması).
  */
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import { collection, documentId, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/app/lib/firebase";
 
 export type ConnectRealm = "staff" | "trainer_student";
@@ -539,4 +539,54 @@ export function subscribeToTyping(conversationId: string, onChange: (signals: Ty
 export async function sendTypingSignal(conversationId: string, personId?: string): Promise<void> {
   const headers = await authHeaders();
   await fetch(`${base(personId)}/conversations/${conversationId}/typing${qs(personId)}`, { method: "POST", headers }).catch(() => {});
+}
+
+// ─── Presence (2026-07-20) — SADECE personel. Typing'den farklı olarak
+// konuşmaya özel DEĞİL, `connect_presence/{uid}` tek global doküman. ───
+
+export type PresenceStatus = "online" | "in_class" | "dnd";
+export interface PresenceSignal { uid: string; status: PresenceStatus; lastActiveAt: string }
+
+export const PRESENCE_HEARTBEAT_MS = 20_000;
+/** Gönderim aralığının 2 katından fazla — kaçırılan tek heartbeat'te yanlış çevrimdışı göstermeyi önler. */
+export const PRESENCE_TTL_MS = 45_000;
+
+/** `connect_presence/{uid}` — 30'luk `documentId() "in"` chunk (Firestore sınırı),
+ * her chunk için ayrı `onSnapshot`, sonuçlar birleştirilip TEK callback'te raporlanır. */
+export function subscribeToPresence(uids: string[], onChange: (signals: PresenceSignal[]) => void): () => void {
+  const unique = [...new Set(uids)].filter(Boolean);
+  if (unique.length === 0) { onChange([]); return () => {}; }
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += 30) chunks.push(unique.slice(i, i + 30));
+
+  const latest = new Map<number, PresenceSignal[]>();
+  function emit() { onChange(chunks.flatMap((_, i) => latest.get(i) ?? [])); }
+
+  const unsubs = chunks.map((chunk, i) =>
+    onSnapshot(
+      query(collection(db, "connect_presence"), where(documentId(), "in", chunk)),
+      (snap) => { latest.set(i, snap.docs.map((d) => d.data() as PresenceSignal)); emit(); },
+      (err) => console.error("[connect] presence onSnapshot hata:", err),
+    ),
+  );
+  return () => unsubs.forEach((u) => u());
+}
+
+export async function sendHeartbeat(): Promise<void> {
+  const headers = await authHeaders();
+  await fetch("/api/flexos/connect/presence/heartbeat", { method: "POST", headers }).catch(() => {});
+}
+
+export async function setMyPresenceStatus(status: PresenceStatus): Promise<void> {
+  const headers = await authHeaders();
+  await fetch("/api/flexos/connect/presence/status", {
+    method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+  }).catch(() => {});
+}
+
+/** Gerçek offline hesabı — manuel "online"/"in_class"/"dnd" ne olursa olsun heartbeat
+ * kesilmişse KIRMIZI. typing'deki bayatlık ilkesiyle AYNI (`Date.now() - at < TTL`). */
+export function isPresenceOffline(p: PresenceSignal | undefined): boolean {
+  if (!p) return true;
+  return Date.now() - new Date(p.lastActiveAt).getTime() > PRESENCE_TTL_MS;
 }

@@ -43,14 +43,17 @@ import { auth, db, getMessagingIfSupported } from "@/app/lib/firebase";
 import { useMarkConnectReady } from "./SplashGate";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type TypingSignal, type ConnectReplySnapshot,
+  type PresenceSignal, type PresenceStatus,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
   setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, reportIssue, hideConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
   fetchStarredMessages, type StarredMessageView,
+  subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
 import { QUICK_REACTIONS, QUICK_EMOJIS } from "@/app/flexos/connect/_shared/EmojiPicker";
+import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
 
 // Bazı Promise'ler (SW aktivasyonu, FCM token isteği) başarısız olduğunda REJECT
 // etmek yerine sonsuza kadar askıda kalabiliyor (özellikle iOS Safari'de) — bu
@@ -75,6 +78,30 @@ async function authHeaders(): Promise<Record<string, string>> {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
+}
+/** Presence renk/etiket eşlemesi (2026-07-20) — masaüstündeki AYNI mantık. */
+function presenceColor(signal: PresenceSignal | undefined): string {
+  if (isPresenceOffline(signal)) return "#E5484D";
+  if (signal!.status === "online") return "#22C55E";
+  return "#F59E0B";
+}
+function presenceLabel(signal: PresenceSignal | undefined): string {
+  if (isPresenceOffline(signal)) return "Çevrimdışı";
+  if (signal!.status === "online") return "Çevrimiçi";
+  if (signal!.status === "in_class") return "Derste";
+  return "Rahatsız Etmeyin";
+}
+/** `presence===undefined` ise (öğrenci/bilinmeyen) HİÇ render edilmez. `ring`
+ * halka rengi çağıran tarafın arka planına göre verilir (koyu/açık tema). */
+function PresenceDot({ signal, ring }: { signal: PresenceSignal | undefined; ring: string }) {
+  if (!signal) return null;
+  return (
+    <span
+      title={presenceLabel(signal)}
+      aria-label={presenceLabel(signal)}
+      style={{ position: "absolute", bottom: -2, right: -2, width: 11, height: 11, borderRadius: "50%", background: presenceColor(signal), boxShadow: `0 0 0 2px ${ring}` }}
+    />
+  );
 }
 function fmtFileSize(bytes: number): string {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -342,6 +369,14 @@ export default function FlexConnectMobile() {
   /** Öğrenci modu — "Eğitmenim" (kayıtlı olduğu grupların eğitmen(ler)i, DM için). */
   const [trainerDirectory, setTrainerDirectory] = useState<DirectoryUser[]>([]);
 
+  // Presence (2026-07-20) — SADECE personel durum taşır/ayarlar; öğrenciler sadece
+  // görür (kendi eğitmenlerinin rozeti). `staffDirectory` (personel görünümü) ∪
+  // `trainerDirectory` (öğrenci görünümü) her ikisi de personel uid'leri içerir.
+  const [presenceMap, setPresenceMap] = useState<Map<string, PresenceSignal>>(new Map());
+  const [myPresenceStatus, setMyPresenceStatusLocal] = useState<PresenceStatus>("online");
+  const [presenceSheetOpen, setPresenceSheetOpen] = useState(false);
+  usePresenceHeartbeat(studentPersonId === null);
+
   const loadConversations = useCallback(async () => {
     if (studentPersonId === undefined) return;
     setLoadingList(true);
@@ -391,6 +426,16 @@ export default function FlexConnectMobile() {
       fetchStudentDirectory().then(setStudentDirectory);
     }
   }, [studentPersonId]);
+
+  useEffect(() => {
+    const uids = [...staffDirectory, ...trainerDirectory].map((u) => u.uid);
+    if (uids.length === 0) return;
+    return subscribeToPresence(uids, (signals) => {
+      setPresenceMap(new Map(signals.map((s) => [s.uid, s])));
+      const mine = signals.find((s) => s.uid === auth.currentUser?.uid);
+      if (mine) setMyPresenceStatusLocal(mine.status);
+    });
+  }, [staffDirectory, trainerDirectory]);
 
   // PWA service worker kaydı (2026-07-18) — SADECE bu route'un scope'unda,
   // masaüstünü etkilemez. Minimal SW (bkz. `public/sw-connect-mobile.js`) —
@@ -1133,7 +1178,10 @@ export default function FlexConnectMobile() {
                       key={c.id} onClick={() => openChat(c.id)}
                       style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "11px 12px", borderRadius: 16, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
                     >
-                      <div style={avatarBox(c.colorKey ?? T.brand, 48)}>{c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}</div>
+                      <div style={avatarBox(c.colorKey ?? T.brand, 48)}>
+                        {c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}
+                        {c.type === "dm" && <PresenceDot signal={presenceMap.get(c.peerUid ?? "")} ring={T.bg} />}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                           <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
@@ -1243,7 +1291,7 @@ export default function FlexConnectMobile() {
                               key={p.uid} onClick={() => openDirectMessage(p.uid, "staff")}
                               style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
                             >
-                              <div style={avatarBox(T.brand, 42)}>{initials(p.name)}</div>
+                              <div style={avatarBox(T.brand, 42)}>{initials(p.name)}<PresenceDot signal={presenceMap.get(p.uid)} ring={T.card} /></div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{p.name}</div>
                               </div>
@@ -1262,7 +1310,7 @@ export default function FlexConnectMobile() {
                         key={p.uid} onClick={() => openDirectMessage(p.uid, studentPersonId ? "trainer_student" : (staffTabView === "staff" ? "staff" : "trainer_student"))}
                         style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
                       >
-                        <div style={avatarBox(T.brand, 42)}>{initials(p.name)}</div>
+                        <div style={avatarBox(T.brand, 42)}>{initials(p.name)}<PresenceDot signal={presenceMap.get(p.uid)} ring={T.card} /></div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{p.name}</div>
                           {p.title && <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>{p.title}</div>}
@@ -1286,11 +1334,26 @@ export default function FlexConnectMobile() {
               </div>
               <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, background: T.card, border: `1px solid ${T.border}`, marginBottom: 20 }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 16, background: "#3A587E", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 700, flex: "0 0 auto" }}>{initials(profileName || "?")}</div>
+                  <div style={{ position: "relative", width: 56, height: 56, borderRadius: 16, background: "#3A587E", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 700, flex: "0 0 auto" }}>
+                    {initials(profileName || "?")}
+                    {studentPersonId === null && <span style={{ position: "absolute", bottom: -2, right: -2, width: 13, height: 13, borderRadius: "50%", background: myPresenceStatus === "online" ? "#22C55E" : "#F59E0B", boxShadow: `0 0 0 2px ${T.card}` }} />}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>{profileName || "…"}</div>
                     <div style={{ fontSize: 12.5, fontWeight: 500, color: T.text2, marginTop: 2 }}>{profileTitle}</div>
                   </div>
+                  {studentPersonId === null && (
+                    <button
+                      onClick={() => setPresenceSheetOpen(true)}
+                      style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 11px", borderRadius: 999, border: `1px solid ${T.border}`, background: T.card2, cursor: "pointer", fontFamily: "inherit", flex: "0 0 auto" }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: myPresenceStatus === "online" ? "#22C55E" : "#F59E0B" }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>
+                        {myPresenceStatus === "online" ? "Çevrimiçi" : myPresenceStatus === "in_class" ? "Derste" : "Rahatsız Etmeyin"}
+                      </span>
+                      <Icon k="chev" size={14} color={T.chev} />
+                    </button>
+                  )}
                 </div>
 
                 <div style={{ fontSize: 12, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".05em", margin: "0 2px 9px" }}>Görünüm</div>
@@ -1384,8 +1447,9 @@ export default function FlexConnectMobile() {
         <motion.div key="chat" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
             <button onClick={backToApp} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
-            <div style={selected.type === "dm" ? { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: selected.colorKey ?? T.brand, color: "#fff", fontSize: 14, fontWeight: 700 } : { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.brandBg, color: T.brand }}>
+            <div style={selected.type === "dm" ? { position: "relative", width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: selected.colorKey ?? T.brand, color: "#fff", fontSize: 14, fontWeight: 700 } : { width: 40, height: 40, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.brandBg, color: T.brand }}>
               {selected.type === "dm" ? initials(selected.name) : <Icon k={iconFor(selected.type)} size={20} sw={2} />}
+              {selected.type === "dm" && <PresenceDot signal={presenceMap.get(selected.peerUid ?? "")} ring={T.topBar} />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -1965,6 +2029,42 @@ export default function FlexConnectMobile() {
             ))}
           </div>
           <button onClick={() => setSheetOpen(false)} style={{ width: "calc(100% - 32px)", margin: "12px 16px 0", height: 48, border: `1px solid ${T.border}`, borderRadius: 14, background: T.card, color: T.text2, fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
+        </div>
+      </div>
+
+      {/* Presence durum seçici (2026-07-20) — SADECE personel, "Yeni Oluştur"
+          sheet'iyle AYNI bottom-sheet görsel dili. */}
+      <div
+        onClick={() => setPresenceSheetOpen(false)}
+        style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", background: "rgba(10,15,25,.45)", opacity: presenceSheetOpen ? 1 : 0, visibility: presenceSheetOpen ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}
+      >
+        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 26px", paddingBottom: "max(26px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)", transform: presenceSheetOpen ? "translateY(0)" : "translateY(30px)", transition: "transform .3s cubic-bezier(.2,.8,.3,1)" }}>
+          <div style={{ width: 40, height: 5, borderRadius: 999, background: dark ? "#33405A" : "#D4D8DF", margin: "0 auto 8px" }} />
+          <div style={{ fontSize: 16, fontWeight: 800, color: T.text, padding: "6px 18px 10px", letterSpacing: "-.3px" }}>Durumun</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 16px 8px" }}>
+            {([
+              { status: "online" as PresenceStatus, title: "Çevrimiçi", desc: "Mesajlara açık görünürsün", color: "#22C55E" },
+              { status: "in_class" as PresenceStatus, title: "Derste", color: "#F59E0B", desc: "Şu an ders veriyorsun" },
+              { status: "dnd" as PresenceStatus, title: "Rahatsız Etmeyin", color: "#F59E0B", desc: "Meşgulsün, sonra bakacaksın" },
+            ]).map((o) => (
+              <button
+                key={o.status}
+                onClick={async () => {
+                  setPresenceSheetOpen(false);
+                  setMyPresenceStatusLocal(o.status);
+                  await setMyPresenceStatus(o.status);
+                }}
+                style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${myPresenceStatus === o.status ? T.brand : T.border}`, background: myPresenceStatus === o.status ? T.brandBg : T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+              >
+                <span style={{ width: 12, height: 12, borderRadius: "50%", background: o.color, flex: "0 0 auto" }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{o.title}</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>{o.desc}</div>
+                </div>
+                {myPresenceStatus === o.status && <Icon k="check" size={18} sw={2.4} color={T.brand} />}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

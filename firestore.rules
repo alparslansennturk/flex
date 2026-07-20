@@ -553,6 +553,17 @@ service cloud.firestore {
       }
     }
 
+    // Flex Connect — Presence (2026-07-20). "Yazıyor" sinyalinden FARKLI:
+    // konuşmaya özel DEĞİL, personel başına TEK global doküman. Personel
+    // dizini/öğrenci tarafı gibi ortak konuşması olmayan biri için de
+    // görünmesi gerektiğinden okuma tenant-genelinde herhangi bir giriş
+    // yapmış kullanıcıya açık. Yazma yine SADECE Admin SDK
+    // (connect-presence-service.ts).
+    match /connect_presence/{uid} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     // Connect Audit Log — kullanıcı hareketi DEĞİL, yönetimsel işlem kaydı
     // (kanal/grup/topluluk oluşturma, üye ekle/çıkar, vb.). Server-only,
     // `flexos_activity_log`'daki AYNI desen: client hiçbir zaman okuyamaz/yazamaz,

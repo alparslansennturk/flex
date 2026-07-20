@@ -33,11 +33,12 @@ import {
 import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type ConnectConversationType, type ConnectRealm,
-  type ConversationDetail, type TypingSignal, type ConnectReplySnapshot, type StarredMessageView,
+  type ConversationDetail, type TypingSignal, type ConnectReplySnapshot, type StarredMessageView, type PresenceSignal, type PresenceStatus,
   fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
   subscribeToMessages, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
   setConversationPinned, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
   updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, fetchStarredMessages,
+  subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { ConnectIcon } from "./_shared/ConnectIcon";
@@ -46,6 +47,7 @@ import { EmojiButton, AttachButton, ReactionQuickPick } from "./_shared/EmojiPic
 import { AttachmentView } from "./_shared/AttachmentView";
 import { useCloseDropdownsOnOutsideClick } from "./_shared/useCloseDropdownsOnOutsideClick";
 import { computePopoverPosition, type PopoverPosition } from "./_shared/popoverPosition";
+import { usePresenceHeartbeat } from "./_shared/usePresenceHeartbeat";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
@@ -102,9 +104,35 @@ function dividerLabel(iso: string): string {
   return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
 }
 
+/** Presence renk/etiket eşlemesi (2026-07-20) — SADECE personel için anlamlı.
+ * "in_class"/"dnd" AYNI turuncu renk, ayrım tooltip'le yapılır. */
+function presenceColor(signal: PresenceSignal | undefined): string {
+  if (isPresenceOffline(signal)) return "#E5484D";
+  if (signal!.status === "online") return "#22C55E";
+  return "#F59E0B";
+}
+function presenceLabel(signal: PresenceSignal | undefined): string {
+  if (isPresenceOffline(signal)) return "Çevrimdışı";
+  if (signal!.status === "online") return "Çevrimiçi";
+  if (signal!.status === "in_class") return "Derste";
+  return "Rahatsız Etmeyin";
+}
+/** Avatar köşesine presence noktası — `presence===undefined` ise (öğrenci/bilinmeyen) HİÇ render edilmez. */
+function PresenceDot({ signal }: { signal: PresenceSignal | undefined }) {
+  if (!signal) return null;
+  return (
+    <span
+      title={presenceLabel(signal)}
+      aria-label={presenceLabel(signal)}
+      className="absolute"
+      style={{ bottom: -2, right: -2, width: 11, height: 11, borderRadius: "50%", background: presenceColor(signal), boxShadow: "0 0 0 2px #fff" }}
+    />
+  );
+}
+
 /** Personel/Öğrenciler dizini tek satırı — hem düz liste hem departman
  * (unvan) gruplu görünümde reuse edilir (2026-07-20). */
-function DirectoryRow({ u, conversations, selectedId, onClick }: { u: DirectoryUser; conversations: ConversationView[]; selectedId: string | null; onClick: () => void }) {
+function DirectoryRow({ u, conversations, selectedId, onClick, presence }: { u: DirectoryUser; conversations: ConversationView[]; selectedId: string | null; onClick: () => void; presence?: PresenceSignal }) {
   const conv = conversations.find((c) => c.type === "dm" && c.peerUid === u.uid);
   const sel = !!conv && conv.id === selectedId;
   return (
@@ -113,8 +141,9 @@ function DirectoryRow({ u, conversations, selectedId, onClick }: { u: DirectoryU
       className="flex items-center gap-3 cursor-pointer transition-colors"
       style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
     >
-      <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}>
+      <div className="relative flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}>
         {initials(u.name)}
+        <PresenceDot signal={presence} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
@@ -193,6 +222,14 @@ export default function FlexConnectPage() {
   const [staffDirectoryList, setStaffDirectoryList] = useState<DirectoryUser[]>([]);
   const [studentDirectoryList, setStudentDirectoryList] = useState<DirectoryUser[]>([]);
 
+  // Presence (2026-07-20) — SADECE personel. `staffDirectoryList` zaten tüm
+  // personel rosterı (mount'ta eager yüklü) — presence de bu uid kümesine
+  // abone olur, kendi durumunu da bu şekilde görür.
+  const [presenceMap, setPresenceMap] = useState<Map<string, PresenceSignal>>(new Map());
+  const [myPresenceStatus, setMyPresenceStatusLocal] = useState<PresenceStatus>("online");
+  const [presenceMenuOpen, setPresenceMenuOpen] = useState(false);
+  usePresenceHeartbeat(true);
+
   // Üstteki 4 aksiyon ikonu (küçült/ara/bilgi/menü) — tasarımda vardı, ilk
   // portta "minimal" diye atlanmıştı, kullanıcı geri istedi (2026-07-18).
   const [searchOpen, setSearchOpen] = useState(false);
@@ -206,6 +243,7 @@ export default function FlexConnectPage() {
     () => setMenuOpen(false),
     () => setOpenMessageMenuId(null),
     () => setOpenReactionPickerId(null),
+    () => setPresenceMenuOpen(false),
   ]);
 
   // Ad/açıklama/Yayıncı/grup listesi düzenleme (2026-07-18) — SADECE owner/admin,
@@ -259,6 +297,19 @@ export default function FlexConnectPage() {
     fetchDirectory().then(setStaffDirectoryList);
     fetchStudentDirectory().then(setStudentDirectoryList);
   }, []);
+
+  // Personel roster'ı yüklendikçe presence aboneliği (kendi uid'imiz dahil).
+  useEffect(() => {
+    if (staffDirectoryList.length === 0) return;
+    return subscribeToPresence(
+      staffDirectoryList.map((u) => u.uid),
+      (signals) => {
+        setPresenceMap(new Map(signals.map((s) => [s.uid, s])));
+        const mine = signals.find((s) => s.uid === auth.currentUser?.uid);
+        if (mine) setMyPresenceStatusLocal(mine.status);
+      },
+    );
+  }, [staffDirectoryList]);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
@@ -670,8 +721,43 @@ export default function FlexConnectPage() {
           >
             <Star size={19} />
           </button>
-          <div title={auth.currentUser?.displayName ?? "Sen"} className="rounded-full flex items-center justify-center font-bold text-white" style={{ width: 38, height: 38, background: "#3A587E", fontSize: 13 }}>
-            {initials(auth.currentUser?.displayName || auth.currentUser?.email || "Sen")}
+          <div className="relative">
+            <button
+              title={`${auth.currentUser?.displayName ?? "Sen"} — ${presenceLabel(presenceMap.get(auth.currentUser?.uid ?? ""))}`}
+              onClick={() => setPresenceMenuOpen((v) => !v)}
+              className="relative rounded-full flex items-center justify-center font-bold text-white cursor-pointer"
+              style={{ width: 38, height: 38, background: "#3A587E", fontSize: 13, border: "none" }}
+            >
+              {initials(auth.currentUser?.displayName || auth.currentUser?.email || "Sen")}
+              <span className="absolute" style={{ bottom: -2, right: -2, width: 11, height: 11, borderRadius: "50%", background: myPresenceStatus === "online" ? "#22C55E" : "#F59E0B", boxShadow: "0 0 0 2px #12233B" }} />
+            </button>
+            {presenceMenuOpen && (
+              <div
+                className="absolute flex flex-col"
+                style={{ left: "100%", bottom: 0, marginLeft: 10, width: 190, background: "#fff", borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.18)", padding: 6, zIndex: 50 }}
+              >
+                {([
+                  { status: "online" as const, label: "Çevrimiçi", color: "#22C55E" },
+                  { status: "in_class" as const, label: "Derste", color: "#F59E0B" },
+                  { status: "dnd" as const, label: "Rahatsız Etmeyin", color: "#F59E0B" },
+                ]).map((opt) => (
+                  <button
+                    key={opt.status}
+                    onClick={async () => {
+                      setPresenceMenuOpen(false);
+                      setMyPresenceStatusLocal(opt.status);
+                      await setMyPresenceStatus(opt.status);
+                    }}
+                    className="flex items-center gap-2.5 cursor-pointer text-left"
+                    style={{ padding: "8px 10px", borderRadius: 8, border: "none", background: myPresenceStatus === opt.status ? "#F3F5F8" : "transparent", fontSize: 13.5, fontWeight: 600, color: "#1B1F26" }}
+                  >
+                    <span style={{ width: 9, height: 9, borderRadius: "50%", background: opt.color, flexShrink: 0 }} />
+                    {opt.label}
+                    {myPresenceStatus === opt.status && <Check size={14} className="ml-auto" style={{ color: "#2867bd" }} />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </nav>
@@ -727,13 +813,13 @@ export default function FlexConnectPage() {
                 <div key={title} style={{ marginBottom: 6 }}>
                   <div className="font-bold uppercase" style={{ fontSize: 11, color: "#8A909B", letterSpacing: ".04em", padding: "12px 12px 4px" }}>{title}</div>
                   {users.map((u) => (
-                    <DirectoryRow key={u.uid} u={u} conversations={conversations} selectedId={selectedId} onClick={() => openDirectMessage(u.uid, navTab === "staffDirectory" ? "staff" : "trainer_student")} />
+                    <DirectoryRow key={u.uid} u={u} conversations={conversations} selectedId={selectedId} presence={presenceMap.get(u.uid)} onClick={() => openDirectMessage(u.uid, navTab === "staffDirectory" ? "staff" : "trainer_student")} />
                   ))}
                 </div>
               ))
             ) : (
               filteredDirectory.map((u) => (
-                <DirectoryRow key={u.uid} u={u} conversations={conversations} selectedId={selectedId} onClick={() => openDirectMessage(u.uid, navTab === "staffDirectory" ? "staff" : "trainer_student")} />
+                <DirectoryRow key={u.uid} u={u} conversations={conversations} selectedId={selectedId} presence={presenceMap.get(u.uid)} onClick={() => openDirectMessage(u.uid, navTab === "staffDirectory" ? "staff" : "trainer_student")} />
               ))
             )
           ) : loadingList ? (
@@ -749,8 +835,9 @@ export default function FlexConnectPage() {
                   className="flex items-center gap-3 cursor-pointer transition-colors"
                   style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
                 >
-                  <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: c.colorKey ?? (sel ? "#2867bd" : "#EEF1F5"), color: c.colorKey ? "#fff" : sel ? "#fff" : "#5A616C" }}>
+                  <div className="relative flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: c.colorKey ?? (sel ? "#2867bd" : "#EEF1F5"), color: c.colorKey ? "#fff" : sel ? "#fff" : "#5A616C" }}>
                     {c.type === "dm" ? initials(c.name) : <Users size={20} />}
+                    {c.type === "dm" && <PresenceDot signal={presenceMap.get(c.peerUid ?? "")} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -780,8 +867,9 @@ export default function FlexConnectPage() {
             <header className="flex flex-col shrink-0" style={{ background: "#fff", borderBottom: "1px solid #E9EBEF" }}>
               <div className="flex items-center justify-between gap-4" style={{ height: 72, padding: "0 24px" }}>
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex items-center justify-center shrink-0" style={{ width: 42, height: 42, borderRadius: 12, background: "#EAF1FB", color: "#2867bd" }}>
+                  <div className="relative flex items-center justify-center shrink-0" style={{ width: 42, height: 42, borderRadius: 12, background: "#EAF1FB", color: "#2867bd" }}>
                     {selected.type === "dm" ? initials(selected.name) : <Users size={20} />}
+                    {selected.type === "dm" && <PresenceDot signal={presenceMap.get(selected.peerUid ?? "")} />}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
