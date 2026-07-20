@@ -433,9 +433,6 @@ export default function FlexConnectMobile() {
   // mesaj + konumu (balonun sağına 4px, aşağı doğru — bkz. `openMessageMenu`).
   const [menuMsg, setMenuMsg] = useState<MessageView | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-  // "actions" = normal liste, "react" = emoji şeridi ("Tepki Ver" ile geçilir,
-  // desktop'taki hover-emoji butonunun mobil karşılığı — 2026-07-20 kullanıcı isteği).
-  const [menuMode, setMenuMode] = useState<"actions" | "react">("actions");
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<ConnectReplySnapshot | null>(null);
@@ -641,11 +638,10 @@ export default function FlexConnectMobile() {
     const target = e.currentTarget as HTMLElement;
     longPressTimer.current = setTimeout(() => {
       const rect = target.getBoundingClientRect();
-      const MENU_W = 190;
+      const MENU_W = 200;
       const left = Math.min(rect.right + 4, window.innerWidth - MENU_W - 8);
-      const top = Math.min(rect.top, window.innerHeight - 320);
+      const top = Math.min(rect.top, window.innerHeight - 380);
       setMenuPos({ top, left });
-      setMenuMode("actions");
       setMenuMsg(m);
     }, 450);
   }
@@ -1383,7 +1379,14 @@ export default function FlexConnectMobile() {
                             onMouseDown={(e) => startLongPress(m, e)}
                             onMouseUp={cancelLongPress}
                             onMouseLeave={cancelLongPress}
-                            style={{ position: "relative", background: m.isMine ? T.ownBubble : T.otherBubble, border: `1px solid ${m.isMine ? T.ownBorder : T.otherBorder}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "8px 12px 6px", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" } as React.CSSProperties}
+                            style={{
+                              position: "relative", background: m.isMine ? T.ownBubble : T.otherBubble, border: `1px solid ${m.isMine ? T.ownBorder : T.otherBorder}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "8px 12px 6px",
+                              // iOS'un native metin-seçme/callout'unu SAĞLAM engellemek için TÜM
+                              // vendor-prefix kombinasyonu (tek başına userSelect/touchCallout
+                              // yetmiyordu, 2026-07-20 kullanıcı bulgusu — hâlâ seçiliyordu).
+                              userSelect: "none", WebkitUserSelect: "none", MozUserSelect: "none", msUserSelect: "none",
+                              WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+                            } as React.CSSProperties}
                           >
                             {m.starred && (
                               <span style={{ position: "absolute", top: -5, [m.isMine ? "left" : "right"]: -5, background: dark ? T.bg : "#fff", borderRadius: "50%" } as React.CSSProperties}>
@@ -1443,11 +1446,17 @@ export default function FlexConnectMobile() {
             )}
             {menuMsg && menuPos && createPortal(
               <>
-                <div onClick={() => setMenuMsg(null)} style={{ position: "fixed", inset: 0, zIndex: 95 }} />
-                {menuMode === "react" ? (
-                  // Emoji şeridi (2026-07-20) — masaüstündeki hover-emoji butonunun mobil
-                  // karşılığı, "Tepki Ver" ile buraya geçilir.
-                  <div style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 96, display: "flex", alignItems: "center", gap: 2, background: T.card, border: `1px solid ${T.border}`, borderRadius: 999, boxShadow: "0 10px 30px -10px rgba(18,35,59,.4)", padding: "5px 6px" }}>
+                {/* Arka plan bulanıklaşır (2026-07-20, WhatsApp gibi) — arkadaki sohbet
+                    hâlâ görünür ama net değil, sadece menü + emoji şeridi net. */}
+                <div
+                  onClick={() => setMenuMsg(null)}
+                  style={{ position: "fixed", inset: 0, zIndex: 95, background: "rgba(10,15,25,.32)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+                />
+                {/* Emoji şeridi + eylem listesi TEK panel, üstte emoji AYRI bir "Tepki Ver"
+                    tıklamasına gerek kalmadan direkt açık (kullanıcı kararı: "tepki ver menü
+                    yok direk menünün en üstünde emoji tepki satırı açılıyor"). */}
+                <div style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 96, background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, boxShadow: "0 20px 50px -15px rgba(18,35,59,.5)", minWidth: 200, overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "8px 6px", borderBottom: `1px solid ${T.border2}` }}>
                     {QUICK_REACTIONS.map((e) => (
                       <button
                         key={e}
@@ -1458,42 +1467,36 @@ export default function FlexConnectMobile() {
                       </button>
                     ))}
                   </div>
-                ) : (
-                  <div style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 96, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.4)", minWidth: 190, overflow: "hidden" }}>
-                    <button onClick={() => setMenuMode("react")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <Icon k="smile" size={14} sw={2} /> Tepki Ver
+                  {menuMsg.isMine && (
+                    <button onClick={() => startEditMessage(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="pencil" size={14} sw={2} /> Düzenle
                     </button>
-                    {menuMsg.isMine && (
-                      <button onClick={() => startEditMessage(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                        <Icon k="pencil" size={14} sw={2} /> Düzenle
-                      </button>
-                    )}
-                    <button onClick={() => startReply(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <Icon k="reply" size={14} sw={2} /> Yanıtla
+                  )}
+                  <button onClick={() => startReply(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="reply" size={14} sw={2} /> Yanıtla
+                  </button>
+                  <button onClick={() => handleToggleStar(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="star" size={14} sw={2} /> {menuMsg.starred ? "Yıldızı Kaldır" : "Yıldızla"}
+                  </button>
+                  {menuMsg.text && (
+                    <button onClick={() => handleCopy(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="copy" size={14} sw={2} /> Kopyala
                     </button>
-                    <button onClick={() => handleToggleStar(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <Icon k="star" size={14} sw={2} /> {menuMsg.starred ? "Yıldızı Kaldır" : "Yıldızla"}
+                  )}
+                  {selected?.type === "group" && !menuMsg.isMine && !studentPersonId && (
+                    <button onClick={() => startReplyPrivately(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="reply" size={14} sw={2} /> Özelden Yanıtla
                     </button>
-                    {menuMsg.text && (
-                      <button onClick={() => handleCopy(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                        <Icon k="copy" size={14} sw={2} /> Kopyala
-                      </button>
-                    )}
-                    {selected?.type === "group" && !menuMsg.isMine && !studentPersonId && (
-                      <button onClick={() => startReplyPrivately(menuMsg)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                        <Icon k="reply" size={14} sw={2} /> Özelden Yanıtla
-                      </button>
-                    )}
-                    {menuMsg.isMine && (
-                      <button onClick={() => handleDeleteMessage(menuMsg.id, "everyone")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                        <Icon k="trash" size={14} sw={2} /> Herkes İçin Sil
-                      </button>
-                    )}
-                    <button onClick={() => handleDeleteMessage(menuMsg.id, "me")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <Icon k="close" size={14} sw={2} /> Benim İçin Sil
+                  )}
+                  {menuMsg.isMine && (
+                    <button onClick={() => handleDeleteMessage(menuMsg.id, "everyone")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <Icon k="trash" size={14} sw={2} /> Herkes İçin Sil
                     </button>
-                  </div>
-                )}
+                  )}
+                  <button onClick={() => handleDeleteMessage(menuMsg.id, "me")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <Icon k="close" size={14} sw={2} /> Benim İçin Sil
+                  </button>
+                </div>
               </>,
               document.body,
             )}
