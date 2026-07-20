@@ -1460,7 +1460,15 @@ export default function FlexConnectMobile() {
                 {/* Emoji şeridi + eylem listesi TEK panel, üstte emoji AYRI bir "Tepki Ver"
                     tıklamasına gerek kalmadan direkt açık (kullanıcı kararı: "tepki ver menü
                     yok direk menünün en üstünde emoji tepki satırı açılıyor"). */}
-                <div style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 96, background: T.card, border: `1px solid ${T.border}`, borderRadius: 18, boxShadow: "0 24px 60px -15px rgba(18,35,59,.55)", width: 260, overflow: "hidden" }}>
+                <div
+                  style={{
+                    position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 96, background: T.card, border: `1px solid ${T.border}`, borderRadius: 18, boxShadow: "0 24px 60px -15px rgba(18,35,59,.55)", width: 260, overflow: "hidden",
+                    // Emoji/menü metinleri de basılı tutunca seçiliyordu (2026-07-20) —
+                    // aynı korumayı balonda olduğu gibi buraya da uygula.
+                    userSelect: "none", WebkitUserSelect: "none", MozUserSelect: "none", msUserSelect: "none",
+                    WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+                  } as React.CSSProperties}
+                >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "10px 8px", borderBottom: `1px solid ${T.border2}` }}>
                     {QUICK_REACTIONS.map((e) => (
                       <button
