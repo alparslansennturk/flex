@@ -28,6 +28,8 @@ export default function StudentSidebar({ personId }: { personId: string }) {
 
   const isHome = pathname === `/flexos/student/${personId}`;
   const homeHref = `/flexos/student/${personId}`;
+  const connectHref = `/flexos/student/${personId}/connect`;
+  const isConnect = pathname === connectHref;
 
   return (
     <aside className="fs-sidebar" style={S.sidebar}>
@@ -41,6 +43,7 @@ export default function StudentSidebar({ personId }: { personId: string }) {
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <Item icon={IC.book} label="Ödevlerim" active={isHome} onClick={() => router.push(homeHref)} />
+        <Item icon={IC.chat} label="Flex Connect" active={isConnect} onClick={() => router.push(connectHref)} />
       </nav>
 
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>

@@ -204,6 +204,10 @@ export interface CreateConversationInput {
    * önlemek için `memberUids`'ten (yazarlar) BİLİNÇLİ olarak ayrı bir alan.
    */
   readerUids?: string[];
+  /** SADECE type==="channel" (2026-07-20) — "Herkes Yazabilir" seçimi. Belirtilmezse
+   * "admins" (mevcut varsayılan davranış). Diğer tiplerde (group/dm/community) hep
+   * "members" — bu alan görmezden gelinir. */
+  writePolicy?: ConnectWritePolicy;
 }
 
 /**
@@ -316,7 +320,7 @@ export async function createConversation(
   }
   await assertMembersMatchRealm(readerUids, input.realm, principal.tenantId, deps);
 
-  const writePolicy: ConnectWritePolicy = input.type === "channel" ? "admins" : "members";
+  const writePolicy: ConnectWritePolicy = input.type === "channel" ? (input.writePolicy ?? "admins") : "members";
   const now = nowISO();
 
   const conversation: ConnectConversation = {

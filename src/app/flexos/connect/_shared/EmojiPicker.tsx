@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Smile, Paperclip } from "lucide-react";
 
-const QUICK_EMOJIS = ["😀", "😂", "👍", "🎉", "❤️", "🙏", "😍", "🔥", "👏", "😢", "🤔", "✅", "🚀", "😅", "🙌", "💯", "👀", "🎊"];
+export const QUICK_EMOJIS = ["😀", "😂", "👍", "🎉", "❤️", "🙏", "😍", "🔥", "👏", "😢", "🤔", "✅", "🚀", "😅", "🙌", "💯", "👀", "🎊"];
 
 /** Composer'daki emoji seçici — tasarımdaki emoji butonu, gerçek (hafif) hızlı-seç panosu. */
 export function EmojiButton({ onPick, size = 40 }: { onPick: (emoji: string) => void; size?: number }) {

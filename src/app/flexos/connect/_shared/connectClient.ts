@@ -469,6 +469,8 @@ export interface CreateConversationBody {
   sourceGroupId?: string;
   broadcastToAllStaff?: boolean;
   readerUids?: string[];
+  /** SADECE type==="channel" (2026-07-20) — "Herkes Yazabilir" seçimi, bkz. `ConnectWritePolicy`. */
+  writePolicy?: ConnectWritePolicy;
 }
 
 /** `personId` verilirse öğrenci route ailesine gider — Faz 1'de SADECE "kendi

@@ -16,19 +16,11 @@ export const dynamic = "force-dynamic";
  * sekmeli uygulama. Çıkış yapınca da AYNI PWA içinde Login ekranına döner — ayrı bir web
  * sayfasına atmaz (app'lerdeki gibi).
  *
- * Tasarımda backend karşılığı OLMAYAN / demo amaçlı elemanlar bilinçli olarak atlandı (kullanıcı:
- * "düzenlemeleri sonra yaparız" — hepsi ileride eklenebilir):
+ * Hâlâ bilinçli olarak eksik bırakılanlar (2026-07-20 itibarıyla — composer emoji/ek
+ * yükleme, mesaj düzenle/sil/reaksiyon-ekleme, mesaj arama, kanal "Herkes Yazabilir"
+ * ve push bildirimi ARTIK GERÇEK, bu listeden çıkarıldı):
  *  - Presence (çevrimiçi/derste/rahatsız etmeyin) — Connect'te hiç presence altyapısı yok.
  *  - Personel sekmesinde departman gruplaması — DirectoryUser'da departman alanı yok, düz liste.
- *  - "Çalışma saatleri dışı" uyarı banner'ı — gerçek bir çalışma-saati kaydı yok.
- *  - Composer'daki emoji/ek ikonları — tasarımda da onClick YOK (salt görsel), gerçek ek yükleme
- *    (masaüstünde tam çalışan bir özellik) buraya bilerek bağlanmadı.
- *  - Kanal "Herkes Yazabilir" izni — backend'de kanal writePolicy her zaman "admins" (mevcut
- *    domain modelinde "herkes yazar" kanal kavramı yok), toggle görsel olarak duruyor.
- *  - Mesaj düzenle/sil/reaksiyon-ekleme — tasarımın kendisinde bu etkileşim hiç YOK (sadece
- *    var olan reaksiyonlar gösteriliyor), o yüzden eklenmedi.
- *  - Bildirimler ekranındaki push/sessiz-saat toggle'ları — sadece UI + local state, gerçek
- *    push altyapısı (service worker) kullanıcı kararıyla EN SONA bırakıldı.
  *
  * Gerçek veriyle bağlı olanlar: konuşma listeleri (Sohbetler/Kanallar), Personel dizini, mesaj
  * okuma/gönderme (gerçek zamanlı), yazıyor göstergesi (gerçek, tasarımdaki gibi sabit DEĞİL),
@@ -55,10 +47,10 @@ import {
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
   setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, reportIssue, hideConversation,
-  editMessage, deleteMessage, setMessageReaction, toggleMessageStar,
+  editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
-import { QUICK_REACTIONS } from "@/app/flexos/connect/_shared/EmojiPicker";
+import { QUICK_REACTIONS, QUICK_EMOJIS } from "@/app/flexos/connect/_shared/EmojiPicker";
 
 // Bazı Promise'ler (SW aktivasyonu, FCM token isteği) başarısız olduğunda REJECT
 // etmek yerine sonsuza kadar askıda kalabiliyor (özellikle iOS Safari'de) — bu
@@ -421,6 +413,14 @@ export default function FlexConnectMobile() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  // Composer emoji seçici + dosya eki (2026-07-20) — masaüstünde zaten çalışıyordu,
+  // mobilde ikonlar dekoratifti ("sonra" kapsamındaydı), gerçek yapıldı.
+  const [composerEmojiOpen, setComposerEmojiOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
+  // Mesajlarda arama (2026-07-20) — masaüstündeki AYNI desen, mobilde hiç yoktu.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [messageQuery, setMessageQuery] = useState("");
   const [typingSignals, setTypingSignals] = useState<TypingSignal[]>([]);
   const [tick, setTick] = useState(0);
   const lastTypingSentRef = useRef(0);
@@ -455,6 +455,9 @@ export default function FlexConnectMobile() {
     setChatMenuOpen(false);
     setEditingMessageId(null);
     setReplyingTo(null);
+    setComposerEmojiOpen(false);
+    setSearchOpen(false);
+    setMessageQuery("");
     setMenuMsg(null);
     firstLoadRef.current = true;
     setLoadingMessages(true);
@@ -518,6 +521,9 @@ export default function FlexConnectMobile() {
   }, [selectedId, screen]);
   const TYPING_TTL_MS = 6000;
   const activeTypers = typingSignals.filter((s) => s.uid !== auth.currentUser?.uid && Date.now() - new Date(s.at).getTime() < TYPING_TTL_MS);
+  const visibleMessages = messageQuery.trim()
+    ? messages.filter((m) => m.text.toLocaleLowerCase("tr").includes(messageQuery.trim().toLocaleLowerCase("tr")))
+    : messages;
   void tick;
 
   useEffect(() => {
@@ -552,6 +558,24 @@ export default function FlexConnectMobile() {
     if (now - lastTypingSentRef.current > 2000) {
       lastTypingSentRef.current = now;
       sendTypingSignal(selectedId, studentPersonId ?? undefined);
+    }
+  }
+
+  /** Dosya eki gönder (2026-07-20) — masaüstündeki (`connect/page.tsx::handleAttachFile`)
+   * AYNI mantık, o an composer'da ne yazılıysa altyazı (caption) olarak gider. */
+  async function handleAttachFile(file: File) {
+    if (!selectedId || uploadProgress != null) return;
+    setUploadProgress(0);
+    try {
+      const err = await sendMessageWithAttachment(selectedId, file, draft.trim(), studentPersonId ?? undefined, setUploadProgress);
+      if (err?.error) toast.error(err.error);
+      else {
+        setDraft("");
+        setMessages(await fetchMessages(selectedId, studentPersonId ?? undefined));
+        loadConversations();
+      }
+    } finally {
+      setUploadProgress(null);
     }
   }
 
@@ -695,11 +719,9 @@ export default function FlexConnectMobile() {
     setSaving(true);
     try {
       if (createType === "channel") {
-        // "Herkes Yazabilir" (cPerm==="all") — backend'de kanal writePolicy her zaman
-        // "admins" (mevcut domain modelinde karşılığı yok), toggle görsel kalır — sonra.
-        void cPerm;
         const result = await createConversation({
           realm: "staff", type: "channel", name: cName.trim(), description: cDesc.trim() || undefined, colorKey: cColor, memberUids: [],
+          writePolicy: cPerm === "all" ? "members" : "admins",
         });
         if ("error" in result) { toast.error(result.error); return; }
         toast.success("Kanal oluşturuldu.");
@@ -1315,6 +1337,7 @@ export default function FlexConnectMobile() {
               </div>
               {selected.writePolicy === "admins" && <div style={{ fontSize: 11.5, fontWeight: 600, color: T.text2, marginTop: 2 }}>Sadece yöneticiler yazabilir</div>}
             </div>
+            <button onClick={() => { setSearchOpen((v) => !v); setMessageQuery(""); }} aria-label="Mesajlarda ara" style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: searchOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: searchOpen ? T.brand : T.text2, flex: "0 0 auto" }}><Icon k="search" size={19} sw={2} /></button>
             <button onClick={() => toggleMute(selected.id, !selected.muted)} aria-label={selected.muted ? "Sessize almayı kaldır" : "Sessize al"} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: selected.muted ? T.brand : T.text2, flex: "0 0 auto" }}><Icon k={selected.muted ? "bellOff" : "bell"} size={19} sw={2} /></button>
             {selected.type === "dm" && !studentPersonId && (
               <div style={{ position: "relative", flex: "0 0 auto" }}>
@@ -1333,6 +1356,19 @@ export default function FlexConnectMobile() {
             )}
           </div>
 
+          {searchOpen && (
+            <div style={{ flex: "0 0 auto", padding: "8px 12px", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 12, padding: "8px 12px" }}>
+                <Icon k="search" size={16} sw={2} color={T.text2} />
+                <input
+                  autoFocus value={messageQuery} onChange={(e) => setMessageQuery(e.target.value)}
+                  placeholder="Bu sohbette ara…"
+                  style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 15, color: T.text, minWidth: 0 }}
+                />
+              </div>
+            </div>
+          )}
+
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
             {loadingMessages ? (
               <div className="flex justify-center py-8"><div style={{ width: 22, height: 22, border: `3px solid ${T.border}`, borderTopColor: T.brand, borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} /></div>
@@ -1341,15 +1377,18 @@ export default function FlexConnectMobile() {
               {/* "Sohbet başladı" kartı (2026-07-20, WhatsApp gibi) — masaüstüyle AYNI
                   gate: `messages.length < 60` (sunucu `limitToLast(60)` çekiyor,
                   sayfalama yok — daha kalabalık sohbette bu gerçek başlangıç olmayabilir). */}
-              {messages.length > 0 && messages.length < 60 && selected && (
+              {!messageQuery.trim() && messages.length > 0 && messages.length < 60 && selected && (
                 <div style={{ display: "flex", justifyContent: "center", margin: "4px 0 10px" }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: T.text2, background: dark ? T.card2 : "#EDEEF1", padding: "6px 15px", borderRadius: 12, textAlign: "center", lineHeight: 1.4, maxWidth: 220 }}>
                     Sohbet {new Date(selected.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} tarihinde başladı
                   </span>
                 </div>
               )}
-              {messages.map((m, i) => {
-                const prev = messages[i - 1];
+              {messageQuery.trim() && visibleMessages.length === 0 && (
+                <p style={{ textAlign: "center", fontSize: 13, color: T.muted, marginTop: 24 }}>Sonuç bulunamadı.</p>
+              )}
+              {visibleMessages.map((m, i) => {
+                const prev = visibleMessages[i - 1];
                 if (m.kind === "system") {
                   return (
                     <div key={m.id} style={{ display: "flex", justifyContent: "center", margin: "8px 0" }}>
@@ -1547,10 +1586,30 @@ export default function FlexConnectMobile() {
               </div>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 16, padding: "5px 6px 5px 8px" }}>
-              {/* Emoji/ek ikonları tasarımda da pasif (onClick yok) — gerçek dosya eki
-                  masaüstünde tam çalışıyor, mobile'a bağlamak "sonra" kapsamında. */}
-              <button style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}><Icon k="smile" size={21} sw={1.9} /></button>
-              <button style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}><Icon k="attach" size={21} sw={1.9} /></button>
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setComposerEmojiOpen((v) => !v)} style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: composerEmojiOpen ? T.brandBg : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: composerEmojiOpen ? T.brand : T.text2, flex: "0 0 auto" }}>
+                  <Icon k="smile" size={21} sw={1.9} />
+                </button>
+                {composerEmojiOpen && (
+                  <>
+                    <div onClick={() => setComposerEmojiOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 39 }} />
+                    <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, boxShadow: "0 20px 50px -15px rgba(18,35,59,.4)", padding: 8, display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2, zIndex: 40, width: 234 }}>
+                      {QUICK_EMOJIS.map((e) => (
+                        <button key={e} onClick={() => setDraft((d) => d + e)} style={{ fontSize: 19, width: 34, height: 34, border: "none", background: "transparent", borderRadius: 9, cursor: "pointer" }}>
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <input ref={attachInputRef} type="file" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAttachFile(f); e.target.value = ""; }} />
+              <button
+                onClick={() => attachInputRef.current?.click()} disabled={uploadProgress != null}
+                style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: uploadProgress != null ? "default" : "pointer", color: uploadProgress != null ? T.brand : T.text2, flex: "0 0 auto" }}
+              >
+                {uploadProgress != null ? <span style={{ fontSize: 10.5, fontWeight: 800 }}>%{uploadProgress}</span> : <Icon k="attach" size={21} sw={1.9} />}
+              </button>
               <input
                 ref={draftInputRef}
                 value={draft} onChange={(e) => onDraftChange(e.target.value)}
