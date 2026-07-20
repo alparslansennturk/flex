@@ -25,6 +25,9 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Flex Connect";
   const body = data.body || "";
   const conversationId = data.conversationId || "";
+  // Bildirim SESİ (2026-07-20) — kullanıcının kendi tercihi, varsayılan kapalı
+  // (`connect-push-service.ts::notifyNewMessage` — `silent` string "true"/"false").
+  const silent = data.silent === undefined ? true : data.silent === "true";
 
   event.waitUntil(
     self.registration.showNotification(title, {
@@ -32,6 +35,7 @@ self.addEventListener("push", (event) => {
       icon: "/connect-icon-192.png",
       data: { conversationId },
       tag: conversationId || undefined,
+      silent,
     }),
   );
 });

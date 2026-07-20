@@ -17,9 +17,14 @@ export async function setNotificationsEnabled(principal: ConnectPrincipal, enabl
   await pushRepo.setNotificationsEnabled(principal.uid, principal.tenantId, enabled);
 }
 
-export async function getPushSettings(principal: ConnectPrincipal, pushRepo: ConnectPushRepo): Promise<{ notificationsEnabled: boolean }> {
+/** Bildirim SESİ (2026-07-20) — varsayılan KAPALI, bildirimin kendisinden bağımsız açılıp kapatılır. */
+export async function setSoundEnabled(principal: ConnectPrincipal, enabled: boolean, pushRepo: ConnectPushRepo): Promise<void> {
+  await pushRepo.setSoundEnabled(principal.uid, principal.tenantId, enabled);
+}
+
+export async function getPushSettings(principal: ConnectPrincipal, pushRepo: ConnectPushRepo): Promise<{ notificationsEnabled: boolean; soundEnabled: boolean }> {
   const sub = await pushRepo.getSubscription(principal.uid);
-  return { notificationsEnabled: sub?.notificationsEnabled ?? false };
+  return { notificationsEnabled: sub?.notificationsEnabled ?? false, soundEnabled: sub?.soundEnabled ?? false };
 }
 
 /**
@@ -80,7 +85,12 @@ export async function notifyNewMessage(
           return sum + Math.max(0, (conv.messageCount ?? 0) - (m.member.readMessageCount ?? 0));
         }, 0);
 
-        const { deadTokens } = await pushRepo.sendPush(sub.tokens, { title, body, conversationId, badge: String(badge) });
+        // `silent` — recipient'ın KENDİ ses tercihi (2026-07-20, varsayılan kapalı);
+        // SW `showNotification({ silent })`'a geçirir, bildirim yine gösterilir,
+        // sadece OS sesi çalmaz.
+        const { deadTokens } = await pushRepo.sendPush(sub.tokens, {
+          title, body, conversationId, badge: String(badge), silent: String(!sub.soundEnabled),
+        });
         await Promise.all(deadTokens.map((t) => pushRepo.removeToken(recipient.uid, t)));
       }),
     );

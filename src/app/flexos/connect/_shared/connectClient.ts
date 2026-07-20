@@ -296,11 +296,11 @@ export async function unregisterPushToken(token: string, personId?: string): Pro
 }
 
 /** Genel bildirim tercihi (aç/kapat) — token kayıtlı olmasa bile okunabilir (varsayılan false). */
-export async function fetchPushSettings(personId?: string): Promise<{ notificationsEnabled: boolean }> {
+export async function fetchPushSettings(personId?: string): Promise<{ notificationsEnabled: boolean; soundEnabled: boolean }> {
   const headers = await authHeaders();
   const res = await fetch(`${base(personId)}/push/settings${qs(personId)}`, { headers });
-  if (!res.ok) return { notificationsEnabled: false };
-  return (await res.json()) as { notificationsEnabled: boolean };
+  if (!res.ok) return { notificationsEnabled: false, soundEnabled: false };
+  return (await res.json()) as { notificationsEnabled: boolean; soundEnabled: boolean };
 }
 
 export async function setPushNotificationsEnabled(enabled: boolean, personId?: string): Promise<boolean> {
@@ -309,6 +309,17 @@ export async function setPushNotificationsEnabled(enabled: boolean, personId?: s
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ enabled }),
+  });
+  return res.ok;
+}
+
+/** Bildirim SESİ (2026-07-20) — bildirimin kendisinden bağımsız, varsayılan KAPALI. */
+export async function setPushSoundEnabled(enabled: boolean, personId?: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/push/settings${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ soundEnabled: enabled }),
   });
   return res.ok;
 }

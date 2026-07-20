@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { studentPrincipalFromRequest } from "@/app/lib/server/connect-principal";
 import { firestoreConnectPushRepo } from "@/app/lib/server/connect-push-repo.firestore";
-import { getPushSettings, setNotificationsEnabled } from "@/app/lib/domain/services/connect-push-service";
+import { getPushSettings, setNotificationsEnabled, setSoundEnabled } from "@/app/lib/domain/services/connect-push-service";
 
 export const GET = withAuth(async (req: NextRequest, caller) => {
   const principal = await studentPrincipalFromRequest(req, caller);
@@ -16,13 +16,17 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   const principal = await studentPrincipalFromRequest(req, caller);
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
-  let body: { enabled?: boolean };
+  let body: { enabled?: boolean; soundEnabled?: boolean };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
   }
 
-  await setNotificationsEnabled(principal, !!body.enabled, firestoreConnectPushRepo);
+  if (body.soundEnabled !== undefined) {
+    await setSoundEnabled(principal, !!body.soundEnabled, firestoreConnectPushRepo);
+  } else {
+    await setNotificationsEnabled(principal, !!body.enabled, firestoreConnectPushRepo);
+  }
   return NextResponse.json({ ok: true });
 });

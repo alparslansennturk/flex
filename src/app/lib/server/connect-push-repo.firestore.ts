@@ -50,6 +50,17 @@ export const firestoreConnectPushRepo: ConnectPushRepo = {
     await ref.update({ notificationsEnabled: enabled, updatedAt: now });
   },
 
+  async setSoundEnabled(uid, tenantId, enabled) {
+    const ref = adminDb.collection(SUBSCRIPTIONS).doc(uid);
+    const snap = await ref.get();
+    const now = new Date().toISOString();
+    if (!snap.exists) {
+      await ref.set({ uid, tenantId, tokens: [], notificationsEnabled: false, soundEnabled: enabled, updatedAt: now });
+      return;
+    }
+    await ref.update({ soundEnabled: enabled, updatedAt: now });
+  },
+
   async sendPush(tokens, data) {
     if (tokens.length === 0) return { deadTokens: [] };
     try {

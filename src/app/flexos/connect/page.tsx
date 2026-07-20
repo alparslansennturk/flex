@@ -40,7 +40,7 @@ import {
   setConversationPinned, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
   updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, fetchStarredMessages,
   subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
-  registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled,
+  registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { ConnectIcon } from "./_shared/ConnectIcon";
@@ -248,10 +248,25 @@ export default function FlexConnectPage() {
   const [notifPush, setNotifPush] = useState(false);
   const [notifPushLoading, setNotifPushLoading] = useState(false);
   const pushTokenRef = useRef<string | null>(null);
+  // Bildirim SESİ (2026-07-20 kullanıcı isteği: "kontrol edilebiliyor mu, varsayılan
+  // kapalı olsun") — bildirimin kendisinden BAĞIMSIZ, sunucudaki `soundEnabled`.
+  const [notifSound, setNotifSound] = useState(false);
+  const [notifSoundLoading, setNotifSoundLoading] = useState(false);
+  const [notifMenuOpen, setNotifMenuOpen] = useState(false);
 
   useEffect(() => {
-    fetchPushSettings().then((s) => setNotifPush(s.notificationsEnabled));
+    fetchPushSettings().then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, []);
+
+  async function toggleNotifSound() {
+    if (notifSoundLoading) return;
+    setNotifSoundLoading(true);
+    const next = !notifSound;
+    setNotifSound(next);
+    const ok = await setPushSoundEnabled(next);
+    if (!ok) setNotifSound(!next);
+    setNotifSoundLoading(false);
+  }
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -325,6 +340,7 @@ export default function FlexConnectPage() {
     () => setOpenMessageMenuId(null),
     () => setOpenReactionPickerId(null),
     () => setPresenceMenuOpen(false),
+    () => setNotifMenuOpen(false),
   ]);
 
   // Ad/açıklama/Yayıncı/grup listesi düzenleme (2026-07-18) — SADECE owner/admin,
@@ -848,15 +864,47 @@ export default function FlexConnectPage() {
           >
             <Star size={19} />
           </button>
-          <button
-            title={notifPush ? "Masaüstü bildirimleri açık — kapatmak için tıkla" : "Masaüstü bildirimlerini aç"}
-            onClick={toggleNotifPush}
-            disabled={notifPushLoading}
-            className="flex items-center justify-center cursor-pointer transition-all"
-            style={{ width: 40, height: 40, borderRadius: 12, border: "none", color: notifPush ? "#2867bd" : "#8FA3BE", background: notifPush ? "#EAF1FB" : "transparent" }}
-          >
-            {notifPushLoading ? <Loader2 size={18} className="animate-spin" /> : notifPush ? <Bell size={19} /> : <BellOff size={19} />}
-          </button>
+          <div className="relative" data-connect-dropdown>
+            <button
+              title="Masaüstü bildirim ayarları"
+              onClick={() => setNotifMenuOpen((v) => !v)}
+              className="flex items-center justify-center cursor-pointer transition-all"
+              style={{ width: 40, height: 40, borderRadius: 12, border: "none", color: notifPush ? "#2867bd" : "#8FA3BE", background: notifPush ? "#EAF1FB" : "transparent" }}
+            >
+              {notifPushLoading ? <Loader2 size={18} className="animate-spin" /> : notifPush ? <Bell size={19} /> : <BellOff size={19} />}
+            </button>
+            {notifMenuOpen && (
+              <div
+                className="absolute flex flex-col"
+                style={{ left: "100%", bottom: 0, marginLeft: 10, width: 230, background: "#fff", borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.18)", padding: 6, zIndex: 50 }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 10px" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1B1F26" }}>Bildirimler</div>
+                    <div style={{ fontSize: 11, color: "#8A909B", marginTop: 1 }}>Yeni mesajlarda masaüstü bildirimi</div>
+                  </div>
+                  <button
+                    onClick={toggleNotifPush} disabled={notifPushLoading} role="switch" aria-checked={notifPush}
+                    style={{ width: 38, height: 22, borderRadius: 999, border: "none", cursor: notifPushLoading ? "wait" : "pointer", flexShrink: 0, background: notifPush ? "#2867bd" : "#D4D8DF", position: "relative", padding: 0 }}
+                  >
+                    <span style={{ position: "absolute", top: 2, left: notifPush ? 18 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 10px" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1B1F26" }}>Bildirim Sesi</div>
+                    <div style={{ fontSize: 11, color: "#8A909B", marginTop: 1 }}>Bildirim gelince OS sesi çalsın</div>
+                  </div>
+                  <button
+                    onClick={toggleNotifSound} disabled={notifSoundLoading} role="switch" aria-checked={notifSound}
+                    style={{ width: 38, height: 22, borderRadius: 999, border: "none", cursor: notifSoundLoading ? "wait" : "pointer", flexShrink: 0, background: notifSound ? "#2867bd" : "#D4D8DF", position: "relative", padding: 0 }}
+                  >
+                    <span style={{ position: "absolute", top: 2, left: notifSound ? 18 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <div className="relative" data-connect-dropdown>
             <button
               title={`${staffDirectoryList.find((u) => u.uid === auth.currentUser?.uid)?.name ?? auth.currentUser?.displayName ?? "Sen"} — ${presenceLabel(presenceMap.get(auth.currentUser?.uid ?? ""))}`}
@@ -1088,7 +1136,11 @@ export default function FlexConnectPage() {
               )}
             </header>
 
-            <div className="flex-1 overflow-y-auto" style={{ padding: "26px 0" }}>
+            {/* `paddingBottom` kasıtlı büyük (2026-07-20 kullanıcı bulgusu: en alttaki
+                mesajın menüsü sayfa dışında kalıyordu) — `computePopoverPosition`'ın
+                `estimatedHeight`'inden (200) fazla, en son mesajın altında HER ZAMAN
+                menünün sığacağı kadar boş alan bırakır. */}
+            <div className="flex-1 overflow-y-auto" style={{ padding: "26px 0 240px" }}>
               <div className="flex flex-col gap-1" style={{ maxWidth: 760, margin: "0 auto", padding: "0 32px" }}>
                 {loadingMessages ? (
                   <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-surface-400" /></div>

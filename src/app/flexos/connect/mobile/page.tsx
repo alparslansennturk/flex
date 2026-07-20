@@ -46,7 +46,7 @@ import {
   type PresenceSignal, type PresenceStatus,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
-  setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, reportIssue, hideConversation,
+  setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled, reportIssue, hideConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
   fetchStarredMessages, type StarredMessageView,
   subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
@@ -823,11 +823,25 @@ export default function FlexConnectMobile() {
   const [notifPush, setNotifPush] = useState(false);
   const [notifPushLoading, setNotifPushLoading] = useState(false);
   const pushTokenRef = useRef<string | null>(null);
+  // Bildirim SESİ (2026-07-20 kullanıcı isteği: "kontrol edilebiliyor mu, varsayılan
+  // kapalı olsun") — bildirimin kendisinden BAĞIMSIZ, sunucudaki `soundEnabled`.
+  const [notifSound, setNotifSound] = useState(false);
+  const [notifSoundLoading, setNotifSoundLoading] = useState(false);
 
   useEffect(() => {
     if (!authUser || studentPersonId === undefined) return;
-    fetchPushSettings(studentPersonId ?? undefined).then((s) => setNotifPush(s.notificationsEnabled));
+    fetchPushSettings(studentPersonId ?? undefined).then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, [authUser, studentPersonId]);
+
+  async function toggleNotifSound() {
+    if (notifSoundLoading) return;
+    setNotifSoundLoading(true);
+    const next = !notifSound;
+    setNotifSound(next);
+    const ok = await setPushSoundEnabled(next, studentPersonId ?? undefined);
+    if (!ok) setNotifSound(!next);
+    setNotifSoundLoading(false);
+  }
 
   // ── Yardım ve Geri Bildirim (2026-07-20) — "Sorun Bildir"/"Öneri Gönder". Öğrenci
   // için Aktivite Merkezi'ne "destek" talebi olarak düşer (bkz. `reportIssue`,
@@ -1877,6 +1891,7 @@ export default function FlexConnectMobile() {
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
               {[
                 { title: "Anlık Bildirimler", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: toggleNotifPush, loading: notifPushLoading },
+                { title: "Bildirim Sesi", sub: "Bildirim gelince OS sesi çalsın", icon: "bell", val: notifSound, onToggle: toggleNotifSound, loading: notifSoundLoading },
               ].map((r, i, arr) => (
                 <div key={r.title} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none" }}>
                   <div style={{ width: 38, height: 38, borderRadius: 11, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k={r.icon} size={19} sw={2} /></div>

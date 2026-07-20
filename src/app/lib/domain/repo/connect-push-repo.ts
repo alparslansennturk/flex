@@ -11,6 +11,7 @@ export interface ConnectPushRepo {
   addToken(uid: string, tenantId: string, token: string): Promise<void>;
   removeToken(uid: string, token: string): Promise<void>;
   setNotificationsEnabled(uid: string, tenantId: string, enabled: boolean): Promise<void>;
+  setSoundEnabled(uid: string, tenantId: string, enabled: boolean): Promise<void>;
   /** Web Push gönderimi (FCM) — data-only, `messaging/*` altyapısını domain katmanından gizler. */
   sendPush(tokens: string[], data: Record<string, string>): Promise<{ deadTokens: string[] }>;
 }

@@ -472,7 +472,9 @@ export default function StudentConnectPage() {
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto" style={{ padding: "26px 0" }}>
+            {/* `paddingBottom` kasıtlı büyük (2026-07-20, bkz. personel sayfası AYNI fix)
+                — en son mesajın altında HER ZAMAN menünün sığacağı kadar boş alan bırakır. */}
+            <div className="flex-1 overflow-y-auto" style={{ padding: "26px 0 240px" }}>
               <div className="flex flex-col gap-1" style={{ maxWidth: 760, margin: "0 auto", padding: "0 32px" }}>
                 {loadingMessages ? (
                   <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-surface-400" /></div>

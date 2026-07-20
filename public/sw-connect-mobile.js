@@ -36,6 +36,9 @@ self.addEventListener("push", (event) => {
   const body = data.body || "";
   const conversationId = data.conversationId || "";
   const badge = data.badge !== undefined ? Number(data.badge) : undefined;
+  // Bildirim SESİ (2026-07-20) — kullanıcının kendi tercihi, varsayılan kapalı
+  // (`connect-push-service.ts::notifyNewMessage` — `silent` string "true"/"false").
+  const silent = data.silent === undefined ? true : data.silent === "true";
 
   event.waitUntil(
     (async () => {
@@ -52,6 +55,7 @@ self.addEventListener("push", (event) => {
         badge: "/connect-icon-192.png",
         data: { conversationId },
         tag: conversationId || undefined,
+        silent,
       });
     })(),
   );

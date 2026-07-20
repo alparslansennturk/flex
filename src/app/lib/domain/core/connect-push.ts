@@ -12,5 +12,9 @@ export interface ConnectPushSubscription {
   tokens: string[];
   /** Genel anahtar — kapalıysa hiçbir push gönderilmez (konuşma sessize alınmış olsun olmasın). */
   notificationsEnabled: boolean;
+  /** Bildirim SESİ (2026-07-20 kullanıcı isteği: "kontrol edilebiliyor mu, varsayılan
+   * kapalı olsun") — kapalıyken push YİNE gösterilir (badge/banner), sadece OS sesi
+   * çalmaz (`silent:true`). Varsayılan `false`/yok (bkz. getPushSettings). */
+  soundEnabled?: boolean;
   updatedAt: ISODateTime;
 }
