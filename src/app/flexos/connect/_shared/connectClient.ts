@@ -58,6 +58,8 @@ export interface MessageView {
   readByAll?: boolean;
   /** Faz 2 madde 5 (2026-07-18) — dosya eki(leri). */
   attachments?: ConnectAttachment[];
+  /** Kurumsal kural (2026-07-20) — öğrenci→eğitmen DM'de 22:00-09:00 arası gönderildi. */
+  afterHours?: boolean;
 }
 
 export interface ConnectAttachment {

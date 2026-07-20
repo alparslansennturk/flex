@@ -125,4 +125,9 @@ export interface ConnectMessage {
    * olan HERKES reaksiyon verebilir (yazma yetkisi gerekmez — broadcast kanalında
    * okuyucular da tepki verebilsin diye, WhatsApp kanalları ile AYNI davranış). */
   reactions?: Record<string, string>;
+  /** realm==="trainer_student" && type==="dm" && gönderen öğrenciyse, İstanbul saatiyle
+   * 22:00-09:00 arasında gönderildiyse true (2026-07-20, kurumsal kural — kişisel
+   * tercih DEĞİL, herkeste her zaman açık). Mesaj engellenmez/geciktirilmez, sadece
+   * her iki tarafa da "mesai saati dışı" olarak işaretlenir (bkz. `sendMessage`). */
+  afterHours?: boolean;
 }

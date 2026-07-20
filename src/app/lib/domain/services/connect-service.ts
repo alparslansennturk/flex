@@ -55,6 +55,30 @@ export interface ConnectDeps {
 
 const MAX_MESSAGE_LEN = 4000;
 
+const ISTANBUL_TZ = "Europe/Istanbul";
+
+/** Sunucunun İstanbul yerel saatine göre "şu an kaç dakika" hesabı — `attendance-
+ * service.ts::istanbulNow` ile AYNI desen (Vercel runtime UTC varsayar, `Intl.
+ * DateTimeFormat`'a açıkça timeZone verilir). */
+function istanbulMinutesOfDay(): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: ISTANBUL_TZ, hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return parseInt(get("hour"), 10) * 60 + parseInt(get("minute"), 10);
+}
+
+/** Kurumsal kural (2026-07-20, kullanıcı kararı) — kişisel açma/kapama YOK, herkeste
+ * her zaman geçerli: öğrenci → eğitmen DM'de 22:00-09:00 arası gönderilen mesajlar
+ * "mesai saati dışı" işaretlenir (mesaj engellenmez, sadece etiketlenir — kurumun
+ * amacı öğrenci-eğitmen arası kontrolsüz/gayriresmi iletişim riskini azaltmak). */
+function isAfterHoursStudentToTrainerDm(principal: ConnectPrincipal, conversation: ConnectConversation): boolean {
+  if (principal.kind !== "student") return false;
+  if (conversation.realm !== "trainer_student" || conversation.type !== "dm") return false;
+  const mins = istanbulMinutesOfDay();
+  return mins >= 22 * 60 || mins < 9 * 60;
+}
+
 /** Hedef uid'in gerçekten `staff` mı `student` mı olduğunu çözer — realm/üye
  * doğrulaması için (bkz. FLEX_CONNECT.md §1: öğrenci staff realm'e ASLA eklenemez). */
 async function resolveUidKind(
@@ -412,6 +436,7 @@ export async function sendMessage(
     text: trimmed,
     createdAt: now,
     attachments: hasAttachment ? attachments : undefined,
+    afterHours: isAfterHoursStudentToTrainerDm(principal, conversation) || undefined,
   };
   const newMessageCount = (conversation.messageCount ?? 0) + 1;
   await deps.conversations.saveMessage(conversationId, message);

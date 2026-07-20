@@ -563,11 +563,6 @@ export default function FlexConnectMobile() {
   // yansıtıyor (mount'ta `fetchPushSettings` ile okunuyor). ──
   const [notifPush, setNotifPush] = useState(false);
   const [notifPushLoading, setNotifPushLoading] = useState(false);
-  const [afterHoursWarn, setAfterHoursWarn] = useState(false);
-  const [soundVibe, setSoundVibe] = useState(true);
-  const [quiet, setQuiet] = useState(false);
-  const [quietFrom] = useState("22:00");
-  const [quietTo] = useState("08:00");
   const pushTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -1083,6 +1078,9 @@ export default function FlexConnectMobile() {
                             </span>
                           </div>
                         )}
+                        {m.afterHours && !m.deletedForEveryone && (
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: T.muted, marginTop: 3 }}>🌙 Mesai saati dışı</span>
+                        )}
                         {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
                           <div style={{ display: "flex", gap: 6, marginTop: 5 }}>
                             {Object.entries(m.reactionCounts).map(([emoji, count]) => (
@@ -1261,8 +1259,6 @@ export default function FlexConnectMobile() {
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
               {[
                 { title: "Anlık Bildirimler", sub: "Yeni mesaj ve duyurularda anlık bildirim", icon: "bell", val: notifPush, onToggle: toggleNotifPush, loading: notifPushLoading },
-                { title: "Çalışma Saati Uyarıları", sub: "22:00 sonrası gönderilen mesajlarda uyarı göster", icon: "clock", val: afterHoursWarn, onToggle: () => setAfterHoursWarn((v) => !v) },
-                { title: "Ses & Titreşim", sub: "Bildirim sesi ve titreşim", icon: "bell", val: soundVibe, onToggle: () => setSoundVibe((v) => !v) },
               ].map((r, i, arr) => (
                 <div key={r.title} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none" }}>
                   <div style={{ width: 38, height: 38, borderRadius: 11, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k={r.icon} size={19} sw={2} /></div>
@@ -1284,34 +1280,6 @@ export default function FlexConnectMobile() {
                 </div>
               ))}
             </div>
-
-            <div style={{ fontSize: 12, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".05em", margin: "20px 2px 9px" }}>Sessiz Saatler</div>
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 15px" }}>
-                <div style={{ width: 38, height: 38, borderRadius: 11, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? T.card2 : "#EEF1F5", color: T.text2 }}><Icon k="moon" size={18} sw={2} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>Sessiz Saatler</div>
-                  <div style={{ fontSize: 11.5, fontWeight: 500, color: T.text2, marginTop: 2 }}>Bu aralıkta bildirim sesi çalmaz</div>
-                </div>
-                <button onClick={() => setQuiet((v) => !v)} role="switch" aria-checked={quiet} aria-label="Sessiz Saatler" style={{ width: 46, height: 28, borderRadius: 999, border: "none", cursor: "pointer", flex: "0 0 auto", background: quiet ? T.brand : (dark ? "#33405A" : "#D4D8DF"), position: "relative", transition: "background .18s", padding: 0 }}>
-                  <span style={{ position: "absolute", top: 3, left: quiet ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
-                </button>
-              </div>
-              {quiet && (
-                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 15px 16px" }}>
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "11px 14px", borderRadius: 13, border: `1px solid ${T.border}`, background: T.field }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: T.muted }}>Başlangıç</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: T.text, letterSpacing: "-.3px" }}>{quietFrom}</span>
-                  </div>
-                  <Icon k="plus" size={18} color={T.chev} sw={0} />
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "11px 14px", borderRadius: 13, border: `1px solid ${T.border}`, background: T.field }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: T.muted }}>Bitiş</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: T.text, letterSpacing: "-.3px" }}>{quietTo}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <p style={{ textAlign: "center", fontSize: 11.5, fontWeight: 500, color: T.muted, margin: "16px 8px 0", lineHeight: 1.4 }}>Acil kurum duyuruları sessiz saatlerde de iletilir.</p>
           </div>
         </motion.div>
       )}

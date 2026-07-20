@@ -882,6 +882,9 @@ export default function FlexConnectPage() {
                               </div>
                             )}
                           </div>
+                          {m.afterHours && !m.deletedForEveryone && (
+                            <span style={{ fontSize: 10.5, fontWeight: 700, color: "#A2A8B2", marginTop: 3 }}>🌙 Mesai saati dışı</span>
+                          )}
                           {m.reactionCounts && Object.keys(m.reactionCounts).length > 0 && (
                             <div className="flex gap-1 flex-wrap" style={{ marginTop: 4, justifyContent: m.isMine ? "flex-end" : "flex-start" }}>
                               {Object.entries(m.reactionCounts).map(([emoji, count]) => (

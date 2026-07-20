@@ -135,12 +135,15 @@ export interface ConnectMessageView {
   readByAll?: boolean;
   /** Faz 2 madde 5 (2026-07-18) — dosya eki(leri), doğrudan geçirilir. */
   attachments?: ConnectAttachment[];
+  /** Kurumsal kural (2026-07-20) — öğrenci→eğitmen DM'de 22:00-09:00 arası gönderildi. */
+  afterHours?: boolean;
 }
 
 export async function buildMessageViews(
   messages: {
     id: string; authorUid: string; text: string; createdAt: string; editedAt?: string;
     deletedForEveryone?: boolean; reactions?: Record<string, string>; attachments?: ConnectAttachment[];
+    afterHours?: boolean;
   }[],
   principalUid: string,
   tenantId: string,
@@ -172,6 +175,7 @@ export async function buildMessageViews(
       reactionCounts: Object.keys(reactionCounts).length > 0 ? reactionCounts : undefined,
       myReaction: m.reactions?.[principalUid],
       attachments: m.attachments,
+      afterHours: m.afterHours,
     };
   });
 }
