@@ -356,7 +356,12 @@ export default function FlexConnectMobile() {
   // gerçek offline/cache stratejisi "sonra" kapsamında.
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw-connect-mobile.js", { scope: "/flexos/connect/mobile/" }).catch((err) => {
+    // Scope, manifest'teki `scope`/`start_url` (`/flexos/connect/mobile`, SONUNDA / YOK)
+    // ile BİREBİR aynı olmalı — sonda `/` olsaydı (önceki hata), sayfanın kendi URL'i
+    // (slash'sız) kendi service worker'ının scope'una GİRMEZDİ (prefix eşleşmez),
+    // bu da `navigator.serviceWorker.ready`'nin sonsuza kadar askıda kalmasına yol
+    // açıyordu (2026-07-19 gerçek cihaz bulgusu — push izni "hiç tepki yok").
+    navigator.serviceWorker.register("/sw-connect-mobile.js", { scope: "/flexos/connect/mobile" }).catch((err) => {
       console.error("[connect-mobile] service worker kaydı başarısız:", err);
     });
   }, []);
