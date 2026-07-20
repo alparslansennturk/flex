@@ -14,13 +14,13 @@
 import { useEffect, useRef, useState, useCallback, useLayoutEffect, type ComponentType } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
-import { Megaphone, Users, Search, Send, ArrowLeft, Loader2, GraduationCap, MoreVertical, Pencil, Trash2, X, Smile, Check, CheckCheck } from "lucide-react";
+import { Megaphone, Users, Search, Send, ArrowLeft, Loader2, GraduationCap, Pencil, Trash2, X, Smile, Check, CheckCheck, ChevronDown, Reply, Copy, Star, StarOff } from "lucide-react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import {
-  type ConversationView, type MessageView, type ConnectConversationType, type DirectoryUser, type TypingSignal,
+  type ConversationView, type MessageView, type ConnectConversationType, type DirectoryUser, type TypingSignal, type ConnectReplySnapshot,
   fetchConversations, fetchMessages, postMessage, markConversationRead, subscribeToMessages,
-  subscribeToTyping, sendTypingSignal, fetchTrainerDirectory, createConversation, editMessage, deleteMessage, setMessageReaction,
+  subscribeToTyping, sendTypingSignal, fetchTrainerDirectory, createConversation, editMessage, deleteMessage, setMessageReaction, toggleMessageStar,
   sendMessageWithAttachment,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { ConnectIcon } from "@/app/flexos/connect/_shared/ConnectIcon";
@@ -90,6 +90,11 @@ export default function StudentConnectPage() {
   // Mesaj düzenle/sil (WhatsApp — 2026-07-18).
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+  // Yanıtlama (2026-07-20) — bkz. `connect/page.tsx` (personel sayfası) AYNI desen.
+  // "Özelden Yanıtla" YOK — öğrenci mimari gereği sadece KENDİ eğitmenine DM açabilir,
+  // grup içindeki başka bir öğrenciye keyfi DM açamaz.
+  const [replyingTo, setReplyingTo] = useState<ConnectReplySnapshot | null>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement>(null);
   // Reaksiyonlar (Faz 2 madde 2 — 2026-07-18).
   const [openReactionPickerId, setOpenReactionPickerId] = useState<string | null>(null);
   // Reaksiyon/menü popup'ları artık `position:fixed` + `document.body`'ye portal
@@ -130,7 +135,7 @@ export default function StudentConnectPage() {
     // devam ediyordu.
     setMessages([]);
     setLoadingMessages(true);
-    setEditingMessageId(null); setOpenMessageMenuId(null); setOpenReactionPickerId(null); setDraft("");
+    setEditingMessageId(null); setReplyingTo(null); setOpenMessageMenuId(null); setOpenReactionPickerId(null); setDraft("");
     try {
       setMessages(await fetchMessages(id, personId));
     } finally {
@@ -158,20 +163,6 @@ export default function StudentConnectPage() {
     },
     [conversations, loadConversations, personId, selectConversation],
   );
-
-  // İlk yüklemede hiçbir şey seçili değilse üstteki (en son mesajı olan) konuşma
-  // otomatik seçilir — `connect/page.tsx`'teki AYNI fix (2026-07-18 kullanıcı bulgusu:
-  // boş seçim ekranında header/bar hiç görünmüyordu). SADECE ilk yüklemede.
-  const autoSelectedRef = useRef(false);
-  useEffect(() => {
-    if (autoSelectedRef.current || loadingList || conversations.length === 0) return;
-    const candidates = conversations.filter((c) => c.type === "channel" || c.type === "group" || c.type === "dm");
-    if (candidates.length === 0) return;
-    autoSelectedRef.current = true;
-    const top = candidates[0];
-    setNavTab(top.type);
-    selectConversation(top.id);
-  }, [conversations, loadingList, selectConversation]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -212,9 +203,10 @@ export default function StudentConnectPage() {
         setEditingMessageId(null);
         return;
       }
-      const err = await postMessage(selectedId, text, personId);
+      const err = await postMessage(selectedId, text, personId, replyingTo ?? undefined);
       if (err?.error) toast.error(err.error);
       else loadConversations();
+      setReplyingTo(null);
     } finally {
       setSending(false);
     }
@@ -234,8 +226,31 @@ export default function StudentConnectPage() {
 
   function startEditMessage(m: MessageView) {
     setEditingMessageId(m.id);
+    setReplyingTo(null);
     setDraft(m.text);
     setOpenMessageMenuId(null);
+  }
+
+  function startReply(m: MessageView) {
+    setEditingMessageId(null);
+    setReplyingTo({ messageId: m.id, authorUid: m.authorUid, authorName: m.authorName, textSnippet: m.text.slice(0, 120) });
+    setOpenMessageMenuId(null);
+    draftInputRef.current?.focus();
+  }
+
+  async function handleToggleStar(m: MessageView) {
+    setOpenMessageMenuId(null);
+    if (!selectedId) return;
+    const next = !m.starred;
+    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, starred: next } : x)));
+    const ok = await toggleMessageStar(selectedId, m.id, next, personId);
+    if (!ok) setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, starred: !next } : x)));
+  }
+
+  function handleCopy(m: MessageView) {
+    setOpenMessageMenuId(null);
+    if (!m.text) return;
+    navigator.clipboard.writeText(m.text).then(() => toast.success("Kopyalandı."));
   }
 
   async function handleDeleteMessage(messageId: string, scope: "everyone" | "me") {
@@ -424,13 +439,30 @@ export default function StudentConnectPage() {
                   <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-surface-400" /></div>
                 ) : (
                   <>
+                {/* "Sohbet başladı" kartı (2026-07-20, WhatsApp gibi) — personel sayfasıyla
+                    AYNI gate: `messages.length < 60` (sunucu limitToLast(60), sayfalama yok). */}
+                {messages.length > 0 && messages.length < 60 && selected && (
+                  <div className="flex items-center justify-center" style={{ margin: "6px 0 14px" }}>
+                    <span className="text-center font-semibold" style={{ fontSize: 11.5, color: "#8A909B", background: "#EDEEF1", padding: "7px 16px", borderRadius: 12, lineHeight: 1.4, maxWidth: 260 }}>
+                      Sohbet {new Date(selected.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} tarihinde başladı
+                    </span>
+                  </div>
+                )}
                 {messages.map((m, i) => {
                   const prev = messages[i - 1];
+                  if (m.kind === "system") {
+                    return (
+                      <div key={m.id} className="flex items-center justify-center" style={{ margin: "10px 0" }}>
+                        <span className="font-bold" style={{ fontSize: 11.5, color: "#8A909B", background: "#EDEEF1", padding: "5px 14px", borderRadius: 999, letterSpacing: ".02em" }}>
+                          {m.systemEvent?.count ?? 0} kişi gruba eklendi
+                        </span>
+                      </div>
+                    );
+                  }
                   const grouped = prev && prev.authorUid === m.authorUid;
                   const showDivider = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
-                  const menuActive = openMessageMenuId === m.id || openReactionPickerId === m.id;
                   return (
-                    <div key={m.id} className="hover:z-[60]" style={{ position: "relative", zIndex: menuActive ? 60 : undefined }}>
+                    <div key={m.id} className="hover:z-[60]" style={{ position: "relative", zIndex: (openMessageMenuId === m.id || openReactionPickerId === m.id) ? 60 : undefined }}>
                       {showDivider && (
                         <div className="flex items-center justify-center" style={{ margin: "14px 0" }}>
                           <span className="font-bold" style={{ fontSize: 11.5, color: "#8A909B", background: "#EDEEF1", padding: "5px 14px", borderRadius: 999, letterSpacing: ".02em" }}>
@@ -438,96 +470,119 @@ export default function StudentConnectPage() {
                           </span>
                         </div>
                       )}
-                      <div className="flex gap-2.5" style={{ justifyContent: m.isMine ? "flex-end" : "flex-start", marginTop: grouped && !showDivider ? 2 : 12 }}>
+                      <div className="flex gap-2.5 group" style={{ justifyContent: m.isMine ? "flex-end" : "flex-start", marginTop: grouped && !showDivider ? 2 : 12 }}>
                         {!m.isMine && !grouped && (
                           <div className="flex items-center justify-center shrink-0 font-bold text-white self-end" style={{ width: 34, height: 34, borderRadius: 11, background: m.colorKey, fontSize: 12 }}>
                             {initials(m.authorName)}
                           </div>
                         )}
                         {!m.isMine && grouped && <div style={{ width: 34, flexShrink: 0 }} />}
+                        {m.isMine && !m.deletedForEveryone && (
+                          <div className="relative self-center" data-connect-dropdown>
+                            <button
+                              onClick={(e) => {
+                                setPopoverPos(computePopoverPosition(e.currentTarget, "left", 130));
+                                setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
+                                setOpenMessageMenuId(null);
+                              }}
+                              className={`flex items-center justify-center cursor-pointer transition-opacity ${openReactionPickerId === m.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                              style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                            >
+                              <Smile size={14} />
+                            </button>
+                            {openReactionPickerId === m.id && popoverPos && createPortal(
+                              <div className="fixed" data-connect-dropdown style={{ ...popoverPos, zIndex: 9999 }}>
+                                <ReactionQuickPick activeEmoji={m.myReaction} onPick={(emoji) => handleReact(m.id, emoji)} />
+                              </div>,
+                              document.body,
+                            )}
+                          </div>
+                        )}
                         <div className="flex flex-col" style={{ maxWidth: "74%", alignItems: m.isMine ? "flex-end" : "flex-start" }}>
                           {!m.isMine && !grouped && (
                             <div className="flex items-baseline gap-2 mb-0.5" style={{ padding: "0 2px" }}>
                               <span style={{ fontSize: 12.5, fontWeight: 700, color: m.colorKey }}>{m.authorName}</span>
                             </div>
                           )}
-                          <div className="group" style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
+                          <div style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
+                            {m.starred && (
+                              <Star size={12} color="#F5A623" fill="#F5A623" style={{ position: "absolute", top: -5, [m.isMine ? "left" : "right"]: -5 }} />
+                            )}
+                            {m.replyTo && !m.deletedForEveryone && (
+                              <div style={{ borderLeft: "3px solid #2867bd", background: "rgba(40,103,189,.07)", borderRadius: 6, padding: "4px 8px", marginBottom: 6 }}>
+                                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#2867bd" }}>{m.replyTo.authorName}</div>
+                                <div style={{ fontSize: 12, color: "#6B717C", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.replyTo.textSnippet}</div>
+                              </div>
+                            )}
                             {m.deletedForEveryone ? (
                               <span style={{ fontSize: 13.5, lineHeight: 1.5, color: "#A2A8B2", fontStyle: "italic" }}>Bu mesaj silindi</span>
-                            ) : (
+                            ) : m.attachments?.length ? (
                               <>
-                                {m.text && <span style={{ fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450 }}>{m.text}</span>}
-                                {m.attachments?.map((a) => (
-                                  <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={m.text ? 6 : 0} />
+                                {m.attachments.map((a) => (
+                                  <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={0} />
                                 ))}
+                                {m.text && <span style={{ display: "block", fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450, marginTop: 6 }}>{m.text}</span>}
+                                <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
+                                  {m.isMine && (m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />)}
+                                </span>
                               </>
+                            ) : (
+                              <span style={{ fontSize: 14, lineHeight: 1.7, color: "#26303D", fontWeight: 450 }}>
+                                {m.text}
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", whiteSpace: "nowrap", verticalAlign: "bottom" }}>
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
+                                  {m.isMine && (m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />)}
+                                </span>
+                              </span>
                             )}
-                            <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
-                              {m.editedAt && !m.deletedForEveryone && "Düzenlendi · "}{fmtTime(m.createdAt)}
-                              {m.isMine && !m.deletedForEveryone && (
-                                m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />
-                              )}
-                            </span>
 
                             {!m.deletedForEveryone && (
-                              <div
-                                className={`absolute transition-opacity flex items-center gap-1 ${menuActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                                style={{ top: "100%", marginTop: 4, [m.isMine ? "right" : "left"]: 0 }}
-                              >
-                                <div className="relative" data-connect-dropdown>
-                                  <button
-                                    onClick={(e) => {
-                                      setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 130));
-                                      setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
-                                      setOpenMessageMenuId(null);
-                                    }}
-                                    className="flex items-center justify-center cursor-pointer"
-                                    style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                              <div className="relative" data-connect-dropdown style={{ position: "absolute", top: 6, right: 6 }}>
+                                <button
+                                  onClick={(e) => {
+                                    setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 170));
+                                    setOpenMessageMenuId((v) => (v === m.id ? null : m.id));
+                                    setOpenReactionPickerId(null);
+                                  }}
+                                  className={`flex items-center justify-center cursor-pointer transition-opacity ${openMessageMenuId === m.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                                  style={{ width: 22, height: 22, borderRadius: 6, border: "none", background: m.isMine ? "rgba(255,255,255,.6)" : "#F4F5F7", color: "#6B717C" }}
+                                >
+                                  <ChevronDown size={13} />
+                                </button>
+                                {openMessageMenuId === m.id && popoverPos && createPortal(
+                                  <div
+                                    className="fixed"
+                                    data-connect-dropdown
+                                    style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 190, overflow: "hidden" }}
                                   >
-                                    <Smile size={13} />
-                                  </button>
-                                  {openReactionPickerId === m.id && popoverPos && createPortal(
-                                    <div className="fixed" data-connect-dropdown style={{ ...popoverPos, zIndex: 9999 }}>
-                                      <ReactionQuickPick activeEmoji={m.myReaction} onPick={(emoji) => handleReact(m.id, emoji)} />
-                                    </div>,
-                                    document.body,
-                                  )}
-                                </div>
-                                <div className="relative" data-connect-dropdown>
-                                  <button
-                                    onClick={(e) => {
-                                      setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 170));
-                                      setOpenMessageMenuId((v) => (v === m.id ? null : m.id));
-                                      setOpenReactionPickerId(null);
-                                    }}
-                                    className="flex items-center justify-center cursor-pointer"
-                                    style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
-                                  >
-                                    <MoreVertical size={13} />
-                                  </button>
-                                  {openMessageMenuId === m.id && popoverPos && createPortal(
-                                    <div
-                                      className="fixed"
-                                      data-connect-dropdown
-                                      style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 170, overflow: "hidden" }}
-                                    >
-                                      {m.isMine && (
-                                        <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
-                                          <Pencil size={13} /> Düzenle
-                                        </button>
-                                      )}
-                                      {m.isMine && (
-                                        <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
-                                          <Trash2 size={13} /> Herkes İçin Sil
-                                        </button>
-                                      )}
-                                      <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
-                                        <X size={13} /> Benim İçin Sil
+                                    {m.isMine && (
+                                      <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <Pencil size={13} /> Düzenle
                                       </button>
-                                    </div>,
-                                    document.body,
-                                  )}
-                                </div>
+                                    )}
+                                    <button onClick={() => startReply(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      <Reply size={13} /> Yanıtla
+                                    </button>
+                                    <button onClick={() => handleToggleStar(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      {m.starred ? <StarOff size={13} /> : <Star size={13} />} {m.starred ? "Yıldızı Kaldır" : "Yıldızla"}
+                                    </button>
+                                    {m.text && (
+                                      <button onClick={() => handleCopy(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <Copy size={13} /> Kopyala
+                                      </button>
+                                    )}
+                                    {m.isMine && (
+                                      <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                                        <Trash2 size={13} /> Herkes İçin Sil
+                                      </button>
+                                    )}
+                                    <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      <X size={13} /> Benim İçin Sil
+                                    </button>
+                                  </div>,
+                                  document.body,
+                                )}
                               </div>
                             )}
                           </div>
@@ -547,6 +602,27 @@ export default function StudentConnectPage() {
                             </div>
                           )}
                         </div>
+                        {!m.isMine && !m.deletedForEveryone && (
+                          <div className="relative self-center" data-connect-dropdown>
+                            <button
+                              onClick={(e) => {
+                                setPopoverPos(computePopoverPosition(e.currentTarget, "right", 130));
+                                setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
+                                setOpenMessageMenuId(null);
+                              }}
+                              className={`flex items-center justify-center cursor-pointer transition-opacity ${openReactionPickerId === m.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                              style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                            >
+                              <Smile size={14} />
+                            </button>
+                            {openReactionPickerId === m.id && popoverPos && createPortal(
+                              <div className="fixed" data-connect-dropdown style={{ ...popoverPos, zIndex: 9999 }}>
+                                <ReactionQuickPick activeEmoji={m.myReaction} onPick={(emoji) => handleReact(m.id, emoji)} />
+                              </div>,
+                              document.body,
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -578,9 +654,21 @@ export default function StudentConnectPage() {
                       </button>
                     </div>
                   )}
+                  {replyingTo && (
+                    <div className="flex items-center justify-between" style={{ padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: "#EAF1FB", borderLeft: "3px solid #2867bd" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: "#205297" }}>{replyingTo.authorName}</div>
+                        <div style={{ fontSize: 12, color: "#4A6FA5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{replyingTo.textSnippet}</div>
+                      </div>
+                      <button onClick={() => setReplyingTo(null)} className="flex items-center justify-center cursor-pointer shrink-0" style={{ width: 22, height: 22, borderRadius: 7, color: "#205297" }}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-end gap-1" style={{ background: "#fff", border: "1px solid #E4E6EB", borderRadius: 16, padding: "8px 8px 8px 10px" }}>
                     <AttachButton onFileSelected={handleAttachFile} uploadProgress={uploadProgress} />
                     <textarea
+                      ref={draftInputRef}
                       value={draft}
                       onChange={(e) => {
                         setDraft(e.target.value);

@@ -238,6 +238,7 @@ async function main() {
       enrollments,
       groups,
       trainers,
+      notify: async () => {},
     };
   }
 

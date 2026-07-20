@@ -76,6 +76,11 @@ export interface ConnectDeps {
   enrollments: EnrollmentRepo;
   groups: GroupRepo;
   trainers: TrainerRepo;
+  /** Ana FlexOS bildirim ziline/toast'ına yazar (2026-07-20) — `comment-service.ts::CommentDeps.notify`
+   * ile AYNI sözleşme/koleksiyon (`users/{uid}/notifications`, bkz. `flexos-notify.ts::notifyUser`).
+   * Push (FCM, mobil) ile KARIŞTIRILMAZ — bu, ana Flex uygulamasındaki zil+toast (`NotificationBell`/
+   * `NotificationToastListener`) için, Connect penceresinin DIŞINDayken de görünsün diye. */
+  notify: (uid: string, input: { type: "message" | "announcement" | "assignment" | "system"; entityId: string; senderId: string; title: string; preview: string; actionUrl: string }) => Promise<void>;
 }
 
 const MAX_MESSAGE_LEN = 4000;

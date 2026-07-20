@@ -254,23 +254,6 @@ export default function FlexConnectPage() {
     [conversations, loadConversations, selectConversation],
   );
 
-  // İlk yüklemede hiçbir şey seçili değilse üstteki (en son mesajı olan — liste
-  // zaten `connect-view.ts`'de mesaj tarihine göre azalan sıralı) konuşma otomatik
-  // seçilir (kullanıcı bulgusu: boş seçim ekranında üst header/bar hiç görünmüyordu).
-  // Sekme de o konuşmanın türüne geçer ki liste satırı da vurgulanmış görünsün.
-  // SADECE ilk yüklemede — sonraki `loadConversations()` çağrıları (mesaj gönderince
-  // vb.) kullanıcının seçimini yerinden oynatmaz.
-  const autoSelectedRef = useRef(false);
-  useEffect(() => {
-    if (autoSelectedRef.current || loadingList || conversations.length === 0) return;
-    const candidates = conversations.filter((c) => c.type === "channel" || c.type === "group" || c.type === "dm");
-    if (candidates.length === 0) return;
-    autoSelectedRef.current = true;
-    const top = candidates[0];
-    setNavTab(top.type);
-    selectConversation(top.id);
-  }, [conversations, loadingList, selectConversation]);
-
   useEffect(() => {
     setGuestQuery(""); setSelectedGuestUid(""); setGuestTitle(GUEST_TITLES[0]); setAddMemberRole("member");
     if (!infoOpen || !selectedId) return;
@@ -405,7 +388,7 @@ export default function FlexConnectPage() {
     if (!window.confirm(`"${selected.name || "Bu sohbet"}" listenden gizlenecek. Karşı taraf yeni mesaj yazarsa tekrar görünür. Emin misin?`)) return;
     const ok = await hideConversation(selectedId);
     if (!ok) { toast.error("Gizlenemedi, tekrar dene."); return; }
-    toast.success("Sohbet gizlendi.");
+    toast.success("Sohbet silindi.");
     setConversations((prev) => prev.filter((c) => c.id !== selectedId));
     setSelectedId(null);
   }
@@ -867,20 +850,45 @@ export default function FlexConnectPage() {
                           </span>
                         </div>
                       )}
-                      <div className="flex gap-2.5" style={{ justifyContent: m.isMine ? "flex-end" : "flex-start", marginTop: grouped && !showDivider ? 2 : 12 }}>
+                      <div className="flex gap-2.5 group" style={{ justifyContent: m.isMine ? "flex-end" : "flex-start", marginTop: grouped && !showDivider ? 2 : 12 }}>
                         {!m.isMine && !grouped && (
                           <div className="flex items-center justify-center shrink-0 font-bold text-white self-end" style={{ width: 34, height: 34, borderRadius: 11, background: m.colorKey, fontSize: 12 }}>
                             {initials(m.authorName)}
                           </div>
                         )}
                         {!m.isMine && grouped && <div style={{ width: 34, flexShrink: 0 }} />}
+                        {/* Reaksiyon (emoji) tetikleyici — WhatsApp gibi balonun DIŞINDA, karşı
+                            duvara bakan tarafta (kendi mesajımda SOLDA, karşı tarafın mesajında
+                            SAĞDA) — hover alanı balona BİTİŞİK ki fare balondan buraya gelirken
+                            aradaki boşlukta hover kaybolmasın (kullanıcı bulgusu, 2026-07-20). */}
+                        {m.isMine && !m.deletedForEveryone && (
+                          <div className="relative self-center" data-connect-dropdown>
+                            <button
+                              onClick={(e) => {
+                                setPopoverPos(computePopoverPosition(e.currentTarget, "left", 130));
+                                setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
+                                setOpenMessageMenuId(null);
+                              }}
+                              className={`flex items-center justify-center cursor-pointer transition-opacity ${openReactionPickerId === m.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                              style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                            >
+                              <Smile size={14} />
+                            </button>
+                            {openReactionPickerId === m.id && popoverPos && createPortal(
+                              <div className="fixed" data-connect-dropdown style={{ ...popoverPos, zIndex: 9999 }}>
+                                <ReactionQuickPick activeEmoji={m.myReaction} onPick={(emoji) => handleReact(m.id, emoji)} />
+                              </div>,
+                              document.body,
+                            )}
+                          </div>
+                        )}
                         <div className="flex flex-col" style={{ maxWidth: "74%", alignItems: m.isMine ? "flex-end" : "flex-start" }}>
                           {!m.isMine && !grouped && (
                             <div className="flex items-baseline gap-2 mb-0.5" style={{ padding: "0 2px" }}>
                               <span style={{ fontSize: 12.5, fontWeight: 700, color: m.colorKey }}>{m.authorName}</span>
                             </div>
                           )}
-                          <div className="group" style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
+                          <div style={{ position: "relative", background: m.isMine ? "#EDF1FC" : "#FFFFFF", border: `1px solid ${m.isMine ? "#DCE3F6" : "#ECEEF1"}`, borderRadius: m.isMine ? "16px 16px 5px 16px" : "16px 16px 16px 5px", padding: "9px 13px 8px" }}>
                             {/* Yıldız göstergesi (2026-07-20) — sadece küçük bir ikon, ayrı bir
                                 "Yıldızlı Mesajlar" ekranı YOK (kullanıcı kararı). */}
                             {m.starred && (
@@ -921,85 +929,62 @@ export default function FlexConnectPage() {
                               </span>
                             )}
 
-                            {/* Reaksiyon + düzenle/sil menüsü (WhatsApp — 2026-07-18) — hover'da
-                                belirir, silinmiş mesajda hiç gösterilmez. */}
+                            {/* Düzenle/Reply/Favorite/Copy/[Özelden Yanıtla]/Sil menüsü (2026-07-20) —
+                                balonun İÇİNDE, sağ üst köşede (kullanıcı kararı: "sağ üstte ikon
+                                duracak", alttaki eski konumdan taşındı). Hover'da belirir. */}
                             {!m.deletedForEveryone && (
-                              <div
-                                className={`absolute transition-opacity flex items-center gap-1 ${menuActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                                style={{ top: "100%", marginTop: 4, [m.isMine ? "right" : "left"]: 0 }}
-                              >
-                                <div className="relative" data-connect-dropdown>
-                                  <button
-                                    onClick={(e) => {
-                                      setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 130));
-                                      setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
-                                      setOpenMessageMenuId(null);
-                                    }}
-                                    className="flex items-center justify-center cursor-pointer"
-                                    style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                              <div className="relative" data-connect-dropdown style={{ position: "absolute", top: 6, right: 6 }}>
+                                <button
+                                  onClick={(e) => {
+                                    setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 170));
+                                    setOpenMessageMenuId((v) => (v === m.id ? null : m.id));
+                                    setOpenReactionPickerId(null);
+                                  }}
+                                  className={`flex items-center justify-center cursor-pointer transition-opacity ${openMessageMenuId === m.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                                  style={{ width: 22, height: 22, borderRadius: 6, border: "none", background: m.isMine ? "rgba(255,255,255,.6)" : "#F4F5F7", color: "#6B717C" }}
+                                >
+                                  <ChevronDown size={13} />
+                                </button>
+                                {/* Unified menü (2026-07-20, WhatsApp referansı) — Düzenle/Reply/
+                                    Favorite/Copy/[Özelden Yanıtla]/Sil TEK chevron menüsünde. */}
+                                {openMessageMenuId === m.id && popoverPos && createPortal(
+                                  <div
+                                    className="fixed"
+                                    data-connect-dropdown
+                                    style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 190, overflow: "hidden" }}
                                   >
-                                    <Smile size={13} />
-                                  </button>
-                                  {openReactionPickerId === m.id && popoverPos && createPortal(
-                                    <div className="fixed" data-connect-dropdown style={{ ...popoverPos, zIndex: 9999 }}>
-                                      <ReactionQuickPick activeEmoji={m.myReaction} onPick={(emoji) => handleReact(m.id, emoji)} />
-                                    </div>,
-                                    document.body,
-                                  )}
-                                </div>
-                                <div className="relative" data-connect-dropdown>
-                                  <button
-                                    onClick={(e) => {
-                                      setPopoverPos(computePopoverPosition(e.currentTarget, m.isMine ? "right" : "left", 170));
-                                      setOpenMessageMenuId((v) => (v === m.id ? null : m.id));
-                                      setOpenReactionPickerId(null);
-                                    }}
-                                    className="flex items-center justify-center cursor-pointer"
-                                    style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
-                                  >
-                                    <ChevronDown size={14} />
-                                  </button>
-                                  {/* Unified menü (2026-07-20, WhatsApp referansı) — Düzenle/Reply/
-                                      Favorite/Copy/[Özelden Yanıtla]/Sil TEK chevron menüsünde. */}
-                                  {openMessageMenuId === m.id && popoverPos && createPortal(
-                                    <div
-                                      className="fixed"
-                                      data-connect-dropdown
-                                      style={{ ...popoverPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 10, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", minWidth: 190, overflow: "hidden" }}
-                                    >
-                                      {m.isMine && (
-                                        <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
-                                          <Pencil size={13} /> Düzenle
-                                        </button>
-                                      )}
-                                      <button onClick={() => startReply(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
-                                        <Reply size={13} /> Yanıtla
+                                    {m.isMine && (
+                                      <button onClick={() => startEditMessage(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <Pencil size={13} /> Düzenle
                                       </button>
-                                      <button onClick={() => handleToggleStar(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
-                                        {m.starred ? <StarOff size={13} /> : <Star size={13} />} {m.starred ? "Yıldızı Kaldır" : "Yıldızla"}
+                                    )}
+                                    <button onClick={() => startReply(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      <Reply size={13} /> Yanıtla
+                                    </button>
+                                    <button onClick={() => handleToggleStar(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      {m.starred ? <StarOff size={13} /> : <Star size={13} />} {m.starred ? "Yıldızı Kaldır" : "Yıldızla"}
+                                    </button>
+                                    {m.text && (
+                                      <button onClick={() => handleCopy(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <Copy size={13} /> Kopyala
                                       </button>
-                                      {m.text && (
-                                        <button onClick={() => handleCopy(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
-                                          <Copy size={13} /> Kopyala
-                                        </button>
-                                      )}
-                                      {selected?.type === "group" && !m.isMine && (
-                                        <button onClick={() => startReplyPrivately(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
-                                          <Reply size={13} /> Özelden Yanıtla
-                                        </button>
-                                      )}
-                                      {m.isMine && (
-                                        <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
-                                          <Trash2 size={13} /> Herkes İçin Sil
-                                        </button>
-                                      )}
-                                      <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
-                                        <X size={13} /> Benim İçin Sil
+                                    )}
+                                    {selected?.type === "group" && !m.isMine && (
+                                      <button onClick={() => startReplyPrivately(m)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                        <Reply size={13} /> Özelden Yanıtla
                                       </button>
-                                    </div>,
-                                    document.body,
-                                  )}
-                                </div>
+                                    )}
+                                    {m.isMine && (
+                                      <button onClick={() => handleDeleteMessage(m.id, "everyone")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                                        <Trash2 size={13} /> Herkes İçin Sil
+                                      </button>
+                                    )}
+                                    <button onClick={() => handleDeleteMessage(m.id, "me")} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "9px 13px", fontSize: 12.5, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                                      <X size={13} /> Benim İçin Sil
+                                    </button>
+                                  </div>,
+                                  document.body,
+                                )}
                               </div>
                             )}
                           </div>
@@ -1022,6 +1007,27 @@ export default function FlexConnectPage() {
                             </div>
                           )}
                         </div>
+                        {!m.isMine && !m.deletedForEveryone && (
+                          <div className="relative self-center" data-connect-dropdown>
+                            <button
+                              onClick={(e) => {
+                                setPopoverPos(computePopoverPosition(e.currentTarget, "right", 130));
+                                setOpenReactionPickerId((v) => (v === m.id ? null : m.id));
+                                setOpenMessageMenuId(null);
+                              }}
+                              className={`flex items-center justify-center cursor-pointer transition-opacity ${openReactionPickerId === m.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                              style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#fff", boxShadow: "0 2px 8px -2px rgba(18,35,59,.25)", color: "#6B717C" }}
+                            >
+                              <Smile size={14} />
+                            </button>
+                            {openReactionPickerId === m.id && popoverPos && createPortal(
+                              <div className="fixed" data-connect-dropdown style={{ ...popoverPos, zIndex: 9999 }}>
+                                <ReactionQuickPick activeEmoji={m.myReaction} onPick={(emoji) => handleReact(m.id, emoji)} />
+                              </div>,
+                              document.body,
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

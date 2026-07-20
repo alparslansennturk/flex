@@ -16,7 +16,61 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Flex Connect — WhatsApp'a yakın mesaj/menü güncellemesi + "24 hep geri geliyor" fix + Sohbeti Sil (2026-07-20, PC oturumu — EN GÜNCEL)
+### ✅ Flex Connect — hover/uzun-basma menü konumlama fix + push bug (badge/tıklama) + ana bildirim ziline bağlanma (2026-07-20, PC oturumu 2 — EN GÜNCEL)
+
+**Menü konumlama** (kullanıcı bulgusu: "üzerine gelmeye çalışırken menüler sürekli
+kayboluyor"): masaüstünde chevron (Düzenle/Yanıtla/Yıldızla/Kopyala/Sil menüsü)
+artık balonun ALTINDA değil, İÇİNDE sağ üst köşede; emoji/reaksiyon butonu ise
+balonun DIŞINDA — kendi mesajında solda, karşı tarafın mesajında sağda. Hover
+grubu artık TÜM mesaj satırına (balon+dıştaki ikon aynı kutu) uygulanıyor, bu
+yüzden fare balondan ikona giderken artık hover kopmuyor (kök sebep: eskiden
+ikon balonun ~4px altında ayrı bir kutuydu, aradaki boşlukta hover kayboluyordu).
+
+**Mobil uzun-basma menüsü iki bug'ı:**
+- iOS'un kendi native metin-seçme/"Kopyala" callout'u bizim menümüzle çakışıyordu
+  (`WebkitTouchCallout` hiç set edilmemişti) — artık engellendi, sadece bizim
+  menümüz çıkıyor.
+- Emoji/reaksiyon ekleme mobilde hiç yoktu (sadece var olanları görüntüleyebiliyordu) —
+  uzun-basma menüsüne "Tepki Ver" satırı + emoji şeridi eklendi.
+
+**Öğrenci masaüstü sayfası** (`/flexos/student/[personId]/connect`) — daha önce
+bu güncellemenin dışında bırakılmıştı, şimdi eklendi: "en son sohbete otomatik
+atlama" kaldırıldı (personel sayfasıyla AYNI fix), yeni mesaj menüsünün TAMAMI
+(Reply/Star/Copy/Edit/Delete, sistem mesajı, "sohbet başladı" kartı, inline-saat
+balon, dıştaki emoji butonu) buraya da port edildi — SADECE "Özelden Yanıtla" ve
+"Sohbeti Sil" hariç (ikisi de mimari/yetki gereği öğrenci tarafında yok; "Sohbeti
+Sil"i öğrenciye açmayı denedim, kullanıcı "şimdilik yapma" dedi, geri alındı —
+bkz. `hideConversationForMe` hâlâ SADECE personel).
+
+**GERÇEK bir push bug'ı bulundu ve düzeltildi** (kullanıcı bulgusu: "mesaj gelince
+badge gelmiyor, connecte girip çıkmak gerekiyor" + "bildirime tıklayınca sohbete
+gitmiyor"): `sw-connect-mobile.js`'teki push handler, FCM'in Admin SDK'dan
+`data:{...}` ile (notification alanı olmadan) gönderilen mesajları web push'a
+naklederken alanları KÖKTE değil `data` anahtarının ALTINDA gönderdiğini
+hesaba katmıyordu — `payload.title`/`payload.badge`/`payload.conversationId`
+HER ZAMAN `undefined` kalıyordu. Bu TEK bug hem "rozet hiç güncellenmiyor" HEM
+"bildirime tıklayınca doğru konuşmaya gitmiyor" şikayetlerinin ortak kökü çıktı.
+Ayrıca bildirime tıklayınca sohbete GİTME kodu (ne uygulama açıkken ne kapalıyken)
+hiç yazılmamıştı — ikisi de eklendi (`postMessage` dinleyicisi + soğuk başlangıç
+için `?openConversation=` URL param'ı).
+
+**Connect mesajları artık ana FlexOS bildirim ziline/toast'ına bağlı** — önceden
+tamamen bağımsızdı (SADECE mobil FCM push'a gidiyordu, `users/{uid}/notifications`
+koleksiyonuna hiç yazmıyordu, yani Connect dışındaki hiçbir yerde görünmüyordu).
+`ConnectDeps`'e `notify` eklendi (`comment-service.ts::CommentDeps.notify` ile
+AYNI sözleşme, `flexos-notify.ts::notifyUser` — zaten var olan `NotificationBell`/
+`NotificationToastListener` altyapısı, yeni bir koleksiyon/rules AÇILMADI), push
+aboneliğinden BAĞIMSIZ olarak her mesajda tüm alıcılara yazılıyor. Ödev yorumu
+bildirimleri zaten bu sisteme bağlıydı (`comment-service.ts`), oradan ayrıca bir
+şey yapılmadı.
+
+**SIRADAKİ İŞ:** Bu turda yapılanların TAMAMI (özellikle push bug fix'i — badge
+gerçekten real-time geliyor mu, bildirime tıklayınca doğru sohbete gidiyor mu,
+ve yeni bildirim zili entegrasyonu) gerçek cihazda henüz test edilmedi.
+
+---
+
+### ✅ Flex Connect — WhatsApp'a yakın mesaj/menü güncellemesi + "24 hep geri geliyor" fix + Sohbeti Sil (2026-07-20, PC oturumu 1)
 
 **"24 hep geri geliyor" çözüldü:** Audience-only okuyucular (üye kaydı olmayanlar,
 ör. "Kurum Duyuruları" gibi audience:"all_students" kanalları) için `markRead`

@@ -44,7 +44,7 @@ export function EmojiButton({ onPick, size = 40 }: { onPick: (emoji: string) => 
   );
 }
 
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+export const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 /** Mesaj reaksiyon hızlı-seç panosu (WhatsApp tarzı, Faz 2 madde 2 — 2026-07-18).
  * Composer'ın `EmojiButton`'ından AYRI: sadece 6 yaygın emoji, mesaj balonunun

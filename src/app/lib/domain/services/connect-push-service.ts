@@ -56,6 +56,13 @@ export async function notifyNewMessage(
 
     await Promise.all(
       recipients.map(async (recipient) => {
+        // Ana FlexOS bildirim zili/toast'ı (2026-07-20) — mobil PUSH aboneliğinden
+        // BAĞIMSIZ, Connect dışındaki her yerde `NotificationBell`/`NotificationToastListener`
+        // zaten dinlediği `users/{uid}/notifications` koleksiyonuna düşer (bkz. `ConnectDeps.notify`).
+        const student = await deps.persons.findByAuthUid(recipient.uid, tenantId);
+        const actionUrl = student ? `/flexos/student/${student.id}/connect` : "/flexos/connect";
+        await deps.notify(recipient.uid, { type: "message", entityId: conversationId, senderId: senderUid, title, preview: body, actionUrl });
+
         const sub = await pushRepo.getSubscription(recipient.uid);
         if (!sub || !sub.notificationsEnabled || sub.tokens.length === 0) return;
 

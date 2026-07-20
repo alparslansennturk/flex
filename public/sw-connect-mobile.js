@@ -26,10 +26,16 @@ self.addEventListener("push", (event) => {
   } catch {
     return;
   }
-  const title = payload.title || "Flex Connect";
-  const body = payload.body || "";
-  const conversationId = payload.conversationId || "";
-  const badge = payload.badge !== undefined ? Number(payload.badge) : undefined;
+  // FCM, Admin SDK'dan `data:{...}` ile (notification alanı OLMADAN) gönderilen mesajları
+  // web push'a nakledirken alanları KÖKTE değil `data` anahtarının ALTINDA gönderiyor —
+  // `payload.title` vb. HER ZAMAN undefined kalıyordu (2026-07-20 kullanıcı bulgusu: rozet
+  // hiç güncellenmiyordu VE bildirime tıklayınca doğru konuşmaya gitmiyordu — ikisi de
+  // conversationId/badge'in hiç okunamamasından kaynaklanıyordu). Her iki şekli de destekle.
+  const data = payload.data ?? payload;
+  const title = data.title || "Flex Connect";
+  const body = data.body || "";
+  const conversationId = data.conversationId || "";
+  const badge = data.badge !== undefined ? Number(data.badge) : undefined;
 
   event.waitUntil(
     (async () => {
@@ -64,7 +70,11 @@ self.addEventListener("notificationclick", (event) => {
         if (conversationId) existing.postMessage({ type: "flex-connect-open-conversation", conversationId });
         return;
       }
-      await self.clients.openWindow("/flexos/connect/mobile");
+      // Uygulama tamamen kapalıyken (soğuk başlangıç) — conversationId URL'e query
+      // param olarak eklenir, sayfa mount'ta bunu okuyup ilgili sohbeti açar
+      // (2026-07-20, bkz. mobile/page.tsx).
+      const url = conversationId ? `/flexos/connect/mobile?openConversation=${encodeURIComponent(conversationId)}` : "/flexos/connect/mobile";
+      await self.clients.openWindow(url);
     })(),
   );
 });

@@ -5,6 +5,7 @@ import { firestoreConnectAuditRepo } from "./connect-audit-repo.firestore";
 import { firestoreEnrollmentRepo } from "./enrollment-repo.firestore";
 import { firestoreGroupRepo } from "./group-repo.firestore";
 import { firestoreTrainerRepo } from "./trainer-repo.firestore";
+import { notifyUser } from "./flexos-notify";
 import type { ConnectDeps } from "../domain/services/connect-service";
 
 /** Tüm Connect route'larının paylaştığı servis bağımlılıkları — tek yerde. */
@@ -16,4 +17,5 @@ export const connectDeps: ConnectDeps = {
   enrollments: firestoreEnrollmentRepo,
   groups: firestoreGroupRepo,
   trainers: firestoreTrainerRepo,
+  notify: notifyUser,
 };
