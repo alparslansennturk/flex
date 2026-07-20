@@ -594,16 +594,19 @@ export default function FlexConnectMobile() {
       return;
     }
     // FCM token alma + iki ayrı sunucu isteği (kayıt + tercih) zincirlemesi 1-4sn
-    // sürebiliyor — bu süre boyunca görsel geri bildirim olmazsa kullanıcı "basmadı"
-    // sanıyor (2026-07-20 kullanıcı bulgusu). Anahtarın yanında dönen bir gösterge var.
+    // sürebiliyor. Sadece dönen bir gösterge yeterli değil (kullanıcı geri bildirimi:
+    // "aktif ediliyor gibi bir mesaj çıkarsa tekrar basmaya kalkmaz") — bu yüzden
+    // aynı toast'u loading → success/error olarak güncelleyen tek bir `toastId`
+    // kullanılıyor (2026-07-20).
     setNotifPushLoading(true);
+    const toastId = toast.loading("Bildirimler etkinleştiriliyor...");
     try {
       const messaging = await getMessagingIfSupported();
-      if (!messaging) { toast.error("Bu tarayıcı push bildirimini desteklemiyor."); return; }
+      if (!messaging) { toast.error("Bu tarayıcı push bildirimini desteklemiyor.", { id: toastId }); return; }
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") { toast.error("Bildirim izni verilmedi — tarayıcı/telefon ayarlarından açabilirsin."); return; }
+      if (permission !== "granted") { toast.error("Bildirim izni verilmedi — tarayıcı/telefon ayarlarından açabilirsin.", { id: toastId }); return; }
       const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
-      if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı."); return; }
+      if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı.", { id: toastId }); return; }
       const registration = await withTimeout(navigator.serviceWorker.ready, 8000, "Servis çalışanı hazır olma");
       // Önceki bir denemeden (farklı VAPID key/eski kurulum) kalmış push subscription
       // varsa getToken() Safari'de sessizce/anlaşılmaz bir hatayla patlıyor
@@ -615,16 +618,17 @@ export default function FlexConnectMobile() {
         8000,
         "FCM token isteği",
       );
-      if (!token) { toast.error("Cihaz kaydı alınamadı (token boş döndü)."); return; }
+      if (!token) { toast.error("Cihaz kaydı alınamadı (token boş döndü).", { id: toastId }); return; }
       const registered = await registerPushToken(token, studentPersonId ?? undefined);
-      if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene."); return; }
+      if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene.", { id: toastId }); return; }
       pushTokenRef.current = token;
       await setPushNotificationsEnabled(true, studentPersonId ?? undefined);
       setNotifPush(true);
+      toast.success("Bildirimler açıldı.", { id: toastId });
     } catch (e) {
       console.error("[connect-mobile] push izin akışı hatası:", e);
       const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-      toast.error(`Bildirimler açılamadı — ${detail}`, { duration: 8000 });
+      toast.error(`Bildirimler açılamadı — ${detail}`, { id: toastId, duration: 8000 });
     } finally {
       setNotifPushLoading(false);
     }
