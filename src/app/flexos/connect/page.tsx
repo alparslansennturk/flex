@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import {
   Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
-  ChevronDown, Reply, Copy, Bell, BellOff,
+  ChevronDown, Reply, Copy, Bell, BellOff, Settings, FileText, ChevronRight, ArrowLeft,
 } from "lucide-react";
 import { onMessage, getToken } from "firebase/messaging";
 import { auth, getMessagingIfSupported } from "@/app/lib/firebase";
@@ -252,7 +252,13 @@ export default function FlexConnectPage() {
   // kapalı olsun") — bildirimin kendisinden BAĞIMSIZ, sunucudaki `soundEnabled`.
   const [notifSound, setNotifSound] = useState(false);
   const [notifSoundLoading, setNotifSoundLoading] = useState(false);
-  const [notifMenuOpen, setNotifMenuOpen] = useState(false);
+
+  // Masaüstü "Ayarlar" modalı (2026-07-20 kullanıcı isteği: "bir ayarlar menüsü
+  // yap, bildirim ayarlarını onun içine al") — mobildeki Ayarlar/Yasal
+  // Bilgilendirmeler ekranlarının masaüstü karşılığı, TEK modal içinde alt-görünüm
+  // (mobildeki `Screen` yerine burada basit bir `settingsView` string state).
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsView, setSettingsView] = useState<"main" | "legal" | "kvkk">("main");
 
   useEffect(() => {
     fetchPushSettings().then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
@@ -340,7 +346,6 @@ export default function FlexConnectPage() {
     () => setOpenMessageMenuId(null),
     () => setOpenReactionPickerId(null),
     () => setPresenceMenuOpen(false),
-    () => setNotifMenuOpen(false),
   ]);
 
   // Ad/açıklama/Yayıncı/grup listesi düzenleme (2026-07-18) — SADECE owner/admin,
@@ -864,47 +869,14 @@ export default function FlexConnectPage() {
           >
             <Star size={19} />
           </button>
-          <div className="relative" data-connect-dropdown>
-            <button
-              title="Masaüstü bildirim ayarları"
-              onClick={() => setNotifMenuOpen((v) => !v)}
-              className="flex items-center justify-center cursor-pointer transition-all"
-              style={{ width: 40, height: 40, borderRadius: 12, border: "none", color: notifPush ? "#2867bd" : "#8FA3BE", background: notifPush ? "#EAF1FB" : "transparent" }}
-            >
-              {notifPushLoading ? <Loader2 size={18} className="animate-spin" /> : notifPush ? <Bell size={19} /> : <BellOff size={19} />}
-            </button>
-            {notifMenuOpen && (
-              <div
-                className="absolute flex flex-col"
-                style={{ left: "100%", bottom: 0, marginLeft: 10, width: 230, background: "#fff", borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.18)", padding: 6, zIndex: 50 }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 10px" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1B1F26" }}>Bildirimler</div>
-                    <div style={{ fontSize: 11, color: "#8A909B", marginTop: 1 }}>Yeni mesajlarda masaüstü bildirimi</div>
-                  </div>
-                  <button
-                    onClick={toggleNotifPush} disabled={notifPushLoading} role="switch" aria-checked={notifPush}
-                    style={{ width: 38, height: 22, borderRadius: 999, border: "none", cursor: notifPushLoading ? "wait" : "pointer", flexShrink: 0, background: notifPush ? "#2867bd" : "#D4D8DF", position: "relative", padding: 0 }}
-                  >
-                    <span style={{ position: "absolute", top: 2, left: notifPush ? 18 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
-                  </button>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 10px" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1B1F26" }}>Bildirim Sesi</div>
-                    <div style={{ fontSize: 11, color: "#8A909B", marginTop: 1 }}>Bildirim gelince OS sesi çalsın</div>
-                  </div>
-                  <button
-                    onClick={toggleNotifSound} disabled={notifSoundLoading} role="switch" aria-checked={notifSound}
-                    style={{ width: 38, height: 22, borderRadius: 999, border: "none", cursor: notifSoundLoading ? "wait" : "pointer", flexShrink: 0, background: notifSound ? "#2867bd" : "#D4D8DF", position: "relative", padding: 0 }}
-                  >
-                    <span style={{ position: "absolute", top: 2, left: notifSound ? 18 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            title="Ayarlar"
+            onClick={() => { setSettingsView("main"); setSettingsOpen(true); }}
+            className="flex items-center justify-center cursor-pointer transition-all"
+            style={{ width: 40, height: 40, borderRadius: 12, border: "none", color: "#8FA3BE", background: "transparent" }}
+          >
+            <Settings size={19} />
+          </button>
           <div className="relative" data-connect-dropdown>
             <button
               title={`${staffDirectoryList.find((u) => u.uid === auth.currentUser?.uid)?.name ?? auth.currentUser?.displayName ?? "Sen"} — ${presenceLabel(presenceMap.get(auth.currentUser?.uid ?? ""))}`}
@@ -1707,6 +1679,172 @@ export default function FlexConnectPage() {
               ))
             )}
           </div>
+        </div>
+      </div>
+    )}
+
+    {settingsOpen && (
+      <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 200, background: "rgba(10,15,25,.4)" }} onClick={() => setSettingsOpen(false)}>
+        <div onClick={(e) => e.stopPropagation()} className="flex flex-col" style={{ width: 460, maxHeight: "78vh", background: "#fff", borderRadius: 18, boxShadow: "0 30px 80px -20px rgba(18,35,59,.45)", overflow: "hidden" }}>
+          <div className="flex items-center justify-between shrink-0" style={{ padding: "16px 20px", borderBottom: "1px solid #EEF0F3" }}>
+            <div className="flex items-center gap-2">
+              {settingsView !== "main" && (
+                <button
+                  onClick={() => setSettingsView(settingsView === "kvkk" ? "legal" : "main")}
+                  className="flex items-center justify-center cursor-pointer"
+                  style={{ width: 28, height: 28, borderRadius: 8, border: "none", background: "transparent", color: "#6B717C" }}
+                >
+                  <ArrowLeft size={16} />
+                </button>
+              )}
+              <Settings size={17} color="#2867bd" />
+              <span style={{ fontSize: 15.5, fontWeight: 800, color: "#1B1F26" }}>
+                {settingsView === "main" ? "Ayarlar" : settingsView === "legal" ? "Yasal Bilgilendirmeler" : "KVKK Aydınlatma Metni"}
+              </span>
+            </div>
+            <button onClick={() => setSettingsOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 30, height: 30, borderRadius: 9, color: "#6B717C" }}><X size={16} /></button>
+          </div>
+
+          {settingsView === "main" && (
+            <div className="flex-1 overflow-y-auto" style={{ padding: 16 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8A909B", textTransform: "uppercase", letterSpacing: ".05em", margin: "0 2px 9px" }}>Bildirimler</div>
+              <div style={{ background: "#F7F8FA", border: "1px solid #E9EBEF", borderRadius: 14, overflow: "hidden", marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "13px 15px", borderBottom: "1px solid #ECEEF1" }}>
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>Masaüstü Bildirimleri</div>
+                    <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>Yeni mesajlarda OS bildirimi göster</div>
+                  </div>
+                  <button
+                    onClick={toggleNotifPush} disabled={notifPushLoading} role="switch" aria-checked={notifPush}
+                    style={{ width: 40, height: 24, borderRadius: 999, border: "none", cursor: notifPushLoading ? "wait" : "pointer", flexShrink: 0, background: notifPush ? "#2867bd" : "#D4D8DF", position: "relative", padding: 0 }}
+                  >
+                    <span style={{ position: "absolute", top: 2, left: notifPush ? 18 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "13px 15px" }}>
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>Bildirim Sesi</div>
+                    <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>Bildirim gelince OS sesi çalsın</div>
+                  </div>
+                  <button
+                    onClick={toggleNotifSound} disabled={notifSoundLoading} role="switch" aria-checked={notifSound}
+                    style={{ width: 40, height: 24, borderRadius: 999, border: "none", cursor: notifSoundLoading ? "wait" : "pointer", flexShrink: 0, background: notifSound ? "#2867bd" : "#D4D8DF", position: "relative", padding: 0 }}
+                  >
+                    <span style={{ position: "absolute", top: 2, left: notifSound ? 18 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s" }} />
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8A909B", textTransform: "uppercase", letterSpacing: ".05em", margin: "0 2px 9px" }}>Yasal</div>
+              <button
+                onClick={() => setSettingsView("legal")}
+                className="flex items-center gap-3 w-full cursor-pointer text-left"
+                style={{ padding: "13px 15px", borderRadius: 14, border: "1px solid #E9EBEF", background: "#F7F8FA" }}
+              >
+                <div className="flex items-center justify-center shrink-0" style={{ width: 34, height: 34, borderRadius: 10, background: "#EEF1F5", color: "#6B717C" }}><FileText size={17} /></div>
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>Yasal Bilgilendirmeler</div>
+                  <div style={{ fontSize: 11.5, color: "#8A909B", marginTop: 1 }}>KVKK, gizlilik politikası, kullanım koşulları</div>
+                </div>
+                <ChevronRight size={17} color="#C3CAD4" />
+              </button>
+            </div>
+          )}
+
+          {settingsView === "legal" && (
+            <div className="flex-1 overflow-y-auto" style={{ padding: 10 }}>
+              {[
+                { title: "KVKK Aydınlatma Metni", onClick: () => setSettingsView("kvkk") },
+                { title: "Gizlilik Politikası", onClick: () => toast("Yakında eklenecek.") },
+                { title: "Kullanım Koşulları", onClick: () => toast("Yakında eklenecek.") },
+                { title: "Sürüm Bilgisi", onClick: () => toast("Yakında eklenecek.") },
+              ].map((r) => (
+                <button
+                  key={r.title} onClick={r.onClick}
+                  className="flex items-center gap-3 w-full cursor-pointer text-left transition-colors"
+                  style={{ padding: "13px 14px", borderRadius: 12, border: "none", background: "transparent" }}
+                >
+                  <div className="flex items-center justify-center shrink-0" style={{ width: 32, height: 32, borderRadius: 9, background: "#EEF1F5", color: "#6B717C" }}><FileText size={16} /></div>
+                  <div className="flex-1 min-w-0" style={{ fontSize: 13.5, fontWeight: 700, color: "#1B1F26" }}>{r.title}</div>
+                  <ChevronRight size={16} color="#C3CAD4" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {settingsView === "kvkk" && (
+            <div className="flex-1 overflow-y-auto" style={{ padding: "16px 20px 24px" }}>
+              <p style={{ fontSize: 11.5, fontWeight: 600, color: "#8A909B", margin: "0 0 14px" }}>Son Güncelleme: 20.07.2026</p>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: "#1B1F26", margin: "0 0 18px" }}>
+                Bu Aydınlatma Metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu (&quot;KVKK&quot;) kapsamında,
+                Arı Bilgi Bilişim Teknolojileri Akademisi tarafından geliştirilen Flex Connect uygulamasını kullanan
+                öğrenciler, akademik personel ve yöneticilerin kişisel verilerinin işlenmesine ilişkin usul ve
+                esaslar hakkında bilgi vermek amacıyla hazırlanmıştır.
+              </p>
+              {([
+                { h: "1. Veri Sorumlusu", p: ["6698 sayılı KVKK kapsamında veri sorumlusu Arı Bilgi Bilişim Teknolojileri Akademisi olarak faaliyet göstermektedir."] },
+                {
+                  h: "2. İşlenen Kişisel Veriler",
+                  p: ["Flex Connect uygulaması kapsamında aşağıdaki kişisel veriler işlenebilmektedir:"],
+                  b: ["Ad ve Soyad", "Kurumsal e-posta adresi", "Kullanıcı rolü (Öğrenci, Akademisyen, Yönetici vb.)", "Bölüm / Program bilgisi", "Ders, laboratuvar veya grup bilgileri", "Kullanıcının uygulama içerisinde oluşturduğu mesajlar ve paylaşımlar (iletişim hizmetinin sunulabilmesi amacıyla)", "Bildirim tercihleri ve cihaz bildirim bilgileri (bildirim özelliğinin kullanılması halinde)", "Kimlik doğrulama ve oturum kayıtları"],
+                  after: ["Flex Connect, kullanıcıların konum bilgisi, telefon rehberi, kamera, mikrofon veya benzeri kişisel verilerine kullanıcı izni olmaksızın erişmez."],
+                },
+                {
+                  h: "3. Kişisel Verilerin İşlenme Amaçları",
+                  p: ["Toplanan kişisel veriler aşağıdaki amaçlarla işlenmektedir:"],
+                  b: ["Kullanıcı hesabının oluşturulması ve yönetilmesi", "Kimlik doğrulama işlemlerinin gerçekleştirilmesi", "Mesajlaşma ve iletişim hizmetlerinin sunulması", "Ders, laboratuvar ve grup süreçlerinin yürütülmesi", "Duyuru ve bildirimlerin kullanıcılara ulaştırılması", "Anket ve geri bildirim süreçlerinin yönetilmesi", "Sistem güvenliğinin sağlanması", "Teknik destek hizmetlerinin sunulması", "Yasal yükümlülüklerin yerine getirilmesi"],
+                },
+                {
+                  h: "4. Kişisel Verilerin Aktarılması",
+                  p: ["Kişisel veriler;"],
+                  b: ["uygulamanın güvenli şekilde çalıştırılması", "kimlik doğrulama hizmetlerinin sağlanması", "bildirim gönderilmesi", "veri barındırma hizmetlerinin yürütülmesi"],
+                  after: ["amaçlarıyla hizmet alınan teknoloji sağlayıcılarıyla sınırlı olmak üzere paylaşılabilir.", "Bunun dışında kişisel veriler, ilgili mevzuat kapsamında yetkili kamu kurum ve kuruluşlarının hukuka uygun talepleri dışında üçüncü kişilerle paylaşılmaz."],
+                },
+                {
+                  h: "5. Kişisel Verilerin Toplanma Yöntemi",
+                  p: ["Kişisel veriler;"],
+                  b: ["kullanıcı tarafından uygulamaya girilen bilgiler", "kurumsal kullanıcı kayıtları", "uygulama kullanım süreçleri", "elektronik ortamlar"],
+                  after: ["aracılığıyla otomatik yöntemlerle toplanmaktadır."],
+                },
+                {
+                  h: "6. Kişisel Verilerin Saklanması",
+                  p: ["Kişisel veriler; ilgili mevzuatta öngörülen süreler boyunca veya işleme amacının gerektirdiği süre kadar güvenli şekilde saklanmaktadır.", "Saklama süresi sona eren veriler ilgili mevzuata uygun olarak silinir, yok edilir veya anonim hale getirilir."],
+                },
+                {
+                  h: "7. Veri Güvenliği",
+                  p: ["Flex Connect kapsamında kişisel verilerin gizliliğini ve güvenliğini sağlamak amacıyla uygun teknik ve idari tedbirler uygulanmaktadır.", "Bu kapsamda;"],
+                  b: ["güvenli bağlantılar kullanılmakta", "yetkilendirme kontrolleri uygulanmakta", "erişimler sınırlandırılmakta", "veri güvenliğini artırıcı güncel teknolojiler kullanılmaktadır"],
+                },
+                {
+                  h: "8. KVKK Kapsamındaki Haklarınız",
+                  p: ["6698 sayılı KVKK'nın 11. maddesi kapsamında kullanıcılar;"],
+                  b: ["kişisel verilerinin işlenip işlenmediğini öğrenme", "işlenen verilere ilişkin bilgi talep etme", "verilerin düzeltilmesini isteme", "verilerin silinmesini veya yok edilmesini talep etme", "işlenen verilerin aktarıldığı üçüncü kişileri öğrenme", "kanuna aykırı işleme nedeniyle zararın giderilmesini talep etme"],
+                  after: ["haklarına sahiptir."],
+                },
+                {
+                  h: "9. İletişim",
+                  p: ["KVKK kapsamındaki taleplerinizi aşağıdaki iletişim adresi üzerinden iletebilirsiniz.", "Veri Sorumlusu: Arı Bilgi Bilişim Teknolojileri Akademisi", "E-posta: alparslan.sennturk@gmail.com"],
+                },
+              ]).map((s) => (
+                <div key={s.h} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#1B1F26", marginBottom: 7 }}>{s.h}</div>
+                  {s.p.map((line, i) => (
+                    <p key={i} style={{ fontSize: 13, lineHeight: 1.6, color: "#6B717C", margin: "0 0 7px" }}>{line}</p>
+                  ))}
+                  {s.b && (
+                    <ul style={{ margin: "0 0 7px", paddingLeft: 20 }}>
+                      {s.b.map((item, i) => (
+                        <li key={i} style={{ fontSize: 13, lineHeight: 1.6, color: "#6B717C", marginBottom: 3 }}>{item}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {s.after?.map((line, i) => (
+                    <p key={i} style={{ fontSize: 13, lineHeight: 1.6, color: "#6B717C", margin: "0 0 7px" }}>{line}</p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     )}
