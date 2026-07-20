@@ -102,6 +102,36 @@ function dividerLabel(iso: string): string {
   return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
 }
 
+/** Personel/Öğrenciler dizini tek satırı — hem düz liste hem departman
+ * (unvan) gruplu görünümde reuse edilir (2026-07-20). */
+function DirectoryRow({ u, conversations, selectedId, onClick }: { u: DirectoryUser; conversations: ConversationView[]; selectedId: string | null; onClick: () => void }) {
+  const conv = conversations.find((c) => c.type === "dm" && c.peerUid === u.uid);
+  const sel = !!conv && conv.id === selectedId;
+  return (
+    <div
+      onClick={onClick}
+      className="flex items-center gap-3 cursor-pointer transition-colors"
+      style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
+    >
+      <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}>
+        {initials(u.name)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate font-bold" style={{ fontSize: 14.5, color: "#1B1F26" }}>{u.name}</span>
+          {conv?.lastMessage && <span style={{ fontSize: 11.5, fontWeight: conv.unread ? 700 : 500, color: conv.unread ? "#2867bd" : "#A2A8B2" }}>{fmtTime(conv.lastMessage.at)}</span>}
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-0.5">
+          <span className="truncate" style={{ fontSize: 13, color: "#6B717C", fontWeight: 500 }}>
+            {conv?.lastMessage ? `${conv.lastMessage.senderName}: ${conv.lastMessage.text}` : "Henüz mesaj yok"}
+          </span>
+          {!!conv && conv.unreadCount > 0 && <span className="shrink-0 flex items-center justify-center font-extrabold text-white" style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: "#E5484D", fontSize: 11 }}>{conv.unreadCount > 99 ? "99+" : conv.unreadCount}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FlexConnectPage() {
   const router = useRouter();
   const [navTab, setNavTab] = useState<NavKey>("channel");
@@ -560,6 +590,20 @@ export default function FlexConnectPage() {
     (u) => !query.trim() || u.name.toLocaleLowerCase("tr").includes(query.trim().toLocaleLowerCase("tr")),
   ) ?? null;
 
+  /** Departman gruplaması (2026-07-20 kullanıcı kararı) — FlexOS'ta gerçek bir
+   * "departman" alanı YOK, kullanıcı `title`'ı (Eğitim Koordinatörü/Genel Müdür/
+   * Öğrenci İşleri gibi) departman anlamında kullandığını netleştirdi. SADECE
+   * "Personel" sekmesinde (öğrencilerin böyle bir unvanı yok, gruplamak anlamsız). */
+  const groupedStaffDirectory = navTab === "staffDirectory" && filteredDirectory
+    ? Object.entries(
+        filteredDirectory.reduce<Record<string, DirectoryUser[]>>((acc, u) => {
+          const key = u.title?.trim() || "Diğer";
+          (acc[key] ??= []).push(u);
+          return acc;
+        }, {}),
+      ).sort(([a], [b]) => a.localeCompare(b, "tr"))
+    : null;
+
   const visibleMessages = messageQuery.trim()
     ? messages.filter((m) => m.text.toLocaleLowerCase("tr").includes(messageQuery.trim().toLocaleLowerCase("tr")))
     : messages;
@@ -651,34 +695,19 @@ export default function FlexConnectPage() {
           {filteredDirectory !== null ? (
             filteredDirectory.length === 0 ? (
               <p className="text-center text-[13px] text-surface-400 mt-6">Kimse bulunamadı.</p>
+            ) : groupedStaffDirectory ? (
+              groupedStaffDirectory.map(([title, users]) => (
+                <div key={title} style={{ marginBottom: 6 }}>
+                  <div className="font-bold uppercase" style={{ fontSize: 11, color: "#8A909B", letterSpacing: ".04em", padding: "12px 12px 4px" }}>{title}</div>
+                  {users.map((u) => (
+                    <DirectoryRow key={u.uid} u={u} conversations={conversations} selectedId={selectedId} onClick={() => openDirectMessage(u.uid, navTab === "staffDirectory" ? "staff" : "trainer_student")} />
+                  ))}
+                </div>
+              ))
             ) : (
-              filteredDirectory.map((u) => {
-                const conv = conversations.find((c) => c.type === "dm" && c.peerUid === u.uid);
-                const sel = !!conv && conv.id === selectedId;
-                return (
-                  <div
-                    key={u.uid} onClick={() => openDirectMessage(u.uid, navTab === "staffDirectory" ? "staff" : "trainer_student")}
-                    className="flex items-center gap-3 cursor-pointer transition-colors"
-                    style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
-                  >
-                    <div className="flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: sel ? "#2867bd" : "#EEF1F5", color: sel ? "#fff" : "#5A616C" }}>
-                      {initials(u.name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate font-bold" style={{ fontSize: 14.5, color: "#1B1F26" }}>{u.name}</span>
-                        {conv?.lastMessage && <span style={{ fontSize: 11.5, fontWeight: conv.unread ? 700 : 500, color: conv.unread ? "#2867bd" : "#A2A8B2" }}>{fmtTime(conv.lastMessage.at)}</span>}
-                      </div>
-                      <div className="flex items-center justify-between gap-2 mt-0.5">
-                        <span className="truncate" style={{ fontSize: 13, color: "#6B717C", fontWeight: 500 }}>
-                          {conv?.lastMessage ? `${conv.lastMessage.senderName}: ${conv.lastMessage.text}` : "Henüz mesaj yok"}
-                        </span>
-                        {!!conv && conv.unreadCount > 0 && <span className="shrink-0 flex items-center justify-center font-extrabold text-white" style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: "#E5484D", fontSize: 11 }}>{conv.unreadCount > 99 ? "99+" : conv.unreadCount}</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              filteredDirectory.map((u) => (
+                <DirectoryRow key={u.uid} u={u} conversations={conversations} selectedId={selectedId} onClick={() => openDirectMessage(u.uid, navTab === "staffDirectory" ? "staff" : "trainer_student")} />
+              ))
             )
           ) : loadingList ? (
             <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-surface-400" /></div>

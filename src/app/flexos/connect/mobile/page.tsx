@@ -17,10 +17,9 @@ export const dynamic = "force-dynamic";
  * sayfasına atmaz (app'lerdeki gibi).
  *
  * Hâlâ bilinçli olarak eksik bırakılanlar (2026-07-20 itibarıyla — composer emoji/ek
- * yükleme, mesaj düzenle/sil/reaksiyon-ekleme, mesaj arama, kanal "Herkes Yazabilir"
- * ve push bildirimi ARTIK GERÇEK, bu listeden çıkarıldı):
+ * yükleme, mesaj düzenle/sil/reaksiyon-ekleme, mesaj arama, kanal "Herkes Yazabilir",
+ * push bildirimi VE Personel departman gruplaması ARTIK GERÇEK, bu listeden çıkarıldı):
  *  - Presence (çevrimiçi/derste/rahatsız etmeyin) — Connect'te hiç presence altyapısı yok.
- *  - Personel sekmesinde departman gruplaması — DirectoryUser'da departman alanı yok, düz liste.
  *
  * Gerçek veriyle bağlı olanlar: konuşma listeleri (Sohbetler/Kanallar), Personel dizini, mesaj
  * okuma/gönderme (gerçek zamanlı), yazıyor göstergesi (gerçek, tasarımdaki gibi sabit DEĞİL),
@@ -975,6 +974,20 @@ export default function FlexConnectMobile() {
   const staffRows = staffTabSource.filter((u) => !sq || u.name.toLocaleLowerCase("tr").includes(sq) || (u.title ?? "").toLocaleLowerCase("tr").includes(sq));
   const trainerRows = trainerDirectory.filter((u) => !sq || u.name.toLocaleLowerCase("tr").includes(sq) || (u.title ?? "").toLocaleLowerCase("tr").includes(sq));
 
+  /** Departman gruplaması (2026-07-20) — masaüstündeki AYNI karar/mantık: gerçek
+   * bir "departman" alanı yok, `title` (Eğitim Koordinatörü/Genel Müdür vb.)
+   * departman anlamında kullanılıyor. SADECE Personel görünümünde (öğrenci/
+   * eğitmen dizininde unvan anlamsız). */
+  const groupedStaffRows = !studentPersonId && staffTabView === "staff"
+    ? Object.entries(
+        staffRows.reduce<Record<string, DirectoryUser[]>>((acc, u) => {
+          const key = u.title?.trim() || "Diğer";
+          (acc[key] ??= []).push(u);
+          return acc;
+        }, {}),
+      ).sort(([a], [b]) => a.localeCompare(b, "tr"))
+    : null;
+
   const memberCandidates = staffDirectory.filter((u) => !memberQuery.trim() || u.name.toLocaleLowerCase("tr").includes(memberQuery.trim().toLocaleLowerCase("tr")));
   const reachCount = myGroups.filter((g) => cGroups.includes(g.id)).reduce((a, g) => a + (g.enrolled ?? 0), 0);
   const canCreate = createType === "community" ? cName.trim().length > 0 && cGroups.length >= 2 : cName.trim().length > 0;
@@ -1200,22 +1213,48 @@ export default function FlexConnectMobile() {
                 </div>
               </div>
               <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px" }}>
-                <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-                  {(studentPersonId ? trainerRows : staffRows).length === 0 && <p style={{ textAlign: "center", padding: 16, fontSize: 13, color: T.muted }}>Kimse bulunamadı.</p>}
-                  {(studentPersonId ? trainerRows : staffRows).map((p, i, arr) => (
-                    <button
-                      key={p.uid} onClick={() => openDirectMessage(p.uid, studentPersonId ? "trainer_student" : (staffTabView === "staff" ? "staff" : "trainer_student"))}
-                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
-                    >
-                      <div style={avatarBox(T.brand, 42)}>{initials(p.name)}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{p.name}</div>
-                        {p.title && <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>{p.title}</div>}
+                {groupedStaffRows ? (
+                  groupedStaffRows.length === 0 ? (
+                    <p style={{ textAlign: "center", padding: 16, fontSize: 13, color: T.muted }}>Kimse bulunamadı.</p>
+                  ) : (
+                    groupedStaffRows.map(([title, rows]) => (
+                      <div key={title} style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em", margin: "0 2px 8px" }}>{title}</div>
+                        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+                          {rows.map((p, i, arr) => (
+                            <button
+                              key={p.uid} onClick={() => openDirectMessage(p.uid, "staff")}
+                              style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
+                            >
+                              <div style={avatarBox(T.brand, 42)}>{initials(p.name)}</div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{p.name}</div>
+                              </div>
+                              <Icon k="chev" size={18} color={T.chev} />
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <Icon k="chev" size={18} color={T.chev} />
-                    </button>
-                  ))}
-                </div>
+                    ))
+                  )
+                ) : (
+                  <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+                    {(studentPersonId ? trainerRows : staffRows).length === 0 && <p style={{ textAlign: "center", padding: 16, fontSize: 13, color: T.muted }}>Kimse bulunamadı.</p>}
+                    {(studentPersonId ? trainerRows : staffRows).map((p, i, arr) => (
+                      <button
+                        key={p.uid} onClick={() => openDirectMessage(p.uid, studentPersonId ? "trainer_student" : (staffTabView === "staff" ? "staff" : "trainer_student"))}
+                        style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
+                      >
+                        <div style={avatarBox(T.brand, 42)}>{initials(p.name)}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{p.name}</div>
+                          {p.title && <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>{p.title}</div>}
+                        </div>
+                        <Icon k="chev" size={18} color={T.chev} />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
