@@ -33,11 +33,11 @@ import {
 import { auth } from "@/app/lib/firebase";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type ConnectConversationType, type ConnectRealm,
-  type ConversationDetail, type TypingSignal, type ConnectReplySnapshot,
+  type ConversationDetail, type TypingSignal, type ConnectReplySnapshot, type StarredMessageView,
   fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
   subscribeToMessages, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
   setConversationPinned, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
-  updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation,
+  updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, fetchStarredMessages,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { ConnectIcon } from "./_shared/ConnectIcon";
@@ -167,6 +167,26 @@ export default function FlexConnectPage() {
   const [popoverPos, setPopoverPos] = useState<PopoverPosition | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
+
+  // "Yıldızlı Mesajlarım" (2026-07-20) — tüm konuşmalar arası tek liste, modal olarak.
+  const [starredOpen, setStarredOpen] = useState(false);
+  const [starredMessages, setStarredMessages] = useState<StarredMessageView[]>([]);
+  const [loadingStarred, setLoadingStarred] = useState(false);
+  async function openStarred() {
+    setStarredOpen(true);
+    setLoadingStarred(true);
+    try {
+      setStarredMessages(await fetchStarredMessages());
+    } finally {
+      setLoadingStarred(false);
+    }
+  }
+  async function goToStarredConversation(conversationId: string) {
+    setStarredOpen(false);
+    const conv = conversations.find((c) => c.id === conversationId);
+    if (conv) setNavTab(conv.type);
+    await selectConversation(conversationId);
+  }
 
   // "Personel"/"Öğrenciler" rail dizinleri (2026-07-18) — DM için AYRI bir "oluştur"
   // akışı yok, dizinden birine tıklayınca var olan DM açılır ya da anında oluşturulur.
@@ -643,6 +663,13 @@ export default function FlexConnectPage() {
           })}
         </div>
         <div className="mt-auto flex flex-col items-center gap-3">
+          <button
+            title="Yıldızlı Mesajlarım" onClick={openStarred}
+            className="flex items-center justify-center cursor-pointer transition-all"
+            style={{ width: 40, height: 40, borderRadius: 12, border: "none", color: "#8FA3BE", background: "transparent" }}
+          >
+            <Star size={19} />
+          </button>
           <div title={auth.currentUser?.displayName ?? "Sen"} className="rounded-full flex items-center justify-center font-bold text-white" style={{ width: 38, height: 38, background: "#3A587E", fontSize: 13 }}>
             {initials(auth.currentUser?.displayName || auth.currentUser?.email || "Sen")}
           </div>
@@ -1370,6 +1397,43 @@ export default function FlexConnectPage() {
         )}
       </AnimatePresence>
     </div>
+    {starredOpen && (
+      <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 200, background: "rgba(10,15,25,.4)" }} onClick={() => setStarredOpen(false)}>
+        <div onClick={(e) => e.stopPropagation()} className="flex flex-col" style={{ width: 440, maxHeight: "70vh", background: "#fff", borderRadius: 18, boxShadow: "0 30px 80px -20px rgba(18,35,59,.45)", overflow: "hidden" }}>
+          <div className="flex items-center justify-between shrink-0" style={{ padding: "16px 20px", borderBottom: "1px solid #EEF0F3" }}>
+            <div className="flex items-center gap-2">
+              <Star size={17} color="#F5A623" fill="#F5A623" />
+              <span style={{ fontSize: 15.5, fontWeight: 800, color: "#1B1F26" }}>Yıldızlı Mesajlarım</span>
+            </div>
+            <button onClick={() => setStarredOpen(false)} className="flex items-center justify-center cursor-pointer" style={{ width: 30, height: 30, borderRadius: 9, color: "#6B717C" }}><X size={16} /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto" style={{ padding: 10 }}>
+            {loadingStarred ? (
+              <div className="flex justify-center py-10"><Loader2 size={18} className="animate-spin text-surface-400" /></div>
+            ) : starredMessages.length === 0 ? (
+              <p className="text-center" style={{ fontSize: 13, color: "#A2A8B2", padding: "24px 12px" }}>Henüz yıldızladığın bir mesaj yok.</p>
+            ) : (
+              starredMessages.map((m) => (
+                <button
+                  key={`${m.conversationId}-${m.messageId}`} onClick={() => goToStarredConversation(m.conversationId)}
+                  className="flex flex-col w-full text-left cursor-pointer transition-colors"
+                  style={{ padding: "12px 14px", borderRadius: 12, border: "none", background: "transparent" }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#2867bd" }}>{m.conversationName || "Sohbet"}</span>
+                    <span style={{ fontSize: 11, color: "#A2A8B2" }}>{fmtTime(m.createdAt)}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#6B717C", marginTop: 1 }}>{m.authorName}</span>
+                  <span className="truncate" style={{ fontSize: 13.5, color: "#26303D", marginTop: 3 }}>
+                    {m.text || (m.attachments?.length ? `📎 ${m.attachments[0].fileName}` : "")}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

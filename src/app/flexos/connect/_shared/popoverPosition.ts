@@ -19,7 +19,13 @@ export function computePopoverPosition(
   estimatedHeight = 200,
 ): PopoverPosition {
   const rect = anchor.getBoundingClientRect();
-  const openUpward = rect.top > estimatedHeight + 20 || window.innerHeight - rect.bottom < estimatedHeight;
+  // GERÇEK bug (2026-07-20 kullanıcı bulgusu): eski koşul "üstte yer VARSA" yukarı
+  // açıyordu — altta da bolca yer olsa bile, çünkü öncelik yanlıştı (üstte yer olması
+  // TEK BAŞINA yukarı açmayı tetikliyordu). Doğrusu: varsayılan AŞAĞI, SADECE altta
+  // yer YOKSA ve üstte yer VARSA yukarı dön.
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+  const openUpward = spaceBelow < estimatedHeight && spaceAbove > estimatedHeight;
   const vertical: PopoverPosition = openUpward
     ? { bottom: window.innerHeight - rect.top + 4 }
     : { top: rect.bottom + 4 };

@@ -220,6 +220,32 @@ export async function toggleMessageStar(conversationId: string, messageId: strin
   return res.ok;
 }
 
+export interface StarredMessageView {
+  conversationId: string;
+  conversationName: string;
+  conversationType: ConnectConversationType;
+  messageId: string;
+  authorName: string;
+  text: string;
+  createdAt: string;
+  attachments?: ConnectAttachment[];
+}
+
+/** "Yıldızlı Mesajlarım" (2026-07-20) — tüm konuşmalar arası tek liste. */
+export async function fetchStarredMessages(personId?: string): Promise<StarredMessageView[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/starred${qs(personId)}`, { headers });
+  if (!res.ok) {
+    // Sessizce boş döndürmüyoruz artık — teşhis kolaylığı için (2026-07-20 kullanıcı
+    // bulgusu: yıldızladıktan sonra liste boştu, gerçek sunucu hatası konsolda hiç görünmüyordu).
+    const body = await res.json().catch(() => ({}));
+    console.error("[connect] fetchStarredMessages hata:", res.status, (body as { error?: string }).error);
+    return [];
+  }
+  const data = (await res.json()) as { items: StarredMessageView[] };
+  return data.items;
+}
+
 export async function markConversationRead(conversationId: string, personId?: string): Promise<void> {
   const headers = await authHeaders();
   await fetch(`${base(personId)}/conversations/${conversationId}/read${qs(personId)}`, { method: "POST", headers });

@@ -27,6 +27,10 @@ export interface ConnectRepo {
   saveMessage(conversationId: string, message: ConnectMessage): Promise<void>;
   getMessage(conversationId: string, messageId: string): Promise<ConnectMessage | null>;
   listMessages(conversationId: string, limit?: number): Promise<ConnectMessage[]>;
+  /** `collectionGroup("messages")` — "Yıldızlı Mesajlarım" (2026-07-20), `listMembershipsForUid`
+   * ile AYNI desen. `tenantId` mesaj dokümanında YOK — servis katmanı, dönen her sonucun
+   * ait olduğu konuşmayı çekip tenant/okuma-yetkisi doğrulaması yapar. */
+  listStarredMessages(uid: string): Promise<{ conversationId: string; message: ConnectMessage }[]>;
 
   /** Ephemeral "yazıyor" sinyali — `at`e bakarak client tarafında bayatlığı (TTL) süzülür,
    * ayrı bir temizleme işi YOK (aynı uid'in dokümanı her yazışmada üzerine yazılır). */

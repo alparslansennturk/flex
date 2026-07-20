@@ -116,6 +116,14 @@ export const firestoreConnectRepo: ConnectRepo = {
     await adminDb.collection(CONVERSATIONS).doc(conversationId).collection(MESSAGES).doc(message.id).set(clean(message));
   },
 
+  async listStarredMessages(uid) {
+    const snap = await adminDb.collectionGroup(MESSAGES).where("starredBy", "array-contains", uid).get();
+    return snap.docs.map((d) => ({
+      conversationId: d.ref.parent.parent!.id,
+      message: d.data() as ConnectMessage,
+    }));
+  },
+
   async getMessage(conversationId, messageId) {
     const snap = await adminDb.collection(CONVERSATIONS).doc(conversationId).collection(MESSAGES).doc(messageId).get();
     if (!snap.exists) return null;

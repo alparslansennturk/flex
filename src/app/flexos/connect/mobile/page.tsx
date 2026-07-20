@@ -47,6 +47,7 @@ import {
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
   setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, reportIssue, hideConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
+  fetchStarredMessages, type StarredMessageView,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
 import { QUICK_REACTIONS, QUICK_EMOJIS } from "@/app/flexos/connect/_shared/EmojiPicker";
@@ -94,7 +95,7 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
-type Screen = "app" | "chat" | "create" | "notif" | "help" | "password";
+type Screen = "app" | "chat" | "create" | "notif" | "help" | "password" | "starred";
 type Tab = "chats" | "channels" | "staff" | "settings";
 type ThemePref = "light" | "dark" | "system";
 
@@ -792,6 +793,22 @@ export default function FlexConnectMobile() {
   const [helpMessage, setHelpMessage] = useState("");
   const [helpSending, setHelpSending] = useState(false);
 
+  // "Yıldızlı Mesajlarım" (2026-07-20) — tüm konuşmalar arası tek liste.
+  const [starredMessages, setStarredMessages] = useState<StarredMessageView[]>([]);
+  const [loadingStarred, setLoadingStarred] = useState(false);
+  async function openStarred() {
+    setScreen("starred");
+    setLoadingStarred(true);
+    try {
+      setStarredMessages(await fetchStarredMessages(studentPersonId ?? undefined));
+    } finally {
+      setLoadingStarred(false);
+    }
+  }
+  async function goToStarredConversation(conversationId: string) {
+    await openChat(conversationId);
+  }
+
   function openHelp(kind: "sorun" | "oneri") {
     setHelpKind(kind);
     setHelpMessage("");
@@ -1300,6 +1317,7 @@ export default function FlexConnectMobile() {
                 <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden", marginBottom: 20 }}>
                   {[
                     { title: "Bildirimler", sub: "Anlık bildirimler", icon: "bell", onClick: () => setScreen("notif") },
+                    { title: "Yıldızlı Mesajlarım", sub: "Tüm sohbetlerden yıldızlanan mesajlar", icon: "star", onClick: openStarred },
                     { title: "Gizlilik & Güvenlik", sub: "Şifre değiştir", icon: "shield", onClick: () => setScreen("password") },
                   ].map((r, i, arr) => (
                     <div key={r.title} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", cursor: "pointer" }}>
@@ -1882,6 +1900,42 @@ export default function FlexConnectMobile() {
             >
               {changingPassword ? "Güncelleniyor…" : "Şifreyi Güncelle"}
             </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ============ YILDIZLI MESAJLARIM ============ */}
+      {authUser && screen === "starred" && (
+        <motion.div key="starred" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+            <button onClick={() => { setScreen("app"); setTab("settings"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Yıldızlı Mesajlarım</div>
+              <div style={{ fontSize: 11.5, fontWeight: 500, marginTop: 1, color: T.text2 }}>Tüm sohbetlerden</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+            {loadingStarred ? (
+              <div className="flex justify-center py-8"><div style={{ width: 22, height: 22, border: `3px solid ${T.border}`, borderTopColor: T.brand, borderRadius: "50%", animation: "fcSpin .8s linear infinite" }} /></div>
+            ) : starredMessages.length === 0 ? (
+              <p style={{ textAlign: "center", fontSize: 13, color: T.muted, padding: "24px 12px" }}>Henüz yıldızladığın bir mesaj yok.</p>
+            ) : (
+              starredMessages.map((m) => (
+                <button
+                  key={`${m.conversationId}-${m.messageId}`} onClick={() => goToStarredConversation(m.conversationId)}
+                  style={{ display: "flex", flexDirection: "column", width: "100%", padding: "12px 14px", borderRadius: 14, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: T.brand }}>{m.conversationName || "Sohbet"}</span>
+                    <span style={{ fontSize: 11, color: T.muted }}>{fmtTime(m.createdAt)}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: T.text2, marginTop: 1 }}>{m.authorName}</span>
+                  <span style={{ fontSize: 14, color: T.text, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {m.text || (m.attachments?.length ? `📎 ${m.attachments[0].fileName}` : "")}
+                  </span>
+                </button>
+              ))
+            )}
           </div>
         </motion.div>
       )}

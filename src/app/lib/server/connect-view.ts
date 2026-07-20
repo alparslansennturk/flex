@@ -196,3 +196,53 @@ export async function buildMessageViews(
     };
   });
 }
+
+/** "Yıldızlı Mesajlarım" (2026-07-20) — TÜM konuşmalar arası tek liste, her
+ * satırda hangi konuşmadan geldiği (DM'de karşı tarafın adı, diğerlerinde
+ * konuşma adı) + yazar + metin/ek görünür. */
+export interface StarredMessageView {
+  conversationId: string;
+  conversationName: string;
+  conversationType: ConnectConversation["type"];
+  messageId: string;
+  authorName: string;
+  text: string;
+  createdAt: string;
+  attachments?: ConnectAttachment[];
+}
+
+export async function buildStarredMessageViews(
+  items: { conversation: ConnectConversation; message: { id: string; authorUid: string; text: string; createdAt: string; attachments?: ConnectAttachment[] } }[],
+  principalUid: string,
+  tenantId: string,
+): Promise<StarredMessageView[]> {
+  const dmItems = items.filter((i) => i.conversation.type === "dm");
+  const dmMemberLists = await Promise.all(
+    dmItems.map(async (i) => ({ id: i.conversation.id, members: await firestoreConnectRepo.listMembers(i.conversation.id) })),
+  );
+  const dmPeerUidByConvId = new Map<string, string>();
+  for (const { id, members } of dmMemberLists) {
+    const peer = members.find((m) => m.uid !== principalUid);
+    if (peer) dmPeerUidByConvId.set(id, peer.uid);
+  }
+
+  const uidsToResolve = new Set<string>();
+  for (const { message } of items) uidsToResolve.add(message.authorUid);
+  for (const uid of dmPeerUidByConvId.values()) uidsToResolve.add(uid);
+  const identities = await resolveConnectIdentities([...uidsToResolve], tenantId);
+
+  return items.map(({ conversation, message }) => {
+    const peerUid = dmPeerUidByConvId.get(conversation.id);
+    const isDm = conversation.type === "dm" && !!peerUid;
+    return {
+      conversationId: conversation.id,
+      conversationName: isDm ? (identities[peerUid!]?.name ?? "Kullanıcı") : conversation.name,
+      conversationType: conversation.type,
+      messageId: message.id,
+      authorName: identities[message.authorUid]?.name ?? "Kullanıcı",
+      text: message.text,
+      createdAt: message.createdAt,
+      attachments: message.attachments,
+    };
+  });
+}

@@ -87,6 +87,15 @@ function makeConnectRepo(): ConnectRepo {
     async listMessages(conversationId) {
       return [...(messages.get(conversationId)?.values() ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
+    async listStarredMessages(uid) {
+      const result: { conversationId: string; message: ConnectMessage }[] = [];
+      for (const [conversationId, msgMap] of messages) {
+        for (const m of msgMap.values()) {
+          if (m.starredBy?.includes(uid)) result.push({ conversationId, message: m });
+        }
+      }
+      return result;
+    },
     async setTyping(conversationId, uid, name, at) {
       if (!typing.has(conversationId)) typing.set(conversationId, new Map());
       typing.get(conversationId)!.set(uid, { uid, name, at });

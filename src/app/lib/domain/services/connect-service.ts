@@ -684,6 +684,33 @@ export async function toggleMessageStar(
 }
 
 /**
+ * "Yıldızlı Mesajlarım" (2026-07-20) — TÜM konuşmalar arasında (`collectionGroup`,
+ * `listMembershipsForUid` ile AYNI desen) çağıranın yıldızladığı mesajlar, en
+ * yeniden eskiye. Mesaj dokümanında `tenantId` YOK — her sonuç için konuşma
+ * ayrıca çekilip tenant + okuma yetkisi (`assertCanRead`) doğrulanır, geçmezse
+ * sessizce elenir (ör. konuşmadan çıkarılmış olabilir).
+ */
+export async function listStarredMessages(
+  principal: ConnectPrincipal,
+  deps: ConnectDeps,
+): Promise<{ conversation: ConnectConversation; message: ConnectMessage }[]> {
+  const raw = await deps.conversations.listStarredMessages(principal.uid);
+  const results: { conversation: ConnectConversation; message: ConnectMessage }[] = [];
+  for (const { conversationId, message } of raw) {
+    const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+    if (!conversation) continue;
+    const member = await deps.conversations.getMember(conversationId, principal.uid);
+    try {
+      assertCanRead(conversation, member);
+    } catch {
+      continue;
+    }
+    results.push({ conversation, message });
+  }
+  return results.sort((a, b) => b.message.createdAt.localeCompare(a.message.createdAt));
+}
+
+/**
  * Okundu işaretle. Audience-only okuyucular (üye dokümanı yok — ör. "Kurum
  * Duyuruları" gibi audience:"all_students" kanalları) için Faz 1'de burada
  * sessizce no-op ediliyordu ("basitlik kararı") — bu yüzden okunmamış sayısı HİÇ
