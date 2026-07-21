@@ -110,6 +110,15 @@ olmadığını kontrol etmek (ör. service account'un yeni bucket'ta yazma izni
 gerçekten var mı — Firebase'in yeniden provizyonu farklı bir IAM durumu
 bırakmış olabilir).
 
+**📌 Not (2026-07-21, kullanıcı bulgusu):** Öğrenci ödev yükleyince eğitmene
+HİÇ bildirim gitmiyor. Kod incelemesi: `submission-service.ts`'te `notify`
+SADECE `updateSubmissionStatus`'ta kullanılıyor (eğitmen→öğrenci yönü:
+revize/onay bildirimi) — `completeUpload`'da (öğrenci teslim ettiğinde)
+`deps.notify` hiç çağrılmıyor. Yani bu bir regresyon DEĞİL, hiç yapılmamış
+bir özellik eksiği — eğitmene "yeni teslim var" bildirimi tetiklenmesi
+gerekiyor (muhtemelen `completeUpload`'ın sonunda, `assignment.trainerId`'ye
+veya grup sorumlusuna `deps.notify` çağrısı). Henüz kod yazılmadı.
+
 **SIRADAKİ (diğer):** yukarıdaki upload bug'ı çözüldükten sonra kullanıcı
 gerçek bir öğrenci hesabından ödev yükleyip Firebase konsolunda `Ödev
 Teslimleri/...` altında dosyanın göründüğünü (artık gerçek branş adıyla),
