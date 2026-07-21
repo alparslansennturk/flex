@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { collection, onSnapshot, orderBy, query, type Timestamp } from "firebase/firestore";
 import dynamic from "next/dynamic";
 import {
-  ArrowLeft, Loader2, RotateCcw, CheckCircle2,
+  ArrowLeft, Loader2, RotateCcw, CheckCircle2, Undo2,
   Send, Download, FileText, MoreHorizontal, Pencil, Trash2,
 } from "lucide-react";
 import { auth, db } from "@/app/lib/firebase";
@@ -89,6 +89,8 @@ export default function SubmissionPreviewPage() {
   const [files, setFiles] = useState<FileVersion[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
+  const [deleteFileTarget, setDeleteFileTarget] = useState<{ id: string; fileName: string } | null>(null);
+  const [deletingFile, setDeletingFile] = useState(false);
 
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentText, setCommentText] = useState("");
@@ -175,10 +177,42 @@ export default function SubmissionPreviewPage() {
         toast.error(json.error ?? "Durum güncellenemedi.");
         return;
       }
-      toast.success(status === "completed" ? "Teslim onaylandı!" : "Revizyon istendi.");
+      toast.success(
+        status === "completed" ? "Teslim onaylandı!" : status === "revision" ? "Revizyon istendi." : "Onay geri alındı, teslim yeniden incelemede.",
+      );
       setSubmission((prev) => (prev ? { ...prev, status } : prev));
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  /** Onay native `confirm()` DEĞİL, tasarım sistemindeki modal (yonetim/page.tsx
+   * "Şablon silme onayı" ile AYNI desen — kullanıcı isteği). */
+  async function confirmDeleteFile() {
+    if (!deleteFileTarget) return;
+    setDeletingFile(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/submissions/${submissionId}/files/${deleteFileTarget.id}`, { method: "DELETE", headers });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(json.error ?? "Dosya silinemedi.");
+        return;
+      }
+      const remaining = files.filter((f) => f.id !== deleteFileTarget.id);
+      setFiles(remaining);
+      setActiveFileId((cur) => (cur === deleteFileTarget.id ? remaining.at(-1)?.id : cur));
+      // Backend son aktif dosya silinince submission.status'u "retracted"e çekiyor
+      // (2026-07-22) — dosyasız bir teslimde Onayı Geri Al/Revize/Onayla kalmasın.
+      if (remaining.length === 0) {
+        setSubmission((prev) => (prev ? { ...prev, status: "retracted" } : prev));
+      }
+      toast.success("Dosya silindi.");
+      setDeleteFileTarget(null);
+    } catch {
+      toast.error("Bağlantı hatası, tekrar dene.");
+    } finally {
+      setDeletingFile(false);
     }
   }
 
@@ -261,18 +295,26 @@ export default function SubmissionPreviewPage() {
               {STATUS_MAP[submission.status].label}
             </span>
           )}
-          {submission && (
+          {submission && submission.status === "completed" ? (
+            <button
+              onClick={() => handleStatus("reviewing")}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-200 bg-surface-100 text-surface-600 text-[12px] font-semibold hover:bg-surface-200 transition-colors cursor-pointer disabled:opacity-40"
+            >
+              <Undo2 size={13} /> Onayı Geri Al
+            </button>
+          ) : submission && submission.status !== "retracted" && files.length > 0 && (
             <>
               <button
                 onClick={() => handleStatus("revision")}
-                disabled={actionLoading || submission.status === "completed" || submission.status === "revision"}
+                disabled={actionLoading || submission.status === "revision"}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-orange-200 bg-orange-50 text-orange-600 text-[12px] font-semibold hover:bg-orange-100 transition-colors cursor-pointer disabled:opacity-40"
               >
                 <RotateCcw size={13} /> Revize İste
               </button>
               <button
                 onClick={() => handleStatus("completed")}
-                disabled={actionLoading || submission.status === "completed"}
+                disabled={actionLoading}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-[12px] font-semibold hover:bg-emerald-600 transition-colors cursor-pointer disabled:opacity-40"
               >
                 <CheckCircle2 size={13} /> Onayla
@@ -341,20 +383,30 @@ export default function SubmissionPreviewPage() {
                 <p className="text-[11px] font-bold text-surface-400 uppercase tracking-wider mb-2">Gönderilen Dosyalar</p>
                 <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
                   {files.map((f) => (
-                    <button
+                    <div
                       key={f.id}
-                      onClick={() => setActiveFileId(f.id)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${f.id === activeFileId ? "bg-base-primary-50 border border-base-primary-200" : "bg-surface-50 border border-transparent hover:bg-surface-100"}`}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors ${f.id === activeFileId ? "bg-base-primary-50 border border-base-primary-200" : "bg-surface-50 border border-transparent hover:bg-surface-100"}`}
                     >
-                      <FileText size={14} className={f.id === activeFileId ? "text-base-primary-600" : "text-surface-400"} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[12px] font-semibold text-text-primary truncate">{f.fileName}</p>
-                        <p className="text-[10px] text-surface-400">v{f.versionNo} · {formatBytes(f.fileSize)}</p>
-                      </div>
+                      <button onClick={() => setActiveFileId(f.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer">
+                        <FileText size={14} className={f.id === activeFileId ? "text-base-primary-600" : "text-surface-400"} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-semibold text-text-primary truncate">{f.fileName}</p>
+                          <p className="text-[10px] text-surface-400">v{f.versionNo} · {formatBytes(f.fileSize)}</p>
+                        </div>
+                      </button>
                       {f.isLatest && (
                         <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">Son</span>
                       )}
-                    </button>
+                      {submission?.status !== "completed" && (
+                        <button
+                          onClick={() => setDeleteFileTarget({ id: f.id, fileName: f.fileName })}
+                          title="Dosyayı sil"
+                          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-surface-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -393,6 +445,29 @@ export default function SubmissionPreviewPage() {
                 className="w-9 h-9 rounded-xl bg-base-primary-600 text-white flex items-center justify-center hover:bg-base-primary-700 disabled:opacity-40 transition-colors cursor-pointer shrink-0"
               >
                 <Send size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dosya silme onayı — yonetim/page.tsx "Şablon silme onayı" ile AYNI desen. */}
+      {deleteFileTarget && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0F1A30]/45 p-4" onClick={() => !deletingFile && setDeleteFileTarget(null)}>
+          <div className="bg-white rounded-[18px] shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6.5 pt-6.5 pb-5">
+              <div className="w-12 h-12 rounded-xl bg-[#FFECEC] text-[#D93636] flex items-center justify-center mb-4">
+                <Trash2 size={22} />
+              </div>
+              <h3 className="text-[18px] font-extrabold text-[#1E222B] tracking-tight">Dosyayı sil</h3>
+              <p className="text-[14px] text-[#6F7B87] mt-2 leading-relaxed">
+                <span className="font-bold text-[#1E222B]">{deleteFileTarget.fileName}</span> dosyasını kalıcı olarak silmek üzeresiniz. Bu işlem geri alınamaz.
+              </p>
+            </div>
+            <div className="flex gap-2.5 justify-end px-6.5 pb-5.5">
+              <button onClick={() => setDeleteFileTarget(null)} disabled={deletingFile} className="px-5 py-2.5 rounded-xl border border-[#E2E5EA] bg-white text-[#414B59] text-[14px] font-semibold hover:bg-[#F7F8FA] transition-colors cursor-pointer disabled:opacity-50">Vazgeç</button>
+              <button onClick={confirmDeleteFile} disabled={deletingFile} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-none bg-[#D93636] text-white text-[14px] font-bold cursor-pointer transition-all disabled:opacity-60" style={{ boxShadow: "0 8px 18px -8px rgba(217,54,54,.6)" }}>
+                {deletingFile ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Evet, sil
               </button>
             </div>
           </div>

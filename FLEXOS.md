@@ -16,7 +16,88 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Ödev Teslim Sistemi — Drive'dan Google Cloud Storage'a geçiş (2026-07-21 — EN GÜNCEL)
+### ✅ 2026-07-22 oturumu — Ödev Teslimi UI + Randevu Takvimi çakışma + Aktivite Merkezi senkron (EN GÜNCEL)
+
+**Ödev Teslimi — legacy port + eğitmen dosya silme:**
+- `odevler/teslim/[groupId]/[assignmentId]/page.tsx` sağ panel legacy'ye göre yeniden
+  düzenlendi: Öğrenci bilgi kartı (avatar+isim+e-posta+not, `flex-1` ile sağdaki kartla
+  aynı yüksekliğe geriliyor) + "Mevcut Durum" kartı (300px, durum/tarih/Revize-Onayla
+  butonları) yan yana grid; altında Dosyalar → Aktivite (dosya yükleme/yorum/durum
+  değişikliğinden TÜRETİLMİŞ zaman çizelgesi, yeni event-log YOK) → Yorumlar (artık
+  sabit 30vh kutu DEĞİL, doğal akışta, `commentsEndRef`/`scrollIntoView` kaldırıldı —
+  sayfa yenilenince/yüklenince otomatik aşağı kayma bug'ı buydu).
+- Varsayılan öğrenci seçimi: en son teslim eden (`lastSubmittedAt`, retracted hariç),
+  kimse teslim etmediyse listedeki ilk öğrenci.
+- **Eğitmen dosya silme** (`deleteFileAsStaff`, `submission.status.write` yetkisiyle
+  gated) hem liste hem preview sayfasına eklendi — `completed` teslimde engelli, önce
+  "Onayı Geri Al" (yeni buton, `reviewing`'e çeker) gerekiyor. Native `confirm()`
+  yerine tasarım sistemindeki modal (yonetim/page.tsx "şablon silme onayı" deseni).
+- **Son aktif dosya silinince submission otomatik `retracted`'a düşer** (dosyasız
+  teslimde Onayla/Revize İste butonları kalmasın diye) — hem `deleteFile` (öğrenci)
+  hem `deleteFileAsStaff` bunu paylaşıyor (`removeSubmissionFile` ortak helper).
+  Butonların gösterilme koşulu HEM `status!=="retracted"` HEM `files.length>0` —
+  backend fix'inden önce bozulmuş (0 dosyalı ama status hâlâ eski) kayıtlara karşı
+  savunma. 50/50 assertion (`assert-submission.ts`).
+
+**FlexSidebar — kısa viewport'ta menü sıkışması (eski Intel Mac, TV'ye bağlı sınıf
+bilgisayarı):**
+- İKİ ayrı deneme (flex:1+min-height:0, sonra grid'in 1fr satırı) eski WebKit'te
+  taşan içeriği scroll etmek yerine sıkıştırdı. Nihai çözüm: `<aside>`'ın KENDİSİ
+  scroll oluyor (`S.sidebar: overflowY:auto`, nav artık ayrı bir scroll bölgesi
+  DEĞİL) — lacivert alan içerikle birlikte esneyip taşabiliyor, en eski/en temel
+  overflow davranışı.
+- Scrollbar TAMAMEN gizli (`scrollbar-width:none` + `::-webkit-scrollbar{display:none}`)
+  — kullanıcı kararı, sadece kaydırma hareketi kalsın.
+- 7 akordiyon menüsünün hepsine `scrollIntoView` eklendi — açılınca tıklanan buton
+  otomatik üste kayıyor, altındaki alt menüye yer açılıyor (scrollbar görünmediği
+  için TEK görsel ipucu bu).
+
+**Randevu Takvimi — aynı saate çakışan randevular:**
+- `layoutDayAppointments()` — Google Calendar deseniyle aynı: aynı ana denk gelen
+  (veya kısmen çakışan, `Appointment`'ta bitiş saati yok, 60dk varsayılıyor)
+  randevular artık yan yana sütunlara bölünüyor, biri diğerinin ARKASINDA kaybolmuyor.
+  Saat ekseni hiç değişmiyor (10/11/12 tekrarlanmıyor), sadece kartlar genişliği
+  paylaşıyor. Hem hafta hem gün görünümüne uygulandı, çakışma yoksa eskisiyle birebir
+  aynı (tam genişlik).
+
+**Aktivite Merkezi — Randevu Takvimi'nden oluşturulan randevu senkron değildi:**
+- Kök sebep: `case-service.ts::addActivity` bir randevu oluşturulduğunda Case'in
+  SADECE `status`'unu güncelliyordu — `assignedToUid`/`assignedToName`/`uiDurum`/
+  `uiSonrakiTip`/`nextActionType`/`nextActionDate` hiç set edilmiyordu (bunlar sadece
+  Aktivite Merkezi'nin KENDİ manuel "Randevu Oluşturulacak" akışında ayrı bir PATCH'le
+  yazılıyordu). Randevu Takvimi'nden oluşturulan randevularda bu yüzden "Sorumlu" boş,
+  "Durum" dropdown'ı boş, "Gelecek Randevu" kutusu boş kalıyordu.
+  **Fix:** `addActivity` artık appointment oluşunca bunların hepsini appointment'tan
+  otomatik türetiyor (çağıranın ayrıca göndermesine gerek yok). 6 mevcut test case'i
+  script'le backfill edildi.
+- **🔴 Kritik ayrı bug (aynı kök neden zincirinden, DAHA CİDDİ):** sayfa gerçek
+  backend verisiyle (`flexos_cases`) birlikte eski bir `flexos_prospects` sahte/demo
+  veri setini (14 sabit satır — Ali Yılmaz, Zeynep Arslan, vb.) AYNI listede
+  birleştirip gösteriyordu (`allActs`). Bu sahte satırlardan birinde aksiyon alınca
+  (Randevu Oluşturulacak DAHİL) TAMAMEN AYRI bir "eski dummy" kod yolu çalışıyordu —
+  gerçek sisteme hiç yazmıyordu, sadece bu ölü koleksiyonu güncelliyordu. Kullanıcı
+  gerçek bir talep sandığı bir sahte satırda randevu oluşturmaya çalışınca hiçbir şey
+  olmadı — bu buydu. **Sahte veri + besleyen seed/onSnapshot/save yolu TAMAMEN
+  kaldırıldı**, `flexos_prospects` koleksiyonu silindi. TEK veri kaynağı artık
+  `flexos_cases`.
+
+**Sonraki oturum notları (2026-07-22 akşamı, kullanıcı):**
+- **Sıradaki iş: Şube düzenlemesi** (henüz başlanmadı, detay verilmedi).
+- **🔴 AÇIK BUG — Cmd+K global arama eski/pasif bir modal açıyor:** kullanıcı
+  sınıfta Cmd+K'ye basıp "Ceren Gürel" yazıp sonuca tıklayınca **eski (pasif)
+  bir modal** açıldı — güncel/doğru modal değil. Kullanıcı notu: "eğitmende
+  mesela öğrencilerden basınca normal/yeni yapılan çıkıyor" — yani bazı arama
+  sonuçları (öğrenciler kategorisi gibi) doğru/güncel modala gidiyor, ama en
+  azından bu örnekte (muhtemelen farklı bir kategori/sonuç tipi) yanlış/eski
+  modal tetiklendi. Henüz kod incelenmedi — global arama (Cmd+K) component'inin
+  sonuç tipine göre hangi modalı açtığına bakılacak, tutarsızlığın kaynağı
+  bulunacak.
+- Randevu oluştururken mesai saatleri dışına (gece 3 gibi) ve geçmiş tarihe
+  randevu alınamasın, takvimdeki geçmiş günler disabled/soluk görünsün — henüz
+  kod yazılmadı (Aktivite Merkezi + Randevu Takvimi'nin ikisinde de tarih/saat
+  input'ları var, ikisi de kapsamda).
+
+### ✅ Ödev Teslim Sistemi — Drive'dan Google Cloud Storage'a geçiş (2026-07-21)
 
 **Gerekçe (kullanıcı):** Ödev yükleme sistemi kullanıcının KİŞİSEL Google
 Drive hesabı üzerinden çalışıyordu — kurum büyüdükçe/eğitmenler kullandıkça

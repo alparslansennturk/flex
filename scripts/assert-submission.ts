@@ -29,6 +29,7 @@ import {
   initUpload,
   completeUpload,
   deleteFile,
+  deleteFileAsStaff,
   retract,
   updateSubmissionStatus,
   gradeSubmission,
@@ -430,6 +431,32 @@ async function main() {
       ),
       ValidationError,
     );
+
+    // ── deleteFileAsStaff: onaylı (completed) teslimde eğitmen de dosya silemez ──
+    const filesAfterCompleted = await deps.submissionFiles.listActiveBySubmission(submission.id, TENANT);
+    const remainingFile = filesAfterCompleted[0];
+    await assertRejects(
+      "deleteFileAsStaff: completed teslimde eğitmen dosya silemez — ValidationError",
+      () => deleteFileAsStaff(trainerA, submission.id, remainingFile.id, deps),
+      ValidationError,
+    );
+
+    // ── Onay geri alınınca (reviewing) eğitmen artık silebilir; yetkisiz eğitmen SİLEMEZ ──
+    await updateSubmissionStatus(trainerA, submission.id, "reviewing", deps);
+    await assertRejects(
+      "deleteFileAsStaff: başka eğitmen (grup dışı) silemez — ForbiddenError",
+      () => deleteFileAsStaff(trainerB, submission.id, remainingFile.id, deps),
+      ForbiddenError,
+    );
+    await deleteFileAsStaff(trainerA, submission.id, remainingFile.id, deps);
+    const afterStaffDelete = await deps.submissionFiles.listActiveBySubmission(submission.id, TENANT);
+    assert("deleteFileAsStaff: onay geri alınmış teslimde eğitmen dosyayı siler", afterStaffDelete.length === 0);
+
+    // ── 2026-07-22 kullanıcı bulgusu: son aktif dosya da silinince teslim "hiç
+    // yapılmamış" durumuna (retracted) döner — dosyasız teslimde Onayla/Revize İste
+    // butonları anlamsızca kalmasın diye. ──
+    const emptiedSubmission = await deps.submissions.getById(submission.id, TENANT);
+    assert("deleteFileAsStaff: son dosya silinince submission.status='retracted' olur", emptiedSubmission?.status === "retracted");
   }
 
   // ── completeUpload: 2 dosya AYNI ANDA tamamlanınca TEK submission'a bağlanır (2026-07-13 race fix) ──

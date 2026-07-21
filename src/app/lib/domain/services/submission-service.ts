@@ -448,6 +448,39 @@ export interface DeleteFileInput {
   fileId: EntityId;
 }
 
+/**
+ * `deleteFile`/`deleteFileAsStaff` ortak gövdesi — yetki/durum kontrolü çağıran tarafta.
+ * **2026-07-22 kullanıcı bulgusu:** son aktif dosya da silinince teslim "hiç yapılmamış"
+ * durumuna (retracted) döner — yoksa dosyasız bir teslimde Onayla/Revize İste butonları
+ * anlamsızca kalıyordu (silinecek/onaylanacak hiçbir şey yokken).
+ */
+async function removeSubmissionFile(
+  submission: Submission,
+  fileId: EntityId,
+  deletedBy: string,
+  tenantId: string,
+  deps: Pick<SubmissionDeps, "submissionFiles" | "drive" | "storage" | "submissions">,
+): Promise<void> {
+  const file = await deps.submissionFiles.getById(fileId, tenantId);
+  if (!file || file.submissionId !== submission.id || file.deleted) {
+    throw new ValidationError("Dosya bulunamadı.");
+  }
+
+  if (file.storagePath) await deps.storage.deleteObject(file.storagePath);
+  else if (file.driveFileId) await deps.drive.deleteFromDrive(file.driveFileId);
+
+  const now = nowISO();
+  await deps.submissionFiles.save({ ...file, deleted: true, deletedAt: now, deletedBy, isLatest: false });
+
+  const remaining = await deps.submissionFiles.listActiveBySubmission(submission.id, tenantId);
+  if (remaining.length === 0) {
+    await deps.submissions.save({ ...submission, status: "retracted", retractedAt: now, updatedAt: now, updatedBy: deletedBy });
+  } else if (file.isLatest) {
+    const newLatest = remaining.sort((a, b) => b.versionNo - a.versionNo)[0];
+    await deps.submissionFiles.save({ ...newLatest, isLatest: true });
+  }
+}
+
 /** Öğrenci kendi (tamamlanmamış) teslimindeki bir dosyayı siler — canlıdaki `delete-file`. */
 export async function deleteFile(
   input: DeleteFileInput,
@@ -459,22 +492,27 @@ export async function deleteFile(
   await requireOwnedPerson(submission.personId, input.requesterUid, deps, tenantId);
   if (submission.status === "completed") throw new ValidationError("Tamamlanmış teslimden dosya silinemez.");
 
-  const file = await deps.submissionFiles.getById(input.fileId, tenantId);
-  if (!file || file.submissionId !== input.submissionId || file.deleted) {
-    throw new ValidationError("Dosya bulunamadı.");
-  }
+  await removeSubmissionFile(submission, input.fileId, input.requesterUid, tenantId, deps);
+}
 
-  if (file.storagePath) await deps.storage.deleteObject(file.storagePath);
-  else if (file.driveFileId) await deps.drive.deleteFromDrive(file.driveFileId);
+/**
+ * Eğitmen/op — teslimdeki bir dosyayı siler (gated `submission.status.write`, `deleteFile`'la
+ * AYNI yetki — onayı geri alma da bu yetkiyle yapılıyor). Tamamlanmış (`completed`) teslimde
+ * hâlâ engelli — önce onay geri alınmalı (`updateSubmissionStatus`), yoksa notlandırılmış/
+ * kapanmış bir teslimin dosyası sessizce kaybolabilir.
+ */
+export async function deleteFileAsStaff(
+  actor: Actor,
+  submissionId: EntityId,
+  fileId: EntityId,
+  deps: Pick<SubmissionDeps, "submissions" | "submissionFiles" | "groups" | "drive" | "storage">,
+): Promise<void> {
+  const submission = await deps.submissions.getById(submissionId, actor.tenantId);
+  if (!submission) throw new ValidationError("Teslim bulunamadı.");
+  await requireGroupScope(actor, "submission.status.write", submission.groupId, deps, actor.tenantId);
+  if (submission.status === "completed") throw new ValidationError("Tamamlanmış teslimden dosya silinemez.");
 
-  const now = nowISO();
-  await deps.submissionFiles.save({ ...file, deleted: true, deletedAt: now, deletedBy: input.requesterUid, isLatest: false });
-
-  if (file.isLatest) {
-    const remaining = await deps.submissionFiles.listActiveBySubmission(input.submissionId, tenantId);
-    const newLatest = remaining.sort((a, b) => b.versionNo - a.versionNo)[0];
-    if (newLatest) await deps.submissionFiles.save({ ...newLatest, isLatest: true });
-  }
+  await removeSubmissionFile(submission, fileId, actor.uid, actor.tenantId, deps);
 }
 
 export interface RetractInput {

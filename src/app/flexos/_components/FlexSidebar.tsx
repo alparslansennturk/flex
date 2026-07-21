@@ -95,6 +95,18 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const kullanicilarActive = active === "kullanicilar" || active === "kullanici-ayarlari";
   const [kullanicilarOpen, setKullanicilarOpen] = useState(kullanicilarActive);
 
+  // 2026-07-22 kullanıcı bulgusu (sınıftaki TV'ye bağlı, kısa/ölçeklenmiş çözünürlüklü
+  // Mac'te test): `<nav>` zaten `overflowY:auto` ile scroll oluyordu (teknik olarak
+  // sıkışma yoktu), ama bir akordiyon açılınca içeriği görünüme kaydıran hiçbir şey
+  // yoktu — alt menü scroll alanının ekran dışında kalan kısmında açılıyor, neredeyse
+  // görünmez ince scrollbar (5px, %15 opaklık) dışında hiçbir ipucu olmadığı için
+  // kullanıcıya "sıkıştı, açamadım" gibi görünüyordu. Açılışta tetikleyen butonu
+  // `scrollIntoView` ile üste getiriyoruz — böylece altındaki alt menüye yer açılır.
+  function scrollIntoViewIfOpening(el: HTMLElement | null, opening: boolean) {
+    if (!opening || !el) return;
+    requestAnimationFrame(() => el.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }
+
   // ── Menü kuralı: öğe görünür ⟺ can(actor,yetki) VE (core-grubu VEYA view=Full) ──
   // Capability listesi yüklenene kadar boş küme = kapılı öğeler geçici gizli (kozmetik flaş yok).
   const [uid, setUid] = useState<string | null>(null);
@@ -312,12 +324,15 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
       </div>
 
       {/* 2026-07-16 kullanıcı bulgusu: `<nav>` ile alttaki "Sistem Ayarları/Çıkış" bloğu
-          arasında `marginTop:auto` boş alanı TAMAMEN yutuyordu — uzun ekranda menü öğeleri
-          birbirinden anlamsızca uzak duruyordu, KISA ekranda ise (sidebar hiç scroll
-          olmadığından) toplam içerik 100% yüksekliği aşınca alt blok üstteki öğelere
-          neredeyse yapışıyordu. `<nav>` artık `flex:1 + overflowY:auto` — taşarsa KENDİSİ
-          scroll olur, alt blok her zaman kendi doğal boyutunda hemen altında durur. */}
-      <nav className="fs-nav" style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflowY: "auto" }}>
+          arasında `marginTop:auto` boş alanı TAMAMEN yutuyordu. 2026-07-22 (eski Intel
+          Mac'te tekrar bulundu, iki ayrı deneme — flex:1+min-height:0 VE grid'in 1fr
+          satırı — ikisi de eski WebKit'te taşan içeriği scroll etmek yerine sıkıştırdı):
+          kullanıcı kararı — nav'ı ayrı bir scroll bölgesi yapmaktan TAMAMEN vazgeçildi.
+          Artık `<nav>` normal blok akışında, kendi doğal (içerik kadar) yüksekliğinde —
+          taşarsa `<aside>`'ın KENDİSİ (bkz. S.sidebar overflowY:auto) tek parça halinde
+          scroll olur, lacivert alan dahil her şey birlikte kayar. En basit/en eski
+          overflow davranışı — flex/grid'in "sıkıştırma" köşe durumlarına hiç girmiyor. */}
+      <nav className="fs-nav" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {/* Ana Sayfa = tek nav öğesi, hedefi role'e göre değişir (menü değil, "kim girdiyse
             onun ana sayfası" mantığı): role.manage → admin ana sayfa (`/flexos/anasayfa`
             henüz placeholder — sistem SAHİBİ için `canToggleView`/`view.toggle` özel: "Benim
@@ -341,7 +356,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             Core'dan çıkmadan halledebilsin diye. */}
         {(canSee("education.create", false) || canSee("branch.create", true)) && (
           <>
-            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={() => { setEduOpen((o) => !o); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
+            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !eduOpen; setEduOpen(opening); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: eduActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.book }} />
               <span style={{ flex: 1 }}>Eğitim Yönetimi</span>
               <motion.span
@@ -378,7 +393,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             dahil KİMSE görmez — Satış katmanı standalone kurulumda anlamsız. */}
         {!standaloneMode && (canSee("sale.create", false) || canSee("sale.read", false) || canSee("bundle.read", false) || canSee("campaign.read", false)) && (
           <>
-            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={() => { setSalesOpen((o) => !o); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
+            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !salesOpen; setSalesOpen(opening); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
               <span style={{ flex: 1 }}>Satışlar</span>
               <motion.span
@@ -430,7 +445,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             gibi çekirdek öğretmenlik işi, standalone-only DEĞİL. */}
         {canSee("assignment.read", true) && (
           <>
-            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={() => { setOdevOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
+            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !odevOpen; setOdevOpen(opening); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: odevActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.clipboard }} />
               <span style={{ flex: 1 }}>Ödevler</span>
               <motion.span
@@ -471,7 +486,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             Kullanıcı Ayarları (rol/yetki tanımları, SADECE role.manage — aşağıda ayrıca kapılı). */}
         {(canSee("role.manage", false) || canSee("trainer.read", false) || canSee("person.read", false)) && (
           <>
-            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={() => { setKullanicilarOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
+            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !kullanicilarOpen; setKullanicilarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: kullanicilarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.shield }} />
               <span style={{ flex: 1 }}>Kullanıcılar</span>
               <motion.span
@@ -505,7 +520,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             admin dahil kimse görmez — Satış/Op pipeline'ı standalone'da yok. */}
         {!standaloneMode && canSee("case.read", false) && (
           <>
-            <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={() => { setAktiviteOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); }}>
+            <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !aktiviteOpen; setAktiviteOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: aktiviteActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.activity }} />
               <span style={{ flex: 1 }}>Aktivite Merkezi</span>
               <motion.span
@@ -541,7 +556,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             yarım bırakmasın); Detay + Rapor normal navigasyon (2026-07-02 düzeltmesi). */}
         {(canSee("attendance.write", true) || canSee("attendance.report.read", false)) && (
           <>
-            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={() => { setYoklamaOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setSertifikaOpen(false); }}>
+            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !yoklamaOpen; setYoklamaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: yoklamaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.calendar }} />
               <span style={{ flex: 1 }}>Yoklamalar</span>
               <motion.span
@@ -574,7 +589,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Sertifikasyon — akordiyon: Sertifika Notu (grup bazlı not girişi) + Sertifika Ayarları. */}
         {canSee("grade.finalize", true) && (
           <>
-            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={() => { setSertifikaOpen((o) => !o); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); }}>
+            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !sertifikaOpen; setSertifikaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: sertifikaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.award }} />
               <span style={{ flex: 1 }}>Sertifikasyon</span>
               <motion.span
@@ -652,7 +667,18 @@ function SubItem({ label, active, onClick }: { label: string; active: boolean; o
 }
 
 export const S: Record<string, CSSProperties> = {
-  sidebar: { height: "100%", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
+  // 2026-07-22 kullanıcı bulgusu (eski Intel Mac, M4 Pro'ya göre daha kısa efektif
+  // viewport) — İKİ ayrı deneme (flex:1+min-height:0, sonra grid'in 1fr satırı) eski
+  // WebKit'te taşan içeriği scroll etmek yerine sıkıştırdı. Kullanıcı kararı: ayrı bir
+  // "nav scroll bölgesi" kurmaktan vazgeçildi — `<aside>`'ın KENDİSİ scroll oluyor,
+  // lacivert alan içerikle birlikte esneyip taşabiliyor (`height:100%` bir ÜST SINIR,
+  // aşarsa `overflowY:auto` devreye girer) — en eski/en temel overflow davranışı,
+  // flex/grid'in shrink-below-content köşe durumlarına hiç girmiyor.
+  // 2026-07-22 (devam): scrollbar TAMAMEN gizlenince (`.fs-sidebar` CSS kuralı, aşağıda
+  // `scrollbar-width:none` + `::-webkit-scrollbar{display:none}`) hiç görünür scrollbar
+  // olmadığı için titreşecek bir şey de kalmıyor — `scrollbarGutter:"stable"` bu yüzden
+  // kaldırıldı (görünmeyen bir şey için yer ayırmanın anlamı yok).
+  sidebar: { height: "100%", overflowY: "auto", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
   navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
   parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
   itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },
@@ -689,7 +715,8 @@ export const css = `
 @media(min-width:1536px){.fs-sidebar{width:272px;flex-basis:272px}}
 @media(min-width:2560px){.fs-sidebar{width:300px;flex-basis:300px}}
 .fs-navlink:hover{background:rgba(255,255,255,.06);color:#fff!important}
-.fs-nav{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent}
-.fs-nav::-webkit-scrollbar{width:5px}
-.fs-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
+/* 2026-07-22: scroll artık .fs-nav değil .fs-sidebar'ın kendisinde (bkz. S.sidebar).
+   Kullanıcı kararı: scrollbar HİÇ görünmesin, sadece kaydırma hareketi çalışsın. */
+.fs-sidebar{scrollbar-width:none}
+.fs-sidebar::-webkit-scrollbar{display:none}
 `;

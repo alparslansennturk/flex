@@ -209,6 +209,14 @@ export async function addActivity(
 
   let appointment: Appointment | undefined;
 
+  // 2026-07-22 kullanıcı bulgusu: Randevu Takvimi'nin kendi "Yeni Randevu Oluştur"
+  // akışı `appointment` gönderiyordu ama `nextActionType`/`nextActionDate`'i HİÇ
+  // göndermiyordu (sadece Aktivite Merkezi'nin akışı gönderiyordu) — Aktivite
+  // Merkezi'nde "Gelecek Randevu" kutusu bu yüzden bazı randevularda boş kalıyordu
+  // (cases/route.ts `nextActionDate`'i SON aktivitenin bu alanından türetiyor).
+  // `appointment` var ama `nextActionDate` verilmemişse, tutarlılık için randevunun
+  // kendi `scheduledAt`'ına düşülür — çağıranın bunu AYRICA hatırlamasına gerek
+  // kalmaz, appointment zaten "sonraki aksiyon"un ta kendisi.
   const activity: Activity = {
     id: deps.activities.nextId(),
     tenantId: actor.tenantId,
@@ -216,8 +224,8 @@ export async function addActivity(
     personId: existingCase.personId,
     type: input.type,
     note: input.note,
-    nextActionType: input.nextActionType,
-    nextActionDate: input.nextActionDate,
+    nextActionType: input.nextActionType ?? (input.appointment ? "randevu" : undefined),
+    nextActionDate: input.nextActionDate ?? input.appointment?.scheduledAt,
     createdAt: ts,
     createdBy: actor.uid,
   };
@@ -251,7 +259,22 @@ export async function addActivity(
     updatedBy: actor.uid,
   };
 
-  if (appointment) updatedCase.status = "randevu_olusturuldu";
+  // 2026-07-22 kullanıcı bulgusu: Randevu Takvimi'nin kendi oluşturma akışı `status`
+  // dışında Case'in `assignedToUid`/`assignedToName`/`uiDurum`/`uiSonrakiTip`
+  // alanlarını HİÇ dokunmuyordu (bunlar sadece Aktivite Merkezi'nin manuel
+  // "Randevu Oluşturulacak" + onay akışında ayrı bir `PATCH .../cases/[id]`
+  // çağrısıyla set ediliyordu) — bu yüzden randevu Takvim'den oluşturulunca Aktivite
+  // Merkezi'nde "Sorumlu" boş ("—"), "Durum" dropdown'ı seçili değil (boş) kalıyordu.
+  // `uiSonrakiTip:"Randevu Oluşturuldu"` bilerek "tamamlandı" versiyonu — Aktivite
+  // Merkezi'nin kendi `COMPLETED_TO_SONRAKI` eşlemesi bunu açılışta doğru şekilde
+  // "Randevu Oluşturulacak" seçimine + işaretli onay kutusuna geri çeviriyor.
+  if (appointment) {
+    updatedCase.status = "randevu_olusturuldu";
+    updatedCase.assignedToUid = appointment.assignedToUid ?? updatedCase.assignedToUid;
+    updatedCase.assignedToName = appointment.assignedToName ?? updatedCase.assignedToName;
+    updatedCase.uiDurum = "randevu";
+    updatedCase.uiSonrakiTip = "Randevu Oluşturuldu";
+  }
 
   if (input.closeCase) {
     updatedCase.status = input.closeCase.status;

@@ -84,6 +84,56 @@ function consultantStyle(sorumluList: string[], name: string) {
   return PALETTE[idx % PALETTE.length];
 }
 
+/**
+ * Çakışan randevu yerleşimi (2026-07-22 kullanıcı bulgusu): aynı saate 2 farklı
+ * satışçının randevusu olabilmeli — ikisi de tam-genişlik + aynı konumda absolute
+ * pozisyonlanınca biri diğerinin ARKASINDA kayboluyordu (veri kaybı DEĞİL, sadece
+ * render). Google Calendar/Outlook deseniyle AYNI: saat ekseni hiç değişmez, sadece
+ * çakışan kartlar yan yana genişliği paylaşır. `Appointment`'ta bitiş saati yok —
+ * her randevu sabit 60dk (`SLOT_H`'nin temsil ettiği tek saatlik blokla tutarlı)
+ * kaplıyor varsayılıyor.
+ */
+const APPT_ASSUMED_DURATION_MIN = 60;
+
+function layoutDayAppointments<T extends { scheduledAt: string }>(appts: T[]): { a: T; startMin: number; col: number; cols: number }[] {
+  const items = appts
+    .map((a) => {
+      const d = new Date(a.scheduledAt);
+      const startMin = d.getHours() * 60 + d.getMinutes();
+      return { a, startMin, endMin: startMin + APPT_ASSUMED_DURATION_MIN };
+    })
+    .sort((x, y) => x.startMin - y.startMin);
+
+  const result: { a: T; startMin: number; col: number; cols: number }[] = [];
+  let cluster: typeof items = [];
+  let clusterEnd = -Infinity;
+
+  function flushCluster() {
+    if (cluster.length === 0) return;
+    // Greedy sütun ataması: her randevu, kendisiyle çakışmayan İLK sütuna girer.
+    const colEnds: number[] = [];
+    const assigned: { item: (typeof cluster)[number]; col: number }[] = [];
+    for (const item of cluster) {
+      let col = colEnds.findIndex((end) => end <= item.startMin);
+      if (col === -1) { col = colEnds.length; colEnds.push(item.endMin); }
+      else colEnds[col] = item.endMin;
+      assigned.push({ item, col });
+    }
+    const cols = colEnds.length;
+    for (const { item, col } of assigned) result.push({ a: item.a, startMin: item.startMin, col, cols });
+    cluster = [];
+  }
+
+  for (const item of items) {
+    if (item.startMin >= clusterEnd) { flushCluster(); clusterEnd = item.endMin; }
+    else clusterEnd = Math.max(clusterEnd, item.endMin);
+    cluster.push(item);
+  }
+  flushCluster();
+
+  return result;
+}
+
 // ─── API şekli ─────────────────────────────────────────────────────────────
 
 interface AppointmentItem {
@@ -394,17 +444,22 @@ export default function RandevuTakvimiPage() {
                           backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 59px, #F2F4F7 59px, #F2F4F7 60px)",
                         }}
                       >
-                        {col.appts.map((a) => {
-                          const d = new Date(a.scheduledAt);
-                          const startMin = d.getHours() * 60 + d.getMinutes();
+                        {layoutDayAppointments(col.appts).map(({ a, startMin, col: apCol, cols: apCols }) => {
                           const c = consultantStyle(sorumluList, a.assignedToName || meName);
                           const top = (startMin - DAY_START * 60);
+                          const widthPct = 100 / apCols;
                           return (
                             <div
                               key={a.id}
                               className="appt-card"
                               onClick={() => setDetailId(a.id)}
-                              style={{ position: "absolute", top: top + 2, left: 3, right: 3, height: SLOT_H - 4, background: c.bg, border: `1px solid ${c.border}`, borderLeft: `3px solid ${c.accent}`, borderRadius: 7, padding: "4px 6px", overflow: "hidden", cursor: "pointer", boxShadow: "0 1px 2px rgba(15,31,61,.05)" }}
+                              style={{
+                                position: "absolute", top: top + 2, height: SLOT_H - 4,
+                                ...(apCols > 1
+                                  ? { left: `calc(${apCol * widthPct}% + ${apCol === 0 ? 3 : 1.5}px)`, width: `calc(${widthPct}% - ${apCols === 1 ? 6 : 3}px)` }
+                                  : { left: 3, right: 3 }),
+                                background: c.bg, border: `1px solid ${c.border}`, borderLeft: `3px solid ${c.accent}`, borderRadius: 7, padding: "4px 6px", overflow: "hidden", cursor: "pointer", boxShadow: "0 1px 2px rgba(15,31,61,.05)",
+                              }}
                             >
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
                                 <span style={{ fontSize: 10.5, fontWeight: 700, color: c.accent, whiteSpace: "nowrap" }}>{fmtTime(startMin)}</span>
@@ -452,13 +507,21 @@ export default function RandevuTakvimiPage() {
                       ))}
                     </div>
                     <div style={{ flex: 1, position: "relative", minHeight: (DAY_END - DAY_START) * 60, backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 59px, #F2F4F7 59px, #F2F4F7 60px)" }}>
-                      {dayApptsRaw.map((a) => {
-                        const d = new Date(a.scheduledAt);
-                        const startMin = d.getHours() * 60 + d.getMinutes();
+                      {layoutDayAppointments(dayApptsRaw).map(({ a, startMin, col: apCol, cols: apCols }) => {
                         const c = consultantStyle(sorumluList, a.assignedToName || meName);
                         const top = (startMin - DAY_START * 60);
+                        const widthPct = 100 / apCols;
                         return (
-                          <div key={a.id} style={{ position: "absolute", top: top + 3, left: 14, right: 16, minHeight: 72, display: "flex", alignItems: "stretch", gap: 13, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 13, padding: "12px 14px", boxShadow: "0 2px 6px rgba(15,31,61,.06)" }}>
+                          <div
+                            key={a.id}
+                            style={{
+                              position: "absolute", top: top + 3, minHeight: 72,
+                              ...(apCols > 1
+                                ? { left: `calc(${apCol * widthPct}% + ${apCol === 0 ? 14 : 4}px)`, width: `calc(${widthPct}% - ${apCol === apCols - 1 ? 16 : 8}px)` }
+                                : { left: 14, right: 16 }),
+                              display: "flex", alignItems: "stretch", gap: 13, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 13, padding: "12px 14px", boxShadow: "0 2px 6px rgba(15,31,61,.06)",
+                            }}
+                          >
                             <div style={{ width: 4, alignSelf: "stretch", borderRadius: 4, background: c.accent, flex: "0 0 auto" }} />
                             <div style={{ width: 40, height: 40, borderRadius: 11, flex: "0 0 auto", alignSelf: "center", background: `linear-gradient(135deg,${c.av[0]},${c.av[1]})`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>{initials(a.personName)}</div>
                             <div style={{ flex: 1, minWidth: 0 }}>

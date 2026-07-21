@@ -11,9 +11,14 @@
  *  - TC, e-posta, eğitim dropdown'ı yok.
  *  - Expand panelde: aksiyon notu + sonraki adım + Tarih + Saat (eklendi) + Sorumlu devralma.
  *  - Randevu ekleme ayrı sayfa — ileride yapılacak.
- *  - Eski dummy kayıtlar flexos_prospects'te DURUR (dokunulmaz, salt görüntü/yerel düzenleme).
- *  - YENİ "Aktivite Ekle" + backend satırlarının düzenlemesi → /api/flexos/cases & /activities
- *    (persons + flexos_cases + flexos_activities). Liste ikisini birleştirir.
+ *  - "Aktivite Ekle" + tüm satır düzenlemeleri → /api/flexos/cases & /activities
+ *    (persons + flexos_cases + flexos_activities) — TEK veri kaynağı.
+ *
+ * 2026-07-22: eski `flexos_prospects` sahte/demo veri seti (14 satır, DEMO sabiti)
+ * ve onu besleyen seed/onSnapshot/save yolu TAMAMEN kaldırıldı — gerçek backend
+ * satırlarıyla aynı listede görünüp aksiyon alınabildiği için ("Randevu
+ * Oluşturulacak" dahil) kullanıcı sahte bir satırda işlem yapınca hiçbir şey
+ * gerçek sisteme yansımıyordu (ayrı, ölü bir koleksiyona yazıyordu).
  */
 
 import React, {
@@ -21,11 +26,7 @@ import React, {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
-import { auth, db } from "@/app/lib/firebase";
-import {
-  collection, doc, updateDoc,
-  getDocs, onSnapshot, writeBatch,
-} from "firebase/firestore";
+import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
@@ -193,6 +194,20 @@ function caseToRow(c: CaseApiItem): AktiviteRow {
       saat: dt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
     };
   });
+  // Rozet = zengin uiDurum (varsa); yoksa canonical status'tan türet.
+  const durum: DurumKey = (c.uiDurum as DurumKey) || CASESTATUS_TO_DURUM[c.status] || "yeni";
+  // 2026-07-22 kullanıcı bulgusu: detayda sol alttaki "Gelecek Randevu" kutusu
+  // gerçek (backend) verilerde HER ZAMAN boştu — `nextActionDate` (randevu
+  // oluşturulunca tam ISO tarih+saat olarak zaten set ediliyor, bkz. yukarıdaki
+  // "appointment" POST body'si) hiç okunmuyordu. Demo/sahte veri (DEMO_ACTS,
+  // yukarıda) bunu elle dolduruyordu, gerçek Case→Row eşlemesi (`caseToRow`)
+  // unutulmuştu. Sadece durum GERÇEKTEN "randevu" (Randevu Oluşturuldu) ise
+  // gösterilir — sırf "sonraki aksiyon tarihi" girilmiş olması yetmez (demo
+  // veride de aynı ayrım var, ör. "Masael Baran" sonrakiTarih dolu ama durum
+  // "yanit" olduğu için gelecekRandevu boş).
+  const nextDt = c.nextActionDate ? new Date(c.nextActionDate) : null;
+  const nextSaat = nextDt ? nextDt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "";
+  const gelecekRandevu = durum === "randevu" && nextDt ? `${nextDt.toLocaleDateString("tr-TR")} ${nextSaat}` : "";
   return {
     _backend: true,
     _caseId: c.id,
@@ -204,8 +219,7 @@ function caseToRow(c: CaseApiItem): AktiviteRow {
     ozet: c.firstActivityNote || c.lastActivityNote || "Yeni talep",
     ad: c.personName,
     iletisim: c.personPhone || c.personEmail || "—",
-    // Rozet = zengin uiDurum (varsa); yoksa canonical status'tan türet.
-    durum: (c.uiDurum as DurumKey) || CASESTATUS_TO_DURUM[c.status] || "yeni",
+    durum,
     tarih: d.toLocaleDateString("tr-TR"),
     saat: d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
     sorumlu: c.assignedToName || (c.assignedToUid ? "Atanmış" : "—"),
@@ -214,8 +228,8 @@ function caseToRow(c: CaseApiItem): AktiviteRow {
     aksiyonNotu: "",
     sonrakiTip: c.uiSonrakiTip || "",
     sonrakiTarih: c.nextActionDate ? c.nextActionDate.slice(0, 10) : "",
-    sonrakiSaat: "",
-    gelecekRandevu: "",
+    sonrakiSaat: nextSaat,
+    gelecekRandevu,
     aktiviteSayisi: c.activityCount,
   };
 }
@@ -237,7 +251,6 @@ const PAGE_SIZE = 10;
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AktiviteRow {
-  _docId?: string;
   _backend?: boolean;
   _caseId?: string;
   _log?: ActLog[];       // backend: geçmiş aksiyonlar (ilk=müşteri mesajı hariç)
@@ -267,31 +280,11 @@ interface EkleForm {
 }
 const EMPTY_EKLE: EkleForm = { ad: "", soyad: "", telefon: "", email: "", kanal: "telefon", not: "" };
 
-// ─── Demo data ────────────────────────────────────────────────────────────────
-
-const DEMO: AktiviteRow[] = [
-  { id:1,  kanal:"telefon",   tip:"arama",   tipCat:"satis_oncesi", ozet:"Python eğitimi için detaylı bilgi istiyor",          ad:"Ali Yılmaz",    iletisim:"0533 412 77 89",      durum:"iletisimde", tarih:"29.06.2026", saat:"14:20", sorumlu:"Alparslan Şentürk", musteriMesaji:"Python eğitimi hakkında bilgi almak istiyorum, kurs içeriği ve fiyatlar hakkında detay verir misiniz?", aksiyonNotu:"Öğrenci arandı. İçerik ve fiyat bilgisi paylaşıldı. Cumartesi görüşmek istiyor.", sonrakiTip:"Randevu",          sonrakiTarih:"2026-07-05", sonrakiSaat:"10:00", gelecekRandevu:"Cumartesi 10:00", aktiviteSayisi:3 },
-  { id:2,  kanal:"websitesi", tip:"mesaj",   tipCat:"satis_oncesi", ozet:"UI/UX grubu başlangıç tarihi sorguluyor",            ad:"Zeynep Arslan", iletisim:"0542 881 32 10",      durum:"iletisimde", tarih:"29.06.2026", saat:"13:45", sorumlu:"Merve Kaya",      musteriMesaji:"UI/UX eğitimini almak istiyorum, gruplar ne zaman başlıyor?",                                          aksiyonNotu:"",                                                                                                     sonrakiTip:"Tekrar Aranacak",  sonrakiTarih:"",           sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:1 },
-  { id:3,  kanal:"instagram", tip:"mesaj",   tipCat:"satis_oncesi", ozet:"Veri bilimi kursu hakkında soru",                   ad:"Masael Baran",  iletisim:"0531 996 44 56",      durum:"yanit",      tarih:"29.06.2026", saat:"12:30", sorumlu:"Alparslan Şentürk", musteriMesaji:"Instagram'dan gördüm, veri bilimi kursu var mı? Ücret nasıl?",                                                aksiyonNotu:"Broşür gönderildi. Yanıt bekleniyor.",                                                                 sonrakiTip:"Tekrar Aranacak",  sonrakiTarih:"2026-07-03", sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:2 },
-  { id:4,  kanal:"telefon",   tip:"randevu", tipCat:"satis_oncesi", ozet:"Grafik tasarım tanışma randevusu",                  ad:"Atdri Kandev",  iletisim:"0537 224 65 43",      durum:"randevu",    tarih:"28.06.2026", saat:"11:15", sorumlu:"Merve Kaya",      musteriMesaji:"Grafik tasarım eğitimi hakkında randevu almak istiyorum.",                                                aksiyonNotu:"Randevu oluşturuldu. Salı 14:00'a kadar.",                                                             sonrakiTip:"Randevu Oluşturulacak", sonrakiTarih:"2026-07-01", sonrakiSaat:"14:00", gelecekRandevu:"Salı 14:00",   aktiviteSayisi:2 },
-  { id:5,  kanal:"whatsapp",  tip:"satis",   tipCat:"satis_oncesi", ozet:"Full-stack web programına kayıt yaptırdı",          ad:"Ali Yılmaz",    iletisim:"0533 412 77 89",      durum:"kazanildi",  tarih:"28.06.2026", saat:"16:40", sorumlu:"Alparslan Şentürk", musteriMesaji:"",                                                                                                             aksiyonNotu:"Full-stack Web Geliştirme programına kayıt oldu. Ödeme alındı.",                                       sonrakiTip:"Vazgeçti",        sonrakiTarih:"",           sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:3 },
-  { id:6,  kanal:"email",     tip:"mesaj",   tipCat:"destek",       ozet:"Yazılım eğitimi bilgi talebi yanıtsız kaldı",       ad:"Hasan Kara",    iletisim:"hasan.kara@mail.com", durum:"vazgecti",   tarih:"28.06.2026", saat:"15:10", sorumlu:"Merve Kaya",      musteriMesaji:"Yazılım eğitimleriniz hakkında bilgi almak istiyorum.",                                                   aksiyonNotu:"3 kez arandı. İletişim kurulamadı.",                                                                   sonrakiTip:"Vazgeçti",        sonrakiTarih:"",           sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:1 },
-  { id:7,  kanal:"tavsiye",   tip:"arama",   tipCat:"satis_oncesi", ozet:"Arkadaş tavsiyesi — finans eğitimi",               ad:"Elif Doğan",    iletisim:"0544 773 21 09",      durum:"iletisimde", tarih:"27.06.2026", saat:"10:00", sorumlu:"Alparslan Şentürk", musteriMesaji:"Arkadaşım tavsiye etti. Finans eğitimi almak istiyorum.",                                                  aksiyonNotu:"İlk temas yapıldı. Olumlu.",                                                                           sonrakiTip:"Tekrar Aranacak",  sonrakiTarih:"2026-07-05", sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:1 },
-  { id:8,  kanal:"walkin",    tip:"not",     tipCat:"satis_oncesi", ozet:"Ofise bizzat geldi, materyaller aldı",              ad:"Kaan Öztürk",   iletisim:"0538 651 88 22",      durum:"yanit",      tarih:"27.06.2026", saat:"14:30", sorumlu:"Merve Kaya",      musteriMesaji:"",                                                                                                             aksiyonNotu:"Broşür ve fiyat listesi verildi. Kararını bildireceğini söyledi.",                                     sonrakiTip:"Mesaj Gönderilecek",sonrakiTarih:"2026-07-07", sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:1 },
-  { id:9,  kanal:"websitesi", tip:"mesaj",   tipCat:"satis_oncesi", ozet:"Tasarım + yazılım combo var mı?",                  ad:"Selin Yıldız",  iletisim:"0532 444 56 78",      durum:"yeni",       tarih:"27.06.2026", saat:"09:15", sorumlu:"Alparslan Şentürk", musteriMesaji:"Hem tasarım hem yazılım eğitimi almak istiyorum, kombine paket var mı?",                                   aksiyonNotu:"",                                                                                                     sonrakiTip:"Tekrar Aranacak",  sonrakiTarih:"",           sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:1 },
-  { id:10, kanal:"instagram", tip:"arama",   tipCat:"satis_oncesi", ozet:"Grafik tasarım fiyat sorguluyor",                  ad:"Burak Şen",     iletisim:"0546 320 14 55",      durum:"iletisimde", tarih:"26.06.2026", saat:"11:50", sorumlu:"Merve Kaya",      musteriMesaji:"Instagram'dan gördüm, grafik tasarım kursu ne kadar?",                                                    aksiyonNotu:"Fiyat bilgisi verildi. Düşüneceğini söyledi.",                                                         sonrakiTip:"Tekrar Aranacak",  sonrakiTarih:"2026-07-06", sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:1 },
-  { id:11, kanal:"whatsapp",  tip:"mesaj",   tipCat:"satis_oncesi", ozet:"Yazılım bootcamp detayları",                       ad:"Naz Güler",     iletisim:"0539 770 29 43",      durum:"yanit",      tarih:"26.06.2026", saat:"16:20", sorumlu:"Alparslan Şentürk", musteriMesaji:"Yazılım bootcamp hakkında bilgi verir misiniz?",                                                          aksiyonNotu:"Detaylı bilgi gönderildi.",                                                                             sonrakiTip:"Tekrar Aranacak",  sonrakiTarih:"2026-07-05", sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:2 },
-  { id:12, kanal:"telefon",   tip:"randevu", tipCat:"satis_oncesi", ozet:"Finans eğitimi değerlendirme toplantısı",          ad:"Tolga Arslan",  iletisim:"0530 182 74 61",      durum:"randevu",    tarih:"25.06.2026", saat:"13:00", sorumlu:"Merve Kaya",      musteriMesaji:"Finans eğitimi hakkında daha fazla bilgi almak istiyorum.",                                               aksiyonNotu:"Randevu oluşturuldu. Çarşamba 15:00.",                                                                 sonrakiTip:"Randevu Oluşturulacak", sonrakiTarih:"2026-07-02", sonrakiSaat:"15:00", gelecekRandevu:"Çarşamba 15:00",aktiviteSayisi:2 },
-  { id:13, kanal:"email",     tip:"not",     tipCat:"satis_sonrasi",ozet:"Mevcut öğrenci ek modül soruyor",                  ad:"Buse Yılmaz",   iletisim:"buse.yilmaz@mail.com",durum:"iletisimde", tarih:"25.06.2026", saat:"10:45", sorumlu:"Alparslan Şentürk", musteriMesaji:"Devam eden eğitimime ek modül ekleyebilir miyim?",                                                       aksiyonNotu:"Eğitim danışmanına yönlendirildi.",                                                                     sonrakiTip:"Tekrar Aranacak",  sonrakiTarih:"2026-07-01", sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:1 },
-  { id:14, kanal:"telefon",   tip:"arama",   tipCat:"destek",       ozet:"Teknik sorun, LMS erişim problemi",                ad:"Emre Çelik",    iletisim:"0542 736 50 82",      durum:"iletisimde", tarih:"24.06.2026", saat:"15:30", sorumlu:"Merve Kaya",      musteriMesaji:"LMS'e giriş yapamıyorum, şifremi sıfırladım ama hâlâ olmadı.",                                           aksiyonNotu:"IT birimine iletildi.",                                                                                 sonrakiTip:"Tekrar Aranacak",  sonrakiTarih:"2026-06-30", sonrakiSaat:"",      gelecekRandevu:"",             aktiviteSayisi:1 },
-];
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AktiviteMerkeziPage() {
   const [ready, setReady]           = useState(false);
-  const [acts, setActs]             = useState<AktiviteRow[]>([]);      // eski dummy (flexos_prospects)
-  const [backendActs, setBackendActs] = useState<AktiviteRow[]>([]);   // yeni (flexos_cases)
+  const [backendActs, setBackendActs] = useState<AktiviteRow[]>([]);   // flexos_cases — TEK veri kaynağı
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [meName, setMeName] = useState("Ben");                          // giriş yapan kullanıcı adı
 
@@ -370,10 +363,15 @@ export default function AktiviteMerkeziPage() {
   const [ekleForm,   setEkleForm]   = useState<EkleForm>(EMPTY_EKLE);
   const [ekleSaving, setEkleSaving] = useState(false);
 
+  // 2026-07-22 kullanıcı bulgusu: bu efekt eskiden boşsa `flexos_prospects`
+  // koleksiyonuna 14 satırlık sahte DEMO veri yazıp gerçek backend listesiyle
+  // (`allActs`) birleştiriyordu — bu eski/sahte satırlardan birinde aksiyon
+  // alınınca (Randevu Oluşturulacak dahil) TAMAMEN AYRI bir "eski dummy" kod
+  // yolu çalışıyor, gerçek `flexos_cases`/`flexos_appointments`'a hiç
+  // yazmıyordu (sessizce "oluşmadı" hissi veriyordu). Sahte veri + besleyen
+  // seed/onSnapshot/save yolu TAMAMEN kaldırıldı — TEK doğruluk kaynağı artık
+  // backend (`loadBackend`).
   useEffect(() => {
-    let unsubSnap: (() => void) | null = null;
-    const col = collection(db, "flexos_prospects");
-
     const unsubAuth = auth.onAuthStateChanged(async (user) => {
       if (!user) { setReady(true); return; }
 
@@ -396,35 +394,11 @@ export default function AktiviteMerkeziPage() {
       }
       setMeName(resolvedName || user.email || "Ben");
 
-      // Seed yoksa DEMO'yu Firestore'a yaz
-      const snap = await getDocs(col);
-      if (snap.empty) {
-        const batch = writeBatch(db);
-        DEMO.forEach(row => {
-          const { _docId: _, ...data } = row as AktiviteRow & { _docId?: string };
-          batch.set(doc(col), data);
-        });
-        await batch.commit();
-      }
-
-      // İkisi de tamamlanınca sayfayı aç (flicker önleme).
-      let backendDone = false;
-      let snapDone = false;
-      const trySetReady = () => { if (backendDone && snapDone) setReady(true); };
-
-      loadBackend()
-        .then(() => { backendDone = true; trySetReady(); })
-        .catch(() => { backendDone = true; trySetReady(); }); // hata olsa da engelleme
-
-      unsubSnap = onSnapshot(col, (s) => {
-        const rows = s.docs.map(d => ({ ...(d.data() as AktiviteRow), _docId: d.id }));
-        rows.sort((a, b) => b.id - a.id);
-        setActs(rows);
-        if (!snapDone) { snapDone = true; trySetReady(); } // ilk snapshot'ta sinyal ver
-      });
+      await loadBackend().catch(() => {}); // hata olsa da engelleme
+      setReady(true);
     });
 
-    return () => { unsubAuth(); unsubSnap?.(); };
+    return () => { unsubAuth(); };
   }, [loadBackend]);
 
   // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı talep/aktivite/randevu
@@ -460,9 +434,10 @@ export default function AktiviteMerkeziPage() {
     const effectiveTip  = draftGonderildi && gonderildiMap ? gonderildiMap.tip : draftSonrakiTip;
     const newDurum      = draftGonderildi && gonderildiMap ? gonderildiMap.durum : SONRAKI_DURUM[draftSonrakiTip];
 
-    // ── Backend talep (flexos_cases) — dummy ile BİREBİR durum davranışı ──
-    if (a._backend && a._caseId) {
-      const caseId = a._caseId;
+    // 2026-07-22: sahte demo veri (flexos_prospects) kaldırıldı — her satır artık
+    // gerçek backend talebi (flexos_cases), bu dal koşulsuz çalışır.
+    {
+      const caseId = a._caseId!;
       const wasClosed = CLOSED_DURUMS.includes(a.durum);
       const finalDurum: DurumKey = (newDurum as DurumKey) || a.durum;   // değişiklik yoksa mevcudu koru
       const closing   = CLOSED_DURUMS.includes(finalDurum);
@@ -530,27 +505,7 @@ export default function AktiviteMerkeziPage() {
         setSavingAct(false);
         toast.error(e instanceof Error ? e.message : FLEX_MESSAGES['system/save-failed'].text);
       }
-      return;
     }
-
-    // ── Eski dummy (flexos_prospects) ──
-    const updates: Partial<AktiviteRow> = {
-      aksiyonNotu:  draftNote,
-      sonrakiTip:   effectiveTip,
-      sonrakiTarih: draftTarih,
-      sonrakiSaat:  draftSaat,
-      sorumlu:      draftSorumlu,
-      ...(newDurum ? { durum: newDurum } : {}),
-    };
-    if (a._docId) {
-      await updateDoc(doc(db, "flexos_prospects", a._docId), updates);
-    } else {
-      setActs(prev => prev.map(x => x.id !== a.id ? x : { ...x, ...updates }));
-    }
-    setSavingAct(false);
-    setSavedAct(true);
-    setTimeout(() => { setExpandedId(null); setSavedAct(false); }, 800);
-    toast.success(FLEX_MESSAGES['flexos/aksiyon-saved'].text);
   }, [draftNote, draftSonrakiTip, draftTarih, draftSaat, draftSorumlu, draftGonderildi, meName, authHeaders, loadBackend]);
 
   const handleEkle = async () => {
@@ -597,10 +552,10 @@ export default function AktiviteMerkeziPage() {
     }
   };
 
-  // Yeni (backend) + eski (dummy) — backend en üstte, id'ye göre azalan.
+  // Sahte demo veri (flexos_prospects) kaldırıldı (2026-07-22) — TEK kaynak backend.
   const allActs = useMemo(
-    () => [...backendActs, ...acts].sort((a, b) => b.id - a.id),
-    [backendActs, acts],
+    () => [...backendActs].sort((a, b) => b.id - a.id),
+    [backendActs],
   );
 
   // Badge = aynı kişinin (iletişim) kaç FARKLI yerde/talepte geçtiği (aktivite sayısı DEĞİL).
