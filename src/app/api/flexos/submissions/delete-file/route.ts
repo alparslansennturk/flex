@@ -5,6 +5,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firestore";
 import { firestoreSubmissionFileRepo } from "@/app/lib/server/submission-file-repo.firestore";
 import { submissionDrive } from "@/app/lib/server/submission-drive";
+import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { deleteFile } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
@@ -25,6 +26,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
         submissions: firestoreSubmissionRepo,
         submissionFiles: firestoreSubmissionFileRepo,
         drive: submissionDrive,
+        storage: submissionStorage,
       },
     );
     return NextResponse.json({ success: true });

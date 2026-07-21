@@ -10,6 +10,7 @@ import { firestoreSubmissionFileRepo } from "@/app/lib/server/submission-file-re
 import { firestoreUploadSessionRepo } from "@/app/lib/server/upload-session-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { submissionDrive } from "@/app/lib/server/submission-drive";
+import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { notifyUser } from "@/app/lib/server/flexos-notify";
 import { initUpload, type InitUploadInput } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
@@ -41,6 +42,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
         uploadSessions: firestoreUploadSessionRepo,
         trainers: firestoreTrainerRepo,
         drive: submissionDrive,
+        storage: submissionStorage,
         notify: notifyUser,
       },
     );

@@ -39,7 +39,6 @@ export async function uploadAssignmentAttachment(
 
   let uploadedBytes = 0;
   const totalBytes = file.size;
-  let driveFileId: string | undefined;
   const mimeType = file.type || "application/octet-stream";
 
   while (uploadedBytes < totalBytes) {
@@ -55,8 +54,8 @@ export async function uploadAssignmentAttachment(
       const json = await chunkRes.json().catch(() => ({})) as { error?: string };
       throw new Error(json.error ?? `Chunk yükleme başarısız (${chunkRes.status})`);
     }
-    const result = await chunkRes.json() as { status: string; uploadedBytes?: number; driveFileId?: string };
-    if (result.status === "complete") { driveFileId = result.driveFileId; uploadedBytes = totalBytes; }
+    const result = await chunkRes.json() as { status: string; uploadedBytes?: number };
+    if (result.status === "complete") uploadedBytes = totalBytes;
     else uploadedBytes = result.uploadedBytes ?? end;
     onProgress?.(Math.round((uploadedBytes / totalBytes) * 100));
   }
@@ -64,7 +63,7 @@ export async function uploadAssignmentAttachment(
   const completeRes = await fetch("/api/flexos/assignments/complete-attachment-upload", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify({ uploadId, ...(driveFileId ? { driveFileId } : {}) }),
+    body: JSON.stringify({ uploadId }),
   });
   if (!completeRes.ok) {
     const json = await completeRes.json().catch(() => ({})) as { error?: string };

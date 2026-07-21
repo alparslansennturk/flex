@@ -2,13 +2,13 @@ import { ALLOWED_MIME_TYPES, MAX_RESUMABLE_FILE_SIZE_BYTES, MAX_RESUMABLE_FILE_S
 import { can } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
-import type { ActivityLogEntry } from "../core/activity-log";
 import type { Submission, SubmissionFile, SubmissionStatus, UploadSession } from "../core/submission";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { Assignment, AssignmentAttachment, AssignmentKind } from "../core/assignment";
 import type { ActivityLogRepo } from "../repo/activity-log-repo";
 import type { AssignmentRepo } from "../repo/assignment-repo";
 import type { DriveDeps } from "../repo/drive-deps";
+import type { StorageDeps } from "../repo/storage-deps";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
 import type { Group } from "../core/group";
 import type { GroupRepo } from "../repo/group-repo";
@@ -48,9 +48,14 @@ export interface SubmissionDeps {
   submissionFiles: SubmissionFileRepo;
   uploadSessions: UploadSessionRepo;
   trainers: TrainerRepo;
+  /** SADECE eski (Drive tabanlı) dosyaların silinmesi için — yeni upload'lar `storage` kullanır. */
   drive: DriveDeps;
+  storage: StorageDeps;
   notify: (uid: string, input: NotifyInput) => Promise<void>;
 }
+
+/** GCS konsolunda ayırt edici üst segment — Flex Connect'teki `"Flex Connect"` klasörüyle aynı mantık. */
+const SUBMISSIONS_STORAGE_ROOT = "Ödev Teslimleri";
 
 /** Not verme akışlarının (`gradeSubmission`/`gradeManually`/`gradeBatch`) ortak ek bağımlılığı. */
 type GradingDeps = Pick<SubmissionDeps, "submissions" | "groups" | "assignments"> & { activityLog: ActivityLogRepo };
@@ -162,8 +167,8 @@ export async function initUpload(input: InitUploadInput, deps: SubmissionDeps): 
   const folderSegments = await resolveAssignmentFolderSegments(
     group, assignment.title, `${person.firstName} ${person.lastName}`, tenantId, deps,
   );
-  const folderId = await deps.drive.ensureFolderPath(folderSegments);
-  const sessionUri = await deps.drive.initResumableSession(actualFileName, input.fileSize, input.mimeType, folderId);
+  const objectPath = deps.storage.buildObjectPath([SUBMISSIONS_STORAGE_ROOT, ...folderSegments], actualFileName);
+  const sessionUri = await deps.storage.initResumableUploadSession(objectPath, input.mimeType);
 
   const session: UploadSession = {
     id: deps.uploadSessions.nextId(),
@@ -178,7 +183,7 @@ export async function initUpload(input: InitUploadInput, deps: SubmissionDeps): 
     fileSize: input.fileSize,
     mimeType: input.mimeType,
     sessionUri,
-    folderId,
+    objectPath,
     folderPath: folderSegments.join("/"),
     status: "uploading",
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -213,7 +218,6 @@ export interface CompleteUploadInput {
   requesterUid: string;
   tenantId: string;
   uploadId: string;
-  driveFileId?: string;
   note?: string;
 }
 
@@ -241,10 +245,9 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
     throw new ValidationError("Yükleme hakkınız doldu.");
   }
 
-  const driveFileId =
-    input.driveFileId ?? (await deps.drive.findFileByActualName(session.actualFileName, session.folderId))?.id;
-  if (!driveFileId) throw new ValidationError("Yüklenen dosya Drive'da bulunamadı.");
-  await deps.drive.setPublicReadPermission(driveFileId);
+  if (!session.objectPath) throw new ValidationError("Depolama yolu bulunamadı.");
+  const storagePath = session.objectPath;
+  const webViewLink = deps.storage.publicUrl(storagePath);
 
   const now = nowISO();
 
@@ -286,8 +289,8 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
     id: deps.submissionFiles.nextId(),
     tenantId,
     submissionId: existing.id,
-    driveFileId,
-    driveViewLink: `https://drive.google.com/file/d/${driveFileId}/view`,
+    storagePath,
+    driveViewLink: webViewLink,
     fileName: session.originalFileName,
     fileSize: session.fileSize,
     mimeType: session.mimeType,
@@ -301,7 +304,6 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
   await deps.uploadSessions.save({
     ...session,
     status: "completed",
-    driveFileId,
     submissionId: existing.id,
     updatedAt: now,
     updatedBy: input.requesterUid,
@@ -329,7 +331,7 @@ export interface InitAttachmentUploadInput {
 export async function initAttachmentUpload(
   actor: Actor,
   input: InitAttachmentUploadInput,
-  deps: Pick<SubmissionDeps, "assignments" | "groups" | "trainers" | "drive" | "uploadSessions">,
+  deps: Pick<SubmissionDeps, "assignments" | "groups" | "trainers" | "storage" | "uploadSessions">,
 ): Promise<UploadSession> {
   const assignment = await deps.assignments.getById(input.assignmentId, actor.tenantId);
   if (!assignment) throw new ValidationError("Ödev bulunamadı.");
@@ -352,8 +354,8 @@ export async function initAttachmentUpload(
 
   const actualFileName = generateActualFileName(currentCount + 1, input.fileName);
   const folderSegments = await resolveAssignmentFolderSegments(group, assignment.title, "Eğitmen", actor.tenantId, deps);
-  const folderId = await deps.drive.ensureFolderPath(folderSegments);
-  const sessionUri = await deps.drive.initResumableSession(actualFileName, input.fileSize, input.mimeType, folderId);
+  const objectPath = deps.storage.buildObjectPath([SUBMISSIONS_STORAGE_ROOT, ...folderSegments], actualFileName);
+  const sessionUri = await deps.storage.initResumableUploadSession(objectPath, input.mimeType);
 
   const session: UploadSession = {
     id: deps.uploadSessions.nextId(),
@@ -367,7 +369,7 @@ export async function initAttachmentUpload(
     fileSize: input.fileSize,
     mimeType: input.mimeType,
     sessionUri,
-    folderId,
+    objectPath,
     folderPath: folderSegments.join("/"),
     status: "uploading",
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -380,14 +382,13 @@ export async function initAttachmentUpload(
 
 export interface CompleteAttachmentUploadInput {
   uploadId: string;
-  driveFileId?: string;
 }
 
 /** Eğitmen eki yükleme oturumunu tamamlar — `Assignment.attachments`'a ekler. */
 export async function completeAttachmentUpload(
   actor: Actor,
   input: CompleteAttachmentUploadInput,
-  deps: Pick<SubmissionDeps, "assignments" | "groups" | "uploadSessions" | "drive">,
+  deps: Pick<SubmissionDeps, "assignments" | "groups" | "uploadSessions" | "storage">,
 ): Promise<Assignment> {
   const session = await getSessionForChunk(
     { requesterUid: actor.uid, tenantId: actor.tenantId, uploadId: input.uploadId },
@@ -403,18 +404,16 @@ export async function completeAttachmentUpload(
     throw new ForbiddenError("assignment.edit");
   }
 
-  const driveFileId =
-    input.driveFileId ?? (await deps.drive.findFileByActualName(session.actualFileName, session.folderId))?.id;
-  if (!driveFileId) throw new ValidationError("Yüklenen dosya Drive'da bulunamadı.");
-  await deps.drive.setPublicReadPermission(driveFileId);
+  if (!session.objectPath) throw new ValidationError("Depolama yolu bulunamadı.");
+  const storagePath = session.objectPath;
 
   const attachment: AssignmentAttachment = {
     id: globalThis.crypto.randomUUID(),
-    driveFileId,
+    storagePath,
     fileName: session.originalFileName,
     mimeType: session.mimeType,
     fileSize: session.fileSize,
-    webViewLink: `https://drive.google.com/file/d/${driveFileId}/view`,
+    webViewLink: deps.storage.publicUrl(storagePath),
   };
   const now = nowISO();
   const updated: Assignment = {
@@ -425,7 +424,7 @@ export async function completeAttachmentUpload(
   };
   await deps.assignments.save(updated);
 
-  await deps.uploadSessions.save({ ...session, status: "completed", driveFileId, updatedAt: now, updatedBy: actor.uid });
+  await deps.uploadSessions.save({ ...session, status: "completed", updatedAt: now, updatedBy: actor.uid });
   return updated;
 }
 
@@ -439,7 +438,7 @@ export interface DeleteFileInput {
 /** Öğrenci kendi (tamamlanmamış) teslimindeki bir dosyayı siler — canlıdaki `delete-file`. */
 export async function deleteFile(
   input: DeleteFileInput,
-  deps: Pick<SubmissionDeps, "persons" | "submissions" | "submissionFiles" | "drive">,
+  deps: Pick<SubmissionDeps, "persons" | "submissions" | "submissionFiles" | "drive" | "storage">,
 ): Promise<void> {
   const { tenantId } = input;
   const submission = await deps.submissions.getById(input.submissionId, tenantId);
@@ -452,7 +451,8 @@ export async function deleteFile(
     throw new ValidationError("Dosya bulunamadı.");
   }
 
-  await deps.drive.deleteFromDrive(file.driveFileId);
+  if (file.storagePath) await deps.storage.deleteObject(file.storagePath);
+  else if (file.driveFileId) await deps.drive.deleteFromDrive(file.driveFileId);
 
   const now = nowISO();
   await deps.submissionFiles.save({ ...file, deleted: true, deletedAt: now, deletedBy: input.requesterUid, isLatest: false });
@@ -479,7 +479,7 @@ const STUDENT_RETRACTABLE: SubmissionStatus[] = ["submitted", "revision"];
  */
 export async function retract(
   input: RetractInput,
-  deps: Pick<SubmissionDeps, "persons" | "assignments" | "submissions" | "submissionFiles" | "drive">,
+  deps: Pick<SubmissionDeps, "persons" | "assignments" | "submissions" | "submissionFiles" | "drive" | "storage">,
 ): Promise<void> {
   const { tenantId } = input;
   const submission = await deps.submissions.getById(input.submissionId, tenantId);
@@ -499,7 +499,8 @@ export async function retract(
   const now = nowISO();
   const activeFiles = await deps.submissionFiles.listActiveBySubmission(input.submissionId, tenantId);
   for (const f of activeFiles) {
-    await deps.drive.deleteFromDrive(f.driveFileId);
+    if (f.storagePath) await deps.storage.deleteObject(f.storagePath);
+    else if (f.driveFileId) await deps.drive.deleteFromDrive(f.driveFileId);
     await deps.submissionFiles.save({ ...f, deleted: true, deletedAt: now, deletedBy: input.requesterUid, isLatest: false });
   }
 

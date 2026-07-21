@@ -14,6 +14,7 @@ import type { ActivityLogEntry } from "../src/app/lib/domain/core/activity-log";
 import type { ActivityLogRepo } from "../src/app/lib/domain/repo/activity-log-repo";
 import type { AssignmentRepo } from "../src/app/lib/domain/repo/assignment-repo";
 import type { DriveDeps } from "../src/app/lib/domain/repo/drive-deps";
+import type { StorageDeps } from "../src/app/lib/domain/repo/storage-deps";
 import type { EnrollmentRepo } from "../src/app/lib/domain/repo/enrollment-repo";
 import type { GroupRepo } from "../src/app/lib/domain/repo/group-repo";
 import type { PersonRepo } from "../src/app/lib/domain/repo/person-repo";
@@ -177,6 +178,16 @@ function makeFakeDrive(): DriveDeps {
   };
 }
 
+let storageDeleteCalls = 0;
+function makeFakeStorage(): StorageDeps {
+  return {
+    buildObjectPath(segments, fileName) { return [...segments, fileName].join("/"); },
+    async initResumableUploadSession(objectPath) { return `https://fake-gcs.example/session/${objectPath}`; },
+    async deleteObject() { storageDeleteCalls++; },
+    publicUrl(objectPath) { return `https://fake-gcs.example/${objectPath}`; },
+  };
+}
+
 function fakeGroup(id: string, trainerId: string, code = id): Group {
   return {
     id, tenantId: TENANT, code, status: "active", type: "standart", trainerId,
@@ -246,6 +257,7 @@ function makeDeps(overrides: {
     uploadSessions: makeUploadSessionRepo(),
     trainers: makeTrainerRepo(),
     drive: makeFakeDrive(),
+    storage: makeFakeStorage(),
     activityLog: makeActivityLogRepo(overrides.activityLogStore ?? []),
     notify: async () => {},
   };
@@ -339,7 +351,20 @@ async function main() {
     const latest = activeFiles.find((f) => f.isLatest)!;
     await deleteFile({ requesterUid: "student-uid-1", tenantId: TENANT, submissionId: submission.id, fileId: latest.id }, deps);
     const afterDelete = await deps.submissionFiles.listActiveBySubmission(submission.id, TENANT);
-    assert("deleteFile: silinen dosya aktif listeden çıkar, önceki versiyon isLatest olur", afterDelete.length === 1 && afterDelete[0].isLatest && driveDeleteCalls >= 1);
+    assert("deleteFile: silinen dosya aktif listeden çıkar, önceki versiyon isLatest olur", afterDelete.length === 1 && afterDelete[0].isLatest && storageDeleteCalls >= 1);
+
+    // ── deleteFile: ESKİ (Drive tabanlı, storagePath yok) dosya — drive.deleteFromDrive çağrılır, storage DEĞİL ──
+    const legacyDriveFile: SubmissionFile = {
+      id: deps.submissionFiles.nextId(), tenantId: TENANT, submissionId: submission.id,
+      driveFileId: "legacy-drive-id", driveViewLink: "https://drive.google.com/file/d/legacy-drive-id/view",
+      fileName: "eski-dosya.pdf", fileSize: 2048, mimeType: "application/pdf",
+      versionNo: 99, isLatest: false, createdAt: new Date().toISOString(), createdBy: "seed",
+    };
+    await deps.submissionFiles.save(legacyDriveFile);
+    const driveCallsBefore = driveDeleteCalls;
+    const storageCallsBefore = storageDeleteCalls;
+    await deleteFile({ requesterUid: "student-uid-1", tenantId: TENANT, submissionId: submission.id, fileId: legacyDriveFile.id }, deps);
+    assert("deleteFile: eski Drive dosyası drive.deleteFromDrive ile silinir, storage.deleteObject ÇAĞRILMAZ", driveDeleteCalls === driveCallsBefore + 1 && storageDeleteCalls === storageCallsBefore);
 
     // ── gradeSubmission + status.write yetki kontrolü ──
     await assertRejects(

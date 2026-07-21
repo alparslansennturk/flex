@@ -28,10 +28,15 @@ export type AssignmentKind = "normal" | "proje";
  */
 export type GamifiedAssignmentType = "kolaj" | "kitap" | "sosyal";
 
-/** Eğitmenin ödeve eklediği referans/başlangıç dosyası (Google Drive). */
+/**
+ * Eğitmenin ödeve eklediği referans/başlangıç dosyası. ESKİ (Drive tabanlı)
+ * ekler için `driveFileId` dolu, YENİ (Cloud Storage, 2026-07-21 sonrası)
+ * ekler `storagePath` kullanır — `webViewLink` her iki durumda da dolu.
+ */
 export interface AssignmentAttachment {
   id: EntityId;
-  driveFileId: string;
+  driveFileId?: string;
+  storagePath?: string;
   fileName: string;
   mimeType: string;
   fileSize: number;

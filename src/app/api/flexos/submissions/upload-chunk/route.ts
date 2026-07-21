@@ -7,7 +7,9 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 /**
  * POST /api/flexos/submissions/upload-chunk — sadece proxy: doğrulanan `sessionUri`'ye
- * chunk'ı Drive'a iletir, Firestore'a bu adımda YAZMAZ (canlıdaki desenle aynı).
+ * chunk'ı GCS'e iletir, Firestore'a bu adımda YAZMAZ (canlıdaki desenle aynı). GCS'in
+ * resumable protokolü (Content-Range, 308/200) Drive'ınkiyle aynı akışı kullanıyor, sadece
+ * tamamlanma yanıtının dosya-kimliği alanı farklı: Drive `id`, GCS `name` (object path).
  * Header'lar: `x-upload-id`, `content-range` ("bytes 0-262143/10485760").
  */
 export const POST = withAuth(async (req: NextRequest, caller) => {
@@ -24,7 +26,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     );
 
     const chunk = await req.arrayBuffer();
-    const driveRes = await fetch(session.sessionUri, {
+    const uploadRes = await fetch(session.sessionUri, {
       method: "PUT",
       headers: {
         "Content-Range": contentRange,
@@ -33,18 +35,18 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       body: chunk,
     });
 
-    if (driveRes.status === 308) {
-      const range = driveRes.headers.get("range"); // "bytes=0-262143"
+    if (uploadRes.status === 308) {
+      const range = uploadRes.headers.get("range"); // "bytes=0-262143"
       const uploadedBytes = range ? Number(range.split("-")[1]) + 1 : 0;
       return NextResponse.json({ status: "incomplete", uploadedBytes });
     }
 
-    if (driveRes.status === 200 || driveRes.status === 201) {
-      const data = (await driveRes.json()) as { id: string };
-      return NextResponse.json({ status: "complete", driveFileId: data.id });
+    if (uploadRes.status === 200 || uploadRes.status === 201) {
+      const data = (await uploadRes.json()) as { name: string };
+      return NextResponse.json({ status: "complete", objectPath: data.name });
     }
 
-    return NextResponse.json({ error: "Drive chunk yükleme hatası." }, { status: 502 });
+    return NextResponse.json({ error: "Depolama chunk yükleme hatası." }, { status: 502 });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });

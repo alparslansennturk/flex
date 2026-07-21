@@ -238,7 +238,6 @@ export default function FlexosStudentAssignmentDetail() {
 
       let uploadedBytes = 0;
       const totalBytes = file.size;
-      let driveFileId: string | undefined;
       const mimeType = file.type || "application/octet-stream";
 
       while (uploadedBytes < totalBytes) {
@@ -255,8 +254,8 @@ export default function FlexosStudentAssignmentDetail() {
           const json = await chunkRes.json().catch(() => ({})) as { error?: string };
           throw new Error(json.error ?? `Chunk yükleme başarısız (${chunkRes.status})`);
         }
-        const result = await chunkRes.json() as { status: string; uploadedBytes?: number; driveFileId?: string };
-        if (result.status === "complete") { driveFileId = result.driveFileId; uploadedBytes = totalBytes; }
+        const result = await chunkRes.json() as { status: string; uploadedBytes?: number };
+        if (result.status === "complete") uploadedBytes = totalBytes;
         else uploadedBytes = result.uploadedBytes ?? end;
         updateJob(index, { progress: Math.round((uploadedBytes / totalBytes) * 100) });
       }
@@ -264,7 +263,7 @@ export default function FlexosStudentAssignmentDetail() {
       const completeRes = await fetch("/api/flexos/submissions/complete-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ uploadId, ...(driveFileId ? { driveFileId } : {}), ...(currentNote.trim() ? { note: currentNote.trim() } : {}) }),
+        body: JSON.stringify({ uploadId, ...(currentNote.trim() ? { note: currentNote.trim() } : {}) }),
       });
       if (!completeRes.ok) {
         const json = await completeRes.json().catch(() => ({})) as { error?: string };
@@ -298,7 +297,7 @@ export default function FlexosStudentAssignmentDetail() {
 
   async function handleDeleteFile(fileId: string) {
     if (!submission) return;
-    if (!window.confirm("Bu dosyayı silmek istediğine emin misin? Drive'dan da silinecek.")) return;
+    if (!window.confirm("Bu dosyayı silmek istediğine emin misin? Dosya da silinecek.")) return;
     try {
       const headers = await authHeaders();
       const res = await fetch("/api/flexos/submissions/delete-file", {
@@ -320,7 +319,7 @@ export default function FlexosStudentAssignmentDetail() {
 
   async function handleRetract() {
     if (!submission) return;
-    if (!window.confirm("Bu teslimi geri çekmek istediğine emin misin? Dosyalar Drive'dan da silinecek.")) return;
+    if (!window.confirm("Bu teslimi geri çekmek istediğine emin misin? Dosyalar da silinecek.")) return;
     try {
       const headers = await authHeaders();
       const res = await fetch("/api/flexos/submissions/retract", {

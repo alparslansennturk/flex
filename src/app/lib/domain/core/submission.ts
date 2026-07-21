@@ -40,7 +40,10 @@ export interface SubmissionFile extends Audit {
   tenantId: TenantId;
   submissionId: EntityId;
 
-  driveFileId: string;
+  /** ESKİ (Drive tabanlı) dosyalar için — 2026-07-21 sonrası yeni dosyalar `storagePath` kullanır. */
+  driveFileId?: string;
+  storagePath?: string;
+  /** Görüntüleme linki — backend'den bağımsız (Drive `/view` sayfası VEYA GCS public URL). */
   driveViewLink: string;
   fileName: string; // orijinal dosya adı (kullanıcıya gösterilen)
   fileSize: number;
@@ -84,12 +87,15 @@ export interface UploadSession extends Audit {
   mimeType: string;
 
   sessionUri: string;
-  folderId: string;
+  /** ESKİ (Drive tabanlı) oturumlar için — GCS'te gerçek klasör-ID kavramı yok. */
+  folderId?: string;
   folderPath: string; // "{eğitmenAdı}/{branş}/{grupKodu}/{ödevAdı}/{Eğitmen|öğrenciAdı}"
+  /** YENİ (GCS, 2026-07-21 sonrası) oturumlar için — upload başlarken zaten belli olan tam object path. */
+  objectPath?: string;
 
   status: UploadSessionStatus;
   expiresAt: ISODateTime;
 
-  driveFileId?: string; // complete-upload sonrası
+  driveFileId?: string; // complete-upload sonrası (SADECE eski Drive oturumları)
   submissionId?: EntityId; // complete-upload sonrası bağlanan/oluşturulan submission (sadece kind==="submission")
 }

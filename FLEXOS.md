@@ -16,7 +16,64 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Flex Connect — Drive'dan Google Cloud Storage'a geçiş, Faz 1-4 BİTTİ (2026-07-21 — EN GÜNCEL)
+### ✅ Ödev Teslim Sistemi — Drive'dan Google Cloud Storage'a geçiş (2026-07-21 — EN GÜNCEL)
+
+**Gerekçe (kullanıcı):** Ödev yükleme sistemi kullanıcının KİŞİSEL Google
+Drive hesabı üzerinden çalışıyordu — kurum büyüdükçe/eğitmenler kullandıkça
+sürdürülemez. Flex Connect'in dosya ekleri zaten aynı sebeple GCS'e taşınmıştı
+(aşağıdaki bölüm), Blaze plana da geçildi — bu iş aynı deseni ödev sistemine
+uyguladı. **Kapsam SADECE FlexOS** (`/api/flexos/submissions/*`,
+`/api/flexos/assignments/*`, `lib/domain/**`) — legacy Flex Core'un ödev
+sistemine (`/api/submissions/*`, `/api/submit`, `/api/instructor/*`,
+`dashboard/assignment/*`) DOKUNULMADI (CLAUDE.md kuralı).
+
+**Mimari:** `submission-service.ts` Drive'ı hiç doğrudan import etmiyordu,
+`DriveDeps` portu üzerinden enjekte ediliyordu (assertion script'lerin fake
+implementasyonla test edebilmesi için) — bu desen korundu, Drive'ın YANINA
+(silmesine değil) yeni bir `StorageDeps` portu + `submission-storage.ts`
+implementasyonu eklendi (`googlestorage.ts` reuse). `drive: DriveDeps` HÂLÂ
+var — SADECE eski (migrasyondan önceki) dosyaların silinmesi için.
+
+**Kilit basitleştirme:** Drive'da dosya ID'si upload SIRASINDA sunucu
+tarafından atanıyordu (`completeUpload` bu yüzden client'ın `driveFileId`'sine
+ya da isimle-arama fallback'ine muhtaçtı). GCS'te `objectPath`'i biz
+`initUpload` anında seçiyoruz — `completeUpload`/`completeAttachmentUpload`
+artık client'tan hiçbir ID almadan, `UploadSession.objectPath`'i okuyarak
+tamamlanıyor. `findFileByActualName`/`setPublicReadPermission` adımları GCS
+yolunda TAMAMEN kalktı (upload anında zaten `publicRead`).
+
+**Geriye dönük uyumluluk:** `SubmissionFile`/`AssignmentAttachment` artık
+hem `driveFileId?` (eski) hem `storagePath?` (yeni) taşıyabiliyor —
+Connect'teki `ConnectAttachment` deseniyle AYNI. Silme (`deleteFile`/`retract`)
+`storagePath` varsa GCS'ten, `driveFileId` varsa Drive'dan siler (assertion
+script'te ikisi de ayrı testle doğrulandı, 45/45 geçti).
+
+**Önizleme fix'i (kritik bulgu):** `preview/page.tsx` ESKİDEN her dosyayı
+körü körüne `driveViewLink.replace("/view","/preview")` yapıp iframe'e
+gömüyordu — bu Drive'ın kendi format-dönüştürme sihri, GCS public URL'inde
+YOK, yani migrasyon olduğu gibi bırakılsaydı yeni yüklenen PDF/Excel dosyaları
+bu ekranda bozuk görünürdü. Flex Connect'te zaten çözülen sorunun AYNISI —
+aynı çözüm uygulandı: `storagePath` doluysa mimeType'a göre gerçek önizleme
+(`PdfViewer`/`ExcelViewer`, Faz 2'den reuse + görsel `<img>`), yoksa (eski
+Drive dosyası) eski iframe davranışı korundu.
+
+**Object path yapısı:** `"Ödev Teslimleri/{eğitmenAdı}/{branş}/{grupKodu}/
+{ödevAdı}/{öğrenciAdı|Eğitmen}/{dosyaAdı}"` — Connect'teki `"Flex Connect"`
+konsol-klasörü gibi ayırt edici bir üst segment.
+
+**Doğrulama:** `tsc --noEmit`/`eslint` temiz, `scripts/assert-submission.ts`
+45/45 (yeni: legacy Drive-dosyası silme testi eklendi, dual-branch delete
+mantığını kapsıyor). **SIRADAKİ:** kullanıcı gerçek bir öğrenci hesabından
+ödev yükleyip Firebase konsolunda `Ödev Teslimleri/...` altında dosyanın
+göründüğünü, eğitmen tarafında PDF/görsel/Excel'in düzgün önizlendiğini, ve
+silme/geri çekmenin GCS'ten de gerçekten sildiğini doğrulayacak — henüz
+GERÇEK CİHAZDA test edilmedi. PSD/AI önizleme (ödev detay ekranında hâlâ
+eksik) bu migrasyona DAHİL DEĞİL, ayrı ve henüz onaylanmamış bir iş olarak
+kalıyor.
+
+---
+
+### ✅ Flex Connect — Drive'dan Google Cloud Storage'a geçiş, Faz 1-4 BİTTİ (2026-07-21)
 
 **Gerekçe:** Drive tabanlı ek sistemi (kota/paylaşım karmaşası) yerine kendi
 Firebase Storage bucket'ımız (`googlestorage.ts`, `googledrive.ts` ile aynı

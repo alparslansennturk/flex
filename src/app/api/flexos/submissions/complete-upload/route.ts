@@ -10,6 +10,7 @@ import { firestoreSubmissionFileRepo } from "@/app/lib/server/submission-file-re
 import { firestoreUploadSessionRepo } from "@/app/lib/server/upload-session-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { submissionDrive } from "@/app/lib/server/submission-drive";
+import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { notifyUser } from "@/app/lib/server/flexos-notify";
 import { completeUpload } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
@@ -19,7 +20,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  * UploadSession'ı `completed`'a çeken TEK canonical adım. Canlıdaki `complete-upload`'un karşılığı.
  */
 export const POST = withAuth(async (req: NextRequest, caller) => {
-  let body: { uploadId: string; driveFileId?: string; note?: string };
+  let body: { uploadId: string; note?: string };
   try {
     body = await req.json();
   } catch {
@@ -39,6 +40,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
         uploadSessions: firestoreUploadSessionRepo,
         trainers: firestoreTrainerRepo,
         drive: submissionDrive,
+        storage: submissionStorage,
         notify: notifyUser,
       },
     );

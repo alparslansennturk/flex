@@ -16,16 +16,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { collection, onSnapshot, orderBy, query, type Timestamp } from "firebase/firestore";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft, Loader2, RotateCcw, CheckCircle2,
   Send, Download, FileText, MoreHorizontal, Pencil, Trash2,
 } from "lucide-react";
 import { auth, db } from "@/app/lib/firebase";
 
+const PdfViewer = dynamic(() => import("@/app/components/shared/PdfViewer"), { ssr: false });
+const ExcelViewer = dynamic(() => import("@/app/components/shared/ExcelViewer"), { ssr: false });
+const EXCEL_MIME_TYPES = [
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
+
 type SubmissionStatus = "submitted" | "reviewing" | "revision" | "completed" | "retracted";
 
 interface SubmissionDetail { id: string; personId: string; status: SubmissionStatus; grade?: number; isLate: boolean; submittedAt: string }
-interface FileVersion { id: string; fileName: string; fileSize: number; driveViewLink: string; versionNo: number; isLatest: boolean; createdAt: string }
+/** ESKİ (Drive tabanlı) dosyalarda `storagePath` yok — o durumda mevcut Drive-iframe önizleme korunur. */
+interface FileVersion { id: string; fileName: string; fileSize: number; mimeType: string; storagePath?: string; driveViewLink: string; versionNo: number; isLatest: boolean; createdAt: string }
 interface CommentItem { id: string; authorUid: string; authorType: "trainer" | "student"; authorName: string; text: string; createdAt: Date }
 
 const STATUS_MAP: Record<SubmissionStatus, { label: string; cls: string }> = {
@@ -216,7 +225,14 @@ export default function SubmissionPreviewPage() {
   }
 
   const activeFile = files.find((f) => f.id === activeFileId) ?? files[0] ?? null;
-  const previewUrl = activeFile?.driveViewLink ? activeFile.driveViewLink.replace("/view", "/preview") : null;
+  // YENİ (GCS, storagePath dolu) dosyalar mimeType'a göre gerçek önizleme kullanır — Drive'ın
+  // format-dönüştürme sihri (`/view`→`/preview` iframe) GCS public URL'inde YOK. ESKİ (Drive
+  // tabanlı, storagePath yok) dosyalar mevcut iframe davranışında kalır.
+  const isGcsFile = !!activeFile?.storagePath;
+  const isImage = activeFile?.mimeType.startsWith("image/") ?? false;
+  const isPdf = activeFile?.mimeType === "application/pdf";
+  const isExcel = !!activeFile && EXCEL_MIME_TYPES.includes(activeFile.mimeType);
+  const previewUrl = !isGcsFile && activeFile?.driveViewLink ? activeFile.driveViewLink.replace("/view", "/preview") : null;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white font-inter antialiased text-text-primary">
@@ -278,7 +294,19 @@ export default function SubmissionPreviewPage() {
           {/* Sol: Dosya önizleme */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#1a1a1a]">
             <div className="flex-1 min-h-0 relative">
-              {previewUrl ? (
+              {isGcsFile && isImage ? (
+                <div className="h-full flex items-center justify-center p-6">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={activeFile.driveViewLink} alt={activeFile.fileName} className="max-w-full max-h-full object-contain rounded-lg" />
+                </div>
+              ) : isGcsFile && (isPdf || isExcel) ? (
+                <div className="absolute inset-0 overflow-auto flex items-start justify-center p-6">
+                  <div className="bg-white rounded-2xl p-4 w-full max-w-3xl">
+                    {isPdf && <PdfViewer url={activeFile!.driveViewLink} />}
+                    {isExcel && <ExcelViewer url={activeFile!.driveViewLink} />}
+                  </div>
+                </div>
+              ) : previewUrl ? (
                 <iframe src={previewUrl} className="absolute inset-0 w-full h-full border-0" allow="autoplay" />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center gap-4 text-white/40">

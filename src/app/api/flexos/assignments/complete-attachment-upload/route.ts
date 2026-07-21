@@ -4,7 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreUploadSessionRepo } from "@/app/lib/server/upload-session-repo.firestore";
-import { submissionDrive } from "@/app/lib/server/submission-drive";
+import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { completeAttachmentUpload } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
@@ -13,7 +13,7 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
  * `Assignment.attachments`'a ekler (gated `assignment.edit`).
  */
 export const POST = withAuth(async (req: NextRequest, caller) => {
-  let body: { uploadId: string; driveFileId?: string };
+  let body: { uploadId: string };
   try {
     body = await req.json();
   } catch {
@@ -28,7 +28,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
         assignments: firestoreAssignmentRepo,
         groups: firestoreGroupRepo,
         uploadSessions: firestoreUploadSessionRepo,
-        drive: submissionDrive,
+        storage: submissionStorage,
       },
     );
     const last = assignment.attachments[assignment.attachments.length - 1];
