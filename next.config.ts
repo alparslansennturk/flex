@@ -6,8 +6,8 @@ const ContentSecurityPolicy = [
   // Next.js hydration + inline styles için unsafe-inline gerekli
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://vercel.live https://apis.google.com",
   "style-src 'self' 'unsafe-inline'",
-  // Google Drive görselleri + blob/data (PDF üretimi)
-  "img-src 'self' data: blob: https://*.googleusercontent.com https://drive.google.com https://*.google.com https://*.gstatic.com",
+  // Google Drive görselleri + blob/data (PDF üretimi) + Cloud Storage (2026-07-21, yeni yüklemeler)
+  "img-src 'self' data: blob: https://*.googleusercontent.com https://drive.google.com https://*.google.com https://*.gstatic.com https://storage.googleapis.com",
   // Fontlar: next/font local + @react-pdf/renderer Roboto (Google Fonts)
   "font-src 'self' https://fonts.gstatic.com",
   // Firebase, Firestore, Google APIs, Vercel Toolbar
