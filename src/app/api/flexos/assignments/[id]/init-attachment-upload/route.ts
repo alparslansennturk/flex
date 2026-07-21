@@ -5,6 +5,7 @@ import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firest
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { firestoreUploadSessionRepo } from "@/app/lib/server/upload-session-repo.firestore";
+import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { initAttachmentUpload } from "@/app/lib/domain/services/submission-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
@@ -32,6 +33,8 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
         assignments: firestoreAssignmentRepo,
         groups: firestoreGroupRepo,
         trainers: firestoreTrainerRepo,
+        educations: firestoreEducationRepo,
+        branches: firestoreBranchRepo,
         uploadSessions: firestoreUploadSessionRepo,
         storage: submissionStorage,
       },

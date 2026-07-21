@@ -4,6 +4,8 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
+import { submissionStorage } from "@/app/lib/server/submission-storage";
+import { submissionDrive } from "@/app/lib/server/submission-drive";
 import { updateAssignment, deleteAssignment, type UpdateAssignmentInput } from "@/app/lib/domain/services/assignment-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
@@ -49,7 +51,11 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     // — o taslağın "Ödevi Başlat"a geçişi de bu PATCH üzerinden olduğu için, POST'taki
     // AYNI yayın yan etkileri (mail + cache invalidation) burada da tetiklenmeli.
     const before = await firestoreAssignmentRepo.getById(id, actor.tenantId);
-    const assignment = await updateAssignment(actor, id, body, firestoreAssignmentRepo, { activityLog: firestoreActivityLogRepo });
+    const assignment = await updateAssignment(actor, id, body, firestoreAssignmentRepo, {
+      activityLog: firestoreActivityLogRepo,
+      storage: submissionStorage,
+      drive: submissionDrive,
+    });
     // Ödev Parkuru (Ana Sayfa) widget'ı bu event'i dinleyip "Notları Kaydet"in arşivlediği
     // (veya "Ödevi Bitir"in kapattığı) ödevleri gerçek zamanlı düşürsün diye. 2026-07-13:
     // BİLEREK "grades.changed" DEĞİL — o TEK öğrenci notu değiştiğinde N kere ateşleniyor
@@ -83,7 +89,10 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
   if (!id) return NextResponse.json({ error: "id eksik." }, { status: 400 });
 
   try {
-    await deleteAssignment((await actorFromCaller(caller)), id, firestoreAssignmentRepo);
+    await deleteAssignment((await actorFromCaller(caller)), id, firestoreAssignmentRepo, {
+      storage: submissionStorage,
+      drive: submissionDrive,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });

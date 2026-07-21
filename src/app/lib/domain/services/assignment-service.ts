@@ -8,6 +8,8 @@ import type { AssignmentRepo } from "../repo/assignment-repo";
 import type { AssignmentTemplateRepo } from "../repo/assignment-template-repo";
 import type { GroupRepo } from "../repo/group-repo";
 import type { ActivityLogRepo } from "../repo/activity-log-repo";
+import type { StorageDeps } from "../repo/storage-deps";
+import type { DriveDeps } from "../repo/drive-deps";
 
 function nowISO(): ISODateTime {
   return new Date().toISOString();
@@ -138,8 +140,11 @@ export async function updateAssignment(
   input: UpdateAssignmentInput,
   repo: AssignmentRepo,
   /** 2026-07-18: sessizce oluşturulmuş taslağın PATCH ile "Ödevi Başlat"a geçmesi de
-   * (bkz. `[id]/route.ts`) POST'taki AYNI "Ödev Verildi" aktivite logunu yazsın diye. */
-  deps?: { activityLog?: ActivityLogRepo },
+   * (bkz. `[id]/route.ts`) POST'taki AYNI "Ödev Verildi" aktivite logunu yazsın diye.
+   * `storage`/`drive` — SADECE `attachments` listesinden çıkarılan dosyaların gerçek
+   * depolamadan da silinmesi için (2026-07-21 bug fix: eskiden sadece Firestore'daki
+   * referans siliniyordu, GCS/Drive'daki dosya öksüz kalıyordu). */
+  deps?: { activityLog?: ActivityLogRepo; storage?: StorageDeps; drive?: DriveDeps },
 ): Promise<Assignment> {
   const existing = await repo.getById(id, actor.tenantId);
   if (!existing) throw new ValidationError("Ödev bulunamadı.");
@@ -172,7 +177,15 @@ export async function updateAssignment(
     if (!VALID_KINDS.includes(input.kind)) throw new ValidationError("Geçersiz ödev türü.");
     updated.kind = input.kind;
   }
-  if (input.attachments !== undefined) updated.attachments = input.attachments;
+  if (input.attachments !== undefined) {
+    const nextIds = new Set(input.attachments.map((a) => a.id));
+    const removed = (existing.attachments ?? []).filter((a) => !nextIds.has(a.id));
+    for (const r of removed) {
+      if (r.storagePath && deps?.storage) await deps.storage.deleteObject(r.storagePath);
+      else if (r.driveFileId && deps?.drive) await deps.drive.deleteFromDrive(r.driveFileId);
+    }
+    updated.attachments = input.attachments;
+  }
   if (input.targetPersonIds !== undefined) updated.targetPersonIds = input.targetPersonIds;
 
   updated.updatedAt = nowISO();
@@ -195,13 +208,23 @@ export async function updateAssignment(
   return updated;
 }
 
-/** Ödev sil — gated (`assignment.delete`). */
-export async function deleteAssignment(actor: Actor, id: string, repo: AssignmentRepo): Promise<void> {
+/** Ödev sil — gated (`assignment.delete`). `deps` verilirse ekli dosyalar depolamadan da silinir. */
+export async function deleteAssignment(
+  actor: Actor,
+  id: string,
+  repo: AssignmentRepo,
+  deps?: { storage?: StorageDeps; drive?: DriveDeps },
+): Promise<void> {
   const existing = await repo.getById(id, actor.tenantId);
   if (!existing) throw new ValidationError("Ödev bulunamadı.");
 
   if (!can(actor, "assignment.delete", { groupId: existing.groupId, ownerUid: existing.trainerId })) {
     throw new ForbiddenError("assignment.delete");
+  }
+
+  for (const a of existing.attachments ?? []) {
+    if (a.storagePath && deps?.storage) await deps.storage.deleteObject(a.storagePath);
+    else if (a.driveFileId && deps?.drive) await deps.drive.deleteFromDrive(a.driveFileId);
   }
 
   await repo.delete(id, actor.tenantId);

@@ -17,6 +17,7 @@ import type { SubmissionFileRepo } from "../repo/submission-file-repo";
 import type { SubmissionRepo } from "../repo/submission-repo";
 import type { TrainerRepo } from "../repo/trainer-repo";
 import type { UploadSessionRepo } from "../repo/upload-session-repo";
+import type { EducationRepo, BranchRepo } from "../repo/catalog-repo";
 import type { NotifyInput } from "./comment-service";
 
 function nowISO(): ISODateTime {
@@ -48,6 +49,9 @@ export interface SubmissionDeps {
   submissionFiles: SubmissionFileRepo;
   uploadSessions: UploadSessionRepo;
   trainers: TrainerRepo;
+  /** Klasör path'inde gerçek branş adını çözmek için (`resolveAssignmentFolderSegments`). */
+  educations: EducationRepo;
+  branches: BranchRepo;
   /** SADECE eski (Drive tabanlı) dosyaların silinmesi için — yeni upload'lar `storage` kullanır. */
   drive: DriveDeps;
   storage: StorageDeps;
@@ -61,21 +65,30 @@ const SUBMISSIONS_STORAGE_ROOT = "Ödev Teslimleri";
 type GradingDeps = Pick<SubmissionDeps, "submissions" | "groups" | "assignments"> & { activityLog: ActivityLogRepo };
 
 /**
- * Drive klasör hiyerarşisi — TÜM upload akışları (öğrenci teslimi + eğitmen eki) için TEK
+ * Klasör hiyerarşisi — TÜM upload akışları (öğrenci teslimi + eğitmen eki) için TEK
  * kaynak (2026-07-08 kararı, kullanıcı: "çok eğitmen kullanacaksa ayırt edebilmeliyiz"):
  * `{eğitmenAdı}/{branş}/{grupKodu}/{ödevAdı}/{leaf}` — `leaf` öğrenci teslimi için
  * öğrencinin adı, eğitmen eki için sabit `"Eğitmen"`. Eğitmen atanmamışsa/branş yoksa
- * okunabilir bir yer tutucuya düşer (Drive'da boş segment olamaz).
+ * okunabilir bir yer tutucuya düşer (boş segment olamaz).
+ *
+ * Branş — `Group.branch` (düz string) katalog Branş→Eğitim→Track hiyerarşisi kurulmadan
+ * ÖNCEKİ eski gruplarda dolu, SONRAKİ gruplarda hep boş (2026-07-21 bug bulgusu: "Branşsız"
+ * klasörü — `group.branch` hiç yazılmıyor, gerçek kaynak `group.educationId` → `Education.branchId`
+ * → `Branch.name`). `groups/route.ts`'teki AYNI read-time join burada da uygulanıyor,
+ * `group.branch` SADECE fallback (education/branch bulunamazsa).
  */
 async function resolveAssignmentFolderSegments(
   group: Group,
   assignmentTitle: string,
   leaf: string,
   tenantId: string,
-  deps: Pick<SubmissionDeps, "trainers">,
+  deps: Pick<SubmissionDeps, "trainers" | "educations" | "branches">,
 ): Promise<string[]> {
   const trainer = group.trainerId ? await deps.trainers.getById(group.trainerId, tenantId) : null;
-  return [trainer?.name ?? "Atanmamış Eğitmen", group.branch ?? "Branşsız", group.code, assignmentTitle, leaf];
+  const education = group.educationId ? await deps.educations.getById(group.educationId, tenantId) : null;
+  const branch = education?.branchId ? await deps.branches.getById(education.branchId, tenantId) : null;
+  const branchName = branch?.name ?? group.branch ?? "Branşsız";
+  return [trainer?.name ?? "Atanmamış Eğitmen", branchName, group.code, assignmentTitle, leaf];
 }
 
 /**
@@ -331,7 +344,7 @@ export interface InitAttachmentUploadInput {
 export async function initAttachmentUpload(
   actor: Actor,
   input: InitAttachmentUploadInput,
-  deps: Pick<SubmissionDeps, "assignments" | "groups" | "trainers" | "storage" | "uploadSessions">,
+  deps: Pick<SubmissionDeps, "assignments" | "groups" | "trainers" | "educations" | "branches" | "storage" | "uploadSessions">,
 ): Promise<UploadSession> {
   const assignment = await deps.assignments.getById(input.assignmentId, actor.tenantId);
   if (!assignment) throw new ValidationError("Ödev bulunamadı.");

@@ -10,6 +10,8 @@ import type { Group } from "../src/app/lib/domain/core/group";
 import type { AssignmentRepo } from "../src/app/lib/domain/repo/assignment-repo";
 import type { AssignmentTemplateRepo } from "../src/app/lib/domain/repo/assignment-template-repo";
 import type { GroupRepo } from "../src/app/lib/domain/repo/group-repo";
+import type { StorageDeps } from "../src/app/lib/domain/repo/storage-deps";
+import type { DriveDeps } from "../src/app/lib/domain/repo/drive-deps";
 import {
   assignTask,
   updateAssignment,
@@ -89,6 +91,27 @@ function makeTemplateRepo(): AssignmentTemplateRepo {
       return Array.from(map.values()).filter((t) => t.tenantId === tenantId);
     },
     async delete(id) { map.delete(id); },
+  };
+}
+
+let storageDeleteCalls = 0;
+function makeFakeStorage(): StorageDeps {
+  return {
+    buildObjectPath(segments, fileName) { return [...segments, fileName].join("/"); },
+    async initResumableUploadSession(objectPath) { return `https://fake-gcs.example/session/${objectPath}`; },
+    async deleteObject() { storageDeleteCalls++; },
+    publicUrl(objectPath) { return `https://fake-gcs.example/${objectPath}`; },
+  };
+}
+
+let driveDeleteCalls = 0;
+function makeFakeDrive(): DriveDeps {
+  return {
+    async ensureFolderPath(segments) { return `folder-${segments.join("/")}`; },
+    async initResumableSession(actualFileName) { return `https://fake-drive.example/session/${actualFileName}`; },
+    async setPublicReadPermission() { /* no-op */ },
+    async findFileByActualName(actualFileName) { return { id: `drive-${actualFileName}` }; },
+    async deleteFromDrive() { driveDeleteCalls++; },
   };
 }
 
@@ -193,6 +216,28 @@ async function main() {
     );
   }
 
+  // ── updateAssignment: attachments listesinden çıkarılan dosya depolamadan da silinir (2026-07-21 bug fix) ──
+  {
+    const repo = makeAssignmentRepo();
+    const created = await assignTask(trainerA, { groupId: "group-a", title: "Ekli Ödev", description: "Açıklama." }, repo, { groups: groupRepo });
+    const storage = makeFakeStorage();
+    const drive = makeFakeDrive();
+
+    const gcsAttachment = { id: "att-gcs", storagePath: "Ödev Teslimleri/x/dosya.pdf", fileName: "dosya.pdf", fileSize: 100, mimeType: "application/pdf", webViewLink: "https://fake-gcs.example/x" };
+    const driveAttachment = { id: "att-drive", driveFileId: "legacy-id", fileName: "eski.pdf", fileSize: 100, mimeType: "application/pdf", webViewLink: "https://drive.google.com/file/d/legacy-id/view" };
+    await updateAssignment(trainerA, created.id, { attachments: [gcsAttachment, driveAttachment] }, repo, { storage, drive });
+
+    const storageBefore = storageDeleteCalls;
+    const driveBefore = driveDeleteCalls;
+    await updateAssignment(trainerA, created.id, { attachments: [driveAttachment] }, repo, { storage, drive });
+    assert("updateAssignment: çıkarılan GCS eki storage.deleteObject ile silinir", storageDeleteCalls === storageBefore + 1 && driveDeleteCalls === driveBefore);
+
+    const storageBefore2 = storageDeleteCalls;
+    const driveBefore2 = driveDeleteCalls;
+    await updateAssignment(trainerA, created.id, { attachments: [] }, repo, { storage, drive });
+    assert("updateAssignment: çıkarılan eski Drive eki drive.deleteFromDrive ile silinir", driveDeleteCalls === driveBefore2 + 1 && storageDeleteCalls === storageBefore2);
+  }
+
   // ── deleteAssignment ──
   {
     const repo = makeAssignmentRepo();
@@ -207,6 +252,20 @@ async function main() {
     await deleteAssignment(trainerA, created.id, repo);
     const afterDelete = await repo.getById(created.id, TENANT);
     assert("deleteAssignment: başarılı silme sonrası kayıt yok", afterDelete === null);
+  }
+
+  // ── deleteAssignment: ekli dosyalar da depolamadan silinir (2026-07-21 bug fix) ──
+  {
+    const repo = makeAssignmentRepo();
+    const created = await assignTask(trainerA, { groupId: "group-a", title: "Ekli Silinecek", description: "Açıklama." }, repo, { groups: groupRepo });
+    const storage = makeFakeStorage();
+    const drive = makeFakeDrive();
+    const gcsAttachment = { id: "att-gcs-2", storagePath: "Ödev Teslimleri/y/dosya.pdf", fileName: "dosya.pdf", fileSize: 100, mimeType: "application/pdf", webViewLink: "https://fake-gcs.example/y" };
+    await updateAssignment(trainerA, created.id, { attachments: [gcsAttachment] }, repo, { storage, drive });
+
+    const storageBefore = storageDeleteCalls;
+    await deleteAssignment(trainerA, created.id, repo, { storage, drive });
+    assert("deleteAssignment: ekli GCS dosyası storage.deleteObject ile silinir", storageDeleteCalls === storageBefore + 1);
   }
 
   // ── tenant izolasyonu ──

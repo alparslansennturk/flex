@@ -9,6 +9,7 @@ import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firest
 import { firestoreSubmissionFileRepo } from "@/app/lib/server/submission-file-repo.firestore";
 import { firestoreUploadSessionRepo } from "@/app/lib/server/upload-session-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
+import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { submissionDrive } from "@/app/lib/server/submission-drive";
 import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { notifyUser } from "@/app/lib/server/flexos-notify";
@@ -41,6 +42,8 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
         submissionFiles: firestoreSubmissionFileRepo,
         uploadSessions: firestoreUploadSessionRepo,
         trainers: firestoreTrainerRepo,
+        educations: firestoreEducationRepo,
+        branches: firestoreBranchRepo,
         drive: submissionDrive,
         storage: submissionStorage,
         notify: notifyUser,

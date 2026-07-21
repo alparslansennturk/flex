@@ -22,6 +22,9 @@ import type { SubmissionFileRepo } from "../src/app/lib/domain/repo/submission-f
 import type { SubmissionRepo } from "../src/app/lib/domain/repo/submission-repo";
 import type { TrainerRepo } from "../src/app/lib/domain/repo/trainer-repo";
 import type { UploadSessionRepo } from "../src/app/lib/domain/repo/upload-session-repo";
+import type { EducationRepo, BranchRepo } from "../src/app/lib/domain/repo/catalog-repo";
+import type { Education } from "../src/app/lib/domain/eduos/education";
+import type { Branch } from "../src/app/lib/domain/eduos/branch";
 import {
   initUpload,
   completeUpload,
@@ -71,6 +74,27 @@ function makeTrainerRepo(): TrainerRepo {
     async list() { return []; },
     async delete() {},
     async findByAuthUid() { return null; },
+  };
+}
+
+function makeEducationRepo(seed: Education[] = []): EducationRepo {
+  const map = new Map<string, Education>(seed.map((e) => [e.id, e]));
+  return {
+    nextId: nextId("education"),
+    async save(e) { map.set(e.id, { ...e }); },
+    async getById(id, tenantId) { const e = map.get(id); return e && e.tenantId === tenantId ? e : null; },
+    async list(tenantId) { return Array.from(map.values()).filter((e) => e.tenantId === tenantId); },
+    async delete() { return true; },
+  };
+}
+
+function makeBranchRepo(seed: Branch[] = []): BranchRepo {
+  const map = new Map<string, Branch>(seed.map((b) => [b.id, b]));
+  return {
+    nextId: nextId("branch"),
+    async save(b) { map.set(b.id, { ...b }); },
+    async getById(id, tenantId) { const b = map.get(id); return b && b.tenantId === tenantId ? b : null; },
+    async list(tenantId) { return Array.from(map.values()).filter((b) => b.tenantId === tenantId); },
   };
 }
 
@@ -245,7 +269,7 @@ function makeActivityLogRepo(store: ActivityLogEntry[] = []): ActivityLogRepo {
 
 function makeDeps(overrides: {
   groups?: Group[]; assignments?: Assignment[]; persons?: Person[]; enrollments?: Enrollment[];
-  activityLogStore?: ActivityLogEntry[];
+  activityLogStore?: ActivityLogEntry[]; educations?: Education[]; branches?: Branch[];
 }): SubmissionDeps & { activityLog: ActivityLogRepo } {
   return {
     groups: makeGroupRepo(overrides.groups ?? []),
@@ -256,6 +280,8 @@ function makeDeps(overrides: {
     submissionFiles: makeSubmissionFileRepo(),
     uploadSessions: makeUploadSessionRepo(),
     trainers: makeTrainerRepo(),
+    educations: makeEducationRepo(overrides.educations ?? []),
+    branches: makeBranchRepo(overrides.branches ?? []),
     drive: makeFakeDrive(),
     storage: makeFakeStorage(),
     activityLog: makeActivityLogRepo(overrides.activityLogStore ?? []),
@@ -284,6 +310,24 @@ async function main() {
       deps,
     );
     assert("initUpload: sahibi öğrenci başlatabilir", result.session.uploaderUid === "student-uid-1" && result.currentUploads === 0 && result.maxUploads === 5);
+  }
+
+  // ── initUpload: klasör yolu Group.branch (boş) yerine Education→Branch join'inden gerçek branş adını kullanır
+  // (2026-07-21 bug fix: GRP-784 gibi yeni katalog gruplarında Group.branch hiç yazılmıyor, "Branşsız"a düşüyordu) ──
+  {
+    const branch: Branch = { id: "branch-1", tenantId: TENANT, name: "Grafik Tasarım", createdAt: new Date().toISOString(), createdBy: "seed" };
+    const education: Education = { id: "edu-1", tenantId: TENANT, name: "Grafik-2", branchId: "branch-1", createdAt: new Date().toISOString(), createdBy: "seed" };
+    const groupWithEducation: Group = { ...groupA, id: "group-edu", code: "GRP-784", educationId: "edu-1" };
+    const assignmentForEdu = fakeAssignment("assignment-edu", "group-edu", "trainer-a");
+    const deps = makeDeps({
+      groups: [groupWithEducation], assignments: [assignmentForEdu], persons: [student], enrollments: [{ ...fakeEnrollment("enr-edu", "person-1", "group-edu") }],
+      educations: [education], branches: [branch],
+    });
+    const result = await initUpload(
+      { requesterUid: "student-uid-1", tenantId: TENANT, personId: "person-1", assignmentId: "assignment-edu", fileName: "kapak.pdf", fileSize: 1024, mimeType: "application/pdf" },
+      deps,
+    );
+    assert("initUpload: folderPath gerçek branş adını (Education→Branch join) kullanır, 'Branşsız' DEĞİL", result.session.folderPath.includes("Grafik Tasarım") && !result.session.folderPath.includes("Branşsız"));
   }
 
   await assertRejects(
