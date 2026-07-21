@@ -16,7 +16,55 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ Randevu Takvimi — satış randevuları, Aktivite Merkezi'ne canlı bağlı (2026-07-21 — EN GÜNCEL)
+### ✅ Flex Connect — Drive'dan Google Cloud Storage'a geçiş, Faz 1-4 BİTTİ (2026-07-21 — EN GÜNCEL)
+
+**Gerekçe:** Drive tabanlı ek sistemi (kota/paylaşım karmaşası) yerine kendi
+Firebase Storage bucket'ımız (`googlestorage.ts`, `googledrive.ts` ile aynı
+arayüz: `uploadBufferToPath`/`initResumableUploadSession`/`deleteObject`/
+`publicUrl`). Güvenlik modeli Drive'daki "anyone with link" ile parite
+(`predefinedAcl: publicRead`). CSP `img-src`'e `storage.googleapis.com`
+eklendi, bucket'a CORS (`origin:"*"`, dosyalar zaten public-read).
+
+- **Faz 1** — çekirdek yardımcı katman (`googlestorage.ts`). Gerçek projede
+  (europe-west3) uçtan uca doğrulandı (upload → public URL fetch → delete).
+- **Faz 2** — `PdfViewer.tsx`/`ExcelViewer.tsx` (react-pdf + SheetJS/xlsx),
+  Google Docs/Adobe/Office Viewer gibi üçüncü parti servise dosya
+  GÖNDERİLMİYOR, tamamen tarayıcıda render ediliyor (KVKK gerekçesi).
+- **Faz 3** — Flex Connect mesaj/attachment route'ları (staff+student) GCS'e
+  geçti. `ConnectAttachment` her iki backend'i de destekliyor (`driveFileId`
+  opsiyonel oldu, `storagePath` eklendi). Görsel ekler GCS public URL'ini
+  doğrudan `<img>` kaynağı olarak kullanıyor. "Herkes için sil" gerçek-dosya-
+  silme mantığı iki backend'i ayırt ediyor (storagePath→GCS, driveFileId→Drive).
+  **Kullanıcı tarafından canlıda tam doğrulandı:** yükle → Firebase konsolunda
+  `Flex Connect/{conversationId}/` altında görün → mesajda görüntülendi → sil →
+  konsoldan da kayboldu (GCS'de gerçek klasör yok, path prefix boşalınca
+  görünürden kalkıyor — beklenen davranış).
+- **Faz 4** — `AttachmentView.tsx`'e PDF/Excel modal önizleme bağlandı
+  (Faz 2'de yazılan bileşenler o zamana kadar hiçbir sayfaya bağlı değildi).
+  Dosya kartına tıklayınca `PdfViewer`/`ExcelViewer` bir modalda açılıyor
+  (`next/dynamic`, client-only). **Sadece YENİ (storagePath dolu) ekler
+  önizlenebilir** — eski Drive tabanlı eklerin `webViewLink`'i bir Drive
+  "view" sayfası (ham dosya baytı değil), react-pdf/xlsx onunla çalışmaz;
+  eskiler bilinçli olarak eski davranışta (yeni sekmede Drive görüntüleyici)
+  bırakıldı. `tsc`/`eslint` temiz, **gerçek cihazda henüz görsel olarak test
+  edilmedi.**
+
+**PSD/AI (tasarım dosyaları) kapsam DIŞI bırakıldı — Flex Connect'te hiç
+gerekmiyor** (kullanıcı kararı). Ayrı bir ihtiyaç olarak: öğretmenin "ödev
+detay" ekranında (`src/app/components/assignment-test/FilePreview.tsx`,
+Flex Connect'ten TAMAMEN ayrı, hâlâ Drive tabanlı) öğrencinin gönderdiği
+PSD/AI dosyaları şu an GÖRÜNTÜLENEMİYOR (sadece "diğer" kategorisine düşüp
+indirme kartı gösteriyor) — bu bir grafik tasarım okulunda gerçek bir eksik.
+Çözüm için üçüncü parti servise (Cloudinary vb.) gitmek KVKK ilkesine aykırı
+olur; in-house yol: AI dosyaları çoğu zaman içte PDF-uyumlu (mevcut
+`PdfViewer.tsx` denenebilir), PSD için `psd.js` (native binary gerektirmez)
+ile dosyanın gömülü küçük önizleme thumbnail'ı çıkarılabilir. **SIRADAKİ
+(henüz kod yazılmadı, ayrı bir iş):** bu PSD/AI önizlemesini `FilePreview.tsx`'e
+eklemek.
+
+---
+
+### ✅ Randevu Takvimi — satış randevuları, Aktivite Merkezi'ne canlı bağlı (2026-07-21)
 
 **Kritik bug bulundu+düzeltildi:** Aktivite Merkezi'nde "Randevu Oluşturulacak"
 seçilip tarih/saat onaylandığında GERÇEKTE hiçbir randevu kaydı oluşmuyordu —
