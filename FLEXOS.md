@@ -80,14 +80,43 @@ konsol-klasörü gibi ayırt edici bir üst segment.
 `assert-assignment.ts`'e 3, `assert-submission.ts`'e 2 yeni test eklendi
 (42/42 + 46/46) — her ikisi de bu bug'ların davranışını doğruluyor.
 
-**SIRADAKİ:** kullanıcı gerçek bir öğrenci hesabından
-ödev yükleyip Firebase konsolunda `Ödev Teslimleri/...` altında dosyanın
-göründüğünü (artık gerçek branş adıyla), eğitmen tarafında PDF/görsel/Excel'in
-düzgün önizlendiğini, ve silme/geri çekmenin GCS'ten de gerçekten sildiğini
-tekrar doğrulayacak — henüz
-GERÇEK CİHAZDA test edilmedi. PSD/AI önizleme (ödev detay ekranında hâlâ
-eksik) bu migrasyona DAHİL DEĞİL, ayrı ve henüz onaylanmamış bir iş olarak
-kalıyor.
+**⚠️ Bucket kazayla silindi + yeniden kuruldu (2026-07-21, aynı gün):**
+Kullanıcı testte "yüklendi görünüyor ama storage'ta dosya yok" durumuyla
+karşılaşınca (kök sebep henüz teşhis edilmedi, bkz. aşağıdaki açık madde),
+kafası karışıp GCS Console'dan **bucket'ın kendisini sildi**
+(`flexos-10ac4.firebasestorage.app`). Bucket-level soft-delete/restore
+denendi (`gcloud alpha storage buckets list --soft-deleted`), bu bucket'ta
+ÇALIŞMADI (muhtemelen bucket-level restore bu bucket için hiç etkin
+değildi). Kurtarma yerine **Firebase Console → Storage → "Get Started"**
+ile AYNI isim+bölgede (`europe-west3`) yeniden provizyon edildi — bu SADECE
+Firebase'in kendi akışıyla mümkün, düz `gcloud`/Admin SDK ile bu domain'de
+("`*.firebasestorage.app` başka biri sahip" hatası) bucket açılamıyor.
+CORS yeniden eklendi, uçtan uca doğrulandı (upload→public fetch→delete, 200).
+**Kayıp:** o ana kadar bucket'a yüklenmiş TÜM dosyalar (Flex Connect ekleri +
+bugünkü ödev teslim/ek dosyaları) kalıcı olarak gitti — Firestore metadata
+etkilenmedi, sadece dosya baytları.
+
+**🔴 AÇIK/ÇÖZÜLMEMİŞ — SIRADAKİ (ACİL):** kullanıcı bucket yeniden
+kurulduktan SONRA bile tekrar dosya yükledi, yine ne GCS'te (`Ödev
+Teslimleri/`) ne Firestore'da (`assignment.attachments`, `flexos_submission_files`)
+HİÇBİR İZ yok — upload sessizce, en baştan (init/chunk aşamasında) başarısız
+oluyor gibi görünüyor. Prod deploy güncel (commit `4b5478e`, 25dk önce
+"Ready"). Sonraki oturumda önce buna bakılacak: (1) kullanıcıdan sert
+yenileme (Cmd+Shift+R) sonrası tekrar deneyip tarayıcı konsolu/network
+sekmesindeki gerçek hatayı almak, (2) `init-resumable-upload`/`upload-chunk`
+route'larını gerçek bir istekle (curl/Postman) manuel test etmek, (3) yeni
+bucket'ın `predefinedAcl`/CORS dışında eksik bir izin/config'i olup
+olmadığını kontrol etmek (ör. service account'un yeni bucket'ta yazma izni
+gerçekten var mı — Firebase'in yeniden provizyonu farklı bir IAM durumu
+bırakmış olabilir).
+
+**SIRADAKİ (diğer):** yukarıdaki upload bug'ı çözüldükten sonra kullanıcı
+gerçek bir öğrenci hesabından ödev yükleyip Firebase konsolunda `Ödev
+Teslimleri/...` altında dosyanın göründüğünü (artık gerçek branş adıyla),
+eğitmen tarafında PDF/görsel/Excel'in düzgün önizlendiğini, ve silme/geri
+çekmenin GCS'ten de gerçekten sildiğini doğrulayacak — henüz GERÇEK CİHAZDA
+uçtan uca test edilmedi. PSD/AI önizleme (ödev detay ekranında hâlâ eksik)
+bu migrasyona DAHİL DEĞİL, ayrı ve henüz onaylanmamış bir iş olarak kalıyor.
 
 ---
 
