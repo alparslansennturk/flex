@@ -6,7 +6,7 @@ import { sendMessage } from "@/app/lib/domain/services/connect-service";
 import { notifyNewMessage } from "@/app/lib/domain/services/connect-push-service";
 import { firestoreConnectPushRepo } from "@/app/lib/server/connect-push-repo.firestore";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
-import { ensureFolderPath, uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
+import { buildObjectPath, uploadBufferToPath } from "@/app/lib/googlestorage";
 import { ALLOWED_MIME_TYPES } from "@/app/types/storage";
 
 /** Tek seferlik (resumable/chunk YOK) — Vercel'in 4.5MB istek gövdesi sınırının
@@ -14,8 +14,9 @@ import { ALLOWED_MIME_TYPES } from "@/app/types/storage";
  * (Faz 2 madde 5, 2026-07-18). */
 const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 
-/** POST — dosya eki + opsiyonel metin (WhatsApp gibi metin BOŞ olabilir). Drive'a
- * yüklenir (`Flex Connect/{conversationId}` klasörü), herkese link ile görünür yapılır. */
+/** POST — dosya eki + opsiyonel metin (WhatsApp gibi metin BOŞ olabilir). Cloud
+ * Storage'a yüklenir (`Flex Connect/{conversationId}/...` path'i, 2026-07-21 —
+ * önceden Drive'a yükleniyordu, ESKİ ekler `driveFileId` ile okunmaya devam eder). */
 export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
   const principal = await staffPrincipalFromCaller(caller);
@@ -40,12 +41,11 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const folderId = await ensureFolderPath(["Flex Connect", id]);
-    const { fileId, webViewLink } = await uploadBufferToFolder(buffer, file.name, mimeType, folderId);
-    await setPublicReadPermission(fileId);
+    const objectPath = buildObjectPath(["Flex Connect", id], file.name);
+    const { filePath, url } = await uploadBufferToPath(buffer, objectPath, mimeType);
 
     const message = await sendMessage(principal, id, text, connectDeps, [
-      { driveFileId: fileId, webViewLink, fileName: file.name, fileSize: file.size, mimeType },
+      { storagePath: filePath, webViewLink: url, fileName: file.name, fileSize: file.size, mimeType },
     ]);
     await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
     return NextResponse.json({ id: message.id }, { status: 201 });

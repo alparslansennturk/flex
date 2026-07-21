@@ -5,6 +5,7 @@ import { connectDeps } from "@/app/lib/server/connect-deps";
 import { editMessage, deleteMessageForEveryone, deleteMessageForMe } from "@/app/lib/domain/services/connect-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { deleteFromDrive } from "@/app/lib/googledrive";
+import { deleteObject } from "@/app/lib/googlestorage";
 
 /**
  * PATCH — mesajı düzenle (SADECE yazar, WhatsApp — 2026-07-18).
@@ -43,11 +44,14 @@ export const DELETE = withAuth(async (req: NextRequest, caller, ctx: { params: P
   try {
     if (scope === "everyone") {
       const deleted = await deleteMessageForEveryone(principal, id, messageId, connectDeps);
-      // Drive'daki gerçek dosya da silinir (2026-07-18 kullanıcı bulgusu — best-effort,
-      // Drive hatası "silme" işlemini geri almaz, sadece loglanır).
+      // Gerçek dosya da silinir (2026-07-18 kullanıcı bulgusu — best-effort, hata
+      // "silme" işlemini geri almaz, sadece loglanır). 2026-07-21: storagePath'i
+      // olan (GCS) ekler googlestorage'dan, driveFileId'si olan (eski) Drive'dan silinir.
       if (deleted.attachments?.length) {
-        const results = await Promise.allSettled(deleted.attachments.map((a) => deleteFromDrive(a.driveFileId)));
-        results.forEach((r) => { if (r.status === "rejected") console.error("[connect attachment] Drive silme hatası:", r.reason); });
+        const results = await Promise.allSettled(
+          deleted.attachments.map((a) => (a.storagePath ? deleteObject(a.storagePath) : a.driveFileId ? deleteFromDrive(a.driveFileId) : Promise.resolve())),
+        );
+        results.forEach((r) => { if (r.status === "rejected") console.error("[connect attachment] dosya silme hatası:", r.reason); });
       }
     } else {
       await deleteMessageForMe(principal, id, messageId, connectDeps);

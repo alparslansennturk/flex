@@ -6,7 +6,7 @@ import { sendMessage } from "@/app/lib/domain/services/connect-service";
 import { notifyNewMessage } from "@/app/lib/domain/services/connect-push-service";
 import { firestoreConnectPushRepo } from "@/app/lib/server/connect-push-repo.firestore";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
-import { ensureFolderPath, uploadBufferToFolder, setPublicReadPermission } from "@/app/lib/googledrive";
+import { buildObjectPath, uploadBufferToPath } from "@/app/lib/googlestorage";
 import { ALLOWED_MIME_TYPES } from "@/app/types/storage";
 
 const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
@@ -35,12 +35,11 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const folderId = await ensureFolderPath(["Flex Connect", id]);
-    const { fileId, webViewLink } = await uploadBufferToFolder(buffer, file.name, mimeType, folderId);
-    await setPublicReadPermission(fileId);
+    const objectPath = buildObjectPath(["Flex Connect", id], file.name);
+    const { filePath, url } = await uploadBufferToPath(buffer, objectPath, mimeType);
 
     const message = await sendMessage(principal, id, text, connectDeps, [
-      { driveFileId: fileId, webViewLink, fileName: file.name, fileSize: file.size, mimeType },
+      { storagePath: filePath, webViewLink: url, fileName: file.name, fileSize: file.size, mimeType },
     ]);
     await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
     return NextResponse.json({ id: message.id }, { status: 201 });

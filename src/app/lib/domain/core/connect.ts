@@ -96,12 +96,17 @@ export interface ConnectMember {
   hiddenAtMessageCount?: number;
 }
 
-/** Mesaj eki (Faz 2 madde 5, 2026-07-18) — Google Drive'a yükleniyor (assignment
- * eklerinin AYNI deseni: `uploadBufferToFolder` + `setPublicReadPermission`), tek
- * seferlik (resumable/chunk YOK — Vercel'in 4.5MB body sınırı altında kalınır,
- * `MAX_ATTACHMENT_BYTES`). */
+/** Mesaj eki (Faz 2 madde 5, 2026-07-18) — tek seferlik (resumable/chunk YOK —
+ * Vercel'in 4.5MB body sınırı altında kalınır, `MAX_ATTACHMENT_BYTES`).
+ *
+ * 2026-07-21: Google Drive'dan Cloud Storage'a geçildi — YENİ ekler
+ * `storagePath` doldurur, `driveFileId` ESKİ (Drive tabanlı) ekler için
+ * opsiyonel olarak kalır (geriye dönük uyumluluk, mevcut mesajlar bozulmasın).
+ * `webViewLink` HER İKİ durumda da dolu (Drive webViewLink VEYA GCS public URL) —
+ * "görüntüle/indir" linki için ortak alan. */
 export interface ConnectAttachment {
-  driveFileId: string;
+  driveFileId?: string;
+  storagePath?: string;
   webViewLink: string;
   fileName: string;
   fileSize: number;

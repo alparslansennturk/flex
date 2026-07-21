@@ -5,8 +5,12 @@ import { FileText } from "lucide-react";
 import type { ConnectAttachment } from "./connectClient";
 
 /**
- * Görsel eklerde Drive thumbnail önizlemesi, diğer türlerde genel dosya kartı.
- * `sz=w500` public-read dosyalar için çalışır (bkz. setPublicReadPermission).
+ * Görsel eklerde önizleme, diğer türlerde genel dosya kartı.
+ * ESKİ (Drive tabanlı, `driveFileId` dolu) ekler Drive'ın thumbnail servisini
+ * kullanır (`sz=w500`, sadece public-read dosyalarda çalışır). YENİ (Cloud
+ * Storage, `storagePath` dolu, 2026-07-21) ekler `webViewLink`'i (GCS public
+ * URL) doğrudan `<img>` kaynağı olarak kullanır — GCS'in ayrı bir thumbnail
+ * servisi yok, tam görsel `objectFit:"cover"` ile küçültülüyor.
  */
 export function AttachmentView({
   attachment: a,
@@ -35,7 +39,7 @@ export function AttachmentView({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`https://drive.google.com/thumbnail?id=${a.driveFileId}&sz=w500`}
+          src={a.storagePath ? a.webViewLink : `https://drive.google.com/thumbnail?id=${a.driveFileId}&sz=w500`}
           alt={a.fileName}
           onError={() => setImgError(true)}
           style={{ display: "block", width: "100%", maxHeight: compact ? 180 : 220, objectFit: "cover" }}

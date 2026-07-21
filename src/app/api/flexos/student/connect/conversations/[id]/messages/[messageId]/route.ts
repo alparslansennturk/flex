@@ -5,6 +5,7 @@ import { connectDeps } from "@/app/lib/server/connect-deps";
 import { editMessage, deleteMessageForEveryone, deleteMessageForMe } from "@/app/lib/domain/services/connect-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { deleteFromDrive } from "@/app/lib/googledrive";
+import { deleteObject } from "@/app/lib/googlestorage";
 
 export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Promise<{ id: string; messageId: string }> }) => {
   const { id, messageId } = await ctx.params;
@@ -40,8 +41,10 @@ export const DELETE = withAuth(async (req: NextRequest, caller, ctx: { params: P
     if (scope === "everyone") {
       const deleted = await deleteMessageForEveryone(principal, id, messageId, connectDeps);
       if (deleted.attachments?.length) {
-        const results = await Promise.allSettled(deleted.attachments.map((a) => deleteFromDrive(a.driveFileId)));
-        results.forEach((r) => { if (r.status === "rejected") console.error("[connect attachment] Drive silme hatası:", r.reason); });
+        const results = await Promise.allSettled(
+          deleted.attachments.map((a) => (a.storagePath ? deleteObject(a.storagePath) : a.driveFileId ? deleteFromDrive(a.driveFileId) : Promise.resolve())),
+        );
+        results.forEach((r) => { if (r.status === "rejected") console.error("[connect attachment] dosya silme hatası:", r.reason); });
       }
     } else {
       await deleteMessageForMe(principal, id, messageId, connectDeps);

@@ -81,7 +81,9 @@ export interface MessageView {
 }
 
 export interface ConnectAttachment {
-  driveFileId: string;
+  /** ESKİ (Drive tabanlı) ekler için — 2026-07-21 sonrası yeni ekler `storagePath` kullanır. */
+  driveFileId?: string;
+  storagePath?: string;
   webViewLink: string;
   fileName: string;
   fileSize: number;
