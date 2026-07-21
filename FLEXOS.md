@@ -61,12 +61,30 @@ Drive dosyası) eski iframe davranışı korundu.
 {ödevAdı}/{öğrenciAdı|Eğitmen}/{dosyaAdı}"` — Connect'teki `"Flex Connect"`
 konsol-klasörü gibi ayırt edici bir üst segment.
 
-**Doğrulama:** `tsc --noEmit`/`eslint` temiz, `scripts/assert-submission.ts`
-45/45 (yeni: legacy Drive-dosyası silme testi eklendi, dual-branch delete
-mantığını kapsıyor). **SIRADAKİ:** kullanıcı gerçek bir öğrenci hesabından
+**Canlı testte bulunan 2 gerçek bug + düzeltildi:**
+1. **Ödev eki silme storage'ı temizlemiyordu.** `updateAssignment` (assignment
+   düzenleme PATCH'i) `attachments` listesini kör üzerine yazıyordu — kullanıcı
+   bir eki "kaldır"dığında sadece Firestore referansı gidiyordu, GCS/Drive'daki
+   gerçek dosya öksüz kalıyordu. Şimdi çıkarılan ekleri diff'leyip doğru
+   backend'den (`storagePath`→GCS, `driveFileId`→Drive) siliyor. `deleteAssignment`
+   de aynı şekilde tüm ekleri temizliyor artık. Kullanıcının ilk testinde
+   oluşan orphan dosya (`GRP-784/Raket Tasarımı/Eğitmen/02-...png`) manuel
+   silindi (script ile, admin SDK üzerinden doğrudan bucket'tan).
+2. **"Branşsız" klasör bug'ı.** `resolveAssignmentFolderSegments` grubun ESKİ,
+   Branş→Eğitim→Track kataloğu geldikten sonra artık hiç yazılmayan düz
+   `Group.branch` alanına bakıyordu — yeni gruplarda (`educationId` dolu)
+   bu alan hep boş, "Branşsız"a düşüyordu (grup verisi doğruydu, kod eski
+   alana bakıyordu). `groups/route.ts`'teki AYNI read-time join
+   (`educationId→Education.branchId→Branch.name`) artık burada da kullanılıyor.
+
+`assert-assignment.ts`'e 3, `assert-submission.ts`'e 2 yeni test eklendi
+(42/42 + 46/46) — her ikisi de bu bug'ların davranışını doğruluyor.
+
+**SIRADAKİ:** kullanıcı gerçek bir öğrenci hesabından
 ödev yükleyip Firebase konsolunda `Ödev Teslimleri/...` altında dosyanın
-göründüğünü, eğitmen tarafında PDF/görsel/Excel'in düzgün önizlendiğini, ve
-silme/geri çekmenin GCS'ten de gerçekten sildiğini doğrulayacak — henüz
+göründüğünü (artık gerçek branş adıyla), eğitmen tarafında PDF/görsel/Excel'in
+düzgün önizlendiğini, ve silme/geri çekmenin GCS'ten de gerçekten sildiğini
+tekrar doğrulayacak — henüz
 GERÇEK CİHAZDA test edilmedi. PSD/AI önizleme (ödev detay ekranında hâlâ
 eksik) bu migrasyona DAHİL DEĞİL, ayrı ve henüz onaylanmamış bir iş olarak
 kalıyor.
