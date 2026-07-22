@@ -464,7 +464,6 @@ export default function OgrenciHavuzuPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.headerUsers }} />}
           title="Öğrenciler"
           subtitle="Tüm öğrenci kayıtlarını filtreleyin ve gruplara atayın."
-          roleLabel="Yönetici · Eğitmen"
         />
 
         <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>

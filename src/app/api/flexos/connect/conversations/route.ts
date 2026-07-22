@@ -6,6 +6,7 @@ import { buildConversationViews } from "@/app/lib/server/connect-view";
 import {
   createConversation,
   listConversationsForPrincipal,
+  markDeliveredFromList,
   type CreateConversationInput,
 } from "@/app/lib/domain/services/connect-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
@@ -22,6 +23,9 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
   const items = await listConversationsForPrincipal(principal, connectDeps);
+  // Serverless'te fonksiyon yanıt sonrası hemen sonlanabileceğinden fire-and-forget
+  // GÜVENLİ DEĞİL — await edilir (kendi içinde non-fatal, hata fırlatmaz).
+  await markDeliveredFromList(principal, items, connectDeps);
   const views = await buildConversationViews(items, principal.uid, principal.tenantId);
   return NextResponse.json({ items: views });
 });

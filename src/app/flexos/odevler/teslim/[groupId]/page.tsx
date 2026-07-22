@@ -160,7 +160,6 @@ export default function OdevTeslimiGroupPage() {
           icon={<ClipboardList size={20} color="#fff" />}
           title="Ödev Teslimi"
           subtitle="Grup bazında ödev takibi ve teslim yönetimi"
-          roleLabel="Eğitmen"
         />
 
         <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }} className="font-inter">

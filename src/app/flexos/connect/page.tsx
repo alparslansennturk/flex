@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import {
   Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
-  ChevronDown, Reply, Copy, Bell, BellOff, Settings, FileText, ChevronRight, ArrowLeft,
+  ChevronDown, Reply, Copy, Bell, BellOff, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore,
 } from "lucide-react";
 import { onMessage, getToken } from "firebase/messaging";
 import { auth, getMessagingIfSupported } from "@/app/lib/firebase";
@@ -37,7 +37,7 @@ import {
   type ConversationDetail, type TypingSignal, type ConnectReplySnapshot, type StarredMessageView, type PresenceSignal, type PresenceStatus,
   fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
   subscribeToMessages, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
-  setConversationPinned, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
+  setConversationPinned, setConversationArchived, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
   updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, fetchStarredMessages,
   subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
   registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled,
@@ -78,7 +78,7 @@ type IconComponent = ComponentType<{ size?: number; strokeWidth?: number; color?
  * DM için ayrı bir "oluştur" akışı YOK, dizinden bir kişiye tıklayınca var olan
  * DM açılır ya da anında oluşturulur). Hiçbiri gerçek bir `ConnectConversationType`
  * DEĞİL, sadece rail'de hangi görünümün aktif olduğunu tutan yerel anahtarlar. */
-type NavKey = ConnectConversationType | "star" | "staffDirectory" | "studentDirectory";
+type NavKey = ConnectConversationType | "star" | "archived" | "staffDirectory" | "studentDirectory";
 
 const NAV: { key: NavKey; label: string; Icon: IconComponent }[] = [
   { key: "channel", label: "Kanallar", Icon: Megaphone },
@@ -87,6 +87,7 @@ const NAV: { key: NavKey; label: string; Icon: IconComponent }[] = [
   { key: "staffDirectory", label: "Personel", Icon: Contact },
   { key: "studentDirectory", label: "Öğrenciler", Icon: GraduationCap },
   { key: "star", label: "Favoriler", Icon: Star },
+  { key: "archived", label: "Arşiv", Icon: Archive },
 ];
 
 type ListFilter = "all" | "unread" | "pinned";
@@ -338,6 +339,8 @@ export default function FlexConnectPage() {
   const [messageQuery, setMessageQuery] = useState("");
   const [infoOpen, setInfoOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Liste satırındaki 3-nokta menüsü — hangi satırın menüsü açık (2026-07-22). */
+  const [rowMenuOpenId, setRowMenuOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
 
   // Boş yere tıklayınca aç kalan menüleri kapat (2026-07-18 kullanıcı bulgusu).
@@ -346,6 +349,7 @@ export default function FlexConnectPage() {
     () => setOpenMessageMenuId(null),
     () => setOpenReactionPickerId(null),
     () => setPresenceMenuOpen(false),
+    () => setRowMenuOpenId(null),
   ]);
 
   // Ad/açıklama/Yayıncı/grup listesi düzenleme (2026-07-18) — SADECE owner/admin,
@@ -662,6 +666,33 @@ export default function FlexConnectPage() {
     }
   }
 
+  /** Liste satırındaki 3-nokta menüsü (2026-07-22, masaüstü) — `handleHideConversation`/
+   * `handleTogglePin`'in aksine `selected`'a değil, herhangi bir satırın kendi id'sine
+   * bağlı (menü kapalıyken de herhangi bir sohbeti silebilmek/arşivleyebilmek için). */
+  async function handleHideConversationRow(id: string, name: string) {
+    setRowMenuOpenId(null);
+    if (!window.confirm(`"${name || "Bu sohbet"}" listenden gizlenecek. Karşı taraf yeni mesaj yazarsa tekrar görünür. Emin misin?`)) return;
+    const ok = await hideConversation(id);
+    if (!ok) { toast.error("Gizlenemedi, tekrar dene."); return; }
+    toast.success("Sohbet silindi.");
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (selectedId === id) setSelectedId(null);
+  }
+
+  /** Arşivle/arşivden çıkar — İyimser güncelleme, başarısız olursa geri alınır. */
+  async function handleToggleArchiveRow(id: string, archived: boolean) {
+    setRowMenuOpenId(null);
+    const next = !archived;
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, archived: next } : c)));
+    const ok = await setConversationArchived(id, next);
+    if (!ok) {
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, archived } : c)));
+      toast.error("Arşiv durumu değiştirilemedi.");
+    } else {
+      toast.success(next ? "Sohbet arşivlendi." : "Sohbet arşivden çıkarıldı.");
+    }
+  }
+
   // Gerçek zamanlılık — mevcut ödev-chat'iyle AYNI kanıtlanmış desen: Firestore
   // `onSnapshot` yeni mesaj işaret edince API'den (isim/renk çözülmüş) yeniden çeker.
   useEffect(() => {
@@ -803,7 +834,9 @@ export default function FlexConnectPage() {
   }
 
   const filtered = conversations
-    .filter((c) => (navTab === "star" ? c.pinned : c.type === navTab))
+    // Arşivlenenler kendi sekmesinde (tipten bağımsız) görünür; diğer TÜM sekmelerde
+    // (Favoriler dahil) arşivlenmiş konuşmalar varsayılan olarak gizlenir (2026-07-22).
+    .filter((c) => (navTab === "archived" ? c.archived : !c.archived && (navTab === "star" ? c.pinned : c.type === navTab)))
     .filter((c) => listFilter !== "unread" || c.unread)
     .filter((c) => listFilter !== "pinned" || c.pinned)
     .filter((c) => !query.trim() || c.name.toLocaleLowerCase("tr").includes(query.trim().toLocaleLowerCase("tr")));
@@ -850,7 +883,7 @@ export default function FlexConnectPage() {
         <div className="flex flex-col items-center gap-2">
           {NAV.map(({ key, label, Icon }) => {
             const active = navTab === key;
-            const count = key === "star" ? 0 : conversations.filter((c) => c.type === key).reduce((sum, c) => sum + c.unreadCount, 0);
+            const count = key === "star" || key === "archived" ? 0 : conversations.filter((c) => c.type === key && !c.archived).reduce((sum, c) => sum + c.unreadCount, 0);
             return (
               <button
                 key={key} title={label} onClick={() => setNavTab(key)}
@@ -930,6 +963,7 @@ export default function FlexConnectPage() {
           <div className="flex items-center justify-between mb-4">
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5, color: "#1B1F26" }}>
               {navTab === "channel" ? "Kanallar" : navTab === "group" ? "Gruplar" : navTab === "star" ? "Favoriler"
+                : navTab === "archived" ? "Arşiv"
                 : navTab === "staffDirectory" ? "Personel" : navTab === "studentDirectory" ? "Öğrenciler" : "Sohbetler"}
             </h1>
             {directoryList === null && (
@@ -991,11 +1025,12 @@ export default function FlexConnectPage() {
           ) : (
             filtered.map((c) => {
               const sel = c.id === selectedId;
+              const rowMenuOpen = rowMenuOpenId === c.id;
               return (
                 <div
                   key={c.id} onClick={() => selectConversation(c.id)}
-                  className="flex items-center gap-3 cursor-pointer transition-colors"
-                  style={{ padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
+                  className="group flex items-center gap-3 cursor-pointer transition-colors"
+                  style={{ position: "relative", padding: "11px 12px", borderRadius: 13, background: sel ? "#EAF1FB" : "transparent" }}
                 >
                   <div className="relative flex items-center justify-center shrink-0 font-bold text-white" style={{ width: 46, height: 46, borderRadius: 13, background: c.colorKey ?? (sel ? "#2867bd" : "#EEF1F5"), color: c.colorKey ? "#fff" : sel ? "#fff" : "#5A616C" }}>
                     {c.type === "dm" ? initials(c.name) : <Users size={20} />}
@@ -1012,6 +1047,34 @@ export default function FlexConnectPage() {
                       </span>
                       {c.unreadCount > 0 && <span className="shrink-0 flex items-center justify-center font-extrabold text-white" style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: "#E5484D", fontSize: 11 }}>{c.unreadCount > 99 ? "99+" : c.unreadCount}</span>}
                     </div>
+                  </div>
+                  {/* 3-nokta satır menüsü (2026-07-22) — hover'da belirir, tıklanınca satırın
+                      kendisini AÇMAZ (`stopPropagation`). Masaüstü karşılığı: mobilde swipe. */}
+                  <div
+                    className="relative shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    data-connect-dropdown
+                    style={{ opacity: rowMenuOpen ? 1 : undefined }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => setRowMenuOpenId((v) => (v === c.id ? null : c.id))}
+                      className="flex items-center justify-center cursor-pointer transition-colors"
+                      style={{ width: 30, height: 30, borderRadius: 9, color: rowMenuOpen ? "#2867bd" : "#8A919C", background: rowMenuOpen ? "#EAF1FB" : "transparent" }}
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {rowMenuOpen && (
+                      <div className="absolute" style={{ right: 0, top: "100%", marginTop: 6, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.25)", zIndex: 30, overflow: "hidden", minWidth: 190 }}>
+                        <button onClick={() => handleToggleArchiveRow(c.id, c.archived)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                          {c.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />} {c.archived ? "Arşivden Çıkar" : "Arşivle"}
+                        </button>
+                        {c.type === "dm" && (
+                          <button onClick={() => handleHideConversationRow(c.id, c.name)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                            <Trash2 size={14} /> Sohbeti Sil
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1222,7 +1285,7 @@ export default function FlexConnectPage() {
                                 {m.text && <span style={{ display: "block", fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450, marginTop: 6 }}>{m.text}</span>}
                                 <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
                                   {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
-                                  {m.isMine && (m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />)}
+                                  {m.isMine && (m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : m.deliveredByAll ? <CheckCheck size={13} /> : <Check size={13} />)}
                                 </span>
                               </>
                             ) : (
@@ -1234,7 +1297,7 @@ export default function FlexConnectPage() {
                                 {m.text}
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", whiteSpace: "nowrap", verticalAlign: "bottom" }}>
                                   {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
-                                  {m.isMine && (m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : <Check size={13} />)}
+                                  {m.isMine && (m.readByAll ? <CheckCheck size={13} color="#2867bd" /> : m.deliveredByAll ? <CheckCheck size={13} /> : <Check size={13} />)}
                                 </span>
                               </span>
                             )}

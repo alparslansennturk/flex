@@ -11,6 +11,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/app/lib/firebase";
 import NotificationBell from "@/app/components/notifications/NotificationBell";
 import ConnectWidget from "./ConnectWidget";
+import { useCapabilities } from "./useCapabilities";
 
 // Sayfa değişince FlexHeader yeniden mount olur (paylaşımlı layout yok) — FlexSidebar'daki
 // capsCache deseniyle aynı: isim bir kez çekilir, sonraki mount'larda cache'ten okunur.
@@ -27,7 +28,11 @@ interface FlexHeaderProps {
   greeting?: boolean;
   title?: string;
   subtitle?: string;
-  /** Sağ üstte, isim altında (ör. "Yönetici · Satış"). */
+  /** Sağ üstte, isim altında (ör. "Eğitim Op. - Şirinevler"). Verilmezse gerçek aktör
+   * verisinden (`useCapabilities`, `/api/flexos/me::roleLabel`) otomatik hesaplanır —
+   * 2026-07-22 kararı öncesi HER sayfa burada elle sabit bir string yazıyordu (gerçek
+   * role/şubeye hiç bağlı değildi). Öğrenci sayfası gibi kendi gerçek verisinden özel bir
+   * etiket üreten çağıranlar bu prop'u YİNE de açıkça verebilir (override kalır). */
   roleLabel?: string;
   maxWidth?: number;
   /** Verilirse `maxWidth` sayısal değeri yok sayılır, bunun yerine bu Tailwind sınıfı (ör.
@@ -86,8 +91,10 @@ export function FlexPageContent({ children, className, style }: { children: Reac
   );
 }
 
-export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel = "Yönetici", maxWidth = FLEX_CONTENT_MAX_WIDTH, maxWidthClassName, left, displayNameOverride, connectPersonId }: FlexHeaderProps) {
+export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel, maxWidth = FLEX_CONTENT_MAX_WIDTH, maxWidthClassName, left, displayNameOverride, connectPersonId }: FlexHeaderProps) {
   const [displayName, setDisplayName] = useState(displayNameOverride ?? nameCache ?? "");
+  const { roleLabel: computedRoleLabel } = useCapabilities();
+  const effectiveRoleLabel = roleLabel ?? computedRoleLabel ?? "Yönetici";
 
   useEffect(() => {
     if (displayNameOverride) setDisplayName(displayNameOverride);
@@ -146,7 +153,7 @@ export default function FlexHeader({ icon, greeting, title, subtitle, roleLabel 
           <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 18, borderLeft: "1px solid #E2E5EA" }}>
             <div style={{ textAlign: "right" as const, lineHeight: 1.3 }}>
               <div style={{ fontSize: 14.5, fontWeight: 700, color: "#1E222B" }}>{displayName || "…"}</div>
-              <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>{roleLabel}</div>
+              <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500 }}>{effectiveRoleLabel}</div>
             </div>
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#FF8D28,#D66500)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(214,101,0,.5)" }}>
               {initials(displayName || "?")}

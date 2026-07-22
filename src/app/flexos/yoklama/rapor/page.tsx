@@ -688,7 +688,6 @@ export default function YoklamaRaporuPage() {
           icon={<TrendingUp size={22} color="#fff" />}
           title="Yoklama Raporu"
           subtitle="Eğitmen bazlı ders saati özeti ve sınıf durumu takibi."
-          roleLabel="Yönetici · Eğitmen"
         />
         <div style={S.panelArea}>
           <ReportContent />

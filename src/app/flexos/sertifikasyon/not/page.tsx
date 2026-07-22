@@ -359,7 +359,6 @@ export default function SertifikaNotuPage() {
           icon={<Award size={20} color="#fff" />}
           title="Sertifika Notu"
           subtitle="Grup seçin, öğrencilere sertifika notu girin."
-          roleLabel="Eğitmen"
           maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
           left={showStudentPanel ? (
             <div className="flex items-center gap-[15px]">

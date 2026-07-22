@@ -375,7 +375,6 @@ export default function SinifDetayPage() {
       <style>{`.sd-iconbtn:hover{background:#F7F8FA!important}`}</style>
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
-          roleLabel="Yönetici · Eğitmen"
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               <a className="sd-iconbtn" style={S.backBtn} title="Sınıflara dön" onClick={() => router.push("/flexos/siniflar")}>

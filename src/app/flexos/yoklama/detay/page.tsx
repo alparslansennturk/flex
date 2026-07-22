@@ -72,7 +72,6 @@ export default function YoklamaDetayPage() {
       <FlexSidebar active="yoklama-detay" />
       <main style={S.main}>
         <FlexHeader
-          roleLabel="Yönetici · Eğitmen"
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               {/* Canlıdaki Header.tsx onBack deseni — sadece grup detayı açıkken görünür,

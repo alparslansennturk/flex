@@ -322,6 +322,25 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
     updatedBy: input.requesterUid,
   });
 
+  // Eğitmene "yeni teslim var" bildirimi (2026-07-21 kullanıcı bulgusu: bu hiç yoktu —
+  // `updateSubmissionStatus`'un öğrenciye giden ters yönü vardı ama bu yön hiç
+  // tetiklenmiyordu). Non-fatal (`notify` zaten try/catch'li), her tamamlanan
+  // yüklemede gider (revize sonrası yeniden yükleme dahil).
+  const group = await deps.groups.getById(session.groupId, tenantId);
+  const trainer = group?.trainerId ? await deps.trainers.getById(group.trainerId, tenantId) : null;
+  if (trainer?.authUid) {
+    const person = await deps.persons.getById(personId, tenantId);
+    const studentName = person ? `${person.firstName} ${person.lastName}`.trim() : "Bir öğrenci";
+    await deps.notify(trainer.authUid, {
+      type: "assignment",
+      entityId: existing.assignmentId,
+      senderId: input.requesterUid,
+      title: "Yeni Ödev Teslimi",
+      preview: `${studentName}, "${assignment.title}" ödevini teslim etti.`,
+      actionUrl: `/flexos/odevler/teslim/${session.groupId}/${session.assignmentId}`,
+    });
+  }
+
   return existing;
 }
 

@@ -16,7 +16,68 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-22 oturumu (2) — Şube Havuzu CRUD + Kullanıcı "Şube" alanı (EN GÜNCEL, YARIM KALDI)
+### 🔶 2026-07-22 oturumu (3) — Dinamik roleLabel + 2 bildirim fix'i + Connect okundu-tikleri/arşiv (EN GÜNCEL)
+
+**Header etiketi (`roleLabel`) artık gerçek veriden — ~30 sayfadaki sabit metin kaldırıldı:**
+- Önceden HER sayfa `<FlexHeader roleLabel="Yönetici · Eğitmen" .../>` gibi elle
+  yazılmış, gerçek kullanıcıya hiç bağlı olmayan bir sabit string taşıyordu.
+  `/api/flexos/me` artık `roleLabel` alanı döndürüyor (`buildMeInfo` içinde
+  `resolveRoleLabel`): Görünüm Anahtarı sahibi (owner) için ÖZEL kural —
+  `mode==="core"` iken **"Eğitmen"**, `mode==="full"` iken **"Admin"** (kullanıcının
+  kendi isteği: kendisi için mod'a göre değişsin). Diğer gerçek personel için
+  `flexos_users.roles` → gerçek `RoleDef.label` birleşimi. Şube varsa sonuna
+  `" - {officeName}"` eklenir (`officeId`/`officeName` de aynı uçtan geliyor).
+- `useCapabilities.ts` hook'u `roleLabel`'ı da expose ediyor; `FlexHeader.tsx`
+  artık prop verilmezse bunu kendi hesaplıyor (`roleLabel` prop'u opsiyonel hale
+  geldi, override kalmaya devam ediyor — öğrenci sayfasındaki gerçek dinamik
+  `{groupCode} · Öğrenci` etiketine DOKUNULMADI, o zaten doğruydu).
+- `resolveLanding` küçük bir refactor'la tek bir `flexosUser` okumasını paylaşıyor
+  (fazladan Firestore okuması eklenmedi, aksine bir okuma azaldı).
+
+**2 bildirim bug'ı düzeltildi (kullanıcı bulgusu, "dün bir hata gördüm"):**
+- **Ödev teslim bildirimi hiç gitmiyordu** — 2026-07-21'de teşhis edilip
+  FLEXOS.md'ye not düşülmüş ama kod yazılmamıştı: `submission-service.ts::
+  completeUpload` `deps.notify`'ı hiç çağırmıyordu (öğrenci→eğitmen yönü eksikti,
+  ters yön zaten vardı). Artık grup eğitmenine ("Yeni Ödev Teslimi", öğrenci adı +
+  ödev adıyla) bildirim gidiyor, route zaten `notify` deps'ini geçiyordu (sadece
+  servis içeride hiç kullanmıyordu).
+- **"Hepsi Okundu" sonrası bildirimler bir anlık geri gelip sonra hepsi siliniyordu**
+  — kök neden: `clearAll()` `serverTimestamp()` ile yazıyor, bu pending yazım
+  sunucudan onaylanmadan ÖNCE `onSnapshot` bir kez daha (latency compensation)
+  tetikleniyor ve o anda `serverTimestamp()` `null` okunuyordu; `filterVisible`
+  "lastClearedAt yoksa hepsini göster" varsayıyor — optimistic doğru filtreden
+  hemen sonra bu `null` TÜM eski bildirimleri bir anlığına geri getirip, sunucu
+  onayı gelince tekrar filtrelenip hepsi kayboluyordu. Fix: `useNotifications.ts`
+  `snap.data({ serverTimestamps: "estimate" })` — pending yazımda `null` yerine
+  yerel tahmini zaman damgası döner, flaş hiç oluşmaz.
+
+**Flex Connect — WhatsApp'a daha da yakınlaştı (detay: `FLEX_CONNECT.md`):**
+- **3 durumlu okundu tiki** (tek gri "gönderildi" / çift gri "ulaştı" / çift mavi
+  "okundu") — yeni `Member.lastDeliveredAt`, konuşma listesi her çekildiğinde
+  (zaten 30sn'de bir polling var) otomatik bumper, yeni realtime altyapı gerekmedi.
+- **Arşiv özelliği** — `Member.archivedAtMessageCount` (Sohbeti Sil'deki stateless
+  desenin aynısı, yeni mesaj gelince otomatik geri çıkar). Masaüstünde yeni "Arşiv"
+  sekmesi + satırda hover'da 3-nokta menü ("Arşivle"/"Sohbeti Sil"). Mobilde
+  `framer-motion drag="x"` ile SIFIRDAN swipe-to-reveal jesti (kod tabanında ilk
+  drag kullanımı) — SADECE personel (öğrenci tarafında arşivden geri çıkarma
+  ekranı yok, bilinçli olarak atlandı, veri kaybolmasın diye).
+
+`tsc --noEmit` + `npm run build` temiz (her adımda tek tek doğrulandı).
+**Test edilmedi:** hiçbiri gerçek tarayıcı/cihazda henüz denenmedi (bu oturumda
+local dev server kasıtlı açılmadı, kullanıcının 2026-07-13 kararı gereği — test
+canlı Vercel'de yapılıyor). Sıradaki oturumda kontrol edilmeli: roleLabel'ın
+gerçek kullanıcılarda doğru göründüğü, iki bildirim fix'i, Connect tiklerinin
+gerçek iki hesapla davranışı, masaüstü 3-nokta menü + mobil swipe jesti.
+
+**Bu oturumda planlanıp YAPILMAYAN (sıradaki iş):** Satış Listesi'nde şube
+filtresi + satışın otomatik satıcının şubesine yazılması (`POST /api/flexos/sales`
+auto-stamp + `GET sales` join + `satis-liste/page.tsx` filtre UI, varsayılan =
+kendi şubem, "Tümü"/diğer şubeler seçilebilir) — kullanıcı isteğinin bu son
+parçası hâlâ kod yazılmadı, aşağıdaki maddede ("Kullanıcı 'Şube' alanı") detaylı.
+
+---
+
+### 🔶 2026-07-22 oturumu (2) — Şube Havuzu CRUD + Kullanıcı "Şube" alanı (YARIM KALDI)
 
 **Şube Havuzu — sabit listeden Firestore-backed CRUD'a geçiş (BİTTİ):**
 - Şube (fiziksel ofis) artık `src/app/lib/branch-offices.ts`'teki 5'lik sabit listeden

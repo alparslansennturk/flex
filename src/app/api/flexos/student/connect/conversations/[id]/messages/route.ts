@@ -16,8 +16,10 @@ export const GET = withAuth(async (req: NextRequest, caller, ctx: { params: Prom
   try {
     const messages = await listMessages(principal, id, connectDeps, 60);
     const members = await listMembers(principal, id, connectDeps);
-    const otherReadAts = members.filter((m) => m.uid !== principal.uid).map((m) => m.lastReadAt).filter((t): t is string => !!t);
-    const views = await buildMessageViews(messages, principal.uid, principal.tenantId, otherReadAts);
+    const otherMembers = members.filter((m) => m.uid !== principal.uid);
+    const otherReadAts = otherMembers.map((m) => m.lastReadAt).filter((t): t is string => !!t);
+    const otherDeliveredAts = otherMembers.map((m) => m.lastDeliveredAt).filter((t): t is string => !!t);
+    const views = await buildMessageViews(messages, principal.uid, principal.tenantId, otherReadAts, otherDeliveredAts);
     return NextResponse.json({ items: views });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

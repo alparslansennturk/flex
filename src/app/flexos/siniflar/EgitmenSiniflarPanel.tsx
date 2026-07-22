@@ -522,7 +522,6 @@ export default function EgitmenSiniflarPanel() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.graduation }} />}
           title="Sınıflarım"
           subtitle="Kendi sınıflarınızı açın, öğrenci ekleyin."
-          roleLabel="Yönetici · Eğitmen"
         />
 
         <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>

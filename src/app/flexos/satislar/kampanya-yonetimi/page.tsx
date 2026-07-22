@@ -298,7 +298,6 @@ export default function KampanyaYonetimiPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.campaign }} />}
           title="Kampanya Yönetimi"
           subtitle="Satış Yönetimi › Kampanya Yönetimi"
-          roleLabel="Yönetici · Eğitmen"
           maxWidth={1560}
         />
 

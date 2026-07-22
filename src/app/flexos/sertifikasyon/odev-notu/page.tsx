@@ -402,7 +402,6 @@ export default function OdevNotuPage() {
           icon={<Award size={20} color="#fff" />}
           title="Ödev Notu"
           subtitle="Grup ve ödev seçin, teslim durumuna göre puanlayın."
-          roleLabel="Eğitmen"
         />
 
         {/* İçerik satırı (2026-07-16): header'ın ALTINDA, footer'ın ÜSTÜNDE — Gruplar

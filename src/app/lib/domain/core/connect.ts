@@ -79,6 +79,14 @@ export interface ConnectMember {
   role: ConnectMemberRole;
   joinedAt: ISODateTime;
   lastReadAt?: ISODateTime;
+  /** WhatsApp'taki çift GRİ tik (2026-07-22, kullanıcı isteği) — mesaj bu üyenin
+   * İSTEMCİSİNE ulaştığı an (`lastReadAt`'ten AYRI: "gördü" değil "cihazına indi").
+   * Yeni bir yazma noktası: konuşma LİSTESİ her çekildiğinde (`ConnectWidget` zaten
+   * 30sn'de bir + her sayfa yüklemesinde bunu yapıyor — gerçek WhatsApp'taki "telefon
+   * online oldu, mesaj indi" anına en yakın, gerçek sinyal) `markDeliveredFromList`
+   * bunu `Conversation.lastMessage.at`'e bumper. `markRead` da bunu en az okuma anına
+   * bumper (okumak zaten teslim almayı ima eder, tik hiç geriye gitmesin). */
+  lastDeliveredAt?: ISODateTime;
   /** `Conversation.messageCount`'ın son okunduğu andaki değeri — okunmamış SAYISI buradan türetilir. */
   readMessageCount?: number;
   muted?: boolean;
@@ -94,6 +102,15 @@ export interface ConnectMember {
    * görünür (bkz. `connect-service.ts::hideConversationForMe`/`listConversationsForPrincipal`).
    * Karşı tarafın kendi görünümünü HİÇ etkilemez. */
   hiddenAtMessageCount?: number;
+  /** "Arşivle" (2026-07-22, WhatsApp'taki gibi) — `hiddenAtMessageCount` ile AYNI desen
+   * (kalıcı silme DEĞİL, sadece varsayılan listeden gizleme): tıklandığı andaki
+   * `Conversation.messageCount`. Listelemede `conversation.messageCount <=
+   * archivedAtMessageCount` ise ana listede gizlenir, "Arşivlenenler" filtresinde
+   * görünür. Karşı taraftan YENİ mesaj gelip `messageCount` artınca otomatik ana
+   * listeye geri döner (ekstra yazma GEREKMEZ — okuma anında karşılaştırılır,
+   * `hideConversationForMe`'nin aksine `type==="dm"`/staff-only kısıtı YOK — arşiv
+   * yıkıcı olmadığı için herkes her konuşma tipini arşivleyebilir). */
+  archivedAtMessageCount?: number;
 }
 
 /** Mesaj eki (Faz 2 madde 5, 2026-07-18) — tek seferlik (resumable/chunk YOK —

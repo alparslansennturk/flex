@@ -404,7 +404,6 @@ export default function EgitmenlerPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.trainerHdr }} />}
           title="Eğitmenler"
           subtitle="Eğitmen kadrosunu, yetkinliklerini ve çalışma notlarını yönetin."
-          roleLabel="Yönetici · Eğitmen"
         />
 
         <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>

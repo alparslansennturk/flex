@@ -457,6 +457,37 @@ export async function listConversationsForPrincipal(
 }
 
 /**
+ * WhatsApp çift GRİ tik (2026-07-22) — konuşma LİSTESİ her çekildiğinde (`ConnectWidget`
+ * zaten 30sn'de bir + her sayfa yüklemesinde) çağrılır: `conversation.lastMessage`
+ * çağıranın kendi mesajı DEĞİLSE ve üyenin `lastDeliveredAt`'i bu mesajdan eskiyse
+ * (veya hiç yoksa) `lastDeliveredAt`'i bumper. Konuşma listesini gerçekten ÇEKMİŞ
+ * olmak "istemciye ulaştı" için makul bir gerçek sinyal — yeni bir realtime altyapı
+ * gerektirmez. Sadece gerçekten değişen üyeler yazılır (poll başına genelde 0 yazma).
+ * Non-fatal (ana isteği asla bloklamaz/başarısız kılmaz).
+ */
+export async function markDeliveredFromList(
+  principal: ConnectPrincipal,
+  items: { conversation: ConnectConversation; member: ConnectMember | null }[],
+  deps: ConnectDeps,
+): Promise<void> {
+  const updates = items.filter(({ conversation, member }) => {
+    if (!member || !conversation.lastMessage) return false;
+    if (conversation.lastMessage.senderUid === principal.uid) return false;
+    return !member.lastDeliveredAt || member.lastDeliveredAt < conversation.lastMessage.at;
+  });
+  if (updates.length === 0) return;
+  try {
+    await Promise.all(
+      updates.map(({ conversation, member }) =>
+        deps.conversations.saveMember(conversation.id, { ...member!, lastDeliveredAt: conversation.lastMessage!.at }),
+      ),
+    );
+  } catch (e) {
+    console.error("[connect-service] markDeliveredFromList başarısız (non-fatal):", e);
+  }
+}
+
+/**
  * "Sohbeti Sil" (2026-07-20 kullanıcı kararı) — WhatsApp'taki "Sohbeti Sil" gibi
  * KİŞİSEL bir gizleme, gerçek/kalıcı silme DEĞİL: SADECE çağıranın kendi listesinden
  * kaybolur, karşı tarafın görünümü HİÇ etkilenmez, mesajlar SİLİNMEZ. Karşı taraf
@@ -732,13 +763,16 @@ export async function markRead(principal: ConnectPrincipal, conversationId: stri
     if (!audienceOpen) return;
     await deps.conversations.saveMember(conversationId, {
       uid: principal.uid, realm: conversation.realm, role: "member",
-      joinedAt: ts, lastReadAt: ts, readMessageCount: conversation.messageCount ?? 0,
+      joinedAt: ts, lastReadAt: ts, lastDeliveredAt: ts, readMessageCount: conversation.messageCount ?? 0,
     });
     return;
   }
+  // `lastDeliveredAt` de en az okuma anına bumper — okumak zaten teslim almayı
+  // ima eder, çift gri tik çift mavi tikten "geride" görünüp kalmasın (2026-07-22).
   await deps.conversations.saveMember(conversationId, {
     ...member,
     lastReadAt: ts,
+    lastDeliveredAt: !member.lastDeliveredAt || member.lastDeliveredAt < ts ? ts : member.lastDeliveredAt,
     readMessageCount: conversation.messageCount ?? member.readMessageCount ?? 0,
   });
 }
@@ -758,6 +792,29 @@ export async function setPinned(
   const member = await deps.conversations.getMember(conversationId, principal.uid);
   if (!member) return;
   await deps.conversations.saveMember(conversationId, { ...member, pinned });
+}
+
+/**
+ * Arşivle/arşivden çıkar (2026-07-22) — `hideConversationForMe` ile AYNI stateless
+ * ilke (`archivedAtMessageCount`, bkz. `connect.ts`) ama `type==="dm"`/staff-only
+ * kısıtı YOK: yıkıcı değil (kalıcı silme değil, sadece varsayılan listeden gizleme),
+ * her konuşma tipinde herkes kendi görünümünü arşivleyebilir. Karşı taraftan yeni
+ * mesaj gelince `messageCount` artıp otomatik geri çıkar — ekstra yazma gerekmez.
+ */
+export async function setArchived(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  archived: boolean,
+  deps: ConnectDeps,
+): Promise<void> {
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) return;
+  const member = await deps.conversations.getMember(conversationId, principal.uid);
+  if (!member) return;
+  await deps.conversations.saveMember(conversationId, {
+    ...member,
+    archivedAtMessageCount: archived ? conversation.messageCount ?? 0 : undefined,
+  });
 }
 
 /**

@@ -33,7 +33,7 @@ export default function AnaSayfaPage() {
     <div style={{ display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#1E222B", fontFamily: "'Inter', system-ui, sans-serif", background: "#EEF0F3" }}>
       <FlexSidebar />
       <main style={{ flex: 1, height: "100%", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-        <FlexHeader greeting subtitle="Dashboard yakında burada olacak." roleLabel="Yönetici" />
+        <FlexHeader greeting subtitle="Dashboard yakında burada olacak." />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ textAlign: "center", color: "#8E95A3" }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: "#1E222B", marginBottom: 6 }}>Ana Sayfa</div>

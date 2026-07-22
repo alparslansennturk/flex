@@ -700,7 +700,6 @@ export default function EgitimEklePage() {
       {/* ============ MAIN ============ */}
       <main style={S.main}>
         <FlexHeader
-          roleLabel="Yönetici · Eğitmen"
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               <a className="ee-iconbtn" style={S.backBtn} title="Kataloğa dön" onClick={() => router.push("/flexos/egitim-yonetimi")}>

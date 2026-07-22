@@ -344,6 +344,84 @@ konuşmalarda WhatsApp'taki gibi "HERKES okuyunca" mavi olur.
 `tsc --noEmit` + `npm run build` temiz, `assert-connect.ts` 63/63 (değişmedi —
 saf view-katmanı hesaplaması, ayrı test gerektirmedi).
 
+---
+
+### ✅ Üçüncü tik durumu — "delivered" (çift GRİ tik) eklendi (2026-07-22)
+
+Kullanıcı isteği: tam WhatsApp semantiği — tek gri (benden gitti) → çift gri
+(karşı tarafa ulaştı) → çift mavi (okundu). Yukarıdaki madde sadece 2 durum
+(gri/mavi) destekliyordu, "ulaştı" ara durumu yoktu.
+
+**Yeni sinyal — `Member.lastDeliveredAt`:** `lastReadAt` ile AYNI desen, ama
+YAZMA noktası farklı: konuşma LİSTESİ her çekildiğinde (`GET conversations`,
+personel+öğrenci) — `ConnectWidget` zaten bunu 30sn'de bir + her sayfa
+yüklemesinde yapıyor, yani gerçek bir "istemciye ulaştı" sinyali (yeni bir
+realtime altyapı GEREKMEDİ). `connect-service.ts::markDeliveredFromList`:
+listelenen her (conversation, member) çiftinde `conversation.lastMessage`
+çağıranın kendi mesajı DEĞİLSE ve `member.lastDeliveredAt` bu mesajdan eskiyse
+bumper — sadece gerçekten değişen üyeler yazılır (çoğu poll'da 0 yazma).
+`markRead` de `lastDeliveredAt`'i en az okuma anına bumper (okumak zaten
+teslimi ima eder, çift gri çift maviden "geride" görünüp kalmasın).
+
+- `connect-view.ts::buildMessageViews`'e ikinci opsiyonel parametre:
+  `otherMembersLastDeliveredAt`. Yeni alan: `ConnectMessageView.deliveredByAll`.
+  İki messages GET route'u (personel + öğrenci) zaten çektiği `listMembers`'tan
+  bunu da hesaplayıp geçiriyor — ekstra sorgu yok.
+- UI (4 yüzey — `connect/page.tsx`, `student/[personId]/connect/page.tsx`,
+  `ConnectWidget.tsx`, `connect/mobile/page.tsx`): tik mantığı
+  `readByAll → mavi çift` / `deliveredByAll → gri çift` / `else → gri tek`
+  olarak genişletildi. Mobilde (emoji tabanlı `✓`/`✓✓`) tik artık ayrı bir
+  `<span>`'e alındı ki sadece okununca mavi olsun, teslimde zaman damgasıyla
+  aynı gri kalsın.
+
+`tsc --noEmit` + `npm run build` temiz. **Test edilmedi:** gerçek iki hesapla
+(eğitmen+öğrenci) canlı doğrulama henüz yapılmadı — sıradaki oturumda kontrol
+edilmeli (özellikle `markDeliveredFromList`'in 30sn pollingle gerçekten
+tetiklenip tetiklenmediği).
+
+---
+
+### ✅ Konuşma listesi — 3-nokta menü (masaüstü) + swipe (mobil) + Arşiv (2026-07-22)
+
+Kullanıcı isteği: WhatsApp gibi — masaüstünde satırın sağında 3-nokta ("Sohbeti
+Sil"/"Arşivle"), mobilde sağdan sola kaydırınca aynı menü. "Sohbeti Sil" zaten
+backend'de vardı (`hideConversationForMe`, sadece açık konuşmanın header
+menüsünden erişilebiliyordu) — bu iş SATIR'dan da erişilebilir yaptı + yeni
+**Arşiv** özelliğini `hiddenAtMessageCount` ile AYNI stateless desende ekledi.
+
+- **`ConnectMember.archivedAtMessageCount?: number`** (yeni alan) — arşivlendiği
+  andaki `Conversation.messageCount`. `conversation.messageCount <=
+  archivedAtMessageCount` iken "arşivde" sayılır; karşı taraf yeni mesaj yazıp
+  `messageCount` artınca EKSTRA YAZMA GEREKMEDEN otomatik ana listeye döner.
+  `hideConversationForMe`'nin aksine `type==="dm"`/staff-only kısıtı YOK.
+- `connect-service.ts::setArchived` + 2 yeni route (`POST .../conversations/[id]/archive`,
+  personel+öğrenci) + `connectClient.ts::setConversationArchived`.
+- `ConnectConversationView.archived: boolean` (view katmanında hesaplanır, `pinned`/
+  `muted` ile AYNI yerde).
+- **Masaüstü** (`connect/page.tsx`): sol rayda yeni "Arşiv" navTab'ı (Favoriler'le
+  AYNI cross-cutting desen — tipten bağımsız, sadece arşivlenenleri gösterir).
+  Diğer TÜM sekmelerde arşivlenmiş konuşmalar varsayılan gizlenir. Satırda hover'da
+  beliren 3-nokta → "Arşivle"/"Arşivden Çıkar" (herkes) + "Sohbeti Sil" (sadece dm).
+- **Mobil** (`connect/mobile/page.tsx`): `framer-motion`'ın `drag="x"` API'si
+  SIFIRDAN eklendi (kod tabanında önceden hiç `drag` kullanımı yoktu) — satır
+  sağdan sola kaydırılınca arkadaki Arşivle/Sil butonları açılır
+  (`dragConstraints`+`onDragEnd` ile eşiğe göre snap). **SADECE personel** —
+  öğrenci tarafında arşivden geri çıkarma ekranı henüz yok, veri "kaybolmasın"
+  diye öğrenci satırı eski (swipe'sız) haliyle bırakıldı. Mobilde ayrı bir
+  "Arşivlenenler" ekranı YOK — arşivden çıkarmak için şimdilik masaüstündeki
+  Arşiv sekmesi kullanılır.
+- `ConnectWidget.tsx`: arşivlenenler listeden ve toplam okunmamış rozetinden
+  hariç tutuldu (ayrı bir menü/arşiv görünümü eklenmedi, widget dar).
+
+**Bilinçli sınır:** Öğrenci tarafı (`student/[personId]/connect/page.tsx`) hiç
+dokunulmadı — öğrenciler ne masaüstünden ne mobilden arşivleyebiliyor (mobilde
+`studentPersonId` kontrolüyle eski davranışa düşülüyor). İleride öğrenciye açmak
+istenirse önce bir "Arşivlenenler" görünümü (en azından basit bir liste) eklenmeli,
+yoksa arşivlenen konuşmalar öğrenci için kalıcı kaybolmuş gibi görünür.
+
+`tsc --noEmit` + `npm run build` temiz. **Test edilmedi** — gerçek cihazda swipe
+jesti, masaüstünde 3-nokta menü ve arşiv/geri-çıkarma akışı canlı doğrulanmadı.
+
 **Kalan Faz 2:** Misafir daveti, dosya ekleri.
 
 ---

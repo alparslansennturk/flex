@@ -6,6 +6,7 @@ import { widestScope } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
 import type { FlexosUser } from "@/app/lib/domain/core/flexos-user";
 
 /**
@@ -36,6 +37,31 @@ async function resolveLanding(flexosUser: FlexosUser | null, uid: string, tenant
 }
 
 /**
+ * Header'daki "isim altı" etiket ("Eğitim Op. - Şirinevler" gibi) — 2026-07-22 kullanıcı
+ * isteği: önceden ~20 sayfada elle yazılmış SABİT `roleLabel="Yönetici · Eğitmen"` string'i
+ * (gerçek veriye hiç bağlı değildi) kaldırıldı, artık buradan tek kaynaktan hesaplanıyor.
+ *
+ * Görünüm Anahtarı sahibi (`view.toggle` capability'si SADECE onda) özel durum: rolü
+ * `flexos_users`'tan değil, o anki GERÇEK görünüm modundan gelir ("Eğitmen modda Eğitmen,
+ * Admin modda Admin yazsın" — kullanıcının kendi isteği, statik bir role.manage/RoleDef
+ * eşlemesi değil).
+ */
+async function resolveRoleLabel(
+  isOwner: boolean,
+  mode: "core" | "full",
+  flexosUser: FlexosUser | null,
+  tenantId: string,
+): Promise<string> {
+  if (isOwner) return mode === "core" ? "Eğitmen" : "Admin";
+  if (!flexosUser || flexosUser.roles.length === 0) return "Yönetici";
+  const roleDefs = await firestoreRoleDefRepo.list(tenantId);
+  const labels = flexosUser.roles
+    .map((r) => roleDefs.find((d) => d.id === r)?.label)
+    .filter((l): l is string => !!l);
+  return labels.length > 0 ? labels.join(" · ") : "Yönetici";
+}
+
+/**
  * `/api/flexos/me`'nin gövdesi — `bootstrap/route.ts` da AYNI fonksiyonu çağırır.
  * NOT cache'lenmez (view-mode/landing gibi alanlar mod değişiminde ANINDA doğru olmalı).
  */
@@ -54,7 +80,9 @@ export async function buildMeInfo(actor: Actor) {
   // (`viewMode.ts`), sunucudaki gerçek moddan (Firestore + in-process cache) kopabiliyordu
   // (ör. admin'e dönünce sidebar hâlâ eğitmen sanıyordu — Sistem Ayarları kayboluyordu).
   // Artık `caps` ile AYNI istekten, tek kaynaktan geliyor — asla birbirinden bağımsız kayamaz.
-  const mode: "core" | "full" = capabilities.includes("view.toggle") && !capabilities.includes("role.manage") ? "core" : "full";
+  const isOwner = capabilities.includes("view.toggle");
+  const mode: "core" | "full" = isOwner && !capabilities.includes("role.manage") ? "core" : "full";
+  const roleLabel = await resolveRoleLabel(isOwner, mode, flexosUser, actor.tenantId);
   // trainerId: eğitmen kadrosu (`flexos_trainers`) docId'si (uid DEĞİL, bkz. can.ts
   // ownerMatches yorumu) — client'ın "kendi gruplarım" filtrelerinde `?trainerId=`
   // olarak kullanması için (raw uid gönderirse Group.trainerId'yle asla eşleşmez).
@@ -67,6 +95,7 @@ export async function buildMeInfo(actor: Actor) {
     mode,
     officeId: flexosUser?.officeId ?? null,
     officeName: office?.name ?? null,
+    roleLabel: office?.name ? `${roleLabel} - ${office.name}` : roleLabel,
   };
 }
 

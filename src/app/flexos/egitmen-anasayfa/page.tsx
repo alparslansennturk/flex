@@ -977,7 +977,7 @@ export default function EgitmenAnaSayfaPage() {
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="ana" />
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
-        <FlexHeader greeting subtitle="Bugün atölyende neler oluyor? İşte son durum." roleLabel="Eğitmen" maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} />
+        <FlexHeader greeting subtitle="Bugün atölyende neler oluyor? İşte son durum." maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS} />
 
         <FlexPageContent className="pt-6 pb-8">
           <div className="flex flex-col xl:flex-row gap-5">

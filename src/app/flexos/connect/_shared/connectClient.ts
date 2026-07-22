@@ -31,6 +31,8 @@ export interface ConversationView {
   pinned: boolean;
   /** Kişisel sessize alma tercihi (2026-07-19) — sessize alınmış konuşmalarda push gitmez. */
   muted: boolean;
+  /** Kişisel arşiv tercihi (2026-07-22) — yeni mesaj gelince otomatik false'a döner. */
+  archived: boolean;
   /** SADECE type==="dm" — karşı tarafın uid'i (Personel/Öğrenciler/Eğitmenlerim
    * dizininden birine tıklayınca var olan DM'i bulmak için). */
   peerUid?: string;
@@ -66,6 +68,8 @@ export interface MessageView {
   myReaction?: string;
   /** SADECE isMine — DİĞER tüm üyeler okumuşsa true (WhatsApp çift mavi tik). */
   readByAll?: boolean;
+  /** SADECE isMine — DİĞER tüm üyelerin istemcisine ulaştıysa true (WhatsApp çift GRİ tik, 2026-07-22). */
+  deliveredByAll?: boolean;
   /** Faz 2 madde 5 (2026-07-18) — dosya eki(leri). */
   attachments?: ConnectAttachment[];
   /** Kurumsal kural (2026-07-20) — öğrenci→eğitmen DM'de 22:00-09:00 arası gönderildi. */
@@ -271,6 +275,18 @@ export async function setConversationMuted(conversationId: string, muted: boolea
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ muted }),
+  });
+  return res.ok;
+}
+
+/** Arşivle/arşivden çıkar — kişisel tercih, yetki gerektirmez (2026-07-22). Yıkıcı DEĞİL
+ * (`hideConversation`'ın aksine) — her konuşma tipinde herkes kullanabilir. */
+export async function setConversationArchived(conversationId: string, archived: boolean, personId?: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`${base(personId)}/conversations/${conversationId}/archive${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ archived }),
   });
   return res.ok;
 }

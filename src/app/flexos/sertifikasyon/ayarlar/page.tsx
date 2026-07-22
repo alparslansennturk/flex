@@ -121,7 +121,6 @@ export default function SertifikaAyarlariPage() {
           icon={<Award size={20} color="#fff" />}
           title="Sertifika Ayarları"
           subtitle="Sertifika notu nasıl hesaplanacağını belirleyin."
-          roleLabel="Yönetici"
         />
 
         <div style={{ padding: "26px 30px 48px", maxWidth: 1240, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }} className="font-inter flex flex-col gap-5">

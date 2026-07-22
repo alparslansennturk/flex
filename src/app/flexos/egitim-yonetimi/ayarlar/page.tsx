@@ -72,7 +72,6 @@ export default function EgitimAyarlariPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.settings }} />}
           title="Eğitim Ayarları"
           subtitle="Branşlar, seanslar, tatiller ve sertifika yapılandırması."
-          roleLabel="Yönetici · Eğitmen"
         />
 
         <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>

@@ -24,8 +24,11 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
     // Okundu-tikleri (Faz 2 madde 3) — DİĞER üyelerin `lastReadAt`'i, var olan
     // veriden türetilir, yeni bir "okundu" kaydı YOK.
     const members = await listMembers(principal, id, connectDeps);
-    const otherReadAts = members.filter((m) => m.uid !== principal.uid).map((m) => m.lastReadAt).filter((t): t is string => !!t);
-    const views = await buildMessageViews(messages, principal.uid, principal.tenantId, otherReadAts);
+    const otherMembers = members.filter((m) => m.uid !== principal.uid);
+    const otherReadAts = otherMembers.map((m) => m.lastReadAt).filter((t): t is string => !!t);
+    // Teslim-tikleri (2026-07-22) — okundu-tikleriyle AYNI desen, `lastDeliveredAt`'ten.
+    const otherDeliveredAts = otherMembers.map((m) => m.lastDeliveredAt).filter((t): t is string => !!t);
+    const views = await buildMessageViews(messages, principal.uid, principal.tenantId, otherReadAts, otherDeliveredAts);
     return NextResponse.json({ items: views });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

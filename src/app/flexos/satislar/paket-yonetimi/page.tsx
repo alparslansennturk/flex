@@ -280,7 +280,6 @@ export default function PaketYonetimiPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.box }} />}
           title="Paket Yönetimi"
           subtitle="Satış Yönetimi › Paket Yönetimi"
-          roleLabel="Yönetici · Eğitmen"
           maxWidth={1560}
         />
 

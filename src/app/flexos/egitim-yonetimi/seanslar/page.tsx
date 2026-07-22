@@ -158,7 +158,6 @@ export default function SeanslarPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.clock }} />}
           title="Seans Yönetimi"
           subtitle="Grup açarken kullanılacak seans kalıplarını yönetin."
-          roleLabel="Yönetici · Eğitmen"
         />
 
         <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>

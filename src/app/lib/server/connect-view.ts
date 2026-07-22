@@ -31,6 +31,10 @@ export interface ConnectConversationView {
   pinned: boolean;
   /** Kişisel sessize alma tercihi (2026-07-19, push bildirimi) — üye değilse hep false. */
   muted: boolean;
+  /** Kişisel arşiv tercihi (2026-07-22) — `archivedAtMessageCount` ile stateless
+   * hesaplanır (`hideConversationForMe` ile AYNI ilke): karşı taraftan yeni mesaj
+   * gelip `messageCount` artınca otomatik false'a döner. */
+  archived: boolean;
   /** SADECE type==="dm" — karşı tarafın uid'i. Dizinden (Personel/Öğrenciler/
    * Eğitmenlerim) bir kişiye tıklayınca "bununla zaten DM var mı" eşleşmesi için. */
   peerUid?: string;
@@ -105,6 +109,7 @@ export async function buildConversationViews(
         isOwner: conversation.ownerUid === principalUid,
         pinned: member?.pinned ?? false,
         muted: member?.muted ?? false,
+        archived: member?.archivedAtMessageCount !== undefined && conversation.messageCount <= member.archivedAtMessageCount,
         peerUid,
         admins: conversation.admins,
         ownerUid: conversation.ownerUid,
@@ -136,6 +141,11 @@ export interface ConnectMessageView {
    * bu mesajdan SONRA okumuşsa (lastReadAt >= createdAt) true — WhatsApp'taki çift
    * mavi tik. Yeni bir "okundu" kaydı YOK, var olan `Member.lastReadAt`'ten türetilir. */
   readByAll?: boolean;
+  /** SADECE isMine — WhatsApp çift GRİ tik (2026-07-22): DİĞER tüm üyelerin istemcisine
+   * bu mesajdan SONRA ulaştıysa (`Member.lastDeliveredAt >= createdAt`) true. `readByAll`
+   * true ise bu da mantıken true'dur (okumak teslim almayı ima eder) — UI önce buna,
+   * sonra `readByAll`'a bakarak 3 durumu (tek gri/çift gri/çift mavi) ayırt eder. */
+  deliveredByAll?: boolean;
   /** Faz 2 madde 5 (2026-07-18) — dosya eki(leri), doğrudan geçirilir. */
   attachments?: ConnectAttachment[];
   /** Kurumsal kural (2026-07-20) — öğrenci→eğitmen DM'de 22:00-09:00 arası gönderildi. */
@@ -162,6 +172,8 @@ export async function buildMessageViews(
   tenantId: string,
   /** Okundu-tikleri için: DİĞER üyelerin (çağıran hariç) `lastReadAt` değerleri. */
   otherMembersLastReadAt: string[] = [],
+  /** Teslim-tikleri için: DİĞER üyelerin (çağıran hariç) `lastDeliveredAt` değerleri. */
+  otherMembersLastDeliveredAt: string[] = [],
 ): Promise<ConnectMessageView[]> {
   const identities = await resolveConnectIdentities(
     messages.map((m) => m.authorUid),
@@ -174,6 +186,9 @@ export async function buildMessageViews(
     const readByAll = isMine && otherMembersLastReadAt.length > 0
       ? otherMembersLastReadAt.every((t) => t >= m.createdAt)
       : undefined;
+    const deliveredByAll = isMine && otherMembersLastDeliveredAt.length > 0
+      ? otherMembersLastDeliveredAt.every((t) => t >= m.createdAt)
+      : undefined;
     return {
       id: m.id,
       authorUid: m.authorUid,
@@ -181,6 +196,7 @@ export async function buildMessageViews(
       colorKey: identities[m.authorUid]?.colorKey ?? "#3A7BD5",
       isMine,
       readByAll,
+      deliveredByAll,
       text: m.text,
       createdAt: m.createdAt,
       editedAt: m.editedAt,

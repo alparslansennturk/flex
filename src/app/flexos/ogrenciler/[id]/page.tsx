@@ -67,7 +67,6 @@ export default function OgrenciDetayPage() {
               </div>
             </div>
           }
-          roleLabel="Yönetici · Eğitmen"
           maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
         />
 

@@ -126,7 +126,6 @@ export default function BransHavuzuPage() {
       {/* MAIN */}
       <main style={S.main}>
         <FlexHeader
-          roleLabel="Yönetici · Eğitmen"
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               <a className="bh-iconbtn" style={S.backBtn} title="Eğitim Ayarları'na dön" onClick={() => router.push("/flexos/egitim-yonetimi/ayarlar")}>

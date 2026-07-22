@@ -192,7 +192,6 @@ export default function KullaniciDuzenlePage() {
 
       <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
-          roleLabel="Yönetici · Eğitmen"
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               <a className="ku-iconbtn" style={S.backBtn} title="Kullanıcılara dön" onClick={() => router.push("/flexos/kullanicilar")}>

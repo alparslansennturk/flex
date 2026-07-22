@@ -40,7 +40,16 @@ export function useNotifications(userId: string | undefined) {
     setClearedAtLoaded(false);
     if (!userId) return;
     const unsub = onSnapshot(doc(db, "users", userId), (snap) => {
-      setLastClearedAt(snap.exists() ? (snap.data()?.lastClearedAt as Timestamp | undefined) : undefined);
+      // 2026-07-22 GERÇEK BUG (kullanıcı bulgusu): "Hepsi Okundu" `serverTimestamp()` ile
+      // yazıyor — bu yazım sunucudan onaylanmadan ÖNCE bu AYNI dinleyici bir kere daha
+      // (pending-write, latency compensation) tetikleniyor ve `serverTimestamp()` o anda
+      // HENÜZ çözülmediği için `null` okunuyordu. `filterVisible` `lastClearedAt` yoksa
+      // "hepsini göster" varsayıyor — yani optimistic doğru filtreden SONRA bu pending
+      // null gelip bir anlık TÜM eski bildirimleri geri getiriyordu, sunucu onayı gelince
+      // gerçek zaman damgasıyla tekrar filtrelenip hepsi aniden kayboluyordu (flaş+silinme).
+      // `{ serverTimestamps: "estimate" }` pending yazımda `null` yerine yerel tahmini bir
+      // Timestamp döndürür (optimistic set'imizle aynı an) — flaş hiç oluşmaz.
+      setLastClearedAt(snap.exists() ? (snap.data({ serverTimestamps: "estimate" })?.lastClearedAt as Timestamp | undefined) : undefined);
       setClearedAtLoaded(true);
     }, (error) => {
       console.warn("[useNotifications] users doc listen error:", error.code);

@@ -46,7 +46,7 @@ import {
   type PresenceSignal, type PresenceStatus,
   fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
-  setConversationMuted, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled, reportIssue, hideConversation,
+  setConversationMuted, setConversationArchived, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled, reportIssue, hideConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
   fetchStarredMessages, type StarredMessageView,
   subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
@@ -162,6 +162,7 @@ const ICONS: Record<string, string> = {
   star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+  archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
 };
 
 function Icon({ k, size = 20, sw = 2, color = "currentColor" }: { k: string; size?: number; sw?: number; color?: string }) {
@@ -543,6 +544,32 @@ export default function FlexConnectMobile() {
     toast.success("Sohbet silindi.");
     setConversations((prev) => prev.filter((c) => c.id !== selectedId));
     backToApp();
+  }
+
+  /** Sohbet listesi satırında sağdan sola kaydırınca açılan hızlı aksiyon şeridi
+   * (2026-07-22, WhatsApp gibi) — `handleHideConversation`'ın aksine `selected`'a
+   * değil, satırın kendi id'sine bağlı (herhangi bir sohbeti açmadan silebilmek için). */
+  const [swipedRowId, setSwipedRowId] = useState<string | null>(null);
+  async function handleHideConversationRow(id: string, name: string) {
+    setSwipedRowId(null);
+    if (!window.confirm(`"${name || "Bu sohbet"}" listenden gizlenecek. Karşı taraf yeni mesaj yazarsa tekrar görünür. Emin misin?`)) return;
+    const ok = await hideConversation(id);
+    if (!ok) { toast.error("Gizlenemedi, tekrar dene."); return; }
+    toast.success("Sohbet silindi.");
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (selectedId === id) backToApp();
+  }
+  async function handleToggleArchiveRow(id: string, archived: boolean) {
+    setSwipedRowId(null);
+    const next = !archived;
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, archived: next } : c)));
+    const ok = await setConversationArchived(id, next, studentPersonId ?? undefined);
+    if (!ok) {
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, archived } : c)));
+      toast.error("Arşiv durumu değiştirilemedi.");
+    } else {
+      toast.success(next ? "Sohbet arşivlendi." : "Sohbet arşivden çıkarıldı.");
+    }
   }
 
   /** Personel/Öğrenciler/Eğitmenim dizininden tıklayınca var olan DM'i aç, yoksa
@@ -1044,15 +1071,17 @@ export default function FlexConnectMobile() {
   // (`fetchConversations` zaten bu sırayla döner). "Kanallar" tabı AYRICA
   // kategorize/keşfet görünümü olarak kalır — aynı konuşmalar iki yerde de görünür.
   const cq = chatsQuery.trim().toLocaleLowerCase("tr");
-  const chatRows = cq ? conversations.filter((c) => c.name.toLocaleLowerCase("tr").includes(cq)) : conversations;
+  // Arşivlenenler ana listede gösterilmez (2026-07-22) — mobilde ayrı bir "Arşiv"
+  // ekranı YOK (masaüstündeki Arşiv sekmesinden görülüp geri çıkarılabilir).
+  const chatRows = (cq ? conversations.filter((c) => c.name.toLocaleLowerCase("tr").includes(cq)) : conversations).filter((c) => !c.archived);
 
   interface ChannelSection { title: string; iconKey: string; tone: string; items: ConversationView[] }
   const channelSections: ChannelSection[] = [
-    { title: "Kurum Duyuruları", iconKey: "channel", tone: "#2867bd", items: conversations.filter((c) => c.type === "channel" && c.realm === "staff") },
-    { title: "Öğrenci İşleri", iconKey: "shield", tone: "#B45309", items: conversations.filter((c) => c.type === "channel" && c.realm === "trainer_student") },
-    { title: "Sınıf Kanalları", iconKey: "cap", tone: "#2E8B57", items: conversations.filter((c) => c.type === "group" && c.realm === "trainer_student") },
-    { title: "Personel Grupları", iconKey: "group", tone: "#D66500", items: conversations.filter((c) => c.type === "group" && c.realm === "staff") },
-    { title: "Topluluklar", iconKey: "community", tone: "#6C5CE7", items: conversations.filter((c) => c.type === "community") },
+    { title: "Kurum Duyuruları", iconKey: "channel", tone: "#2867bd", items: conversations.filter((c) => c.type === "channel" && c.realm === "staff" && !c.archived) },
+    { title: "Öğrenci İşleri", iconKey: "shield", tone: "#B45309", items: conversations.filter((c) => c.type === "channel" && c.realm === "trainer_student" && !c.archived) },
+    { title: "Sınıf Kanalları", iconKey: "cap", tone: "#2E8B57", items: conversations.filter((c) => c.type === "group" && c.realm === "trainer_student" && !c.archived) },
+    { title: "Personel Grupları", iconKey: "group", tone: "#D66500", items: conversations.filter((c) => c.type === "group" && c.realm === "staff" && !c.archived) },
+    { title: "Topluluklar", iconKey: "community", tone: "#6C5CE7", items: conversations.filter((c) => c.type === "community" && !c.archived) },
   ].filter((sec) => sec.items.length > 0);
 
   const sq = staffQuery.trim().toLocaleLowerCase("tr");
@@ -1197,27 +1226,86 @@ export default function FlexConnectMobile() {
                 ) : chatRows.length === 0 ? (
                   <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz sohbet yok.</p>
                 ) : (
-                  chatRows.map((c) => (
-                    <button
-                      key={c.id} onClick={() => openChat(c.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "11px 12px", borderRadius: 16, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-                    >
-                      <div style={avatarBox(c.colorKey ?? T.brand, 48)}>
-                        {c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}
-                        {c.type === "dm" && <PresenceDot signal={presenceMap.get(c.peerUid ?? "")} ring={T.bg} />}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
-                          <span style={{ fontSize: 11.5, fontWeight: c.unread ? 700 : 500, color: c.unread ? T.brand : T.muted, flex: "0 0 auto", paddingLeft: 8 }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
+                  chatRows.map((c) => {
+                    // Swipe-to-reveal (2026-07-22, WhatsApp gibi) — SADECE personel: "Sohbeti
+                    // Sil" öğrenciye zaten hiç açık değil (`hideConversationForMe` yetki
+                    // kuralı), Arşiv'i de şimdilik SADECE personelde açıyoruz — öğrenci
+                    // tarafında arşivden geri çıkarma ekranı henüz yok, veri "kaybolmasın".
+                    if (studentPersonId) {
+                      return (
+                        <button
+                          key={c.id} onClick={() => openChat(c.id)}
+                          style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "11px 12px", borderRadius: 16, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                        >
+                          <div style={avatarBox(c.colorKey ?? T.brand, 48)}>
+                            {c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}
+                            {c.type === "dm" && <PresenceDot signal={presenceMap.get(c.peerUid ?? "")} ring={T.bg} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
+                              <span style={{ fontSize: 11.5, fontWeight: c.unread ? 700 : 500, color: c.unread ? T.brand : T.muted, flex: "0 0 auto", paddingLeft: 8 }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 3 }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: T.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage ? `${c.lastMessage.senderName}: ${c.lastMessage.text}` : "Henüz mesaj yok"}</span>
+                              {c.unreadCount > 0 && <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: T.brand, color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{c.unreadCount > 99 ? "99+" : c.unreadCount}</span>}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    }
+                    const canDelete = c.type === "dm";
+                    const actionsWidth = canDelete ? 136 : 68;
+                    const isSwiped = swipedRowId === c.id;
+                    return (
+                      <div key={c.id} style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
+                        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, display: "flex", alignItems: "stretch" }}>
+                          <button
+                            onClick={() => handleToggleArchiveRow(c.id, c.archived)}
+                            style={{ width: 68, border: "none", background: "#D97706", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            <Icon k="archive" size={18} sw={2} color="#fff" />
+                            <span style={{ fontSize: 10, fontWeight: 700 }}>Arşivle</span>
+                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleHideConversationRow(c.id, c.name)}
+                              style={{ width: 68, border: "none", background: "#D93636", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
+                            >
+                              <Icon k="trash" size={18} sw={2} color="#fff" />
+                              <span style={{ fontSize: 10, fontWeight: 700 }}>Sil</span>
+                            </button>
+                          )}
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 3 }}>
-                          <span style={{ fontSize: 13, fontWeight: 500, color: T.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage ? `${c.lastMessage.senderName}: ${c.lastMessage.text}` : "Henüz mesaj yok"}</span>
-                          {c.unreadCount > 0 && <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: T.brand, color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{c.unreadCount > 99 ? "99+" : c.unreadCount}</span>}
-                        </div>
+                        <motion.div
+                          drag="x"
+                          dragConstraints={{ left: -actionsWidth, right: 0 }}
+                          dragElastic={0.03}
+                          dragMomentum={false}
+                          animate={{ x: isSwiped ? -actionsWidth : 0 }}
+                          transition={{ type: "spring", stiffness: 420, damping: 42 }}
+                          onDragEnd={(_e, info) => setSwipedRowId(info.offset.x < -actionsWidth / 2 ? c.id : null)}
+                          onClick={() => { if (isSwiped) setSwipedRowId(null); else openChat(c.id); }}
+                          style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "11px 12px", borderRadius: 16, background: T.bg, cursor: "pointer", touchAction: "pan-y" }}
+                        >
+                          <div style={avatarBox(c.colorKey ?? T.brand, 48)}>
+                            {c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}
+                            {c.type === "dm" && <PresenceDot signal={presenceMap.get(c.peerUid ?? "")} ring={T.bg} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
+                              <span style={{ fontSize: 11.5, fontWeight: c.unread ? 700 : 500, color: c.unread ? T.brand : T.muted, flex: "0 0 auto", paddingLeft: 8 }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 3 }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: T.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage ? `${c.lastMessage.senderName}: ${c.lastMessage.text}` : "Henüz mesaj yok"}</span>
+                              {c.unreadCount > 0 && <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: T.brand, color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{c.unreadCount > 99 ? "99+" : c.unreadCount}</span>}
+                            </div>
+                          </div>
+                        </motion.div>
                       </div>
-                    </button>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </motion.div>
@@ -1596,7 +1684,11 @@ export default function FlexConnectMobile() {
                                 ))}
                                 {m.text && <span style={{ display: "block", fontSize: 16, lineHeight: 1.45, color: T.text, fontWeight: 450, marginTop: 6 }}>{m.text}</span>}
                                 <span style={{ display: "block", textAlign: "right", fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, marginTop: 2 }}>
-                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (m.readByAll ? " ✓✓" : " ✓")}
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (
+                                    <span style={{ color: m.readByAll ? (dark ? "#7FA9EC" : "#2867bd") : undefined }}>
+                                      {(m.readByAll || m.deliveredByAll) ? " ✓✓" : " ✓"}
+                                    </span>
+                                  )}
                                 </span>
                               </>
                             ) : (
@@ -1605,7 +1697,11 @@ export default function FlexConnectMobile() {
                               <span style={{ fontSize: 16, lineHeight: 1.6, color: T.text, fontWeight: 450 }}>
                                 {m.text}
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, whiteSpace: "nowrap", verticalAlign: "bottom" }}>
-                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (m.readByAll ? " ✓✓" : " ✓")}
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (
+                                    <span style={{ color: m.readByAll ? (dark ? "#7FA9EC" : "#2867bd") : undefined }}>
+                                      {(m.readByAll || m.deliveredByAll) ? " ✓✓" : " ✓"}
+                                    </span>
+                                  )}
                                 </span>
                               </span>
                             )}

@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { studentPrincipalFromRequest } from "@/app/lib/server/connect-principal";
 import { connectDeps } from "@/app/lib/server/connect-deps";
 import { buildConversationViews } from "@/app/lib/server/connect-view";
-import { createConversation, listConversationsForPrincipal, type CreateConversationInput } from "@/app/lib/domain/services/connect-service";
+import { createConversation, listConversationsForPrincipal, markDeliveredFromList, type CreateConversationInput } from "@/app/lib/domain/services/connect-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 /**
@@ -18,6 +18,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
   const items = await listConversationsForPrincipal(principal, connectDeps);
+  await markDeliveredFromList(principal, items, connectDeps);
   const views = await buildConversationViews(items, principal.uid, principal.tenantId);
   return NextResponse.json({ items: views });
 });

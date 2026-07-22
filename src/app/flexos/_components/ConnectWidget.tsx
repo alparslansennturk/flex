@@ -237,9 +237,10 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
     if (!ok) fetchMessages(selectedId, personId).then(setMessages);
   }
 
-  const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+  const totalUnread = conversations.filter((c) => !c.archived).reduce((sum, c) => sum + c.unreadCount, 0);
   const fullPageHref = personId ? `/flexos/student/${personId}/connect` : "/flexos/connect";
   const filtered = conversations
+    .filter((c) => !c.archived) // arşivlenenler widget'ta hiç görünmez (2026-07-22, tam liste Arşiv sekmesinden)
     .filter((c) => !query.trim() || c.name.toLocaleLowerCase("tr").includes(query.trim().toLocaleLowerCase("tr")))
     .filter((c) => !showPinnedOnly || c.pinned);
 
@@ -367,7 +368,7 @@ export default function ConnectWidget({ personId }: { personId?: string }) {
                             {(m.editedAt || m.isMine) && !m.deletedForEveryone && (
                               <span className="flex items-center justify-end gap-1" style={{ fontSize: 9.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 2 }}>
                                 {m.editedAt && "Düzenlendi"}
-                                {m.isMine && (m.readByAll ? <CheckCheck size={11} color="#2867bd" /> : <Check size={11} />)}
+                                {m.isMine && (m.readByAll ? <CheckCheck size={11} color="#2867bd" /> : m.deliveredByAll ? <CheckCheck size={11} /> : <Check size={11} />)}
                               </span>
                             )}
 

@@ -244,7 +244,6 @@ export default function EgitimYonetimiPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.headerBook }} />}
           title="Eğitimler"
           subtitle="Tüm eğitim programlarını buradan yönetin."
-          roleLabel="Yönetici · Eğitmen"
         />
 
         <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>

@@ -489,7 +489,6 @@ export default function SatisYapPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.shoppingBag }} />}
           title="Satış Yap"
           subtitle="Yeni öğrenci kaydı oluşturun."
-          roleLabel="Yönetici · Eğitmen"
         />
 
         <div style={{ maxWidth: 1920, margin: "0 auto", padding: "26px 36px 64px", width: "100%", boxSizing: "border-box", flex: 1 }}>

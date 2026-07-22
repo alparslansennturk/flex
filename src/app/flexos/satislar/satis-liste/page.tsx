@@ -200,7 +200,6 @@ export default function SatisListePage() {
       <FlexSidebar active="satis-liste" />
       <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
-          roleLabel="Yönetici · Eğitmen"
           maxWidth={1560}
           left={
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>

@@ -11,11 +11,13 @@ import { auth } from "@/app/lib/firebase";
 
 let capsCache: Set<string> | null = null;
 let templateManageScopeCache: string | null | undefined; // undefined = henüz çekilmedi
+let roleLabelCache: string | null | undefined; // undefined = henüz çekilmedi
 
-export function useCapabilities(): { caps: Set<string>; loaded: boolean; templateManageScope: string | null } {
+export function useCapabilities(): { caps: Set<string>; loaded: boolean; templateManageScope: string | null; roleLabel: string | null } {
   const [caps, setCaps] = useState<Set<string>>(() => capsCache ?? new Set());
   const [loaded, setLoaded] = useState(capsCache !== null);
   const [templateManageScope, setTemplateManageScope] = useState<string | null>(() => templateManageScopeCache ?? null);
+  const [roleLabel, setRoleLabel] = useState<string | null>(() => roleLabelCache ?? null);
 
   useEffect(() => {
     if (capsCache) return; // lazy initializer yukarıda zaten caps/loaded'ı doldurdu
@@ -27,11 +29,17 @@ export function useCapabilities(): { caps: Set<string>; loaded: boolean; templat
         if (!user) return;
         const token = await user.getIdToken();
         const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-        const json = res.ok ? await res.json() : { capabilities: [], templateManageScope: null };
+        const json = res.ok ? await res.json() : { capabilities: [], templateManageScope: null, roleLabel: null };
         const next = new Set<string>(json.capabilities ?? []);
         capsCache = next;
         templateManageScopeCache = json.templateManageScope ?? null;
-        if (!cancelled) { setCaps(next); setTemplateManageScope(templateManageScopeCache ?? null); setLoaded(true); }
+        roleLabelCache = json.roleLabel ?? null;
+        if (!cancelled) {
+          setCaps(next);
+          setTemplateManageScope(templateManageScopeCache ?? null);
+          setRoleLabel(roleLabelCache ?? null);
+          setLoaded(true);
+        }
       } catch {
         if (!cancelled) setLoaded(true);
       }
@@ -39,5 +47,5 @@ export function useCapabilities(): { caps: Set<string>; loaded: boolean; templat
     return () => { cancelled = true; };
   }, []);
 
-  return { caps, loaded, templateManageScope };
+  return { caps, loaded, templateManageScope, roleLabel };
 }

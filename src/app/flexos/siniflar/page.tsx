@@ -330,7 +330,6 @@ export default function SınıflarPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.graduation }} />}
           title="Sınıflar"
           subtitle="Grup acin, açılacak ve devam eden siniflari takip edin."
-          roleLabel="Yönetici · Eğitmen"
         />
 
         <div style={{ padding: "30px 36px 72px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
