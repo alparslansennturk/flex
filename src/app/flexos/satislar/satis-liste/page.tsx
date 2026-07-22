@@ -16,6 +16,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+import { useCapabilities } from "../../_components/useCapabilities";
 
 // ── types ──
 interface SaleItem {
@@ -24,17 +25,19 @@ interface SaleItem {
   studentName: string;
   educationName: string;
   branchName: string;
+  officeName: string;
   soldPrice: number;
   status: "active" | "cancelled";
   type: string;
 }
 
-type DonemKey = "bu-ay" | "son-3-ay" | "bu-yil";
+type DonemKey = "bu-ay" | "son-3-ay" | "bu-yil" | "custom";
 
 const DONEM_LABELS: Record<DonemKey, string> = {
   "bu-ay": "Bu Ay",
   "son-3-ay": "Son 3 Ay",
   "bu-yil": "Bu Yıl",
+  custom: "Tarih Aralığı",
 };
 
 const BRANS_COLORS: Record<string, { color: string; background: string; dot: string }> = {
@@ -66,7 +69,13 @@ function fmtDate(iso: string): string {
   return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function isInRange(dateStr: string, donem: DonemKey): boolean {
+function fmtDdMm(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
+}
+
+function isInRange(dateStr: string, donem: DonemKey, customStart?: string, customEnd?: string): boolean {
   if (!dateStr) return true;
   const d = new Date(dateStr + "T00:00:00");
   if (isNaN(d.getTime())) return true;
@@ -77,6 +86,17 @@ function isInRange(dateStr: string, donem: DonemKey): boolean {
   if (donem === "son-3-ay") {
     const threeAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
     return d >= threeAgo;
+  }
+  if (donem === "custom") {
+    if (customStart) {
+      const start = new Date(customStart + "T00:00:00");
+      if (!isNaN(start.getTime()) && d < start) return false;
+    }
+    if (customEnd) {
+      const end = new Date(customEnd + "T00:00:00");
+      if (!isNaN(end.getTime()) && d > end) return false;
+    }
+    return true;
   }
   // bu-yil
   return d.getFullYear() === now.getFullYear();
@@ -89,9 +109,34 @@ export default function SatisListePage() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [donem, setDonem] = useState<DonemKey>("bu-ay");
+  // Özel tarih aralığı (2026-07-22 kullanıcı isteği) — "Tarih Aralığı" seçilince
+  // gösterilen iki tarih input'u, ikisi de opsiyonel (sadece biri girilirse açık uçlu).
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [customCalOpen, setCustomCalOpen] = useState(false);
   const [donemOpen, setDonemOpen] = useState(false);
   const [bransFilter, setBransFilter] = useState<string>("__all__");
   const [bransOpen, setBransOpen] = useState(false);
+  // Şube filtresi (2026-07-22 kullanıcı isteği) — varsayılan KENDİ şubem (satış
+  // otomatik olarak satıcının şubesine yazılıyor artık), "Tüm Şubeler"/başka bir
+  // şube seçilebilir. Sadece İLK yüklemede kendi şubeye set edilir, sonra kullanıcı
+  // seçimi ezilmez.
+  const { officeName: myOfficeName } = useCapabilities();
+  const [subeFilter, setSubeFilter] = useState<string>("__all__");
+  const [subeFilterInitialized, setSubeFilterInitialized] = useState(false);
+  const [subeOpen, setSubeOpen] = useState(false);
+  useEffect(() => {
+    if (!subeFilterInitialized && myOfficeName) {
+      setSubeFilter(myOfficeName);
+      setSubeFilterInitialized(true);
+    }
+  }, [myOfficeName, subeFilterInitialized]);
+  // "Grup Değiştir" (transfer) akışı otomatik 0 TL'lik bir Sale (`type:"transfer"`)
+  // bırakıyor — gerçek satış değil, audit izi (2026-07-22 kullanıcı bulgusu: bunlar
+  // gerçek satışlarla karışınca "satış çok, ciro az" gibi yanıltıcı görünüyordu).
+  // Varsayılan "Satışlar" (transferler HARİÇ) — kullanıcı isteği: "ayrı filtrelersek
+  // sorun kalmaz", yani tamamen gizlemek yerine ayrı bir sekmede görülebilsin.
+  const [saleKind, setSaleKind] = useState<"sales" | "transfers" | "all">("sales");
   const [page, setPage] = useState(1);
 
   // ── iptal modal ──
@@ -120,6 +165,12 @@ export default function SatisListePage() {
     }
   }, [authHeaders]);
 
+  // Şube dropdown'ının GERÇEK katalogdan gelmesi gerekiyor (2026-07-22 kullanıcı
+  // düzeltmesi: "diğer şubeleri de seçebilmeli") — `sales` verisinden türetilen
+  // liste SADECE zaten satışı olan şubeleri gösteriyordu, henüz hiç satışı olmayan
+  // gerçek bir şube (Şube Havuzu'nda var ama satışı yok) dropdown'da hiç çıkmıyordu.
+  const [officeOptions, setOfficeOptions] = useState<string[]>([]);
+
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
@@ -127,9 +178,16 @@ export default function SatisListePage() {
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
       await loadSales(ac.signal);
+      try {
+        const res = await fetch("/api/flexos/branch-offices", { headers: await authHeaders(), signal: ac.signal });
+        const json = res.ok ? await res.json() : { items: [] };
+        if (!ac.signal.aborted) setOfficeOptions((json.items ?? []).map((o: { name: string }) => o.name));
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") toast.error("Şubeler yüklenemedi.");
+      }
     })();
     return () => ac.abort();
-  }, [router, loadSales]);
+  }, [router, loadSales, authHeaders]);
 
   // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı satış yaptığında/iptal
   // ettiğinde SSE üzerinden haber alınır, liste tekrar çekilir.
@@ -144,18 +202,23 @@ export default function SatisListePage() {
 
   // ── filtreli liste ──
   const filtered = useMemo(() => {
-    let list = sales.filter((s) => isInRange(s.date, donem));
+    let list = sales.filter((s) => isInRange(s.date, donem, customStart, customEnd));
+    if (saleKind === "sales") list = list.filter((s) => s.type !== "transfer");
+    else if (saleKind === "transfers") list = list.filter((s) => s.type === "transfer");
     if (bransFilter !== "__all__") {
       list = list.filter((s) => s.branchName === bransFilter);
+    }
+    if (subeFilter !== "__all__") {
+      list = list.filter((s) => s.officeName === subeFilter);
     }
     const q = search.trim().toLocaleLowerCase("tr");
     if (q) {
       list = list.filter((s) =>
-        `${s.studentName} ${s.educationName} ${s.branchName}`.toLocaleLowerCase("tr").includes(q)
+        `${s.studentName} ${s.educationName} ${s.branchName} ${s.officeName}`.toLocaleLowerCase("tr").includes(q)
       );
     }
     return list;
-  }, [sales, donem, bransFilter, search]);
+  }, [sales, donem, customStart, customEnd, saleKind, bransFilter, subeFilter, search]);
 
   // ── metrikler (filtrelenmiş dönemden) ──
   const activeSales = useMemo(() => filtered.filter((s) => s.status === "active"), [filtered]);
@@ -191,14 +254,14 @@ export default function SatisListePage() {
     }
   }, [cancelTarget, cancelReason, authHeaders, loadSales]);
 
-  useEffect(() => setPage(1), [donem, search, bransFilter]);
+  useEffect(() => setPage(1), [donem, customStart, customEnd, saleKind, search, bransFilter, subeFilter]);
 
   if (authed === null) return null;
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="satis-liste" />
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
           maxWidth={1560}
           left={
@@ -222,7 +285,62 @@ export default function SatisListePage() {
 
           {/* ===== 4 METRİK KART ===== */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 22 }}>
-            <MetricCard icon={<IconCiro />} bg="#E2EAF3" iconColor="#205297" label="Toplam Satış Cirosu" value={fmtTL(totalCiro)} />
+            <MetricCard
+              icon={<IconCiro />} bg="#E2EAF3" iconColor="#205297" label="Toplam Satış Cirosu" value={fmtTL(totalCiro)}
+              topRight={
+                <div style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setSubeOpen((p) => !p)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 8,
+                      border: "1px solid #E2E5EA", background: "#F8F9FA", color: subeFilter === "__all__" ? "#6F7B87" : "#205297",
+                      fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {subeFilter === "__all__" ? "Tüm Şubeler" : subeFilter}
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  {subeOpen && (
+                    <div style={{
+                      position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, minWidth: 180,
+                      background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, padding: "6px 0",
+                      boxShadow: "0 12px 32px -8px rgba(15,31,61,.18)",
+                    }}>
+                      <button
+                        onClick={() => { setSubeFilter("__all__"); setSubeOpen(false); }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 16px", border: "none",
+                          background: subeFilter === "__all__" ? "#F0F4FF" : "transparent", color: subeFilter === "__all__" ? "#205297" : "#414B59",
+                          fontSize: 13.5, fontWeight: subeFilter === "__all__" ? 700 : 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left",
+                        }}
+                        onMouseEnter={(e) => { if (subeFilter !== "__all__") e.currentTarget.style.background = "#F7F8FA"; }}
+                        onMouseLeave={(e) => { if (subeFilter !== "__all__") e.currentTarget.style.background = "transparent"; }}
+                      >
+                        Tüm Şubeler
+                      </button>
+                      {officeOptions.map((o) => {
+                        const active = subeFilter === o;
+                        return (
+                          <button
+                            key={o}
+                            onClick={() => { setSubeFilter(o); setSubeOpen(false); }}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 16px", border: "none",
+                              background: active ? "#F0F4FF" : "transparent", color: active ? "#205297" : "#414B59",
+                              fontSize: 13.5, fontWeight: active ? 700 : 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left",
+                            }}
+                            onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#F7F8FA"; }}
+                            onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                          >
+                            {o}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              }
+            />
             <MetricCard icon={<IconKayit />} bg="#FFEAD7" iconColor="#C2410C" label="Satış Adedi" value={String(activeSales.length)} />
             <MetricCard icon={<IconAvg />} bg="#E6F5ED" iconColor="#007A30" label="Ortalama Satış" value={fmtTL(avgSale)} />
             <MetricCard icon={<IconCancel />} bg="#FFECEC" iconColor="#B42318" label="İptal Edilen" value={String(cancelledCount)} />
@@ -232,14 +350,56 @@ export default function SatisListePage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
             {/* sol grup: dönem + branş */}
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            {/* dönem seçici */}
+            {/* dönem seçici — "Tarih Aralığı" seçilince ALTINDA takvim açılır (2026-07-22
+                düzeltmesi: önceki sürüm sağ tarafa iki tarih input'u koyuyordu, bu da
+                filtre barının sarmasına/arama kutusunun aşağı kaymasına sebep oluyordu). */}
+            <div style={{ position: "relative" }}>
+              <div style={{ display: "inline-flex", padding: 4, borderRadius: 12, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
+                {(Object.keys(DONEM_LABELS) as DonemKey[]).map((k) => {
+                  const on = donem === k;
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => {
+                        if (k === "custom") {
+                          if (donem !== "custom") { setDonem("custom"); setCustomCalOpen(true); }
+                          else setCustomCalOpen((v) => !v);
+                        } else {
+                          setDonem(k);
+                          setCustomCalOpen(false);
+                        }
+                      }}
+                      style={{ padding: "9px 15px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: on ? 700 : 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", transition: "all .14s", color: on ? "#fff" : "#6F7B87", background: on ? "linear-gradient(135deg,#2867bd,#205297)" : "transparent", boxShadow: on ? "0 4px 10px -4px rgba(32,82,151,.5)" : "none" }}>
+                      {k === "custom" && (customStart || customEnd)
+                        ? `${customStart ? fmtDdMm(customStart) : "…"} – ${customEnd ? fmtDdMm(customEnd) : "…"}`
+                        : DONEM_LABELS[k]}
+                    </button>
+                  );
+                })}
+              </div>
+              {donem === "custom" && customCalOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50 }}>
+                  <MiniRangeCalendar
+                    start={customStart}
+                    end={customEnd}
+                    onSelectStart={(d) => { setCustomStart(d); setCustomEnd(""); }}
+                    onSelectEnd={(d) => { setCustomEnd(d); setCustomCalOpen(false); }}
+                    onClear={() => { setCustomStart(""); setCustomEnd(""); }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* satış türü — normal satış / transfer (2026-07-22): "Grup Değiştir"in bıraktığı
+                0 TL audit kayıtları gerçek satışlarla karışıp "satış çok ciro az" gibi
+                yanıltıcı görünmesin diye ayrı sekmelerde. */}
             <div style={{ display: "inline-flex", padding: 4, borderRadius: 12, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-              {(Object.keys(DONEM_LABELS) as DonemKey[]).map((k) => {
-                const on = donem === k;
+              {([["sales", "Satışlar"], ["transfers", "Transferler"], ["all", "Tümü"]] as const).map(([k, label]) => {
+                const on = saleKind === k;
                 return (
-                  <button key={k} onClick={() => setDonem(k)}
+                  <button key={k} onClick={() => setSaleKind(k)}
                     style={{ padding: "9px 15px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: on ? 700 : 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", transition: "all .14s", color: on ? "#fff" : "#6F7B87", background: on ? "linear-gradient(135deg,#2867bd,#205297)" : "transparent", boxShadow: on ? "0 4px 10px -4px rgba(32,82,151,.5)" : "none" }}>
-                    {DONEM_LABELS[k]}
+                    {label}
                   </button>
                 );
               })}
@@ -492,20 +652,120 @@ export default function SatisListePage() {
       )}
 
       {/* dropdown backdrop */}
-      {(donemOpen || bransOpen) && <div onClick={() => { setDonemOpen(false); setBransOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
+      {(donemOpen || bransOpen || subeOpen || customCalOpen) && <div onClick={() => { setDonemOpen(false); setBransOpen(false); setSubeOpen(false); setCustomCalOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
     </div>
   );
 }
 
 // ── Metrik Kart ──
-function MetricCard({ icon, bg, iconColor, label, value }: { icon: React.ReactNode; bg: string; iconColor: string; label: string; value: string }) {
+function MetricCard({ icon, bg, iconColor, label, value, topRight }: { icon: React.ReactNode; bg: string; iconColor: string; label: string; value: string; topRight?: React.ReactNode }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16, padding: "18px 20px", boxShadow: "0 1px 3px rgba(15,31,61,.05)" }}>
-      <div style={{ width: 42, height: 42, borderRadius: 12, background: bg, color: iconColor, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-        {icon}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: bg, color: iconColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {icon}
+        </div>
+        {topRight}
       </div>
       <div style={{ fontSize: 25, fontWeight: 800, color: "#1E222B", letterSpacing: "-.6px", whiteSpace: "nowrap" }}>{value}</div>
       <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 600, marginTop: 3 }}>{label}</div>
+    </div>
+  );
+}
+
+const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+const GUN_KISALTMA = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"];
+
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Tek-aylık mini takvim, iki tıklamalı aralık seçimi (2026-07-22 kullanıcı isteği —
+ * önceki sürüm iki ayrı native `<input type="date">` kullanıyordu, takvim açılınca
+ * filtre barı sarıp arama kutusunu aşağı itiyordu). İlk tıklama başlangıcı, ikinci
+ * tıklama (başlangıçtan SONRAKİ bir gün) bitişi seçer — daha erken bir gün seçilirse
+ * yeni başlangıç olur (aralık sıfırlanır).
+ */
+function MiniRangeCalendar({ start, end, onSelectStart, onSelectEnd, onClear }: {
+  start: string; end: string;
+  onSelectStart: (iso: string) => void;
+  onSelectEnd: (iso: string) => void;
+  onClear: () => void;
+}) {
+  const [viewDate, setViewDate] = useState(() => {
+    const base = start ? new Date(start + "T00:00:00") : new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Pazartesi=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayIso = toISODate(new Date());
+
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(toISODate(new Date(year, month, d)));
+
+  const handlePick = (iso: string) => {
+    if (!start || (start && end)) {
+      onSelectStart(iso);
+    } else if (iso < start) {
+      onSelectStart(iso);
+    } else {
+      onSelectEnd(iso);
+    }
+  };
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 13, padding: 14, boxShadow: "0 12px 32px -8px rgba(15,31,61,.18)", width: 268 }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <button onClick={() => setViewDate(new Date(year, month - 1, 1))} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#F1F3F5", color: "#414B59", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{AY_ADLARI[month]} {year}</span>
+        <button onClick={() => setViewDate(new Date(year, month + 1, 1))} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "#F1F3F5", color: "#414B59", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 4 }}>
+        {GUN_KISALTMA.map((g) => (
+          <div key={g} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: "#A2A8B2", padding: "4px 0" }}>{g}</div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+        {cells.map((iso, i) => {
+          if (!iso) return <div key={i} />;
+          const isStart = iso === start;
+          const isEnd = iso === end;
+          const inRange = !!start && !!end && iso > start && iso < end;
+          const isToday = iso === todayIso;
+          return (
+            <button
+              key={iso}
+              onClick={() => handlePick(iso)}
+              style={{
+                height: 30, borderRadius: isStart || isEnd ? 9 : inRange ? 0 : 9, border: "none", fontFamily: "inherit",
+                fontSize: 12.5, fontWeight: isStart || isEnd ? 700 : 500, cursor: "pointer",
+                color: isStart || isEnd ? "#fff" : "#1E222B",
+                background: isStart || isEnd ? "#2867bd" : inRange ? "#E1EDFB" : "transparent",
+                boxShadow: isToday && !isStart && !isEnd ? "inset 0 0 0 1.5px #2867bd" : "none",
+              }}
+            >
+              {parseInt(iso.slice(8, 10), 10)}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTop: "1px solid #EEF0F3" }}>
+        <span style={{ fontSize: 11.5, color: "#6F7B87", fontWeight: 600 }}>
+          {start ? `${fmtDdMm(start)}${end ? ` – ${fmtDdMm(end)}` : " – …"}` : "Başlangıç seçin"}
+        </span>
+        {(start || end) && (
+          <button onClick={onClear} style={{ fontSize: 11.5, fontWeight: 700, color: "#D93636", border: "none", background: "transparent", cursor: "pointer" }}>Temizle</button>
+        )}
+      </div>
     </div>
   );
 }

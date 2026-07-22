@@ -6,8 +6,9 @@ import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
-import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreEducationRepo, firestoreBranchRepo, firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreBundleRepo } from "@/app/lib/server/bundle-repo.firestore";
+import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { createSale, type CreateSaleInput } from "@/app/lib/domain/services/sale-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
@@ -23,18 +24,20 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
-    const [sales, persons, educations, branches, bundles] = await Promise.all([
+    const [sales, persons, educations, branches, bundles, offices] = await Promise.all([
       firestoreSaleRepo.list(actor.tenantId),
       firestorePersonRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
       firestoreBranchRepo.list(actor.tenantId),
       firestoreBundleRepo.list(actor.tenantId),
+      firestoreBranchOfficeRepo.list(actor.tenantId),
     ]);
 
     const personMap = new Map(persons.map((p) => [p.id, p]));
     const eduMap = new Map(educations.map((e) => [e.id, e]));
     const branchMap = new Map(branches.map((b) => [b.id, b]));
     const bundleMap = new Map(bundles.map((b) => [b.id, b]));
+    const officeMap = new Map(offices.map((o) => [o.id, o.name]));
 
     const items = sales
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
@@ -49,6 +52,8 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
           studentName: person ? `${person.firstName} ${person.lastName}` : s.personId,
           educationName: edu?.name ?? bundle?.name ?? "",
           branchName: branch?.name ?? "",
+          officeId: s.branchOfficeId ?? null,
+          officeName: s.branchOfficeId ? officeMap.get(s.branchOfficeId) ?? "" : "",
           bundleId: s.bundleId,
           soldPrice: s.soldPrice ?? 0,
           status: s.status ?? "active",
@@ -79,6 +84,15 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   const actor = await actorFromCaller(caller);
+
+  // Satışı oluşturan satıcının KENDİ şubesi (2026-07-22 kullanıcı isteği) — "Satış Yap"
+  // formunda şube seçimi YOK, satış otomatik olarak satıcının kendi ana şubesine yazılır
+  // (Kullanıcı Genel Bilgiler'deki tekil `officeId`). Client açıkça bir branchOfficeId
+  // gönderirse (ileride form'a şube seçici eklenirse) o ezmez, sadece boşsa doldurulur.
+  if (!body.branchOfficeId) {
+    const flexosUser = await firestoreFlexosUserRepo.findByAuthUid(actor.uid, actor.tenantId);
+    if (flexosUser?.officeId) body.branchOfficeId = flexosUser.officeId;
+  }
 
   try {
     const result = await createSale(actor, body, {

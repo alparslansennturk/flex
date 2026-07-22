@@ -75,6 +75,91 @@ auto-stamp + `GET sales` join + `satis-liste/page.tsx` filtre UI, varsayılan =
 kendi şubem, "Tümü"/diğer şubeler seçilebilir) — kullanıcı isteğinin bu son
 parçası hâlâ kod yazılmadı, aşağıdaki maddede ("Kullanıcı 'Şube' alanı") detaylı.
 
+**✅ GÜNCELLEME (aynı gün, sonraki mesaj) — Satış Listesi şube filtresi BİTTİ:**
+- `POST /api/flexos/sales`: `body.branchOfficeId` boşsa satıcının (aktörün) KENDİ
+  `FlexosUser.officeId`'si otomatik satışa yazılıyor ("Satış Yap" formunda hâlâ
+  şube seçici YOK — kim satarsa satış onun şubesine düşüyor). Client açıkça
+  gönderirse (ileride forma seçici eklenirse) o ezilmiyor.
+- `GET /api/flexos/sales`: `officeId`/`officeName` join'lenip response'a eklendi.
+- `satis-liste/page.tsx`: Branş filtresiyle BİREBİR aynı desende yeni "Şube"
+  dropdown'ı — varsayılan **kendi şubem** (`useCapabilities()`'e eklenen yeni
+  `officeName` alanından, `/api/flexos/me`'nin zaten döndürdüğü veriden — SADECE
+  ilk yüklemede set edilir, kullanıcı sonradan "Tüm Şubeler" veya başka şube
+  seçerse ezilmez). Arama kutusu da artık şube adını kapsıyor.
+- `tsc`/`eslint`/`npm run build` temiz. **Test edilmedi** — gerçek satış verisiyle
+  canlıda henüz denenmedi (özellikle: eski satışların `branchOfficeId`'i hiç
+  yoktu, bu satışlar "Tüm Şubeler" dışında hiçbir filtrede görünmeyecek —
+  backfill yapılmadı, bilinen sınır).
+
+**✅ GÜNCELLEME (aynı gün, "burada önemli olan bu") — önce büyük kırılım denendi,
+kullanıcı beğenmeyip KOMPAKT switch'e çevrildi:**
+- İlk deneme: 4 metrik kartın ALTINA ayrı bir "Şubelere Göre" grid bloğu (her
+  şube için ciro+adet+bar) — kullanıcı: "altta kocaman uzamasını beğenmedim".
+  **Bu blok tamamen kaldırıldı.**
+- Nihai tasarım: "Toplam Satış Cirosu" kartının SAĞ ÜSTÜNE küçük bir şube
+  dropdown'ı (`MetricCard`'a yeni `topRight` prop'u) — filtre barındaki AYNI
+  `subeFilter` state'i buraya taşındı (filtre barındaki eski şube dropdown'ı
+  kaldırıldı, aynı state artık TEK yerden kontrol ediliyor, iki ayrı "şube"
+  kontrolü olmasın diye). Şube seçilince zaten var olan `filtered`/`totalCiro`
+  hesaplaması otomatik güncelleniyor — ayrı bir hesaplama gerekmedi.
+- `tsc`/`eslint`/`npm run build` temiz. Test edilmedi.
+
+**✅ DÜZELTME (aynı gün, sonraki mesaj) — dropdown sadece satışı olan şubeleri
+gösteriyordu:** Kullanıcı: "diğer şubeleri de seçebilmeli". Kök neden: dropdown
+seçenekleri `sales` verisinden türetiliyordu (`officeName` benzersizleri) — henüz
+hiç satışı olmayan gerçek bir şube (Şube Havuzu'nda var) hiç listede çıkmıyordu.
+Fix: dropdown artık gerçek katalogdan (`GET /api/flexos/branch-offices`, sayfa
+açılışında bir kez çekiliyor) besleniyor — satışı olsun olmasın TÜM gerçek
+şubeler seçilebilir. `tsc`/`eslint`/`npm run build` temiz.
+
+**✅ GERÇEK BUG BULUNDU VE DÜZELTİLDİ (aynı gün, kullanıcı sorusu) — "Grup Değiştir"
+0 TL kayıtları satış raporlarına karışıyordu:** Kullanıcı 784 grubuna transfer
+ettiği 4 öğrencinin Satış Listesi'nde 0 TL "satış" olarak göründüğünü fark etti.
+Kök neden: `enrollment-service.ts::transferEnrollment` (2026-07-16'da bilerek
+eklenmiş) her grup değişikliğinde otomatik `type:"transfer", soldPrice:0` bir
+Sale/audit kaydı bırakıyor — bu KENDİSİ bug değil (kasıtlı tasarım), ama satış
+raporlarının bunu gerçek satışlardan HİÇ ayırmaması gerçek bir sorundu ("satış
+çok, ciro az" gibi yanıltıcı görünüyordu).
+- `satis-liste/page.tsx`: yeni "Satışlar / Transferler / Tümü" sekme grubu
+  (Dönem chip'leriyle aynı desen) — varsayılan **Satışlar** (transferler HARİÇ),
+  ama tamamen gizlenmiyor, "Transferler" sekmesinden ayrıca görülebiliyor
+  (kullanıcı: "ayrı filtrelersek sorun kalmaz").
+- `satislar/dashboard/page.tsx`: AYNI kök neden burada da geçerliydi (bu ayki
+  ciro/adet, donut, "en son satış" hepsi transfer kayıtlarını da sayıyordu) —
+  burada ayrı bir sekmeye gerek yok (özet ekranı), `setSales` transferleri
+  baştan filtreliyor.
+- `tsc`/`eslint`/`npm run build` temiz. Test edilmedi.
+
+**✅ EK — özel tarih aralığı filtresi (aynı gün):** Dönem chip'lerine ("Bu Ay/Son
+3 Ay/Bu Yıl") 4. seçenek: **"Tarih Aralığı"**. `isInRange` üçüncü/dördüncü opsiyonel
+parametre (`customStart`/`customEnd`) alacak şekilde genişletildi. Ayrıca sayfadaki
+scroll çıkınca container'ın sağa-sola kaydığı bug (`scrollbar-gutter: stable`
+eksikti) düzeltildi.
+
+**✅ DÜZELTME (aynı gün, kullanıcı geri bildirimi) — native iki tarih input'u
+sıfırdan mini takvime çevrildi:** İlk sürüm iki ayrı `<input type="date">`
+kullanıyordu — kullanıcı: "takvim çıkıyor öğrenci ara aşağı kayıyor" (native
+tarayıcı takvimi filtre barının sarmasına/arama kutusunun kaymasına sebep
+oluyordu) + "sağ tarafında input çıkmasın, hemen altında takvim görünsün, önce
+ilk sonra son tarihi oto seçtirsin". Kod tabanında hazır bir takvim/date-range-
+picker bileşeni YOKTU (grep'le doğrulandı, Randevu Takvimi'nde bile yok) — sıfırdan
+**`MiniRangeCalendar`** yazıldı: tek aylık ay-ızgarası (ay ileri/geri okları),
+"Tarih Aralığı" chip'inin TAM ALTINDA dropdown olarak açılır (Branş/Şube
+dropdown'larıyla AYNI absolute-position deseni). İki-tıklamalı seçim: ilk tık
+başlangıç, ikinci tık (başlangıçtan sonraki bir gün) bitişi seçer ve otomatik
+kapanır; başlangıçtan ÖNCEKİ bir gün tıklanırsa yeni başlangıç olur (aralık
+sıfırlanır — WhatsApp'ın "aralık seç" jestine benzer basit/sezgisel kural).
+Seçili aralık chip'in üzerinde kısa tarih olarak gösterilir (`fmtDdMm`).
+`tsc`/`eslint`/`npm run build` temiz. Test edilmedi.
+
+**📌 İLERİDE (kullanıcı notu, henüz kod yok) — Satış temsilcisi bazlı rapor:**
+kullanıcı "x satış temsilcisi ne kadar satış yaptı, kaç görüşmeye girdi, satışa
+çevirme oranı" istedi. Bu, Şube kırılımından FARKLI/daha büyük bir iş —
+`Sale.salespersonId` (satış sayısı) + Aktivite Merkezi'ndeki Case/Activity
+kayıtları (görüşme sayısı, "kaç kişiyle görüştü") CROSS-REFERENCE edilmeli,
+dönüşüm oranı = satış/görüşme. Henüz tasarlanmadı, sıradaki oturumlarda ele
+alınacak.
+
 ---
 
 ### 🔶 2026-07-22 oturumu (2) — Şube Havuzu CRUD + Kullanıcı "Şube" alanı (YARIM KALDI)

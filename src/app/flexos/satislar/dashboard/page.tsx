@@ -28,6 +28,7 @@ interface SaleItem {
   branchName: string;
   soldPrice: number;
   status: "active" | "cancelled";
+  type?: string;
   createdAt?: string;
 }
 
@@ -248,7 +249,11 @@ export default function SatisDashboardPage() {
         fetch("/api/flexos/branches", { headers, signal }),
       ]);
       if (signal?.aborted) return;
-      if (salesRes.ok) setSales(((await salesRes.json()).items ?? []) as SaleItem[]);
+      // "Grup Değiştir" akışının bıraktığı 0 TL "transfer" audit kayıtları (2026-07-22
+      // kullanıcı bulgusu, satis-liste'deki AYNI kök neden) gerçek satış değil —
+      // dashboard'un TÜM metrikleri (bu ay ciro/adet, donut, en son satış) baştan
+      // hariç tutuyor, ayrı bir toggle'a gerek yok (bu sadece özet ekranı).
+      if (salesRes.ok) setSales((((await salesRes.json()).items ?? []) as SaleItem[]).filter((s) => s.type !== "transfer"));
       if (apptRes.ok) setAppointments(((await apptRes.json()).items ?? []) as AppointmentItem[]);
       if (actRes.ok) setActivities(((await actRes.json()).items ?? []) as ActivityItem[]);
       if (branchRes.ok) setBranches(((await branchRes.json()).items ?? []) as BranchDoc[]);

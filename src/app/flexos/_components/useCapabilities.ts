@@ -12,12 +12,14 @@ import { auth } from "@/app/lib/firebase";
 let capsCache: Set<string> | null = null;
 let templateManageScopeCache: string | null | undefined; // undefined = henüz çekilmedi
 let roleLabelCache: string | null | undefined; // undefined = henüz çekilmedi
+let officeNameCache: string | null | undefined; // undefined = henüz çekilmedi
 
-export function useCapabilities(): { caps: Set<string>; loaded: boolean; templateManageScope: string | null; roleLabel: string | null } {
+export function useCapabilities(): { caps: Set<string>; loaded: boolean; templateManageScope: string | null; roleLabel: string | null; officeName: string | null } {
   const [caps, setCaps] = useState<Set<string>>(() => capsCache ?? new Set());
   const [loaded, setLoaded] = useState(capsCache !== null);
   const [templateManageScope, setTemplateManageScope] = useState<string | null>(() => templateManageScopeCache ?? null);
   const [roleLabel, setRoleLabel] = useState<string | null>(() => roleLabelCache ?? null);
+  const [officeName, setOfficeName] = useState<string | null>(() => officeNameCache ?? null);
 
   useEffect(() => {
     if (capsCache) return; // lazy initializer yukarıda zaten caps/loaded'ı doldurdu
@@ -29,15 +31,17 @@ export function useCapabilities(): { caps: Set<string>; loaded: boolean; templat
         if (!user) return;
         const token = await user.getIdToken();
         const res = await fetch("/api/flexos/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-        const json = res.ok ? await res.json() : { capabilities: [], templateManageScope: null, roleLabel: null };
+        const json = res.ok ? await res.json() : { capabilities: [], templateManageScope: null, roleLabel: null, officeName: null };
         const next = new Set<string>(json.capabilities ?? []);
         capsCache = next;
         templateManageScopeCache = json.templateManageScope ?? null;
         roleLabelCache = json.roleLabel ?? null;
+        officeNameCache = json.officeName ?? null;
         if (!cancelled) {
           setCaps(next);
           setTemplateManageScope(templateManageScopeCache ?? null);
           setRoleLabel(roleLabelCache ?? null);
+          setOfficeName(officeNameCache ?? null);
           setLoaded(true);
         }
       } catch {
@@ -47,5 +51,5 @@ export function useCapabilities(): { caps: Set<string>; loaded: boolean; templat
     return () => { cancelled = true; };
   }, []);
 
-  return { caps, loaded, templateManageScope, roleLabel };
+  return { caps, loaded, templateManageScope, roleLabel, officeName };
 }
