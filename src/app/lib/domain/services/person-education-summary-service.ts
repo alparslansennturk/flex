@@ -2,7 +2,6 @@ import { can } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId } from "../base";
 import type { Enrollment } from "../core/enrollment";
-import { officeName } from "../../branch-offices";
 import { ForbiddenError } from "../errors";
 import { getCertificateSettings } from "./certificate-settings-service";
 import { computeOdevYuzdeleri, combineOdevYuzdesi } from "./submission-service";
@@ -10,7 +9,7 @@ import { calcEstimatedEndDate, expandHolidayDates } from "./schedule-calc";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
 import type { GroupRepo } from "../repo/group-repo";
 import type { PersonRepo } from "../repo/person-repo";
-import type { EducationRepo, SectionRepo } from "../repo/catalog-repo";
+import type { EducationRepo, SectionRepo, BranchOfficeRepo } from "../repo/catalog-repo";
 import type { TrainerRepo } from "../repo/trainer-repo";
 import type { AttendanceRepo } from "../repo/attendance-repo";
 import type { GradeRepo } from "../repo/grade-repo";
@@ -121,6 +120,7 @@ export interface EducationSummaryDeps {
   educations: EducationRepo;
   sections: SectionRepo;
   trainers: TrainerRepo;
+  offices: BranchOfficeRepo;
   attendance: AttendanceRepo;
   grades: GradeRepo;
   assignments: AssignmentRepo;
@@ -168,11 +168,15 @@ export async function getEducationSummaryForPerson(
   const results: TrainingSummary[] = [];
   const subeler = new Set<string>();
   const holidayDates = expandHolidayDates(await deps.holidays.list(actor.tenantId));
+  const officeMap = new Map((await deps.offices.list(actor.tenantId)).map((o) => [o.id, o.name]));
 
   for (const enr of enrollments) {
     const group = await deps.groups.getById(enr.groupId as string, actor.tenantId);
     if (!group) continue;
-    if (group.branchOfficeId) subeler.add(officeName(group.branchOfficeId));
+    if (group.branchOfficeId) {
+      const officeLabel = officeMap.get(group.branchOfficeId);
+      if (officeLabel) subeler.add(officeLabel);
+    }
 
     const target = { groupId: group.id, ownerUid: group.trainerId };
     const canAttendance = can(actor, "attendance.read", target);

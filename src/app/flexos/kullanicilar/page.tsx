@@ -44,8 +44,6 @@ interface TrainerSummaryItem {
   status: "aktif" | "pasif"; groupCount: number;
 }
 
-const ALL_SUBES = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş", "Şirinevler"];
-
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   aktif: { label: "Aktif", color: "#007A30", bg: "#E6F5ED", dot: "#009F3E" },
   pasif: { label: "Pasif", color: "#6F7B87", bg: "#EEF0F3", dot: "#AEB4C0" },
@@ -78,7 +76,6 @@ function fmtDateTime(iso: string | null): string {
 }
 
 
-const SUBE_OPTIONS = ["Tümü", ...ALL_SUBES];
 
 /**
  * Gerçek sistem sahibi — `auth-actor.ts::VIEW_TOGGLE_OWNER_EMAIL` ile AYNI hardcode
@@ -98,6 +95,7 @@ export default function KullanicilarPage() {
   const [tab, setTab] = useState<TabKey>("personel");
 
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [allSubes, setAllSubes] = useState<string[]>([]);
   const { roleDefs } = useRoleDefs();
   const roleDefsById = useMemo(() => Object.fromEntries((roleDefs ?? []).map((r) => [r.id, r])), [roleDefs]);
   const rolOptions = useMemo(() => ["Tümü", ...(roleDefs ?? []).map((r) => r.id)], [roleDefs]);
@@ -157,6 +155,19 @@ export default function KullanicilarPage() {
       }
     } finally {
       if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
+
+  const fetchOffices = useCallback(async (signal?: AbortSignal) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/flexos/branch-offices", { headers: { Authorization: `Bearer ${token}` }, signal });
+      const json = res.ok ? await res.json() : { items: [] };
+      if (!signal?.aborted) setAllSubes((json.items ?? []).map((o: { name: string }) => o.name));
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") console.error("[kullanicilar] şubeler yüklenemedi:", e);
     }
   }, []);
 
@@ -258,9 +269,10 @@ export default function KullanicilarPage() {
       if (capSet.has("role.manage")) fetchUsers(ac.signal);
       if (capSet.has("person.read")) fetchStudents(ac.signal);
       if (capSet.has("trainer.read")) fetchTrainers(ac.signal);
+      fetchOffices(ac.signal);
     })();
     return () => { ac.abort(); };
-  }, [router, fetchMe, fetchUsers, fetchStudents, fetchTrainers]);
+  }, [router, fetchMe, fetchUsers, fetchStudents, fetchTrainers, fetchOffices]);
 
   // Ekle sayfasından dönünce listeyi yenile (SADECE Personel'i görebilen biri için).
   useEffect(() => {
@@ -465,7 +477,7 @@ export default function KullanicilarPage() {
 
   function renderSubes(subes: string[]) {
     if (subes.length === 0) return <span style={{ fontSize: 12.5, color: "#AEB4C0", fontWeight: 500 }}>—</span>;
-    if (subes.length >= ALL_SUBES.length) return <span style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "3px 10px", borderRadius: 6 }}>Tümü</span>;
+    if (allSubes.length > 0 && subes.length >= allSubes.length) return <span style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "3px 10px", borderRadius: 6 }}>Tümü</span>;
     return <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{subes.map((s) => <span key={s} style={{ fontSize: 11.5, fontWeight: 600, color: "#414B59", background: "#F2F4F7", padding: "3px 8px", borderRadius: 6 }}>{s}</span>)}</div>;
   }
 
@@ -514,7 +526,7 @@ export default function KullanicilarPage() {
                   {rolOptions.map((r) => <DropdownItem key={r} label={rolLabelsMap[r] ?? r} selected={rolFilter === r} onClick={() => { setRolFilter(r); setRolDD(false); }} />)}
                 </DropdownFilter>
                 <DropdownFilter label="Şube" value={subeFilter} open={subeDD} onToggle={() => { setSubeDD((o) => !o); setRolDD(false); setStatusDD(false); }}>
-                  {SUBE_OPTIONS.map((s) => <DropdownItem key={s} label={s} selected={subeFilter === s} onClick={() => { setSubeFilter(s); setSubeDD(false); }} />)}
+                  {["Tümü", ...allSubes].map((s) => <DropdownItem key={s} label={s} selected={subeFilter === s} onClick={() => { setSubeFilter(s); setSubeDD(false); }} />)}
                 </DropdownFilter>
                 <DropdownFilter label="Durum" value={statusFilter === "Tümü" ? "Tümü" : STATUS_MAP[statusFilter]?.label ?? statusFilter} open={statusDD} onToggle={() => { setStatusDD((o) => !o); setRolDD(false); setSubeDD(false); }}>
                   {["Tümü", "aktif", "pasif"].map((s) => <DropdownItem key={s} label={s === "Tümü" ? "Tümü" : STATUS_MAP[s]?.label ?? s} selected={statusFilter === s} onClick={() => { setStatusFilter(s); setStatusDD(false); }} />)}

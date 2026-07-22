@@ -4,6 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
+import { firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { adminAuth } from "@/app/lib/firebase-admin";
 import {
   updateFlexosUser,
@@ -27,6 +28,7 @@ export const GET = withAuth<Ctx>(async (_req: NextRequest, caller, ctx) => {
   try {
     const user = await firestoreFlexosUserRepo.getById(id, actor.tenantId);
     if (!user) return NextResponse.json({ error: "Kullanıcı bulunamadı." }, { status: 404 });
+    const office = user.officeId ? await firestoreBranchOfficeRepo.getById(user.officeId, actor.tenantId) : null;
     return NextResponse.json({
       id: user.id,
       name: user.name,
@@ -38,6 +40,8 @@ export const GET = withAuth<Ctx>(async (_req: NextRequest, caller, ctx) => {
       title: user.title ?? "",
       roles: user.roles,
       subes: user.subes,
+      officeId: user.officeId ?? null,
+      officeName: office?.name ?? "",
       permOverrides: user.permOverrides ?? {},
       status: user.status,
       createdAt: user.createdAt,

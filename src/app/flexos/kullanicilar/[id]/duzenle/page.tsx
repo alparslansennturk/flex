@@ -28,8 +28,6 @@ const TABS: { key: TabKey; num: string; label: string }[] = [
   { key: "yetkiler", num: "2", label: "Yetkiler" },
 ];
 
-const ALL_SUBES = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş", "Şirinevler"];
-
 export default function KullaniciDuzenlePage() {
   const router = useRouter();
   const params = useParams();
@@ -47,8 +45,11 @@ export default function KullaniciDuzenlePage() {
   const [gender, setGender] = useState<"male" | "female" | "">("");
   const [birthDate, setBirthDate] = useState("");
   const [title, setTitle] = useState("");
+  const [officeId, setOfficeId] = useState("");
   const [roles, setRoles] = useState<string[]>([]);
   const [subes, setSubes] = useState<string[]>([]);
+  const [officeOptions, setOfficeOptions] = useState<{ id: string; name: string }[]>([]);
+  const allSubes = useMemo(() => officeOptions.map((o) => o.name), [officeOptions]);
   const [permOverrides, setPermOverrides] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const { roleDefs } = useRoleDefs();
@@ -65,9 +66,12 @@ export default function KullaniciDuzenlePage() {
       // Mevcut kullanıcı verisini yükle
       try {
         const token = await auth.currentUser.getIdToken();
-        const res = await fetch(`/api/flexos/users/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers = { Authorization: `Bearer ${token}` };
+        fetch("/api/flexos/branch-offices", { headers })
+          .then((r) => (r.ok ? r.json() : { items: [] }))
+          .then((j) => setOfficeOptions(j.items ?? []))
+          .catch(() => toast.error("Şubeler yüklenemedi."));
+        const res = await fetch(`/api/flexos/users/${userId}`, { headers });
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: "Kullanıcı bulunamadı." }));
           toast.error(err.error || "Kullanıcı yüklenemedi.");
@@ -82,6 +86,7 @@ export default function KullaniciDuzenlePage() {
         setGender(data.gender === "male" || data.gender === "female" ? data.gender : "");
         setBirthDate(data.birthDate ?? "");
         setTitle(data.title ?? "");
+        setOfficeId(data.officeId ?? "");
         setRoles(data.roles ?? []);
         setSubes(data.subes ?? []);
         setPermOverrides(data.permOverrides ?? {});
@@ -156,6 +161,7 @@ export default function KullaniciDuzenlePage() {
           gender: gender || "unspecified",
           birthDate: birthDate || undefined,
           title: title.trim() || undefined,
+          officeId: officeId || null,
           roles,
           subes,
           permOverrides: Object.keys(permOverrides).length > 0 ? permOverrides : undefined,
@@ -247,7 +253,7 @@ export default function KullaniciDuzenlePage() {
                       <FormField label="Telefon" value={phone} onChange={(v) => setPhone(formatTrPhone(v))} placeholder="0 (5xx) xxx xx xx" />
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, marginBottom: 24 }}>
                       <div style={S.fieldWrap}>
                         <label style={S.label}>Cinsiyet *</label>
                         <div style={{ position: "relative" }}>
@@ -260,6 +266,16 @@ export default function KullaniciDuzenlePage() {
                         </div>
                       </div>
                       <FormField label="Doğum Tarihi" value={birthDate} onChange={setBirthDate} placeholder="" type="date" />
+                      <div style={S.fieldWrap}>
+                        <label style={S.label}>Şube</label>
+                        <div style={{ position: "relative" }}>
+                          <select className="ku-select" value={officeId} onChange={(e) => setOfficeId(e.target.value)} style={S.select}>
+                            <option value="">Seçin</option>
+                            {officeOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                          </select>
+                          <span style={S.selChev} dangerouslySetInnerHTML={{ __html: IC.chevDown }} />
+                        </div>
+                      </div>
                     </div>
 
                     {/* Ünvan + Rol seçimi — yan yana (rol dropdown olduğu için artık sığar) */}
@@ -301,8 +317,8 @@ export default function KullaniciDuzenlePage() {
                     <div style={{ marginBottom: 28 }}>
                       <label style={{ ...S.label, marginBottom: 10, display: "block" }}>Şube Yetkileri *</label>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <ChipToggle label="Tümü" active={subes.length === ALL_SUBES.length} onClick={() => setSubes((p) => p.length === ALL_SUBES.length ? [] : [...ALL_SUBES])} />
-                        {ALL_SUBES.map((s) => <ChipToggle key={s} label={s} active={subes.includes(s)} onClick={() => toggleSube(s)} />)}
+                        <ChipToggle label="Tümü" active={subes.length === allSubes.length} onClick={() => setSubes((p) => p.length === allSubes.length ? [] : [...allSubes])} />
+                        {allSubes.map((s) => <ChipToggle key={s} label={s} active={subes.includes(s)} onClick={() => toggleSube(s)} />)}
                       </div>
                     </div>
 

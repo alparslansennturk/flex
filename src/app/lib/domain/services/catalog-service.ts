@@ -2,11 +2,13 @@ import { can } from "../access/can";
 import type { Actor } from "../access/types";
 import type { EntityId, ISODateTime } from "../base";
 import type { Branch } from "../eduos/branch";
+import type { BranchOffice } from "../eduos/branch-office";
 import type { CertificateRule, DeliveryOption, Education } from "../eduos/education";
 import type { Section } from "../eduos/section";
 import type { Track } from "../eduos/track";
 import { ForbiddenError, ValidationError } from "../errors";
-import type { BranchRepo, EducationRepo, SectionRepo, TrackRepo } from "../repo/catalog-repo";
+import type { BranchOfficeRepo, BranchRepo, EducationRepo, SectionRepo, TrackRepo } from "../repo/catalog-repo";
+import type { GroupRepo } from "../repo/group-repo";
 
 const now = (): ISODateTime => new Date().toISOString();
 
@@ -31,6 +33,66 @@ export async function createBranch(actor: Actor, input: CreateBranchInput, repo:
   };
   await repo.save(branch);
   return branch;
+}
+
+// ── Şube (fiziksel ofis — Kadıköy, Pendik…) ──
+export interface CreateBranchOfficeInput {
+  name: string;
+  order?: number;
+}
+export async function createBranchOffice(actor: Actor, input: CreateBranchOfficeInput, repo: BranchOfficeRepo): Promise<BranchOffice> {
+  if (!can(actor, "office.create")) throw new ForbiddenError("office.create");
+  const name = input.name?.trim();
+  if (!name) throw new ValidationError("Şube adı zorunludur.");
+  const office: BranchOffice = {
+    id: repo.nextId(),
+    tenantId: actor.tenantId,
+    name,
+    order: input.order,
+    createdAt: now(),
+    createdBy: actor.uid,
+  };
+  await repo.save(office);
+  return office;
+}
+
+export interface UpdateBranchOfficeInput {
+  name?: string;
+  order?: number;
+}
+export async function updateBranchOffice(actor: Actor, id: EntityId, patch: UpdateBranchOfficeInput, repo: BranchOfficeRepo): Promise<BranchOffice> {
+  if (!can(actor, "office.edit")) throw new ForbiddenError("office.edit");
+  if (!id) throw new ValidationError("id zorunludur.");
+  const existing = await repo.getById(id, actor.tenantId);
+  if (!existing) throw new ValidationError("Şube bulunamadı.");
+  if (patch.name !== undefined && !patch.name.trim()) throw new ValidationError("Şube adı boş olamaz.");
+  const updated: BranchOffice = {
+    ...existing,
+    ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+    ...(patch.order !== undefined ? { order: patch.order } : {}),
+    updatedAt: now(),
+    updatedBy: actor.uid,
+  };
+  await repo.save(updated);
+  return updated;
+}
+
+export interface DeleteBranchOfficeDeps {
+  offices: BranchOfficeRepo;
+  groups: GroupRepo;
+}
+export async function deleteBranchOffice(actor: Actor, id: EntityId, deps: DeleteBranchOfficeDeps): Promise<void> {
+  if (!can(actor, "office.edit")) throw new ForbiddenError("office.edit");
+  if (!id) throw new ValidationError("id zorunludur.");
+  const existing = await deps.offices.getById(id, actor.tenantId);
+  if (!existing) throw new ValidationError("Şube bulunamadı.");
+  const allGroups = await deps.groups.list(actor.tenantId);
+  const inUse = allGroups.filter((g) => g.branchOfficeId === id && g.status !== "completed" && g.status !== "archived");
+  if (inUse.length > 0) {
+    throw new ValidationError(`Bu şubeye bağlı ${inUse.length} aktif grup var. Önce grupların şubesini değiştirin.`);
+  }
+  const ok = await deps.offices.delete(id, actor.tenantId);
+  if (!ok) throw new ValidationError("Şube silinemedi.");
 }
 
 // ── Eğitim (Grafik Tasarım Kursu) ──

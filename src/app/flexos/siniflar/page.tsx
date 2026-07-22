@@ -23,7 +23,6 @@ import FlexHeader from "../_components/FlexHeader";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
 import { useCapabilities } from "../_components/useCapabilities";
-import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 import EgitmenSiniflarPanel from "./EgitmenSiniflarPanel";
 import GroupTable from "./_shared/GroupTable";
 import { useGroupCatalog, type EducationDoc } from "./_shared/useGroupCatalog";
@@ -65,6 +64,7 @@ export default function SınıflarPage() {
   const [rawGroups, setRawGroups] = useState<GroupApiItem[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [trainerOptions, setTrainerOptions] = useState<{ id: string; name: string }[]>([]);
+  const [officeOptions, setOfficeOptions] = useState<{ id: string; name: string }[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
@@ -144,6 +144,14 @@ export default function SınıflarPage() {
         }
       } catch (e) {
         if ((e as Error).name !== "AbortError") toast.error("Eğitmenler yüklenemedi.");
+      }
+      try {
+        const hdrsO = await authHeaders();
+        const ofRes = await fetch("/api/flexos/branch-offices", { headers: hdrsO, signal: ac.signal });
+        const ofJson = ofRes.ok ? await ofRes.json() : { items: [] };
+        if (!ac.signal.aborted) setOfficeOptions(ofJson.items ?? []);
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") toast.error("Şubeler yüklenemedi.");
       }
     })();
     return () => ac.abort();
@@ -438,7 +446,7 @@ export default function SınıflarPage() {
                         <SelectW>
                           <select value={fŞube} onChange={(e) => setFŞube(e.target.value)} style={S.sel}>
                             <option value="">Şube seçin</option>
-                            {BRANCH_OFFICES.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                            {officeOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                           </select>
                         </SelectW>
                       </label>

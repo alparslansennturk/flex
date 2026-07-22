@@ -26,7 +26,6 @@ import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
-import { BRANCH_OFFICES } from "@/app/lib/branch-offices";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 
 // ── Durum & Branş sözlükleri (tasarımdan) ────────────────────────────────────
@@ -58,7 +57,6 @@ const AV_PALETTES: Array<[string, string]> = [
   ["#689adf", "#2867bd"], ["#FFA352", "#FF7800"], ["#67B5B6", "#1CB5AE"], ["#8B91E6", "#4D52A6"], ["#F76FA3", "#F91079"],
 ];
 
-const SUBE_LIST = ["Tümü", ...BRANCH_OFFICES.map((o) => o.name)];
 const PAGE_SIZE = 8;
 
 interface StudentGroup { label: string; branch: string; educationName?: string; groupId: string; enrollmentId: string }
@@ -119,6 +117,7 @@ export default function OgrenciHavuzuPage() {
   const searchParams = useSearchParams();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [subeList, setSubeList] = useState<string[]>(["Tümü"]);
   const { caps } = useCapabilities();
   const canAssignGroup = caps.has("group.assign_student");
   // Sunucu switch'ine göre gereken capability değişir (enrollment.transfer VEYA sale.create) —
@@ -217,9 +216,16 @@ export default function OgrenciHavuzuPage() {
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
       await loadStudents(ac.signal);
+      try {
+        const res = await fetch("/api/flexos/branch-offices", { headers: await authHeaders(), signal: ac.signal });
+        const json = res.ok ? await res.json() : { items: [] };
+        if (!ac.signal.aborted) setSubeList(["Tümü", ...(json.items ?? []).map((o: { name: string }) => o.name)]);
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") toast.error("Şubeler yüklenemedi.");
+      }
     })();
     return () => ac.abort();
-  }, [router, loadStudents]);
+  }, [router, loadStudents, authHeaders]);
 
   // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı öğrenci ekleyip/kaydını
   // değiştirdiğinde (satış, transfer, mezuniyet dahil) SSE üzerinden haber alınır.
@@ -504,7 +510,7 @@ export default function OgrenciHavuzuPage() {
                 </button>
                 {openDropdown === "sube" && (
                   <div style={{ ...S.dropdown, width: 200 }}>
-                    {SUBE_LIST.map((v) => (
+                    {subeList.map((v) => (
                       <div key={v} className="oh-ddrow" style={pSube === v ? S.ddActive : S.ddBase} onClick={() => { setPSube(v); setOpenDropdown(null); }}>
                         <span>{v}</span>
                         {pSube === v && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}

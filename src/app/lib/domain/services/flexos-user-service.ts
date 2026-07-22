@@ -41,6 +41,7 @@ export interface CreateFlexosUserInput {
   title?: string;
   roles?: string[];
   subes?: string[];
+  officeId?: string;
   permOverrides?: Record<string, boolean>;
   status?: string;
   /** Route katmanında Firebase Auth hesabı önceden oluşturulup buraya geçirilir — domain katmanı Firebase'i bilmez. */
@@ -57,6 +58,7 @@ export interface UpdateFlexosUserInput {
   title?: string | null;
   roles?: string[];
   subes?: string[];
+  officeId?: string | null;
   permOverrides?: Record<string, boolean>;
   status?: string;
 }
@@ -105,6 +107,7 @@ export async function createFlexosUser(
     title: input.title?.trim() || undefined,
     roles,
     subes,
+    officeId: input.officeId || undefined,
     permOverrides: input.permOverrides && Object.keys(input.permOverrides).length > 0
       ? input.permOverrides
       : undefined,
@@ -166,6 +169,7 @@ export async function updateFlexosUser(
     if (input.subes.length === 0) throw new ValidationError("En az bir şube seçmelisiniz.");
     updated.subes = input.subes;
   }
+  if (input.officeId !== undefined) updated.officeId = input.officeId || undefined;
   if (input.permOverrides !== undefined) {
     updated.permOverrides = Object.keys(input.permOverrides).length > 0
       ? input.permOverrides

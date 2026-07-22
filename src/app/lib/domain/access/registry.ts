@@ -66,6 +66,8 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
 
   // ── catalog (Branş/Eğitim/Bölüm/Track — Eğitim Op) ──
   { key: "branch.create", domain: "catalog", label: "Branş Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "office.create", domain: "catalog", label: "Şube Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  { key: "office.edit", domain: "catalog", label: "Şube Düzenle/Sil", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "education.create", domain: "catalog", label: "Eğitim Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "education.edit", domain: "catalog", label: "Eğitim Düzenle (taslak/satış)", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "section.create", domain: "catalog", label: "Bölüm Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },

@@ -11,14 +11,13 @@ import { buildFlexosActivationEmail } from "@/app/lib/server/flexos-activation-e
 import { sendMail } from "@/app/lib/email";
 import type { FlexosUser } from "@/app/lib/domain/core/flexos-user";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
-import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreEducationRepo, firestoreBranchRepo, firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestorePaymentRepo } from "@/app/lib/server/payment-repo.firestore";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestoreBundleRepo } from "@/app/lib/server/bundle-repo.firestore";
 import { createPerson, type CreatePersonInput } from "@/app/lib/domain/services/person-service";
 import { derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
-import { officeName } from "@/app/lib/branch-offices";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
@@ -52,11 +51,12 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
   try {
     const items = await cachedRead(`persons:${actor.tenantId}:${actor.uid}`, PERSONS_CACHE_TTL_MS, async () => {
-    const [persons, enrollments, educations, branches, groups, bundles, allSales, allPayments] = await Promise.all([
+    const [persons, enrollments, educations, branches, offices, groups, bundles, allSales, allPayments] = await Promise.all([
       firestorePersonRepo.list(actor.tenantId),
       firestoreEnrollmentRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
       firestoreBranchRepo.list(actor.tenantId),
+      firestoreBranchOfficeRepo.list(actor.tenantId),
       firestoreGroupRepo.list(actor.tenantId),
       firestoreBundleRepo.list(actor.tenantId),
       firestoreSaleRepo.list(actor.tenantId),
@@ -65,6 +65,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
     const eduMap = new Map(educations.map((e) => [e.id, e]));
     const branchMap = new Map(branches.map((b) => [b.id, b]));
+    const officeMap = new Map(offices.map((o) => [o.id, o.name]));
     const groupMap = new Map(groups.map((g) => [g.id, g]));
     const bundleMap = new Map(bundles.map((b) => [b.id, b]));
     const saleMap = new Map(allSales.map((s) => [s.id, s]));
@@ -180,7 +181,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
             enrollmentId: enr.id,
             status: enr.status,
           });
-          const office = officeName(grp?.branchOfficeId);
+          const office = grp?.branchOfficeId ? officeMap.get(grp.branchOfficeId) : undefined;
           if (office) officeNames.add(office);
         }
 

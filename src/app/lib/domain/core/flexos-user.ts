@@ -24,6 +24,9 @@ export interface FlexosUser extends Audit {
   /** Çoklu rol — yetki paketi tüm rollerin birleşimi. */
   roles: FlexosUserRole[];
   subes: string[];
+  /** Kişinin fiilen çalıştığı TEK ofis (bilgi amaçlı — `subes`'ten farklı: `subes` çok-seçim
+   * yetki kapsamı, bu ise avatar/rapor varsayılanı için "ana şube"). `flexos_branch_offices.id`. */
+  officeId?: EntityId;
   /** Modül bazlı yetki override'ları. Rol paketinden farklıysa burada tutulur. */
   permOverrides?: Record<string, boolean>;
   status: FlexosUserStatus;

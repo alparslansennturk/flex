@@ -1,4 +1,5 @@
 import type { Branch } from "../eduos/branch";
+import type { BranchOffice } from "../eduos/branch-office";
 import type { Education } from "../eduos/education";
 import type { Section } from "../eduos/section";
 import type { Track } from "../eduos/track";
@@ -9,6 +10,13 @@ export interface BranchRepo {
   save(branch: Branch): Promise<void>;
   getById(id: string, tenantId: string): Promise<Branch | null>;
   list(tenantId: string): Promise<Branch[]>;
+}
+export interface BranchOfficeRepo {
+  nextId(): string;
+  save(office: BranchOffice): Promise<void>;
+  getById(id: string, tenantId: string): Promise<BranchOffice | null>;
+  list(tenantId: string): Promise<BranchOffice[]>;
+  delete(id: string, tenantId: string): Promise<boolean>;
 }
 export interface EducationRepo {
   nextId(): string;

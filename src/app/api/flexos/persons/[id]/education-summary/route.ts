@@ -4,7 +4,7 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
-import { firestoreEducationRepo, firestoreSectionRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreEducationRepo, firestoreSectionRepo, firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { firestoreAttendanceRepo } from "@/app/lib/server/attendance-repo.firestore";
 import { firestoreGradeRepo } from "@/app/lib/server/grade-repo.firestore";
@@ -33,6 +33,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, { params }: { para
       educations: firestoreEducationRepo,
       sections: firestoreSectionRepo,
       trainers: firestoreTrainerRepo,
+      offices: firestoreBranchOfficeRepo,
       attendance: firestoreAttendanceRepo,
       grades: firestoreGradeRepo,
       assignments: firestoreAssignmentRepo,

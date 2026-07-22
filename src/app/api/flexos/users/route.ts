@@ -4,6 +4,7 @@ import { actorFromCaller, VIEW_TOGGLE_OWNER_EMAIL } from "@/app/lib/server/auth-
 import { can } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestoreRoleDefRepo } from "@/app/lib/server/role-def-repo.firestore";
+import { firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { adminAuth, adminDb } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { generateActivationCode } from "@/app/lib/user-validation";
@@ -54,6 +55,9 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       }
     }
 
+    const offices = await firestoreBranchOfficeRepo.list(actor.tenantId);
+    const officeMap = new Map(offices.map((o) => [o.id, o.name]));
+
     const items = visibleUsers.map((u) => ({
       id: u.id,
       name: u.name,
@@ -65,6 +69,8 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       title: u.title ?? "",
       roles: u.roles,
       subes: u.subes,
+      officeId: u.officeId ?? null,
+      officeName: u.officeId ? officeMap.get(u.officeId) ?? "" : "",
       permOverrides: u.permOverrides ?? {},
       status: u.status,
       pendingActivation: pendingByUserId.has(u.id),

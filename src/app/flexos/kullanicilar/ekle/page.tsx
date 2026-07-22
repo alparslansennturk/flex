@@ -30,8 +30,6 @@ const TABS: { key: TabKey; num: string; label: string }[] = [
   { key: "yetkiler", num: "2", label: "Yetkiler" },
 ];
 
-const ALL_SUBES = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş", "Şirinevler"];
-
 export default function KullaniciEklePage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -45,6 +43,7 @@ export default function KullaniciEklePage() {
   const [gender, setGender] = useState<"male" | "female" | "">("");
   const [birthDate, setBirthDate] = useState("");
   const [title, setTitle] = useState("");
+  const [officeId, setOfficeId] = useState("");
   const [roles, setRoles] = useState<string[]>([]);
   const { roleDefs } = useRoleDefs();
   const roleDefsById = useMemo(() => Object.fromEntries((roleDefs ?? []).map((r) => [r.id, r])), [roleDefs]);
@@ -52,6 +51,8 @@ export default function KullaniciEklePage() {
 
   // form — sekme 2 (şube + yetkiler)
   const [subes, setSubes] = useState<string[]>([]);
+  const [officeOptions, setOfficeOptions] = useState<{ id: string; name: string }[]>([]);
+  const allSubes = useMemo(() => officeOptions.map((o) => o.name), [officeOptions]);
   const [permOverrides, setPermOverrides] = useState<Record<string, boolean>>({});
 
   const [saving, setSaving] = useState(false);
@@ -61,6 +62,14 @@ export default function KullaniciEklePage() {
       await auth.authStateReady();
       if (!auth.currentUser) { router.push("/login"); return; }
       setAuthed(true);
+      try {
+        const token = await auth.currentUser.getIdToken();
+        const res = await fetch("/api/flexos/branch-offices", { headers: { Authorization: `Bearer ${token}` } });
+        const json = res.ok ? await res.json() : { items: [] };
+        setOfficeOptions(json.items ?? []);
+      } catch {
+        toast.error("Şubeler yüklenemedi.");
+      }
     })();
   }, [router]);
 
@@ -128,6 +137,7 @@ export default function KullaniciEklePage() {
           gender: gender || "unspecified",
           birthDate: birthDate || undefined,
           title: title.trim() || undefined,
+          officeId: officeId || undefined,
           roles,
           subes,
           permOverrides: Object.keys(permOverrides).length > 0 ? permOverrides : undefined,
@@ -212,7 +222,7 @@ export default function KullaniciEklePage() {
                     <FormField label="Telefon" value={phone} onChange={(v) => setPhone(formatTrPhone(v))} placeholder="0 (5xx) xxx xx xx" />
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, marginBottom: 24 }}>
                     <div style={S.fieldWrap}>
                       <label style={S.label}>Cinsiyet *</label>
                       <div style={{ position: "relative" }}>
@@ -225,6 +235,16 @@ export default function KullaniciEklePage() {
                       </div>
                     </div>
                     <FormField label="Doğum Tarihi" value={birthDate} onChange={setBirthDate} placeholder="" type="date" />
+                    <div style={S.fieldWrap}>
+                      <label style={S.label}>Şube</label>
+                      <div style={{ position: "relative" }}>
+                        <select className="ku-select" value={officeId} onChange={(e) => setOfficeId(e.target.value)} style={S.select}>
+                          <option value="">Seçin</option>
+                          {officeOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </select>
+                        <span style={S.selChev} dangerouslySetInnerHTML={{ __html: IC.chevDown }} />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Ünvan + Rol seçimi — yan yana (rol dropdown olduğu için artık sığar) */}
@@ -274,8 +294,8 @@ export default function KullaniciEklePage() {
                   <div style={{ marginBottom: 28 }}>
                     <label style={{ ...S.label, marginBottom: 10, display: "block" }}>Şube Yetkileri *</label>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <ChipToggle label="Tümü" active={subes.length === ALL_SUBES.length} onClick={() => setSubes((p) => p.length === ALL_SUBES.length ? [] : [...ALL_SUBES])} />
-                      {ALL_SUBES.map((s) => <ChipToggle key={s} label={s} active={subes.includes(s)} onClick={() => toggleSube(s)} />)}
+                      <ChipToggle label="Tümü" active={subes.length === allSubes.length} onClick={() => setSubes((p) => p.length === allSubes.length ? [] : [...allSubes])} />
+                      {allSubes.map((s) => <ChipToggle key={s} label={s} active={subes.includes(s)} onClick={() => toggleSube(s)} />)}
                     </div>
                   </div>
 

@@ -5,6 +5,8 @@ import type { Actor } from "@/app/lib/domain/access/types";
 import { widestScope } from "@/app/lib/domain/access/can";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
+import { firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
+import type { FlexosUser } from "@/app/lib/domain/core/flexos-user";
 
 /**
  * 4 dashboard var — login sonrası kişinin rolüne göre doğru olana yönlendirilir.
@@ -16,8 +18,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
  * okumaları da öğrenci rules'unda reddedilip "Missing or insufficient permissions"
  * hatası veriyordu — hepsi TEK kök nedenin (yanlış landing) zincirleme sonucu.
  */
-async function resolveLanding(uid: string, tenantId: string): Promise<string> {
-  const flexosUser = await firestoreFlexosUserRepo.findByAuthUid(uid, tenantId);
+async function resolveLanding(flexosUser: FlexosUser | null, uid: string, tenantId: string): Promise<string> {
   const roles = flexosUser?.roles ?? [];
   if (roles.includes("egitmen")) return "/flexos/egitmen-anasayfa";
   if (roles.includes("egitim_koordinatoru")) return "/flexos/egitim-operasyon-anasayfa";
@@ -43,7 +44,11 @@ export async function buildMeInfo(actor: Actor) {
   // templateManageScope: Şablon Yönetimi'nin "Oyunlaştırılmış Tür" seçicisi SADECE org
   // scope'ta (global şablon) anlamlı — self scope (kişisel şablon) eğitmene hiç gösterilmez.
   const templateManageScope = widestScope(actor, "template.manage");
-  const landing = await resolveLanding(actor.uid, actor.tenantId);
+  const flexosUser = await firestoreFlexosUserRepo.findByAuthUid(actor.uid, actor.tenantId);
+  const landing = await resolveLanding(flexosUser, actor.uid, actor.tenantId);
+  // Kişinin "ana şube"si (bilgi amaçlı, Genel Bilgiler'deki tekil `officeId`) — avatar
+  // etiketi ve Satış Listesi'nin varsayılan şube filtresi için (2026-07-22 kullanıcı isteği).
+  const office = flexosUser?.officeId ? await firestoreBranchOfficeRepo.getById(flexosUser.officeId, actor.tenantId) : null;
   // Görünüm Anahtarı sahibi (view.toggle) için TEK doğruluk kaynağından türetilen mod —
   // 2026-07-11 düzeltmesi öncesi FlexSidebar bunu localStorage'dan AYRI okuyordu
   // (`viewMode.ts`), sunucudaki gerçek moddan (Firestore + in-process cache) kopabiliyordu
@@ -53,7 +58,16 @@ export async function buildMeInfo(actor: Actor) {
   // trainerId: eğitmen kadrosu (`flexos_trainers`) docId'si (uid DEĞİL, bkz. can.ts
   // ownerMatches yorumu) — client'ın "kendi gruplarım" filtrelerinde `?trainerId=`
   // olarak kullanması için (raw uid gönderirse Group.trainerId'yle asla eşleşmez).
-  return { uid: actor.uid, trainerId: actor.trainerId ?? null, capabilities, templateManageScope, landing, mode };
+  return {
+    uid: actor.uid,
+    trainerId: actor.trainerId ?? null,
+    capabilities,
+    templateManageScope,
+    landing,
+    mode,
+    officeId: flexosUser?.officeId ?? null,
+    officeName: office?.name ?? null,
+  };
 }
 
 /**

@@ -16,7 +16,69 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### ✅ 2026-07-22 oturumu — Ödev Teslimi UI + Randevu Takvimi çakışma + Aktivite Merkezi senkron (EN GÜNCEL)
+### 🔶 2026-07-22 oturumu (2) — Şube Havuzu CRUD + Kullanıcı "Şube" alanı (EN GÜNCEL, YARIM KALDI)
+
+**Şube Havuzu — sabit listeden Firestore-backed CRUD'a geçiş (BİTTİ):**
+- Şube (fiziksel ofis) artık `src/app/lib/branch-offices.ts`'teki 5'lik sabit listeden
+  (Kadıköy/Pendik/**Ümraniye/Beşiktaş**/Şirinevler — son ikisi SAHTEYMİŞ, kullanıcı
+  teyidiyle kaldırıldı) değil, yeni **`flexos_branch_offices`** koleksiyonundan geliyor.
+  Branş'takiyle aynı desende domain/repo/service/route dörtlüsü: `BranchOffice` entity,
+  `catalog-service.ts::createBranchOffice/updateBranchOffice/deleteBranchOffice` (Branş'tan
+  farklı olarak TAM CRUD — fiziksel ofis kapanabilir/adı değişebilir), `catalog-repo.firestore.ts`
+  repo impl, `GET/POST /api/flexos/branch-offices` + `PATCH/DELETE /api/flexos/branch-offices/[id]`.
+- **Yeni ekran:** Eğitim Ayarları → **Şube Havuzu** (`/flexos/egitim-yonetimi/subeler`) —
+  ekle/düzenle/sil, native `confirm()` değil tasarım sistemi onay modalı, aktif grubu olan
+  şube silinemiyor (Eğitmen silme korumasıyla aynı desen, `deleteBranchOffice` deps.groups).
+- **Yetki:** `office.create`/`office.edit` yeni capability'ler, branş ile aynı yerleşim
+  (sadece operasyon+admin paketi, egitmen'de yok).
+  Şube'nin kendisini düzenleyecek roller SADECE bunlar — kullanıcının KENDİ şubesini
+  (aşağıdaki `officeId`) seçebilmesi ayrı bir konu, `role.manage`'e bağlı.
+- **Gerçek 3 şube seed edildi** (`scripts/seed-branch-offices.mjs`) — stabil id'ler
+  (`kadikoy`/`sirinevler`/`pendik`) KASITLI olarak eski sabit dosyayla aynı, mevcut
+  `Group.branchOfficeId` kayıtları kırılmadı.
+- **Statik listeye bağımlı TÜM ekranlar** artık `GET /api/flexos/branch-offices`'tan
+  besleniyor: Sınıflar formu (`siniflar/page.tsx`), Öğrenci Havuzu şube filtresi
+  (`ogrenciler/havuz/page.tsx`), Kullanıcılar listesi/Ekle/Düzenle'deki "Şube Yetkileri"
+  çoklu-seçimi (`kullanicilar/page.tsx` + `ekle/` + `[id]/duzenle/`) — hepsindeki sabit
+  `ALL_SUBES`/`BRANCH_OFFICES` importu kaldırıldı. `groups`/`persons` API'lerindeki şube-adı
+  çözümlemesi (`officeName()` statik fonksiyonu) de DB join'ine çevrildi
+  (`person-education-summary-service.ts` dahil, `EducationSummaryDeps.offices` yeni alan).
+- Firestore rules: `flexos_branch_offices` server-only (branş ile aynı deny-all) deploy edildi.
+- `tsc`/`eslint`/`npm run build` temiz.
+
+**Kullanıcı "Şube" alanı — YARIM KALDI (kullanıcı isteği, bu oturumda başlandı):**
+- Kullanıcı (personel) Genel Bilgiler'e **tek-seçim, bilgi amaçlı** yeni bir "Şube" alanı
+  eklendi (Cinsiyet + Doğum Tarihi'nin yanına, 3'lü grid) — **"Şube Yetkileri" (`subes`,
+  Yetkiler sekmesi, ÇOK-seçim, erişim kapsamı) ile KARIŞTIRILMAMALI, ayrı bir kavram:**
+  kişinin fiilen çalıştığı TEK ofis (`FlexosUser.officeId`, öğrencideki tekil Şube alanıyla
+  aynı mantık).
+- `core/flexos-user.ts::officeId?` eklendi, `flexos-user-service.ts` create/update bunu
+  kabul ediyor, `api/flexos/users` (GET liste + GET tekil) `officeId`+join'lenmiş
+  `officeName` döndürüyor, POST/PATCH zaten body'yi generic geçiriyor (route değişikliği
+  gerekmedi). `kullanicilar/ekle/page.tsx` + `[id]/duzenle/page.tsx` forma dropdown eklendi.
+- `/api/flexos/me` artık çağıran aktörün KENDİ `officeId`+`officeName`'ini de döndürüyor
+  (`buildMeInfo` — `resolveLanding` refactor edildi, flexosUser tek okumadan paylaşılıyor,
+  ekstra Firestore okuması eklemedi).
+- **KULLANICI NİYETİ (henüz kod yazılmadı, sıradaki iş):**
+  1. **Avatar/header'da "Rol - Şube" göstermek** (örn. "Eğitim Op. - Şirinevler") — kullanıcı
+     "belki" dedi, henüz karar kesin değil. **BÜYÜK bir ayrı iş:** `FlexHeader`'ın
+     `roleLabel` prop'u şu an HER sayfada elle yazılmış sabit bir string (`"Yönetici · Satış"`
+     gibi, ~20 sayfa) — gerçek aktör verisine hiç bağlı değil. Dinamik yapmak bu yüzden
+     tek bir yerin değil, her çağrı yerinin değişmesini gerektirir — kullanıcıyla teyit
+     edilmeden başlanmadı.
+  2. **Satış Listesi'nde şube filtresi + varsayılan = kullanıcının kendi şubesi:**
+     kullanıcı: "Satış çalışanı Şirinevler şubede ise satış raporuna girince varsayılan
+     olarak şirinevler şb satışlarını görmeli. İsterse kadıköy ve tümü diyerek görebilmeliyim."
+     Tasarım kararı (Claude, henüz uygulanmadı): `Sale.branchOfficeId` (entity'de zaten var,
+     `sale-service.ts` zaten kabul ediyor) şu an HİÇBİR akıştan set edilmiyor ("Satış Yap"
+     formunda şube alanı yok) — **POST `/api/flexos/sales`'te satışı oluşturan aktörün KENDİ
+     `officeId`'sinden otomatik türetilmesi** planlandı (satıcı kimse satış onun şubesine
+     yazılır). Kalan iş: (a) POST sales route'a bu otomatik-damgalama, (b) GET sales
+     route'a `branchOfficeId`/`branchOffice` join, (c) `satis-liste/page.tsx`'e "Tüm Branşlar"
+     filtresiyle AYNI desende bir "Şube" dropdown'ı (varsayılan = kendi `officeName`,
+     `/api/flexos/me`'den gelen). **Henüz hiçbiri yazılmadı.**
+
+### ✅ 2026-07-22 oturumu — Ödev Teslimi UI + Randevu Takvimi çakışma + Aktivite Merkezi senkron
 
 **Ödev Teslimi — legacy port + eğitmen dosya silme:**
 - `odevler/teslim/[groupId]/[assignmentId]/page.tsx` sağ panel legacy'ye göre yeniden

@@ -44,6 +44,7 @@ export default function EgitimAyarlariPage() {
 
   const cards: SettingCard[] = [
     { key: "brans", title: "Branş Havuzu", desc: "Eğitimlerin üst kategorileri (Grafik Tasarım, Yazılım…). Eğitim Ekle dropdown'ı buradan beslenir.", icon: IC.branch, to: "/flexos/egitim-yonetimi/branslar", accent: { color: "#4338ca", background: "#e6e9ff" } },
+    { key: "sube", title: "Şube Havuzu", desc: "Kurumun fiziksel lokasyonları (Kadıköy, Pendik…). Sınıflar formu ve Öğrenci Havuzu filtresi buradan beslenir.", icon: IC.office, to: "/flexos/egitim-yonetimi/subeler", accent: { color: "#0369a1", background: "#e0f2fe" } },
     { key: "tatil", title: "Senelik Tatiller", desc: "Resmî tatil ve kurum tatil günleri — ders/grup takvimleri bunları atlar.", icon: IC.calendar, to: "/flexos/egitim-yonetimi/ayarlar/tatil", accent: { color: "#c2410c", background: "#ffedd5" } },
     { key: "sertifika", title: "Sertifika Ayarları", desc: "Sertifika kural ve şablonları (başarı/katılım barajları, belge tasarımı).", icon: IC.award, to: null, accent: { color: "#15803d", background: "#dcfce7" } },
     { key: "seans", title: "Seans Yönetimi", desc: "Grup açarken seçilebilecek seans kalıpları (gün + saat aralığı).", icon: IC.clock, to: "/flexos/egitim-yonetimi/seanslar", accent: { color: "#7c3aed", background: "#ede9fe" } },
@@ -138,6 +139,7 @@ const IC = {
   award: sv('<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>'),
   file: sv('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'),
   branch: sv('<path d="M7.59 13.41 11 17l9-9"/><path d="M3 12l3.59 3.59"/>'),
+  office: sv('<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>'),
   settings: sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', 'width="23" height="23" stroke="#fff" stroke-width="2"'),
   clock: sv('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
   bell: sv('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 'width="20" height="20"'),
