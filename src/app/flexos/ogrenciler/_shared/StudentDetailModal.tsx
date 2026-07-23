@@ -176,9 +176,9 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
               spinner bloğuydu, veri gelince modal aniden gerçek içerik boyutuna sıçrıyordu
               ("daracık açılıp sonra büyüyor"). `min-h` artık HER İKİ dalda da sabit — modal
               kutusu en baştan gerçek boyutuna yakın açılıyor, veri gelince sıçrama olmuyor. */}
-          <div className="flex-1 overflow-y-auto min-h-[620px]">
+          <div className="flex-1 overflow-y-auto min-h-[620px] relative">
             {!person ? (
-              <div className="flex items-center justify-center h-full py-16"><FlexSpinner /></div>
+              <div className="absolute inset-0 flex items-center justify-center"><FlexSpinner /></div>
             ) : (
               <div className="p-6 grid gap-6 items-start" style={{ gridTemplateColumns: "minmax(0,300px) minmax(0,1fr)" }}>
                 <div>

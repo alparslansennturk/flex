@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Users, CalendarCheck, ClipboardList,
-  ChevronRight, Command, Zap, Star, BarChart2, LayoutDashboard,
+  ChevronRight, Command, Zap, Star, BarChart2, LayoutDashboard, ShoppingBag,
 } from 'lucide-react';
-import { db } from '@/app/lib/firebase';
+import { auth, db } from '@/app/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useUser } from '@/app/context/UserContext';
 import StudentDetailModal, { type ModalStudent } from '@/app/components/dashboard/student-management/StudentDetailModal';
+import { StudentDetailModal as FlexosStudentDetailModal } from '@/app/flexos/ogrenciler/_shared/StudentDetailModal';
 
 // ─── Sabit Aksiyon Kataloğu ───────────────────────────────────────────────────
 
@@ -61,6 +62,66 @@ const STATIC_ACTIONS: StaticAction[] = [
     title: 'Ana Sayfa',
     subtitle: 'Dashboard',
     path: '/dashboard',
+    keywords: ['ana', 'anasayfa', 'dashboard', 'home', 'sayfa'],
+    icon: <LayoutDashboard size={13} strokeWidth={2.2} />,
+  },
+];
+
+// FlexOS sabit aksiyon kataloğu — capability ile kapılı (2026-07-23, `person.search`/
+// `sale.create` gibi registry'de tanımlı ama hiç bağlanmamış yetkilerin kullanıma
+// alınması). Legacy `STATIC_ACTIONS`'a DOKUNULMADI — eski dashboard sayfalarında
+// hiçbir davranış değişmedi.
+const FLEXOS_STATIC_ACTIONS: Array<StaticAction & { capability?: string }> = [
+  {
+    id: 'flexos-attend',
+    title: 'Yoklama Al',
+    subtitle: 'Yoklama sayfasını aç',
+    path: '/flexos/yoklama/al',
+    keywords: ['yoklama', 'al', 'devam', 'ders', 'derse'],
+    icon: <CalendarCheck size={13} strokeWidth={2.2} />,
+    capability: 'attendance.write',
+  },
+  {
+    id: 'flexos-report',
+    title: 'Yoklama Raporu',
+    subtitle: 'Devam raporlarını görüntüle',
+    path: '/flexos/yoklama/rapor',
+    keywords: ['rapor', 'report', 'devam', 'istatistik'],
+    icon: <BarChart2 size={13} strokeWidth={2.2} />,
+    capability: 'attendance.report.read',
+  },
+  {
+    id: 'flexos-assignment',
+    title: 'Ödev Yönetimi',
+    subtitle: 'Ödev ve şablon yönetimi',
+    path: '/flexos/odevler/yonetim',
+    keywords: ['ödev', 'teslim', 'şablon', 'assignment'],
+    icon: <ClipboardList size={13} strokeWidth={2.2} />,
+    capability: 'assignment.read',
+  },
+  {
+    id: 'flexos-grading',
+    title: 'Not Gir',
+    subtitle: 'Sertifika notu / değerlendirme',
+    path: '/flexos/sertifikasyon/not',
+    keywords: ['not', 'gir', 'değerlendir', 'puan', 'grade', 'sertifika'],
+    icon: <Star size={13} strokeWidth={2.2} />,
+    capability: 'grade.write',
+  },
+  {
+    id: 'flexos-sale',
+    title: 'Satış Yap',
+    subtitle: 'Yeni satış oluştur',
+    path: '/flexos/satislar/satis-yap',
+    keywords: ['satış', 'sat', 'sale', 'yap'],
+    icon: <ShoppingBag size={13} strokeWidth={2.2} />,
+    capability: 'sale.create',
+  },
+  {
+    id: 'flexos-home',
+    title: 'Ana Sayfa',
+    subtitle: 'Kendi ana sayfam',
+    path: '/flexos', // gerçek yol handleSelect/build sırasında `landing`'e ezilir
     keywords: ['ana', 'anasayfa', 'dashboard', 'home', 'sayfa'],
     icon: <LayoutDashboard size={13} strokeWidth={2.2} />,
   },
@@ -152,9 +213,22 @@ export default function QuickSearch() {
   const [openStudent, setOpenStudent] = useState<ModalStudent | null>(null);
   const [settled, setSettled]         = useState(false); // sonuç kesinleşti mi
 
+  // ── FlexOS bağlamı (2026-07-23) — SADECE `/flexos/*` sayfalarında devrede, eski
+  // dashboard sayfalarında hiçbiri tetiklenmez/fetch edilmez (aşağıdaki "open" efekti
+  // isFlexos'a göre dallanıyor — legacy fetchData() hâlâ birebir aynı). `flexosCaps`
+  // burada AYRI/lazy çekiliyor (paylaşılan `useCapabilities()` hook'unu KULLANMADIK —
+  // o hook mount anında hemen fetch eder; QuickSearch KÖK layout'ta her zaman monte,
+  // o yüzden her sayfa yüklemesinde gereksiz bir /api/flexos/me isteği eklerdi).
+  const [flexosCaps, setFlexosCaps]     = useState<Set<string>>(new Set());
+  const [flexosLanding, setFlexosLanding] = useState('/flexos/egitmen-anasayfa');
+  const [flexosLoaded, setFlexosLoaded] = useState(false);
+  const [flexosModalPersonId, setFlexosModalPersonId] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router   = useRouter();
+  const pathname = usePathname();
+  const isFlexos = pathname?.startsWith('/flexos') ?? false;
   const { user, isAdmin } = useUser();
 
   // ── Ctrl+K / Cmd+K (SAF — Shift/Alt basılıyken tetiklenmez, ör. FlexOS'un
@@ -182,7 +256,11 @@ export default function QuickSearch() {
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 60);
-      if (allGroups.length === 0) fetchData();
+      if (isFlexos) {
+        if (!flexosLoaded) fetchFlexosData();
+      } else if (allGroups.length === 0) {
+        fetchData();
+      }
     } else {
       setSearchQuery('');
       setDebouncedQuery('');
@@ -191,9 +269,51 @@ export default function QuickSearch() {
       setSettled(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, isFlexos]);
 
-  // ── Veri çekme ──────────────────────────────────────────────────────────────
+  // ── FlexOS veri çekme (gruplar+kişiler+capability+landing — hepsi gated API'lerden,
+  // eski `students`/`groups` koleksiyonlarına HİÇ dokunmaz) ────────────────────
+  const fetchFlexosData = async () => {
+    await auth.authStateReady();
+    const u = auth.currentUser;
+    if (!u) return;
+    setLoading(true);
+    try {
+      const token = await u.getIdToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const [meRes, groupsRes, personsRes] = await Promise.all([
+        fetch('/api/flexos/me', { headers, cache: 'no-store' }),
+        fetch('/api/flexos/groups', { headers }),
+        fetch('/api/flexos/persons', { headers }),
+      ]);
+      if (meRes.ok) {
+        const me = await meRes.json() as { capabilities?: string[]; landing?: string };
+        setFlexosCaps(new Set(me.capabilities ?? []));
+        if (me.landing) setFlexosLanding(me.landing);
+      }
+      if (groupsRes.ok) {
+        const g = await groupsRes.json() as { items?: { id: string; code: string; branch?: string }[] };
+        setAllGroups((g.items ?? []).map(it => ({ id: it.id, code: it.code, branch: it.branch ?? '' })));
+      }
+      if (personsRes.ok) {
+        const p = await personsRes.json() as {
+          items?: { id: string; name: string; groups?: { label: string }[]; branches?: string[] }[];
+        };
+        setAllStudents((p.items ?? []).map(it => ({
+          id: it.id,
+          type: 'student',
+          title: it.name,
+          subtitle: it.groups?.[0]?.label ? `Grup ${it.groups[0].label}` : (it.branches?.[0] ?? ''),
+          raw: { personId: it.id },
+        })));
+      }
+      setFlexosLoaded(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Veri çekme (legacy dashboard) ───────────────────────────────────────────
   const fetchData = async () => {
     if (!user?.uid) return;
     setLoading(true);
@@ -279,9 +399,10 @@ export default function QuickSearch() {
       g.branch.toLowerCase().includes(q)
     );
 
-    // 2 — Bağlamsal aksiyonlar (grup + keyword)
+    // 2 — Bağlamsal aksiyonlar (grup + keyword) — SADECE legacy (eski /attend,
+    // /dashboard/... rotalarına gider; flexos'ta karşılığı yok, atlanır).
     const contextualActions: SearchResult[] = [];
-    if (matchedGroups.length > 0) {
+    if (!isFlexos && matchedGroups.length > 0) {
       const primaryGroup = matchedGroups[0];
       const groupActions = buildGroupActions(primaryGroup.id, primaryGroup.code);
       groupActions.forEach(a => {
@@ -297,8 +418,11 @@ export default function QuickSearch() {
       });
     }
 
-    // 3 — Statik aksiyon eşleşmeleri
-    const staticActions: SearchResult[] = STATIC_ACTIONS
+    // 3 — Statik aksiyon eşleşmeleri (flexos: capability'ye göre süzülmüş katalog)
+    const activeStaticActions = isFlexos
+      ? FLEXOS_STATIC_ACTIONS.filter(a => !a.capability || flexosCaps.has(a.capability))
+      : STATIC_ACTIONS;
+    const staticActions: SearchResult[] = activeStaticActions
       .filter(a =>
         tokens.some(t =>
           a.keywords.some(k => k.includes(t)) ||
@@ -310,7 +434,7 @@ export default function QuickSearch() {
         type:     'action' as ResultType,
         title:    a.title,
         subtitle: a.subtitle,
-        path:     a.path,
+        path:     isFlexos && a.id === 'flexos-home' ? flexosLanding : a.path,
       }));
 
     // Bağlamsal + statik birleştir, tekrar yok
@@ -326,16 +450,28 @@ export default function QuickSearch() {
       type:     'group' as ResultType,
       title:    g.code.toLowerCase().startsWith('grup') ? g.code : `Grup ${g.code}`,
       subtitle: g.branch,
-      path:     `/dashboard/management?group=${g.id}`,
+      path:     isFlexos ? `/flexos/siniflar/${g.id}` : `/dashboard/management?group=${g.id}`,
     }));
 
-    // 5 — Öğrenci sonuçları
-    const studentResults: SearchResult[] = allStudents
-      .filter(s =>
-        s.title.toLowerCase().includes(q) ||
-        tokens.every(t => s.title.toLowerCase().includes(t))
-      )
-      .slice(0, 4);
+    // 5 — Öğrenci sonuçları. Flexos: `person.search` yetkisi olmayana hiç gösterilmez.
+    // 2026-07-23 DÜZELTME: Eğitim Op/yönetici (`group.assign_student` — Sınıf Detayı'nda
+    // modal/panel seçimini de bu belirliyor) artık SADECE tam sayfaya gider, modal satırı
+    // KALDIRILDI (kullanıcı kararı — modal sadece eğitmende kalsın). Eğitmen (bu capability
+    // yok) hâlâ TEK satır, her zaman modal.
+    const matchedStudents = allStudents.filter(s =>
+      s.title.toLowerCase().includes(q) ||
+      tokens.every(t => s.title.toLowerCase().includes(t))
+    );
+    let studentResults: SearchResult[];
+    if (isFlexos) {
+      const canSearchPersons = flexosCaps.has('person.search');
+      const canFullDetail = flexosCaps.has('group.assign_student');
+      studentResults = !canSearchPersons ? [] : matchedStudents
+        .slice(0, 4)
+        .map(s => ({ ...s, raw: { ...s.raw, isModal: !canFullDetail } }));
+    } else {
+      studentResults = matchedStudents.slice(0, 4);
+    }
 
     // 6 — Sıralama: sayı varsa grup önce, değilse aksiyon önce
     let ordered: SearchResult[];
@@ -349,7 +485,7 @@ export default function QuickSearch() {
 
     setResults(ordered.slice(0, 8));
     setSelectedIndex(0);
-  }, [debouncedQuery, allGroups, allStudents]);
+  }, [debouncedQuery, allGroups, allStudents, isFlexos, flexosCaps, flexosLanding]);
 
   // ── Klavye navigasyonu ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -372,6 +508,17 @@ export default function QuickSearch() {
 
   // ── Seçim ───────────────────────────────────────────────────────────────────
   const handleSelect = (item: SearchResult) => {
+    if (item.type === 'student' && isFlexos) {
+      const r = item.raw ?? {};
+      const personId = (r.personId as string) ?? item.id;
+      setOpen(false);
+      if (r.isModal) {
+        setFlexosModalPersonId(personId);
+      } else {
+        router.push(`/flexos/ogrenciler/${personId}`);
+      }
+      return;
+    }
     if (item.type === 'student') {
       const r = item.raw ?? {};
       setOpenStudent({
@@ -532,13 +679,21 @@ export default function QuickSearch() {
         )}
       </AnimatePresence>
 
-      {/* ── Global Öğrenci Kartı ── */}
+      {/* ── Global Öğrenci Kartı (legacy — eski dashboard sayfaları) ── */}
       <StudentDetailModal
         student={openStudent}
         isOpen={!!openStudent}
         onClose={() => setOpenStudent(null)}
         prefetchStudentId={openStudent?.id}
       />
+
+      {/* ── Global Öğrenci Kartı (FlexOS — sadece hızlı aramanın "(modal)" satırından) ── */}
+      {flexosModalPersonId && (
+        <FlexosStudentDetailModal
+          personId={flexosModalPersonId}
+          onClose={() => setFlexosModalPersonId(null)}
+        />
+      )}
     </>
   );
 }

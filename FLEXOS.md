@@ -16,6 +16,52 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
+### 🔶 2026-07-23 oturumu (2) — Ctrl+K flexos-farkında oldu + yoklama grup-seçim flaşı fix (EN GÜNCEL)
+
+- **Hata-2 (yoklama):** `/flexos/yoklama/al`'da "Hızlı Yoklama"ya girince gruplar
+  yüklenene kadar bir an "Bir grup seçin" placeholder'ı görünüp sonra bugünkü grup
+  otomatik seçiliyordu (flaş). `AttendanceCore.tsx`'e `groupsLoaded` state'i eklendi —
+  `autoSelectToday` açıkken gruplar gelene kadar artık placeholder yerine spinner
+  gösteriliyor, flaş yok.
+- **Hata-1 (Ctrl+K):** `QuickSearch.tsx` (kök `layout.tsx`'te global monte, hem eski
+  dashboard hem flexos sayfalarının üzerinde) öğrenci sonucuna tıklayınca HER ZAMAN
+  eski/pasif modalı açıyordu (`dashboard/student-management/StudentDetailModal.tsx`,
+  lig/puanlama sistemine bağlı, flexos capability modeliyle hiç ilgisi yok) — flexos
+  sayfalarında bile. Artık `usePathname()` ile `/flexos/*` dallanıyor:
+  - **Eski dashboard sayfalarında DAVRANIŞ BİREBİR AYNI** (legacy `students`/`groups`
+    Firestore sorguları, eski modal, eski rotalar — hiçbir şey değişmedi).
+  - **`/flexos/*`'ta** arama artık `/api/flexos/persons` + `/api/flexos/groups` +
+    `/api/flexos/me`'den (capability + `landing`) besleniyor — LAZY (sadece kullanıcı
+    Ctrl+K'yı flexos sayfasındayken açtığında fetch edilir, paylaşılan `useCapabilities()`
+    hook'u BİLEREK kullanılmadı çünkü o hook mount anında hemen fetch eder ve QuickSearch
+    her sayfada monte).
+  - Statik aksiyon kataloğu (Yoklama Al/Raporu, Ödev Yönetimi, Not Gir) flexos rotalarına
+    taşındı + capability'yle süzülüyor; **"Satış Yap" yeni eklendi** (`sale.create` yoksa
+    hiç görünmez — kullanıcının "satış yetkim yoksa satış yap sayfası gelmemeli" isteği).
+    "Ana Sayfa" artık `/api/flexos/me`'nin döndürdüğü gerçek `landing`'e gidiyor.
+  - Registry'de tanımlı ama hiç bağlanmamış `person.search` capability'si artık gerçekten
+    kullanılıyor: bu yetki yoksa öğrenci sonucu hiç gösterilmez.
+  - Öğrenci sonucu: `group.assign_student` olan (Eğitim Op/yönetici) her zaman
+    `/flexos/ogrenciler/[id]` (tam sayfa hub)'a gider. Sadece eğitmen olan (bu capability
+    yok) her zaman flexos `StudentDetailModal`'ı açar. **DÜZELTME (aynı gün, sonraki
+    mesaj):** ilk turda Eğitim Op/yönetici için modal+tam sayfa diye İKİ satır
+    üretilmişti ("(modal)" etiketiyle) — kullanıcı kararıyla KALDIRILDI, modal artık
+    SADECE eğitmende, admin/op'ta hiç görünmüyor.
+  - Grup sonuçları `/flexos/siniflar/[id]`'ye gidiyor (eskiden `/dashboard/management`).
+  - Grup+keyword bağlamsal aksiyonlar (`buildGroupActions` — eski `/attend?groupId=` vb.)
+    flexos'ta BİLEREK atlandı, kapsam dışı bırakıldı.
+- **Ek düzeltme — flexos `StudentDetailModal` loader ortalama:** yüklenme durumundaki
+  spinner `h-full` (yüzde-yükseklik, `flex-1` büyüyen boş bir kutuda güvenilir
+  hesaplanmıyordu) yerine `absolute inset-0 flex items-center justify-center` kullanıyor
+  artık — parent'ın boyutundan bağımsız her zaman tam ortalı.
+- **Ortam notu:** `npm run build` `xlsx`/`react-pdf` (`package.json`'da vardı ama
+  `node_modules`'ta hiç kurulu değildi) yüzünden kırılıyordu — bu oturumun kod
+  değişikliğiyle ilgisizdi, `npm install` ile çözüldü (909 paket, eksik olanlar dahil).
+
+`tsc --noEmit` + `eslint` değişen dosyalarda temiz, `npm run build` şimdi de temiz.
+**Kod tarayıcıda test edilmedi** (loader ortalama fix'i hariç — kullanıcı canlı
+denedi, "ortalı değil" bulgusuyla düzeltildi).
+
 ### 🔶 2026-07-23 oturumu — Öğrenci detay paneli (kayan+3 sekme) + öğrenci düzenleme + Sınıf Düzenle sheet fix (EN GÜNCEL)
 
 - **Satış Listesi / Öğrenci Havuzu / Sınıflar (admin-op)**: öğrenciye tıklayınca artık

@@ -290,6 +290,7 @@ export default function AttendanceCore({
   containerClassName = DEFAULT_CONTAINER_CLASSNAME,
 }: AttendanceCoreProps) {
   const [groups, setGroups] = useState<GroupItem[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [isOrgScope, setIsOrgScope] = useState(false);
   const [allTimeRecords, setAllTimeRecords] = useState<AttendanceRecord[]>([]);
@@ -384,6 +385,7 @@ export default function AttendanceCore({
       }
       setHolidayDates(dates);
     }
+    setGroupsLoaded(true);
   }, []);
 
   useEffect(() => { void loadGroupsAndHolidays(); }, [loadGroupsAndHolidays]);
@@ -739,10 +741,16 @@ export default function AttendanceCore({
         {/* ── RIGHT ─────────────────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0 max-w-[1400px]">
           {!selectedGroupId ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-text-placeholder">
-              <CalendarCheck size={36} strokeWidth={1.5} />
-              <p className="text-[14px] font-medium">Bir grup seçin</p>
-            </div>
+            autoSelectToday && !groupsLoaded ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-surface-200 border-t-base-primary-500 rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-text-placeholder">
+                <CalendarCheck size={36} strokeWidth={1.5} />
+                <p className="text-[14px] font-medium">Bir grup seçin</p>
+              </div>
+            )
           ) : (
             <>
               {mode === "simple" && (
