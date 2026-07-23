@@ -17,16 +17,25 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback, CSSProperties } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
-import FlexHeader from "../../_components/FlexHeader";
+import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+import { StudentDetailTabsPanel } from "../_shared/StudentDetailTabsPanel";
+
+// Öğrenciye tıklayınca detay paneli sağdan kayarak açılır — Yoklama Detay /
+// Satış Listesi ile AYNI "liste↔detay kayması" deseni (2026-07-23, admin/op
+// için tam sayfa yönlendirmesi yerine; eğitmen görünümü Sınıflar'da AYNEN kaldı).
+const PANEL_T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
 // ── Durum & Branş sözlükleri (tasarımdan) ────────────────────────────────────
 type StatusKey =
@@ -114,7 +123,6 @@ function initials(name: string) {
 
 export default function OgrenciHavuzuPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [subeList, setSubeList] = useState<string[]>(["Tümü"]);
@@ -123,6 +131,11 @@ export default function OgrenciHavuzuPage() {
   // Sunucu switch'ine göre gereken capability değişir (enrollment.transfer VEYA sale.create) —
   // UI-only gate, ikisinden biri varsa buton görünür, gerçek kural sunucuda `transferEnrollment`'ta.
   const canTransfer = caps.has("enrollment.transfer") || caps.has("sale.create");
+
+  // ── öğrenci detay paneli (sağdan kayarak) ──
+  const [showStudentPanel, setShowStudentPanel] = useState(false);
+  const [panelPersonId, setPanelPersonId] = useState<string | null>(null);
+  const openStudentPanel = (personId: string) => { setPanelPersonId(personId); setShowStudentPanel(true); };
 
   // İsimle arama (2026-07-16 — havuzda hiç search yoktu, sadece dropdown filtreler
   // vardı). Diğer filtrelerin aksine "Filtrele" butonu beklemeden ANINDA uygulanır —
@@ -146,16 +159,30 @@ export default function OgrenciHavuzuPage() {
   const [page, setPage] = useState(1);
 
   // ── İşlem — 3 nokta menüsü (Gruba Ata / Grup Değiştir) ──
+  // 2026-07-23 kullanıcı bulgusu: menü tablonun `overflowX:"auto"` sarmalayıcısı
+  // içinde `position:absolute` ile açılıyordu — CSS spesifikasyonu gereği bir
+  // eksende (`overflow-x`) "auto" verilince diğer eksen (`overflow-y`) da otomatik
+  // "auto" hesaplanıyor (tarayıcı standardı, `overflow-y:visible` yazsan bile
+  // geçersiz sayılıyor). Sonuç: son satırın menüsü kutunun dışına taştığında
+  // KIRPILIYORDU, ayrıca menü açıldığında o gizli iç scrollbar tetiklenip tablo
+  // genişliği sağa-sola oynuyordu. Kalıcı çözüm: menü artık `document.body`'ye
+  // portal ile render ediliyor — hiçbir ata `overflow`/scroll'undan etkilenmiyor.
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [actionMenuStep, setActionMenuStep] = useState<"root" | "pickGroup">("root");
+  const [actionMenuPos, setActionMenuPos] = useState<{ top: number; bottom: number; right: number; openUp: boolean } | null>(null);
   useEffect(() => {
     if (!actionMenuOpen) return;
     function handleClick(e: MouseEvent) {
       const el = (e.target as HTMLElement).closest(`[data-oh-actionmenu="${actionMenuOpen}"]`);
-      if (!el) { setActionMenuOpen(null); setActionMenuStep("root"); }
+      if (!el) { setActionMenuOpen(null); setActionMenuStep("root"); setActionMenuPos(null); }
     }
+    function handleScroll() { setActionMenuOpen(null); setActionMenuStep("root"); setActionMenuPos(null); }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("scroll", handleScroll, true);
+    };
   }, [actionMenuOpen]);
 
   const [loading, setLoading] = useState(false);
@@ -464,9 +491,29 @@ export default function OgrenciHavuzuPage() {
           icon={<span dangerouslySetInnerHTML={{ __html: IC.headerUsers }} />}
           title="Öğrenciler"
           subtitle="Tüm öğrenci kayıtlarını filtreleyin ve gruplara atayın."
+          left={showStudentPanel ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <button
+                onClick={() => setShowStudentPanel(false)}
+                style={{ width: 44, height: 44, borderRadius: 13, border: "none", background: "linear-gradient(135deg,#3A7BD5,#205297)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+              >
+                <ArrowLeft size={20} color="#fff" />
+              </button>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 20.5, fontWeight: 630, letterSpacing: "-0.022em", color: "#1E222B" }}>Öğrenci Bilgisi</h1>
+                <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>Öğrenci Havuzu / Profil</p>
+              </div>
+            </div>
+          ) : undefined}
+          maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
         />
 
-        <div style={{ padding: "30px 36px 48px", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
+        {/* `panelArea` — Yoklama Detay'daki AYNI "liste↔detay kayması" deseni:
+            sidebar/header sabit, sadece bu alan içindeki iki panel kayar. */}
+        <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+        <motion.div initial={false} animate={{ x: showStudentPanel ? "-100%" : 0 }} transition={PANEL_T}
+          className="absolute inset-0 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
+        <FlexPageContent className="pt-6 pb-12">
           {/* section chip */}
           <div style={{ display: "flex", alignItems: "center", marginBottom: 22 }}>
             <span style={S.countChip}>{total} öğrenci</span>
@@ -633,7 +680,7 @@ export default function OgrenciHavuzuPage() {
                     const hasGroup = groupCount > 0;
                     const groupPopupOpen = hoveredGroup === st.id && groupCount > 1;
                     return (
-                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => router.push(`/flexos/ogrenciler/${st.id}`)}>
+                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => openStudentPanel(st.id)}>
                         {/* Ad Soyad */}
                         <td style={S.cell}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -770,80 +817,102 @@ export default function OgrenciHavuzuPage() {
                             const canDoTransfer = canTransfer && hasGroup;
                             const menuOpen = actionMenuOpen === st.id;
                             const step = menuOpen ? actionMenuStep : "root";
-                            const closeMenu = () => { setActionMenuOpen(null); setActionMenuStep("root"); };
+                            const closeMenu = () => { setActionMenuOpen(null); setActionMenuStep("root"); setActionMenuPos(null); };
+                            const menuContent = (
+                              <>
+                                {step === "root" ? (
+                                  <>
+                                    {canAssignGroup && (
+                                      <button
+                                        className={canAssign ? "oh-ddrow" : undefined}
+                                        disabled={!canAssign}
+                                        title={canAssign ? "" : "Atanabilir grupsuz kayıt yok"}
+                                        onClick={() => { closeMenu(); openAssign(st); }}
+                                        style={{ ...S.menuItem, color: canAssign ? "#1E222B" : "#CDD2DA", cursor: canAssign ? "pointer" : "not-allowed" }}
+                                      >
+                                        <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
+                                        Gruba Ata
+                                      </button>
+                                    )}
+                                    {canTransfer && (
+                                      <button
+                                        className={canDoTransfer ? "oh-ddrow" : undefined}
+                                        disabled={!canDoTransfer}
+                                        title={canDoTransfer ? "" : "Grup değiştirmek için önce bir gruba atanmış olmalı"}
+                                        onClick={() => {
+                                          if (!canDoTransfer) return;
+                                          if (groupCount === 1) { closeMenu(); openTransfer(st, groups[0]); }
+                                          else setActionMenuStep("pickGroup");
+                                        }}
+                                        style={{ ...S.menuItem, color: canDoTransfer ? "#1E222B" : "#CDD2DA", cursor: canDoTransfer ? "pointer" : "not-allowed" }}
+                                      >
+                                        <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
+                                        Grup Değiştir
+                                      </button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => setActionMenuStep("root")}
+                                      className="oh-ddrow"
+                                      style={{ ...S.menuItem, color: "#8E95A3", fontWeight: 700, fontSize: 11.5, letterSpacing: ".02em" }}
+                                    >
+                                      <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />
+                                      HANGİ GRUPTAN TAŞINSIN?
+                                    </button>
+                                    {groups.map((g) => {
+                                      const c = BRANS[g.branch] ?? BRANS_FALLBACK;
+                                      return (
+                                        <button
+                                          key={g.groupId}
+                                          onClick={() => { closeMenu(); openTransfer(st, g); }}
+                                          className="oh-ddrow"
+                                          style={{ ...S.menuItem, justifyContent: "space-between", color: "#1E222B" }}
+                                        >
+                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: c.dot, flex: "0 0 auto" }} />
+                                            {g.label}
+                                          </span>
+                                          <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600 }}>{g.branch}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </>
+                                )}
+                              </>
+                            );
                             return (
                               <div data-oh-actionmenu={st.id} style={{ position: "relative", display: "inline-flex" }}>
                                 <button
                                   className="oh-iconbtn"
                                   title="İşlemler"
-                                  onClick={() => { setActionMenuOpen(menuOpen ? null : st.id); setActionMenuStep("root"); setOpenDropdown(null); }}
+                                  onClick={(e) => {
+                                    if (menuOpen) { closeMenu(); return; }
+                                    const r = e.currentTarget.getBoundingClientRect();
+                                    const openUp = window.innerHeight - r.bottom < 260;
+                                    setActionMenuPos({ top: r.bottom + 6, bottom: window.innerHeight - r.top + 6, right: window.innerWidth - r.right, openUp });
+                                    setActionMenuOpen(st.id); setActionMenuStep("root"); setOpenDropdown(null);
+                                  }}
                                   style={S.dotsBtn}
                                 >
                                   <span dangerouslySetInnerHTML={{ __html: IC.dots }} />
                                 </button>
-                                {menuOpen && (
-                                  <div style={S.actionMenu}>
-                                    {step === "root" ? (
-                                      <>
-                                        {canAssignGroup && (
-                                          <button
-                                            className={canAssign ? "oh-ddrow" : undefined}
-                                            disabled={!canAssign}
-                                            title={canAssign ? "" : "Atanabilir grupsuz kayıt yok"}
-                                            onClick={() => { closeMenu(); openAssign(st); }}
-                                            style={{ ...S.menuItem, color: canAssign ? "#1E222B" : "#CDD2DA", cursor: canAssign ? "pointer" : "not-allowed" }}
-                                          >
-                                            <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
-                                            Gruba Ata
-                                          </button>
-                                        )}
-                                        {canTransfer && (
-                                          <button
-                                            className={canDoTransfer ? "oh-ddrow" : undefined}
-                                            disabled={!canDoTransfer}
-                                            title={canDoTransfer ? "" : "Grup değiştirmek için önce bir gruba atanmış olmalı"}
-                                            onClick={() => {
-                                              if (!canDoTransfer) return;
-                                              if (groupCount === 1) { closeMenu(); openTransfer(st, groups[0]); }
-                                              else setActionMenuStep("pickGroup");
-                                            }}
-                                            style={{ ...S.menuItem, color: canDoTransfer ? "#1E222B" : "#CDD2DA", cursor: canDoTransfer ? "pointer" : "not-allowed" }}
-                                          >
-                                            <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
-                                            Grup Değiştir
-                                          </button>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <>
-                                        <button
-                                          onClick={() => setActionMenuStep("root")}
-                                          className="oh-ddrow"
-                                          style={{ ...S.menuItem, color: "#8E95A3", fontWeight: 700, fontSize: 11.5, letterSpacing: ".02em" }}
-                                        >
-                                          <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />
-                                          HANGİ GRUPTAN TAŞINSIN?
-                                        </button>
-                                        {groups.map((g) => {
-                                          const c = BRANS[g.branch] ?? BRANS_FALLBACK;
-                                          return (
-                                            <button
-                                              key={g.groupId}
-                                              onClick={() => { closeMenu(); openTransfer(st, g); }}
-                                              className="oh-ddrow"
-                                              style={{ ...S.menuItem, justifyContent: "space-between", color: "#1E222B" }}
-                                            >
-                                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                                                <span style={{ width: 7, height: 7, borderRadius: "50%", background: c.dot, flex: "0 0 auto" }} />
-                                                {g.label}
-                                              </span>
-                                              <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600 }}>{g.branch}</span>
-                                            </button>
-                                          );
-                                        })}
-                                      </>
-                                    )}
-                                  </div>
+                                {menuOpen && actionMenuPos && createPortal(
+                                  <div
+                                    data-oh-actionmenu={st.id}
+                                    style={{
+                                      ...S.actionMenu,
+                                      position: "fixed",
+                                      top: actionMenuPos.openUp ? "auto" : actionMenuPos.top,
+                                      bottom: actionMenuPos.openUp ? actionMenuPos.bottom : "auto",
+                                      right: actionMenuPos.right,
+                                      left: "auto",
+                                    }}
+                                  >
+                                    {menuContent}
+                                  </div>,
+                                  document.body
                                 )}
                               </div>
                             );
@@ -896,8 +965,16 @@ export default function OgrenciHavuzuPage() {
               </div>
             )}
           </div>
+        </FlexPageContent>
+        </motion.div>
+
+        {/* ── öğrenci detayı: sağdan gelir ── */}
+        <motion.div initial={false} animate={{ x: showStudentPanel ? 0 : "100%" }} transition={PANEL_T}
+          className="absolute inset-0 overflow-y-auto bg-white flex flex-col">
+          <StudentDetailTabsPanel key={panelPersonId} personId={panelPersonId} className="font-inter pt-6 pb-8" />
+        </motion.div>
         </div>
-        <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
+        <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
 
       {/* click-away overlay */}
@@ -1037,7 +1114,7 @@ export default function OgrenciHavuzuPage() {
               {!loadingGroups && groupOptions.length > 0 && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid #EEF0F3" }}>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 3 }}>
-                    <strong style={{ color: "#414B59" }}>{transferTarget.groupLabel}</strong>'daki kayıt nasıl kapansın?
+                    <strong style={{ color: "#414B59" }}>{transferTarget.groupLabel}</strong>&apos;daki kayıt nasıl kapansın?
                   </div>
                   <div style={{ fontSize: 11.5, color: "#8E95A3", marginBottom: 9 }}>Sistem bunu bilemez — hangisi olduğunu siz seçmelisiniz.</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1081,7 +1158,7 @@ export default function OgrenciHavuzuPage() {
 // ── stiller ───────────────────────────────────────────────────────────────────
 const S: Record<string, CSSProperties> = {
   root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#1E222B", fontFamily: "'Inter', system-ui, sans-serif", background: "#EEF0F3" },
-  main: { flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" },
+  main: { flex: 1, height: "100%", overflow: "hidden", background: "#EEF0F3", display: "flex", flexDirection: "column" },
   header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px max(36px, calc((100% - 1920px) / 2 + 36px))", background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" },
   headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
   bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59", transition: "all .14s" },

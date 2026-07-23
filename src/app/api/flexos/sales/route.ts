@@ -48,6 +48,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         const branch = edu?.branchId ? branchMap.get(edu.branchId) : undefined;
         return {
           id: s.id,
+          personId: s.personId,
           date: s.date ?? s.createdAt?.slice(0, 10) ?? "",
           studentName: person ? `${person.firstName} ${person.lastName}` : s.personId,
           educationName: edu?.name ?? bundle?.name ?? "",

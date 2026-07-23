@@ -16,7 +16,37 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-22 oturumu (3) — Dinamik roleLabel + 2 bildirim fix'i + Connect okundu-tikleri/arşiv (EN GÜNCEL)
+### 🔶 2026-07-23 oturumu — Öğrenci detay paneli (kayan+3 sekme) + öğrenci düzenleme + Sınıf Düzenle sheet fix (EN GÜNCEL)
+
+- **Satış Listesi / Öğrenci Havuzu / Sınıflar (admin-op)**: öğrenciye tıklayınca artık
+  tam sayfaya yönlendirmek/modal yerine sağdan kayan `StudentDetailTabsPanel` (3 sekme:
+  Genel/Eğitim/Ödeme) açılıyor — Yoklama Detay'daki liste↔detay kayma deseniyle aynı.
+  Eğitmenin gördüğü `StudentDetailModal` DEĞİŞMEDİ.
+- **Öğrenci düzenleme (yeni):** Hem `StudentDetailTabsPanel` hem `StudentDetailModal`'da
+  "Düzenle" butonu — SADECE doğum tarihi + telefon/e-posta/adres değiştirilebilir (ad,
+  TC, şube, kayıt tarihi asla). Buton görünürlüğü `person.edit`/`person.pii.write`
+  capability'sine bağlı — "Full modda eğitmen düzenleyemez, Tek Başına modda düzenler"
+  kuralı zaten `packages.ts`'te vardı, yeni bir rol kontrolü YAZILMADI. Backend
+  (`PATCH /api/flexos/persons/[id]`) zaten hazırmış, sadece UI'dan hiç çağrılmıyordu.
+- **Container genişliği birleştirme:** Satış Listesi/Öğrenci Havuzu/Sınıflar artık
+  Eğitmen Dashboard ile AYNI `FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS` + `FlexPageContent`
+  + `FLEX_PAGE_FOOTER_CLASS`'ı kullanıyor (eskiden üçü de kendi sabit piksel genişliğindeydi).
+- **Öğrenci Havuzu 3-nokta menü fix:** tablo satırındaki işlem menüsü artık `document.body`'ye
+  portal ile açılıyor — eskiden tablonun `overflowX:auto` sarmalayıcısı (CSS gereği
+  overflow-y'yi de "auto" yapıyordu) son satırın menüsünü kırpıyor + açılınca tablo
+  genişliğini kaydırıyordu.
+- **Sınıf Detayı'nda doluluk/devam çubukları** artık 0'dan gerçek değere dolarak açılıyor
+  (ilk girişte bir kez, `groupId` bazlı).
+- **"Sınıfı Düzenle" navigasyon sıçraması düzeltildi:** eskiden `/flexos/siniflar?edit=id`'e
+  yönlendirip Sınıflar listesindeki sheet'i açtırıyordu (önce eski sayfaya dönüyormuş gibi
+  görünüyordu). Form (~300 satır) `siniflar/_shared/GroupFormSheet.tsx`'e çıkarıldı —
+  hem liste hem Sınıf Detayı artık AYNI sheet'i, sayfadan hiç ayrılmadan, doğrudan açıyor.
+
+`tsc`/`eslint`/`npm run build` her adımda temiz. **Hiçbiri tarayıcıda test edilmedi.**
+
+---
+
+### 🔶 2026-07-22 oturumu (3) — Dinamik roleLabel + 2 bildirim fix'i + Connect okundu-tikleri/arşiv
 
 **Header etiketi (`roleLabel`) artık gerçek veriden — ~30 sayfadaki sabit metin kaldırıldı:**
 - Önceden HER sayfa `<FlexHeader roleLabel="Yönetici · Eğitmen" .../>` gibi elle
@@ -159,6 +189,27 @@ kullanıcı "x satış temsilcisi ne kadar satış yaptı, kaç görüşmeye gir
 kayıtları (görüşme sayısı, "kaç kişiyle görüştü") CROSS-REFERENCE edilmeli,
 dönüşüm oranı = satış/görüşme. Henüz tasarlanmadı, sıradaki oturumlarda ele
 alınacak.
+
+**✅ NOT (2026-07-23) — Öğrenci "farklı eğitime taşıma": ayrı bir özelliğe
+GEREK YOK, mevcut "Satış Yap" akışı zaten doğru çalışıyor.** Aynı eğitim/modül
+içi grup değiştirme (`transferEnrollment`, "Grup Değiştir" — 2026-07-16'da
+bitti) ücretsiz (`soldPrice:0`) bir transfer, bu ayrı ve doğru. Kullanıcı
+başta "farklı eğitime geçiş yeni/ücretli bir Sale gerektirir, özel bir akış
+lazım" dedi — ama sonra kendi sorusuyla ("zaten satışa girip satış yapılır,
+tekrar kayıt olur") doğru noktaya değindi ve kod kontrolüyle DOĞRULANDI:
+`createSale` (`sale-service.ts:82-246`) var olan bir kişi için (TC no eşleşirse,
+`findByIdNo`) yeni bir satış yapıldığında zaten aynı Person'a YENİ bir
+Enrollment ekliyor (`:178-207`), eski enrollment'a hiç dokunmuyor (additive,
+kapatma zorunluluğu yok). Yani "farklı eğitime taşıma" aslında sadece normal
+bir satış — özel bir "transfer" akışı/UI gereksiz.
+
+**Tek gerçek eksik (küçük, UX):** `satis-yap/page.tsx` TC no girilince kişiyi
+arkadan sessizce eşleştiriyor (sadece "ek kayıt indirimi" kampanyasını
+uygulamak için) ama satış temsilcisine bu kişinin zaten kayıtlı olduğunu, adını,
+hangi eğitim(ler)de kayıtlı olduğunu HİÇ göstermiyor — satıcı bunu görmeden
+satış yapabiliyor. İleride istenirse: TC eşleşince küçük bir bilgi kutusu
+("Bu kişi zaten kayıtlı: {ad}, {mevcut eğitimler}") eklenebilir. Şu an kod yok,
+öncelik düşük.
 
 ---
 

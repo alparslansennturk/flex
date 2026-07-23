@@ -20,20 +20,27 @@
  * BİLİNEN SINIRLAMA: çapraz-grup saat/gün çakışma kontrolü burada YOK (Öğrenci Havuzu'nda var,
  * kişinin diğer aktif kayıtlarını çekmek bu sayfada ayrı bir uç gerektirirdi) — sonraya bırakıldı.
  *
- * "Sınıfı Düzenle" → `/flexos/siniflar?edit={id}` (mevcut Düzenle sheet'i formu ikinci kez
- * yazmadan açar, bkz. `siniflar/page.tsx`'teki `?edit=` handler'ı).
+ * "Sınıfı Düzenle" (2026-07-23 güncelleme): eskiden `/flexos/siniflar?edit={id}`'e
+ * yönlendirip Sınıflar listesindeki sheet'i açtırıyordu — kullanıcı bulgusu: bu, önce
+ * bir önceki sayfaya dönüp SONRA sheet'in geldiği gibi görünen bir sıçramaya sebep
+ * oluyordu. Artık paylaşımlı `GroupFormSheet` (siniflar/_shared) DOĞRUDAN bu sayfada,
+ * hiçbir yere gitmeden açılıyor — form/katalog state'i bileşenin kendi içinde.
  */
 
-import React, { useCallback, useEffect, useMemo, useState, CSSProperties } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
-import FlexHeader from "../../_components/FlexHeader";
+import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
 import { useCapabilities } from "../../_components/useCapabilities";
 import { StudentDetailModal } from "../../ogrenciler/_shared/StudentDetailModal";
+import { StudentDetailTabsPanel } from "../../ogrenciler/_shared/StudentDetailTabsPanel";
+import GroupFormSheet from "../_shared/GroupFormSheet";
 import { formatTrPhone } from "@/app/lib/phone";
 import {
   type GroupApiItem, type RosterItem,
@@ -41,6 +48,11 @@ import {
   toDisplayGroup, fmtTrDate, initials, avatarStyle,
 } from "../_shared/groupDisplay";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+
+// Admin/op için öğrenci detayı artık tam sayfa yönlendirmesi yerine sağdan
+// kayan panel — Öğrenci Havuzu/Satış Listesi ile AYNI desen (2026-07-23).
+// Eğitmen görünümü (StudentDetailModal, aşağıda) DEĞİŞMEDİ.
+const PANEL_T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
 interface AttendanceRecordLite { id: string; date: string; entries: Record<string, { hours: number }> }
 
@@ -67,9 +79,16 @@ export default function SinifDetayPage() {
   const groupId = params.id;
   const { caps } = useCapabilities();
   const canManage = caps.has("group.assign_student");
-  // Roster satırına tıklama (2026-07-16): admin/op → Öğrenci Detay sayfası, eğitmen → modal.
-  // Aynı `canManage` capability'si (admin/op'ta true) — rol adı değil, mevcut proje deseni.
+  // Roster satırına tıklama (2026-07-16, güncelleme 2026-07-23): admin/op → sağdan
+  // kayan öğrenci detay paneli, eğitmen → modal (değişmedi). Aynı `canManage`
+  // capability'si (admin/op'ta true) — rol adı değil, mevcut proje deseni.
   const [detailPersonId, setDetailPersonId] = useState<string | null>(null);
+  const [showStudentPanel, setShowStudentPanel] = useState(false);
+  const [panelPersonId, setPanelPersonId] = useState<string | null>(null);
+  const openStudentPanel = (personId: string) => { setPanelPersonId(personId); setShowStudentPanel(true); };
+
+  // "Sınıfı Düzenle" — paylaşımlı sheet, sayfadan hiç ayrılmadan açılır (2026-07-23).
+  const [showEditSheet, setShowEditSheet] = useState(false);
 
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,6 +97,21 @@ export default function SinifDetayPage() {
   const [roster, setRoster] = useState<RosterItem[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecordLite[]>([]);
   const [query, setQuery] = useState("");
+
+  // Doluluk oranı + öğrenci devam yüzdesi çubukları: sayfaya ilk girişte 0'dan
+  // gerçek değere dolarak açılır (2026-07-23 kullanıcı isteği). Aynı grup için
+  // veri SSE ile tekrar tekrar gelebiliyor (useRealtimeSync) — animasyon SADECE
+  // bu gruba ilk girişte bir kere oynasın diye `revealedForRef` groupId bazlı.
+  const [revealed, setRevealed] = useState(false);
+  const revealedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (loading || !group) return;
+    if (revealedForRef.current === groupId) return;
+    revealedForRef.current = groupId;
+    setRevealed(false);
+    const raf = requestAnimationFrame(() => setRevealed(true));
+    return () => cancelAnimationFrame(raf);
+  }, [loading, group, groupId]);
 
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const user = auth.currentUser;
@@ -373,9 +407,22 @@ export default function SinifDetayPage() {
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="siniflar" />
       <style>{`.sd-iconbtn:hover{background:#F7F8FA!important}`}</style>
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, height: "100%", overflow: "hidden", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
-          left={
+          left={showStudentPanel ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <button
+                onClick={() => setShowStudentPanel(false)}
+                style={{ width: 46, height: 46, borderRadius: 13, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)", cursor: "pointer", flexShrink: 0 }}
+              >
+                <ArrowLeft size={21} color="#fff" />
+              </button>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Öğrenci Bilgisi</h1>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Sınıf Detayı / Profil</p>
+              </div>
+            </div>
+          ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               <a className="sd-iconbtn" style={S.backBtn} title="Sınıflara dön" onClick={() => router.push("/flexos/siniflar")}>
                 <span dangerouslySetInnerHTML={{ __html: IC.back }} />
@@ -389,10 +436,16 @@ export default function SinifDetayPage() {
                 <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Sınıf Detayı</h1>
               </div>
             </div>
-          }
+          )}
+          maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
         />
 
-        <div style={{ padding: "26px 36px 60px", maxWidth: 1320, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
+        {/* `panelArea` — Yoklama Detay'daki AYNI "liste↔detay kayması" deseni:
+            sidebar/header sabit, sadece bu alan içindeki iki panel kayar. */}
+        <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+        <motion.div initial={false} animate={{ x: showStudentPanel ? "-100%" : 0 }} transition={PANEL_T}
+          className="absolute inset-0 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
+        <FlexPageContent className="pt-6 pb-14">
           {loading || !group || !dg ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "80px 20px" }}>
               <FlexSpinner />
@@ -420,7 +473,7 @@ export default function SinifDetayPage() {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       {canManage && (
-                        <button onClick={() => router.push(`/flexos/siniflar?edit=${group.id}`)} style={S.secondaryBtn}>
+                        <button onClick={() => setShowEditSheet(true)} style={S.secondaryBtn}>
                           <span dangerouslySetInnerHTML={{ __html: IC.pencil }} /> Sınıfı Düzenle
                         </button>
                       )}
@@ -459,7 +512,7 @@ export default function SinifDetayPage() {
                     <span style={{ fontSize: 14, fontWeight: 800, color: "#1E222B" }}>{group.enrolled}<span style={{ color: "#AEB4C0", fontWeight: 600 }}> / {group.capacity} kontenjan</span></span>
                   </div>
                   <div style={{ height: 12, borderRadius: 999, background: "#EEF0F3", overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.min(100, capPct)}%`, borderRadius: 999, background: barColor, transition: "width .4s" }} />
+                    <div style={{ height: "100%", width: `${revealed ? Math.min(100, capPct) : 0}%`, borderRadius: 999, background: barColor, transition: "width .8s cubic-bezier(.4,0,.2,1)" }} />
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
                     <span style={{ fontSize: 12.5, fontWeight: 700, color: capColor }}>{capHint}</span>
@@ -520,7 +573,7 @@ export default function SinifDetayPage() {
                             <tr
                               key={r.enrollmentId}
                               style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }}
-                              onClick={() => (canManage ? router.push(`/flexos/ogrenciler/${r.personId}`) : setDetailPersonId(r.personId))}
+                              onClick={() => (canManage ? openStudentPanel(r.personId) : setDetailPersonId(r.personId))}
                             >
                               <td style={S.tdNo}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 26, height: 26, padding: "0 6px", borderRadius: 8, background: "#F2F4F7", color: "#6F7B87", fontSize: 12.5, fontWeight: 800 }}>{i + 1}</span></td>
                               <td style={S.tdFirst}>
@@ -537,7 +590,7 @@ export default function SinifDetayPage() {
                               <td style={S.td}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 120 }}>
                                   <div style={{ flex: 1, height: 6, borderRadius: 999, background: "#EEF0F3", overflow: "hidden" }}>
-                                    <div style={{ height: "100%", width: `${pct ?? 0}%`, borderRadius: 999, background: attColor }} />
+                                    <div style={{ height: "100%", width: `${revealed ? (pct ?? 0) : 0}%`, borderRadius: 999, background: attColor, transition: "width .8s cubic-bezier(.4,0,.2,1)" }} />
                                   </div>
                                   <span style={{ fontSize: 12.5, fontWeight: 800, color: attColor, whiteSpace: "nowrap", minWidth: 34, textAlign: "right" }}>{pct === null ? "—" : `%${pct}`}</span>
                                 </div>
@@ -577,8 +630,16 @@ export default function SinifDetayPage() {
               </div>
             </>
           )}
+        </FlexPageContent>
+        </motion.div>
+
+        {/* ── öğrenci detayı: sağdan gelir ── */}
+        <motion.div initial={false} animate={{ x: showStudentPanel ? 0 : "100%" }} transition={PANEL_T}
+          className="absolute inset-0 overflow-y-auto bg-white flex flex-col">
+          <StudentDetailTabsPanel key={panelPersonId} personId={panelPersonId} className="font-inter pt-6 pb-8" />
+        </motion.div>
         </div>
-        <Footer mini containerClassName="w-full max-w-[1320px] mx-auto px-9" />
+        <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
 
       {/* ====== ÖĞRENCİ EKLE MODAL (grupsuz + bu eğitime ait — arama+seç) ====== */}
@@ -737,7 +798,7 @@ export default function SinifDetayPage() {
                   </div>
 
                   <div style={{ marginTop: 8, paddingTop: 14, borderTop: "1px solid #EEF0F3" }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 3 }}><strong>{group?.code}</strong>'daki kayıt nasıl kapansın?</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 3 }}><strong>{group?.code}</strong>&apos;daki kayıt nasıl kapansın?</div>
                     <div style={{ fontSize: 11.5, color: "#8E95A3", marginBottom: 9 }}>Sistem bunu bilemez — hangisi olduğunu siz seçmelisiniz.</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {([
@@ -773,6 +834,13 @@ export default function SinifDetayPage() {
       )}
 
       {detailPersonId && <StudentDetailModal personId={detailPersonId} onClose={() => setDetailPersonId(null)} />}
+
+      <GroupFormSheet
+        open={showEditSheet}
+        editingGroup={group}
+        onClose={() => setShowEditSheet(false)}
+        onSaved={load}
+      />
     </div>
   );
 }

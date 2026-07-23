@@ -11,16 +11,25 @@
 import React, { useEffect, useState, useCallback, useMemo, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
-import FlexHeader from "../../_components/FlexHeader";
+import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 import { useCapabilities } from "../../_components/useCapabilities";
+import { StudentDetailTabsPanel } from "../../ogrenciler/_shared/StudentDetailTabsPanel";
+
+// Öğrenciye tıklayınca detay paneli sağdan kayarak açılır — Yoklama Detay
+// (`yoklama/detay/page.tsx`) ve Sertifika Notu ile AYNI "liste↔detay kayması"
+// deseni (2026-07-23 kullanıcı isteği).
+const PANEL_T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
 // ── types ──
 interface SaleItem {
   id: string;
+  personId: string;
   date: string;
   studentName: string;
   educationName: string;
@@ -144,6 +153,11 @@ export default function SatisListePage() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
 
+  // ── öğrenci detay paneli (sağdan kayarak) ──
+  const [showStudentPanel, setShowStudentPanel] = useState(false);
+  const [panelPersonId, setPanelPersonId] = useState<string | null>(null);
+  const openStudentPanel = (personId: string) => { setPanelPersonId(personId); setShowStudentPanel(true); };
+
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const u = auth.currentUser;
     const token = u ? await u.getIdToken() : "";
@@ -261,10 +275,23 @@ export default function SatisListePage() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
       <FlexSidebar active="satis-liste" />
-      <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, height: "100%", overflow: "hidden", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
-          maxWidth={1560}
-          left={
+          maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
+          left={showStudentPanel ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+              <button
+                onClick={() => setShowStudentPanel(false)}
+                style={{ width: 46, height: 46, borderRadius: 13, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)", cursor: "pointer", flexShrink: 0 }}
+              >
+                <ArrowLeft size={21} color="#fff" />
+              </button>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Öğrenci Bilgisi</h1>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6F7B87", fontWeight: 500 }}>Satış Listesi / Profil</p>
+              </div>
+            </div>
+          ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               <div style={{ width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" }}>
                 <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg>
@@ -278,10 +305,15 @@ export default function SatisListePage() {
                 <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: "-.4px", color: "#1E222B" }}>Satış Listesi</h1>
               </div>
             </div>
-          }
+          )}
         />
 
-        <div style={{ padding: "28px 36px 56px", maxWidth: 1560, margin: "0 auto", width: "100%", boxSizing: "border-box", flex: 1 }}>
+        {/* `panelArea` — Yoklama Detay'daki AYNI "liste↔detay kayması" deseni:
+            sidebar/header sabit, sadece bu alan içindeki iki panel kayar. */}
+        <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+        <motion.div initial={false} animate={{ x: showStudentPanel ? "-100%" : 0 }} transition={PANEL_T}
+          className="absolute inset-0 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
+        <FlexPageContent className="pt-6 pb-14">
 
           {/* ===== 4 METRİK KART ===== */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 22 }}>
@@ -515,12 +547,15 @@ export default function SatisListePage() {
                         <tr key={s.id} style={{ borderBottom: "1px solid #EEF0F3", opacity: isCancelled ? 0.6 : 1 }}>
                           <td style={S.tdFirst}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtDate(s.date)}</span></td>
                           <td style={S.td}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                            <button
+                              onClick={() => openStudentPanel(s.personId)}
+                              style={{ display: "flex", alignItems: "center", gap: 11, border: "none", background: "transparent", padding: 0, cursor: "pointer", font: "inherit" }}
+                            >
                               <span style={{ width: 32, height: 32, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11.5, fontWeight: 700, background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>
                                 {initials(s.studentName)}
                               </span>
-                              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{s.studentName}</span>
-                            </div>
+                              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#205297", whiteSpace: "nowrap" }}>{s.studentName}</span>
+                            </button>
                           </td>
                           <td style={S.td}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -591,8 +626,16 @@ export default function SatisListePage() {
               </div>
             )}
           </div>
+        </FlexPageContent>
+        </motion.div>
+
+        {/* ── öğrenci detayı: sağdan gelir ── */}
+        <motion.div initial={false} animate={{ x: showStudentPanel ? 0 : "100%" }} transition={PANEL_T}
+          className="absolute inset-0 overflow-y-auto bg-white flex flex-col">
+          <StudentDetailTabsPanel key={panelPersonId} personId={panelPersonId} className="font-inter pt-6 pb-8" />
+        </motion.div>
         </div>
-        <Footer mini containerClassName="w-full max-w-[1560px] mx-auto px-9" />
+        <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
 
       {/* ── İptal Onay Modalı ── */}

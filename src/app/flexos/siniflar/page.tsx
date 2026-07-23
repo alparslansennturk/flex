@@ -14,9 +14,8 @@
  */
 
 import React, { useEffect, useState, useCallback, CSSProperties, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader from "../_components/FlexHeader";
@@ -25,46 +24,21 @@ import Footer from "@/app/components/layout/Footer";
 import { useCapabilities } from "../_components/useCapabilities";
 import EgitmenSiniflarPanel from "./EgitmenSiniflarPanel";
 import GroupTable from "./_shared/GroupTable";
-import { useGroupCatalog, type EducationDoc } from "./_shared/useGroupCatalog";
-import { type DisplayGroup, type GroupApiItem, DAY_ABBR, toDisplayGroup, formatSeansLabel } from "./_shared/groupDisplay";
+import GroupFormSheet from "./_shared/GroupFormSheet";
+import { type DisplayGroup, type GroupApiItem, toDisplayGroup } from "./_shared/groupDisplay";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
-
-type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
 
 export default function SınıflarPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
   const { caps } = useCapabilities();
   const canManageGroups = caps.has("group.create");
 
-  // -- Form state --
-  const [eğitimTipi, setEğitimTipi] = useState<EğitimTipi>("standart");
-  const [fŞube, setFŞube] = useState("");
-  const [fBrans, setFBrans] = useState("");
-  const [fEğitim, setFEğitim] = useState("");
-  const [fBölüm, setFBölüm] = useState("");
-  const [fKod, setFKod] = useState("");
-  const [fTarih, setFTarih] = useState("");
-  const [fEğitmen, setFEğitmen] = useState("");
-  const [fSeansIdx, setFSeansIdx] = useState(-1);
-  const [fDersSaat, setFDersSaat] = useState("");
-  const [fKontenjan, setFKontenjan] = useState("");
-  // Düzenlenen grubun ham schedule'ı — Seans kütüphanesinde eşleşme bulunamazsa (kayıt
-  // sonradan değişmiş/silinmişse, fSeansIdx=-1 kalır) `onSave` bunu geri düşer, "eşleşme
-  // yok" diye grubun GERÇEK gün/saat bilgisini boş diziyle EZMEZ (2026-07-16 gerçek bug fix:
-  // "sınıfı düzenle → kaydet" sonrası seans bilgisi siliniyordu).
-  const [editOrigSchedule, setEditOrigSchedule] = useState<{ days?: number[]; startTime?: string; endTime?: string } | null>(null);
-  const [seansOpen, setSeansOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-
   // -- Liste state --
   const [groups, setGroups] = useState<DisplayGroup[]>([]);
   const [rawGroups, setRawGroups] = useState<GroupApiItem[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
-  const [trainerOptions, setTrainerOptions] = useState<{ id: string; name: string }[]>([]);
-  const [officeOptions, setOfficeOptions] = useState<{ id: string; name: string }[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
@@ -75,18 +49,6 @@ export default function SınıflarPage() {
     const token = user ? await user.getIdToken() : "";
     return { Authorization: `Bearer ${token}` };
   }, []);
-
-  // -- Katalog (Branş→Eğitim→Bölüm cascade + Seans kütüphanesi) — paylaşımlı hook. --
-  const { branches, educations, sections, seanslar, loadingEdu, loadingSec, isSectioned, setEducations, setSections } =
-    useGroupCatalog(fBrans, fEğitim, standaloneMode === false);
-
-  // 2026-07-16 gerçek bug fix: "Toplam Saat" `Group` üzerinde saklanan bir alan DEĞİL — eskiden
-  // formda sahipsiz bir input'tu (hiç kaydedilmiyordu, "96 yazdım ama 0 kaldı" bug'ı). Artık
-  // kataloktan (bölümlü eğitimde Bölüm'ün kendi saati, değilse Eğitim'in toplam saati) OTOMATİK
-  // türetilen salt-okunur bir alan — Bölüm seçilir seçilmez otomatik dolar.
-  const toplamSaat = isSectioned
-    ? sections.find((s) => s.id === fBölüm)?.hours ?? null
-    : educations.find((e) => e.id === fEğitim)?.totalHours ?? null;
 
   // -- grup listesini gerçek API'den yükle --
   const loadGroups = useCallback(async (signal?: AbortSignal) => {
@@ -105,7 +67,7 @@ export default function SınıflarPage() {
     }
   }, [authHeaders]);
 
-  // -- auth + gruplar/eğitmenler yükle --
+  // -- auth + gruplar yükle --
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
@@ -115,7 +77,7 @@ export default function SınıflarPage() {
 
       // Sistem Modu — standaloneMode true ise Operasyon panelini hiç yüklemeden
       // EgitmenSiniflarPanel'e devredilecek (aşağıdaki erken return). Operasyon'a
-      // özel veriler (gruplar/eğitmen) standalone modda hiç çekilmez.
+      // özel veriler (gruplar) standalone modda hiç çekilmez.
       let standalone = false;
       try {
         const hdrs0 = await authHeaders();
@@ -130,194 +92,26 @@ export default function SınıflarPage() {
       if (standalone || ac.signal.aborted) return;
 
       await loadGroups(ac.signal);
-      try {
-        const hdrs = await authHeaders();
-        const trRes = await fetch("/api/flexos/trainers", { headers: hdrs, signal: ac.signal });
-        const trJson = trRes.ok ? await trRes.json() : { items: [] };
-        if (!ac.signal.aborted) {
-          // sadece aktif eğitmenler atanabilir
-          setTrainerOptions(
-            (trJson.items ?? [])
-              .filter((t: { status?: string }) => t.status !== "pasif")
-              .map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })),
-          );
-        }
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") toast.error("Eğitmenler yüklenemedi.");
-      }
-      try {
-        const hdrsO = await authHeaders();
-        const ofRes = await fetch("/api/flexos/branch-offices", { headers: hdrsO, signal: ac.signal });
-        const ofJson = ofRes.ok ? await ofRes.json() : { items: [] };
-        if (!ac.signal.aborted) setOfficeOptions(ofJson.items ?? []);
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") toast.error("Şubeler yüklenemedi.");
-      }
     })();
     return () => ac.abort();
   }, [router, authHeaders, loadGroups]);
 
   // 2026-07-11/12 — grup gerçek-zamanlı senkron: başka bir kullanıcı grup oluşturduğunda/
-  // düzenlediğinde/sildiğinde ya da yeni eğitmen/eğitim eklendiğinde (form dropdown'ları
-  // ve trainerOptions bunlardan türer) SSE üzerinden haber alınır, `loadGroups` tekrar
-  // çağrılır.
+  // düzenlediğinde/sildiğinde ya da yeni eğitmen/eğitim eklendiğinde SSE üzerinden haber
+  // alınır, `loadGroups` tekrar çağrılır.
   useRealtimeSync(["groups.changed", "trainers.changed", "educations.changed"], useCallback(() => { void loadGroups(); }, [loadGroups]));
 
-  // -- seans popup: dışarı tıklama ile kapat --
-  const seansRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!seansOpen) return;
-    const close = (e: MouseEvent) => {
-      if (seansRef.current && !seansRef.current.contains(e.target as Node)) setSeansOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => { document.removeEventListener("mousedown", close); };
-  }, [seansOpen]);
-
-  // -- reset handlers --
-  const onBransChange = (id: string) => { setFBrans(id); setFEğitim(""); setFBölüm(""); setSections([]); };
-  const onEğitimChange = (id: string) => { setFEğitim(id); setFBölüm(""); setSections([]); };
-
-  const resetForm = () => {
-    setFŞube(""); setFBrans(""); setFEğitim(""); setFBölüm(""); setFKod("");
-    setFTarih(""); setFEğitmen(""); setFSeansIdx(-1); setFDersSaat("");
-    setFKontenjan(""); setEğitimTipi("standart");
-    setEditingId(null);
-    setEditOrigSchedule(null);
-  };
-
-  // -- save --
-  const onSave = async () => {
-    if (!fKod.trim()) { toast.error("Grup kodu zorunludur."); return; }
-    setSaving(true);
-
-    const selSeans = fSeansIdx >= 0 ? seanslar[fSeansIdx] : null;
-    // Düzenlemede seçili seans yoksa (kütüphanede eşleşme bulunamadıysa) grubun MEVCUT
-    // gün/saat bilgisine düş — aksi halde `days: []` gönderilip gerçek schedule silinir.
-    const fallbackSchedule = !selSeans ? editOrigSchedule : null;
-
-    const body = {
-      code: fKod.trim(),
-      type: eğitimTipi,
-      educationId: fEğitim || undefined,
-      sectionId: isSectioned && fBölüm ? fBölüm : undefined,
-      branchOfficeId: fŞube || undefined,
-      trainerId: fEğitmen || undefined,
-      seansId: selSeans?.id ?? undefined,
-      schedule: {
-        startDate: fTarih || undefined,
-        days: selSeans?.days ?? fallbackSchedule?.days ?? [],
-        startTime: selSeans?.startTime ?? fallbackSchedule?.startTime ?? undefined,
-        endTime: selSeans?.endTime ?? fallbackSchedule?.endTime ?? undefined,
-        sessionHours: fDersSaat ? Number(fDersSaat) : undefined,
-      },
-      capacity: fKontenjan ? Number(fKontenjan) : undefined,
-    };
-
-    try {
-      const headers = await authHeaders();
-      headers["Content-Type"] = "application/json";
-
-      let res: Response;
-      if (editingId) {
-        // Düzenleme → PATCH
-        res = await fetch(`/api/flexos/groups/${editingId}`, { method: "PATCH", headers, body: JSON.stringify(body) });
-      } else {
-        // Yeni → POST
-        res = await fetch("/api/flexos/groups", { method: "POST", headers, body: JSON.stringify({ ...body, status: "planned" }) });
-      }
-
-      const json = await res.json();
-      if (!res.ok) { toast.error(json.error || (editingId ? "Grup güncellenemedi." : "Grup oluşturulamadı.")); return; }
-      toast.success(editingId ? "Grup başarıyla güncellendi!" : "Grup başarıyla oluşturuldu!");
-      resetForm();
-      setShowForm(false);
-      loadGroups();
-    } catch {
-      toast.error("Sunucu hatası.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // -- edit --
-  const editGroup = (g: DisplayGroup) => {
-    const raw = rawGroups.find((r) => r.id === g.id);
-    setEditingId(g.id);
-    setFKod(g.kod);
-    setFEğitmen(raw?.trainerId || ""); // trainerId artık eğitmen docId'si
-    setFKontenjan(String(g.kontenjan));
-    setFŞube(raw?.branchOfficeId || "");
-    setFTarih(raw?.schedule?.startDate?.split("T")[0] || "");
-    setFDersSaat(raw?.schedule?.sessionHours ? String(raw.schedule.sessionHours) : "");
-    setEditOrigSchedule(raw?.schedule ? { days: raw.schedule.days, startTime: raw.schedule.startTime, endTime: raw.schedule.endTime } : null);
-
-    // seans eşleştir (gün+saat aynı olan seans)
-    if (raw?.schedule?.days?.length && raw.schedule.startTime) {
-      const idx = seanslar.findIndex((s) =>
-        JSON.stringify(s.days) === JSON.stringify(raw.schedule.days) &&
-        s.startTime === raw.schedule.startTime && s.endTime === raw.schedule.endTime
-      );
-      setFSeansIdx(idx);
-    } else {
-      setFSeansIdx(-1);
-    }
-
-    // önce sheet'i aç, sonra async katalog verisi doldur
-    setShowForm(true);
-
-    if (raw?.educationId) {
-      (async () => {
-        try {
-          const hdrs = await authHeaders();
-          const eduRes = await fetch(`/api/flexos/educations/${raw.educationId}`, { headers: hdrs });
-          const eduJson = eduRes.ok ? await eduRes.json() : null;
-          const branchId = eduJson?.item?.branchId;
-          if (branchId) {
-            setFBrans(branchId);
-            const eduListRes = await fetch(`/api/flexos/educations?branchId=${encodeURIComponent(branchId)}`, { headers: hdrs });
-            const eduListJson = eduListRes.ok ? await eduListRes.json() : { items: [] };
-            setEducations(eduListJson.items ?? []);
-            setFEğitim(raw.educationId!);
-
-            const edu = (eduListJson.items ?? []).find((e: EducationDoc) => e.id === raw.educationId);
-            if (edu?.structure === "sectioned") {
-              const secRes = await fetch(`/api/flexos/sections?educationId=${encodeURIComponent(raw.educationId!)}`, { headers: hdrs });
-              const secJson = secRes.ok ? await secRes.json() : { items: [] };
-              setSections(secJson.items ?? []);
-              if (raw.sectionId) setFBölüm(raw.sectionId);
-            }
-          }
-        } catch { /* alanlar boş kalır */ }
-      })();
-    }
-  };
-
-  const cancelEdit = () => { setEditingId(null); resetForm(); setShowForm(false); };
-
-  // Sınıf Detay sayfasındaki "Sınıfı Düzenle" → buraya `?edit=<groupId>` ile döner,
-  // mevcut Düzenle sheet'ini formu ikinci kez yazmadan açar (2026-07-10).
-  const editParamHandled = useRef(false);
-  useEffect(() => {
-    if (editParamHandled.current || groups.length === 0) return;
-    const editId = searchParams.get("edit");
-    if (!editId) return;
-    const match = groups.find((g) => g.id === editId);
-    if (match) { editParamHandled.current = true; editGroup(match); }
-  }, [groups, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // -- seans display --
-  const seansDisplay = fSeansIdx >= 0 && seanslar[fSeansIdx] ? formatSeansLabel(seanslar[fSeansIdx]) : "Seans seçin";
-
-  const isCorporate = eğitimTipi === "kurumsal";
+  // -- edit — form state/katalog artık `GroupFormSheet` içinde, burada sadece hangi
+  // ham grubun düzenlendiğini seçiyoruz. --
+  const editGroup = (g: DisplayGroup) => { setEditingId(g.id); setShowForm(true); };
+  const cancelEdit = () => { setEditingId(null); setShowForm(false); };
+  const editingRawGroup = editingId ? rawGroups.find((r) => r.id === editingId) ?? null : null;
 
   // -- loading guard --
   if (authed === null || standaloneMode === null) return <FlexPageLoader />;
 
   // -- Eğitmen Tek Başına modu: Operasyon paneli yerine eğitmenin kendi ekranı --
   if (standaloneMode === true) return <EgitmenSiniflarPanel />;
-
-  const isEditing = editingId !== null;
 
   return (
     <div style={S.root}>
@@ -362,256 +156,15 @@ export default function SınıflarPage() {
         <Footer mini containerClassName="w-full max-w-[1920px] mx-auto px-9" />
       </main>
 
-      {/* ═══════════ GRUP EKLE / DÜZENLE BOTTOM SHEET ═══════════ */}
-      <AnimatePresence>
-        {showForm && (
-          <>
-            <motion.div key="form-overlay" className="fx-sheet-ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-              onClick={() => { if (!saving) { cancelEdit(); } }} style={{ position: "fixed", top: 0, bottom: 0, zIndex: 80, background: "rgba(15,31,61,.4)" }} />
-            <motion.div key="form-sheet" className="fx-sheet"
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              style={{ position: "fixed", bottom: 0, zIndex: 81, height: "85vh", maxHeight: "85vh", background: "#F7F8FA", borderRadius: "24px 24px 0 0", boxShadow: "0 -24px 60px -12px rgba(15,31,61,.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-              {/* header */}
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, padding: "22px 28px 18px", background: "#F7F8FA" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                  <div style={{ ...S.headIconWrap, background: isEditing ? "#FFF3DC" : "#E2EAF3", color: isEditing ? "#8A5A00" : "#205297" }}>
-                    <span dangerouslySetInnerHTML={{ __html: isEditing ? IC.pencil : IC.plus }} />
-                  </div>
-                  <div>
-                    <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>
-                      {isEditing ? "Grup Düzenle" : "Yeni Grup Oluştur"}
-                    </h2>
-                    <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
-                      {isEditing ? "Secili grubun bilgilerini guncelleyin." : "Yeni bir sinif grubu oluşturun."}
-                    </p>
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {isEditing && (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: "#FFF3DC", color: "#8A5A00", fontSize: 12.5, fontWeight: 700 }}>
-                      <span dangerouslySetInnerHTML={{ __html: IC.pencilSm }} />
-                      {fKod} düzenleniyor
-                    </span>
-                  )}
-                  <button onClick={() => { if (!saving) cancelEdit(); }} className="sg-iconbtn" style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6F7B87", flex: "0 0 auto" }}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.xMark }} />
-                  </button>
-                </div>
-              </div>
-
-              {/* scrollable body */}
-              <div style={{ flex: 1, overflowY: "auto", padding: "0 28px 32px" }}>
-                {/* Eğitim Formatı segmented */}
-                <div style={{ marginBottom: 24 }}>
-                  <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#414B59", letterSpacing: ".04em", marginBottom: 9 }}>Eğitim Formatı</span>
-                  <div style={{ display: "flex", gap: 11, flexWrap: "wrap" }}>
-                    {([
-                      { key: "standart" as EğitimTipi, label: "Grup (standart)", icon: IC.usersSmall },
-                      { key: "ozel_ders" as EğitimTipi, label: "Özel Ders", icon: IC.userSingle },
-                      { key: "kurumsal" as EğitimTipi, label: "Kurumsal Eğitim", icon: IC.buildingSm },
-                    ]).map((t) => {
-                      const active = eğitimTipi === t.key;
-                      return (
-                        <button key={t.key} onClick={() => setEğitimTipi(t.key)} style={segStyle(active)}>
-                          <span style={segCheck(active)}>{active && <span dangerouslySetInnerHTML={{ __html: IC.checkTiny }} />}</span>
-                          <span dangerouslySetInnerHTML={{ __html: t.icon }} />
-                          <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* corporate notice */}
-                {isCorporate && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 13, padding: "18px 20px", borderRadius: 14, background: "#FFF3DC", border: "1px solid #FFE2A8" }}>
-                    <span style={{ flex: "0 0 auto", marginTop: 1 }} dangerouslySetInnerHTML={{ __html: IC.info }} />
-                    <div>
-                      <div style={{ fontSize: 14.5, fontWeight: 700, color: "#8A5A00" }}>Kurumsal eğitim akisi ayri tasarlanacak</div>
-                      <div style={{ fontSize: 13, color: "#8A5A00", opacity: 0.85, marginTop: 3, lineHeight: 1.5 }}>Kurumsal eğitimlerde firma bilgileri, sozlesme ve ozel fiyatlandirma alanlari farklidir. Bu form su an Grup ve Özel Ders icin hazirdir.</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* standard form */}
-                {!isCorporate && (
-                  <div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "18px 20px" }}>
-                      {/* Şube */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Şube</span>
-                        <SelectW>
-                          <select value={fŞube} onChange={(e) => setFŞube(e.target.value)} style={S.sel}>
-                            <option value="">Şube seçin</option>
-                            {officeOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                          </select>
-                        </SelectW>
-                      </label>
-
-                      {/* Branş */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Branş</span>
-                        <SelectW>
-                          <select value={fBrans} onChange={(e) => onBransChange(e.target.value)} style={S.sel}>
-                            <option value="">Branş seçin</option>
-                            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                          </select>
-                        </SelectW>
-                      </label>
-
-                      {/* Eğitim */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Eğitim</span>
-                        <SelectW>
-                          <select value={fEğitim} onChange={(e) => onEğitimChange(e.target.value)} disabled={!fBrans || loadingEdu}
-                            style={{ ...S.sel, background: !fBrans ? "#f1f5f9" : "#fff", cursor: !fBrans ? "not-allowed" : "pointer" }}>
-                            <option value="">{loadingEdu ? "Yükleniyor..." : educations.length ? "Eğitim seçin" : !fBrans ? "Önce branş seçin" : "Bu branşta eğitim yok"}</option>
-                            {educations.map((ed) => <option key={ed.id} value={ed.id}>{ed.name}</option>)}
-                          </select>
-                        </SelectW>
-                      </label>
-
-                      {/* Bölüm (conditional) */}
-                      {isSectioned && (
-                        <label style={S.fieldWrap}>
-                          <span style={S.lbl}>Bölüm</span>
-                          <SelectW>
-                            <select value={fBölüm} onChange={(e) => setFBölüm(e.target.value)} disabled={loadingSec}
-                              style={{ ...S.sel, cursor: loadingSec ? "not-allowed" : "pointer" }}>
-                              <option value="">{loadingSec ? "Yükleniyor..." : sections.length ? "Bölüm seçin" : "Bölüm bulunamadı"}</option>
-                              {sections.sort((a, b) => a.order - b.order).map((sec) => <option key={sec.id} value={sec.id}>{sec.name}</option>)}
-                            </select>
-                          </SelectW>
-                        </label>
-                      )}
-
-                      {/* Grup Kodu */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Grup Kodu</span>
-                        <input value={fKod} onChange={(e) => setFKod(e.target.value)} placeholder="örn. GRP-251" style={S.inp} />
-                      </label>
-
-                      {/* Başlangıç Tarihi */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Başlangıç Tarihi</span>
-                        <input type="date" value={fTarih} onChange={(e) => setFTarih(e.target.value)} style={S.inp} />
-                      </label>
-
-                      {/* Eğitmen (opsiyonel) */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Eğitmen <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
-                        <SelectW>
-                          <select value={fEğitmen} onChange={(e) => setFEğitmen(e.target.value)} style={S.sel}>
-                            <option value="">{trainerOptions.length ? "Eğitmen seçin" : "Eğitmen yok — önce Eğitmenler'den ekleyin"}</option>
-                            {trainerOptions.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                          </select>
-                        </SelectW>
-                      </label>
-
-                      {/* Seans (custom dropdown) */}
-                      <div ref={seansRef} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7 }}>
-                        <span style={S.lbl}>Seans</span>
-                        <button onClick={() => setSeansOpen((o) => !o)} className="sg-seans-btn" style={S.seansBtn}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-                            <span dangerouslySetInnerHTML={{ __html: IC.clockGray }} />
-                            <span style={{ fontSize: 14, fontWeight: 500, color: fSeansIdx >= 0 ? "#1E222B" : "#AEB4C0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{seansDisplay}</span>
-                          </span>
-                          <span dangerouslySetInnerHTML={{ __html: IC.chevDownGray }} />
-                        </button>
-                        {seansOpen && (
-                          <div style={S.seansPopup}>
-                            {seanslar.length === 0 && (
-                              <div style={{ padding: "14px 11px", fontSize: 13, color: "#8E95A3", textAlign: "center" }}>Henüz seans eklenmemiş. Eğitim Ayarları → Seans Yönetimi&apos;nden ekleyin.</div>
-                            )}
-                            {seanslar.map((se, i) => {
-                              const active = fSeansIdx === i;
-                              const daysStr = se.days.map((d) => DAY_ABBR[d] ?? "?").join(" - ");
-                              return (
-                                <div key={se.id} onClick={() => { setFSeansIdx(i); setSeansOpen(false); }}
-                                  className="sg-seans-row" style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: active ? "#EFF3FA" : "transparent" }}>
-                                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 9px", borderRadius: 7, whiteSpace: "nowrap", flex: "0 0 auto" }}>{daysStr}</span>
-                                  <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "#414B59" }}>{se.startTime} - {se.endTime}</span>
-                                  {active && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Ders Saati */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Ders Saati</span>
-                        <span style={{ position: "relative", display: "flex" }}>
-                          <input type="number" value={fDersSaat} onChange={(e) => setFDersSaat(e.target.value)} placeholder="örn. 3" style={{ ...S.inp, paddingRight: 80 }} />
-                          <span style={S.suffix}>saat/ders</span>
-                        </span>
-                      </label>
-
-                      {/* Toplam Saat — kataloktan (Bölüm/Eğitim) otomatik, salt-okunur */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Toplam Saat</span>
-                        <span style={{ position: "relative", display: "flex" }}>
-                          <input type="text" readOnly value={toplamSaat ?? "—"} placeholder="0"
-                            style={{ ...S.inp, paddingRight: 56, background: "#F7F8FA", color: "#6F7B87", cursor: "default" }} />
-                          <span style={S.suffix}>saat</span>
-                        </span>
-                      </label>
-
-                      {/* Kontenjan */}
-                      <label style={S.fieldWrap}>
-                        <span style={S.lbl}>Kontenjan</span>
-                        <span style={{ position: "relative", display: "flex" }}>
-                          <input type="number" value={fKontenjan} onChange={(e) => setFKontenjan(e.target.value)} placeholder="0" style={{ ...S.inp, paddingRight: 52 }} />
-                          <span style={S.suffix}>kişi</span>
-                        </span>
-                      </label>
-                    </div>
-
-                    {/* Actions */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginTop: 26, paddingTop: 20, borderTop: "1px solid #EEF0F3" }}>
-                      <button className="sg-cancel" onClick={isEditing ? cancelEdit : resetForm} style={S.cancelBtn}>
-                        {isEditing ? "Vazgeç" : "Temizle"}
-                      </button>
-                      <button className="sg-save" onClick={onSave} disabled={saving} style={{ ...S.saveBtn, opacity: saving ? 0.7 : 1, pointerEvents: saving ? "none" : "auto" }}>
-                        <span dangerouslySetInnerHTML={{ __html: isEditing ? IC.saveFloppy : IC.plusWhite }} />
-                        {saving ? "Kaydediliyor..." : isEditing ? "Değişiklikleri Kaydet" : "Grubu Oluştur"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <GroupFormSheet
+        open={showForm}
+        editingGroup={editingRawGroup}
+        onClose={cancelEdit}
+        onSaved={loadGroups}
+      />
     </div>
   );
 }
-
-// -- Helper components --
-function SelectW({ children }: { children: React.ReactNode }) {
-  return (
-    <span style={{ position: "relative", display: "flex" }}>
-      {children}
-      <span style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", display: "flex" }} dangerouslySetInnerHTML={{ __html: IC.chevDownGray }} />
-    </span>
-  );
-}
-
-// -- Style helpers --
-const segStyle = (active: boolean): CSSProperties => ({
-  display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: 10, cursor: "pointer",
-  fontFamily: "inherit", transition: "all .14s", border: active ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA",
-  background: active ? "#EFF3FA" : "#fff", color: active ? "#205297" : "#6F7B87",
-});
-
-const segCheck = (active: boolean): CSSProperties => ({
-  width: 15, height: 15, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto",
-  background: active ? "#2867bd" : "transparent", border: active ? "none" : "1.5px solid #CDD2DA",
-});
 
 // -- Styles --
 const S: Record<string, CSSProperties> = {

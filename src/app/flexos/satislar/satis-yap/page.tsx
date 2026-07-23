@@ -111,6 +111,8 @@ export default function SatisYapPage() {
   const [loadingBundles, setLoadingBundles] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignDoc[]>([]);
   const [nthApplied, setNthApplied] = useState(false); // ek kayıt indirimi otomatik uygulandı mı
+  // TC no eşleşen mevcut kişi — satıcıya "zaten kayıtlı" bilgisini göstermek için (2026-07-23)
+  const [existingPerson, setExistingPerson] = useState<{ name: string; enrollments: { educationName: string; statusLabel: string }[] } | null>(null);
 
   // ── katalog verisi (GET'ten) ──
   const [branches, setBranches] = useState<BranchDoc[]>([]);
@@ -175,16 +177,20 @@ export default function SatisYapPage() {
   }, [authed, brans, authHeaders]);
 
   // TC 11 hane tamamlanınca → kişi var mı? Ek Kayıt İndirimi kampanyası otomatik uygula
+  // + satıcıya "bu kişi zaten kayıtlı, hangi eğitim(ler)de" bilgisini göster (2026-07-23)
   useEffect(() => {
     const digits = tcNo.replace(/\D/g, "");
-    if (!authed || digits.length !== 11 || !campaigns.length) return;
+    if (!authed || digits.length !== 11) { setExistingPerson(null); return; }
     const ac = new AbortController();
     (async () => {
       try {
         const res = await fetch(`/api/flexos/persons/lookup?idNo=${digits}`, { headers: await authHeaders(), signal: ac.signal });
         if (!res.ok || ac.signal.aborted) return;
-        const data: { found: boolean; saleDates?: string[] } = await res.json();
-        if (!data.found || !data.saleDates) return;
+        const data: { found: boolean; name?: string; saleDates?: string[]; enrollments?: { educationName: string; statusLabel: string }[] } = await res.json();
+        if (!data.found) { setExistingPerson(null); return; }
+        setExistingPerson({ name: data.name ?? "", enrollments: data.enrollments ?? [] });
+
+        if (!data.saleDates || !campaigns.length) return;
         const today = new Date().toISOString().slice(0, 10);
         // kampanya tarih aralığında yapılmış önceki satışları say
         const nthCamp = campaigns.find((c) => {
@@ -580,7 +586,7 @@ export default function SatisYapPage() {
                       <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>Yabancı Uyruklu</span>
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 26 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: existingPerson ? 12 : 26 }}>
                     <div style={{ opacity: isTc ? 1 : 0.5 }}>
                       <Label withLock={isYabanci}>T.C. Kimlik No</Label>
                       <input type="text" maxLength={11} value={tcNo} onChange={(e) => setTcNo(e.target.value)} disabled={isYabanci} placeholder="11 haneli kimlik no"
@@ -592,6 +598,22 @@ export default function SatisYapPage() {
                         style={{ ...S.input, background: isYabanci ? "#f8fafc" : "#f1f5f9", cursor: isYabanci ? "text" : "not-allowed" }} />
                     </div>
                   </div>
+
+                  {existingPerson && (
+                    <div style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "13px 16px", borderRadius: 12, background: "#eff6ff", border: "1px solid #bfdbfe", marginBottom: 26 }}>
+                      <span style={{ color: "#2563eb", marginTop: 1, flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: IC.infoCircle }} />
+                      <div style={{ fontSize: 13, color: "#1e40af", lineHeight: 1.5 }}>
+                        <strong>{existingPerson.name || "Bu kişi"} sistemde kayıtlı.</strong>{" "}
+                        {existingPerson.enrollments.length > 0 ? (
+                          <>Daha önce/hâlen: {existingPerson.enrollments.map((e, i) => (
+                            <span key={i}>{i > 0 ? ", " : ""}{e.educationName} ({e.statusLabel})</span>
+                          ))}. Yeni bir eğitim için satışa normal şekilde devam edebilirsiniz.</>
+                        ) : (
+                          <>Önceki kayıtlarında aktif bir eğitim görünmüyor. Satışa normal şekilde devam edebilirsiniz.</>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* 18 yaş altı — öğrenci adı listeye gider; sözleşme veli adına (framer-motion açılır/kapanır) */}
                   <AnimatePresence initial={false}>
@@ -1265,6 +1287,7 @@ const IC = {
   lockTiny: sv('<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', 'width="12" height="12" stroke="#94a3b8" stroke-width="2.3"'),
   chevDownGray: sv('<path d="m6 9 6 6 6-6"/>', 'width="17" height="17" stroke="#94a3b8" stroke-width="2.3"'),
   alert: sv('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>', 'width="18" height="18" stroke="currentColor"'),
+  infoCircle: sv('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>', 'width="17" height="17" stroke="currentColor"'),
   box: sv('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>', 'width="18" height="18" stroke="currentColor"'),
   boxBig: sv('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>', 'width="24" height="24" stroke="currentColor" stroke-width="1.8"'),
   bookSm: sv('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>', 'width="18" height="18" stroke="currentColor"'),

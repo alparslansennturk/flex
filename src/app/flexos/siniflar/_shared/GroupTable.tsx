@@ -8,7 +8,7 @@
  *
  * `mode="core"` iken Eğitmen/Şube/doluluk-bar gizlenir (öğrenci sayısı düz metin).
  */
-import React, { useCallback, useMemo, useState, CSSProperties } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, CSSProperties } from "react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { FlexSpinner } from "../../_components/FlexSpinner";
@@ -58,6 +58,19 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
   const [finishId, setFinishId] = useState<string | null>(null);
   const [reopenId, setReopenId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Doluluk çubuğu: sayfaya ilk girişte 0'dan gerçek yüzdeye dolarak açılır
+  // (2026-07-23 kullanıcı isteği). Sadece İLK veri gelişinde bir kere oynar —
+  // sonraki polling/refetch'lerde (`groups` prop'u güncellenince) tekrar
+  // baştan başlamaz, sadece değer güncellenir.
+  const [revealed, setRevealed] = useState(false);
+  const revealedOnceRef = useRef(false);
+  useEffect(() => {
+    if (loading || revealedOnceRef.current) return;
+    revealedOnceRef.current = true;
+    const raf = requestAnimationFrame(() => setRevealed(true));
+    return () => cancelAnimationFrame(raf);
+  }, [loading]);
 
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const user = auth.currentUser;
@@ -232,7 +245,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                         {byGroup ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 80 }}>
                             <div style={{ width: 36, height: 5, borderRadius: 999, background: "#EEF0F3", overflow: "hidden", flex: "0 0 auto" }}>
-                              <div style={{ height: "100%", width: `${Math.min(100, pct)}%`, borderRadius: 999, background: barColor, transition: "width .3s" }} />
+                              <div style={{ height: "100%", width: `${revealed ? Math.min(100, pct) : 0}%`, borderRadius: 999, background: barColor, transition: "width .8s cubic-bezier(.4,0,.2,1)" }} />
                             </div>
                             <span style={{ fontSize: 12, fontWeight: 800, color: "#1E222B", whiteSpace: "nowrap" }}>{g.dolu}<span style={{ color: "#AEB4C0", fontWeight: 600 }}>/{g.kontenjan}</span></span>
                           </div>
@@ -368,7 +381,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                         <span style={{ fontSize: 13, fontWeight: 800, color: "#1E222B" }}>{g.dolu}<span style={{ color: "#AEB4C0", fontWeight: 600 }}>/{g.kontenjan}</span></span>
                       </div>
                       <div style={{ height: 8, borderRadius: 999, background: "#EEF0F3", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${Math.min(100, pct)}%`, borderRadius: 999, background: barColor, transition: "width .3s" }} />
+                        <div style={{ height: "100%", width: `${revealed ? Math.min(100, pct) : 0}%`, borderRadius: 999, background: barColor, transition: "width .8s cubic-bezier(.4,0,.2,1)" }} />
                       </div>
                     </>
                   ) : (
