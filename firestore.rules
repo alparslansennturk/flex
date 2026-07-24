@@ -499,6 +499,10 @@ service cloud.firestore {
     // Sertifika/ödev notları — server-only (Admin SDK), gated grade-service.ts (grade.read/write).
     match /flexos_grades/{id} { allow read, write: if false; }
 
+    // Geliştirici Notları (2026-07-25) — tamamen dahili, server-only (Admin SDK),
+    // dev-note-service.ts view.toggle (SADECE owner) ile gated.
+    match /flexos_dev_notes/{id} { allow read, write: if false; }
+
     // Sertifika hesaplama ayarı (odevAktif/sertifikaPct) — server-only, yazma `certificate.settings.write` gated.
     match /flexos_certificate_settings/{id} { allow read, write: if false; }
 

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader from "../_components/FlexHeader";
+import { useCapabilities } from "../_components/useCapabilities";
 import FlexModal from "../_components/FlexModal";
 import Footer from "@/app/components/layout/Footer";
 import { useRoleDefs } from "./_shared/useRoleDefs";
@@ -112,6 +113,19 @@ export default function KullanicilarPage() {
   const [rolDD, setRolDD] = useState(false);
   const [subeDD, setSubeDD] = useState(false);
   const [statusDD, setStatusDD] = useState(false);
+
+  // Şube filtresi varsayılanı (2026-07-25 kullanıcı isteği — Satış Listesi/Öğrenci
+  // Havuzu/Eğitmenler ile AYNI desen): açılışta kullanıcının KENDİ şubesi
+  // ön-seçili gelir, "Tümü"ne ya da başka bir şubeye serbestçe geçilebilir —
+  // erişim kısıtlaması DEĞİL, sadece varsayılan filtre; sadece İLK yüklemede set edilir.
+  const { officeName: myOfficeName } = useCapabilities();
+  const [subeFilterInitialized, setSubeFilterInitialized] = useState(false);
+  useEffect(() => {
+    if (!subeFilterInitialized && myOfficeName) {
+      setSubeFilter(myOfficeName);
+      setSubeFilterInitialized(true);
+    }
+  }, [myOfficeName, subeFilterInitialized]);
 
   const [students, setStudents] = useState<StudentUserItem[]>([]);
   const [stuSearch, setStuSearch] = useState("");

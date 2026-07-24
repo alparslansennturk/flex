@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, CSSProperties
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { FlexSpinner } from "../../_components/FlexSpinner";
+import { useCapabilities } from "../../_components/useCapabilities";
 import {
   type DisplayGroup, type GroupStatus,
   STATUS_MAP, BRANS_COLORS, BRANS_FALLBACK,
@@ -58,6 +59,52 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
   const [finishId, setFinishId] = useState<string | null>(null);
   const [reopenId, setReopenId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Şube filtresi (2026-07-25 kullanıcı isteği — Satış Listesi/Öğrenci Havuzu/
+  // Eğitmenler/Kullanıcılar'daki AYNI desen): açılışta kullanıcının KENDİ şubesi
+  // ön-seçili gelir, "Tümü"ne ya da başka bir şubeye serbestçe geçilebilir — erişim
+  // kısıtlaması DEĞİL, sadece varsayılan filtre. SADECE `mode==="full"` (byGroup)
+  // — Core'da (eğitmen standalone) Şube kolonu zaten gizli, filtreye de gerek yok.
+  const { officeName: myOfficeName } = useCapabilities();
+  const [subeFilter, setSubeFilter] = useState("Tümü");
+  const [subeFilterInitialized, setSubeFilterInitialized] = useState(false);
+  const [subeDD, setSubeDD] = useState(false);
+  const subeDDRef = useRef<HTMLDivElement>(null);
+  // Şube seçenekleri (2026-07-25 kullanıcı bulgusu: sadece o an YÜKLÜ gruplardan
+  // türetilince az grubu olan/hiç grubu olmayan şubeler dropdown'da HİÇ görünmüyordu,
+  // ör. "Şirinevler"/"Pendik" — o sayfa yüklemesinde o şubeden grup yoksa filtrelenemez
+  // oluyordu). Diğer sayfalarla (Havuz/Satış Listesi) AYNI kaynak: TÜM şube listesi
+  // `/api/flexos/branch-offices`'tan — grubu olsun olmasın her şube seçilebilir.
+  const [officeNames, setOfficeNames] = useState<string[]>([]);
+  useEffect(() => {
+    if (mode !== "full") return;
+    (async () => {
+      try {
+        const user = auth.currentUser;
+        const token = user ? await user.getIdToken() : "";
+        const res = await fetch("/api/flexos/branch-offices", { headers: { Authorization: `Bearer ${token}` } });
+        const json = res.ok ? await res.json() : { items: [] };
+        setOfficeNames((json.items ?? []).map((o: { name: string }) => o.name));
+      } catch {
+        setOfficeNames([]);
+      }
+    })();
+  }, [mode]);
+  useEffect(() => {
+    if (!subeFilterInitialized && myOfficeName) {
+      // Sadece İLK yüklemede kendi şubeye set edilir (`subeFilterInitialized` guard),
+      // sonra kullanıcı seçimi asla ezilmez — `satis-liste/page.tsx`'teki AYNI desen.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSubeFilter(myOfficeName);
+      setSubeFilterInitialized(true);
+    }
+  }, [myOfficeName, subeFilterInitialized]);
+  useEffect(() => {
+    if (!subeDD) return;
+    const onClick = (e: MouseEvent) => { if (!subeDDRef.current?.contains(e.target as Node)) setSubeDD(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [subeDD]);
 
   // Doluluk çubuğu: sayfaya ilk girişte 0'dan gerçek yüzdeye dolarak açılır
   // (2026-07-23 kullanıcı isteği). Sadece İLK veri gelişinde bir kere oynar —
@@ -110,15 +157,31 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
     }
   };
 
+  // Şube listesi: TÜM şubeler (`officeNames`) + o an yüklü gruplardan gelen isimler
+  // birleştirilir (eski/silinmiş bir şube referansı varsa bile filtrelenebilsin diye).
+  const subeList = useMemo(() => {
+    const set = new Set<string>(officeNames);
+    groups.forEach((g) => { if (g.şube && g.şube !== "—") set.add(g.şube); });
+    return ["Tümü", ...Array.from(set).sort((a, b) => a.localeCompare(b, "tr"))];
+  }, [officeNames, groups]);
+
+  // Durum rozetlerindeki sayılar şube filtresine göre de süzülmüş listeyi
+  // yansıtır (2026-07-25) — "Aktif (12)" şube seçiliyken SADECE o şubedeki
+  // aktif grupları saymalı, yoksa kafa karıştırıcı olurdu.
+  const subeScopedGroups = useMemo(
+    () => (mode === "full" && subeFilter !== "Tümü" ? groups.filter((g) => g.şube === subeFilter) : groups),
+    [groups, mode, subeFilter],
+  );
+
   const filtered = useMemo(() => {
-    if (groupFilter === "hepsi") return groups;
+    if (groupFilter === "hepsi") return subeScopedGroups;
     if (mode === "core") {
-      if (groupFilter === "aktif") return groups.filter((g) => CORE_ACTIVE_STATUSES.includes(g.status));
-      if (groupFilter === "arsiv") return groups.filter((g) => CORE_ARCHIVE_STATUSES.includes(g.status));
-      return groups;
+      if (groupFilter === "aktif") return subeScopedGroups.filter((g) => CORE_ACTIVE_STATUSES.includes(g.status));
+      if (groupFilter === "arsiv") return subeScopedGroups.filter((g) => CORE_ARCHIVE_STATUSES.includes(g.status));
+      return subeScopedGroups;
     }
-    return groups.filter((g) => g.status === groupFilter);
-  }, [groups, groupFilter, mode]);
+    return subeScopedGroups.filter((g) => g.status === groupFilter);
+  }, [subeScopedGroups, groupFilter, mode]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -126,16 +189,16 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
   const pageGroups = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
   const counts = useMemo(() => {
-    const c: Record<FilterKey, number> = { hepsi: groups.length, açılacak: 0, aktif: 0, tamamlandı: 0, iptal: 0 };
-    groups.forEach((g) => { c[g.status]++; });
+    const c: Record<FilterKey, number> = { hepsi: subeScopedGroups.length, açılacak: 0, aktif: 0, tamamlandı: 0, iptal: 0 };
+    subeScopedGroups.forEach((g) => { c[g.status]++; });
     return c;
-  }, [groups]);
+  }, [subeScopedGroups]);
 
   const coreCounts = useMemo(() => ({
-    hepsi: groups.length,
-    aktif: groups.filter((g) => CORE_ACTIVE_STATUSES.includes(g.status)).length,
-    arsiv: groups.filter((g) => CORE_ARCHIVE_STATUSES.includes(g.status)).length,
-  }), [groups]);
+    hepsi: subeScopedGroups.length,
+    aktif: subeScopedGroups.filter((g) => CORE_ACTIVE_STATUSES.includes(g.status)).length,
+    arsiv: subeScopedGroups.filter((g) => CORE_ARCHIVE_STATUSES.includes(g.status)).length,
+  }), [subeScopedGroups]);
 
   const findGroup = (id: string | null) => (id === null ? undefined : groups.find((g) => g.id === id));
   const byGroup = mode === "full";
@@ -169,6 +232,30 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
             );
           })}
         </div>
+        {/* Şube filtresi (2026-07-25) — SADECE Full/byGroup (Core'da Şube kolonu
+            zaten gizli). Varsayılan kullanıcının kendi şubesi (yukarıdaki effect). */}
+        {mode === "full" && (
+          <div ref={subeDDRef} style={{ position: "relative" }}>
+            <button onClick={() => setSubeDD((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 13px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap" }}>
+              <span dangerouslySetInnerHTML={{ __html: IC.mapPin }} />
+              <span style={{ color: "#8E95A3", fontWeight: 500 }}>Şube:</span><span>{subeFilter}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8E95A3" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {subeDD && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 20, minWidth: 170, maxHeight: 280, overflowY: "auto", background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 8px 24px -4px rgba(15,31,61,.12)", padding: 6 }}>
+                {subeList.map((s) => {
+                  const selected = subeFilter === s;
+                  return (
+                    <button key={s} onClick={() => { setSubeFilter(s); setSubeDD(false); setPage(1); }}
+                      style={{ display: "block", width: "100%", padding: "9px 12px", borderRadius: 8, border: "none", background: selected ? "#DDE8F8" : "transparent", color: selected ? "#205297" : "#414B59", fontSize: 13.5, fontWeight: selected ? 700 : 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {/* Core: sadece kart görünümü (canlıdaki gibi) — toggle yok. */}
         {mode === "full" && (
           <div style={{ display: "inline-flex", padding: 4, borderRadius: 11, background: "#fff", border: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
@@ -243,7 +330,10 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                       <td style={{ ...S.td, paddingLeft: 18 }}><span style={{ fontSize: 12.5, color: "#414B59", fontWeight: 600, whiteSpace: "nowrap" }}>{g.tarih}</span></td>
                       <td style={{ ...S.td, paddingLeft: 18 }}>
                         {byGroup ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 80 }}>
+                          // 2026-07-25 kullanıcı isteği: kolon genişliğine dokunmadan (colgroup
+                          // denemesi Eğitim'i 3 satıra düşürdüğü için geri alındı) içerik sağa
+                          // yaslandı — Durum sütununa yaklaşır, solundaki boşluk büyür.
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 7, minWidth: 80, marginLeft: "auto" }}>
                             <div style={{ width: 36, height: 5, borderRadius: 999, background: "#EEF0F3", overflow: "hidden", flex: "0 0 auto" }}>
                               <div style={{ height: "100%", width: `${revealed ? Math.min(100, pct) : 0}%`, borderRadius: 999, background: barColor, transition: "width .8s cubic-bezier(.4,0,.2,1)" }} />
                             </div>

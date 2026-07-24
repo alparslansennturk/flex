@@ -513,6 +513,26 @@ export async function hideConversationForMe(
   await deps.conversations.saveMember(conversationId, { ...member, hiddenAtMessageCount: conversation.messageCount ?? 0 });
 }
 
+/**
+ * "Sohbeti Temizle" (2026-07-25, kullanıcı isteği — "sadece bende") — WhatsApp'taki
+ * "Sohbeti Temizle" gibi SADECE BENDE mesaj geçmişini gizler, konuşmanın kendisi
+ * listede/normal görünümde KALIR (bkz. `ConnectMember.clearedAt` yorumu).
+ * `hideConversationForMe`'nin aksine `type==="dm"` veya personel kısıtı YOK —
+ * yıkıcı olmayan kişisel bir görünüm tercihi, herkes her konuşma tipini
+ * temizleyebilir.
+ */
+export async function clearConversationForMe(
+  principal: ConnectPrincipal,
+  conversationId: string,
+  deps: ConnectDeps,
+): Promise<void> {
+  const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+  if (!conversation) throw new ValidationError("Konuşma bulunamadı.");
+  const member = await deps.conversations.getMember(conversationId, principal.uid);
+  if (!member) throw new ValidationError("Bu konuşmanın üyesi değilsin.");
+  await deps.conversations.saveMember(conversationId, { ...member, clearedAt: nowISO() });
+}
+
 /** Mesaj gönder — `writePolicy` uygulanır (channel=admins, group/dm/community=members). */
 export async function sendMessage(
   principal: ConnectPrincipal,
@@ -574,7 +594,10 @@ export async function listMessages(
   assertCanRead(conversation, member);
   const messages = await deps.conversations.listMessages(conversationId, limit);
   // "Benim için sil" — SADECE bu çağıranın görünümünden kaybolur, mesaj bozulmaz.
-  return messages.filter((m) => !m.hiddenFor?.includes(principal.uid));
+  const visible = messages.filter((m) => !m.hiddenFor?.includes(principal.uid));
+  // "Sohbeti Temizle" (2026-07-25) — `member.clearedAt`'ten ÖNCEKİ mesajlar bu
+  // çağıran için gizlenir, karşı taraf etkilenmez (bkz. `clearConversationForMe`).
+  return member?.clearedAt ? visible.filter((m) => m.createdAt > member.clearedAt!) : visible;
 }
 
 /**

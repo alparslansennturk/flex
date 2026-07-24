@@ -80,9 +80,6 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   const salesActive = active === "satis-yap" || active === "satis-liste" || active === "paket-yonetimi" || active === "kampanya-yonetimi" || active === "randevu-takvimi";
   const [salesOpen, setSalesOpen] = useState(salesActive);
 
-  const aktiviteActive = active === "aktivite-merkezi" || active === "aktiviteler";
-  const [aktiviteOpen, setAktiviteOpen] = useState(aktiviteActive);
-
   const yoklamaActive = active === "yoklamalar" || active === "yoklama-al" || active === "yoklama-detay" || active === "yoklama-raporu";
   const [yoklamaOpen, setYoklamaOpen] = useState(yoklamaActive);
 
@@ -356,7 +353,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             Core'dan çıkmadan halledebilsin diye. */}
         {(canSee("education.create", false) || canSee("branch.create", true)) && (
           <>
-            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !eduOpen; setEduOpen(opening); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !eduOpen; setEduOpen(opening); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: eduActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.book }} />
               <span style={{ flex: 1 }}>Eğitim Yönetimi</span>
               <motion.span
@@ -393,7 +390,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             dahil KİMSE görmez — Satış katmanı standalone kurulumda anlamsız. */}
         {!standaloneMode && (canSee("sale.create", false) || canSee("sale.read", false) || canSee("bundle.read", false) || canSee("campaign.read", false)) && (
           <>
-            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !salesOpen; setSalesOpen(opening); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !salesOpen; setSalesOpen(opening); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
               <span style={{ flex: 1 }}>Satışlar</span>
               <motion.span
@@ -426,6 +423,17 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
+        {/* Aktivite Merkezi — TEK link (2026-07-25 kullanıcı isteği: akordiyonun içinde
+            tek bir alt-öğe "Aktiviteler" vardı, gereksiz katman kaldırıldı — Eğitmenler/
+            Sınıflar gibi doğrudan `<Item>`). Enterprise: sadece Full. Standalone'da
+            (2026-07-11) admin dahil kimse görmez — Satış/Op pipeline'ı standalone'da yok. */}
+        {!standaloneMode && canSee("case.read", false) && (
+          <Item icon={IC.activity} label="Aktivite Merkezi" active={active === "aktiviteler" || active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
+        )}
+
+        {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür.
+            2026-07-25 kullanıcı kararı: Sınıflar artık Öğrenciler'den ÖNCE. */}
+        {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
         {/* Öğrenci Havuzu = admin/satış/operasyon işi — eğitmen (Full'da da Core sistem
             modunda da) burayı hiç görmez, kendi öğrencilerini Sınıflar'daki "Öğrencilerim"
             bölümünden ekler/görür. `person.read` eğitmen paketinde (hiçbir modda) yok.
@@ -435,8 +443,14 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             kullanıcı kararı) ayrı bir Öğrenci Havuzu YOK — öğrenci listesi Sınıflar'ın
             içinde (Classroom mantığı), admin dahil kimse bu linki görmez. */}
         {!standaloneMode && canSee("person.read", false) && <Item icon={IC.users} label="Öğrenciler" active={active === "ogrenci-havuzu"} onClick={go("/flexos/ogrenciler/havuz")} />}
-        {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür. */}
-        {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
+
+        {/* Eğitmenler — tam CRUD sayfa (/flexos/egitmenler, müsaitlik/ücret/not).
+            2026-07-10'da Kullanıcılar'ın sekmesine taşınmıştı, kullanıcı geri istedi
+            ("Eğitmenler diye başlı başına bir menü vardı orada") — Kullanıcılar'daki
+            "Eğitmenler" sekmesi (hafif özet) AYRICA duruyor, bu ikisi farklı görünümler.
+            2026-07-25: Ödevler'den ÖNCE — Sınıflar/Öğrenciler'in hemen ardından "kişi/roster"
+            kümesini tamamlıyor. */}
+        {canSee("trainer.read", false) && <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />}
 
         {/* Ödevler — akordiyon: Ödev Teslimi (oluşturma DAHİL — canlıda da aynı ekrandı,
             ayrı bir "yönetim" grup-kart sayfası kaldırıldı) + Ödev Notu (en sona bırakıldı —
@@ -445,7 +459,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             gibi çekirdek öğretmenlik işi, standalone-only DEĞİL. */}
         {canSee("assignment.read", true) && (
           <>
-            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !odevOpen; setOdevOpen(opening); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !odevOpen; setOdevOpen(opening); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: odevActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.clipboard }} />
               <span style={{ flex: 1 }}>Ödevler</span>
               <motion.span
@@ -476,79 +490,6 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           </>
         )}
 
-        {/* Eğitmenler — tam CRUD sayfa (/flexos/egitmenler, müsaitlik/ücret/not).
-            2026-07-10'da Kullanıcılar'ın sekmesine taşınmıştı, kullanıcı geri istedi
-            ("Eğitmenler diye başlı başına bir menü vardı orada") — Kullanıcılar'daki
-            "Eğitmenler" sekmesi (hafif özet) AYRICA duruyor, bu ikisi farklı görünümler. */}
-        {canSee("trainer.read", false) && <Item icon={IC.trainer} label="Eğitmenler" active={active === "egitmenler"} onClick={go("/flexos/egitmenler")} />}
-
-        {/* Kullanıcılar — akordiyon: Kullanıcı Listesi (Personel/Eğitmenler/Öğrenciler 3 sekmesi) +
-            Kullanıcı Ayarları (rol/yetki tanımları, SADECE role.manage — aşağıda ayrıca kapılı). */}
-        {(canSee("role.manage", false) || canSee("trainer.read", false) || canSee("person.read", false)) && (
-          <>
-            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !kullanicilarOpen; setKullanicilarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
-              <span style={{ display: "inline-flex", color: kullanicilarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.shield }} />
-              <span style={{ flex: 1 }}>Kullanıcılar</span>
-              <motion.span
-                style={{ display: "inline-flex", opacity: 0.7 }}
-                animate={{ rotate: kullanicilarOpen ? 0 : -90 }}
-                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
-              />
-            </a>
-            <AnimatePresence initial={false}>
-              {kullanicilarOpen && (
-                <motion.div
-                  key="kullanicilar-sub"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-                  style={{ overflow: "hidden" }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                    <SubItem label="Kullanıcı Listesi" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />
-                    {canSee("role.manage", false) && <SubItem label="Kullanıcı Ayarları" active={active === "kullanici-ayarlari"} onClick={go("/flexos/kullanicilar/ayarlar")} />}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </>
-        )}
-
-        {/* Aktivite Merkezi — akordiyon. Enterprise: sadece Full. Standalone'da (2026-07-11)
-            admin dahil kimse görmez — Satış/Op pipeline'ı standalone'da yok. */}
-        {!standaloneMode && canSee("case.read", false) && (
-          <>
-            <a className="fs-navlink" style={aktiviteActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !aktiviteOpen; setAktiviteOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
-              <span style={{ display: "inline-flex", color: aktiviteActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.activity }} />
-              <span style={{ flex: 1 }}>Aktivite Merkezi</span>
-              <motion.span
-                style={{ display: "inline-flex", opacity: 0.7 }}
-                animate={{ rotate: aktiviteOpen ? 0 : -90 }}
-                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
-              />
-            </a>
-            <AnimatePresence initial={false}>
-              {aktiviteOpen && (
-                <motion.div
-                  key="aktivite-sub"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-                  style={{ overflow: "hidden" }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                    <SubItem label="Aktiviteler" active={active === "aktiviteler" || active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </>
-        )}
-
         {/* Yoklamalar — akordiyon: Yoklama Al + Yoklama Detay (attendance.write, eğitmen
             dahil Core'da da her zaman) + Yoklama Raporu (attendance.report.read, SADECE
             Op/Finans/Admin — eğitmende BİLEREK YOK, 2026-07-02 kararı). SADECE Yoklama Al
@@ -556,7 +497,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             yarım bırakmasın); Detay + Rapor normal navigasyon (2026-07-02 düzeltmesi). */}
         {(canSee("attendance.write", true) || canSee("attendance.report.read", false)) && (
           <>
-            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !yoklamaOpen; setYoklamaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !yoklamaOpen; setYoklamaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: yoklamaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.calendar }} />
               <span style={{ flex: 1 }}>Yoklamalar</span>
               <motion.span
@@ -589,7 +530,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Sertifikasyon — akordiyon: Sertifika Notu (grup bazlı not girişi) + Sertifika Ayarları. */}
         {canSee("grade.finalize", true) && (
           <>
-            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !sertifikaOpen; setSertifikaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setAktiviteOpen(false); setYoklamaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !sertifikaOpen; setSertifikaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: sertifikaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.award }} />
               <span style={{ flex: 1 }}>Sertifikasyon</span>
               <motion.span
@@ -618,25 +559,54 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             </AnimatePresence>
           </>
         )}
-      </nav>
 
-      {/* ALT BÖLÜM — canlıdaki "Yönetim Paneli + Çıkış" deseniyle aynı: admin-only tek link
-          (Sistem Ayarları) + ayraç + Çıkış.
-          2026-07-11 kullanıcı isteği: Core'dayken (Görünüm Anahtarı sahibi eğitmen paketine
-          düşünce role.manage'i kaybeder) Sistem Ayarları hiç görünmüyordu — sayfanın kendisi
-          artık view.toggle sahibi için Core'da da açılıyor (bkz. sistem-ayarlari/page.tsx
-          `allowed` gate'i + kendi içindeki "Görünüm Modu" switch'i), o yüzden link HER ZAMAN
-          gerçek sayfaya gider (PIN'e sarmalamaya gerek yok, sayfa kendi PIN akışını içeriyor).
-          Gerçek eğitmen (view.toggle'ı olmayan) bu linki hiç görmez.
-          Bu blok yukarıdaki `if (!ready) return ...` sayesinde her zaman `ready===true`
-          iken çalışır — ayrıca koşullamaya gerek yok. */}
-      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-        {(caps.has("role.manage") || canToggleView) && (
+        {/* Kullanıcılar — akordiyon: Kullanıcı Listesi (Personel/Eğitmenler/Öğrenciler 3 sekmesi) +
+            Kullanıcı Ayarları (rol/yetki tanımları, SADECE role.manage — aşağıda ayrıca kapılı).
+            2026-07-25 kullanıcı kararı: menünün EN SONUNA taşındı — "Ayarlar"ın (alt bölüm)
+            bir üstünde dursun diye. */}
+        {(canSee("role.manage", false) || canSee("trainer.read", false) || canSee("person.read", false)) && (
           <>
-            <Item icon={IC.settings} label="Sistem Ayarları" active={active === "sistem-ayarlari"} onClick={go("/flexos/sistem-ayarlari")} />
-            <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
+            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !kullanicilarOpen; setKullanicilarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+              <span style={{ display: "inline-flex", color: kullanicilarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.shield }} />
+              <span style={{ flex: 1 }}>Kullanıcılar</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: kullanicilarOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {kullanicilarOpen && (
+                <motion.div
+                  key="kullanicilar-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    <SubItem label="Kullanıcı Listesi" active={active === "kullanicilar"} onClick={go("/flexos/kullanicilar")} />
+                    {canSee("role.manage", false) && <SubItem label="Kullanıcı Ayarları" active={active === "kullanici-ayarlari"} onClick={go("/flexos/kullanicilar/ayarlar")} />}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
+      </nav>
+
+      {/* ALT BÖLÜM — "Ayarlar" + ayraç + Çıkış.
+          2026-07-24: link artık admin-gated değil, HERKES görür — sayfanın kendisi
+          (sistem-ayarlari/page.tsx) "Sistem Ayarları" (admin/owner-only) + "Bildirim
+          Ayarları" (herkes) diye 2 sekmeye ayrıldı, kapı artık sayfanın içinde sekme
+          bazında uygulanıyor, sidebar linkinde değil. Route/`active` key aynı kaldı
+          (`/flexos/sistem-ayarlari`, `"sistem-ayarlari"`) — sadece etiket ve görünürlük
+          değişti. */}
+      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+        <Item icon={IC.settings} label="Ayarlar" active={active === "sistem-ayarlari"} onClick={go("/flexos/sistem-ayarlari")} />
+        <div style={{ margin: "4px 8px", borderTop: "1px solid rgba(255,255,255,.1)" }} />
         <Item icon={IC.logout} label="Çıkış" onClick={handleLogout} />
       </div>
 
@@ -658,7 +628,7 @@ export function Item({ icon, label, onClick, active }: { icon: string; label: st
 
 function SubItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <a className="fs-navlink" style={active ? S.subActive : S.subItem} onClick={onClick}>
+    <a className="fs-navlink fs-navlink-sub" style={active ? S.subActive : S.subItem} onClick={onClick}>
       {active && <span style={S.subBar} />}
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: active ? "#fb923c" : "#5b7298", flex: "0 0 auto" }} />
       <span style={{ flex: 1 }}>{label}</span>
@@ -715,6 +685,30 @@ export const css = `
 @media(min-width:1536px){.fs-sidebar{width:272px;flex-basis:272px}}
 @media(min-width:2560px){.fs-sidebar{width:300px;flex-basis:300px}}
 .fs-navlink:hover{background:rgba(255,255,255,.06);color:#fff!important}
+/* 2026-07-25 — sidebar boyutu YÜKSEKLİĞE göre 4 kademeli (kullanıcı canlıda
+   kendi Mac'inde ölçüp kalibre etti, inline style'ı ezmek için .fs-navlink:hover'daki
+   AYNI !important deseni):
+   - ≤800px: kompakt (sınıftaki Mac, innerHeight 703) — mevcut çok sayıda
+     akordiyonun kısa viewport'ta rahat sığması için.
+   - 801-920px: taban (S.navItem vb. varsayılan) — kullanıcının kendi normal
+     ekranında (833) "bu iyiydi" onayı aldı, DOKUNULMADI.
+   - 921-1080px: bir tık büyük.
+   - >1080px: bir tık daha büyük (1920x1080/2560x1440 gibi uzun boylu geniş
+     ekranlarda sidebar orantısız küçük kalmasın diye — ÖNCEKİ genişlik-bazlı
+     1536/2560 denemesi bunun yerine YÜKSEKLİK'e taşındı, kullanıcı kararı). */
+@media (max-height: 800px) and (min-width: 900px) {
+  .fs-navlink:not(.fs-navlink-sub){font-size:13px!important;padding:6px 13px!important;gap:11px!important}
+  .fs-navlink-sub{font-size:12.5px!important;padding:4px 13px!important;gap:8px!important}
+  .fs-sidebar{padding:14px 16px 10px!important}
+}
+@media (min-height: 921px) and (max-height: 1080px) {
+  .fs-navlink:not(.fs-navlink-sub){font-size:15.2px!important;padding:9.5px 13.5px!important;gap:13.5px!important}
+  .fs-navlink-sub{font-size:14.7px!important;padding:6.5px 13.5px!important;gap:11.5px!important}
+}
+@media (min-height: 1081px) {
+  .fs-navlink:not(.fs-navlink-sub){font-size:16px!important;padding:10px 14px!important;gap:14px!important}
+  .fs-navlink-sub{font-size:15.5px!important;padding:7px 14px!important;gap:12px!important}
+}
 /* 2026-07-22: scroll artık .fs-nav değil .fs-sidebar'ın kendisinde (bkz. S.sidebar).
    Kullanıcı kararı: scrollbar HİÇ görünmesin, sadece kaydırma hareketi çalışsın. */
 .fs-sidebar{scrollbar-width:none}

@@ -111,6 +111,15 @@ export interface ConnectMember {
    * `hideConversationForMe`'nin aksine `type==="dm"`/staff-only kısıtı YOK — arşiv
    * yıkıcı olmadığı için herkes her konuşma tipini arşivleyebilir). */
   archivedAtMessageCount?: number;
+  /** "Sohbeti Temizle" (2026-07-25, WhatsApp'taki gibi) — SADECE BENDE mesaj
+   * GEÇMİŞİNİ gizler; `hiddenAtMessageCount`/`archivedAtMessageCount`'tan farkı:
+   * konuşmanın kendisi listede/normal görünümde KALIR, sadece açınca eski mesajlar
+   * görünmez. Tıklandığı andaki zaman damgası — mesaj listesinde
+   * `message.createdAt <= clearedAt` olanlar bu üye için filtrelenir (gerçek silme
+   * DEĞİL). `hiddenFor` gibi mesaj başına N yazım yerine TEK alan — ucuz. Karşı
+   * tarafın görünümünü hiç etkilemez. Yeni mesaj otomatik görünür (zaten
+   * `createdAt > clearedAt` olacağından ekstra "sıfırlama" mantığı gerekmez). */
+  clearedAt?: ISODateTime;
 }
 
 /** Mesaj eki (Faz 2 madde 5, 2026-07-18) — tek seferlik (resumable/chunk YOK —

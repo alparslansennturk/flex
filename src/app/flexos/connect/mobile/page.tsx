@@ -44,9 +44,9 @@ import { useMarkConnectReady } from "./SplashGate";
 import {
   type ConversationView, type MessageView, type DirectoryUser, type TypingSignal, type ConnectReplySnapshot,
   type PresenceSignal, type PresenceStatus,
-  fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToTyping,
+  fetchConversations, fetchMessages, postMessage, subscribeToMessages, subscribeToReceipts, subscribeToTyping,
   sendTypingSignal, markConversationRead, fetchDirectory, fetchStudentDirectory, fetchTrainerDirectory, createConversation,
-  setConversationMuted, setConversationArchived, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled, reportIssue, hideConversation,
+  setConversationMuted, setConversationArchived, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled, reportIssue, hideConversation, clearConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
   fetchStarredMessages, type StarredMessageView,
   subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
@@ -163,6 +163,7 @@ const ICONS: Record<string, string> = {
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
   archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  eraser: '<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/>',
 };
 
 function Icon({ k, size = 20, sw = 2, color = "currentColor" }: { k: string; size?: number; sw?: number; color?: string }) {
@@ -482,6 +483,7 @@ export default function FlexConnectMobile() {
   const lastTypingSentRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const firstLoadRef = useRef(true);
+  const prevMsgCountRef = useRef(0);
   const draftInputRef = useRef<HTMLInputElement>(null);
 
   // Mesaj menüsü (2026-07-20) — basılı tutunca açılır, WhatsApp'taki gibi Yanıtla/
@@ -559,6 +561,27 @@ export default function FlexConnectMobile() {
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (selectedId === id) backToApp();
   }
+
+  /** "Sohbeti Temizle" (2026-07-25) — masaüstüyle (`connect/page.tsx::handleClearConversation`)
+   * AYNI mantık: "Sohbeti Sil"in aksine konuşma listede kalır, sadece mesaj geçmişi
+   * bu hesapta görünmez olur. */
+  async function handleClearConversation() {
+    if (!selected || !selectedId) return;
+    setChatMenuOpen(false);
+    if (!window.confirm(`"${selected.name || "Bu sohbet"}" için mesaj geçmişi temizlenecek (sadece sende, karşı taraf etkilenmez). Emin misin?`)) return;
+    const ok = await clearConversation(selectedId);
+    if (!ok) { toast.error("Temizlenemedi, tekrar dene."); return; }
+    toast.success("Sohbet temizlendi.");
+    setMessages([]);
+  }
+  async function handleClearConversationRow(id: string, name: string) {
+    setSwipedRowId(null);
+    if (!window.confirm(`"${name || "Bu sohbet"}" için mesaj geçmişi temizlenecek (sadece sende, karşı taraf etkilenmez). Emin misin?`)) return;
+    const ok = await clearConversation(id);
+    if (!ok) { toast.error("Temizlenemedi, tekrar dene."); return; }
+    toast.success("Sohbet temizlendi.");
+    if (selectedId === id) setMessages([]);
+  }
   async function handleToggleArchiveRow(id: string, archived: boolean) {
     setSwipedRowId(null);
     const next = !archived;
@@ -594,6 +617,35 @@ export default function FlexConnectMobile() {
     return unsub;
   }, [selectedId, screen, studentPersonId]);
 
+  // Okundu/teslim tikleri — eğitmen tarafındaki AYNI fix (bkz. flexos/connect/page.tsx
+  // aynı tarihli yorum). İlk turda 15sn'lik tam mesaj-listesi pollingiyle çözülmüştü,
+  // ama maliyet kaygısı (her poll ~60 mesaj + members okuması, kota sızıntısı
+  // geçmişi var) yüzünden `members` alt-koleksiyonunun KENDİ `onSnapshot`'ına
+  // geçildi — sadece karşı taraf GERÇEKTEN okuduğunda/teslim aldığında 1 doküman
+  // okur, mesaj içeriği hiç yeniden çekilmez.
+  useEffect(() => {
+    if (!selectedId || screen !== "chat") return;
+    const myUid = auth.currentUser?.uid;
+    const unsub = subscribeToReceipts(selectedId, (receipts) => {
+      const others = receipts.filter((r) => r.uid !== myUid);
+      const otherReadAts = others.map((r) => r.lastReadAt).filter((t): t is string => !!t);
+      const otherDeliveredAts = others.map((r) => r.lastDeliveredAt).filter((t): t is string => !!t);
+      setMessages((prev) => {
+        let changed = false;
+        const next = prev.map((m) => {
+          if (!m.isMine) return m;
+          const readByAll = otherReadAts.length > 0 ? otherReadAts.every((t) => t >= m.createdAt) : undefined;
+          const deliveredByAll = otherDeliveredAts.length > 0 ? otherDeliveredAts.every((t) => t >= m.createdAt) : undefined;
+          if (readByAll === m.readByAll && deliveredByAll === m.deliveredByAll) return m;
+          changed = true;
+          return { ...m, readByAll, deliveredByAll };
+        });
+        return changed ? next : prev;
+      });
+    });
+    return unsub;
+  }, [selectedId, screen]);
+
   useEffect(() => {
     setTypingSignals([]);
     if (!selectedId || screen !== "chat") return;
@@ -608,8 +660,15 @@ export default function FlexConnectMobile() {
     : messages;
   void tick;
 
+  // 2026-07-25: tik-tazeleme pollingi mesaj sayısı değişmese bile `messages`'ı
+  // yeni bir dizi referansıyla günceller — sadece gerçekten yeni mesaj geldiyse
+  // kaydırıyoruz (bkz. flexos/connect/page.tsx aynı tarihli yorum).
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
+    const grew = messages.length > prevMsgCountRef.current;
+    if (firstLoadRef.current || grew) {
+      bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
+    }
+    prevMsgCountRef.current = messages.length;
     firstLoadRef.current = false;
   }, [messages]);
 
@@ -1255,7 +1314,7 @@ export default function FlexConnectMobile() {
                       );
                     }
                     const canDelete = c.type === "dm";
-                    const actionsWidth = canDelete ? 136 : 68;
+                    const actionsWidth = 68 /* arşiv */ + 68 /* temizle */ + (canDelete ? 68 : 0) /* sil */;
                     const isSwiped = swipedRowId === c.id;
                     return (
                       <div key={c.id} style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
@@ -1266,6 +1325,13 @@ export default function FlexConnectMobile() {
                           >
                             <Icon k="archive" size={18} sw={2} color="#fff" />
                             <span style={{ fontSize: 10, fontWeight: 700 }}>Arşivle</span>
+                          </button>
+                          <button
+                            onClick={() => handleClearConversationRow(c.id, c.name)}
+                            style={{ width: 68, border: "none", background: "#6B7280", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            <Icon k="eraser" size={18} sw={2} color="#fff" />
+                            <span style={{ fontSize: 10, fontWeight: 700 }}>Temizle</span>
                           </button>
                           {canDelete && (
                             <button
@@ -1580,6 +1646,9 @@ export default function FlexConnectMobile() {
                   <>
                     <div onClick={() => setChatMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
                     <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 10px 30px -10px rgba(18,35,59,.35)", zIndex: 91, overflow: "hidden", minWidth: 170 }}>
+                      <button onClick={handleClearConversation} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: T.text, background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                        <Icon k="eraser" size={15} sw={2} /> Sohbeti Temizle
+                      </button>
                       <button onClick={handleHideConversation} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#D93636", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                         <Icon k="trash" size={15} sw={2} /> Sohbeti Sil
                       </button>

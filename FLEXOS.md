@@ -16,7 +16,346 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-23 oturumu (2) — Ctrl+K flexos-farkında oldu + yoklama grup-seçim flaşı fix (EN GÜNCEL)
+### 🔶 2026-07-25 oturumu (10) — Geliştirici Notları (yeni, dahili) (EN GÜNCEL)
+
+- **Kullanıcı isteği:** Ayarlar'a SADECE kendisinin göreceği bir "Geliştirici Notları"
+  sekmesi — kullanırken bulduğu hataları oracıkta not alıp, Claude'un okuyup
+  "Çözüldü" tıklayabileceği basit bir CRUD. Ürünün gerçek domain'iyle hiçbir ilgisi
+  yok, tamamen dahili/scratch.
+- **Yetki:** Yeni bir "Developer rolü"/capability/RoleDef KURULMADI — zaten var olan
+  `view.toggle` (SADECE `VIEW_TOGGLE_OWNER_EMAIL`, auth-actor.ts) tek kapı olarak
+  reuse edildi. `sistem-ayarlari/page.tsx`'teki `canPin` zaten bu sinyal (view-access
+  API'sinden) — yeni bir fetch/kontrol gerekmedi.
+- **Backend** — mevcut domain/service/repo katmanlama deseniyle (view-pin-service
+  ile AYNI iskelet): `domain/core/dev-note.ts` (tip) → `domain/repo/dev-note-repo.ts`
+  (arayüz) → `server/dev-note-repo.firestore.ts` (`flexos_dev_notes` koleksiyonu) →
+  `domain/services/dev-note-service.ts` (`assertOwner` = `can(actor,"view.toggle")`)
+  → `api/flexos/dev-notes/route.ts` (GET liste/POST oluştur) + `[id]/route.ts`
+  (PATCH güncelle/DELETE sil). `firestore.rules`'a `flexos_dev_notes` server-only
+  (`allow read,write: if false`) eklendi — client hiçbir zaman doğrudan okumuyor.
+- **UI** — `sistem-ayarlari/_shared/DevNotesPanel.tsx` (yeni), Ayarlar sayfasına
+  4. sekme olarak eklendi (`canPin` gated, `isAdmin`'de bile görünmez). Alanlar:
+  başlık/açıklama/modül/öncelik (Düşük/Orta/Yüksek, renkli chip)/durum
+  (Açık/Çözüldü, tek tık checkbox — "bitenlere tık atarız" isteğine uygun)/
+  oluşturulma tarihi. Açık/Çözüldü/Tümü filtre + Yeni Not modalı (aynı zamanda
+  düzenleme formu) + silme onayı. Mevcut sayfanın inline-CSSProperties `S.card`
+  görsel diline uygun.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz (yeni route'lar `/api/flexos/dev-notes`
++ `/api/flexos/dev-notes/[id]` build çıktısında görünüyor). **Tarayıcıda test
+edilmedi** — sıradaki oturumda: owner hesabıyla not ekle/düzenle/sil/durum
+değiştir + normal bir kullanıcı hesabıyla sekmenin/API'nin hiç görünmediği
+doğrulanmalı.
+
+- **Düzeltme (aynı gün, kullanıcı canlıda denedi):** "Yeni Not" modal'ı çok küçük
+  bulundu (460px) — sadece bu form modal'ı için ayrı `S.formModal` (640px, daha
+  geniş padding, açıklama textarea'sı 90→130px) eklendi; silme onayı hâlâ küçük
+  (`S.modal`, dokunulmadı). Modül alanı zaten backend'de opsiyoneldi (sadece
+  başlık zorunlu) — sadece UI'da "(opsiyonel)" etiketi + "Bilmiyorsan boş bırak"
+  placeholder'ı eklenip netleştirildi, mantık değişmedi.
+
+### 🔶 2026-07-25 oturumu (9) — Sidebar yükseklik-bazlı 4 kademeli boyutlandırma
+
+Çok turlu, kullanıcının canlıda ölçüp/deneyip düzelttiği bir kalibrasyon süreci
+(ders: bu tür görsel ayarlarda ilk tahmin nadiren doğru oluyor, tek seferde
+"doğru" sayı bulmayı bekleme). Denenip GERİ ALINAN yollar: (a) tek eşikli
+`max-height:900px` — kullanıcının kendi ekranını da yanlışlıkla yakalayıp
+"acaip ufaldı" tepkisi aldı; (b) temel (varsayılan) boyutu genel olarak büyütüp
+1536/2560 GENİŞLİK kademelerinde ekstra artış — kullanıcı canlıda deneyip "bir
+önceki [taban] iyiydi" dedi, geri alındı. Genişlik yerine YÜKSEKLİK ekseninin
+daha doğru sinyal olduğuna karar verildi (1920x1080/2560x1440 gibi geniş
+ekranlar zaten daha uzun boylu da oluyor).
+
+**Son hâl — `FlexSidebar.tsx`, `.fs-navlink`/`.fs-sidebar` üzerinde `!important`
+ile inline `S.navItem` vb. stilleri ezen 4 yükseklik kademesi** (hepsi
+`.fs-navlink:hover`'daki aynı `!important`-üzerine-yazma deseni):
+- **≤800px** — kompakt (sınıftaki Mac'te ölçülen gerçek `innerHeight` 703).
+- **801-920px** — taban/varsayılan (`S.navItem` vb. inline, DEĞİŞMEDİ) —
+  kullanıcının kendi normal ekranında (833, tam ekran değil ama yakın) "iyi"
+  onayı aldı.
+- **921-1080px** — bir tık büyük.
+- **>1080px** — bir tık daha büyük.
+Eşikler kullanıcının kendi ölçümleriyle kalibre edildi (703 / 833 / "900-930"
+/ 1080 kullanıcının kendi verdiği referans noktaları), tahmini değil.
+
+`tsc --noEmit`, `eslint`, `npm run build` her adımda temiz. **Tarayıcıda test
+edilmedi** (kullanıcı sadece DevTools `window.innerHeight` ölçümleriyle geri
+bildirim verdi — DevTools SAĞA/ayrı pencereye alınarak ölçüldüğü için yükseklik
+ölçümü DevTools panelinden etkilenmiyor, doğrulandı). Sıradaki oturumda 4
+kademenin hepsi gerçek ekranlarda/DevTools yükseklik simülasyonuyla tek tek
+kontrol edilmeli — bu kadar çok tur revizyon gördüğü için hâlâ değişebilir.
+
+### 🔶 2026-07-25 oturumu (8) — Aktivite Merkezi akordiyon → tek link
+
+- **Kullanıcı isteği:** "Aktivite Merkezi" akordiyonunun içinde tek bir alt-öğe
+  ("Aktiviteler") vardı — gereksiz bir açılır-kapanır katman. Eğitmenler/Sınıflar
+  gibi doğrudan tıklanan tek bir `<Item>`e çevrildi (`/flexos/aktivite-merkezi`).
+- Kullanılmayan akordiyon state'i (`aktiviteOpen`/`setAktiviteOpen`/`aktiviteActive`)
+  tamamen kaldırıldı — diğer 6 akordiyonun ("diğerlerini kapat" `onClick`
+  handler'ları) artık gereksiz `setAktiviteOpen(false)` çağrısı yapmıyor.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi.**
+
+### 🔶 2026-07-25 oturumu (7) — Sidebar menü yeniden sıralandı
+
+- **Kullanıcı isteği (fikir sorup onaylattı):** `FlexSidebar.tsx`'teki ana menü sırası
+  dağınıktı. Yeni sıra: Ana Sayfa → Eğitim Yönetimi → Satışlar → **Aktivite Merkezi**
+  (Satışlar'ın hemen altına, satış→takip akışı) → **Sınıflar** → **Öğrenciler**
+  (Sınıflar'dan sonra, eskiden ÖNCEsiydi) → **Eğitmenler** → **Ödevler** (eskiden
+  Eğitmenler'den ÖNCEydi) → Yoklamalar → Sertifikasyon → **Kullanıcılar** (en sona,
+  "Ayarlar" alt-bölümünün bir üstüne taşındı — eskiden Eğitmenler'den hemen sonraydı).
+  Üç mantıksal küme oluştu: satış akışı, kişi/roster, günlük öğretmenlik işleri.
+- Saf JSX blok taşıma — hiçbir capability/gate/accordion state mantığı değişmedi
+  (her akordiyonun "diğerlerini kapat" `onClick` handler'ları zaten birbirine
+  isimle referans veriyordu, render sırasından bağımsız). Route'lar/`active` key'ler
+  aynı kaldı.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi.**
+
+### 🔶 2026-07-25 oturumu (6) — Sınıflar tablosu düzeltmeleri: eksik şubeler + Doluluk boşluğu
+
+- **Bug (kullanıcı bulgusu):** Az önce eklenen Şube filtresi dropdown'ında sadece
+  "Tümü" ve "Kadıköy" görünüyordu — Şirinevler/Pendik hiç yoktu. Kök neden: `subeList`
+  SADECE o an yüklü `groups` prop'undan türetiliyordu (bkz. bir önceki madde) — o
+  yüklemede başka şubeden grup yoksa/azsa o şube dropdown'da hiç görünmüyordu.
+  Fix: diğer sayfalarla (Havuz/Satış Listesi) AYNI kaynağa geçildi —
+  `/api/flexos/branch-offices`'tan TÜM şubeler çekilip gruplardan gelen isimlerle
+  birleştiriliyor (`officeNames` state, SADECE `mode==="full"` iken fetch edilir).
+- **Layout (kullanıcı isteği):** "Doluluk" sütunu (36px çubuk + kısa metin) ile
+  "Durum" sütunu arasında göze batan boşluk vardı — `table-layout:auto` dar
+  içeriğe rağmen fazla pay veriyordu. `<th>`'a açık `width: 108` verildi, fazla
+  alan diğer (metin ağırlıklı) sütunlara kaydı — Şube sütunu KALDIRILMADI
+  (kullanıcı: "Kadıköy'ü kaldırmak yerine Doluluk'u sıkıştıralım").
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi** —
+1440×900'de gerçekten sıkışıklığın azaldığı + Şirinevler/Pendik'in artık filtrede
+göründüğü doğrulanmalı.
+
+- **Düzeltme #1 (aynı gün, kullanıcı canlıda denedi):** tek bir `<th width>` ipucu
+  `table-layout:auto`'da görünür bir etki yapmadı ("Doluluk hâlâ yerinde duruyor").
+  Denendi: `<colgroup>` ile Şube/Eğitmen/Bölüm/Seans/Başlangıç/Doluluk/Durum/
+  aksiyonlar sütunlarının HEPSİNE açık `<col width>` verildi.
+- **Düzeltme #2 (GERİ ALINDI, aynı gün):** kullanıcı bu `<colgroup>` denemesini
+  canlıda gördü — "Eğitim" sütunu 3 satıra düşmüştü (metin sütunlarına verilen
+  "fazla alan" garantisi beklenmedik şekilde onu daraltmış). **Colgroup tamamen
+  kaldırıldı**, tablo/kolon genişlikleri orijinaline döndü. Kullanıcı asıl
+  isteğini netleştirdi: sadece "Doluluk"un İÇERİĞİ (36px çubuk+metin) sağa
+  yaslansın, kolon genişlikleri hiç değişmesin. Gerçek fix: Doluluk hücresinin
+  flex wrapper'ına `justifyContent:"flex-end"` — kolon/tablo yapısına
+  DOKUNULMADAN içerik sadece hücre içinde sağa kayıyor, solundaki boşluk büyüyor,
+  Durum'a yaklaşıyor. Bu çok daha basit ve risksiz bir çözümdü — kolon genişliği
+  oynamak yerine baştan içerik hizalamasına gidilmeliydi.
+
+### 🔶 2026-07-25 oturumu (5) — Sınıflar'a da şube filtresi eklendi
+
+- Bir önceki maddede "Sınıflar'da hiç şube filtresi yok" notu düşülmüştü — kullanıcı
+  "ekle" dedi. `GroupTable.tsx`'e (Full/Operasyon + Core standalone eğitmenin AYNI
+  paylaşımlı bileşeni, Sınıflar listesinin hem tablo hem kart görünümünü besliyor)
+  SIFIRDAN yeni bir "Şube" dropdown filtresi eklendi — SADECE `mode==="full"`
+  (Core'da Şube kolonu zaten gizli). Diğer 4 sayfayla AYNI ilke: `useCapabilities().officeName`
+  + `subeFilterInitialized` guard, açılışta kullanıcının kendi şubesi ön-seçili,
+  serbestçe değiştirilebilir.
+- Şube listesi ayrı bir `/branch-offices` çağrısı YAPMADAN, zaten prop olarak gelen
+  `groups`'tan türetiliyor (`g.şube` alanı, branş/eğitim filtreleriyle diğer
+  sayfalarda kullanılan AYNI "veriden türet" deseni) — bileşen "pure" kalmaya devam
+  ediyor, yeni bir fetch eklenmedi.
+- Durum rozetlerindeki sayılar (`counts`/`coreCounts`, "Aktif (12)" gibi) da şube
+  filtresine göre süzülmüş listeden hesaplanacak şekilde güncellendi — şube
+  seçiliyken "Aktif" rozeti SADECE o şubedeki aktif grupları saymalı, tüm sistemi değil.
+- `react-hooks/set-state-in-effect` yine tetiklendi (aynı `satis-liste/page.tsx`
+  deseni ama farklı dosyada nedense flag'lendi, sebebi net değil) — tek satır
+  `eslint-disable-next-line` + gerekçe eklendi (aynı önceki oturumlardaki desen).
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi.**
+Artık toplam 5 sayfada (Satış Listesi/Öğrenci Havuzu/Eğitmenler/Kullanıcılar/Sınıflar)
+şube filtresi kullanıcının kendi şubesine varsayılıyor.
+
+### 🔶 2026-07-25 oturumu (4) — Şube filtresi varsayılanı 3 sayfaya daha yayıldı
+
+- **Bağlam:** "Şube Aşama-2" (branch scope enforcement/erişim kısıtlaması) roadmap
+  hafızasında hâlâ açık madde gibi duruyordu — kod kontrol edildi, kullanıcıya
+  soruldu. Kullanıcı NET: bu bir **erişim kısıtlaması DEĞİL** ("Eğitim Op zaten
+  diğer şubeleri görebilecek, gizli olmayacak — yetkili ise görecek"), sadece bir
+  **varsayılan filtre UX'i**: "default olarak kendi verileri gelecek, isterse
+  filtreden değiştirip görebilir." `can()`/`Actor.branchIds` branch-scope kodu
+  hâlâ dead-code (hiçbir grant `scope:"branch"` kullanmıyor) — buna hiç gerek yok,
+  bilerek dokunulmadı.
+- **Keşif:** Bu desen `satis-liste/page.tsx`'te ZATEN vardı (2026-07-22'den beri,
+  `useCapabilities().officeName` + `subeFilterInitialized` guard — sadece İLK
+  yüklemede kullanıcının kendi şubesine set edilir, sonra seçim asla ezilmez).
+  Kullanıcı "hepsi dahil" dedi — aynı desen 3 sayfaya daha (Öğrenci Havuzu, Eğitmenler,
+  Kullanıcılar) aynen kopyalandı; ikisinde (Havuz/Eğitmenler) hem "applied" hem
+  "pending" filtre state'i (`subeFilter`+`pSube`) birlikte set edildi ki filtre
+  panelini açınca da doğru şube görünsün.
+- **Kapsam dışı bırakıldı (kod yok, sadece not):** **Sınıflar** (`siniflar/page.tsx`
+  → `GroupTable.tsx`) listesinde şube filtresi HİÇ YOK (sadece durum/aktif-arşiv
+  filtresi var, "Şube" tabloda salt görüntü kolonu) — "defaultla" değil, sıfırdan
+  yeni bir filtre UI'ı gerektirir, istenirse ayrı iş.
+- Pendik şubesi (franchise) için özel bir davranış İSTENMEDİ ("şimdilik görsün,
+  sonra olursa değiştiririz") — hiçbir sayfada Pendik'e özel kod yok.
+
+`tsc --noEmit`, `eslint` (yeni hata yok), `npm run build` temiz. **Tarayıcıda test
+edilmedi.** Roadmap hafızası (`flexos_roadmap_priority` memory) bu doğru tanımla
+güncellendi — "Şube Aşama-2" TODO'dan düşürüldü.
+
+### 🔶 2026-07-25 oturumu (3) — Flex Connect "Sohbeti Temizle" (yeni özellik)
+
+- **Kullanıcı isteği:** "Sohbeti Sil" (mevcut, konuşmayı listeden gizler) yanına
+  WhatsApp'taki gibi "Sohbeti Temizle" — SADECE BENDE mesaj geçmişini gizlesin ama
+  **konuşma listede kalsın** (kullanıcı kararı: "sadece bende").
+- **Model:** `ConnectMember.clearedAt` (YENİ, `connect.ts`) — tıklandığı andaki
+  zaman damgası. `hiddenAtMessageCount`/`archivedAtMessageCount`'un aksine mesaj
+  başına `hiddenFor` gibi N doküman yazmak YERİNE TEK alan — ucuz (kullanıcının bu
+  oturumdaki genel "maliyeti düşük tut" isteğiyle tutarlı). `listMessages`
+  (`connect-service.ts`) artık `message.createdAt <= member.clearedAt` olanları bu
+  çağıran için filtreliyor; yeni mesajlar otomatik görünür kalır (ekstra sıfırlama
+  mantığı gerekmedi, zaten `createdAt > clearedAt` olacaklar).
+- **Yeni:** `clearConversationForMe` (servis) → `POST /api/flexos/connect/
+  conversations/[id]/clear` (YENİ route, `hide/route.ts` ile birebir aynı iskelet)
+  → `connectClient.ts::clearConversation`. `hideConversationForMe`'nin aksine
+  `type==="dm"` ya da personel kısıtı YOK (yıkıcı değil, herkes her konuşma
+  tipini temizleyebilir).
+- **UI — SADECE personel tarafı** (`hideConversation`/Arşiv ile AYNI emsal —
+  öğrenci route ailesinde karşılığı yok, bilinçli): `page.tsx`'te hem satır
+  3-nokta menüsü hem açık konuşma menüsü; `mobile/page.tsx`'te hem swipe-to-reveal
+  şeridi (yeni `eraser` ikonu `ICONS` map'ine eklendi, `actionsWidth` 3 aksiyona
+  göre yeniden hesaplandı) hem chat-başlığı "..." menüsü (bu menü zaten SADECE
+  `type==="dm" && !studentPersonId` gösteriliyordu — Temizle de aynı yere eklendi).
+  Temizlenince açık konuşmaysa `setMessages([])` ile anında boşaltılıyor.
+
+`tsc --noEmit`, `eslint` (yeni hata yok), `npm run build` temiz. **Tarayıcıda test
+edilmedi** — sıradaki oturumda: bir sohbeti temizle → konuşma listede kaldı mı,
+eski mesajlar gitti mi, yeni mesaj gelince normal göründü mü, karşı tarafın
+görünümü hiç etkilenmedi mi doğrulanmalı.
+
+### 🔶 2026-07-25 oturumu (2) — Flex Connect okundu/teslim tikleri donuk kalıyordu
+
+- **Bug (kullanıcı bulgusu):** Eğitmen öğrenciye mesaj attı — tek gri tik (gönderildi)
+  çıktı. Öğrenci flexos'a bağlandı → çift gri (teslim) olmalıydı, olmadı. Öğrenci
+  mesajı açıp okudu → çift mavi (okundu) olmalıydı, olmadı — tek tikte donuk kaldı.
+- **Kök neden:** `readByAll`/`deliveredByAll` tikleri `buildMessageViews`'te
+  (`connect-view.ts`) karşı tarafın `Member.lastReadAt`/`lastDeliveredAt`'inden
+  server-side hesaplanıyor, ama bu SADECE mesajlar GET route'u çağrıldığında
+  yeniden hesaplanıyor. İstemci tarafında (`flexos/connect/page.tsx` VE
+  `connect/mobile/page.tsx`) açık konuşmanın mesajları sadece Firestore
+  `onSnapshot`'ın mesajlar koleksiyonunda YENİ bir değişiklik görmesiyle yeniden
+  çekiliyordu — karşı tarafın `lastReadAt`/`lastDeliveredAt` güncellemesi AYRI bir
+  Member dokümanına yazıldığı için bu onSnapshot'ı hiç tetiklemiyordu. Tikler
+  ancak YENİ bir mesaj gelirse (o da bu onSnapshot'ı tetikleyip tikleri "yan etki"
+  olarak tazelediği için) güncelleniyordu — aksi halde donuk kalıyordu.
+- **Fix (1. tur):** her iki sayfada da (`page.tsx` + `mobile/page.tsx`) açık
+  konuşmanın mesajları 15sn'de bir periyodik yeniden çekiliyordu (`setInterval` +
+  `subscribeToMessages`'ın yanına). "Her yeni mesajda en alta kaydır" efektinin
+  bu poll yüzünden her 15sn'de sıçramaması için `prevMsgCountRef` ile SADECE mesaj
+  sayısı gerçekten arttıysa kaydırma guard'ı eklendi (bu guard KALDI, hâlâ faydalı).
+- **Fix (2. tur — kullanıcı maliyet sordu, "en düşük maliyetle çözelim"):** 15sn'lik
+  TAM mesaj-listesi pollingi (`fetchMessages`) her seferinde ~60 mesaj + members
+  okuması demekti (`listMessages`+`listMembers` ayrı ayrı conversation+member
+  okuyor) — kota sızıntısı geçmişi olan bir projede (bkz. proje hafızası) bu çok
+  pahalıydı. **Poll tamamen kaldırıldı**, yerine `members` alt-koleksiyonunun
+  KENDİ `onSnapshot`'ı geldi (`connectClient.ts::subscribeToReceipts`, YENİ) —
+  `firestore.rules`'ta zaten `connect_conversations/{id}/members/{uid}`'e üye-
+  okuma izni var (mesajlar/typing'le AYNI desen). Artık sadece karşı taraf
+  GERÇEKTEN okuduğunda/teslim aldığında (Member dokümanı gerçekten değiştiğinde)
+  1 doküman okuması oluyor — mesaj İÇERİĞİ hiç yeniden çekilmiyor, tikler
+  sunucudaki `buildMessageViews` formülüyle BİREBİR aynı şekilde client-side
+  hesaplanıp SADECE `isMine` mesajlara yamanıyor (`setMessages` içinde referans
+  eşitliği korunuyor — hiçbir şey değişmediyse `prev` aynen dönüyor, React o
+  state için re-render'ı atlıyor, gereksiz `[messages]` efekt tetiklemesi yok).
+  Hem near-instant (artık 15sn beklemiyor, Firestore realtime) hem çok daha ucuz.
+
+`tsc --noEmit`, `eslint` (yeni hata yok, mevcut ilgisiz uyarılar duruyor),
+`npm run build` temiz. **Tarayıcıda test edilmedi** — sıradaki oturumda gerçek iki
+hesapla (biri mesaj atan, biri okuyan) tik geçişleri (tek gri→çift gri→çift mavi,
+artık ANINDA) + Firestore okuma sayısının gerçekten düştüğü doğrulanmalı.
+
+### 🔶 2026-07-25 oturumu — Yoklama "Kaydet" sıfırlama bug'ı + toast kapanmama fix
+
+- **Ana bug (kullanıcı bulgusu, kök nedeni bulundu):** Dersi kaydedip yoklama ekranını
+  kapatıp yeniden açınca — HİÇBİR yeni değişiklik yapılmadan — alttaki buton "Dersi
+  Bitir" yerine "Kaydet"e sıfırlanıyordu. Kök neden: `AttendanceCore.tsx::loadRecord`
+  her çağrıldığında (mount/grup/tarih değişimi) `saved` state'ini KOŞULSUZ `false`
+  yapıyordu, kayıt sunucudan zaten dolu girişlerle/kapalı gelse bile. Fix: dosyada
+  zaten var olan `hasPersistedEntries` formülüyle aynı mantık (`entries` dolu VEYA
+  `attendanceClosed`) `loadRecord` içinde kullanılarak `saved` doğru başlatılıyor —
+  entries değiştirilirse (`setHours`/`toggleOnline`/`markAllHours`) zaten ayrıca
+  `setSaved(false)` çağrılıyordu, o kısma dokunulmadı.
+- **Yan bug:** Flex Connect'ten gelen genel bildirim toast'ı (`NotificationToastListener.tsx`),
+  "Git →" aksiyonuna tıklanınca ekranda kalmaya devam ediyordu (yoklama alırken
+  gözlemlendi). Sonner'ın action-click'te kendiliğinden kapatması gerekiyor ama garanti
+  olsun diye `toast.dismiss(toastId)` açıkça eklendi.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi** — sıradaki
+oturumda: bir dersi kaydet → ekranı kapat/aç → "Dersi Bitir" hemen görünüyor mu
+(yeni değişiklik yapmadan "Kaydet"e dönmüyor mu) doğrulanmalı; toast fix'i de gerçek
+bir Connect mesajıyla denenmeli.
+
+### 🔶 2026-07-24 oturumu — Sistem Ayarları → "Ayarlar" (Sistem + Bildirim sekmeleri) + öğrenciye Ayarlar
+
+- **Çıkış noktası — bug bulgusu:** Kullanıcı dersteyken bir öğrenciden Flex Connect
+  mesajı geldi ve ses çaldı, halbuki Connect'in kendi ses ayarı kapalıydı. Kök neden:
+  Connect mesajı hem push bildirimi (Connect'in kendi `soundEnabled`'ı — SADECE native
+  OS push'un `silent` bayrağını kontrol eder, `connect-push-service.ts::notifyNewMessage`)
+  hem de genel `users/{uid}/notifications` koleksiyonuna bir kayıt yazıyor
+  (`deps.notify(...)`) — bu ikincisi root layout'ta global monte `NotificationToastListener`
+  tarafından dinlenip `playNotificationSound()` çağırıyor, o da TAMAMEN AYRI bir ayara
+  bakıyor: tarayıcı `localStorage`'daki `flex_notif_sound_enabled` (varsayılan AÇIK).
+  Bu ayarı değiştirebilecek bir arayüz eski/pasif sistemde vardı (`NotificationPanel.tsx`,
+  sadece `src/app/dashboard/admin/page.tsx`'te) ama **FlexOS'un hiçbir yerinde** bu ayarı
+  gösteren/değiştiren bir arayüz yoktu.
+- **Çözüm — kullanıcı isteğiyle genel bir "Ayarlar" yapısına dönüştü:**
+  - `FlexSidebar.tsx` alt bölümündeki link artık **"Sistem Ayarları" değil "Ayarlar"**,
+    ve artık `role.manage`/`view.toggle` kapısı olmadan **HERKESE açık** (route/`active`
+    key aynı kaldı: `/flexos/sistem-ayarlari`).
+  - `sistem-ayarlari/page.tsx` 2 ÜST SEVİYE sekmeye ayrıldı: **"Sistem Ayarları"**
+    (bugüne kadarki TÜM içerik — Sistem Modu/Grup Taşıma/PIN — değişmedi, sadece
+    `canSeeSistemTab = isAdmin || canPin` iken sekme görünür — 2026-07-11'deki Core-mod
+    view-toggle-owner PIN erişimi nüansı korunarak) ve **"Bildirim Ayarları"** (YENİ,
+    herkes görür — ses aç/kapa + 4'lü ton seçici, `notificationSound.ts` — tamamen
+    localStorage, Firestore/API yok). Sayfanın eski "yetkisizsen at" redirect'i kaldırıldı
+    (`meLoaded`/`viewAccessLoaded` ile yüklenme takibi).
+  - FlexOS öğrenci portalına da (`/flexos/student/[personId]/`) aynı mantıkla **"Ayarlar"**
+    linki eklendi (`StudentSidebar.tsx`, Çıkış'ın üstünde) → yeni
+    `student/[personId]/ayarlar/page.tsx` (StudentSidebar+FlexHeader+FlexPageContent
+    kabuğu, Tailwind, `roleLabel="Öğrenci"` elle verildi — yoksa FlexHeader içindeki
+    `useCapabilities()` boş öğrenci kimliği için `null` döner ve fallback "Yönetici" yazardı).
+  - Bu tek ayar aynı zamanda bug'ın kendisini de çözüyor: `NotificationToastListener`
+    zaten `flex_notif_sound_enabled`'a bakıyordu, artık kullanıcı bunu FlexOS içinden
+    kapatabiliyor — Connect'in KENDİ push `soundEnabled`'ına dokunulmadı (bilinçli
+    kapsam dışı, native OS push sessizliği farklı bir şey).
+  - `react-hooks/set-state-in-effect` yeni lint kuralı localStorage-mount-effect
+    desenine (legacy `student/[studentId]/settings/page.tsx`'te de aynısı var, SSR
+    hydration mismatch'ten kaçınmak için bilinçli) itiraz etti — iki yeni dosyada da
+    tek satırlık `eslint-disable-next-line` + gerekçe yorumu eklendi.
+
+- **Düzeltme (aynı gün, sonraki mesaj):** kullanıcı iç içe sekmeyi istemedi — "Genel
+  Ayarlar" alt-sekmesi kaldırıldı (Sistem Modu/Grup Taşıma/PIN kartları artık "Sistem
+  Ayarları" üst-sekmesinin doğrudan içeriği), "Loglar" ÜST SEVİYE 3. sekme oldu
+  (`"sistem" | "loglar" | "bildirim"`, ikisi de `canSeeSistemTab` gated). Kullanılmayan
+  `SettingsTabBtn`/`tab` state silindi.
+- **2. düzeltme (aynı gün, öğrenci tarafını canlıda deneyince):** kullanıcı önce
+  "öğrenci Ayarlar'ı diğeri (legacy) gibi Profil+Bildirim sekmeli olsun, admin'de de
+  Profil ilk sırada olsun" dedi, sonra "profil ayarlarından vazgeçtim" diyip geri
+  çekti — Profil Ayarları hiçbir yerde eklenmedi. Kalan gerçek istek: **ses ayarları
+  admin ve öğrenci tarafında standart olsun** (ikisi ayrı ayrı yazılınca ton
+  seçenekleri/görünüm farklılaşmıştı — öğrenci versiyonunda her ton butonunda `Play`
+  ikonu vardı, admin versiyonunda yoktu). Çözüm: TEK paylaşımlı bileşen —
+  `src/app/flexos/_components/NotificationSoundSettings.tsx` (Tailwind, öğrenci
+  versiyonunun zengin görünümü baz alındı) — hem `sistem-ayarlari/page.tsx`'in
+  "Bildirim Ayarları" sekmesinde hem `student/[personId]/ayarlar/page.tsx`'te
+  BİREBİR aynı bileşen import ediliyor artık; eski iki ayrı implementasyon (admin'in
+  inline-`CSSProperties` `NotificationSoundCard`/`IconBell`'i + öğrenci sayfasının
+  inline Tailwind bloğu) silindi. Tailwind'in trainer-side (`egitim-yonetimi/ekle/page.tsx`
+  gibi) sayfalarda zaten kullanıldığı doğrulanıp inline-`CSSProperties` sayfaya
+  Tailwind bileşeni gömmenin sorun olmadığı teyit edildi.
+
+`tsc --noEmit`, `eslint` (değişen dosyalar) ve `npm run build` temiz. **Tarayıcıda test
+edilmedi** — sıradaki oturumda: (a) admin hesabıyla 3 sekme (Sistem Ayarları/Loglar/
+Bildirim Ayarları) + mevcut 3 kart hâlâ çalışıyor mu, (b) sıradan eğitmenle sadece
+"Bildirim Ayarları" görünüyor mu ve ses aç/kapa gerçekten Connect toast sesini
+etkiliyor mu, (c) öğrenci portalında yeni "Ayarlar" linki + ses ayarı çalışıyor mu.
+
+### 🔶 2026-07-23 oturumu (2) — Ctrl+K flexos-farkında oldu + yoklama grup-seçim flaşı fix
 
 - **Hata-2 (yoklama):** `/flexos/yoklama/al`'da "Hızlı Yoklama"ya girince gruplar
   yüklenene kadar bir an "Bir grup seçin" placeholder'ı görünüp sonra bugünkü grup

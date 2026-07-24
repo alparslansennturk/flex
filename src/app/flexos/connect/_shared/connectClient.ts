@@ -492,6 +492,17 @@ export async function hideConversation(conversationId: string): Promise<boolean>
   return res.ok;
 }
 
+/**
+ * "Sohbeti Temizle" (2026-07-25) — "Sohbeti Sil"in aksine konuşma listede kalır,
+ * sadece mesaj geçmişi bu cihazda/hesapta görünmez olur (kişisel, kalıcı silme
+ * DEĞİL). SADECE personel için — bkz. `clearConversationForMe` yorumu.
+ */
+export async function clearConversation(conversationId: string): Promise<boolean> {
+  const headers = await authHeaders();
+  const res = await fetch(`/api/flexos/connect/conversations/${conversationId}/clear`, { method: "POST", headers });
+  return res.ok;
+}
+
 /** Misafir/üye ekle (Faz 2 madde 4 — 2026-07-18) — SADECE personel sayfasında
  * (grup yönetimi, "Bilgi" paneli). `guestTitle` SADECE `role:"guest"` ile anlamlı. */
 export async function addConversationMember(
@@ -550,6 +561,26 @@ export async function createConversation(body: CreateConversationBody, personId?
 export function subscribeToMessages(conversationId: string, onChange: () => void): () => void {
   const q = query(collection(db, "connect_conversations", conversationId, "messages"), orderBy("createdAt", "asc"));
   return onSnapshot(q, () => onChange(), (err) => console.error("[connect] messages onSnapshot hata:", err));
+}
+
+export interface MemberReceipt { uid: string; lastReadAt?: string; lastDeliveredAt?: string }
+
+/**
+ * Okundu/teslim tikleri (2026-07-25) — mesajlarla/typing'le AYNI `onSnapshot`
+ * deseni, `members` alt-koleksiyonu üzerinden (rules: bir üye kendi + konuşmanın
+ * DİĞER üyelerinin `members` dokümanını okuyabilir, bkz. firestore.rules). BİLEREK
+ * polling DEĞİL — periyodik tam mesaj-listesi yeniden çekmek (60 mesaj + members,
+ * her Nsn'de bir) çok daha pahalıydı (kullanıcı isteği: "maliyeti en düşük şekilde
+ * çözelim"); bu şekilde sadece karşı tarafın dokümanı GERÇEKTEN değişince (okudu/
+ * teslim oldu) 1 doküman okuması olur, mesaj İÇERİĞİ hiç yeniden çekilmez.
+ */
+export function subscribeToReceipts(conversationId: string, onChange: (receipts: MemberReceipt[]) => void): () => void {
+  const q = collection(db, "connect_conversations", conversationId, "members");
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map((d) => ({ uid: d.id, ...(d.data() as { lastReadAt?: string; lastDeliveredAt?: string }) }))),
+    (err) => console.error("[connect] receipts onSnapshot hata:", err),
+  );
 }
 
 export interface TypingSignal { uid: string; name: string; at: string }

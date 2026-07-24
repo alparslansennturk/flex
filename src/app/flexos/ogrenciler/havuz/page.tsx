@@ -126,7 +126,7 @@ export default function OgrenciHavuzuPage() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [subeList, setSubeList] = useState<string[]>(["Tümü"]);
-  const { caps } = useCapabilities();
+  const { caps, officeName: myOfficeName } = useCapabilities();
   const canAssignGroup = caps.has("group.assign_student");
   // Sunucu switch'ine göre gereken capability değişir (enrollment.transfer VEYA sale.create) —
   // UI-only gate, ikisinden biri varsa buton görünür, gerçek kural sunucuda `transferEnrollment`'ta.
@@ -151,6 +151,20 @@ export default function OgrenciHavuzuPage() {
   const [pSube, setPSube] = useState("Tümü");
   const [pBrans, setPBrans] = useState("Tümü");
   const [pEgitim, setPEgitim] = useState("Tümü");
+
+  // Şube filtresi varsayılanı (2026-07-25 kullanıcı isteği — Satış Listesi'ndeki
+  // AYNI desen, bkz. satis-liste/page.tsx aynı tarihli yorum): açılışta kullanıcının
+  // KENDİ şubesi ön-seçili gelir, "Tüm Şubeler"e ya da başka bir şubeye serbestçe
+  // geçilebilir — bu bir erişim kısıtlaması DEĞİL, sadece varsayılan filtre; sadece
+  // İLK yüklemede set edilir, sonra kullanıcı seçimi asla ezilmez.
+  const [subeFilterInitialized, setSubeFilterInitialized] = useState(false);
+  useEffect(() => {
+    if (!subeFilterInitialized && myOfficeName) {
+      setSubeFilter(myOfficeName);
+      setPSube(myOfficeName);
+      setSubeFilterInitialized(true);
+    }
+  }, [myOfficeName, subeFilterInitialized]);
 
   const [openDropdown, setOpenDropdown] = useState<null | "sube" | "brans" | "egitim">(null);
   const [hoveredBrans, setHoveredBrans] = useState<string | null>(null);

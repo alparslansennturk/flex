@@ -1,19 +1,24 @@
 "use client";
 
 /**
- * FlexOS · Sistem Ayarları — Kullanıcılar sayfasından taşındı (2026-07-10 kullanıcı kararı:
+ * FlexOS · Ayarlar — Kullanıcılar sayfasından taşındı (2026-07-10 kullanıcı kararı:
  * "Sistem Modu, Grup Taşıma Kuralı ve Kişisel Görünüm PIN'i sistem ayarlarının içine
- * taşıyalım"). Sidebar'daki "Sistem Ayarları" linki önceden sadece "yakında" toast'ı
- * gösteriyordu (bkz. FlexSidebar.tsx) — artık gerçek sayfaya gidiyor.
+ * taşıyalım"). Sidebar'daki link önceden sadece "yakında" toast'ı gösteriyordu (bkz.
+ * FlexSidebar.tsx) — artık gerçek sayfaya gidiyor.
  *
- * Tek sayfa, TABSIZ (bilinçli tercih) — şu an sadece 3 kart var, ayrı sekmelere bölmek
- * bu ölçekte gereksiz karmaşıklık; ileride madde sayısı artarsa (bkz. proje hafızası
- * "Sistem Ayarları + Süper Admin" planı) akordiyon/sekmeye bölünebilir.
+ * 2026-07-24 restructure (kullanıcı isteği — Flex Connect'te sesi kapatmasına rağmen
+ * derste genel bildirim zili sesi çalması bug'ından çıktı): sayfa artık 2 ÜST SEVİYE
+ * sekmeye ayrıldı — "Sistem Ayarları" (bugünkü TÜM içerik, admin/owner-only) ve
+ * "Bildirim Ayarları" (yeni, ses aç/kapa + ton, HERKES görür). Giriş kapısı da buna göre
+ * gevşetildi: sayfa artık redirect ATMIYOR, herhangi bir giriş yapmış kullanıcı girebilir
+ * — "Sistem Ayarları" sekmesi `canSeeSistemTab` false ise sekme listesinde hiç görünmez.
  *
  * Sistem Modu + Grup Taşıma Kuralı `role.manage` gerektirir (sistemdeki HERKESİ
- * etkiliyorlar) — sayfa girişinde kontrol edilip yetkisizse Kullanıcılar'a geri
- * yönlendirilir. Kişisel Görünüm PIN'i kendi içinde ayrıca gated (`view.toggle`,
- * sadece owner) — `/api/flexos/view-access`'in `canPin` cevabı zaten owner dışında hep false.
+ * etkiliyorlar). Kişisel Görünüm PIN'i kendi içinde ayrıca gated (`view.toggle`,
+ * sadece owner) — `/api/flexos/view-access`'in `canPin` cevabı zaten owner dışında hep
+ * false. `canSeeSistemTab = isAdmin || canPin` — 2026-07-11'de düzeltilmiş bir davranışı
+ * (Core moddaki view-toggle sahibi owner `role.manage`'i kaybeder ama PIN ayarına yine
+ * erişebilmeli) korumak için bu formül değiştirilmedi.
  */
 
 import React, { useEffect, useState, useCallback, CSSProperties } from "react";
@@ -25,13 +30,16 @@ import FlexHeader, { FlexPageContent } from "../_components/FlexHeader";
 import FlexModal from "../_components/FlexModal";
 import Footer from "@/app/components/layout/Footer";
 import { ToggleSwitch } from "../kullanicilar/_shared/toggles";
+import NotificationSoundSettings from "../_components/NotificationSoundSettings";
+import DevNotesPanel from "./_shared/DevNotesPanel";
 
 export default function SistemAyarlariPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
-  const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [meLoaded, setMeLoaded] = useState(false);
+  const [viewAccessLoaded, setViewAccessLoaded] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false); // role.manage — org-geneli kartları gösterir
-  const [tab, setTab] = useState<"genel" | "loglar">("genel");
+  const [topTab, setTopTab] = useState<"sistem" | "loglar" | "bildirim" | "gelistirici" | null>(null);
 
   // ── Sistem Modu (Eğitmen Tek Başına switch) ──
   const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
@@ -66,9 +74,10 @@ export default function SistemAyarlariPage() {
       // çalışıyor"). Org-geneli kartlar (Sistem Modu, Grup Taşıma) sayfa İÇİNDE ayrıca
       // `role.manage`'e göre ayrı gated (aşağıda).
       setIsAdmin(caps.has("role.manage"));
-      setAllowed(caps.has("role.manage") || caps.has("view.toggle"));
     } catch (e) {
-      if ((e as Error).name !== "AbortError") setAllowed(false);
+      if ((e as Error).name !== "AbortError") setIsAdmin(false);
+    } finally {
+      if (!signal?.aborted) setMeLoaded(true);
     }
   }, []);
 
@@ -102,6 +111,8 @@ export default function SistemAyarlariPage() {
       setHasPin(!!json.hasPin);
     } catch (e) {
       if ((e as Error).name !== "AbortError") setCanPin(false);
+    } finally {
+      if (!signal?.aborted) setViewAccessLoaded(true);
     }
   }, []);
 
@@ -118,12 +129,8 @@ export default function SistemAyarlariPage() {
     return () => { ac.abort(); };
   }, [router, fetchMe, fetchSettings, fetchViewAccess]);
 
-  useEffect(() => {
-    if (allowed === false) {
-      toast.error("Bu sayfaya erişim yetkiniz yok.");
-      router.push("/flexos/kullanicilar");
-    }
-  }, [allowed, router]);
+  const canSeeSistemTab = isAdmin || canPin;
+  const activeTopTab = topTab ?? (canSeeSistemTab ? "sistem" : "bildirim");
 
   const applyStandaloneMode = async (next: boolean) => {
     if (modeBusy) return;
@@ -197,7 +204,7 @@ export default function SistemAyarlariPage() {
     }
   };
 
-  if (authed === null || allowed !== true) return null;
+  if (authed === null || !meLoaded || !viewAccessLoaded) return null;
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif", color: "#1E222B" }}>
@@ -205,18 +212,32 @@ export default function SistemAyarlariPage() {
       <main style={{ flex: 1, height: "100%", overflowY: "auto", scrollbarGutter: "stable", background: "#EEF0F3", display: "flex", flexDirection: "column" }}>
         <FlexHeader
           icon={<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>}
-          title="Sistem Ayarları"
-          subtitle="Sisteminizin genel çalışma modunu ve kişisel erişim ayarlarınızı yönetin."
+          title="Ayarlar"
+          subtitle="Bildirim tercihlerinizi ve — yetkiniz varsa — sistem ayarlarını yönetin."
           maxWidth={1200}
         />
 
         <FlexPageContent style={{ padding: "28px 36px 56px" }}>
-          <div style={{ display: "flex", gap: 0, marginBottom: 22 }}>
-            <SettingsTabBtn label="Genel Ayarlar" active={tab === "genel"} onClick={() => setTab("genel")} />
-            <SettingsTabBtn label="Loglar" active={tab === "loglar"} onClick={() => setTab("loglar")} />
+          <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
+            {canSeeSistemTab && (
+              <>
+                <TopTabBtn label="Sistem Ayarları" active={activeTopTab === "sistem"} onClick={() => setTopTab("sistem")} />
+                <TopTabBtn label="Loglar" active={activeTopTab === "loglar"} onClick={() => setTopTab("loglar")} />
+              </>
+            )}
+            <TopTabBtn label="Bildirim Ayarları" active={activeTopTab === "bildirim"} onClick={() => setTopTab("bildirim")} />
+            {/* Geliştirici Notları (2026-07-25) — SADECE owner (canPin = view.toggle,
+                SADECE VIEW_TOGGLE_OWNER_EMAIL) görür, isAdmin'de bile görünmez —
+                "normal kullanıcılar kesinlikle görmemeli" kullanıcı isteği. */}
+            {canPin && (
+              <TopTabBtn label="Geliştirici Notları" active={activeTopTab === "gelistirici"} onClick={() => setTopTab("gelistirici")} />
+            )}
           </div>
 
-          {tab === "loglar" && (
+          {activeTopTab === "bildirim" && <NotificationSoundSettings />}
+          {canPin && activeTopTab === "gelistirici" && <DevNotesPanel />}
+
+          {canSeeSistemTab && activeTopTab === "loglar" && (
             <div style={{ ...S.card, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "50px 20px", textAlign: "center" as const }}>
               <div style={{ width: 48, height: 48, borderRadius: 14, background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/><path d="M9 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
@@ -226,7 +247,7 @@ export default function SistemAyarlariPage() {
             </div>
           )}
 
-          {tab === "genel" && (
+          {canSeeSistemTab && activeTopTab === "sistem" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {isAdmin && (
             <div style={{ ...S.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" as const }}>
@@ -323,10 +344,23 @@ export default function SistemAyarlariPage() {
   );
 }
 
-function SettingsTabBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return <button onClick={onClick} style={{ padding: "12px 20px", border: "none", borderBottom: active ? "2.5px solid #7C3AED" : "2.5px solid transparent", background: "transparent", color: active ? "#7C3AED" : "#6F7B87", fontSize: 14, fontWeight: active ? 700 : 600, fontFamily: "inherit", cursor: "pointer", transition: "all .15s" }}>
-    {label}
-  </button>;
+function TopTabBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "10px 18px",
+        borderRadius: 11,
+        border: active ? "1px solid #7C3AED" : "1px solid #E2E5EA",
+        background: active ? "#F5F3FF" : "#fff",
+        color: active ? "#7C3AED" : "#6F7B87",
+        fontSize: 13.5, fontWeight: 700, fontFamily: "inherit",
+        cursor: "pointer", transition: "all .15s",
+      }}
+    >
+      {label}
+    </button>
+  );
 }
 
 function SystemModeSegment({ value, busy, onChange }: { value: boolean | null; busy: boolean; onChange: (standaloneMode: boolean) => void }) {

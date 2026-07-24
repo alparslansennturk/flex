@@ -86,11 +86,14 @@ export default function NotificationToastListener() {
 
         hasNew = true;
         const icon = TYPE_ICON[n.type] ?? '🔔';
-        toast(`${icon} ${n.title}`, {
+        const toastId = toast(`${icon} ${n.title}`, {
           description: n.preview,
           duration: 6000,
           ...(n.actionUrl && n.actionUrl !== '/' ? {
-            action: { label: 'Git →', onClick: () => routerRef.current.push(n.actionUrl) },
+            // 2026-07-25 kullanıcı bulgusu: "Git"e bastım ama toast ekranda kaldı
+            // (yoklama alırken). Sonner action tıklamasında normalde kendi kendine
+            // kapanıyor, ama garanti olsun diye burada da açıkça `dismiss` çağrılıyor.
+            action: { label: 'Git →', onClick: () => { routerRef.current.push(n.actionUrl); toast.dismiss(toastId); } },
           } : {}),
         });
       }

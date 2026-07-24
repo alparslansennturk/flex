@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import {
   Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
-  ChevronDown, Reply, Copy, Bell, BellOff, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore,
+  ChevronDown, Reply, Copy, Bell, BellOff, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore, Eraser,
 } from "lucide-react";
 import { onMessage, getToken } from "firebase/messaging";
 import { auth, getMessagingIfSupported } from "@/app/lib/firebase";
@@ -36,9 +36,9 @@ import {
   type ConversationView, type MessageView, type DirectoryUser, type ConnectConversationType, type ConnectRealm,
   type ConversationDetail, type TypingSignal, type ConnectReplySnapshot, type StarredMessageView, type PresenceSignal, type PresenceStatus,
   fetchConversations, fetchMessages, postMessage, markConversationRead, fetchDirectory, fetchStudentDirectory, createConversation,
-  subscribeToMessages, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
+  subscribeToMessages, subscribeToReceipts, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
   setConversationPinned, setConversationArchived, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
-  updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, fetchStarredMessages,
+  updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, clearConversation, fetchStarredMessages,
   subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
   registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled,
 } from "./_shared/connectClient";
@@ -189,6 +189,7 @@ export default function FlexConnectPage() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const firstLoadRef = useRef(true);
+  const prevMsgCountRef = useRef(0);
 
   // Mesaj düzenle/sil (WhatsApp — 2026-07-18).
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -679,6 +680,33 @@ export default function FlexConnectPage() {
     if (selectedId === id) setSelectedId(null);
   }
 
+  /**
+   * "Sohbeti Temizle" (2026-07-25, kullanıcı isteği: "sadece bende") — `hideConversation`'ın
+   * aksine konuşma listede KALIR, sadece mesaj geçmişi bu hesapta görünmez olur.
+   * Şu an açık konuşmaysa mesaj listesi anında boşaltılır (yeni mesajlar zaten
+   * temizleme anından SONRA geleceği için normal görünmeye devam eder).
+   */
+  async function handleClearConversation() {
+    if (!selected || !selectedId) return;
+    setMenuOpen(false);
+    if (!window.confirm(`"${selected.name || "Bu sohbet"}" için mesaj geçmişi temizlenecek (sadece sende, karşı taraf etkilenmez). Emin misin?`)) return;
+    const ok = await clearConversation(selectedId);
+    if (!ok) { toast.error("Temizlenemedi, tekrar dene."); return; }
+    toast.success("Sohbet temizlendi.");
+    setMessages([]);
+  }
+
+  /** Liste satırındaki 3-nokta menüsünden "Sohbeti Temizle" — `handleHideConversationRow`
+   * ile AYNI desen (herhangi bir satırın id'sine bağlı). */
+  async function handleClearConversationRow(id: string, name: string) {
+    setRowMenuOpenId(null);
+    if (!window.confirm(`"${name || "Bu sohbet"}" için mesaj geçmişi temizlenecek (sadece sende, karşı taraf etkilenmez). Emin misin?`)) return;
+    const ok = await clearConversation(id);
+    if (!ok) { toast.error("Temizlenemedi, tekrar dene."); return; }
+    toast.success("Sohbet temizlendi.");
+    if (selectedId === id) setMessages([]);
+  }
+
   /** Arşivle/arşivden çıkar — İyimser güncelleme, başarısız olursa geri alınır. */
   async function handleToggleArchiveRow(id: string, archived: boolean) {
     setRowMenuOpenId(null);
@@ -701,6 +729,40 @@ export default function FlexConnectPage() {
     return unsub;
   }, [selectedId]);
 
+  // Okundu/teslim tikleri (2026-07-25 kullanıcı bulgusu: tek gri→çift gri→çift
+  // mavi hiç güncellenmiyordu — üstteki onSnapshot SADECE mesajlar koleksiyonunu
+  // dinliyor, karşı tarafın `lastReadAt`/`lastDeliveredAt`'i AYRI bir Member
+  // dokümanına yazıldığı için hiç tetiklenmiyordu).
+  // İlk turda "her Nsn'de bir TÜM mesajları yeniden çek" (poll) ile çözülmüştü,
+  // ama kullanıcı maliyeti sordu: her poll ~60 mesaj + members okuması demekti
+  // (kota sızıntısı geçmişi var, bkz. proje hafızası). Bunun yerine `members`
+  // alt-koleksiyonunun KENDİ `onSnapshot`'ı (rules zaten izin veriyor) — sadece
+  // karşı taraf GERÇEKTEN okuduğunda/teslim aldığında 1 doküman okur, mesaj
+  // İÇERİĞİ hiç yeniden çekilmez; tikler sunucudaki `buildMessageViews` formülüyle
+  // BİREBİR aynı şekilde client-side hesaplanıp SADECE kendi mesajlarıma yamanır.
+  useEffect(() => {
+    if (!selectedId) return;
+    const myUid = auth.currentUser?.uid;
+    const unsub = subscribeToReceipts(selectedId, (receipts) => {
+      const others = receipts.filter((r) => r.uid !== myUid);
+      const otherReadAts = others.map((r) => r.lastReadAt).filter((t): t is string => !!t);
+      const otherDeliveredAts = others.map((r) => r.lastDeliveredAt).filter((t): t is string => !!t);
+      setMessages((prev) => {
+        let changed = false;
+        const next = prev.map((m) => {
+          if (!m.isMine) return m;
+          const readByAll = otherReadAts.length > 0 ? otherReadAts.every((t) => t >= m.createdAt) : undefined;
+          const deliveredByAll = otherDeliveredAts.length > 0 ? otherDeliveredAts.every((t) => t >= m.createdAt) : undefined;
+          if (readByAll === m.readByAll && deliveredByAll === m.deliveredByAll) return m;
+          changed = true;
+          return { ...m, readByAll, deliveredByAll };
+        });
+        return changed ? next : prev; // aynı referans → React bu state için re-render'ı atlar
+      });
+    });
+    return unsub;
+  }, [selectedId]);
+
   // "Yazıyor" presence dinleme + TTL için 1sn'lik tık (bkz. TypingIndicator).
   useEffect(() => {
     setTypingSignals([]);
@@ -717,8 +779,16 @@ export default function FlexConnectPage() {
 
   // İlk yüklemede anında (animasyonsuz) en alta atla, sonraki yeni mesajlar
   // yumuşak kaysın (2026-07-18 bug fix — bkz. ConnectWidget.tsx AYNI yorum).
+  // 2026-07-25: yukarıdaki tik-tazeleme pollingi mesaj SAYISI değişmese bile
+  // `messages`'ı yeni bir dizi referansıyla günceller — sadece mesaj sayısı
+  // gerçekten arttıysa (yeni mesaj) kaydırıyoruz, yoksa kullanıcı geçmişi
+  // okurken her 15sn'de bir en alta zıplardı.
   useLayoutEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
+    const grew = messages.length > prevMsgCountRef.current;
+    if (firstLoadRef.current || grew) {
+      bottomRef.current?.scrollIntoView({ behavior: firstLoadRef.current ? "auto" : "smooth" });
+    }
+    prevMsgCountRef.current = messages.length;
     firstLoadRef.current = false;
   }, [messages]);
 
@@ -1068,6 +1138,9 @@ export default function FlexConnectPage() {
                         <button onClick={() => handleToggleArchiveRow(c.id, c.archived)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
                           {c.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />} {c.archived ? "Arşivden Çıkar" : "Arşivle"}
                         </button>
+                        <button onClick={() => handleClearConversationRow(c.id, c.name)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                          <Eraser size={14} /> Sohbeti Temizle
+                        </button>
                         {c.type === "dm" && (
                           <button onClick={() => handleHideConversationRow(c.id, c.name)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                             <Trash2 size={14} /> Sohbeti Sil
@@ -1154,6 +1227,9 @@ export default function FlexConnectPage() {
                             <Trash2 size={14} /> {selected.type === "channel" ? "Kanalı Sil" : selected.type === "community" ? "Topluluğu Sil" : "Grubu Sil"}
                           </button>
                         )}
+                        <button onClick={handleClearConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#4A515C", background: "transparent" }}>
+                          <Eraser size={14} /> Sohbeti Temizle
+                        </button>
                         {selected.type === "dm" && (
                           <button onClick={handleHideConversation} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                             <Trash2 size={14} /> Sohbeti Sil

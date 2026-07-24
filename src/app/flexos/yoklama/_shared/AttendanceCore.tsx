@@ -490,20 +490,29 @@ export default function AttendanceCore({
 
   // ── Attendance kaydı yükle (grup/tarih değişince) ────────────────────────
   const loadRecord = useCallback(async () => {
-    if (!selectedGroupId) { setRecord(null); setEntries({}); return; }
+    if (!selectedGroupId) { setRecord(null); setEntries({}); setSaved(false); return; }
     setLoadingRecord(true);
     try {
       const headers = await authHeaders();
       const res = await fetch(`/api/flexos/attendance?groupId=${selectedGroupId}&date=${dateKey}`, { headers });
       if (res.ok) {
         const j = await res.json();
-        setRecord(j.record ?? null);
-        setEntries(j.record?.entries ?? {});
+        const loadedRecord: AttendanceRecord | null = j.record ?? null;
+        setRecord(loadedRecord);
+        setEntries(loadedRecord?.entries ?? {});
         setWithinEditWindowApi(!!j.withinEditWindow);
+        // 2026-07-25 kullanıcı bulgusu: kaydı zaten girip kaydetmiş, ama ekranı
+        // kapatıp yeniden açınca (yeni bir değişiklik YAPMADAN) alttaki buton
+        // "Kaydet"e sıfırlanıyordu — `saved` burada eskiden koşulsuz `false`
+        // yapılıyordu, kayıt zaten dolu girişlerle/kapalı gelse bile. Artık
+        // `hasPersistedEntries` ile aynı formül: kayıt zaten kaydedilmiş
+        // girişlerle (ya da kapalı) geldiyse `saved=true` başlar, "Dersi
+        // Bitir" doğrudan görünür — entries değiştirilirse (setHours/
+        // toggleOnline/markAllHours) zaten `setSaved(false)` çağrılıyor.
+        setSaved(!!loadedRecord && (Object.keys(loadedRecord.entries ?? {}).length > 0 || !!loadedRecord.attendanceClosed));
       }
     } finally {
       setLoadingRecord(false);
-      setSaved(false);
       setEditUnlocked(false);
     }
   }, [selectedGroupId, dateKey]);

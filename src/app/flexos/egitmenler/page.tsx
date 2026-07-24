@@ -11,6 +11,7 @@ import Footer from "@/app/components/layout/Footer";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatTrPhone } from "@/app/lib/phone";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { useCapabilities } from "../_components/useCapabilities";
 
 /* ── Types ── */
 interface TrainerNote {
@@ -101,6 +102,20 @@ export default function EgitmenlerPage() {
   const [subeFilter, setSubeFilter] = useState("Tümü");
   const [bransFilter, setBransFilter] = useState("Tümü");
   const [statusFilter, setStatusFilter] = useState("Tümü");
+
+  // Şube filtresi varsayılanı (2026-07-25 kullanıcı isteği — Satış Listesi/Öğrenci
+  // Havuzu ile AYNI desen): açılışta kullanıcının KENDİ şubesi ön-seçili gelir,
+  // "Tümü"ne ya da başka bir şubeye serbestçe geçilebilir — erişim kısıtlaması
+  // DEĞİL, sadece varsayılan filtre; sadece İLK yüklemede set edilir.
+  const { officeName: myOfficeName } = useCapabilities();
+  const [subeFilterInitialized, setSubeFilterInitialized] = useState(false);
+  useEffect(() => {
+    if (!subeFilterInitialized && myOfficeName) {
+      setSubeFilter(myOfficeName);
+      setPSube(myOfficeName);
+      setSubeFilterInitialized(true);
+    }
+  }, [myOfficeName, subeFilterInitialized]);
 
   const [openDD, setOpenDD] = useState<string | null>(null);
   const [page, setPage] = useState(1);
