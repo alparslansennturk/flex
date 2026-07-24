@@ -46,6 +46,9 @@ export default function YoklamaDetayPage() {
   const [showDetail, setShowDetail] = useState(false);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
   const [detailDate, setDetailDate] = useState<string | undefined>(undefined);
+  // Panel unmount olmadığı için (framer-motion sadece kaydırıyor) aynı gruba tekrar
+  // girildiğinde donut animasyonunun yeniden oynaması için — her açılışta artar.
+  const [revealNonce, setRevealNonce] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -101,6 +104,7 @@ export default function YoklamaDetayPage() {
                 setDetailGroupId(groupId);
                 setDetailDate(detailDateFor(month));
                 setShowDetail(true);
+                setRevealNonce((n) => n + 1);
               }}
             />
           </motion.div>
@@ -116,6 +120,7 @@ export default function YoklamaDetayPage() {
                 allowEdit
                 enforceTimeWindow
                 containerClassName="flex min-h-full w-full max-w-[1920px] mx-auto px-9"
+                revealSignal={revealNonce}
               />
             )}
           </motion.div>

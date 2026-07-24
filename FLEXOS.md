@@ -16,7 +16,22 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-25 oturumu (17) — Yoklama: sayfa-seviyesi "ilk loader" da kaldırıldı (EN GÜNCEL)
+### 🔶 2026-07-25 oturumu (18) — Yoklama Detay: donut giriş animasyonu + sayaç (EN GÜNCEL)
+
+- Kullanıcı isteği: `/flexos/yoklama/detay` sayfasındaki kurs ilerleme donut'una
+  animasyon + içindeki "xxx saat" yazısına sayaç. `satislar/dashboard`'daki
+  `useAnimProgress` (ease-out cubic, requestAnimationFrame) deseni `AttendanceCore.tsx`'e
+  taşındı — halka soldan sağa dolarak açılıyor (~0.9sn), ortadaki saat sayısı 0'dan
+  gerçek değere sayarak yükseliyor, ikisi aynı `donutReveal` ilerlemesine bağlı.
+- **Bulunan bug:** ilk girişte animasyon oynuyordu ama gruptan çıkıp aynı gruba tekrar
+  girince oynamıyordu — kök neden: Yoklama Detay'da liste↔detay paneli framer-motion ile
+  sadece ekran dışına kayıyor, `AttendanceCore` unmount OLMUYOR; `selectedGroupId`
+  değişmediği için animasyon hook'unun `resetKey`'i tetiklenmiyordu. Çözüm: yeni
+  `revealSignal` prop'u — panel her açıldığında (aynı grup olsa bile) `page.tsx`'te artan
+  bir `revealNonce` gönderiliyor, hem `/yoklama/al` hem `/yoklama/detay`'da uygulandı.
+- `tsc`/`eslint`/`npm run build` temiz.
+
+### 🔶 2026-07-25 oturumu (17) — Yoklama: sayfa-seviyesi "ilk loader" da kaldırıldı
 
 - **Kullanıcı bulgusu (bir önceki birleştirme fix'inden SONRA):** "Önce loader
   çıkıyor sonra konumu değişiyor başka loader açıldı. Daha ufak sonra çıkan loader.

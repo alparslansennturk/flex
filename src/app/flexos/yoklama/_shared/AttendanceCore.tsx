@@ -146,6 +146,29 @@ function fmtMins(mins: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 function toMonthKey(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+/**
+ * Kurs ilerleme donut'unun giriş animasyonu — `satislar/dashboard`'daki `useAnimProgress`
+ * ile aynı desen (ease-out cubic, requestAnimationFrame). `resetKey` değiştiğinde (grup
+ * değişince) animasyon sıfırdan yeniden oynar — donut aynı component instance'ında
+ * kalıp sadece prop'u değişebildiği için (Yoklama Detay'da grup değiştirince remount
+ * olmuyor) bu olmadan ikinci grupta hiç animasyon oynamazdı.
+ */
+function useAnimProgress(active: boolean, resetKey: string | number | null | undefined, duration = 900): number {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    let raf: number;
+    const start = performance.now();
+    function tick(now: number) {
+      const t = Math.min(1, (now - start) / duration);
+      setProgress(1 - Math.pow(1 - t, 3));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, resetKey, duration]);
+  return progress;
+}
 /** Verilen ay için weekDays'e uyan, tatil olmayan gün sayısı — "Bu Ay Planlanan Ders" kartı için. */
 function countWeekdaysInMonth(year: number, month: number, weekDays: number[], holidayDates: Set<string>, startDate?: string, endDate?: string): number {
   if (!weekDays || weekDays.length === 0) return 0;
@@ -274,6 +297,12 @@ export interface AttendanceCoreProps {
    *  eşleşir (1300/1440/1620). Yoklama Detay/Raporu gibi FlexHeader kullanan (1920
    *  genişlik standardı) sayfalar bunu override eder. */
   containerClassName?: string;
+  /** Donut giriş animasyonunu yeniden tetiklemek için — Yoklama Detay'da liste↔detay
+   *  panel geçişinde `AttendanceCore` unmount OLMUYOR (sadece framer-motion ile
+   *  ekran dışına kayıyor), bu yüzden aynı gruba tekrar girildiğinde `selectedGroupId`
+   *  değişmediği için animasyon kendiliğinden tekrar oynamaz. Panel her açıldığında
+   *  (aynı grup olsa bile) değişen bir değer verilirse animasyon sıfırdan oynar. */
+  revealSignal?: string | number;
 }
 
 const DEFAULT_CONTAINER_CLASSNAME = "flex min-h-full w-full max-w-[1300px] xl:max-w-[1440px] 2xl:max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8";
@@ -288,6 +317,7 @@ export default function AttendanceCore({
   onViewDetail,
   onBackToAttend,
   containerClassName = DEFAULT_CONTAINER_CLASSNAME,
+  revealSignal,
 }: AttendanceCoreProps) {
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
@@ -429,6 +459,9 @@ export default function AttendanceCore({
   const courseDoneHours = allTimeDoneCount * sessionHours;
   const courseRemainingHours = courseTotalHours !== null ? Math.max(0, courseTotalHours - courseDoneHours) : null;
   const courseProgressPct = courseTotalHours ? Math.min(100, Math.round((courseDoneHours / courseTotalHours) * 100)) : 0;
+  const donutReveal = useAnimProgress(courseTotalHours !== null, `${selectedGroupId ?? ""}-${revealSignal ?? ""}`);
+  const donutAnimatedPct = courseProgressPct * donutReveal;
+  const donutAnimatedHours = Math.round(courseDoneHours * donutReveal);
   const estimatedEndDate = useMemo(() => {
     if (!courseTotalHours || !sessionHours) return null;
     const totalSessionsNeeded = Math.ceil(courseTotalHours / sessionHours);
@@ -954,19 +987,19 @@ export default function AttendanceCore({
                               </linearGradient>
                             </defs>
                             <circle cx="82" cy="82" r="58" fill="none" stroke="#ddeaf8" strokeWidth="24" />
-                            {courseProgressPct > 0 && (
+                            {donutAnimatedPct > 0 && (
                               <g transform="rotate(-90 82 82)">
                                 <circle
                                   cx="82" cy="82" r="58" fill="none"
                                   stroke="url(#fxDonutArcGrad)" strokeWidth="24" strokeLinecap="round"
                                   strokeDasharray={2 * Math.PI * 58}
-                                  strokeDashoffset={2 * Math.PI * 58 * (1 - courseProgressPct / 100)}
+                                  strokeDashoffset={2 * Math.PI * 58 * (1 - donutAnimatedPct / 100)}
                                 />
                               </g>
                             )}
                           </svg>
                           <div className="pointer-events-none flex flex-col items-center" style={{ position: "absolute", top: 68, left: 65, transform: "translate(-50%, -50%)", gap: 3 }}>
-                            <span className="text-[24px] font-bold text-base-primary-700 leading-none">{courseDoneHours}</span>
+                            <span className="text-[24px] font-bold text-base-primary-700 leading-none">{donutAnimatedHours}</span>
                             <span className="text-[12px] text-base-primary-700 leading-none">saat</span>
                           </div>
                         </div>

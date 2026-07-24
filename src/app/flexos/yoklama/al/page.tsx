@@ -31,6 +31,9 @@ export default function YoklamaAlPage() {
   const [displayName, setDisplayName] = useState("");
   const [showDetail, setShowDetail] = useState(false);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
+  // Panel unmount olmadığı için (framer-motion sadece kaydırıyor) aynı gruba tekrar
+  // girildiğinde donut animasyonunun yeniden oynaması için — her açılışta artar.
+  const [revealNonce, setRevealNonce] = useState(0);
   // 2026-07-13 fix — logo linki `/flexos/anasayfa` (admin-only, hâlâ "Dashboard yakında
   // burada olacak" placeholder'ı) HARDCODED'dı: rolden bağımsız herkesi oraya götürüyordu
   // (kullanıcı bulgusu: eğitmen yoklamadan logoya tıklayınca boş "yakında" sayfasına düştü).
@@ -115,7 +118,7 @@ export default function YoklamaAlPage() {
             autoSelectToday
             allowEdit
             enforceTimeWindow
-            onViewDetail={(gid) => { setDetailGroupId(gid); setShowDetail(true); }}
+            onViewDetail={(gid) => { setDetailGroupId(gid); setShowDetail(true); setRevealNonce((n) => n + 1); }}
           />
         </main>
       </motion.div>
@@ -132,6 +135,7 @@ export default function YoklamaAlPage() {
               allowEdit
               enforceTimeWindow
               onBackToAttend={() => setShowDetail(false)}
+              revealSignal={revealNonce}
             />
           )}
         </main>
