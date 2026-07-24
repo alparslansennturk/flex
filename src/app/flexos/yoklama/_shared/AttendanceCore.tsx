@@ -298,6 +298,7 @@ export default function AttendanceCore({
   const [branchFilter, setBranchFilter] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [roster, setRoster] = useState<RosterPerson[]>([]);
+  const [rosterLoaded, setRosterLoaded] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(() => (initialDate ? new Date(`${initialDate}T12:00:00`) : new Date()));
 
   const [entries, setEntries] = useState<Record<string, StudentEntry>>({});
@@ -445,14 +446,24 @@ export default function AttendanceCore({
   const monthRemainingCount = Math.max(0, monthPlannedCount - monthDoneCount - monthCancelledCount);
 
   // ── Roster yükle ──────────────────────────────────────────────────────────
+  // 2026-07-25 kullanıcı bulgusu: grup seçilir seçilmez (fetch daha bitmeden) bir an
+  // "Bu grupta aktif öğrenci yok." mesajı görünüp sonra gerçek liste geliyordu — aynı
+  // "veri yüklenmeden erken sonuç gösterme" sınıfı bug, gruplardaki flaşla AYNI kök
+  // neden (yükleniyor/boş ayrımı yoktu, `roster.length===0` HEM "henüz çekilmedi" HEM
+  // "gerçekten boş" anlamına geliyordu). `rosterLoaded` eklendi.
   useEffect(() => {
-    if (!selectedGroupId) { setRoster([]); return; }
+    if (!selectedGroupId) { setRoster([]); setRosterLoaded(false); return; }
+    setRosterLoaded(false);
     (async () => {
-      const headers = await authHeaders();
-      const res = await fetch(`/api/flexos/groups/${selectedGroupId}/roster`, { headers });
-      if (res.ok) {
-        const j = await res.json();
-        setRoster(j.items ?? []);
+      try {
+        const headers = await authHeaders();
+        const res = await fetch(`/api/flexos/groups/${selectedGroupId}/roster`, { headers });
+        if (res.ok) {
+          const j = await res.json();
+          setRoster(j.items ?? []);
+        }
+      } finally {
+        setRosterLoaded(true);
       }
     })();
   }, [selectedGroupId]);
@@ -460,17 +471,24 @@ export default function AttendanceCore({
   // ── Kurs ilerleme (lacivert bar) — tüm-zamanlı yapılan ders sayısı. `courseTotalHours`
   // artık `selectedGroup`'un kendi alanlarından türetiliyor (yukarıda), ayrı bir eğitim
   // fetch'i gerekmiyor — sadece yoklama kayıtları çekiliyor.
-  useEffect(() => {
+  const loadAllTimeRecords = useCallback(async () => {
     if (!selectedGroupId) { setAllTimeRecords([]); return; }
-    (async () => {
-      const headers = await authHeaders();
-      const res = await fetch(`/api/flexos/attendance?groupId=${selectedGroupId}`, { headers });
-      if (res.ok) {
-        const j = await res.json();
-        setAllTimeRecords((j.items ?? []) as AttendanceRecord[]);
-      }
-    })();
+    const headers = await authHeaders();
+    const res = await fetch(`/api/flexos/attendance?groupId=${selectedGroupId}`, { headers });
+    if (res.ok) {
+      const j = await res.json();
+      setAllTimeRecords((j.items ?? []) as AttendanceRecord[]);
+    }
   }, [selectedGroupId]);
+  useEffect(() => { void loadAllTimeRecords(); }, [loadAllTimeRecords]);
+  // 2026-07-25 kullanıcı bulgusu: bir öğrenciyi işaretleyip "Kaydet" dedikten sonra
+  // lacivert ilerleme barı ("15 saat" gibi) AYNI oturumda hiç güncellenmiyordu —
+  // "Dersi Bitir"e kadar bekliyordu. Kök neden: bu fetch SADECE `selectedGroupId`
+  // değişince tetikleniyordu, kaydetme/bitirme sonrası yeniden çekilmiyordu. Backend
+  // zaten `attendance.changed` SSE olayını yayınlıyor (`api/flexos/attendance` route'ları)
+  // — `groups.changed`/`educations.changed` ile AYNI paylaşımlı `useRealtimeSync`
+  // deseni buraya da eklendi, artık kaydet/bitir'in HER İKİSİ de anında yansıyor.
+  useRealtimeSync(["attendance.changed"], loadAllTimeRecords);
 
   // ── İptal ders sayısı (bu ay) — SADECE org-scope (attendance.report.read), "detail" modda.
   useEffect(() => {
@@ -671,6 +689,15 @@ export default function AttendanceCore({
 
   const contentBusy = loadingRecord;
 
+  // 2026-07-25 kullanıcı bulgusu: grup-seçim spinner'ı ve roster spinner'ı AYRI AYRI
+  // doğru çalışıyordu ama ard arda, FARKLI konum/boyutlarda beliriyorlardı ("2-3 kere
+  // loader ve konumu değişti"). Tek bir birleşik "hâlâ başlangıç yükleniyor" bayrağına
+  // indirgendi — sağ panelde TEK bir spinner, konumu SABİT, hem grup otomatik
+  // seçilene hem (seçildikten sonra) roster gelene kadar aynı yerde kalır.
+  const waitingForGroupAutoSelect = autoSelectToday && !selectedGroupId && (!groupsLoaded || groups.length > 0);
+  const waitingForRoster = !!selectedGroupId && !rosterLoaded;
+  const stillInitializing = waitingForGroupAutoSelect || waitingForRoster;
+
   return (
     <>
       {showEndConfirm && (
@@ -749,17 +776,15 @@ export default function AttendanceCore({
 
         {/* ── RIGHT ─────────────────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0 max-w-[1400px]">
-          {!selectedGroupId ? (
-            autoSelectToday && !groupsLoaded ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-surface-200 border-t-base-primary-500 rounded-full animate-spin" />
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-text-placeholder">
-                <CalendarCheck size={36} strokeWidth={1.5} />
-                <p className="text-[14px] font-medium">Bir grup seçin</p>
-              </div>
-            )
+          {stillInitializing ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-surface-200 border-t-base-primary-500 rounded-full animate-spin" />
+            </div>
+          ) : !selectedGroupId ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-text-placeholder">
+              <CalendarCheck size={36} strokeWidth={1.5} />
+              <p className="text-[14px] font-medium">Bir grup seçin</p>
+            </div>
           ) : (
             <>
               {mode === "simple" && (
@@ -1127,7 +1152,9 @@ export default function AttendanceCore({
                     </div>
                   )}
 
-                  {/* Student list */}
+                  {/* Student list — `rosterLoaded` artık üstteki `stillInitializing`
+                      birleşik kapısında ele alınıyor, bu dala hiç ulaşılmadan önce
+                      zaten true (bkz. 2026-07-25 "loader konumu değişti" fix'i). */}
                   <div className={`pt-6 ${(exception || overlayMessage || isReadonlyView || isPastExpired || (!isWithinTimeWindow && !hasPersistedEntries && !attendanceClosed) || (mode === "simple" && isToday && !record)) ? "opacity-60 pointer-events-none select-none" : ""} ${contentBusy ? "opacity-40" : ""}`}>
                     {roster.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-placeholder">

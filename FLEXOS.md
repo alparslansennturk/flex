@@ -16,7 +16,226 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-25 oturumu (10) — Geliştirici Notları (yeni, dahili) (EN GÜNCEL)
+### 🔶 2026-07-25 oturumu (17) — Yoklama: sayfa-seviyesi "ilk loader" da kaldırıldı (EN GÜNCEL)
+
+- **Kullanıcı bulgusu (bir önceki birleştirme fix'inden SONRA):** "Önce loader
+  çıkıyor sonra konumu değişiyor başka loader açıldı. Daha ufak sonra çıkan loader.
+  İlk loader olmasın o zaman." — bir önceki fix AttendanceCore İÇİNDEKİ 2 spinner'ı
+  birleştirmişti, ama `YoklamaAlPage`'in KENDİ ayrı tam-ekran bekleme ekranı
+  (AttendanceCore mount olmadan önce, isim+homeHref fetch'lerini bekliyordu) hâlâ
+  duruyordu — "ilk loader" buydu.
+- **Fix (`yoklama/al/page.tsx`):** `ready` → `authed` olarak daraltıldı — SADECE
+  gerçek auth kontrolü (login'e yönlendirme kararı için zorunlu, ama hızlı: Firebase
+  local storage'dan okur, ağ isteği değil) render'ı bekletir. İsim (`users/{uid}`
+  fetch) ve `homeHref` (`/api/flexos/me` fetch) artık render'ı BLOKLAMIYOR — auth
+  doğrulanır doğrulanmaz AttendanceCore ANINDA mount olup KENDİ veri yüklemesine
+  (dolayısıyla kendi birleşik spinner'ına) başlıyor, isim/homeHref arka planda dolup
+  topBar'a sessizce yansıyor.
+- **Not:** Auth kontrolü teknik olarak hâlâ ASENKRON (tamamen "sıfır loader"
+  garanti edilemez — login'e atma kararı için bilinmesi ZORUNLU) ama artık 2 ekstra
+  network isteğini (users doc + /api/flexos/me) beklemediği için önceki hâline göre
+  ÇOK daha kısa/fark edilmez olmalı.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi.**
+
+### 🔶 2026-07-25 oturumu (16) — Yoklama: 3 farklı loader tek loader'a indirgendi
+
+- **Kullanıcı bulgusu (bir önceki 2 flaş fix'inden SONRA):** "Yoklama Al bastım,
+  loader dönerken birden kayboldu, başka bir loader konum değişti, sonra başka bir
+  loader ve grup geldi. 2-3 kere loader ve konumu değişti." — her spinner AYRI AYRI
+  doğru çalışıyordu (grup-seçim spinner'ı + roster spinner'ı, ikisi de bu oturumda
+  ayrı ayrı düzeltilmişti) ama ART ARDA, FARKLI konum/boyutlarda beliriyorlardı —
+  toplam deneyim kötüydü.
+- **Fix (`AttendanceCore.tsx`):** `waitingForGroupAutoSelect` + `waitingForRoster`
+  tek bir `stillInitializing` bayrağında birleştirildi. Sağ panelde artık TEK bir
+  spinner, SABİT konumda — hem grup otomatik seçilene hem (seçildikten sonra)
+  roster gelene kadar aynı yerde kalıyor, içerik tek seferde beliriyor. İçteki artık
+  gereksiz/erişilemez `!rosterLoaded` dalı temizlendi (roster, bu dala ulaşıldığında
+  garantili yüklü).
+- **Bilinen, BİLEREK dokunulmayan ayrı bir aşama:** `YoklamaAlPage`'in kendi
+  tam-ekran auth/landing yükleme spinner'ı (AttendanceCore mount OLMADAN önce)
+  hâlâ ayrı — bu farklı bir "sayfa açılıyor" fazı (farklı konum: tam viewport
+  ortası), içerik-yükleme spinner'larıyla birleştirilmedi. Kullanıcı hâlâ "2 loader"
+  görebilir (sayfa açılışı + içerik), 3 değil.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi.** Bu
+oturumdaki TÜM fix'ler (güvenlik sızıntısı + 2 yoklama flaşı + real-time ilerleme
+barı + bu loader birleştirme) hâlâ push edilmedi.
+
+### 🔶 2026-07-25 oturumu (15) — BEKLEYEN TASARIM: Eğitmen Hakediş + Özel Ders (kod YOK, sadece konuşuldu)
+
+Henüz hiç kod yazılmadı — sadece fikir aşaması, kullanıcı "Fikir soruyorum" dedi.
+İki ayrı ama ilişkili konu:
+
+**1) Eğitmen Hakediş widget'ı (Finans modülünden AYRI, küçük/izole bir özellik):**
+- Core moddaki eğitmen (kendi hesabı, admin CRUD'u yok) kendi ders saati ücretini
+  **Yoklama Detay ekranının altına** kendisi girecek (yeni bir alan, `Trainer.hourlyRate`
+  zaten var ama şu an sadece Full-mod admin `Eğitmenler` CRUD'undan yazılabiliyor,
+  `trainer.rate.write` capability'si — Core'da bu ekran zaten yok).
+- Yanında o ayki toplam ders saati × ücret = hakediş CANLI hesaplanıp gösterilecek
+  (depolanmaz, her görüntülemede hesaplanır).
+- **KRİTİK gizlilik kuralı (kullanıcının kendi sözleri):** "Asla ve asla admin/kurucu
+  dahil görmeyecek o kısmı" — bu sadece UI'da gizlemek değil, `trainer.rate.read`'e
+  YENİ bir `self` scope eklenip sunucu tarafında da SADECE `ownerMatches` ile
+  kilitlenmeli (mevcut org-scope admin/finans grant'i BU özelliği hiç kullanmamalı).
+  Owner hem admin hem gerçek eğitmen olduğu için kendi görünümünde kendi hakedişini
+  görecek — bu çelişki değil, `self` scope zaten "çağıranın kendisi" demek.
+- **Yemek ücreti kuralı (Arı Bilgi için, kullanıcının kendi sözleri):** Aynı gün 2 farklı
+  derse girerse (2 grup, ya da 1 grup+1 özel ders) o güne sabit **300 TL** (bu yıl için)
+  yemek ücreti eklenir — `Trainer`'a yeni bir `mealAllowance` alanı (eğitmen kendi girer).
+  Hesap: ay içindeki her GÜN için, o eğitmenin o günkü FARKLI grup sayısı ≥2 ise
+  o güne bir kere `mealAllowance` eklenir.
+- **Bilinen sınır (özel ders henüz yok):** "2 grup" senaryosu bugünkü veriden (Group+
+  AttendanceRecord) direkt hesaplanabilir. "1 grup+1 özel ders" senaryosu özel ders
+  satış akışı (aşağıda) kurulana kadar TESPİT EDİLEMEZ — ilk sürüm SADECE grup bazlı
+  sayım yapacak, özel ders eklenince aynı gün sayımına o da dahil edilecek.
+
+**2) Özel Ders (kullanıcı: "Bunu ayrı konuşalım" — AYRI bir konu, henüz tasarlanmadı):**
+- Sistemde "özel ders" diye bir kavram HİÇ YOK (her şey Group üzerinden) — bu YENİ
+  bir satış/eğitim türü olacak.
+- Grup dersleri gibi sabit müfredat/saat YOK — tamamen custom: öğrencinin ihtiyacına
+  göre saat belirlenir (örnek: 20 saat UX/UI, 20 saat Photoshop, 25 saat Sosyal Medya).
+- **Satış Yap** akışında seçilecek: satış anında hem SAAT hem SAAT ÜCRETİ (örn. 2000
+  TL/saat) elle/custom girilecek, sistem ANINDA hesaplayıp **KDV** ekleyecek.
+  Kullanıcı ayrıca ileride Eğitim Müfredatları'na sabit "özel ders" kalemleri de
+  eklemeyi planlıyor (bu notta detaylandırılmadı, ayrı konuşulacak).
+- **Zamanlama:** Özel dersin GÜNLERİ öğrencinin isteğine göre belirlenir — Group'un
+  sabit `schedule.days`'i gibi değil, CUSTOM bir haftalık program (satışta ya da
+  Eğitim Op tarafından girilir). Sistem bu custom programa göre yoklama
+  oturumları/kayıtları OTOMATİK üretecek — yani özel ders, Group'a benzer bir
+  "schedule → otomatik yoklama session'ı" mekanizmasına ihtiyaç duyuyor ama KENDİ
+  ayrı (Group'tan bağımsız) bir veri modeliyle. Bu, özel dersin göründüğünden daha
+  büyük bir iş olduğunu gösteriyor (Group'un schedule/attendance-generation
+  altyapısına paralel, küçük bir kopyası gerekebilir) — ayrı bir tasarım turu şart.
+- **UI akışı:** Tanımlanan özel ders **Sınıflar listesinde** normal gruplarla YAN YANA
+  görünecek (ayrı bir liste değil). Tıklayınca kendi "detay" sayfası açılır, İÇİNDE
+  önce yoklama/gün ayarı yapılır (hangi günler).
+- **Esneklik zorunlu (kullanıcının kendi sözleri):** "Özel derslerin maalesef sabit
+  saati pek olmuyor... öğrencinin iş durumlarına göre bazı günler anlık değiştirilmek
+  zorunda kalıyor." Yani baştan sabit bir haftalık program kurulsa bile, TEK BİR
+  GÜNÜ anlık/ad-hoc değiştirebilme zorunlu — tüm programı bozmadan.
+  **DÜZELTME (aynı gün, kod kontrolüyle):** `LessonException` (`lesson-exception.ts`)
+  şu an SADECE İPTAL destekliyor ("Ders Olmadı" — `reason`+`countsAsLesson`, saat/gün
+  alanı YOK). Kullanıcının asıl istediği ("1 saat sonraki ders 3 saat sonraya kaysın")
+  bir RESCHEDULE (saat/gün DEĞİŞTİRME), iptal değil — bu mevcut sistemde YOK, yeni bir
+  yetenek gerekiyor (ya `LessonException`'a yeni bir `reschedule` alanı/reason'ı
+  eklenir, ya da ayrı bir mekanizma). Önceki "zaten var" notu YANLIŞTI, düzeltildi.
+- **Yetki:** Bu iptal/reschedule işlemini Core modda EĞİTMEN kendisi yapar (kendi
+  özel dersi); Full modda EĞİTİM OP yapar (eğitmen değil) — mod'a göre değişen bir
+  yetki kuralı, `standaloneMode`/paket ayrımının bu özellikte de tekrarlanması gerekiyor.
+
+**3) Kurumsal Modülü (kullanıcı: "tüm bunlar bittikten sonra" — EN DÜŞÜK öncelik,
+sadece isim/kapsam olarak not düşüldü, hiç detaylandırılmadı):**
+- Başlı başına ayrı bir yapı olacak — firma listesi + yetkilileri + iletişim
+  bilgileri barındıran bir kütüphane/CRM gibi. (Not: proje hafızasında zaten
+  "Kampanya Modülü Kararları" ve "Aktivasyon Merkezi Mimari" gibi ilişkili canlı-
+  sonrası konular var — Kurumsal muhtemelen bunlarla bağlantılı olacak, ileride
+  birlikte ele alınabilir.)
+
+**Öncelik sırası (kullanıcının kendi sözleriyle):** Hakediş+Yemek Ücreti → Özel
+Ders → Kurumsal. Kurumsal en sona bırakıldı, üçü de şu an SIFIR kod.
+- Bu özellik kurulmadan (1)'deki yemek ücreti kuralının özel-ders bacağı çalışmaz
+  (bkz. yukarıdaki "bilinen sınır").
+
+**Sıradaki adım:** Kullanıcıya (1)'i (hakediş+yemek ücreti, sadece grup bazlı) şimdi
+uygulayıp uygulamayacağı soruldu, henüz cevap/onay yok — "FlexOS devam" dendiğinde
+önce buraya bakılıp kullanıcıya sorulmalı, kod yazılmaya hemen başlanmamalı.
+
+### 🔶 2026-07-25 oturumu (14) — Yoklama ilerleme barı real-time olmuyordu
+
+- **Kullanıcı bulgusu:** Ders başlattı, bir öğrenciyi işaretleyip "Kaydet" dedi —
+  üstteki lacivert ilerleme barı ("15 saat") AYNI oturumda güncellenmedi, sadece
+  "Dersi Bitir"e bastıktan sonra "18 saat" oldu.
+  - **Yan tartışma (kullanıcı sordu, karar):** Bar "Dersi Başlat"a basar basmaz mı,
+    yoksa "Dersi Bitir"e kadar mı beklemeli? Karar: kod zaten doğru orta yolu
+    kullanıyor (`realRecords` filtresi: `entries dolu || attendanceClosed`) —
+    en az bir öğrenci işaretlenince sayılıyor, boş "Başlat" tek başına saymıyor
+    (ders hiç yapılmadan iptal olursa yanlış sayılmasın diye) — DOKUNULMADI, doğru.
+- **Kök neden (gerçek eksik):** `allTimeRecords` (barı besleyen veri) SADECE
+  `selectedGroupId` değişince fetch ediliyordu — kaydetme/bitirme sonrası yeniden
+  çekilmiyordu. Backend zaten `attendance.changed` SSE olayını yayınlıyordu
+  (`api/flexos/attendance` route'ları), ama `AttendanceCore.tsx` buna hiç abone
+  değildi (sadece `groups.changed`/`educations.changed`'a).
+- **Fix:** fetch mantığı `loadAllTimeRecords` adlı yeniden kullanılabilir bir
+  `useCallback`'e çıkarıldı, `useRealtimeSync(["attendance.changed"], loadAllTimeRecords)`
+  eklendi — dosyadaki AYNI paylaşımlı desen. Artık hem Kaydet hem Dersi Bitir barı
+  anında günceller.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi.** Bu
+oturumdaki TÜM fix'ler (güvenlik sızıntısı + 2 yoklama flaşı + bu real-time fix'i)
+hâlâ push edilmedi.
+
+### 🔶 2026-07-25 oturumu (13) — Yoklama "öğrenci yok" flaşı — AYNI hata sınıfı, farklı yer
+
+- **Kullanıcı bulgusu (bir önceki fix'ten SONRA, farklı bir flaş):** "Hızlı Yoklama"ya
+  bastım, yükleniyor, sonra bir an ortada 'Bu grupta öğrenci yok' dedi, sonra grup ve
+  isimler geldi — "veri yüklenmeden sonuç gösteriyor, bunun yetki ile ilgisi yok."
+- **Kök neden — grup-seçim flaşıyla BİREBİR AYNI hata sınıfı, roster (öğrenci listesi)
+  için:** `roster` state'i `useState([])` ile başlıyor, yükleme effect'inde
+  "henüz çekilmedi" ile "gerçekten boş" hiç ayrılmamıştı — `roster.length === 0`
+  HER İKİSİ için de true. Grup otomatik seçilir seçilmez (fetch daha bitmeden)
+  bu koşul render'da true olduğundan "Bu grupta aktif öğrenci yok." mesajı bir an
+  görünüyordu, fetch bitince gerçek liste geliyordu.
+- **Fix (`AttendanceCore.tsx`):** `rosterLoaded` state eklendi (fetch effect'inde
+  `finally`'de true olur, `selectedGroupId` değişince/boşalınca false'a döner).
+  Render artık üç hâl: `!rosterLoaded` → spinner, `rosterLoaded && roster.length===0`
+  → "öğrenci yok" mesajı (artık SADECE gerçekten boşsa), `roster.length>0` → liste.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi.** İki
+flaş fix'i de (grup-seçim + roster) hâlâ push edilmedi.
+
+### 🔶 2026-07-25 oturumu (12) — Yoklama grup-seçim flaşı — GERÇEK kök neden
+
+- **Kullanıcı bulgusu (2026-07-23'teki fix'ten SONRA, hâlâ oluyordu):** Ana Sayfa →
+  "Hızlı Yoklama" → yeni sekmede `/flexos/yoklama/al` açılıyor (zaten `autoSelectToday`
+  ile), ama yarım saniyeliğine "Bir grup seçin" placeholder'ı ortada görünüp
+  sonra grup otomatik seçiliyordu — 2026-07-23'teki `groupsLoaded` fix'i BUNU
+  TAM KAPATMAMIŞ.
+- **Gerçek kök neden:** `loadGroupsAndHolidays` `setGroups(...)` VE
+  `setGroupsLoaded(true)`'yi AYNI senkron bloğun içinde (React tarafından TEK
+  render'da batch'lenir) çağırıyor — ama otomatik grup seçimi (`todayGroup ?? groups[0]`)
+  AYRI bir `useEffect`'te, bu render COMMIT olduktan SONRA (bir sonraki pas) çalışıyor.
+  Aradaki bir render'lık pencerede `groupsLoaded=true` AMA `selectedGroupId` hâlâ
+  `null` — eski koşul (`autoSelectToday && !groupsLoaded ? spinner : placeholder`)
+  bu anda `groupsLoaded=true` olduğu için YANLIŞLIKLA placeholder'a düşüyordu.
+- **Fix (`AttendanceCore.tsx`):** koşul `autoSelectToday && (!groupsLoaded ||
+  groups.length > 0)` oldu — gruplar dolu ve henüz seçilmemişse (otomatik seçimin
+  KESİN geleceği durum) spinner kalmaya devam ediyor; placeholder'a SADECE gruplar
+  yüklenip GERÇEKTEN boşsa (seçilecek hiçbir şey yoksa) düşülüyor.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Tarayıcıda test edilmedi** —
+sıradaki oturumda Ana Sayfa → Hızlı Yoklama akışı gerçekten flaşsız mı doğrulanmalı.
+
+### 🔴 2026-07-25 oturumu (11) — GÜVENLİK: Core moddaki owner'da role.manage sızıntısı
+
+- **Kullanıcı bulgusu ("çok ciddi bir hata"):** Full moddayken Cmd+Alt+T ile eğitmene
+  (Core) geçti, ama "Ayarlar" hâlâ Full gibi (Sistem Ayarları/Loglar görünür) davranıyordu.
+- **Kök neden — gerçek yetki sızıntısı, sadece kozmetik değil:** `auth-actor.ts::actorFromCaller`
+  Core moddaki owner için paketi doğru şekilde `["egitmen"]`'e düşürüyordu (`packagesForCaller`),
+  AMA `flexos_users.roles`'undaki KENDİ ofis rolünden (admin/yönetici) gelen yetkiler
+  (`resolveFlexosUserGrants` → `extraGrants`, `role.manage` dahil) bu moddan TAMAMEN
+  BAĞIMSIZ, koşulsuz ekleniyordu. Fonksiyonun kendi doc-comment'inde bu zaten
+  "henüz kurulmadı, bilinen ertelenmiş bir sınır" diye NOT DÜŞÜLMÜŞTÜ — pratikte
+  gerçek bir sızıntı olduğu ortaya çıktı (Core modda role.manage gerektiren HER ŞEYE
+  erişim devam ediyordu, sadece Ayarlar sayfası değil).
+- **Fix (`auth-actor.ts`):** `suppressOwnerOfficeGrants = isOwner && !packages.includes("admin")`
+  — owner Core'dayken (paket "admin" içermiyorsa) `flexosGrants` hiç çözülmüyor.
+  Owner DIŞINDAKİ "hem eğitmen hem ofis rolü" sahibi normal personel senaryosu
+  (fonksiyonun asıl var oluş nedeni) ETKİLENMEDİ.
+- **Fix (`sistem-ayarlari/page.tsx`):** `canSeeSistemTab` eskiden `isAdmin || canPin`
+  idi (2026-07-11'deki "Core'daki owner PIN'e yine erişebilmeli" kararı için) —
+  ama `canPin` moddan bağımsız hep true olduğundan Sistem Ayarları/Loglar sekmeleri
+  Core'da da görünmeye devam ediyordu. Artık SADECE `isAdmin` — Core'da bu 2 sekme
+  (PIN kartı dahil) hiç görünmez. "Geliştirici Notları" AYRI, bilerek hâlâ `canPin`
+  ile gated — owner'a mod fark etmeksizin HER ZAMAN özel kalmalı (kullanıcı kararı).
+- Kullanıcı senaryoyu doğruladı ("Full moddayken Cmd+Alt+T ile eğitmene geçtim, evet
+  o senaryo") — DÜZELTME: bu, tanı/reprodüksiyonun doğruluğunu onaylıyor, henüz
+  canlıda (main push sonrası) test edilmiş bir doğrulama DEĞİL — bu satırda önceden
+  yanlışlıkla "canlıda doğrulandı" yazılmıştı, commit henüz push edilmedi.
+
+`tsc --noEmit`, `eslint`, `npm run build` temiz. **Henüz push edilmedi.**
+
+### 🔶 2026-07-25 oturumu (10) — Geliştirici Notları (yeni, dahili)
 
 - **Kullanıcı isteği:** Ayarlar'a SADECE kendisinin göreceği bir "Geliştirici Notları"
   sekmesi — kullanırken bulduğu hataları oracıkta not alıp, Claude'un okuyup

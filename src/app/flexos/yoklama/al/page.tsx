@@ -27,7 +27,7 @@ const PANEL_SHADOW = { boxShadow: "-8px 0 24px rgba(0,0,0,0.08)" };
 
 export default function YoklamaAlPage() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const [authed, setAuthed] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [showDetail, setShowDetail] = useState(false);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
@@ -43,9 +43,16 @@ export default function YoklamaAlPage() {
       await auth.authStateReady();
       const u = auth.currentUser;
       if (!u) { router.push("/login"); return; }
-      // İsim canlı ile aynı kaynaktan (users/{uid}.name+surname) — Auth displayName
-      // genelde boş (hiç set edilmemiş), o yüzden email'e düşerdi. Kullanıcılar/
-      // Eğitmenler modülüyle ilgisi yok, eski kayıt zaten var.
+      // 2026-07-25 kullanıcı bulgusu: "loader konumu değişip başka bir loader
+      // açılıyor" — bu SAYFANIN kendi bekleme ekranı (AttendanceCore mount olmadan
+      // önce) + AttendanceCore'un kendi (artık tek/birleşik) spinner'ı art arda
+      // görünüyordu. İsim/homeHref sadece topBar'da kullanılıyor, YOKLAMA İÇERİĞİNİ
+      // hiç bloklamasına gerek yok — auth doğrulanır doğrulanmaz (`authed=true`)
+      // AttendanceCore ANINDA mount olup kendi veri yüklemesine başlıyor, isim/
+      // homeHref arka planda (bloklamadan) dolar. Sadece auth kontrolü render'ı
+      // bekletir (login'e yönlendirme kararı için zorunlu, ama bu adım tek başına
+      // hızlı — Firebase local storage'dan okur, ağ isteği değil).
+      setAuthed(true);
       try {
         const snap = await getDoc(doc(db, "users", u.uid));
         const data = snap.exists() ? (snap.data() as { name?: string; surname?: string }) : null;
@@ -64,11 +71,10 @@ export default function YoklamaAlPage() {
       } catch {
         // sessiz — varsayılan /flexos/egitmen-anasayfa'da kalır
       }
-      setReady(true);
     })();
   }, [router]);
 
-  if (!ready) {
+  if (!authed) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
         <div className="w-7 h-7 border-2 border-surface-200 border-t-base-primary-500 rounded-full animate-spin" />

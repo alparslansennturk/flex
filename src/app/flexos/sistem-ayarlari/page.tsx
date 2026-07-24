@@ -16,9 +16,18 @@
  * Sistem Modu + Grup Taşıma Kuralı `role.manage` gerektirir (sistemdeki HERKESİ
  * etkiliyorlar). Kişisel Görünüm PIN'i kendi içinde ayrıca gated (`view.toggle`,
  * sadece owner) — `/api/flexos/view-access`'in `canPin` cevabı zaten owner dışında hep
- * false. `canSeeSistemTab = isAdmin || canPin` — 2026-07-11'de düzeltilmiş bir davranışı
- * (Core moddaki view-toggle sahibi owner `role.manage`'i kaybeder ama PIN ayarına yine
- * erişebilmeli) korumak için bu formül değiştirilmedi.
+ * false.
+ *
+ * DÜZELTME (2026-07-25, "çok ciddi hata" — kullanıcı bulgusu): `canSeeSistemTab`
+ * ESKİDEN `isAdmin || canPin` idi (2026-07-11'deki "Core moddaki owner PIN ayarına
+ * yine erişebilmeli" kararını korumak için) — ama `canPin` owner için MOD FARK
+ * ETMEKSİZİN hep true olduğundan (view.toggle her zaman verilir), owner Cmd+Alt+T
+ * ile Core/eğitmen moduna geçse bile "Sistem Ayarları"/"Loglar" sekmeleri hâlâ
+ * görünüyordu — kullanıcının AÇIK isteği: "eğitmen modda sistem ayarları/loglar
+ * olmamalı". Artık SADECE `isAdmin` (gerçek Full-mod role.manage) — Core modda bu
+ * iki sekme (PIN kartı dahil) hiç görünmez. "Geliştirici Notları" AYRI ve BİLEREK
+ * hâlâ `canPin` ile gated — o owner'a mod FARK ETMEKSİZİN her zaman özel kalmalı
+ * (kullanıcının AYNI mesajdaki ikinci isteği).
  */
 
 import React, { useEffect, useState, useCallback, CSSProperties } from "react";
@@ -129,7 +138,7 @@ export default function SistemAyarlariPage() {
     return () => { ac.abort(); };
   }, [router, fetchMe, fetchSettings, fetchViewAccess]);
 
-  const canSeeSistemTab = isAdmin || canPin;
+  const canSeeSistemTab = isAdmin;
   const activeTopTab = topTab ?? (canSeeSistemTab ? "sistem" : "bildirim");
 
   const applyStandaloneMode = async (next: boolean) => {

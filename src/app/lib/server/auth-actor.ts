@@ -183,11 +183,22 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
 
   // Görünüm Anahtarı sahibi her zaman view.toggle'a sahip olmalı (paket egitmen'e
   // düşse bile) — aksi halde Core'a geçtikten sonra geri Full'a dönemez.
-  const viewToggleGrant: Grant[] =
-    caller.email === VIEW_TOGGLE_OWNER_EMAIL ? [{ capability: "view.toggle", scope: "org" }] : [];
+  const isOwner = caller.email === VIEW_TOGGLE_OWNER_EMAIL;
+  const viewToggleGrant: Grant[] = isOwner ? [{ capability: "view.toggle", scope: "org" }] : [];
 
-  const flexosGrants = await cachedFlexosUserGrants(caller.uid);
   const packages = await packagesForCaller(caller);
+  // GÜVENLİK FIX (2026-07-25, kullanıcı bulgusu — "çok ciddi hata"): owner Core
+  // (eğitmen) moduna geçtiğinde `packagesForCaller` paketi doğru şekilde ["egitmen"]'e
+  // düşürüyordu, AMA `flexos_users.roles`'undaki KENDİ ofis rolünden (ör. admin/genel
+  // müdür) gelen yetkiler (`role.manage` dahil) bu moddan TAMAMEN BAĞIMSIZ,
+  // koşulsuz ekleniyordu — "Ayarlar"da Cmd+Alt+T ile eğitmene geçmesine rağmen
+  // hâlâ Full (Sistem Ayarları/Loglar) görüyordu. `resolveFlexosUserGrants`'in
+  // kendi doc-comment'inde "henüz kurulmadı, bilinen ertelenmiş bir sınır" diye not
+  // düşülmüştü — artık ertelenmiyor: owner Core'dayken (packages "admin" İÇERMİYORSA)
+  // ofis rolü yetkileri hiç çözülmüyor. Owner DIŞINDAKİ "hem eğitmen hem ofis rolü"
+  // sahibi personel (asıl senaryo) ETKİLENMEDİ — suppress SADECE owner'a özel.
+  const suppressOwnerOfficeGrants = isOwner && !packages.includes("admin");
+  const flexosGrants = suppressOwnerOfficeGrants ? [] : await cachedFlexosUserGrants(caller.uid);
 
   // `Group.trainerId` Firebase auth uid DEĞİL, eğitmen kadrosu (`flexos_trainers`)
   // docId'sini taşır (bkz. types.ts Actor.trainerId yorumu, 2026-07-11 düzeltmesi).
@@ -201,7 +212,7 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
   // için (Core↔Full sadece görünen yetki paketini değiştirir, kimliği değil) bu kişi için
   // paket ne olursa olsun arama yapılır — `cachedTrainerId` zaten TTL'li, maliyeti düşük.
   let trainerId: string | undefined;
-  if (packages.includes("egitmen") || caller.email === VIEW_TOGGLE_OWNER_EMAIL) {
+  if (packages.includes("egitmen") || isOwner) {
     trainerId = await cachedTrainerId(caller.uid);
   }
 
