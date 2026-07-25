@@ -36,6 +36,12 @@
   hatırlatması var. Başarılı silme `students.changed` broadcast ile listeyi otomatik yeniler.
   **Tarayıcıda gerçek tıklama testi yapılmadı** — sadece `tsc`/`eslint`/`build` doğrulandı.
 
+> **DÜZELTME (aynı gün, kullanıcı onayı):** Aşağıdaki oturum 11-17 girdilerindeki
+> "hâlâ push edilmedi" notları BAYAT — o oturumların TÜMÜ (owner yetki sızıntısı
+> güvenlik fix'i + tüm yoklama loader/flaş/real-time fix'leri) `389e2b1` commit'iyle
+> `main`'e zaten push edildi, kullanıcı onayladı ("bu tamam ok"). Tarayıcı testi
+> resmi olarak kayıtlı değil ama kullanıcı kapandı kabul ediyor — tekrar sorma.
+
 ### 🔶 2026-07-25 oturumu (18) — Yoklama Detay: donut giriş animasyonu + sayaç (EN GÜNCEL)
 
 - Kullanıcı isteği: `/flexos/yoklama/detay` sayfasındaki kurs ilerleme donut'una
