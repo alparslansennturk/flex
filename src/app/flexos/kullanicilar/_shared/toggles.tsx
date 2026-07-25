@@ -22,9 +22,3 @@ export function ChipToggle({ label, active, onClick }: { label: string; active: 
     }}>{label}</button>
   );
 }
-
-export const SENS_COLORS: Record<string, { color: string; bg: string }> = {
-  green: { color: "#15803D", bg: "#DCFCE7" },
-  yellow: { color: "#B45309", bg: "#FEF3C7" },
-  red: { color: "#DC2626", bg: "#FEE2E2" },
-};

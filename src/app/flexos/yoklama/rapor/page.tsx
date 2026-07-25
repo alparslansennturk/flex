@@ -25,13 +25,18 @@
 import React, { useState, useEffect, useMemo, useCallback, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { TrendingUp, Clock, CheckCircle2, XCircle, Eye, EyeOff } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import AttendanceCore from "../_shared/AttendanceCore";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 import { isoWeekday } from "../../siniflar/_shared/groupDisplay";
+import type { TrainerEarnings } from "@/app/lib/domain/services/trainer-earnings-service";
+
+function fmtTL(n: number) {
+  return `${n.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL`;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -253,6 +258,14 @@ function ReportContent() {
   const [selectedGroupHistory, setSelectedGroupHistory] = useState<GroupItem | null>(null);
   const [selectedSession, setSelectedSession] = useState<HistorySession | null>(null);
 
+  // Eğitmen Hakediş (2026-07-25) — bu sayfa zaten attendance.report.read (Op/Finans/Admin)
+  // ile kapılı (bkz. YoklamaRaporuPage::checkAccess), ama trainer.earnings.read AYRI ve
+  // KİMLİĞE bağlı (bkz. auth-actor.ts) — sadece trainerId çözülen (gerçek eğitmen olan,
+  // tipik olarak owner) görür, org-wide rapor izni tek başına yetmez.
+  const [canSeeEarnings, setCanSeeEarnings] = useState(false);
+  const [earnings, setEarnings] = useState<TrainerEarnings | null>(null);
+  const [earningsBlurred, setEarningsBlurred] = useState(true);
+
   // ── Temel veriler (grup/branş/tatil) ──
   const loadBaseData = useCallback(async () => {
     const headers = await authHeaders();
@@ -276,6 +289,43 @@ function ReportContent() {
   }, []);
 
   useEffect(() => { void loadBaseData(); }, [loadBaseData]);
+
+  // Eğitmen Hakediş yetkisi — bir kere kontrol edilir (mount'ta).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const headers = await authHeaders();
+      const meRes = await fetch("/api/flexos/me", { headers });
+      if (cancelled || !meRes.ok) return;
+      const me = await meRes.json();
+      setCanSeeEarnings((me.capabilities ?? []).includes("trainer.earnings.read"));
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Kişisel aylık hak ediş — sayfanın kendi tarih-aralığı filtresinden BAĞIMSIZ (her
+  // zaman "bu ay"), AttendanceDetailList'teki aynı widget'la aynı prensip. `attendance.changed`
+  // broadcast'ine bağlı — bir sonraki derste yoklama kaydedilince ANINDA yeniden çekilir
+  // (2026-07-25 kullanıcı isteği, sayfa yenilemeye gerek yok).
+  const loadEarnings = useCallback(async () => {
+    if (!canSeeEarnings) { setEarnings(null); return; }
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/flexos/trainers/me/earnings", { headers });
+      if (res.ok) {
+        setEarnings(await res.json());
+      } else {
+        const json = await res.json().catch(() => ({}));
+        console.error("[YoklamaRaporu] hakediş yüklenemedi:", res.status, json.error);
+        setEarnings(null);
+      }
+    } catch (e) {
+      console.error("[YoklamaRaporu] hakediş isteği başarısız:", e);
+    }
+  }, [canSeeEarnings]);
+
+  useEffect(() => { void loadEarnings(); }, [loadEarnings]);
+  useRealtimeSync(["attendance.changed"], loadEarnings);
 
   // ── Rapor verisi (tarih aralığı değişince) ──
   const loadReport = useCallback(async () => {
@@ -563,12 +613,31 @@ function ReportContent() {
               </div>
 
               {!loading && filteredRows.length > 0 && (
-                <div className="bg-base-primary-50 border border-base-primary-100 rounded-2xl px-6 py-4">
+                <div className="bg-base-primary-50 border border-base-primary-100 rounded-2xl px-6 py-4 flex items-start justify-between gap-4 flex-wrap">
                   <p className="text-[13px] text-base-primary-700 font-medium">
                     Seçili dönemde <span className="font-bold">{totalActualDoneHours} saat</span> ders verildi
                     {totalCancelled > 0 && <>, <span className="font-bold text-red-600">{totalCancelled} ders iptal</span>{totalStudentCancelled > 0 && <span className="text-red-400"> ({totalStudentCancelled} öğrenci kaynaklı)</span>}</>}
                     {" "}— toplam hak edilen: <span className="font-bold text-indigo-700">{totalToplamHours} saat</span>.
                   </p>
+
+                  {/* Eğitmen Hakediş (2026-07-25) — SADECE trainer.earnings.read sahibi
+                      (tipik olarak owner) görür. Varsayılan bulanık. */}
+                  {canSeeEarnings && earnings && (
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <button
+                        onClick={() => setEarningsBlurred((v) => !v)}
+                        title={earningsBlurred ? "Hak edişi göster" : "Hak edişi gizle"}
+                        className="p-1.5 rounded-lg text-base-primary-400 hover:text-base-primary-700 hover:bg-white/60 transition-colors cursor-pointer outline-none shrink-0"
+                      >
+                        {earningsBlurred ? <Eye size={14} /> : <EyeOff size={14} />}
+                      </button>
+                      <div className={`flex items-center gap-3 text-[13px] transition-[filter] duration-150 ${earningsBlurred ? "blur-md select-none pointer-events-none" : ""}`}>
+                        <span className="text-base-primary-700">Ders ücreti: <span className="font-bold">{fmtTL(earnings.lessonTotal)}</span></span>
+                        <span className="text-base-primary-700">Yemek ücreti: <span className="font-bold">{fmtTL(earnings.mealTotal)}</span></span>
+                        <span className="text-base-primary-900 font-extrabold text-[16px] tracking-tight whitespace-nowrap">Toplam hak ediş: {fmtTL(earnings.total)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

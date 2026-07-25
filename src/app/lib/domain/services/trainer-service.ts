@@ -153,6 +153,37 @@ export async function updateTrainer(
 }
 
 /**
+ * Çağıranın KENDİ ders saati ücretini günceller — Eğitmen Hakediş Core mod (2026-07-25
+ * kararı). `trainer.rate.write` (org-scope, Full modda Eğitmenler CRUD'undan admin
+ * içindir) BİLEREK KULLANILMIYOR — bu fonksiyon `trainer.rate.write.self` (self scope)
+ * ister, sadece Core görünümündeki owner'a `auth-actor.ts`'te verilir. `id` parametresi
+ * YOK — `actor.trainerId`'den çözülür, yapı gereği başka bir eğitmenin ücretini asla
+ * değiştiremez (`trainers/me/earnings` ile AYNI "me" deseni).
+ */
+export async function setMyHourlyRate(
+  actor: Actor,
+  hourlyRate: number,
+  repo: TrainerRepo,
+): Promise<Trainer> {
+  if (!actor.trainerId) {
+    throw new ValidationError("Bu hesap bir eğitmen kaydına bağlı değil.");
+  }
+  if (!can(actor, "trainer.rate.write.self", { ownerUid: actor.trainerId })) {
+    throw new ForbiddenError("trainer.rate.write.self");
+  }
+  if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
+    throw new ValidationError("Ücret negatif olamaz.");
+  }
+
+  const existing = await repo.getById(actor.trainerId, actor.tenantId);
+  if (!existing) throw new ValidationError("Eğitmen kaydı bulunamadı.");
+
+  const updated: Trainer = { ...existing, hourlyRate, updatedAt: now(), updatedBy: actor.uid };
+  await repo.save(updated);
+  return updated;
+}
+
+/**
  * Eğitmen sil — gated (`trainer.delete`).
  * Aktif veya açılacak gruba atanmış eğitmen silinemez; önce grup ataması kaldırılmalı.
  */

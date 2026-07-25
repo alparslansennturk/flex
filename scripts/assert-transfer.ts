@@ -191,7 +191,7 @@ async function run() {
     const fromGroup = makeGroup();
     const toGroup = makeGroup();
     const enr = makeEnrollment({ groupId: fromGroup.id });
-    const settings: FlexosSettings = { tenantId: TENANT, standaloneMode: false, transferRequiresManualSale: true };
+    const settings: FlexosSettings = { tenantId: TENANT, standaloneMode: false, transferRequiresManualSale: true, dailyMealAllowance: 300 };
     try {
       await transferEnrollment(makeKayitActor(), { enrollmentId: enr.id, toGroupId: toGroup.id, closeAs: "completed" }, {
         enrollments: makeEnrollmentRepo([enr]),
@@ -210,7 +210,7 @@ async function run() {
     const fromGroup = makeGroup();
     const toGroup = makeGroup();
     const enr = makeEnrollment({ groupId: fromGroup.id });
-    const settings: FlexosSettings = { tenantId: TENANT, standaloneMode: false, transferRequiresManualSale: true };
+    const settings: FlexosSettings = { tenantId: TENANT, standaloneMode: false, transferRequiresManualSale: true, dailyMealAllowance: 300 };
     const sales = makeSaleRepo();
     const result = await transferEnrollment(makeSatisActor(), { enrollmentId: enr.id, toGroupId: toGroup.id, closeAs: "completed" }, {
       enrollments: makeEnrollmentRepo([enr]),
@@ -233,7 +233,7 @@ async function run() {
     assert("Admin — varsayılan modda taşıyabilir", r1.newEnrollment.groupId === toGroup.id);
 
     const enr2 = makeEnrollment({ groupId: fromGroup.id });
-    const settings: FlexosSettings = { tenantId: TENANT, standaloneMode: false, transferRequiresManualSale: true };
+    const settings: FlexosSettings = { tenantId: TENANT, standaloneMode: false, transferRequiresManualSale: true, dailyMealAllowance: 300 };
     const r2 = await transferEnrollment(makeAdminActor(), { enrollmentId: enr2.id, toGroupId: toGroup.id, closeAs: "completed" }, {
       enrollments: makeEnrollmentRepo([enr2]), groups: makeGroupRepo([fromGroup, toGroup]), sales: makeSaleRepo(), settings: makeSettingsRepo(settings),
     });

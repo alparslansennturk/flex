@@ -216,13 +216,34 @@ export async function actorFromCaller(caller: Caller, groupIdsOverride?: string[
     trainerId = await cachedTrainerId(caller.uid);
   }
 
+  // Eğitmen Hakediş (2026-07-25, DÜZELTME — kullanıcı bulgusu: "ben adminim ama
+  // eğitmenim de aynı zamanda, hak edişim admin modda da yazmalı"). BİLEREK PAKETE
+  // değil KİMLİĞE bağlı: `trainerId` çözülen (Eğitmen Kadrosu'nda gerçek kaydı olan)
+  // HERKES, hangi paket/görünüm modunda gezerse gezsin (admin dahil) kendi hak edişini
+  // görür — `packages.ts::EGITMEN_CORE`'da OLSAYDI owner Full/admin modda asla
+  // göremezdi (paketi "admin", "egitmen" değil). `trainer.rate.read`'den (org-scope,
+  // admin/Finans'a paket üzerinden verilir) BİLEREK ayrı — bu grant scope="self",
+  // `can()` sadece `ownerUid===actor.trainerId` eşleşince true döner, admin/Finans'ın
+  // trainer.rate.read'i bunu hiç karşılamaz.
+  const earningsGrant: Grant[] = trainerId ? [{ capability: "trainer.earnings.read", scope: "self" }] : [];
+
+  // Eğitmen Hakediş — kendi ücret girişi (2026-07-25, DÜZELTME — kullanıcı: "aynı zamanda
+  // admin olan ben aynı zamanda eğitmenim, bende 2 ayarı da yapabilmeliyim"). İLK yazımda
+  // bu grant SADECE Core görünümüne bağlıydı (Full'da admin modundayken kayboluyordu) —
+  // YANLIŞTI: owner ikisini de AYNI ANDA taşıyor, mod'a göre birbirini DIŞLAMAMALI.
+  // `trainer.earnings.read` ile AYNI kural: `isOwner && trainerId`, PAKETTEN (admin/egitmen)
+  // TAMAMEN BAĞIMSIZ. Gerçek/ayrı bir eğitmen çalışanı (isOwner=false) hâlâ bu grant'i HİÇ
+  // almaz — "full modda eğitmen zaten finansal ayarları hiç görmeyecek" kuralı SADECE onlar
+  // için geçerli, owner'ın kendisi için değil.
+  const selfRateGrant: Grant[] = isOwner && trainerId ? [{ capability: "trainer.rate.write.self", scope: "self" }] : [];
+
   return buildActor({
     uid: caller.uid,
     tenantId: DEFAULT_TENANT,
     packages,
     groupIds: groupIdsOverride ?? caller.groupIds, // token claim'inden gelir
     standaloneMode: cachedStandaloneMode,
-    extraGrants: [...viewToggleGrant, ...flexosGrants],
+    extraGrants: [...viewToggleGrant, ...flexosGrants, ...earningsGrant, ...selfRateGrant],
     trainerId,
   });
 }

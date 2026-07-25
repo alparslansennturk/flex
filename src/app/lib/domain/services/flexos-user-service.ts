@@ -71,7 +71,10 @@ export async function createFlexosUser(
   repo: FlexosUserRepo,
   roleDefRepo: RoleDefRepo,
 ): Promise<FlexosUser> {
-  if (!can(actor, "role.manage")) throw new ForbiddenError("role.manage");
+  // "Personel Ekleme" (2026-07-25) — role.manage'den AYRI capability: role tanımlarını
+  // düzenleyemeyen ama mevcut rollerden seçerek yeni personel hesabı açabilen bir rol
+  // olabilsin diye (bkz. `user.create` — registry.ts).
+  if (!can(actor, "user.create")) throw new ForbiddenError("user.create");
 
   const name = input.name?.trim();
   const surname = input.surname?.trim();

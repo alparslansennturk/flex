@@ -140,7 +140,7 @@ export default function KullanicilarPage() {
 
   // ── Sekme görünürlüğü — caller'ın gerçek yetkisine göre (kozmetik, asıl kapı backend'de) ──
   const [caps, setCaps] = useState<Set<string> | null>(null);
-  const canSeePersonel = caps?.has("role.manage") ?? false;
+  const canSeePersonel = (caps?.has("role.manage") || caps?.has("user.create")) ?? false;
   const canSeeEgitmenler = caps?.has("trainer.read") ?? false;
   const canSeeOgrenciler = caps?.has("person.read") ?? false;
 
@@ -280,7 +280,7 @@ export default function KullanicilarPage() {
       // ama gereksiz gürültüydü).
       const capSet = await fetchMe(ac.signal);
       if (ac.signal.aborted) return;
-      if (capSet.has("role.manage")) fetchUsers(ac.signal);
+      if (capSet.has("role.manage") || capSet.has("user.create")) fetchUsers(ac.signal);
       if (capSet.has("person.read")) fetchStudents(ac.signal);
       if (capSet.has("trainer.read")) fetchTrainers(ac.signal);
       fetchOffices(ac.signal);
@@ -291,7 +291,7 @@ export default function KullanicilarPage() {
   // Ekle sayfasından dönünce listeyi yenile (SADECE Personel'i görebilen biri için).
   useEffect(() => {
     if (!didMount.current) { didMount.current = true; return; }
-    if (pathname === "/flexos/kullanicilar" && caps?.has("role.manage")) fetchUsers();
+    if (pathname === "/flexos/kullanicilar" && (caps?.has("role.manage") || caps?.has("user.create"))) fetchUsers();
   }, [pathname, fetchUsers, caps]);
 
   // 2026-07-12 — gerçek zamanlı senkron: başka bir kullanıcı öğrenci/eğitmen ekleyip/

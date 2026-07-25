@@ -564,7 +564,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             Kullanıcı Ayarları (rol/yetki tanımları, SADECE role.manage — aşağıda ayrıca kapılı).
             2026-07-25 kullanıcı kararı: menünün EN SONUNA taşındı — "Ayarlar"ın (alt bölüm)
             bir üstünde dursun diye. */}
-        {(canSee("role.manage", false) || canSee("trainer.read", false) || canSee("person.read", false)) && (
+        {(canSee("role.manage", false) || canSee("user.create", false) || canSee("trainer.read", false) || canSee("person.read", false)) && (
           <>
             <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !kullanicilarOpen; setKullanicilarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: kullanicilarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.shield }} />
@@ -649,11 +649,11 @@ export const S: Record<string, CSSProperties> = {
   // olmadığı için titreşecek bir şey de kalmıyor — `scrollbarGutter:"stable"` bu yüzden
   // kaldırıldı (görünmeyen bir şey için yer ayırmanın anlamı yok).
   sidebar: { height: "100%", overflowY: "auto", background: "linear-gradient(180deg,#102a4e 0%,#0b2244 60%,#091d3a 100%)", display: "flex", flexDirection: "column", padding: "22px 16px 18px" },
-  navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
-  parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer" },
-  itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "9px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },
-  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "6px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
-  subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "6px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
+  navItem: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#c3d1e6", textDecoration: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
+  parentActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer" },
+  itemActive: { position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "8px 13px", borderRadius: 11, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.03))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.22)" },
+  subItem: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "4px 13px", borderRadius: 10, color: "#c3d1e6", textDecoration: "none", fontSize: 13.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" },
+  subActive: { position: "relative", display: "flex", alignItems: "center", gap: 11, padding: "4px 13px", borderRadius: 10, color: "#fff", textDecoration: "none", fontSize: 13.5, fontWeight: 700, cursor: "pointer", background: "linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.05))", boxShadow: "inset 0 0 0 1px rgba(249,115,22,.28)" },
   subBar: { position: "absolute", left: 0, top: 8, bottom: 8, width: 3, borderRadius: "0 3px 3px 0", background: "#fb923c" },
 };
 
@@ -691,7 +691,10 @@ export const css = `
    - ≤800px: kompakt (sınıftaki Mac, innerHeight 703) — mevcut çok sayıda
      akordiyonun kısa viewport'ta rahat sığması için.
    - 801-920px: taban (S.navItem vb. varsayılan) — kullanıcının kendi normal
-     ekranında (833) "bu iyiydi" onayı aldı, DOKUNULMADI.
+     ekranında (833) ilk "bu iyiydi" onayından SONRA (aynı gün, üçüncü tur) ince
+     ayar geldi: 14.5→14px (ana), 14→13.5px (alt), dikey padding 9→8px (ana),
+     alt menü dikey padding 6→5→4px (iki ayrı tur — "Satış gibi akordiyon açılınca
+     çok aşağı kayıyor" bulgusuyla ikinci kez daraltıldı, SADECE alt menüler).
    - 921-1080px: bir tık büyük.
    - >1080px: bir tık daha büyük (1920x1080/2560x1440 gibi uzun boylu geniş
      ekranlarda sidebar orantısız küçük kalmasın diye — ÖNCEKİ genişlik-bazlı

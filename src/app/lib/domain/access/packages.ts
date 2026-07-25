@@ -50,6 +50,14 @@ const EGITMEN_CORE: Grant[] = [
   // NORMAL yetkisi (standalone-only DEĞİL, template.manage self ile aynı mantık): kendi
   // kişisel havuz kopyasını yönetir, org varsayılanına/başka eğitmene DOKUNAMAZ.
   ...at("self", "assignment.pool.manage"),
+  // Eğitmen Hakediş (2026-07-25) BİLEREK BURADA YOK — `trainer.earnings.read` PAKETE
+  // değil KİMLİĞE bağlı bir capability (kullanıcı düzeltmesi: "ben adminim ama
+  // eğitmenim de aynı zamanda, hak edişim admin modda da yazmalı"). Eğer buraya
+  // konsaydı, owner Full/admin modda gezerken paketi "admin" olduğu için bu grant'i
+  // ASLA görmezdi (Core'a geçmesi gerekirdi) — ama gerçekte owner hem admin HEM
+  // gerçek eğitmen, ikisi eşzamanlı. Çözüm: `auth-actor.ts`'te `trainerId` çözülen
+  // HERKESE (hangi paket/görünüm modunda olursa olsun) doğrudan `extraGrants` ile
+  // veriliyor — bkz. o dosyadaki "Eğitmen Hakediş" yorumu, TEK doğruluk kaynağı orası.
 ];
 
 const EGITMEN_STANDALONE_EXTRA: Grant[] = [
@@ -86,6 +94,10 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "person.pii.write",
     "person.edit",
     "person.search",
+    // 2026-07-25 kullanıcı isteği: öğrenci detayına serbest metin not alanı — "neden
+    // grupsuz kaldı" gibi bir sebebi Satış da düşebilmeli (sadece eğitmen/admin'de DEĞİL).
+    "person.note.read",
+    "person.note.write",
     "enrollment.create",
     "sale.create",
     "sale.read",
@@ -118,6 +130,9 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
     "person.pii.write",
     "person.edit",
     "person.search",
+    // 2026-07-25 — bkz. satis paketindeki aynı yorum.
+    "person.note.read",
+    "person.note.write",
     "enrollment.create",
     "enrollment.read",
     "enrollment.transfer",
@@ -258,6 +273,7 @@ export const ROLE_PACKAGES: Record<PackageName, Grant[]> = {
       "assignment.comment.write",
       "role.manage",
       "capability.grant",
+      "user.create",
       // view.toggle BİLEREK burada yok — paket-seviyeli değil, tekil grant
       // (bkz. auth-actor.ts VIEW_TOGGLE_OWNER_EMAIL). Sadece tek bir hesaba açık.
       "case.create",

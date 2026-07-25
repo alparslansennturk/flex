@@ -14,7 +14,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  BarChart2, ChevronDown, CalendarDays, CheckCircle2, XCircle, TrendingUp, Search,
+  BarChart2, ChevronDown, CalendarDays, CheckCircle2, XCircle, TrendingUp, Search, Eye, EyeOff,
 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { useCapabilities } from "@/app/flexos/_components/useCapabilities";
@@ -23,6 +23,11 @@ import { isoWeekday } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import type { GroupApiItem } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import type { Attendance } from "@/app/lib/domain/core/attendance";
 import { calcEstimatedEndDate } from "@/app/lib/domain/services/schedule-calc";
+import type { TrainerEarnings } from "@/app/lib/domain/services/trainer-earnings-service";
+
+function fmtTL(n: number) {
+  return `${n.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL`;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface BranchItem { id: string; name: string }
@@ -124,6 +129,11 @@ const DEFAULT_CONTAINER_CLASSNAME = "w-full max-w-[1300px] xl:max-w-[1440px] 2xl
 export default function AttendanceDetailList({ onGroupDetail, containerClassName = DEFAULT_CONTAINER_CLASSNAME }: AttendanceDetailListProps) {
   const { caps } = useCapabilities();
   const isOrgWide = caps.has("attendance.report.read"); // admin/op/finans — eğitmende yok
+  // Eğitmen Hakediş (2026-07-25, Full mod) — self scope, sadece `trainer.earnings.read`
+  // sahibi (gerçek eğitmen) görür, admin/Op/Finans dahil KİMSE göremez (caps'te hiç yok).
+  const canSeeEarnings = caps.has("trainer.earnings.read");
+  const [earnings, setEarnings] = useState<TrainerEarnings | null>(null);
+  const [earningsBlurred, setEarningsBlurred] = useState(true);
 
   const authHeaders = async (): Promise<Record<string, string>> => {
     const user = auth.currentUser;
@@ -215,6 +225,31 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
   }, [dropdownGroups, selectedGroupFilter, groupsLoaded]);
 
   useEffect(() => { setSelectedGroupFilter(""); }, [groupTab]);
+
+  // Eğitmen Hakediş — seçili ayla birlikte değişir (Özet Footer zaten "Bu ay" diyor,
+  // ikisi aynı ayı göstermeli). `canSeeEarnings` false ise (admin/Op/Finans/eğitmen
+  // olmayan) hiç istek atılmaz. `attendance.changed` broadcast'ine bağlı — bir sonraki
+  // derste yoklama kaydedilince (`saveAttendance` her zaman bu event'i yayınlıyor)
+  // ANINDA yeniden çekilir, sayfa yenilemeye gerek yok (2026-07-25 kullanıcı isteği).
+  const loadEarnings = useCallback(async () => {
+    if (!canSeeEarnings) { setEarnings(null); return; }
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/trainers/me/earnings?month=${selectedMonth}`, { headers });
+      if (res.ok) {
+        setEarnings(await res.json());
+      } else {
+        const json = await res.json().catch(() => ({}));
+        console.error("[AttendanceDetailList] hakediş yüklenemedi:", res.status, json.error);
+        setEarnings(null);
+      }
+    } catch (e) {
+      console.error("[AttendanceDetailList] hakediş isteği başarısız:", e);
+    }
+  }, [canSeeEarnings, selectedMonth]);
+
+  useEffect(() => { void loadEarnings(); }, [loadEarnings]);
+  useRealtimeSync(["attendance.changed"], loadEarnings);
 
   const filteredGroups = useMemo(() => {
     if (selectedGroupFilter) return dropdownGroups.filter((g) => g.id === selectedGroupFilter);
@@ -529,17 +564,38 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
 
           {/* ── Özet Footer ── */}
           {!loading && stats.length > 0 && (
-            <div className="bg-base-primary-50 border border-base-primary-100 rounded-2xl px-6 py-4 flex items-start gap-3">
-              <TrendingUp size={18} className="text-base-primary-500 shrink-0 mt-0.5" />
-              <p className="text-[13px] text-base-primary-700 font-medium">
-                Bu ay <span className="font-bold">{totalActualDone * baseHours} saat</span> ders verildi
-                {isOrgWide && totalCancelled > 0 && (
-                  <>, <span className="font-bold text-red-600">{totalCancelledHours} saat iptal</span>
-                  <span className="text-red-400"> ({totalCancelled} ders{totalStudentCancelled > 0 ? `, ${totalStudentCancelled} öğrenci kaynaklı` : ""})</span></>
-                )}
-                {" "}— toplam hak edilen: <span className="font-bold text-indigo-700">{totalToplam * baseHours} saat</span>
-                {totalRemaining > 0 && <>, <span className="font-bold text-amber-700">{totalRemaining * baseHours} saat kaldı</span></>}.
-              </p>
+            <div className="bg-base-primary-50 border border-base-primary-100 rounded-2xl px-6 py-4 flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3">
+                <TrendingUp size={18} className="text-base-primary-500 shrink-0 mt-0.5" />
+                <p className="text-[13px] text-base-primary-700 font-medium">
+                  Bu ay <span className="font-bold">{totalActualDone * baseHours} saat</span> ders verildi
+                  {isOrgWide && totalCancelled > 0 && (
+                    <>, <span className="font-bold text-red-600">{totalCancelledHours} saat iptal</span>
+                    <span className="text-red-400"> ({totalCancelled} ders{totalStudentCancelled > 0 ? `, ${totalStudentCancelled} öğrenci kaynaklı` : ""})</span></>
+                  )}
+                  {" "}— toplam hak edilen: <span className="font-bold text-indigo-700">{totalToplam * baseHours} saat</span>
+                  {totalRemaining > 0 && <>, <span className="font-bold text-amber-700">{totalRemaining * baseHours} saat kaldı</span></>}.
+                </p>
+              </div>
+
+              {/* Eğitmen Hakediş (2026-07-25) — SADECE trainer.earnings.read sahibi görür
+                  (self scope, admin/Op/Finans dahil kimse göremez). Varsayılan bulanık. */}
+              {canSeeEarnings && earnings && (
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <button
+                    onClick={() => setEarningsBlurred((v) => !v)}
+                    title={earningsBlurred ? "Hak edişi göster" : "Hak edişi gizle"}
+                    className="p-1.5 rounded-lg text-base-primary-400 hover:text-base-primary-700 hover:bg-white/60 transition-colors cursor-pointer outline-none shrink-0"
+                  >
+                    {earningsBlurred ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                  <div className={`flex items-center gap-3 text-[13px] transition-[filter] duration-150 ${earningsBlurred ? "blur-md select-none pointer-events-none" : ""}`}>
+                    <span className="text-base-primary-700">Ders ücreti: <span className="font-bold">{fmtTL(earnings.lessonTotal)}</span></span>
+                    <span className="text-base-primary-700">Yemek ücreti: <span className="font-bold">{fmtTL(earnings.mealTotal)}</span></span>
+                    <span className="text-base-primary-900 font-extrabold text-[16px] tracking-tight whitespace-nowrap">Toplam hak ediş: {fmtTL(earnings.total)}</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

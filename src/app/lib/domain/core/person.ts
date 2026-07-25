@@ -1,4 +1,4 @@
-import type { Audit, EntityId, Gender, ISODate, TenantId } from "../base";
+import type { Audit, EntityId, Gender, ISODate, ISODateTime, TenantId } from "../base";
 
 /**
  * Kişinin hassas (PII) bilgileri.
@@ -22,9 +22,15 @@ export type PersonStatus = "prospect" | "active" | "passive";
 /**
  * Sistemin MERKEZ varlığı: KİMLİK.
  *
- * Grup, not, ödeme, sertifika, devamsızlık, borç TAŞIMAZ — bunlar
- * Enrollment / Grade / Sale / Payment koleksiyonlarında yaşar ve öğrenci
- * kartında okuma anında BİRLEŞTİRİLİR (read-time join), tek dev doküman değil.
+ * Grup, ödeme, sertifika, devamsızlık, borç TAŞIMAZ — bunlar Enrollment / Grade /
+ * Sale / Payment koleksiyonlarında yaşar ve öğrenci kartında okuma anında
+ * BİRLEŞTİRİLİR (read-time join), tek dev doküman değil.
+ *
+ * `notes` İSTİSNA (2026-07-25 kararı): önce ayrı bir `PersonNote` koleksiyonu
+ * (çoklu, zaman damgalı not listesi) tasarlanmıştı — kullanıcı "düz bir metin alanı
+ * yeterli, fazla karmaşaya gerek yok" dedi, o tasarımdan vazgeçildi. Tek serbest
+ * metin alanı olarak doğrudan Person'da tutuluyor (Genel Bilgiler'de Adres'in
+ * altında, ana listede GÖRÜNMEZ — sadece detaya girince).
  *
  * Bir Person N Enrollment taşıyabilir (aynı kişi farklı yıl/branş geri dönebilir).
  */
@@ -53,4 +59,14 @@ export interface Person extends Audit {
    * AYRI bir şey — `Attendance.entries[personId].online` ile o gün manuel işaretlenir.
    */
   isOnlineStudent?: boolean;
+
+  /**
+   * Serbest metin personel notu (2026-07-25) — `person.note.read`/`person.note.write`
+   * ile alan-bazlı kapılı (bkz. `PersonPII` deseni). Ana listede (Öğrenci Havuzu)
+   * GÖRÜNMEZ, sadece öğrenci detayında (Genel Bilgiler, Adres'in altında). Tek
+   * alan — üzerine yazılır, geçmiş tutmaz (kullanıcı kararı, basit tutuldu).
+   */
+  notes?: string;
+  /** `notes` en son ne zaman kaydedildi — sistem OTOMATİK basar, elle girilmez. */
+  notesUpdatedAt?: ISODateTime;
 }

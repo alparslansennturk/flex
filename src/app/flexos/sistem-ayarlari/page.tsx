@@ -48,7 +48,7 @@ export default function SistemAyarlariPage() {
   const [meLoaded, setMeLoaded] = useState(false);
   const [viewAccessLoaded, setViewAccessLoaded] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false); // role.manage — org-geneli kartları gösterir
-  const [topTab, setTopTab] = useState<"sistem" | "loglar" | "bildirim" | "gelistirici" | null>(null);
+  const [topTab, setTopTab] = useState<"sistem" | "finansal" | "loglar" | "bildirim" | "gelistirici" | null>(null);
 
   // ── Sistem Modu (Eğitmen Tek Başına switch) ──
   const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
@@ -58,6 +58,20 @@ export default function SistemAyarlariPage() {
   // ── Grup Taşıma Kuralı (transferRequiresManualSale switch) ──
   const [transferManual, setTransferManual] = useState<boolean | null>(null);
   const [transferManualBusy, setTransferManualBusy] = useState(false);
+
+  // ── Finansal Ayarlar: Günlük Yemek Ücreti (Eğitmen Hakediş, 2026-07-25 kararı) ──
+  // Sabit kod DEĞİL — her sene arttığı için burada admin tarafından güncellenebilir.
+  const [mealAllowance, setMealAllowance] = useState<number | null>(null);
+  const [mealAllowanceInput, setMealAllowanceInput] = useState("");
+  const [mealAllowanceBusy, setMealAllowanceBusy] = useState(false);
+
+  // ── Finansal Ayarlar: Core görünümündeki owner'ın KENDİ ders saati ücreti ──
+  // (2026-07-25 kararı: Full modda ücret Eğitmenler CRUD'undan admin girer, bu kart
+  // sadece Core görünümünde çıkar — ikisi AYNI ANDA hiç görünmez, karşılıklı dışlar.)
+  const [canSelfRate, setCanSelfRate] = useState(false);
+  const [myRate, setMyRate] = useState<number | null>(null);
+  const [myRateInput, setMyRateInput] = useState("");
+  const [myRateBusy, setMyRateBusy] = useState(false);
 
   // ── Kişisel Görünüm PIN'i (Core/Full anahtarı, sadece owner görür) ──
   const [canPin, setCanPin] = useState(false);
@@ -83,10 +97,30 @@ export default function SistemAyarlariPage() {
       // çalışıyor"). Org-geneli kartlar (Sistem Modu, Grup Taşıma) sayfa İÇİNDE ayrıca
       // `role.manage`'e göre ayrı gated (aşağıda).
       setIsAdmin(caps.has("role.manage"));
+      setCanSelfRate(caps.has("trainer.rate.write.self"));
     } catch (e) {
-      if ((e as Error).name !== "AbortError") setIsAdmin(false);
+      if ((e as Error).name !== "AbortError") { setIsAdmin(false); setCanSelfRate(false); }
     } finally {
       if (!signal?.aborted) setMeLoaded(true);
+    }
+  }, []);
+
+  // Kendi ders saati ücretini oku — `trainers/me/earnings`'in `hourlyRate` alanını
+  // reuse eder (ayrı bir GET ucu açmaya gerek yok, aynı Trainer dokümanını okuyor).
+  const fetchMyRate = useCallback(async (signal?: AbortSignal) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/flexos/trainers/me/earnings", { headers: { Authorization: `Bearer ${token}` }, signal });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (signal?.aborted) return;
+      const rate = typeof json.hourlyRate === "number" ? json.hourlyRate : 0;
+      setMyRate(rate);
+      setMyRateInput(String(rate));
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") console.error("[sistem-ayarlari] kendi ücret yüklenemedi:", e);
     }
   }, []);
 
@@ -101,6 +135,9 @@ export default function SistemAyarlariPage() {
       if (!signal?.aborted) {
         setStandaloneMode(!!json.standaloneMode);
         setTransferManual(!!json.transferRequiresManualSale);
+        const meal = typeof json.dailyMealAllowance === "number" ? json.dailyMealAllowance : 300;
+        setMealAllowance(meal);
+        setMealAllowanceInput(String(meal));
       }
     } catch (e) {
       if ((e as Error).name !== "AbortError") console.error("[sistem-ayarlari] ayarlar yüklenemedi:", e);
@@ -138,7 +175,14 @@ export default function SistemAyarlariPage() {
     return () => { ac.abort(); };
   }, [router, fetchMe, fetchSettings, fetchViewAccess]);
 
-  const canSeeSistemTab = isAdmin;
+  useEffect(() => { if (canSelfRate) void fetchMyRate(); }, [canSelfRate, fetchMyRate]);
+
+  const canSeeSistemTab = isAdmin; // Sistem Modu + Grup Taşıma + Loglar (değişmedi)
+  // Finansal Ayarlar SEKME olarak iki farklı kitleye açık ama İÇERİĞİ karşılıklı dışlar:
+  // Full+admin → sadece Günlük Yemek Ücreti kartı; Core görünümündeki owner → sadece
+  // kendi ders saati ücreti kartı. İkisi AYNI ANDA asla görünmez (isAdmin ⇔ !canSelfRate,
+  // bkz. auth-actor.ts'teki grant mantığı).
+  const canSeeFinansalTab = isAdmin || canSelfRate;
   const activeTopTab = topTab ?? (canSeeSistemTab ? "sistem" : "bildirim");
 
   const applyStandaloneMode = async (next: boolean) => {
@@ -154,10 +198,15 @@ export default function SistemAyarlariPage() {
       });
       if (!res.ok) throw new Error("patch failed");
       toast.success(next ? "Eğitmen tek başına çalışma modu açıldı." : "Tam sistem moduna dönüldü.");
+      // 2026-07-25 kullanıcı bulgusu: sidebar (FlexSidebar.tsx) capability/mod fetch'i
+      // SADECE mount'ta çalışıyor — bu switch değişince kendiliğinden yenilenmiyordu,
+      // menüler eski kalıyordu. Tam sayfa yenileme EN GARANTİLİ çözüm (FlexSidebar dahil
+      // her şey sıfırdan fetch eder) — AYNI URL'e (Sistem Ayarları'nda kalır, Ana Sayfa'ya
+      // GİTMEZ). Toast'ın görünmesi için kısa bir gecikme.
+      setTimeout(() => window.location.reload(), 400);
     } catch {
       setStandaloneMode(!next); // rollback
       toast.error("Sistem modu güncellenemedi.");
-    } finally {
       setModeBusy(false);
     }
   };
@@ -187,6 +236,57 @@ export default function SistemAyarlariPage() {
       toast.error("Grup taşıma kuralı güncellenemedi.");
     } finally {
       setTransferManualBusy(false);
+    }
+  };
+
+  const applyMealAllowance = async () => {
+    const next = Number(mealAllowanceInput.replace(",", "."));
+    if (!Number.isFinite(next) || next < 0) { toast.error("Geçerli bir tutar girin (0 veya üzeri)."); return; }
+    if (mealAllowanceBusy) return;
+    setMealAllowanceBusy(true);
+    const prev = mealAllowance;
+    setMealAllowance(next); // optimistic
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/flexos/settings", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ dailyMealAllowance: next }),
+      });
+      if (!res.ok) throw new Error("patch failed");
+      toast.success("Günlük yemek ücreti güncellendi.");
+    } catch {
+      setMealAllowance(prev); // rollback
+      setMealAllowanceInput(String(prev ?? 300));
+      toast.error("Yemek ücreti güncellenemedi.");
+    } finally {
+      setMealAllowanceBusy(false);
+    }
+  };
+
+  const applyMyRate = async () => {
+    const next = Number(myRateInput.replace(",", "."));
+    if (!Number.isFinite(next) || next < 0) { toast.error("Geçerli bir tutar girin (0 veya üzeri)."); return; }
+    if (myRateBusy) return;
+    setMyRateBusy(true);
+    const prev = myRate;
+    setMyRate(next); // optimistic
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/flexos/trainers/me/rate", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ hourlyRate: next }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { throw new Error(json.error || "patch failed"); }
+      toast.success("Ders saati ücretin güncellendi.");
+    } catch (e) {
+      setMyRate(prev); // rollback
+      setMyRateInput(String(prev ?? 0));
+      toast.error(e instanceof Error && e.message !== "patch failed" ? e.message : "Ücret güncellenemedi.");
+    } finally {
+      setMyRateBusy(false);
     }
   };
 
@@ -234,6 +334,11 @@ export default function SistemAyarlariPage() {
                 <TopTabBtn label="Loglar" active={activeTopTab === "loglar"} onClick={() => setTopTab("loglar")} />
               </>
             )}
+            {/* Finansal Ayarlar — canSeeSistemTab'dan BAĞIMSIZ gated: Full+admin VE Core
+                görünümündeki owner (canSelfRate) ayrı ayrı erişir, içerik birbirini dışlar. */}
+            {canSeeFinansalTab && (
+              <TopTabBtn label="Finansal Ayarlar" active={activeTopTab === "finansal"} onClick={() => setTopTab("finansal")} />
+            )}
             <TopTabBtn label="Bildirim Ayarları" active={activeTopTab === "bildirim"} onClick={() => setTopTab("bildirim")} />
             {/* Geliştirici Notları (2026-07-25) — SADECE owner (canPin = view.toggle,
                 SADECE VIEW_TOGGLE_OWNER_EMAIL) görür, isAdmin'de bile görünmez —
@@ -245,6 +350,81 @@ export default function SistemAyarlariPage() {
 
           {activeTopTab === "bildirim" && <NotificationSoundSettings />}
           {canPin && activeTopTab === "gelistirici" && <DevNotesPanel />}
+
+          {canSeeFinansalTab && activeTopTab === "finansal" && (
+          <div style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+            {/* Yan yana 2 ayar, önce Ders Saati Ücreti sonra Yemek Ücreti (2026-07-25
+                kullanıcı isteği). Ders Saati Ücreti kartı MOD'DAN BAĞIMSIZ (owner hem
+                Full'da hem Core'da görür, `trainer.rate.write.self` kimliğe bağlı).
+                Yemek Ücreti kartı SADECE admin'de (`isAdmin`) — kullanıcı bunu Core-mod
+                self-manage denemesinden sonra AÇIKÇA geri istedi ("yemek ücreti adminde
+                görünecek sadece"), Core modda hiç görünmez/yönetilemez. */}
+            {canSelfRate && (
+              <div style={{ ...S.card, flex: "1 1 320px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: "#FEF3C7", color: "#B45309", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                    <IconWallet />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>Eğitmen Hakediş — Ders Saati Ücretin</div>
+                    <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2, maxWidth: 460 }}>
+                      Yoklama Detay ve Yoklama Raporu&apos;ndaki hak ediş hesabında kullanılır. Sadece sen görürsün.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>{"Ders Saati Ücreti (TL)"}</label>
+                    <input
+                      type="text" inputMode="decimal" value={myRateInput}
+                      onChange={(e) => setMyRateInput(e.target.value.replace(/[^0-9.,]/g, ""))}
+                      style={{ ...S.pinInput, width: 130, letterSpacing: "normal", textAlign: "left" as const }}
+                    />
+                  </div>
+                  <button
+                    onClick={applyMyRate}
+                    disabled={myRateBusy || myRate === null || myRateInput === String(myRate)}
+                    style={{ ...S.addBtn, background: "#B45309", boxShadow: "none", opacity: myRateBusy || myRate === null || myRateInput === String(myRate) ? 0.55 : 1 }}
+                  >
+                    {myRateBusy ? "Kaydediliyor…" : "Kaydet"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {isAdmin && (
+              <div style={{ ...S.card, flex: "1 1 320px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: "#FEF3C7", color: "#B45309", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                    <IconWallet />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>Eğitmen Hakediş — Yemek Ücreti</div>
+                    <div style={{ fontSize: 12.5, color: "#6F7B87", fontWeight: 500, marginTop: 2, maxWidth: 460 }}>
+                      Eğitmen Hakediş hesabında kullanılan günlük yemek ücreti — bir eğitmenin aynı gün 2 farklı grubu olduğunda o güne eklenir. Sabit değildir, her sene güncellenebilir.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#6F7B87" }}>{"Günlük Yemek Ücreti (TL)"}</label>
+                    <input
+                      type="text" inputMode="decimal" value={mealAllowanceInput}
+                      onChange={(e) => setMealAllowanceInput(e.target.value.replace(/[^0-9.,]/g, ""))}
+                      style={{ ...S.pinInput, width: 130, letterSpacing: "normal", textAlign: "left" as const }}
+                    />
+                  </div>
+                  <button
+                    onClick={applyMealAllowance}
+                    disabled={mealAllowanceBusy || mealAllowance === null || mealAllowanceInput === String(mealAllowance)}
+                    style={{ ...S.addBtn, background: "#B45309", boxShadow: "none", opacity: mealAllowanceBusy || mealAllowance === null || mealAllowanceInput === String(mealAllowance) ? 0.55 : 1 }}
+                  >
+                    {mealAllowanceBusy ? "Kaydediliyor…" : "Kaydet"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          )}
 
           {canSeeSistemTab && activeTopTab === "loglar" && (
             <div style={{ ...S.card, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "50px 20px", textAlign: "center" as const }}>
@@ -410,6 +590,7 @@ function SystemModeSegment({ value, busy, onChange }: { value: boolean | null; b
 function IconGraduation() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>; }
 function IconLock() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>; }
 function IconTransfer() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>; }
+function IconWallet() { return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>; }
 
 const S: Record<string, CSSProperties> = {
   card: { background: "#fff", border: "1px solid #E2E5EA", borderRadius: 18, padding: "18px 22px", boxShadow: "0 1px 3px rgba(15,31,61,.05)" },

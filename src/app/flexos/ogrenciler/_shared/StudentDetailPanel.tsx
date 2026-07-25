@@ -14,13 +14,18 @@
 import { Mail, Phone, MapPin } from "lucide-react";
 import { useStudentDetail } from "./useStudentDetail";
 import { StudentGenelBilgiler } from "./StudentGenelBilgiler";
+import { StudentNotes } from "./StudentNotes";
 import { StudentEgitimBilgileri } from "./StudentEgitimBilgileri";
 import { FlexPageContent } from "../../_components/FlexHeader";
 import { FlexPageLoader } from "../../_components/FlexSpinner";
+import { useCapabilities } from "../../_components/useCapabilities";
 import { initials, avatarGradient, statusMeta } from "./studentShared";
 
 export function StudentDetailPanel({ personId, className }: { personId: string | null; className: string }) {
-  const { person, trainings, poolStatus, subeler, loading } = useStudentDetail(personId);
+  const { caps } = useCapabilities();
+  const canReadNote = caps.has("person.note.read");
+  const canWriteNote = caps.has("person.note.write");
+  const { person, trainings, poolStatus, subeler, loading, reload } = useStudentDetail(personId);
   const fullName = person ? `${person.firstName} ${person.lastName}`.trim() : "";
   const [c1, c2] = avatarGradient(personId ?? "x");
   const status = statusMeta(poolStatus);
@@ -65,6 +70,15 @@ export function StudentDetailPanel({ personId, className }: { personId: string |
             <div>
               <div className="text-[12px] font-extrabold text-[#414B59] uppercase tracking-wide mb-3">Genel Bilgiler</div>
               <StudentGenelBilgiler person={person} poolStatus={poolStatus} subeler={subeler} />
+              {canReadNote && (
+                <StudentNotes
+                  personId={person.id}
+                  initialNotes={person.notes ?? ""}
+                  notesUpdatedAt={person.notesUpdatedAt}
+                  canWrite={canWriteNote}
+                  onSaved={reload}
+                />
+              )}
             </div>
             <div>
               <div className="text-[12px] font-extrabold text-[#414B59] uppercase tracking-wide mb-3">Eğitim Bilgileri</div>

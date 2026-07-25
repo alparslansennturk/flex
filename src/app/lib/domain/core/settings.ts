@@ -11,11 +11,17 @@ import type { EntityId, ISODateTime } from "../base";
  *   type:"transfer") açar. = true → taşıma yalnız `sale.create` yetkisiyle (Satış) yapılabilir
  *   — yani ek satış MANUEL Satış tarafından açılır ve öğrenci aynı işlemle taşınır. Her iki
  *   durumda da bir Sale kaydı (audit/satış logu) düşer.
+ *
+ * dailyMealAllowance (TL) — Eğitmen Hakediş hesabında kullanılan günlük yemek ücreti
+ *   (2026-07-25 kararı). Bir eğitmenin aynı günde 2+ FARKLI grubu varsa o güne bir kez
+ *   eklenir (`trainer-earnings-service.ts`). Sabit kod DEĞİL, Finansal Ayarlar'dan admin
+ *   tarafından değiştirilir — çünkü her sene artıyor.
  */
 export interface FlexosSettings {
   tenantId: EntityId; // doküman id'siyle aynı
   standaloneMode: boolean;
   transferRequiresManualSale: boolean;
+  dailyMealAllowance: number;
   updatedAt?: ISODateTime;
   updatedBy?: string;
 }

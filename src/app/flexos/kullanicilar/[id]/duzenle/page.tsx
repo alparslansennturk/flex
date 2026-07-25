@@ -13,7 +13,7 @@ import FlexSidebar from "../../../_components/FlexSidebar";
 import FlexHeader from "../../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { formatTrPhone } from "@/app/lib/phone";
-import { ToggleSwitch, ChipToggle, SENS_COLORS } from "../../_shared/toggles";
+import { ToggleSwitch, ChipToggle } from "../../_shared/toggles";
 import { useRoleDefs } from "../../_shared/useRoleDefs";
 import { PERM_MODULES } from "../../_shared/permModules";
 import { RoleMultiSelect } from "../../_shared/RoleMultiSelect";
@@ -338,7 +338,6 @@ export default function KullaniciDuzenlePage() {
                         {PERM_MODULES.map((m) => {
                           const active = isPermActive(m.key);
                           const overridden = m.key in permOverrides;
-                          const sens = SENS_COLORS[m.sensitivity];
                           return (
                             <div key={m.key} style={{
                               display: "flex", alignItems: "center", gap: 14, padding: "14px 18px",
@@ -353,7 +352,6 @@ export default function KullaniciDuzenlePage() {
                                 </div>
                                 <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2 }}>{m.desc}</div>
                               </div>
-                              <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, color: sens.color, background: sens.bg, flexShrink: 0 }}>{m.sensitivity}</span>
                             </div>
                           );
                         })}

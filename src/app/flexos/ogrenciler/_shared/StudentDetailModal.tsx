@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { useStudentDetail } from "./useStudentDetail";
 import { StudentGenelBilgiler, type EditableDraft } from "./StudentGenelBilgiler";
+import { StudentNotes } from "./StudentNotes";
 import { StudentEgitimBilgileri } from "./StudentEgitimBilgileri";
 import { FlexSpinner } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
@@ -41,6 +42,8 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
 
   const canEdit = caps.has("person.edit");
   const canWritePii = caps.has("person.pii.write");
+  const canReadNote = caps.has("person.note.read");
+  const canWriteNote = caps.has("person.note.write");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<EditableDraft>(EMPTY_DRAFT);
@@ -187,6 +190,15 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
                     person={person} poolStatus={poolStatus} subeler={subeler} compact
                     editing={editing} draft={draft} onDraftChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
                   />
+                  {canReadNote && (
+                    <StudentNotes
+                      personId={person.id}
+                      initialNotes={person.notes ?? ""}
+                      notesUpdatedAt={person.notesUpdatedAt}
+                      canWrite={canWriteNote}
+                      onSaved={reload}
+                    />
+                  )}
                 </div>
                 <div>
                   <div className="text-[12px] font-extrabold text-[#414B59] uppercase tracking-wide mb-3">Eğitim Bilgileri</div>

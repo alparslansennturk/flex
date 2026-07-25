@@ -21,7 +21,9 @@ const ACTIVATION_CODE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 gün — canlıyl
 /** GET /api/flexos/users — Kullanıcı listesi */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
   const actor = await actorFromCaller(caller);
-  if (!can(actor, "role.manage")) {
+  // "user.create" (Personel Ekleme) sahibi de listeyi görebilir — aksi halde ekleme
+  // formuna ulaşsa da mevcut personeli göremeden (çift kayıt riskiyle) ekleme yapardı.
+  if (!can(actor, "role.manage") && !can(actor, "user.create")) {
     return NextResponse.json({ error: "Yetki yok: role.manage" }, { status: 403 });
   }
 

@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { useStudentDetail } from "./useStudentDetail";
 import { StudentGenelBilgiler, type EditableDraft } from "./StudentGenelBilgiler";
+import { StudentNotes } from "./StudentNotes";
 import { StudentEgitimBilgileri } from "./StudentEgitimBilgileri";
 import { StudentOdemeBilgileri } from "./StudentOdemeBilgileri";
 import { FlexPageContent } from "../../_components/FlexHeader";
@@ -53,6 +54,8 @@ export function StudentDetailTabsPanel({ personId, className }: { personId: stri
   const [draft, setDraft] = useState<EditableDraft>(EMPTY_DRAFT);
 
   const canReadPayment = caps.has("payment.read");
+  const canReadNote = caps.has("person.note.read");
+  const canWriteNote = caps.has("person.note.write");
   const fullName = person ? `${person.firstName} ${person.lastName}`.trim() : "";
   const [c1, c2] = avatarGradient(personId ?? "x");
   const status = statusMeta(poolStatus);
@@ -195,10 +198,21 @@ export function StudentDetailTabsPanel({ personId, className }: { personId: stri
           </div>
 
           {tab === "genel" && (
-            <StudentGenelBilgiler
-              person={person} poolStatus={poolStatus} subeler={subeler}
-              editing={editing} draft={draft} onDraftChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
-            />
+            <>
+              <StudentGenelBilgiler
+                person={person} poolStatus={poolStatus} subeler={subeler}
+                editing={editing} draft={draft} onDraftChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+              />
+              {canReadNote && (
+                <StudentNotes
+                  personId={person.id}
+                  initialNotes={person.notes ?? ""}
+                  notesUpdatedAt={person.notesUpdatedAt}
+                  canWrite={canWriteNote}
+                  onSaved={reload}
+                />
+              )}
+            </>
           )}
           {tab === "odeme" && canReadPayment && (
             <div className="bg-white border border-[#E2E5EA] rounded-[18px] p-6 shadow-[0_1px_3px_rgba(15,31,61,.05)]">

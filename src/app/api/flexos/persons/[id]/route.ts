@@ -67,6 +67,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, { params }: { para
 
     const allowPII = can(actor, "person.read.pii");
     const allowPay = can(actor, "payment.read");
+    const allowNote = can(actor, "person.note.read");
 
     const [sales, payments, educations] = await Promise.all([
       allowPay ? firestoreSaleRepo.listByPerson(id, actor.tenantId) : Promise.resolve([]),
@@ -134,6 +135,8 @@ export const GET = withAuth(async (_req: NextRequest, caller, { params }: { para
             idType: person.pii?.idType ?? "tc",
           }
         : null,
+      notes: allowNote ? (person.notes ?? "") : null,
+      notesUpdatedAt: allowNote ? (person.notesUpdatedAt ?? null) : null,
       sales: salesOut,
       payments: paymentsOut,
       totals: { expected: totalExpected, paid: totalPaid, remaining: Math.max(0, totalExpected - totalPaid), rollup },
@@ -150,6 +153,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, { params }: { para
  * Güncellenebilir alanlar:
  *  - firstName, lastName, gender, birthDate (person.write)
  *  - pii: phone, email, address, idType, idNo (person.pii.write)
+ *  - notes (person.note.write) — `notesUpdatedAt` sunucu tarafından OTOMATİK basılır.
  */
 export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
@@ -200,6 +204,16 @@ export const PATCH = withAuth(async (req: NextRequest, caller, { params }: { par
       for (const [k, v] of Object.entries(pii)) {
         updateData[`pii.${k}`] = v;
       }
+    }
+
+    // Serbest metin not — ayrı yetki (2026-07-25). `notesUpdatedAt` ELLE gönderilmez,
+    // sistem OTOMATİK basar (kullanıcı isteği: "sağ üstünde otomatik bir tarih olsun").
+    if (typeof body.notes === "string") {
+      if (!can(actor, "person.note.write")) {
+        return NextResponse.json({ error: "Yetki yok: person.note.write" }, { status: 403 });
+      }
+      updateData.notes = body.notes;
+      updateData.notesUpdatedAt = new Date().toISOString();
     }
 
     updateData.updatedAt = new Date().toISOString();

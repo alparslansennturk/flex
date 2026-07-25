@@ -21,6 +21,9 @@ export interface PersonDetail {
   isOnlineStudent: boolean;
   createdAt: string | null;
   pii: { phone: string; email: string; address: string; idNo: string; idType: string } | null;
+  /** Serbest metin personel notu — `person.note.read` yoksa `null`. */
+  notes: string | null;
+  notesUpdatedAt: string | null;
   sales: SaleSummary[];
   payments: PaymentLine[];
   totals: { expected: number; paid: number; remaining: number; rollup: string | null };

@@ -47,9 +47,16 @@ export const PERM_MODULE_CAPABILITIES: Record<string, string[]> = {
     "activity.create", "activity.read",
     "appointment.create", "appointment.read",
   ],
-  egitmen: ["trainer.create", "trainer.read", "trainer.edit", "trainer.delete", "trainer.rate.read", "trainer.rate.write"],
+  // "egitmen_ekle" (2026-07-25) — YENİ eğitmen oluşturma, "egitmen"in geri kalanından
+  // (düzenleme/silme/ücret) BİLEREK ayrı — Eğitim Koordinatörü gibi roller yeni eğitmen
+  // ekleyebilsin diye kendi ayrı checkbox'ı var.
+  egitmen_ekle: ["trainer.create"],
+  egitmen: ["trainer.read", "trainer.edit", "trainer.delete", "trainer.rate.read", "trainer.rate.write"],
   katalog: ["branch.create", "education.create", "education.edit", "section.create", "track.create", "holiday.manage"],
   sistem: ["role.manage", "capability.grant"],
+  // "personel_ekle" (2026-07-25) — bkz. `user.create` (registry.ts) — "sistem"den
+  // (rol tanımlarını düzenleme) BİLEREK ayrı, daha dar bir yetki.
+  personel_ekle: ["user.create"],
 };
 
 /** Seçili modül listesini org-scope grant'lere çevirir (çift capability = tekilleşir). */

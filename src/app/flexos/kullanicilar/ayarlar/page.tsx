@@ -14,7 +14,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
-import { ToggleSwitch, SENS_COLORS } from "../_shared/toggles";
+import { ToggleSwitch } from "../_shared/toggles";
 import { useRoleDefs, type RoleDefDTO } from "../_shared/useRoleDefs";
 import { PERM_MODULES } from "../_shared/permModules";
 
@@ -215,7 +215,6 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {PERM_MODULES.map((m) => {
             const active = permModules.includes(m.key);
-            const sens = SENS_COLORS[m.sensitivity];
             return (
               <div key={m.key} style={{
                 display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
@@ -227,7 +226,6 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
                   <span style={{ fontSize: 13.5, fontWeight: active ? 700 : 500, color: active ? "#1E222B" : "#8E95A3" }}>{m.label}</span>
                   <div style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 500, marginTop: 1 }}>{m.desc}</div>
                 </div>
-                <span style={{ fontSize: 9.5, fontWeight: 700, padding: "3px 8px", borderRadius: 6, color: sens.color, background: sens.bg, flexShrink: 0 }}>{m.sensitivity}</span>
               </div>
             );
           })}

@@ -55,6 +55,14 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   { key: "trainer.delete", domain: "trainer", label: "Eğitmen Sil", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "trainer.rate.read", domain: "trainer", label: "Eğitmen Ücreti Görüntüle", sensitivity: "yellow", write: false, scopable: false, audited: true },
   { key: "trainer.rate.write", domain: "trainer", label: "Eğitmen Ücreti Düzenle", sensitivity: "yellow", write: true, scopable: false, audited: true },
+  // SADECE self scope — admin/Finans/Op dahil KİMSE başka bir eğitmenin hakedişini bu
+  // capability ile göremez (2026-07-25 kararı, "asla ve asla" — kullanıcının kendi sözleri).
+  // trainer.rate.read'den BİLEREK ayrı: o org-scope (admin/Finans içindir), bu yalnız kendisi.
+  { key: "trainer.earnings.read", domain: "trainer", label: "Kendi Hak Edişini Görüntüle", sensitivity: "red", write: false, scopable: true, audited: true },
+  // SADECE Core görünümündeki owner (2026-07-25 kararı) — Full modda ücret Eğitmenler
+  // CRUD'undan admin girer (trainer.rate.write, org scope), Core modda admin/CRUD ekranı
+  // hiç yok, eğitmen kendi ücretini kendi girer. trainer.rate.write'DAN BİLEREK ayrı key.
+  { key: "trainer.rate.write.self", domain: "trainer", label: "Kendi Ders Saati Ücretini Düzenle", sensitivity: "yellow", write: true, scopable: true, audited: true },
 
   // ── attendance (Yoklama) — eğitmen görünürlüğü ≠ Op/Finans rapor görünürlüğü ──
   { key: "attendance.write", domain: "attendance", label: "Yoklama Al / Düzenle", sensitivity: "green", write: true, scopable: true, audited: false },
@@ -116,6 +124,11 @@ export const CAPABILITY_REGISTRY: CapabilityDef[] = [
   // ── system ──
   { key: "role.manage", domain: "system", label: "Capability Paketlerini Düzenle", sensitivity: "red", write: true, scopable: false, audited: true },
   { key: "capability.grant", domain: "system", label: "Tekil Yetki Ver/Al", sensitivity: "red", write: true, scopable: false, audited: true },
+  // "Personel Ekleme" (2026-07-25 kullanıcı kararı) — role.manage'den BİLEREK ayrı:
+  // "Sistem Yönetimi" (role.manage) rol tanımlarını/yetkileri düzenlemek gibi daha
+  // hassas bir meta-yönetim; yeni personel HESABI açmak (mevcut rollerden seçerek)
+  // ayrı, daha dar bir yetki olmalı diye kendi capability'sine taşındı.
+  { key: "user.create", domain: "system", label: "Yeni Personel Hesabı Oluştur", sensitivity: "yellow", write: true, scopable: false, audited: true },
   { key: "view.toggle", domain: "system", label: "Kişisel Görünüm Anahtarı (Core/Full)", sensitivity: "green", write: false, scopable: false, audited: false },
 ];
 

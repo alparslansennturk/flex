@@ -16,7 +16,302 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-25 oturumu (19) — Tekil Enrollment hard-delete uç eklendi (EN GÜNCEL)
+### 🔶 2026-07-25 oturumu (23) — Kullanıcı Ayarları: Personel Ekleme + Eğitmen Ekleme ayrı checkbox oldu (EN GÜNCEL)
+
+Kullanıcı Kullanıcı Ayarları'ndaki rol-checkbox ekranını inceledi ("ne işaretli nasıl
+bakacağım" sorusuyla başladı), yol boyunca 3 gerçek düzeltme çıktı:
+
+**1) Sensitivity (yellow/green/red) rozetleri kaldırıldı.** Kullanıcı bunları
+"checked/unchecked" sanmıştı — meğer her modülün SABİT, role göre değişmeyen risk
+etiketiymiş ("bence saçma" — haklıydı, orada işe yaramıyordu). 3 ekrandan da
+(`kullanicilar/ayarlar`, `ekle`, `[id]/duzenle`) badge JSX'i + `SENS_COLORS` importu
+kaldırıldı, `PermModuleDef.sensitivity` alanı silindi. `registry.ts`'teki (capability
+bazlı, farklı ve hâlâ geçerli) `sensitivity` alanına DOKUNULMADI — o ayrı bir şey.
+
+**2) "Kişi Ekleme" denemesi → GERİ ALINDI.** Kullanıcı önce "Eğitim Koordinatörü kişi
+eklememeli, yeni personel ekleyemez ama eğitmen ekleyebilir" dedi — bunu "öğrenci
+ekleyemesin" diye yanlış yorumlayıp `person.create`'i "Kişi Yönetimi"nden ayrı bir
+"Kişi Ekleme" checkbox'ına taşıdım. Kullanıcı düzeltti: "çelişki var, ben sadece
+PERSONEL ekleme kapalı olacak dedim, öğrenci eklemesi gerekiyorsa ekler." Split tamamen
+geri alındı — `kisi` tek modül olarak eskisi gibi (create dahil) duruyor. **Gerçek
+öğrenilen:** "kişi" ve "personel" bu sistemde TAMAMEN farklı iki nesne — `Person`
+(öğrenci, `persons` koleksiyonu) vs `FlexosUser` (ofis çalışanı login hesabı,
+`flexos_users` koleksiyonu) — kullanıcı ilk mesajında ikisini karıştırmıştı.
+
+**3) Gerçek ayrım — "Personel Ekleme" ve "Eğitmen Ekleme" yeni, bağımsız modüller.**
+Kullanıcının asıl istediği ortaya çıktı: "Personel ekleme bir madde olmalı. Kişi
+ekleme değil eğitmen ekleme olmalı. Kayıt işlemleri zaten öğrenci ekleme aynı zamanda"
+— yani `Kişi Yönetimi`ye hiç dokunma (Kayıt İşlemleri zaten öğrenci-ekleme akışını
+kapsıyor), bunun yerine PERSONEL ve EĞİTMEN için "ekleme" (create) ile "yönetme"
+(edit/delete/görüntüle) ayrı checkbox'lar olsun:
+  - **Yeni `user.create` capability** (`registry.ts`, domain "system") — "Sistem
+    Yönetimi" (`role.manage` — rol TANIMLARINI düzenleme, çok daha hassas) ile
+    KARIŞTIRILMASIN diye ayrı. `flexos-user-service.ts::createFlexosUser` artık
+    `role.manage` değil `user.create` kontrol ediyor. `GET /api/flexos/users`
+    (roster görüntüleme — ekleme formuna anlamlı ulaşmak için gerekli) `role.manage
+    VEYA user.create` ile açık. Yeni **"Personel Ekleme"** modülü
+    (`personel_ekle: ["user.create"]`).
+  - **Yeni `egitmen_ekle` modülü** (`["trainer.create"]`) — "Eğitmen Kadrosu"
+    (`egitmen`) modülünden `trainer.create` çıkarıldı, sadece edit/delete/rate kaldı.
+    `trainer-service.ts::createTrainer` zaten AYRI `trainer.create` kontrol ediyordu
+    (ince taneli), bu yüzden sayfa/route tarafında EK değişiklik gerekmedi — sadece
+    Kullanıcı Ayarları checkbox seviyesinde ayrıldı.
+  - **Gerçek owner/admin korundu:** hem `user.create` hem zaten var olan
+    `role.manage`/`trainer.create` hardcoded `admin` paketine eklendi/zaten vardı
+    (`packages.ts`) — tenant sahibinin gerçek admin hesabı RoleDef'ten değil bu sabit
+    listeden besleniyor, bu değişiklikten ETKİLENMEDİ.
+  - **Eğitim Koordinatörü**'nün `BUILT_IN_ROLE_SEEDS`'ine `egitmen_ekle` eklendi (aksi
+    halde "egitmen" tek başına artık trainer.create içermediği için eğitmen ekleme
+    yeteneğini kaybederdi).
+
+**⚠️ Deploy sonrası ELLE yapılması gereken (RoleDef zaten Firestore'da seed'lenmiş,
+YENİ modül anahtarları hiçbir mevcut role otomatik işaretlenmez — kod seed'i sadece
+İLK boş okumada geçerli):**
+- **Genel Müdür** → Kullanıcı Ayarları'nda "Personel Ekleme" VE "Eğitmen Ekleme"
+  kutularını elle AÇ (yoksa bu RoleDef'e bağlı biri personel/eğitmen ekleyemez hale
+  gelir — gerçek owner/admin hesabı ayrı hardcoded paketten geldiği için ETKİLENMEZ,
+  ama Genel Müdür RoleDef'ine bağlı biri varsa etkilenir).
+- **Eğitim Koordinatörü** → "Eğitmen Ekleme"yi elle AÇ.
+- Diğer yerleşik roller (Satış Temsilcisi/Öğrenci İşleri/Finans) bu iki modülü hiç
+  kullanmıyordu, dokunmaya gerek yok.
+
+Sanity-check: throwaway script ile `grantsForPermModules` + `can()` kombinasyonları
+doğrulandı (Koordinatör → trainer.create ✓ + person.create ✓ + user.create ✗ +
+role.manage ✗; sadece "sistem" → user.create ✗ role.manage ✓; sadece "personel_ekle" →
+user.create ✓ role.manage ✗; sadece "egitmen" → trainer.create ✗ trainer.edit ✓ —
+hepsi beklenen sonuç). `tsc`/`eslint` temiz, `assert-account-close.ts` 14/14 (kisi
+modülü değişmediği için ilgili tek mevcut test etkilenmedi — createFlexosUser/
+createTrainer için dedicated assertion script YOK, bu oturumda da eklenmedi).
+
+**Tarayıcıda hiç denenmedi, push edilmedi (bir sonraki oturumda test edilecek).**
+
+### 🔶 2026-07-25 oturumu (22) — Öğrenci Detay: serbest metin personel notu
+
+Kullanıcı: "grupsuz öğrencilerin bir sebebi vardır... adres kısmının altına bir not
+alanı olmalı." Önceden `PersonNote` diye ayrı, çoklu/zaman-damgalı bir koleksiyon
+tasarlanmıştı (kod hiç yazılmamıştı) — kullanıcı "düz bir metin alanı yeterli, fazla
+karmaşaya gerek yok" dedi, o tasarımdan VAZGEÇİLDİ, `person-note.ts` (kullanılmayan
+tip) silindi.
+
+- **`Person.notes?: string` + `Person.notesUpdatedAt?: ISODateTime`** doğrudan
+  Person'a eklendi (`core/person.ts`). Kaydedince `notesUpdatedAt` sunucu tarafından
+  OTOMATİK basılır (kullanıcı: "sağ üstünde otomatik bir tarih atsın", "güncellenmişse
+  o tarihte güncellendi yazsın") — elle girilmez.
+- Zaten var olan (ama hiç kullanılmayan) `person.note.read`/`person.note.write`
+  capability'leri kullanıldı. **`satis`/`operasyon` paketlerine de eklendi** (önceden
+  sadece `egitmen`/`admin`'de vardı) — "neden grupsuz" notunu Satış/Eğitim Op da
+  düşebilmeli, sadece eğitmen değil.
+- `PATCH /api/flexos/persons/[id]` — `notes` alanı eklendi, `person.note.write` ile
+  kapılı (PII bloğuyla AYNI desen). `GET` de `notes`/`notesUpdatedAt` döndürüyor,
+  `person.note.read` yoksa `null`.
+- **Yeni `StudentNotes.tsx`** — Genel Bilgiler'de Adres'in altında, sağ üstte
+  "Güncellendi: X" (varsa), kendi bağımsız Kaydet butonu (host'un genel "Düzenle"
+  akışından BAĞIMSIZ, her an kaydedilebilir). **3 ayrı öğrenci-detay bileşenine**
+  eklendi (hepsi `StudentGenelBilgiler` kullanıyordu): `StudentDetailTabsPanel.tsx`
+  (admin/op kayan panel), `StudentDetailPanel.tsx` (sertifikasyon/not sayfası),
+  `StudentDetailModal.tsx` (eğitmenin Sınıflar'dan açtığı modal).
+- Ana listede (Öğrenci Havuzu) HİÇ görünmüyor — sadece detaya girince.
+
+`tsc`/`eslint`/`npm run build` + 120/120 assertion temiz (bu route'ta zaten hiç
+dedicated assert script yoktu — PII alanı da aynı şekilde test edilmemişti, aynı
+konvansiyon korundu). **Tarayıcıda hiç denenmedi, push edilmedi.**
+
+### 🔶 2026-07-25 oturumu (21) — Eğitmen Hakediş: kullanıcı testinden 4 gerçek düzeltme (EN GÜNCEL)
+
+Kullanıcı gerçek hesabıyla test etti, 4 gerçek sorun bulundu — hepsi kapandı:
+
+**1) GERÇEK MİMARİ BUG — capability PAKETE değil KİMLİĞE bağlanmalıydı.** Kullanıcı:
+"ben adminim ama eğitmenim de aynı zamanda, hak edişim admin modda da yazmalı." Eski
+tasarım `trainer.earnings.read`'i `EGITMEN_CORE` paketine koymuştu — ama owner Full
+(admin) modda gezerken `packagesForCaller` ona `["admin"]` paketi veriyor, `["egitmen"]`
+DEĞİL (`auth-actor.ts:59-77`, Cmd+Alt+T'ye basmadan) — yani grant'e HİÇ ulaşamıyordu.
+**Fix:** capability `packages.ts`'ten TAMAMEN kaldırıldı, bunun yerine `auth-actor.ts`'te
+`trainerId` çözülen HERKESE (hangi paket olursa olsun) doğrudan `extraGrants` ile
+veriliyor artık — "hak ediş görme hakkı KİM olduğuna bağlı, hangi paketle gezdiğine
+değil". `assert-trainer-earnings.ts`'e tam bu senaryoyu (admin paketi + kendi trainerId'si
+→ görebilir) test eden yeni bir assertion eklendi, "Finans" testi de gerçekçi hale
+getirildi (trainerId'siz — gerçek Finans personeli hiç eğitmen değil). 18/18.
+**Şube taşıması yok** — birden fazla dosyada AYNI tekrarlanan hataydı, tek yerden çözüldü.
+
+**2) Rakam şeffaf değildi.** Kullanıcı "11250TL yazıyor, bu bilgiyi nereden aldın, 750TL
+Eğitmenler'de yazıyor zaten" dedi — 11250 aslında DOĞRUYDU (750×15 saat) ama etiket
+sadece sonucu gösteriyordu, hesabı değil. **Fix:** "Ders saat ücreti: 11.250 TL (750 TL
+× 15 saat)" ve "Yemek ücreti: xxx TL (N gün × xxx TL)" — çarpım artık parantez içinde
+görünüyor, bir daha "nereden geldi" sorusu gelmemeli.
+
+**3) Widget ilk yazımda İKİ YANLIŞ yere eklenmişti** (bkz. aşağıdaki 20. oturum notu —
+önce `AttendanceCore`'un yanlış barı, sonra düzeltilip SADECE `AttendanceDetailList`'e
+taşındı). Kullanıcı: "Yoklama Detay VE Yoklama Raporu sayfalarına footer ekleyelim" —
+**`yoklama/rapor/page.tsx`'e de eklendi** (kendi ayrı `ReportContent()` bileşeni,
+`AttendanceDetailList`'ten TAMAMEN bağımsız kod — o sayfa zaten `attendance.report.read`
+ile kapılı ama `trainer.earnings.read` ayrı kaldığı için sadece owner gibi HEM admin HEM
+gerçek-trainerId'si-olan biri görür, gerçek Finans/Op personeli yine göremez).
+**Ders (ikinci kez tekrarladı — dikkat):** JSX'i eklerken component sınırını
+karıştırdım, state'i `YoklamaRaporuPage`'e (dış, sadece access-check) koydum ama JSX
+`ReportContent()`'teydi (iç, ayrı fonksiyon) — tsc hemen yakaladı ("cannot find name"),
+state doğru bileşene taşındı. Ayrıca ilk yazımda `react-hooks/set-state-in-effect` lint
+hatası vardı (effect gövdesinde senkron `setState` çağrısı) — tüm setState'ler async
+callback İÇİNE alınarak düzeltildi.
+**4) "Toplam hak ediş" uppercase YAPILMAMALIYDI** — kullanıcının "TL büyük harfler
+olacak" demesi SADECE "TL" ibaresi içindi (zaten öyle), yanlış yorumlayıp tüm etiketi
+büyük harfe çevirmiştim ("TOPLAM HAK EDİŞ"). Normal yazıma döndürüldü ("Toplam hak
+ediş"), bold+büyük punto aynen kaldı.
+
+`scripts/assert-trainer-earnings.ts` artık 18/18 (yeni admin+trainerId senaryosu dahil).
+`tsc`/`eslint`/`npm run build` + 111/111 assertion (7 script) temiz.
+
+**5) İKİNCİ tur — GERÇEK hesap tutarsızlığı bulundu (kullanıcı: "sen bu 15 saati nereden
+buldun, sayfada zaten 18 saat yazıyor").** `getMyTrainerEarnings` sadece `attendanceClosed:
+true` ("Dersi Bitir" ile kapatılmış) kayıtları sayıyordu — ama sayfanın HER YERİNDEKİ
+"Bu ay X saat ders verildi" özet barları (`AttendanceDetailList.tsx`/`yoklama/rapor/page.tsx`)
+`!createdByException` kullanıyor (kapanmış/kapanmamış FARK ETMEZ, sadece istisna-kaynaklı
+kayıt hariç). Aynı ay için sayfada İKİ FARKLI "kaç saat ders verildi" rakamı gösteriliyordu.
+**Fix:** `trainer-earnings-service.ts` artık sayfanın geri kalanıyla AYNI tanımı kullanıyor
+(`!createdByException`, `attendanceClosed` şartı kaldırıldı). Test güncellendi (kapanmamış
+ama gerçek ders artık sayılıyor, sadece istisna-kaynaklı hariç tutuluyor). 18/18.
+**Ayrıca kullanıcı isteği:** "Ders saat ücreti: xxx TL (750×15 saat)" gibi parantez-içi
+hesap detayı (bir önceki turda şeffaflık için eklenmişti) kaldırıldı — "buna gerek yok".
+Sade "Ders saat ücreti: xxx TL" / "Yemek ücreti: xxx TL" / "Toplam hak ediş: xxx TL".
+
+`tsc`/`eslint`/`npm run build` + 111/111 assertion temiz.
+
+**6) YAN BULGU → yeni özellik: FlexOS'ta otomatik yoklama kapatma HİÇ yoktu.** Kullanıcı
+"3 saat sonra otomatik kapanır kuralımız yoktu mu" dedi — kural GERÇEKTEN var
+(`api/cron/auto-close-attendance/route.ts`, Vercel cron, günde 1 kez 21:01 UTC) AMA
+sadece eski Flex Core'un `design_attendance`/`design_classes` koleksiyonlarında çalışıyor,
+FlexOS'un `flexos_attendance`/`flexos_groups`'una HİÇ port edilmemişti — kullanıcı
+kapattığını sandığı dersler aslında süresiz açık kalıyordu. **Yeni:**
+`api/cron/auto-close-flexos-attendance/route.ts` — eski cron'la AYNI mantık (yoklama
+başlatılmış → ders bitiminden 3 saat sonra kapat, hiç başlatılmamış → 6 saat sonra),
+SADECE saat formatı farklı ayrıştırılıyor (FlexOS `Group.schedule.endTime` "19.00" tek
+alan, eski sistem "14:00-17:00" aralık string'i — `parseHM` yeni, `enrollment-service.ts`
+ile aynı format). `vercel.json`'a eklendi (21:02 UTC, eski cron'dan 1dk sonra — çakışmasın
+diye). Eski cron'a hiç dokunulmadı, iki sistem birbirinden tamamen bağımsız kalıyor.
+
+`tsc`/`eslint`/`npm run build` temiz (Firestore Admin SDK'ya bağımlı olduğu için mevcut
+assert-*.ts scriptleriyle aynı şekilde unit-test edilemedi — `parseHM` elle birkaç örnekle
+doğrulandı, geri kalanı eski, kanıtlanmış cron'un birebir portu). **Hâlâ tarayıcıda/gerçek
+cron çalıştırmasıyla uçtan uca doğrulanmadı, push edilmedi.**
+
+**7) Kullanıcı doğruladı: rakamlar artık doğru (13.500 TL).** İki küçük ek istek:
+"Ders saat ücreti" etiketi "Ders ücreti" olarak sadeleştirildi (her iki sayfada). Ve
+"bir sonraki derste yoklama alınca anında güncellenecek mi" sorusuna — HAYIR'dı (sadece
+mount'ta bir kez çekiyordu), artık EVET: her iki widget da `useRealtimeSync(["attendance.changed"],
+loadEarnings)`'e bağlandı (`saveAttendance` zaten bu event'i her zaman yayınlıyor) —
+sayfa yenilemeden anında güncelleniyor. `AttendanceDetailList.tsx`'te ayrıca `loadEarnings`
+`useCallback`'e çıkarıldı (önceki inline effect + realtime aboneliği ayrı ayrı tutulamazdı).
+
+`tsc`/`eslint`/`npm run build` temiz. **Hâlâ tarayıcıda gerçek "yoklama al → anında
+güncellendi mi" testi yapılmadı, push edilmedi.**
+
+**8) Core mod YAPILDI (ertelenmiş ikinci yarı, kullanıcı: "eğitmen core modda finansal
+ayarlara ders saat ücretini eğitmen kendisi ekleyecek, full modda burada sadece yemek
+ücreti olacak, full modda eğitmen finansal ayarları zaten hiç görmeyecek").**
+- Yeni capability `trainer.rate.write.self` (self scope) — `trainer.earnings.read`'in
+  aksine BİLEREK sadece owner'ın Core GÖRÜNÜMÜNE bağlı (`isOwner && packages "admin"
+  içermiyor`, `auth-actor.ts`), sistem-geneli `standaloneMode`'a DEĞİL — gerçek/ayrı bir
+  eğitmen çalışanı Full'da bu grant'i hiç almaz, ücreti hep admin/Eğitmenler CRUD'undan.
+- `setMyHourlyRate` (`trainer-service.ts`) + `PATCH /api/flexos/trainers/me/rate` —
+  "me" deseni (id parametresi yok, `actor.trainerId`'den çözülür). Mevcut `trainer.rate.write`
+  (org-scope, Full/admin/Eğitmenler CRUD) ile PAYLAŞILMIYOR, ayrı yol.
+- **Sistem Ayarları > Finansal Ayarlar artık İKİ KİTLEYE göre dallanıyor** (sekme
+  görünürlüğü `canSeeSistemTab`'dan bağımsızlaştırıldı — önceden Core owner sekmeyi hiç
+  göremiyordu): Full+admin → Günlük Yemek Ücreti kartı (değişmedi); Core owner
+  (`trainer.rate.write.self` sahibi) → "Ders Saati Ücretin" self-entry kartı. Mevcut
+  değer `trainers/me/earnings`'in `hourlyRate` alanından okunuyor (ayrı GET ucu açılmadı).
+- `scripts/assert-trainer-self-rate.ts` (10/10) — Core owner yazabilir, Full/admin owner
+  BU UÇTAN yazamaz (ForbiddenError), gerçek ayrı eğitmen çalışanı asla yazamaz, negatif
+  ücret reddedilir, diğer Trainer alanları korunur.
+
+`tsc`/`eslint`/`npm run build` + 121/121 assertion (9 script) temiz.
+
+**9) DÜZELTME — kartlar birbirini dışlamamalıydı.** Kullanıcı: "sadece core eğitmen
+modunda admin olunca yemek ücreti eğitmen olunca ders saat ücreti oluyor, ikisi de
+olacak... aynı zamanda admin olan ben aynı zamanda eğitmenim, bende 2 ayarı da
+yapabilmeliyim." İLK yazımda `isAdmin ? <yemekKartı> : <kendiÜcretKartı>` ternary'siydi
+— owner'ı Full/Core moduna göre BİRİNİ göstermeye zorluyordu, ama owner ikisini de AYNI
+ANDA taşıyor (hem admin hem gerçek eğitmen). **Fix:** `trainer.rate.write.self` grant'i
+`isOwner && trainerId`'e bağlandı (mod/paketten TAMAMEN bağımsız, `trainer.earnings.read`
+ile AYNI kural) — Sistem Ayarları artık `{isAdmin && <yemekKartı/>} {canSelfRate &&
+<kendiÜcretKartı/>}` (bağımsız iki blok, ikisi de owner için her modda birlikte
+görünüyor). Gerçek/ayrı bir eğitmen çalışanı (isOwner=false) hâlâ hiçbirini görmüyor —
+"full modda eğitmen zaten finansal ayarları hiç görmeyecek" kuralı SADECE onlar için
+geçerli kaldı, owner için hiç uygulanmıyor. `assert-trainer-self-rate.ts` güncellendi
+(Full+admin owner artık BAŞARIYLA yazabiliyor testi, önceki "ForbiddenError" testinin
+yerini aldı). 9/9.
+
+`tsc`/`eslint`/`npm run build` + 120/120 assertion (9 script) temiz.
+
+**10) Kullanıcı VAZGEÇTİ, geri alındı.** Bir sonraki adımda "core modda merkezi sistem
+yok, yemek ücretini de eğitmen kendi ayarlasın" dedi, `updateSettings`'i `dailyMealAllowance`
+için `trainer.rate.write.self`'e de açtım — AMA hemen ardından "vazgeçtim, yemek ücreti
+adminde görünecek sadece" dedi. **Geri alındı:** `updateSettings` tekrar SADECE
+`role.manage`, yemek kartı UI'da tekrar SADECE `isAdmin`. `assert-meal-allowance-self.ts`
+(geçersiz kalan test) silindi. **Kalıcı olan tek değişiklik:** kartlar yan yana (önce
+Ders Saati Ücreti, sonra Yemek Ücreti) — bu layout isteği vazgeçmeden önce geldi, hâlâ
+geçerli. Nihai durum: Ders Saati Ücreti kartı hem Full hem Core'da (owner kimliğe bağlı,
+`trainer.rate.write.self`); Yemek Ücreti kartı SADECE Full+admin'de (`isAdmin`) —
+Core modda hiç görünmez.
+
+`tsc`/`eslint`/`npm run build` + 120/120 assertion (8 script, meal-allowance-self
+kaldırıldığı için 9→8) temiz. **Hâlâ tarayıcıda uçtan uca doğrulanmadı, push edilmedi.**
+
+### 🔶 2026-07-25 oturumu (20) — Eğitmen Hakediş: Full mod BİTTİ, Core mod SIRADA
+
+Kullanıcı kararı: "Full Mode bitince Core Mode yaparız" — bu oturum SADECE Full mod.
+Full modda ders saat ücreti hâlâ Eğitmenler CRUD'undan admin girer (değişmedi); eğitmen
+kendi ücretini kendi girme (Core mod) HENÜZ YAPILMADI.
+
+- **Sistem Ayarları > Finansal Ayarlar** (yeni kart, `sistem-ayarlari/page.tsx`) — "Günlük
+  Yemek Ücreti (TL)" alanı, admin-only, `FlexosSettings.dailyMealAllowance` (varsayılan
+  300, sabit kod DEĞİL — her sene artıyor, bu yüzden ayara taşındı, kullanıcının kendi
+  isteği).
+- **`getMyTrainerEarnings`** (`trainer-earnings-service.ts`, YENİ) — (o ay KAPANMIŞ/
+  `attendanceClosed:true` derslerin toplam saati × `Trainer.hourlyRate`) + yemek ücreti.
+  Yemek kuralı: bir günde 2+ FARKLI grup varsa o güne bir kez `dailyMealAllowance` eklenir.
+  Uç: `GET /api/flexos/trainers/me/earnings?month=YYYY-MM` — bilerek `[id]` YOK, `me` —
+  `actor.trainerId`'den çözülür, yapı gereği başka bir eğitmenin verisini asla döndüremez.
+- **GİZLİLİK (kullanıcının "asla ve asla" kararı — admin/kurucu dahil KİMSE göremez):**
+  yeni `trainer.earnings.read` capability, **self scope**, `EGITMEN_CORE`'a eklendi (hem
+  Full hem Core'da aktif). BİLEREK `trainer.rate.read`'den (org-scope, admin/Finans'a
+  verilir — ücreti Full modda zaten admin kendi giriyor) tamamen AYRI: Finans'ın
+  `trainer.rate.read`'i olması bu capability'yi hiç karşılamıyor, `can()` `ownerUid ===
+  actor.trainerId` eşleşmeden asla true dönmüyor. 17/17 assertion'da bu kural özellikle
+  test edildi (Finans paketiyle deneme → ForbiddenError).
+- **DÜZELTME (aynı gün, kullanıcı testinden sonra):** widget İLK yazımda YANLIŞ bileşene
+  (`AttendanceCore.tsx`'in "Kaydet/Dersi Bitir" alt barı — sadece belirli bir gün+roster
+  seçilince görünür) eklenmişti. Kullanıcının "altta bar var" demesi aslında `AttendanceDetailList.tsx`'teki
+  her zaman görünen **"Özet Footer"** ("Bu ay X saat ders verildi — toplam hak edilen…")
+  bar'ıymış — o TAŞINDI, doğru yer burası. `AttendanceCore.tsx`'teki ilk deneme tamamen
+  geri alındı (state/effect/JSX, temiz revert).
+- **Yoklama Detay Özet Footer** (`AttendanceDetailList.tsx`, LANDING liste görünümü,
+  her zaman görünür — belirli gün/grup seçmeye gerek yok) — sağ tarafta: "Ders saat
+  ücreti: xxx TL · Yemek ücreti: xxx TL · **TOPLAM HAK EDİŞ: xxx TL**" (bold+büyük).
+  Tamamı varsayılan BULANIK (`blur-md`), göz ikonuyla eğitmen açıp kapatıyor (kalıcı
+  değil, sayfa yenilenince tekrar kapalı — kasıtlı). Seçili `selectedMonth` ile birlikte
+  değişir (Özet Footer zaten "Bu ay" diyor, ikisi aynı ayı gösteriyor). Sadece
+  `trainer.earnings.read` sahibiyse (`caps.has(...)`, component zaten `useCapabilities`
+  kullanıyordu) render edilir.
+- **ÖNEMLİ yetki notu (test ederken kafa karıştırdı):** Owner/admin hesabı Full modda
+  (Cmd+Alt+T ile Core'a geçmeden) `packagesForCaller`'dan `["admin"]` paketi alır,
+  `["egitmen"]` DEĞİL (`auth-actor.ts:59-77`) — yani **admin görünümünde bu widget hiçbir
+  zaman görünmeyecek**, bu zaten istenen davranış (owner kendi admin persona'sında
+  eğitmen yetkisi taşımamalı). Test etmek için owner'ın Cmd+Alt+T ile "Eğitmen" (Core)
+  görünümüne geçmesi VE Eğitmen Kadrosu'nda (`/flexos/egitmenler`) kendi kaydının olması
+  gerekiyor (`actor.trainerId` oradan çözülüyor — [[flexos_backfill_2026_07_08]]'de
+  Alparslan'ın bu kayda sahip olmadığı notu vardı, hâlâ geçerliyse hakediş yine boş kalır).
+- `scripts/assert-trainer-earnings.ts` (17/17) — hesap doğruluğu, ay filtresi, kapanmamış
+  ders hariç tutma, ayar-yok-ise-varsayılan, VE gizlilik kuralı (Finans/trainerId'siz actor
+  reddi) test edildi. `assert-transfer.ts`'teki 3 fixture `dailyMealAllowance` alanı için
+  güncellendi (yeni zorunlu alan). Toplam 110/110 assertion (6 script), `tsc`/`eslint`/
+  `npm run build` temiz.
+- **Sistem Ayarları:** Finansal Ayarlar artık kendi bağımsız üst sekmesi (kullanıcı isteği
+  — önceden "Sistem Ayarları" sekmesi içinde bir kart olarak yanlış yerdeydi).
+- **Tarayıcıda hâlâ tam doğrulanmadı** — widget doğru yere taşındı ama gerçek bir eğitmen
+  hesabıyla (Core görünümünde, Eğitmen Kadrosu kaydı olan biriyle) uçtan uca hâlâ
+  görülmedi. **Henüz push edilmedi.**
+
+### 🔶 2026-07-25 oturumu (19) — Tekil Enrollment hard-delete uç eklendi
 
 - Eksiklik: bir kişinin TÜM kayıtları sadece `deletePerson` cascade'inde hard-delete
   ediliyordu, TEK bir yanlış/mükerrer enrollment'ı (kişiyi ve diğer kayıtlarını

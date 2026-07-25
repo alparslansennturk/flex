@@ -12,7 +12,6 @@ export * from "./access";
 export * from "./core/person";
 export * from "./core/group";
 export * from "./core/enrollment";
-export * from "./core/person-note";
 
 // ── Education pack (eğitime özel) ──
 export * from "./education/grade";

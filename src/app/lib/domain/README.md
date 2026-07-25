@@ -8,7 +8,7 @@
 
 | Klasör | Katman | İçerik |
 |--------|--------|--------|
-| `core/` | Classroom çekirdeği (üst katmanı **bilmez**) | `Person`, `Enrollment`, `Group`, `Module`, `PersonNote` |
+| `core/` | Classroom çekirdeği (üst katmanı **bilmez**) | `Person`, `Enrollment`, `Group`, `Module` |
 | `education/` | Eğitim pack (eğitime özel) | `Grade` |
 | `eduos/` | FlexOS üst katman — **DİKİŞ**, mantık sonra | `Education`, `Sale`, `Payment` |
 | `base.ts` | Paylaşılan ilkeller | `EntityId`, `TenantId`, `ISODate`, `Gender`, `Audit` |
