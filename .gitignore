@@ -51,3 +51,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Arduino hobi projesi - flex uygulamasıyla ilgisiz, asla push edilmeyecek
+/arduino/

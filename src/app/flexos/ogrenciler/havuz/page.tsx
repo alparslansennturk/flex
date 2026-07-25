@@ -131,6 +131,9 @@ export default function OgrenciHavuzuPage() {
   // Sunucu switch'ine göre gereken capability değişir (enrollment.transfer VEYA sale.create) —
   // UI-only gate, ikisinden biri varsa buton görünür, gerçek kural sunucuda `transferEnrollment`'ta.
   const canTransfer = caps.has("enrollment.transfer") || caps.has("sale.create");
+  // Tamamen Sil (hard-delete) — admin-only, gerçek kural sunucuda `deleteEnrollment`'ta
+  // (satışa bağlı/notlu kayıtlar zaten orada reddediliyor, bu sadece UI-only gate).
+  const canDeleteEnrollment = caps.has("role.manage");
 
   // ── öğrenci detay paneli (sağdan kayarak) ──
   const [showStudentPanel, setShowStudentPanel] = useState(false);
@@ -182,7 +185,7 @@ export default function OgrenciHavuzuPage() {
   // genişliği sağa-sola oynuyordu. Kalıcı çözüm: menü artık `document.body`'ye
   // portal ile render ediliyor — hiçbir ata `overflow`/scroll'undan etkilenmiyor.
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
-  const [actionMenuStep, setActionMenuStep] = useState<"root" | "pickGroup">("root");
+  const [actionMenuStep, setActionMenuStep] = useState<"root" | "pickGroup" | "pickDelete">("root");
   const [actionMenuPos, setActionMenuPos] = useState<{ top: number; bottom: number; right: number; openUp: boolean } | null>(null);
   useEffect(() => {
     if (!actionMenuOpen) return;
@@ -215,6 +218,13 @@ export default function OgrenciHavuzuPage() {
   const [transferring, setTransferring] = useState(false);
   // Eski kaydın kapanış durumu — sistem tahmin edemez, kullanıcı seçer (bkz transferEnrollment).
   const [transferCloseAs, setTransferCloseAs] = useState<"completed" | "cancelled" | null>(null);
+
+  // ── Tamamen Sil (hard-delete) modal state — bir kaydı KALICI olarak siler
+  //    (deletePerson'daki cascade değil, tekil `deleteEnrollment`). Sunucu satışa
+  //    bağlı/notlu kayıtları zaten reddediyor (finansal/akademik iz), bu modal
+  //    sadece net bir uyarı gösterir — asıl güvenlik sunucu tarafında.
+  const [deleteTarget, setDeleteTarget] = useState<{ student: Student; enrollmentId: string; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const u = auth.currentUser;
@@ -441,6 +451,27 @@ export default function OgrenciHavuzuPage() {
       toast.error("Sunucu hatası — taşıma yapılamadı.");
     } finally {
       setTransferring(false);
+    }
+  };
+
+  const openDelete = (student: Student, enrollmentId: string, label: string) => setDeleteTarget({ student, enrollmentId, label });
+  const closeDelete = () => { if (!deleting) setDeleteTarget(null); };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/enrollments/${deleteTarget.enrollmentId}/hard-delete`, { method: "DELETE", headers });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(json.error || "Kayıt silinemedi."); return; }
+      toast.success(`${deleteTarget.student.name} — ${deleteTarget.label} kaydı tamamen silindi.`);
+      setDeleteTarget(null);
+      await loadStudents();
+    } catch {
+      toast.error("Sunucu hatası — kayıt silinemedi.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -824,11 +855,17 @@ export default function OgrenciHavuzuPage() {
                             </div>
                           )}
                         </td>
-                        {/* İşlem — 3 nokta menü: Gruba Ata / Grup Değiştir */}
+                        {/* İşlem — 3 nokta menü: Gruba Ata / Grup Değiştir / Tamamen Sil */}
                         <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                          {(canAssignGroup || canTransfer) ? (() => {
+                          {(canAssignGroup || canTransfer || canDeleteEnrollment) ? (() => {
                             const canAssign = canAssignGroup && st.assignableEnrollments.length > 0;
                             const canDoTransfer = canTransfer && hasGroup;
+                            // Kişinin TÜM enrollment'ları (gruplu + grupsuz) — hard-delete adayı.
+                            // Sunucu satışa bağlı/notlu olanları zaten reddeder, bu sadece liste.
+                            const deleteCandidates = [
+                              ...st.groups.map((g) => ({ enrollmentId: g.enrollmentId, label: g.label, sub: g.branch })),
+                              ...st.assignableEnrollments.map((a) => ({ enrollmentId: a.enrollmentId, label: a.educationName, sub: "Grupsuz" })),
+                            ];
                             const menuOpen = actionMenuOpen === st.id;
                             const step = menuOpen ? actionMenuStep : "root";
                             const closeMenu = () => { setActionMenuOpen(null); setActionMenuStep("root"); setActionMenuPos(null); };
@@ -864,6 +901,49 @@ export default function OgrenciHavuzuPage() {
                                         Grup Değiştir
                                       </button>
                                     )}
+                                    {canDeleteEnrollment && deleteCandidates.length > 0 && (
+                                      <button
+                                        className="oh-ddrow"
+                                        title="Kaydı kalıcı olarak sil (satışa bağlı/notlu kayıtlar reddedilir)"
+                                        onClick={() => {
+                                          if (deleteCandidates.length === 1) {
+                                            closeMenu();
+                                            openDelete(st, deleteCandidates[0].enrollmentId, deleteCandidates[0].label);
+                                          } else {
+                                            setActionMenuStep("pickDelete");
+                                          }
+                                        }}
+                                        style={{ ...S.menuItem, color: "#D93636" }}
+                                      >
+                                        <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
+                                        Tamamen Sil
+                                      </button>
+                                    )}
+                                  </>
+                                ) : step === "pickDelete" ? (
+                                  <>
+                                    <button
+                                      onClick={() => setActionMenuStep("root")}
+                                      className="oh-ddrow"
+                                      style={{ ...S.menuItem, color: "#8E95A3", fontWeight: 700, fontSize: 11.5, letterSpacing: ".02em" }}
+                                    >
+                                      <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />
+                                      HANGİ KAYIT SİLİNSİN?
+                                    </button>
+                                    {deleteCandidates.map((d) => (
+                                      <button
+                                        key={d.enrollmentId}
+                                        onClick={() => { closeMenu(); openDelete(st, d.enrollmentId, d.label); }}
+                                        className="oh-ddrow"
+                                        style={{ ...S.menuItem, justifyContent: "space-between", color: "#D93636" }}
+                                      >
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                          <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
+                                          {d.label}
+                                        </span>
+                                        <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600 }}>{d.sub}</span>
+                                      </button>
+                                    ))}
                                   </>
                                 ) : (
                                   <>
@@ -1165,6 +1245,54 @@ export default function OgrenciHavuzuPage() {
         </div>
       )}
 
+      {/* ============ TAMAMEN SİL ONAY MODAL (hard-delete, geri alınamaz) ============ */}
+      {deleteTarget && (
+        <div style={S.modalOverlay} onClick={closeDelete}>
+          <div style={{ ...S.modal, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+            {/* head */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#FEE2E2", color: "#D93636", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
+                  dangerouslySetInnerHTML={{ __html: IC.trash }} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>Kaydı Tamamen Sil</h3>
+                  <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
+                    <strong style={{ color: "#414B59", fontWeight: 700 }}>{deleteTarget.student.name}</strong> — {deleteTarget.label}
+                  </p>
+                </div>
+              </div>
+              <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={closeDelete} disabled={deleting}>
+                <span dangerouslySetInnerHTML={{ __html: IC.x }} />
+              </button>
+            </div>
+
+            {/* body */}
+            <div style={{ padding: "18px 24px" }}>
+              <div style={{ display: "flex", gap: 10, padding: "12px 14px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #FECACA" }}>
+                <span style={{ color: "#D93636", flex: "0 0 auto" }} dangerouslySetInnerHTML={{ __html: IC.alert }} />
+                <p style={{ margin: 0, fontSize: 13, color: "#991B1B", fontWeight: 500, lineHeight: 1.5 }}>
+                  Bu işlem <strong>geri alınamaz</strong> — kayıt veritabanından tamamen silinir (gruptan çıkarmadan farklı).
+                  Öğrenci ve diğer kayıtları etkilenmez. Bu kayıt bir satışa bağlıysa veya notu girilmişse sunucu
+                  işlemi zaten reddedecektir.
+                </p>
+              </div>
+            </div>
+
+            {/* footer */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "4px 24px 20px" }}>
+              <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={closeDelete} disabled={deleting}>Vazgeç</button>
+              <button
+                style={{ ...S.filterBtn, background: "linear-gradient(135deg,#EF4444,#D93636)", boxShadow: "0 8px 18px -8px rgba(217,54,54,.5)", opacity: deleting ? 0.6 : 1, pointerEvents: deleting ? "none" : "auto" }}
+                onClick={confirmDelete}
+              >
+                <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
+                {deleting ? "Siliniyor…" : "Tamamen Sil"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -1249,6 +1377,7 @@ const IC = {
   wallet: sv('<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>', 'width="15" height="15"'),
   lock: sv('<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', 'width="13" height="13"'),
   cash: sv('<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>', 'width="14" height="14" stroke="#6F7B87"'),
+  trash: sv('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>', 'width="13" height="13"'),
 };
 
 const globalCss = `

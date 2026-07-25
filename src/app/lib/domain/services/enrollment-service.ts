@@ -6,6 +6,7 @@ import type { Group, GroupSchedule } from "../core/group";
 import type { Sale } from "../eduos/sale";
 import { ForbiddenError, ValidationError } from "../errors";
 import type { EnrollmentRepo } from "../repo/enrollment-repo";
+import type { GradeRepo } from "../repo/grade-repo";
 import type { GroupRepo } from "../repo/group-repo";
 import type { PersonRepo } from "../repo/person-repo";
 import type { SaleRepo } from "../repo/sale-repo";
@@ -444,4 +445,53 @@ export async function setEnrollmentStatus(
   const updated: Enrollment = { ...enrollment, status, updatedAt: nowISO(), updatedBy: actor.uid };
   await deps.enrollments.save(updated);
   return updated;
+}
+
+/** Tekil kayıt hard-delete bağımlılıkları (finansal/akademik iz kontrolü için). */
+export interface DeleteEnrollmentDeps {
+  enrollments: EnrollmentRepo;
+  grades: GradeRepo;
+}
+
+/**
+ * TEK bir Enrollment'ı TAMAMEN sil — admin-only (`role.manage`). `deletePerson`'daki
+ * AYNI prensip, tek kayıt seviyesinde: gerçek finansal/akademik izi olan bir kayıt
+ * asla hard-delete edilmez, bunun yerine `removeFromGroup`/`setEnrollmentStatus`
+ * ("cancelled") ile SOFT kapatılır (mevcut `DELETE /api/flexos/enrollments/[id]`
+ * zaten bunu yapıyor — bu fonksiyon o davranışı DEĞİŞTİRMEZ, ayrı bir uçtur).
+ *
+ * REDDEDİLİR:
+ *  - `enrollment.saleId` varsa (bu kayıt gerçek bir satıştan doğdu — 0 TL "transfer"
+ *    satışları dahil, `transferEnrollment` de saleId bırakır).
+ *  - Bu enrollment'a bağlı bir `Grade` dokümanı varsa (doküman id'si = enrollmentId,
+ *    yani not girilmişse tek sorguyla tespit edilir).
+ *
+ * Kapsam: sadece satış akışına hiç girmemiş, not girilmemiş — yanlışlıkla açılmış/test
+ * amaçlı tek bir kayıt için. Gerçek bir satıştan doğan yanlış kayıt için hâlâ tek yol
+ * soft-cancel (kaydı gizler, silmez).
+ */
+export async function deleteEnrollment(
+  actor: Actor,
+  enrollmentId: EntityId,
+  deps: DeleteEnrollmentDeps,
+): Promise<void> {
+  if (!can(actor, "role.manage")) throw new ForbiddenError("role.manage");
+
+  const enrollment = await deps.enrollments.getById(enrollmentId, actor.tenantId);
+  if (!enrollment) throw new ValidationError("Kayıt bulunamadı.");
+
+  if (enrollment.saleId) {
+    throw new ValidationError(
+      "Bu kayıt bir satışa bağlı, tamamen silinemez — gruptan çıkarabilir veya iptal edebilirsiniz.",
+    );
+  }
+
+  const grade = await deps.grades.getById(enrollmentId, actor.tenantId);
+  if (grade) {
+    throw new ValidationError(
+      "Bu kayda not girilmiş, tamamen silinemez — gruptan çıkarabilir veya iptal edebilirsiniz.",
+    );
+  }
+
+  await deps.enrollments.delete(enrollmentId, actor.tenantId);
 }

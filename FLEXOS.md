@@ -16,6 +16,26 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
+### 🔶 2026-07-25 oturumu (19) — Tekil Enrollment hard-delete uç eklendi (EN GÜNCEL)
+
+- Eksiklik: bir kişinin TÜM kayıtları sadece `deletePerson` cascade'inde hard-delete
+  ediliyordu, TEK bir yanlış/mükerrer enrollment'ı (kişiyi ve diğer kayıtlarını
+  bozmadan) tamamen silecek ayrı bir uç yoktu — elde sadece soft-cancel vardı.
+- **Yeni:** `deleteEnrollment` (`enrollment-service.ts`) — admin-only (`role.manage`),
+  `deletePerson`'daki AYNI prensip tek kayıt seviyesinde: `saleId` varsa (0 TL transfer
+  satışları dahil) VEYA bağlı bir `Grade` dokümanı varsa (id=enrollmentId) REDDEDİLİR,
+  sadece satışa hiç girmemiş+notsuz (gerçekten yanlışlıkla açılmış) kayıtlar silinebilir.
+  Uç: `DELETE /api/flexos/enrollments/[id]/hard-delete` — mevcut `DELETE
+  /api/flexos/enrollments/[id]` (soft-cancel, 3 UI çağırıcısı var) DEĞİŞMEDİ, ayrı rota.
+- `scripts/assert-enrollment-delete.ts` (10/10 assertion) — `tsc`/`eslint`/`npm run build` temiz.
+- **UI eklendi (aynı oturum, devamı):** Öğrenci Havuzu 3-nokta menüsüne "Tamamen Sil"
+  (kırmızı, `role.manage` gated) — `havuz/page.tsx`. Kişinin TEK enrollment'ı varsa
+  direkt onay modalı açılır, birden fazlaysa (paket satışı/çoklu grup) "Grup Değiştir"deki
+  aynı iki-adımlı desen (`pickDelete` step) ile HANGİ kayıt silinecek seçtiriliyor. Onay
+  modalında net "geri alınamaz" uyarısı + sunucunun satışlı/notlu kayıtları reddedeceği
+  hatırlatması var. Başarılı silme `students.changed` broadcast ile listeyi otomatik yeniler.
+  **Tarayıcıda gerçek tıklama testi yapılmadı** — sadece `tsc`/`eslint`/`build` doğrulandı.
+
 ### 🔶 2026-07-25 oturumu (18) — Yoklama Detay: donut giriş animasyonu + sayaç (EN GÜNCEL)
 
 - Kullanıcı isteği: `/flexos/yoklama/detay` sayfasındaki kurs ilerleme donut'una
