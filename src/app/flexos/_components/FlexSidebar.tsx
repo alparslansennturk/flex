@@ -52,6 +52,7 @@ export type FlexNavKey =
   | "kampanya-yonetimi"
   | "ogrenci-havuzu"
   | "siniflar"
+  | "lab-utilizasyon"
   | "odev-yonetimi"
   | "odev-teslimi"
   | "egitmenler"
@@ -91,6 +92,12 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
 
   const kullanicilarActive = active === "kullanicilar" || active === "kullanici-ayarlari";
   const [kullanicilarOpen, setKullanicilarOpen] = useState(kullanicilarActive);
+
+  // Gruplar (2026-07-26 kullanıcı kararı: "Sınıflar" tek link'ten akordiyona — Grup
+  // Ekle + Lab Utilizasyon. "siniflar" active key'i KORUNDU (mevcut Grup Ekle/Liste/
+  // Detay sayfaları hâlâ bunu geçiyor, 4 dosyada değişiklik gerekmesin diye).
+  const gruplarActive = active === "siniflar" || active === "lab-utilizasyon";
+  const [gruplarOpen, setGruplarOpen] = useState(gruplarActive);
 
   // 2026-07-22 kullanıcı bulgusu (sınıftaki TV'ye bağlı, kısa/ölçeklenmiş çözünürlüklü
   // Mac'te test): `<nav>` zaten `overflowY:auto` ile scroll oluyordu (teknik olarak
@@ -353,7 +360,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             Core'dan çıkmadan halledebilsin diye. */}
         {(canSee("education.create", false) || canSee("branch.create", true)) && (
           <>
-            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !eduOpen; setEduOpen(opening); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={eduActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !eduOpen; setEduOpen(opening); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: eduActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.book }} />
               <span style={{ flex: 1 }}>Eğitim Yönetimi</span>
               <motion.span
@@ -390,7 +397,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             dahil KİMSE görmez — Satış katmanı standalone kurulumda anlamsız. */}
         {!standaloneMode && (canSee("sale.create", false) || canSee("sale.read", false) || canSee("bundle.read", false) || canSee("campaign.read", false)) && (
           <>
-            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !salesOpen; setSalesOpen(opening); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={salesActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !salesOpen; setSalesOpen(opening); setEduOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: salesActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.tag }} />
               <span style={{ flex: 1 }}>Satışlar</span>
               <motion.span
@@ -431,9 +438,44 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
           <Item icon={IC.activity} label="Aktivite Merkezi" active={active === "aktiviteler" || active === "aktivite-merkezi"} onClick={go("/flexos/aktivite-merkezi")} />
         )}
 
-        {/* Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür.
+        {/* Gruplar — akordiyon (2026-07-26 kullanıcı kararı: "Sınıflar" tek link'ten
+            "Gruplar" akordiyonuna — sektör terimi hep "grup" (ör. "yeni grup başlıyor"),
+            "sınıf" değil. Grup Ekle = eskiden beri var olan sayfa (route DEĞİŞMEDİ,
+            active key "siniflar" olarak KALDI). Lab Utilizasyon = yeni, henüz boş sayfa
+            — bir grup açılırken lab müsaitliğini merkezi kontrol edecek (tasarım bekleniyor).
+            Core: eğitmen günlük işi — mode'dan bağımsız her zaman görünür.
             2026-07-25 kullanıcı kararı: Sınıflar artık Öğrenciler'den ÖNCE. */}
-        {canSee("group.read", true) && <Item icon={IC.graduation} label="Sınıflar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />}
+        {canSee("group.read", true) && (
+          <>
+            <a className="fs-navlink" style={gruplarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !gruplarOpen; setGruplarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+              <span style={{ display: "inline-flex", color: gruplarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.graduation }} />
+              <span style={{ flex: 1 }}>Gruplar</span>
+              <motion.span
+                style={{ display: "inline-flex", opacity: 0.7 }}
+                animate={{ rotate: gruplarOpen ? 0 : -90 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                dangerouslySetInnerHTML={{ __html: IC.chevDown }}
+              />
+            </a>
+            <AnimatePresence initial={false}>
+              {gruplarOpen && (
+                <motion.div
+                  key="gruplar-sub"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
+                    <SubItem label="Grup Ekle" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />
+                    <SubItem label="Lab Utilizasyon" active={active === "lab-utilizasyon"} onClick={go("/flexos/siniflar/lab-utilizasyon")} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
         {/* Öğrenci Havuzu = admin/satış/operasyon işi — eğitmen (Full'da da Core sistem
             modunda da) burayı hiç görmez, kendi öğrencilerini Sınıflar'daki "Öğrencilerim"
             bölümünden ekler/görür. `person.read` eğitmen paketinde (hiçbir modda) yok.
@@ -459,7 +501,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             gibi çekirdek öğretmenlik işi, standalone-only DEĞİL. */}
         {canSee("assignment.read", true) && (
           <>
-            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !odevOpen; setOdevOpen(opening); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={odevActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !odevOpen; setOdevOpen(opening); setEduOpen(false); setSalesOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: odevActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.clipboard }} />
               <span style={{ flex: 1 }}>Ödevler</span>
               <motion.span
@@ -497,7 +539,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             yarım bırakmasın); Detay + Rapor normal navigasyon (2026-07-02 düzeltmesi). */}
         {(canSee("attendance.write", true) || canSee("attendance.report.read", false)) && (
           <>
-            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !yoklamaOpen; setYoklamaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={yoklamaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !yoklamaOpen; setYoklamaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: yoklamaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.calendar }} />
               <span style={{ flex: 1 }}>Yoklamalar</span>
               <motion.span
@@ -530,7 +572,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
         {/* Sertifikasyon — akordiyon: Sertifika Notu (grup bazlı not girişi) + Sertifika Ayarları. */}
         {canSee("grade.finalize", true) && (
           <>
-            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !sertifikaOpen; setSertifikaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={sertifikaActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !sertifikaOpen; setSertifikaOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setKullanicilarOpen(false); setYoklamaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: sertifikaActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.award }} />
               <span style={{ flex: 1 }}>Sertifikasyon</span>
               <motion.span
@@ -566,7 +608,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
             bir üstünde dursun diye. */}
         {(canSee("role.manage", false) || canSee("user.create", false) || canSee("trainer.read", false) || canSee("person.read", false)) && (
           <>
-            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !kullanicilarOpen; setKullanicilarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); scrollIntoViewIfOpening(el, opening); }}>
+            <a className="fs-navlink" style={kullanicilarActive ? S.parentActive : S.navItem} onClick={(e) => { const el = e.currentTarget; const opening = !kullanicilarOpen; setKullanicilarOpen(opening); setEduOpen(false); setSalesOpen(false); setOdevOpen(false); setYoklamaOpen(false); setSertifikaOpen(false); setGruplarOpen(false); scrollIntoViewIfOpening(el, opening); }}>
               <span style={{ display: "inline-flex", color: kullanicilarActive ? "#fb923c" : "currentColor" }} dangerouslySetInnerHTML={{ __html: IC.shield }} />
               <span style={{ flex: 1 }}>Kullanıcılar</span>
               <motion.span

@@ -25,7 +25,7 @@
 import React, { useState, useEffect, useMemo, useCallback, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { TrendingUp, Clock, CheckCircle2, XCircle, Eye, EyeOff } from "lucide-react";
+import { TrendingUp, Clock, CheckCircle2, XCircle, Eye, EyeOff, AlertTriangle, X } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
@@ -72,6 +72,16 @@ interface InstructorRow {
   planned: number; actualDone: number; cancelled: number; cancelledHours: number;
   studentCancelled: number; toplam: number; remaining: number;
   plannedHours: number; actualDoneHours: number; toplamHours: number;
+  missingCount: number; missingHours: number;
+}
+
+/** Geçmişte planlanmış ama ne yoklama alınmış ne iptal edilmiş bir ders — "girilmedi". */
+interface MissingSession {
+  groupId: string;
+  groupCode: string;
+  trainerId: string;
+  date: string;
+  sessionHours: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -257,6 +267,7 @@ function ReportContent() {
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [selectedGroupHistory, setSelectedGroupHistory] = useState<GroupItem | null>(null);
   const [selectedSession, setSelectedSession] = useState<HistorySession | null>(null);
+  const [missingModalInstructorId, setMissingModalInstructorId] = useState<string | null>(null);
 
   // Eğitmen Hakediş (2026-07-25) — bu sayfa zaten attendance.report.read (Op/Finans/Admin)
   // ile kapılı (bkz. YoklamaRaporuPage::checkAccess), ama trainer.earnings.read AYRI ve
@@ -347,9 +358,17 @@ function ReportContent() {
   useRealtimeSync(["groups.changed", "educations.changed"], loadBaseData);
   useRealtimeSync(["attendance.changed"], loadReport);
 
-  // ── Eğitmen bazlı satırlar (client-side aggregate) ──
-  const rows = useMemo<InstructorRow[]>(() => {
+  // ── Eğitmen bazlı satırlar (client-side aggregate) + girilmemiş dersler ──
+  // "Girilmedi" (missingSessions) — 2026-07-26 kullanıcı kararı: planlanmış ama ne
+  // yoklama alınmış ne iptal edilmiş dersler, eğitmen bazlı görünür olacak + hangi
+  // ders olduğu tıklanınca AttendanceCore detayında açılacak. `remaining` (üstteki
+  // haftalık-gün sayımı) GELECEK tarihleri de sayabiliyor (searchTo varsayılanı ayın
+  // SONU, bugün değil) — bu yüzden "girilmedi" için AYRI, bugüne kapalı bir sayım
+  // yapılıyor: henüz olmamış bir dersi "girilmedi" saymak yanlış olur.
+  const { rows, missingSessions } = useMemo<{ rows: InstructorRow[]; missingSessions: MissingSession[] }>(() => {
     const map: Record<string, InstructorRow> = {};
+    const missing: MissingSession[] = [];
+    const todayStr = toLocalDateStr();
     for (const g of groups) {
       const iid = g.trainerId || "unknown";
       if (!map[iid]) {
@@ -357,6 +376,7 @@ function ReportContent() {
           instructorId: iid, name: g.trainerName || "Atanmamış", branchIds: [],
           groupCount: 0, planned: 0, actualDone: 0, cancelled: 0, cancelledHours: 0,
           studentCancelled: 0, toplam: 0, remaining: 0, plannedHours: 0, actualDoneHours: 0, toplamHours: 0,
+          missingCount: 0, missingHours: 0,
         };
       }
       if (g.branch && !map[iid].branchIds.includes(g.branch)) map[iid].branchIds.push(g.branch);
@@ -395,9 +415,36 @@ function ReportContent() {
       map[iid].plannedHours += planned * sessionHours;
       map[iid].actualDoneHours += actualDone * sessionHours;
       map[iid].toplamHours += toplam * sessionHours;
+
+      // "Girilmedi" — bugüne kapalı, gün gün tara.
+      const missingEnd = effectiveEnd < todayStr ? effectiveEnd : todayStr;
+      if (weekDays.length && effectiveStart <= missingEnd) {
+        const recordDates = new Set(groupRecords.map((r) => r.date));
+        const exceptionDates = new Set(groupExceptions.map((e) => e.date));
+        const d = new Date(`${effectiveStart}T12:00:00`);
+        const endD = new Date(`${missingEnd}T12:00:00`);
+        while (d <= endD) {
+          const key = toLocalDateStr(d);
+          if (weekDays.includes(isoWeekday(d)) && !holidayDates.has(key) && !recordDates.has(key) && !exceptionDates.has(key)) {
+            missing.push({ groupId: g.id, groupCode: g.code, trainerId: iid, date: key, sessionHours });
+            map[iid].missingCount++;
+            map[iid].missingHours += sessionHours;
+          }
+          d.setDate(d.getDate() + 1);
+        }
+      }
     }
-    return Object.values(map).filter((r) => r.groupCount > 0).sort((a, b) => b.actualDone - a.actualDone);
+    return {
+      rows: Object.values(map).filter((r) => r.groupCount > 0).sort((a, b) => b.actualDone - a.actualDone),
+      missingSessions: missing.sort((a, b) => b.date.localeCompare(a.date)),
+    };
   }, [groups, records, exceptions, searchFrom, searchTo, holidayDates]);
+
+  const missingByInstructor = useMemo(() => {
+    const map: Record<string, MissingSession[]> = {};
+    for (const m of missingSessions) (map[m.trainerId] ??= []).push(m);
+    return map;
+  }, [missingSessions]);
 
   const instructorOptions = useMemo(() => rows.map((r) => ({ id: r.instructorId, name: r.name })).sort((a, b) => a.name.localeCompare(b.name, "tr")), [rows]);
 
@@ -467,6 +514,8 @@ function ReportContent() {
   const totalCancelledHours = filteredRows.reduce((s, r) => s + r.cancelledHours, 0);
   const totalStudentCancelled = filteredRows.reduce((s, r) => s + r.studentCancelled, 0);
   const totalToplamHours = filteredRows.reduce((s, r) => s + r.toplamHours, 0);
+  const totalMissingCount = filteredRows.reduce((s, r) => s + r.missingCount, 0);
+  const totalMissingHours = filteredRows.reduce((s, r) => s + r.missingHours, 0);
 
   const instructorGroups = useMemo(() => {
     if (!selectedInstructorId) return [];
@@ -555,11 +604,12 @@ function ReportContent() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 <StatCard label="Toplam Planlanan" value={`${totalPlannedHours} saat`} icon={<Clock size={20} />} color="bg-base-primary-50 text-base-primary-600" />
                 <StatCard label="Toplam Verilen" value={`${totalActualDoneHours} saat`} icon={<CheckCircle2 size={20} />} color="bg-status-success-50 text-status-success-600" />
                 <StatCard label="İptal" value={`${totalCancelledHours} saat`} sub={`(${totalCancelled} ders)`} icon={<XCircle size={20} />} color="bg-red-50 text-red-500" />
                 <StatCard label="Toplam Ders" value={`${totalToplamHours} saat`} icon={<TrendingUp size={20} />} color="bg-indigo-50 text-indigo-600" />
+                <StatCard label="Girilmedi" value={`${totalMissingHours} saat`} sub={`(${totalMissingCount} ders)`} icon={<AlertTriangle size={20} />} color="bg-amber-50 text-amber-600" />
               </div>
 
               <div className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
@@ -571,6 +621,7 @@ function ReportContent() {
                     <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Verilen</span></div>
                     <div className="w-20 shrink-0 text-center"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">İptal</span></div>
                     <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wide">Toplam Ders</span></div>
+                    <div className="w-24 shrink-0 text-center"><span className="text-[11px] font-bold text-amber-600 uppercase tracking-wide">Girilmedi</span></div>
                     <div className="w-36 shrink-0 hidden lg:block"><span className="text-[11px] font-bold text-surface-500 uppercase tracking-wide">Tamamlama</span></div>
                     <div className="w-16 shrink-0" />
                   </div>
@@ -601,6 +652,16 @@ function ReportContent() {
                         <div className="w-24 shrink-0 text-center">
                           <span className="text-[16px] font-bold text-indigo-600">{ins.toplamHours} saat</span>
                           <p className="text-[10px] text-surface-400">({ins.toplam} ders)</p>
+                        </div>
+                        <div className="w-24 shrink-0 text-center">
+                          {ins.missingCount > 0 ? (
+                            <button onClick={() => setMissingModalInstructorId(ins.instructorId)} className="cursor-pointer group">
+                              <span className="text-[16px] font-bold text-amber-600 group-hover:underline">{ins.missingHours} saat</span>
+                              <p className="text-[10px] text-amber-500">({ins.missingCount} ders) →</p>
+                            </button>
+                          ) : (
+                            <span className="text-[16px] font-bold text-surface-300">—</span>
+                          )}
                         </div>
                         <div className="w-36 shrink-0 hidden lg:block"><ProgressBar value={ins.actualDone} max={ins.planned} /></div>
                         <div className="w-16 shrink-0 flex justify-end">
@@ -698,6 +759,44 @@ function ReportContent() {
           </>
         )}
       </motion.div>
+
+      {/* ── "Girilmedi" modal — eğitmen bazlı, hangi ders/tarih olduğu + tıklayınca
+          AttendanceCore detayına atlama (2026-07-26 kullanıcı kararı). ── */}
+      {missingModalInstructorId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setMissingModalInstructorId(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-[420px] max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-surface-100 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-[15px] font-bold text-base-primary-900">Girilmeyen Dersler</h3>
+                <p className="text-[12px] text-surface-400 mt-0.5">{rows.find((r) => r.instructorId === missingModalInstructorId)?.name}</p>
+              </div>
+              <button onClick={() => setMissingModalInstructorId(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 text-surface-400 cursor-pointer"><X size={16} /></button>
+            </div>
+            <div className="overflow-y-auto [scrollbar-gutter:stable]">
+              {(missingByInstructor[missingModalInstructorId] ?? []).map((m) => (
+                <button
+                  key={`${m.groupId}-${m.date}`}
+                  onClick={() => {
+                    const g = groups.find((x) => x.id === m.groupId);
+                    if (!g) return;
+                    setSelectedInstructorId(m.trainerId);
+                    setSelectedGroupHistory(g);
+                    setSelectedSession({ date: m.date, entryCount: 0, attendanceClosed: false });
+                    setMissingModalInstructorId(null);
+                  }}
+                  className="w-full flex items-center gap-3 px-6 py-3.5 border-b border-surface-50 last:border-0 hover:bg-surface-50/60 transition-colors text-left cursor-pointer"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-base-primary-900">{fmtTrLong(m.date)}</p>
+                    <p className="text-[11px] text-surface-400">{m.groupCode} · {m.sessionHours} saat</p>
+                  </div>
+                  <span className="text-[12px] font-semibold text-base-primary-600">Detay →</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -21,9 +21,10 @@ let idCounter = 0;
 function nextId() { return `test-${++idCounter}`; }
 
 // ── Actor'lar ──
-// "kayit" modülü = Eğitim Op benzeri özel rol (SADECE enrollment.transfer, sale.create YOK).
-function makeKayitActor(): Actor {
-  return { type: "human", uid: "user-kayit", tenantId: TENANT, grants: grantsForPermModules(["kayit"]) };
+// "kisi" modülü (2026-07-26'dan itibaren "Öğrenci Düzenleme", enrollment.transfer'ı da
+// içeriyor) = Eğitim Op benzeri özel rol — enrollment.transfer VAR, sale.create YOK.
+function makeKisiActor(): Actor {
+  return { type: "human", uid: "user-kisi", tenantId: TENANT, grants: grantsForPermModules(["kisi"]) };
 }
 // "satis_yap" modülü = Satış Temsilcisi benzeri özel rol (SADECE sale.create, enrollment.transfer YOK).
 // (2026-07-10: "satis" modülü Satış Yap/Satış Listesi/Paket/Kampanya olarak 4'e bölündü.)
@@ -116,14 +117,14 @@ function assert(label: string, ok: boolean) {
 async function run() {
   console.log("\n=== transferEnrollment (Grup Transferi = Ek Satış = Yeni Kayıt) Assertions ===\n");
 
-  // 1. Varsayılan mod (switch kapalı) — kayit-only aktör (Eğitim Op) DOĞRUDAN taşıyabilir.
+  // 1. Varsayılan mod (switch kapalı) — kisi-only aktör (Eğitim Op) DOĞRUDAN taşıyabilir.
   //    Eski kayıt MUTASYONA UĞRAMAZ — completed olarak kapanır, YENİ bir kayıt açılır.
   {
     const fromGroup = makeGroup({ educationId: "edu-1" });
     const toGroup = makeGroup({ educationId: "edu-1" });
     const enr = makeEnrollment({ groupId: fromGroup.id, educationId: "edu-1" });
     const sales = makeSaleRepo();
-    const result = await transferEnrollment(makeKayitActor(), { enrollmentId: enr.id, toGroupId: toGroup.id, closeAs: "completed" }, {
+    const result = await transferEnrollment(makeKisiActor(), { enrollmentId: enr.id, toGroupId: toGroup.id, closeAs: "completed" }, {
       enrollments: makeEnrollmentRepo([enr]),
       groups: makeGroupRepo([fromGroup, toGroup]),
       sales,
@@ -186,22 +187,22 @@ async function run() {
     }
   }
 
-  // 3. Manuel mod (switch açık) — kayit-only ARTIK taşıyamaz (sale.create gerekir).
+  // 3. Manuel mod (switch açık) — kisi-only ARTIK taşıyamaz (sale.create gerekir).
   {
     const fromGroup = makeGroup();
     const toGroup = makeGroup();
     const enr = makeEnrollment({ groupId: fromGroup.id });
     const settings: FlexosSettings = { tenantId: TENANT, standaloneMode: false, transferRequiresManualSale: true, dailyMealAllowance: 300 };
     try {
-      await transferEnrollment(makeKayitActor(), { enrollmentId: enr.id, toGroupId: toGroup.id, closeAs: "completed" }, {
+      await transferEnrollment(makeKisiActor(), { enrollmentId: enr.id, toGroupId: toGroup.id, closeAs: "completed" }, {
         enrollments: makeEnrollmentRepo([enr]),
         groups: makeGroupRepo([fromGroup, toGroup]),
         sales: makeSaleRepo(),
         settings: makeSettingsRepo(settings),
       });
-      assert("Manuel mod — kayit-only ARTIK taşıyamaz (ForbiddenError sale.create)", false);
+      assert("Manuel mod — kisi-only ARTIK taşıyamaz (ForbiddenError sale.create)", false);
     } catch (e) {
-      assert("Manuel mod — kayit-only ARTIK taşıyamaz (ForbiddenError sale.create)", e instanceof ForbiddenError && e.capability === "sale.create");
+      assert("Manuel mod — kisi-only ARTIK taşıyamaz (ForbiddenError sale.create)", e instanceof ForbiddenError && e.capability === "sale.create");
     }
   }
 

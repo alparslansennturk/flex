@@ -16,6 +16,7 @@ export interface GroupApiItem {
   sectionId: string | null; sectionName: string;
   sectionHours: number | null; educationTotalHours: number | null;
   branchOfficeId: string | null; branchOffice: string;
+  labId: string | null; labName: string;
   trainerId: string; trainerName: string;
   schedule: { startDate?: string; days?: number[]; sessionHours?: number; startTime?: string; endTime?: string; endDate?: string };
   capacity: number; enrolled: number;

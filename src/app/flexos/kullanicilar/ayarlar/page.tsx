@@ -17,6 +17,7 @@ import Footer from "@/app/components/layout/Footer";
 import { ToggleSwitch } from "../_shared/toggles";
 import { useRoleDefs, type RoleDefDTO } from "../_shared/useRoleDefs";
 import { PERM_MODULES } from "../_shared/permModules";
+import { PermModuleAccordion } from "../_shared/PermModuleAccordion";
 
 const COLOR_PRESETS = ["#7C3AED", "#0369A1", "#0E7490", "#C2410C", "#B45309", "#15803D", "#DC2626", "#475569"];
 
@@ -212,8 +213,9 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
         <label style={{ ...S.label, marginBottom: 8, display: "block" }}>
           Yetki Modülleri <span style={{ fontWeight: 500, color: "#8E95A3" }}>({permModules.length}/{PERM_MODULES.length})</span>
         </label>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {PERM_MODULES.map((m) => {
+        <PermModuleAccordion
+          isPermActive={(key) => permModules.includes(key)}
+          renderItem={(m) => {
             const active = permModules.includes(m.key);
             return (
               <div key={m.key} style={{
@@ -228,8 +230,8 @@ function RoleForm({ mode, roleDef, onCancel, onSaved }: {
                 </div>
               </div>
             );
-          })}
-        </div>
+          }}
+        />
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>

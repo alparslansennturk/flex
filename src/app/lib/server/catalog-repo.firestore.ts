@@ -3,9 +3,10 @@ import { adminDb } from "../firebase-admin";
 import type { Branch } from "../domain/eduos/branch";
 import type { BranchOffice } from "../domain/eduos/branch-office";
 import type { Education } from "../domain/eduos/education";
+import type { Lab } from "../domain/eduos/lab";
 import type { Section } from "../domain/eduos/section";
 import type { Track } from "../domain/eduos/track";
-import type { BranchOfficeRepo, BranchRepo, EducationRepo, SectionRepo, TrackRepo } from "../domain/repo/catalog-repo";
+import type { BranchOfficeRepo, BranchRepo, EducationRepo, LabRepo, SectionRepo, TrackRepo } from "../domain/repo/catalog-repo";
 
 const clean = <T>(o: T): T => JSON.parse(JSON.stringify(o)) as T;
 
@@ -33,6 +34,7 @@ async function listColl<T>(collection: string, tenantId: string, field?: string,
 
 const branchBase = makeRepo<Branch>("flexos_branches");
 const officeBase = makeRepo<BranchOffice>("flexos_branch_offices");
+const labBase = makeRepo<Lab>("flexos_labs");
 const eduBase = makeRepo<Education>("flexos_educations");
 const sectionBase = makeRepo<Section>("flexos_sections");
 const trackBase = makeRepo<Track>("flexos_tracks");
@@ -50,6 +52,18 @@ export const firestoreBranchOfficeRepo: BranchOfficeRepo = {
     const data = snap.data() as BranchOffice;
     if (data.tenantId !== tenantId) return false;
     await adminDb.collection("flexos_branch_offices").doc(id).delete();
+    return true;
+  },
+};
+export const firestoreLabRepo: LabRepo = {
+  ...labBase,
+  list: (tenantId) => listColl<Lab>("flexos_labs", tenantId),
+  async delete(id, tenantId) {
+    const snap = await adminDb.collection("flexos_labs").doc(id).get();
+    if (!snap.exists) return false;
+    const data = snap.data() as Lab;
+    if (data.tenantId !== tenantId) return false;
+    await adminDb.collection("flexos_labs").doc(id).delete();
     return true;
   },
 };

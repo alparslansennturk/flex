@@ -43,6 +43,7 @@ export interface Group extends Audit {
 
   trainerId?: string; // atanan eğitmen (uid) — öğrenci bu eğitmenin altına düşer
   branchOfficeId?: EntityId; // şube (FlexOS)
+  labId?: EntityId; // laboratuvar/derslik (FlexOS) — Lab.branchOfficeId ile tutarlı olmalı
 
   schedule: GroupSchedule;
   capacity?: number; // kontenjan

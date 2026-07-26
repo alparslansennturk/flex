@@ -122,7 +122,7 @@ export default function SınıflarPage() {
       <main ref={mainRef} className="sg-main" style={S.main}>
         <FlexHeader
           icon={<span dangerouslySetInnerHTML={{ __html: IC.graduation }} />}
-          title="Sınıflar"
+          title="Grup Ekle"
           subtitle="Grup acin, açılacak ve devam eden siniflari takip edin."
         />
 
@@ -131,8 +131,12 @@ export default function SınıflarPage() {
           {/* ===== GROUP LIST HEADER ===== */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: "#1E222B" }}>Gruplar</h2>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>{groups.length} grup</span>
+              {/* 2026-07-26 kullanıcı kararı: "Gruplar" başlığı kaldırıldı, sayı artık
+                  TÜM grupları değil AKTİF olanları sayıyor (açılacak+aktif — GroupTable'daki
+                  "Aktif" sekmesiyle AYNI kova, tamamlandı/iptal hariç). */}
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 }}>
+                {groups.filter((g) => g.status === "açılacak" || g.status === "aktif").length} aktif grup
+              </span>
             </div>
             {canManageGroups && (
               <button className="sg-add-btn" style={S.addBtn} onClick={() => setShowForm(true)}>

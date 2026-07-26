@@ -27,6 +27,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
+import { useCapabilities } from "../../_components/useCapabilities";
 
 // ── Katalog API tipleri (GET /api/flexos/{branches,educations,sections,tracks}) ──
 interface BranchDoc { id: string; name: string; order?: number }
@@ -70,6 +71,7 @@ function fmtTL(n: number): string {
 export default function SatisYapPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const { caps, loaded: capsLoaded } = useCapabilities();
 
   // ── form state ──
   const [step, setStep] = useState<Step>("genel");
@@ -480,7 +482,29 @@ export default function SatisYapPage() {
     }
   };
 
-  if (authed === null) return <FlexPageLoader />;
+  if (authed === null || !capsLoaded) return <FlexPageLoader />;
+
+  if (!caps.has("sale.create")) {
+    return (
+      <div style={S.root}>
+        <style>{globalCss}</style>
+        <FlexSidebar active="satis-yap" />
+        <main className="sy-main" style={S.main}>
+          <FlexHeader
+            icon={<span dangerouslySetInnerHTML={{ __html: IC.shoppingBag }} />}
+            title="Satış Yap"
+            subtitle="Yeni öğrenci kaydı oluşturun."
+          />
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
+            <div style={{ textAlign: "center", maxWidth: 360 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#1E222B", marginBottom: 6 }}>Bu sayfaya erişim yetkiniz yok</div>
+              <div style={{ fontSize: 13, color: "#8E95A3", lineHeight: 1.5 }}>Satış oluşturma yetkiniz bulunmuyor. Erişim gerekiyorsa yöneticinizle iletişime geçin.</div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const segOn = S.segOn, segOff = S.segOff;
 

@@ -34,6 +34,7 @@ export interface GroupFormSheetProps {
 export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }: GroupFormSheetProps) {
   const [eğitimTipi, setEğitimTipi] = useState<EğitimTipi>("standart");
   const [fŞube, setFŞube] = useState("");
+  const [fLab, setFLab] = useState("");
   const [fBrans, setFBrans] = useState("");
   const [fEğitim, setFEğitim] = useState("");
   const [fBölüm, setFBölüm] = useState("");
@@ -51,6 +52,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }:
   const [saving, setSaving] = useState(false);
   const [trainerOptions, setTrainerOptions] = useState<{ id: string; name: string }[]>([]);
   const [officeOptions, setOfficeOptions] = useState<{ id: string; name: string }[]>([]);
+  const [labOptions, setLabOptions] = useState<{ id: string; name: string }[]>([]);
 
   const isEditing = !!editingGroup;
 
@@ -76,15 +78,18 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }:
     (async () => {
       try {
         const hdrs = await authHeaders();
-        const [trRes, ofRes] = await Promise.all([
+        const [trRes, ofRes, labRes] = await Promise.all([
           fetch("/api/flexos/trainers", { headers: hdrs, signal: ac.signal }),
           fetch("/api/flexos/branch-offices", { headers: hdrs, signal: ac.signal }),
+          fetch("/api/flexos/labs", { headers: hdrs, signal: ac.signal }),
         ]);
         const trJson = trRes.ok ? await trRes.json() : { items: [] };
         const ofJson = ofRes.ok ? await ofRes.json() : { items: [] };
+        const labJson = labRes.ok ? await labRes.json() : { items: [] };
         if (!ac.signal.aborted) {
           setTrainerOptions((trJson.items ?? []).filter((t: { status?: string }) => t.status !== "pasif").map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
           setOfficeOptions(ofJson.items ?? []);
+          setLabOptions((labJson.items ?? []).map((l: { id: string; name: string }) => ({ id: l.id, name: l.name })));
         }
       } catch (e) {
         if ((e as Error).name !== "AbortError") toast.error("Eğitmen/şube listesi yüklenemedi.");
@@ -94,7 +99,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }:
   }, [open, authHeaders]);
 
   const resetForm = useCallback(() => {
-    setFŞube(""); setFBrans(""); setFEğitim(""); setFBölüm(""); setFKod("");
+    setFŞube(""); setFLab(""); setFBrans(""); setFEğitim(""); setFBölüm(""); setFKod("");
     setFTarih(""); setFEğitmen(""); setFSeansIdx(-1); setFDersSaat("");
     setFKontenjan(""); setEğitimTipi("standart");
     setEditOrigSchedule(null);
@@ -116,6 +121,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }:
     setFEğitmen(raw.trainerId || "");
     setFKontenjan(String(raw.capacity));
     setFŞube(raw.branchOfficeId || "");
+    setFLab(raw.labId || "");
     setFTarih(raw.schedule?.startDate?.split("T")[0] || "");
     setFDersSaat(raw.schedule?.sessionHours ? String(raw.schedule.sessionHours) : "");
     setEditOrigSchedule(raw.schedule ? { days: raw.schedule.days, startTime: raw.schedule.startTime, endTime: raw.schedule.endTime } : null);
@@ -188,6 +194,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }:
       educationId: fEğitim || undefined,
       sectionId: isSectioned && fBölüm ? fBölüm : undefined,
       branchOfficeId: fŞube || undefined,
+      labId: fLab || undefined,
       trainerId: fEğitmen || undefined,
       seansId: selSeans?.id ?? undefined,
       schedule: {
@@ -309,6 +316,16 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }:
                         <select value={fŞube} onChange={(e) => setFŞube(e.target.value)} style={S.sel}>
                           <option value="">Şube seçin</option>
                           {officeOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </select>
+                      </SelectW>
+                    </label>
+
+                    <label style={S.fieldWrap}>
+                      <span style={S.lbl}>Laboratuvar <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
+                      <SelectW>
+                        <select value={fLab} onChange={(e) => setFLab(e.target.value)} style={S.sel}>
+                          <option value="">{labOptions.length ? "Lab seçin" : "Lab yok — önce Lab Utilizasyon'dan ekleyin"}</option>
+                          {labOptions.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                         </select>
                       </SelectW>
                     </label>

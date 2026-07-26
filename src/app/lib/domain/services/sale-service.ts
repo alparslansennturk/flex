@@ -92,6 +92,9 @@ export async function createSale(
   if (!can(actor, "person.create")) {
     throw new ForbiddenError("person.create");
   }
+  if (!can(actor, "enrollment.create")) {
+    throw new ForbiddenError("enrollment.create");
+  }
 
   // ── Validasyon ──
   const firstName = input.firstName?.trim();

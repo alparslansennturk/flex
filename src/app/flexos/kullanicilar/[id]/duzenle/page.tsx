@@ -16,6 +16,7 @@ import { formatTrPhone } from "@/app/lib/phone";
 import { ToggleSwitch, ChipToggle } from "../../_shared/toggles";
 import { useRoleDefs } from "../../_shared/useRoleDefs";
 import { PERM_MODULES } from "../../_shared/permModules";
+import { PermModuleAccordion } from "../../_shared/PermModuleAccordion";
 import { RoleMultiSelect } from "../../_shared/RoleMultiSelect";
 // Roller artık backend'den (`useRoleDefs`) geliyor — sabit ROLE_META/ROLE_DEFAULT_PERMS
 // kaldırıldı, "Kullanıcı Ayarları" sayfası tek doğruluk kaynağı.
@@ -334,27 +335,30 @@ export default function KullaniciDuzenlePage() {
                         <span style={{ fontSize: 14, fontWeight: 600, color: "#5B21B6" }}>Genel Müdür rolü tüm yetkileri içerir. Tekil yetki değişikliği yapılamaz.</span>
                       </div>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 28 }}>
-                        {PERM_MODULES.map((m) => {
-                          const active = isPermActive(m.key);
-                          const overridden = m.key in permOverrides;
-                          return (
-                            <div key={m.key} style={{
-                              display: "flex", alignItems: "center", gap: 14, padding: "14px 18px",
-                              borderRadius: 14, border: "1px solid", borderColor: active ? "#E2E5EA" : "#F2F4F7",
-                              background: active ? "#FAFBFC" : "#fff", transition: "all .15s",
-                            }}>
-                              <ToggleSwitch active={active} onClick={() => togglePerm(m.key)} />
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  <span style={{ fontSize: 14, fontWeight: active ? 700 : 500, color: active ? "#1E222B" : "#8E95A3" }}>{m.label}</span>
-                                  {overridden && <span style={{ fontSize: 9.5, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "2px 7px", borderRadius: 5 }}>özel</span>}
+                      <div style={{ marginBottom: 28 }}>
+                        <PermModuleAccordion
+                          isPermActive={isPermActive}
+                          renderItem={(m) => {
+                            const active = isPermActive(m.key);
+                            const overridden = m.key in permOverrides;
+                            return (
+                              <div key={m.key} style={{
+                                display: "flex", alignItems: "center", gap: 14, padding: "14px 18px",
+                                borderRadius: 14, border: "1px solid", borderColor: active ? "#E2E5EA" : "#F2F4F7",
+                                background: active ? "#FAFBFC" : "#fff", transition: "all .15s",
+                              }}>
+                                <ToggleSwitch active={active} onClick={() => togglePerm(m.key)} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ fontSize: 14, fontWeight: active ? 700 : 500, color: active ? "#1E222B" : "#8E95A3" }}>{m.label}</span>
+                                    {overridden && <span style={{ fontSize: 9.5, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "2px 7px", borderRadius: 5 }}>özel</span>}
+                                  </div>
+                                  <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2 }}>{m.desc}</div>
                                 </div>
-                                <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2 }}>{m.desc}</div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          }}
+                        />
                       </div>
                     )}
 

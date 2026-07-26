@@ -18,26 +18,43 @@ import type { Grant } from "./types";
  * 2026-07-10 DÜZELTME (gerçek testte ortaya çıktı): Yoklama/Ödev capability'leri
  * önceden "sinif" modülüne konmuştu ("sınıfın günlük işi" gerekçesiyle) — ama Eğitim
  * Koordinatörü de "sinif"e sahip olduğundan (öğrenci/eğitmen atama için), ödev
- * yönetimi de yanına yapışıyordu. Ödev/teslim/yoklama-ALMA artık SADECE Eğitmen'in
- * kendi ayrı paketinde (`ROLE_PACKAGES.egitmen`) — bu tablodan tamamen çıkarıldı.
- * "sinif" artık sadece grup CRUD + öğrenci/eğitmen atama + yoklama RAPORU (görüntüleme,
+ * yönetimi de yanına yapışıyordu. Ödev/teslim yönetimi SADECE Eğitmen'in kendi ayrı
+ * paketinde (`ROLE_PACKAGES.egitmen`) kalmaya devam ediyor — bu tablodan hâlâ çıkarılmış
+ * durumda. "sinif" sadece grup CRUD + öğrenci/eğitmen atama + yoklama RAPORU (görüntüleme,
  * bizzat yoklama almak değil). Ayrıca "satis" tek modülü Satış Yap/Satış Listesi/Paket/
  * Kampanya olarak 4'e bölündü (her biri ayrı aç/kapa) ve "Aktivite Merkezi" kendi
  * paylaşımlı modülüne taşındı (Satış/Eğitim Op/Finans ortak kullanır, satışa özel değil).
+ *
+ * 2026-07-26 EK — "yoklama" modülü GERİ EKLENDİ: yoklama ALMA/düzenleme (attendance.write)
+ * artık ayrı, bağımsız bir checkbox — Eğitmen (RoleDef seed) VE Eğitim Koordinatörü
+ * ikisi de sahip. Gerçek trainerId'li eğitmenler zaten kendi `ROLE_PACKAGES.egitmen`
+ * paketinden (assigned-scope, sadece kendi grubu) alıyor — bu modül ORG-scope, office
+ * rolleri (Eğitim Koordinatörü gibi trainerId'siz roller) için.
  */
 export const PERM_MODULE_CAPABILITIES: Record<string, string[]> = {
+  // "kisi" (2026-07-26 kararı) — "Öğrenci Düzenleme": mevcut öğrenciyi düzenleme +
+  // taşıma (enrollment.transfer) + gruptan çıkarma (group.assign_student, "sinif"
+  // modülüyle PAYLAŞILIYOR — aynı capability iki modülde birden olabilir, çakışma
+  // değil). Ayrıca person.create BİLEREK burada da kalıyor: Aktivite Merkezi'nde vaka
+  // açarken yeni kişi/prospect girişi ve Sınıf/Roster'dan doğrudan öğrenci ekleme
+  // (RosterDrawer) bu modülden geliyor — "satis_yap"tan bağımsız çalışmalı, yoksa
+  // Eğitim Koordinatörü gibi satış yetkisi olmayan roller o akışları kaybeder.
   kisi: [
     "person.create", "person.read", "person.read.pii", "person.pii.write",
     "person.edit", "person.search", "person.note.read", "person.note.write",
+    "enrollment.transfer", "enrollment.read", "group.assign_student",
   ],
-  kayit: ["enrollment.create", "enrollment.read", "enrollment.transfer"],
   sinif: [
     "group.create", "group.read", "group.edit", "group.assign_student",
     "group.assign_trainer", "group.activate", "group.delete",
     "attendance.read", "attendance.report.read",
   ],
   not: ["grade.read", "grade.write", "grade.finalize", "grade.report.read", "certificate.settings.write"],
-  satis_yap: ["sale.create", "sale.cancel"],
+  yoklama: ["attendance.write", "attendance.read"],
+  // "satis_yap" (2026-07-26 kararı) — tek başına yeterli: satış = yeni öğrenci
+  // (person.create) + kayıt (enrollment.create) + satış kaydı, hepsi birlikte —
+  // ayrıca "kisi" açmaya gerek yok. person.create "kisi" ile PAYLAŞILIYOR (bkz. yukarı).
+  satis_yap: ["sale.create", "sale.cancel", "person.create", "enrollment.create"],
   satis_liste: ["sale.read"],
   paket_yonetimi: ["bundle.create", "bundle.edit", "bundle.delete", "bundle.read"],
   kampanya_yonetimi: ["campaign.create", "campaign.edit", "campaign.delete", "campaign.read"],

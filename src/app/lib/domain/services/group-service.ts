@@ -17,6 +17,7 @@ export interface CreateGroupInput {
   branch?: string; // branş (Grafik Tasarım)
   trainerId?: string; // verilmezse oluşturan aktör (standalone eğitmen kendi grubunu kurar)
   branchOfficeId?: EntityId;
+  labId?: EntityId;
   capacity?: number;
   status?: GroupStatus; // verilmezse "planned"
 }
@@ -104,6 +105,7 @@ export async function createGroup(
     // aynı fallback'i kullanır).
     trainerId: input.trainerId ?? actor.trainerId ?? actor.uid,
     branchOfficeId: input.branchOfficeId,
+    labId: input.labId,
     schedule: {
       startDate: s.startDate,
       days: s.days,

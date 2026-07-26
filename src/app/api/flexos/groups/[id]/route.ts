@@ -57,6 +57,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     if (body.educationId !== undefined) existing.educationId = body.educationId;
     if (body.sectionId !== undefined) existing.sectionId = body.sectionId;
     if (body.branchOfficeId !== undefined) existing.branchOfficeId = body.branchOfficeId;
+    if (body.labId !== undefined) existing.labId = body.labId;
     if (body.trainerId !== undefined) existing.trainerId = body.trainerId;
     if (body.capacity !== undefined) existing.capacity = body.capacity;
     if (body.schedule !== undefined) existing.schedule = { ...existing.schedule, ...body.schedule };

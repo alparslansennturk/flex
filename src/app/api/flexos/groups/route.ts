@@ -5,7 +5,7 @@ import type { Actor } from "@/app/lib/domain/access/types";
 import { can, widestScope } from "@/app/lib/domain/access/can";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
-import { firestoreEducationRepo, firestoreSectionRepo, firestoreTrackRepo, firestoreBranchRepo, firestoreBranchOfficeRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreEducationRepo, firestoreSectionRepo, firestoreTrackRepo, firestoreBranchRepo, firestoreBranchOfficeRepo, firestoreLabRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { createGroup, type CreateGroupInput } from "@/app/lib/domain/services/group-service";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
@@ -86,13 +86,14 @@ export async function fetchGroupsForActor(actor: Actor, requestedTrainerId?: str
   // groups 3× çağrılıyor, ~7 ekranda tekrar; TTL içinde dönüşler Firestore'a hiç gitmez.
   const cacheKey = `groups:${actor.tenantId}:${trainerId ?? "__all__"}`;
   return cachedRead(cacheKey, GROUPS_CACHE_TTL_MS, async () => {
-    const [groups, educations, branches, sections, trainers, offices] = await Promise.all([
+    const [groups, educations, branches, sections, trainers, offices, labs] = await Promise.all([
       firestoreGroupRepo.list(actor.tenantId, trainerId),
       firestoreEducationRepo.list(actor.tenantId),
       firestoreBranchRepo.list(actor.tenantId),
       firestoreSectionRepo.list(actor.tenantId),
       firestoreTrainerRepo.list(actor.tenantId),
       firestoreBranchOfficeRepo.list(actor.tenantId),
+      firestoreLabRepo.list(actor.tenantId),
     ]);
     // 2026-07-12 ACİL kota fix: önceden `firestoreEnrollmentRepo.list(tenantId)` tenant'taki
     // TÜM enrollment'ları okuyordu (grup filtresi yok) — bu uç ~7 farklı ekranda groups/
@@ -106,6 +107,7 @@ export async function fetchGroupsForActor(actor: Actor, requestedTrainerId?: str
     const sectionMap = new Map(sections.map((s) => [s.id, s]));
     const trainerMap = new Map(trainers.map((t) => [t.id, t.name]));
     const officeMap = new Map(offices.map((o) => [o.id, o.name]));
+    const labMap = new Map(labs.map((l) => [l.id, l.name]));
 
     // Grup başına öğrenci sayısı (doluluk). `active` + `completed` — roster uç noktasıyla
     // (groups/[id]/roster/route.ts) AYNI kural: bir grup "tamamlandı"ya alınıp öğrenciler
@@ -141,6 +143,8 @@ export async function fetchGroupsForActor(actor: Actor, requestedTrainerId?: str
         educationTotalHours: edu?.totalHours ?? null,
         branchOfficeId: g.branchOfficeId ?? null,
         branchOffice: g.branchOfficeId ? officeMap.get(g.branchOfficeId) ?? "" : "",
+        labId: g.labId ?? null,
+        labName: g.labId ? labMap.get(g.labId) ?? "" : "",
         trainerId: g.trainerId ?? "",
         trainerName: g.trainerId ? trainerMap.get(g.trainerId) ?? "" : "",
         schedule: g.schedule,

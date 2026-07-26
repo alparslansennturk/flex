@@ -4,10 +4,11 @@ import type { EntityId, ISODateTime } from "../base";
 import type { Branch } from "../eduos/branch";
 import type { BranchOffice } from "../eduos/branch-office";
 import type { CertificateRule, DeliveryOption, Education } from "../eduos/education";
+import type { Lab, LabType } from "../eduos/lab";
 import type { Section } from "../eduos/section";
 import type { Track } from "../eduos/track";
 import { ForbiddenError, ValidationError } from "../errors";
-import type { BranchOfficeRepo, BranchRepo, EducationRepo, SectionRepo, TrackRepo } from "../repo/catalog-repo";
+import type { BranchOfficeRepo, BranchRepo, EducationRepo, LabRepo, SectionRepo, TrackRepo } from "../repo/catalog-repo";
 import type { GroupRepo } from "../repo/group-repo";
 
 const now = (): ISODateTime => new Date().toISOString();
@@ -93,6 +94,85 @@ export async function deleteBranchOffice(actor: Actor, id: EntityId, deps: Delet
   }
   const ok = await deps.offices.delete(id, actor.tenantId);
   if (!ok) throw new ValidationError("Şube silinemedi.");
+}
+
+// ── Laboratuvar (fiziksel derslik — Lab 1, Mac Lab…) ──
+const VALID_LAB_TYPES: LabType[] = ["windows", "mac"];
+
+export interface CreateLabInput {
+  name: string;
+  type: LabType;
+  capacity: number;
+  branchOfficeId: string;
+  order?: number;
+}
+export async function createLab(actor: Actor, input: CreateLabInput, repo: LabRepo): Promise<Lab> {
+  if (!can(actor, "lab.create")) throw new ForbiddenError("lab.create");
+  const name = input.name?.trim();
+  if (!name) throw new ValidationError("Laboratuvar adı zorunludur.");
+  if (!VALID_LAB_TYPES.includes(input.type)) throw new ValidationError("Geçersiz laboratuvar tipi.");
+  if (!input.branchOfficeId) throw new ValidationError("Şube seçimi zorunludur.");
+  if (!(input.capacity > 0)) throw new ValidationError("Kapasite 0'dan büyük olmalıdır.");
+  const lab: Lab = {
+    id: repo.nextId(),
+    tenantId: actor.tenantId,
+    name,
+    type: input.type,
+    capacity: input.capacity,
+    branchOfficeId: input.branchOfficeId,
+    order: input.order,
+    createdAt: now(),
+    createdBy: actor.uid,
+  };
+  await repo.save(lab);
+  return lab;
+}
+
+export interface UpdateLabInput {
+  name?: string;
+  type?: LabType;
+  capacity?: number;
+  branchOfficeId?: string;
+  order?: number;
+}
+export async function updateLab(actor: Actor, id: EntityId, patch: UpdateLabInput, repo: LabRepo): Promise<Lab> {
+  if (!can(actor, "lab.edit")) throw new ForbiddenError("lab.edit");
+  if (!id) throw new ValidationError("id zorunludur.");
+  const existing = await repo.getById(id, actor.tenantId);
+  if (!existing) throw new ValidationError("Laboratuvar bulunamadı.");
+  if (patch.name !== undefined && !patch.name.trim()) throw new ValidationError("Laboratuvar adı boş olamaz.");
+  if (patch.type !== undefined && !VALID_LAB_TYPES.includes(patch.type)) throw new ValidationError("Geçersiz laboratuvar tipi.");
+  if (patch.capacity !== undefined && !(patch.capacity > 0)) throw new ValidationError("Kapasite 0'dan büyük olmalıdır.");
+  const updated: Lab = {
+    ...existing,
+    ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+    ...(patch.type !== undefined ? { type: patch.type } : {}),
+    ...(patch.capacity !== undefined ? { capacity: patch.capacity } : {}),
+    ...(patch.branchOfficeId !== undefined ? { branchOfficeId: patch.branchOfficeId } : {}),
+    ...(patch.order !== undefined ? { order: patch.order } : {}),
+    updatedAt: now(),
+    updatedBy: actor.uid,
+  };
+  await repo.save(updated);
+  return updated;
+}
+
+export interface DeleteLabDeps {
+  labs: LabRepo;
+  groups: GroupRepo;
+}
+export async function deleteLab(actor: Actor, id: EntityId, deps: DeleteLabDeps): Promise<void> {
+  if (!can(actor, "lab.edit")) throw new ForbiddenError("lab.edit");
+  if (!id) throw new ValidationError("id zorunludur.");
+  const existing = await deps.labs.getById(id, actor.tenantId);
+  if (!existing) throw new ValidationError("Laboratuvar bulunamadı.");
+  const allGroups = await deps.groups.list(actor.tenantId);
+  const inUse = allGroups.filter((g) => g.labId === id && g.status !== "completed" && g.status !== "archived");
+  if (inUse.length > 0) {
+    throw new ValidationError(`Bu laboratuvara bağlı ${inUse.length} aktif grup var. Önce grupların laboratuvarını değiştirin.`);
+  }
+  const ok = await deps.labs.delete(id, actor.tenantId);
+  if (!ok) throw new ValidationError("Laboratuvar silinemedi.");
 }
 
 // ── Eğitim (Grafik Tasarım Kursu) ──

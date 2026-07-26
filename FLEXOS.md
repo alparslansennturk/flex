@@ -16,7 +16,100 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-25 oturumu (23) — Kullanıcı Ayarları: Personel Ekleme + Eğitmen Ekleme ayrı checkbox oldu (EN GÜNCEL)
+### 🔶 2026-07-26 oturumu (24) — Yetki modeli sadeleştirmesi + Lab Utilizasyon (tasarım portu + tam backend) (EN GÜNCEL)
+
+**1) Yetki modeli sadeleştirmesi** (kullanıcı: "yetki kısmı çok karmaşık, daha basit olmalı"):
+- **Satış Yap artık tek başına yeterli** — `sale.create` + `sale.cancel` + `person.create` +
+  `enrollment.create` bir arada (`perm-module-capabilities.ts`). Satış yetkisi olan biri
+  ayrıca "Öğrenci Düzenleme" açmadan yeni öğrenci girip kaydedebiliyor.
+- **"Öğrenci Düzenleme"** (eski "Kişi Yönetimi" — `kisi` anahtarı KORUNDU, sadece etiket/
+  kapsam değişti, Firestore'daki mevcut RoleDef'ler bozulmasın diye) artık düzenleme +
+  **taşıma** (`enrollment.transfer`) + **gruptan çıkarma** (`group.assign_student`) içeriyor.
+  `person.create` bilerek hem burada hem Satış Yap'ta kaldı — Aktivite Merkezi'nde vaka
+  açarken/Sınıf-Roster'dan doğrudan öğrenci eklerken satış yetkisi olmayan roller (örn.
+  Eğitim Koordinatörü) bu akışı kaybetmesin diye.
+- **"Kayıt İşlemleri" checkbox'ı tamamen kaldırıldı** — ikiye bölünen yetkileri zaten
+  yukarıdaki iki modülde kapsandığı için gereksizdi; 3 yerleşik rolün (Eğitim Koordinatörü/
+  Öğrenci İşleri/Satış Temsilcisi) seed listesinden çıkarıldı, işlevsel kayıp yok
+  (`assert-transfer.ts` 31/31 — "kayit"-only test aktörü "kisi"-only'ye çevrildi).
+- **Yeni "Yoklama" modülü** ("Eğitim" grubunda) — `attendance.write`+`attendance.read`,
+  Eğitim Koordinatörü + Eğitmen (RoleDef seed) varsayılan sahip. Gerçek trainerId'li
+  eğitmenler zaten kendi paketinden (`ROLE_PACKAGES.egitmen`) alıyordu, bu SADECE office
+  rollerine (önceden hiç yoktu) yeni bir kapı açtı. `attendance.report.read` (Yoklama
+  Raporu) hâlâ SADECE "Sınıf/Grup" modülünde, eğitmende yok — kullanıcı bunu bilerek
+  doğruladı (Yoklama Detay=kendi verisi, Yoklama Raporu=tüm eğitmenler tek listede).
+- **Kullanıcı Ayarları artık 5 başlıklı akordiyon**: Kullanıcı Yönetimi / Öğrenci İşlemleri
+  / Eğitim / Satış & Finans / Diğer (`PermModuleAccordion.tsx`, yeni paylaşımlı bileşen —
+  Ekle/Düzenle/Ayarlar 3 sayfası da kullanıyor).
+- **"Sınıflar" → "Gruplar"** (sektör terimi hep "grup", "sınıf" değil — kullanıcı düzeltmesi).
+  Sidebar'da akordiyon oldu: Grup Ekle (route değişmedi, `active="siniflar"` korundu) +
+  Lab Utilizasyon (yeni). Grup Ekle sayfasında header "Grup Ekle" oldu, "Gruplar" başlığı
+  kaldırıldı, sayaç artık AKTİF grup sayısı (açılacak+aktif, tamamlanmış/iptal hariç).
+
+**2) İki gerçek bug bulundu ve düzeltildi** (yetki konuşmasından çıktı):
+- `satis-yap/page.tsx` hiç capability kontrolü yapmıyordu (sadece login) — artık
+  `sale.create` yoksa "yetkiniz yok" ekranı gösteriyor.
+- `sale-service.ts::createSale` yorumda "enrollment.create de gerekli" diyordu ama HİÇ
+  kontrol etmiyordu — artık gerçekten kontrol ediyor (mevcut roller etkilenmedi, hepsi
+  zaten ikisini birden içeriyordu).
+
+**3) Yoklama Raporu — "Girilmedi" takibi** (kullanıcı: "hangi eğitmen kaç saat girdi,
+neden girmedi"): `remaining` alanı zaten hesaplanıyordu ama hiç gösterilmiyordu. Yeni,
+BUGÜNE KAPALI ayrı bir sayım eklendi (mevcut "Toplam Planlanan" — ki gelecek tarihleri de
+sayabiliyor — dokunulmadı): yeni "Girilmedi" StatCard + eğitmen satırında tıklanabilir
+kolon → modal (hangi grup/tarih) → tıklayınca sayfanın var olan `AttendanceCore` detay
+paneline atlıyor.
+
+**4) Lab Utilizasyon — Claude Design'dan birebir port + tam backend**:
+- Kullanıcının Claude Design'da hazırladığı "Laboratuvar Utilizasyonu.dc.html" (proje:
+  "Flex-Eğitim Yönetimi") DesignSync MCP ile okunup `/flexos/siniflar/lab-utilizasyon`'a
+  birebir portlandı — toolbar, lab rail, hero (Şu Anki Durum/İlk Uygun Seans/Doluluk),
+  Haftalık/Günlük/Aylık/Liste görünümleri, Planlama Yap modalı, Uygun Seansları Göster
+  modalı. Sidebar/header tasarımın kendi mockup'ı değil gerçek `FlexSidebar`/`FlexHeader`
+  (bu projedeki her tasarım portunda böyle — mockup'taki shell her .dc.html'de aynı
+  boilerplate). Tasarımdaki 2 bozuk hex kod (`#2E4straight`, `#1C3career` — muhtemelen
+  transkripsiyon hatası) sessizce düzeltildi.
+- **Dark mode sonradan tamamen kaldırıldı** (kullanıcı: "benim neredeyse tüm sayfalarımda
+  dark mode yok") — tasarımda vardı, uygulamanın geri kalanıyla tutarsız olurdu, `Theme`
+  artık sabit tek açık-tema objesi, toggle butonu silindi.
+- Header genişliği "Eğitmen Ana Sayfa" ile aynı `FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS`'a
+  çekildi (önce header 1920px sabit, içerik responsive'ti — solda ikona sağda avatara hizasız
+  duruyordu); `FlexPageContent`'in yatay padding'i de kaldırıldı (header zaten `20px 0`
+  kullanıyor, içerik 32px fazladan padding'le kayıyordu).
+- **"Laboratuvar Ekle" gerçek, tam bağlı bir özellik oldu** (kullanıcı ilk "sadece bu
+  sayfada mock kalsın" seçeneğini reddedip "tam bağla şimdi" dedi):
+  - Yeni domain entity `Lab` (`eduos/lab.ts`, `BranchOffice` ile aynı desen) + `LabRepo` +
+    `firestoreLabRepo` (`flexos_labs` koleksiyonu, `catalog-repo.firestore.ts`'teki
+    `makeRepo`/`listColl` paylaşımlı helper'larını kullanıyor).
+  - Yeni capability'ler `lab.create`/`lab.edit` — `office.create`/`office.edit` ile AYNI
+    yerlerde (operasyon+admin paketleri) tanımlı, RoleDef modülü DEĞİL (hardcoded paket),
+    o yüzden deploy sonrası elle işaretleme GEREKMİYOR.
+  - `createLab`/`updateLab`/`deleteLab` servisleri (`catalog-service.ts`) — silme, o laba
+    bağlı aktif grup varsa `deleteBranchOffice` ile aynı korumayla engelleniyor.
+  - `GET/POST /api/flexos/labs` + `PATCH/DELETE /api/flexos/labs/[id]` — `branch-offices`
+    route'larıyla birebir aynı desen.
+  - `Group.labId?: EntityId` eklendi (branchOfficeId'nin yanına, `GroupSchedule` içine
+    DEĞİL — lab bir zaman değil kaynak/mekân bilgisi). `createGroup` + PATCH route'u
+    destekliyor. `GET /api/flexos/groups` artık lab adını da join'liyor (`labId`/`labName`,
+    `branchOffice` ile aynı desen).
+  - `GroupFormSheet.tsx`'e (Grup Ekle/Düzenle paylaşımlı bottom-sheet) Şube'nin hemen
+    üstüne opsiyonel "Laboratuvar" dropdown'ı eklendi.
+  - Lab Ekle modalı: **geniş ve yatay** (840px, 4 sütunlu grid: Ad/Tip/Kapasite/Şube),
+    framer-motion (`AnimatePresence`+`motion.div`, scale+fade) ile açılıp kapanıyor —
+    kullanıcının açık talebiydi. Kaydedince gerçek API'ye POST atıyor.
+  - Lab Utilizasyon sayfası artık hardcoded `LABS` dizisi yerine gerçek `/api/flexos/labs`'tan
+    besleniyor (`sessionsFor` ve zincirindeki tüm yardımcı fonksiyonlara `labs: Lab[]`
+    parametre olarak thread edildi). Hiç lab yoksa boş-durum ekranı ("Laboratuvar Ekle" ile
+    ilk laboratuvarı oluşturun) + yükleniyor durumu eklendi (`sel = labs.find(...) || labs[0]`
+    boş dizide çökmesin diye).
+  - **Seans/doluluk verisi HÂLÂ mock** (deterministik seed'li üretici) — gerçek Group↔Lab
+    zaman çakışması/rezervasyon sistemi henüz yok, bu ayrı ve çok daha büyük bir iş
+    (kullanıcıyla konuşuldu, bilinçli sınır).
+
+Tarayıcıda test edilmedi (curl ile sadece route 200/401 kontrolleri yapıldı, dev server
+crash vermiyor). tsc/eslint tüm oturum boyunca temiz tutuldu.
+
+### 🔶 2026-07-25 oturumu (23) — Kullanıcı Ayarları: Personel Ekleme + Eğitmen Ekleme ayrı checkbox oldu
 
 Kullanıcı Kullanıcı Ayarları'ndaki rol-checkbox ekranını inceledi ("ne işaretli nasıl
 bakacağım" sorusuyla başladı), yol boyunca 3 gerçek düzeltme çıktı:
