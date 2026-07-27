@@ -280,7 +280,7 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                 <tr style={{ background: "#F7F8FA", borderBottom: "1px solid #EEF0F3" }}>
                   <th style={S.thFirst}>Grup</th>
                   <th style={S.th}>Eğitim</th>
-                  {byGroup && <th style={S.th}>Şube</th>}
+                  {byGroup && <th style={S.th}>Şube / Lab</th>}
                   {byGroup && <th style={S.th}>Eğitmen</th>}
                   <th style={S.th}>Bölüm</th>
                   <th style={{ ...S.th, paddingLeft: 18 }}>Seans</th>
@@ -318,7 +318,14 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
                           <span style={{ fontSize: 13, color: "#414B59", fontWeight: 600 }}>{g.eğitim}</span>
                         </div>
                       </td>
-                      {byGroup && <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.şube}</span></td>}
+                      {byGroup && (
+                        <td style={S.td}>
+                          <div style={{ lineHeight: 1.35 }}>
+                            <div style={{ fontSize: 13, color: "#414B59", whiteSpace: "nowrap" }}>{g.şube}</div>
+                            {g.lab && <div style={{ fontSize: 11.5, color: "#8E95A3", whiteSpace: "nowrap" }}>{g.lab}</div>}
+                          </div>
+                        </td>
+                      )}
                       {byGroup && <td style={S.td}><span style={{ fontSize: 13, color: "#414B59" }}>{g.eğitmen}</span></td>}
                       <td style={S.td}><span style={{ fontSize: 13, color: g.bölüm === "—" ? "#AEB4C0" : "#414B59" }}>{g.bölüm}</span></td>
                       <td style={{ ...S.td, paddingLeft: 18 }}>

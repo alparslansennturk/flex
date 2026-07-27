@@ -29,6 +29,7 @@ export interface DisplayGroup {
   brans: string;
   eğitim: string;
   şube: string;
+  lab: string;
   eğitmen: string;
   bölüm: string;
   seansGun: string; // "Pts - Çrş" (saat saklanmıyor)
@@ -140,6 +141,7 @@ export function toDisplayGroup(g: GroupApiItem): DisplayGroup {
     brans: g.branch || "—",
     eğitim: g.educationName || "—",
     şube: g.branchOffice || officeName(g.branchOfficeId) || "—",
+    lab: g.labName || "",
     eğitmen: g.trainerName || "—",
     bölüm: g.sectionName || "—",
     seansGun,

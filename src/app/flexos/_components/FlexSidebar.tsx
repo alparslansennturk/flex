@@ -469,7 +469,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                   style={{ overflow: "hidden" }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
-                    <SubItem label="Grup Ekle" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />
+                    <SubItem label="Gruplar" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />
                     <SubItem label="Lab Utilizasyon" active={active === "lab-utilizasyon"} onClick={go("/flexos/siniflar/lab-utilizasyon")} />
                     <SubItem label="Eğitmen Takvimi" active={active === "egitmen-takvimi"} onClick={go("/flexos/egitmen-takvimi")} />
                   </div>

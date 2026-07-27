@@ -232,6 +232,53 @@ doldurulmuyor, ayrı bir karar gerektirir).
   `/flexos/siniflar?trainerId=&tarih=` akışının gerçekten sheet'i açıp doğru alanları doldurduğu
   hiç doğrulanmadı.
 
+**✅ ÇÖZÜLDÜ — GERÇEK PROD BUG (2026-07-28, kullanıcı bulgusu):** Yukarıdaki özellik GRP-784
+(gerçek aktif grup) Düzenle'de yanlışlıkla "Seçtiğiniz eğitmen bu seansta müsait değil" diyip
+kendi eğitmenini (Alparslan Şentürk) temizledi — kullanıcı "saçmaladı, aman bozulmasın" dedi.
+**Kök neden:** Eğitmen listesi fetch'i ile seans-kütüphanesi fetch'i BİRBİRİNDEN BAĞIMSIZ iki
+async kaynak; seans kütüphanesi önce dönerse `availableTrainerOptions` henüz BOŞ
+`trainerOptions` üzerinden hesaplanıyor ("kimse müsait değil" gibi görünüyor) ve temizleme
+effect'i düzenlenen grubun kendi (aslında müsait) eğitmenini yanlışlıkla siliyordu — saf bir
+zamanlama yarışıydı, `g.id !== editingGroup?.id` filtresinin kendisi doğruydu. **Fix:**
+`trainersLoaded` bayrağı eklendi (`GroupFormSheet.tsx`), eğitmen listesi gerçekten yüklenmeden
+temizleme effect'i hiç çalışmıyor. **Doğrulama:** GRP-784'ün canlı verisi kontrol edildi, hiçbir
+şey bozulmamıştı (kullanıcı zaten kendini yeniden seçip kaydetmişti); fix sonrası GRP-784 tekrar
+Düzenle ile açılıp (kaydetmeden) "Alparslan Şentürk"ün artık sessizce/doğru seçili kaldığı,
+sahte uyarının çıkmadığı Playwright+gerçek Chrome ile doğrulandı.
+
+**Aynı oturumda küçük UI değişiklikleri:**
+- Grup listesinde (`GroupTable.tsx`) ayrı gösterilmeyen **Lab bilgisi** artık "Şube / Lab"
+  birleşik kolonunda — Seans kolonundaki AYNI iki-satır deseni (üstte Şube koyu, altta Lab adı
+  açık gri `#8E95A3`, lab yoksa ikinci satır hiç basılmıyor). Veri zaten API'den geliyordu
+  (`GroupApiItem.labName`), sadece `DisplayGroup`'a hiç taşınmamıştı (`groupDisplay.ts`).
+- Sidebar'da "Gruplar" akordiyonu altındaki alt-menü adı **"Grup Ekle" → "Gruplar"**
+  (kullanıcı: "yanlış, bu liste sayfası") — sayfa başlığı da tutarlılık için "Gruplar" oldu.
+  Sayfadaki turuncu **"+ Grup Ekle" butonu → "+ Yeni Grup"** (boş-durum ipucu metni de
+  güncellendi). Standalone eğitmen görünümündeki (`EgitmenSiniflarPanel.tsx`, ayrı "Sınıflarım"
+  sayfası) kendi "Grup Ekle" butonuna DOKUNULMADI — farklı context, kullanıcı ondan bahsetmedi.
+
+**Modül-bazlı CRUD duman testi (kullanıcı isteği: "her modül için gerçek CRUD testi yap"):**
+Yukarıdaki bug'ın canlı veriye dokunma riskini ortaya koyması üzerine, kullanıcı 8 modülün
+tamamında gerçek yazma testi istedi: `TEST_<timestamp>` önekli veriyle gerçek API rotalarına
+(localhost + gerçek admin ID token) Create/Update/Delete denendi, sonda admin SDK ile TAM
+temizlik + kalıntı taraması yapıldı. **Script'ler kalıcı olarak repo'ya kaydedildi** (tekrar
+kullanılabilir, `.gitignore`'a çalışma-çıktısı json'ları eklendi):
+- `scripts/crud-smoke-test/run.js` — testin kendisi (env: `CRUD_TEST_EMAIL`/`CRUD_TEST_PASS`,
+  dev server `localhost:3000` açık olmalı).
+- `scripts/crud-smoke-test/cleanup.js` — `run.js`'in ürettiği `manifest.json`'u okuyup her şeyi
+  (API'de hard-delete olmayan yerler dahil: satış zinciri person/enrollment/sale/payment,
+  sertifika notu, aktivite-merkezi case+activity+prospect person, eğitmenin otomatik açtığı
+  flexos_users+Auth hesabı+aktivasyon kodu) admin SDK ile kesin siler + doğrular.
+
+**Sonuç: 26/26 başarılı** (Eğitmenler/Gruplar/Öğrenciler-Satış/Ödevler+Şablon+ManuelNot/
+Yoklamalar/Sertifikasyon/Aktivite Merkezi/Kullanıcılar). İlk turda tek gerçek hata: Kullanıcılar
+Create formu `subes` (şube) alanını zorunlu tutuyormuş, script'te eksikti — düzeltilip script'e
+işlendi (artık `run.js`'de referans grubun `branchOfficeId`'si otomatik gönderiliyor).
+Ödev POST'u BİLİNÇLİ `status:"draft"` gönderdi (yoksa `notifyAssignmentPublished` gerçek mail
+atardı). Temizlik sonrası 15 koleksiyon + 2 test e-postası (Auth+`flexos_codes`) için tam
+kalıntı taraması yapıldı, **hiçbir iz kalmadı**. GRP-784 dahil gerçek kullanıcı verisine hiç
+dokunulmadı.
+
 ### 🔶 2026-07-27 oturumu (25) — Cmd+K Türkçe arama bug'ı + Lab Utilizasyon ince ayarlar + Öğrenci Detay Eğitim Bilgileri (gerçek bug + sertifika grid + layout)
 
 **1) Cmd+K — Türkçe İ/I arama bug'ı (GERÇEK BUG, bulundu+düzeltildi):**

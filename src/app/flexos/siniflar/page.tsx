@@ -133,7 +133,7 @@ function SınıflarPageInner() {
       <main ref={mainRef} className="sg-main" style={S.main}>
         <FlexHeader
           icon={<span dangerouslySetInnerHTML={{ __html: IC.graduation }} />}
-          title="Grup Ekle"
+          title="Gruplar"
           subtitle="Grup acin, açılacak ve devam eden siniflari takip edin."
         />
 
@@ -151,7 +151,7 @@ function SınıflarPageInner() {
             </div>
             {canManageGroups && (
               <button className="sg-add-btn" style={S.addBtn} onClick={() => setShowForm(true)}>
-                <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Grup Ekle
+                <span dangerouslySetInnerHTML={{ __html: IC.plus }} /> Yeni Grup
               </button>
             )}
           </div>
@@ -164,7 +164,7 @@ function SınıflarPageInner() {
             onEdit={editGroup}
             onChanged={loadGroups}
             canManage={canManageGroups}
-            emptyHint={canManageGroups ? 'Yukarıdaki "Grup Ekle" ile ilk grubunuzu oluşturun.' : "Henüz size atanmış bir grup yok."}
+            emptyHint={canManageGroups ? 'Yukarıdaki "Yeni Grup" ile ilk grubunuzu oluşturun.' : "Henüz size atanmış bir grup yok."}
           />
 
         </div>

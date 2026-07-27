@@ -54,3 +54,8 @@ next-env.d.ts
 
 # Arduino hobi projesi - flex uygulamasıyla ilgisiz, asla push edilmeyecek
 /arduino/
+
+# CRUD duman testi çalışma çıktıları (script'ler kalıcı, bu dosyalar her koşuda üretilir)
+/scripts/crud-smoke-test/manifest.json
+/scripts/crud-smoke-test/results.json
+/scripts/crud-smoke-test/cleanup-report.json

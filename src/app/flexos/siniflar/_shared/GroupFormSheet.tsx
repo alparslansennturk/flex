@@ -67,6 +67,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
   const [seansOpen, setSeansOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [trainerOptions, setTrainerOptions] = useState<TrainerOption[]>([]);
+  const [trainersLoaded, setTrainersLoaded] = useState(false);
   const [officeOptions, setOfficeOptions] = useState<{ id: string; name: string }[]>([]);
   const [labOptions, setLabOptions] = useState<{ id: string; name: string }[]>([]);
 
@@ -90,6 +91,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
   // prop drilling yaptırmamak için).
   useEffect(() => {
     if (!open) return;
+    setTrainersLoaded(false);
     const ac = new AbortController();
     (async () => {
       try {
@@ -106,6 +108,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
           setTrainerOptions((trJson.items ?? []).filter((t: { status?: string }) => t.status !== "pasif").map((t: TrainerOption) => ({ id: t.id, name: t.name, groups: t.groups ?? [] })));
           setOfficeOptions(ofJson.items ?? []);
           setLabOptions((labJson.items ?? []).map((l: { id: string; name: string }) => ({ id: l.id, name: l.name })));
+          setTrainersLoaded(true);
         }
       } catch (e) {
         if ((e as Error).name !== "AbortError") toast.error("Eğitmen/şube listesi yüklenemedi.");
@@ -221,13 +224,21 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
 
   // Seans/tarih değişince seçili eğitmen artık müsait değilse (ör. kullanıcı seansı
   // değiştirdi) seçim sessizce yanlış kalmasın — temizlenir + uyarılır.
+  // `trainersLoaded` şartı KRİTİK (2026-07-28 gerçek prod bug): eğitmen listesi fetch'i
+  // (yukarıdaki effect) ile seans eşleştirme effect'i (satır ~189) birbirinden BAĞIMSIZ
+  // iki async kaynak — seans kütüphanesi eğitmen listesinden ÖNCE dönerse selSeans erken
+  // set olur, `availableTrainerOptions` henüz BOŞ `trainerOptions` üzerinden hesaplanır
+  // (geçici olarak "hiç kimse müsait değil" görünür) ve bu effect DÜZENLENEN grubun kendi
+  // eğitmenini (aslında müsait, çünkü çakışan tek grup kendisi) yanlışlıkla temizleyip
+  // yanlış "müsait değil" uyarısı basıyordu. Trainer listesi gerçekten yüklenene kadar
+  // bu kontrol hiç çalışmamalı.
   useEffect(() => {
-    if (fEğitmen && selSeans && !availableTrainerOptions.some((t) => t.id === fEğitmen)) {
+    if (trainersLoaded && fEğitmen && selSeans && !availableTrainerOptions.some((t) => t.id === fEğitmen)) {
       setFEğitmen("");
       toast.error("Seçtiğiniz eğitmen bu seansta müsait değil, eğitmen seçimi temizlendi.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableTrainerOptions]);
+  }, [availableTrainerOptions, trainersLoaded]);
 
   const onSave = async () => {
     if (!fKod.trim()) { toast.error("Grup kodu zorunludur."); return; }
