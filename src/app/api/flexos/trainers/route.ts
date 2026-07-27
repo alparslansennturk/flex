@@ -141,7 +141,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     // Şentürk'ü test etti, tek grubu tamamlanmıştı, sistem yine de onu dolu gösterdi).
     // Bu alan zaten tüketen SADECE Eğitmen Takvimi filtreliyor — burada FİLTRELEMİYORUZ,
     // Eğitmenler sayfası gibi başka tüketiciler geçmiş grupları görmek isteyebilir.
-    const groupsByTrainer = new Map<string, Array<{ kod: string; egitim: string; ogrenci: number; status: string }>>();
+    const groupsByTrainer = new Map<string, Array<{ kod: string; egitim: string; ogrenci: number; status: string; branch: string }>>();
     for (const g of groups) {
       if (!g.trainerId) continue;
       const list = groupsByTrainer.get(g.trainerId) ?? [];
@@ -150,6 +150,11 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         egitim: g.educationId ? eduMap.get(g.educationId)?.name ?? "" : "",
         ogrenci: enrolledByGroup.get(g.id) ?? 0,
         status: g.status,
+        // 2026-07-27 eklendi (Eğitmen Takvimi bug): eğitmenin GERÇEK branşı `trainer.comp`
+        // anahtarlarından (Design/Finance/Software — Eğitmenler CRUD'un kendi kategorileri,
+        // gerçek branş taksonomisiyle İLGİSİZ) değil, atandığı grupların gerçek `branch`
+        // alanından (ör. "Grafik Tasarım") türetilmeli.
+        branch: g.branch ?? "",
       });
       groupsByTrainer.set(g.trainerId, list);
     }

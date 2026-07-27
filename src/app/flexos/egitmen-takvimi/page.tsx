@@ -217,7 +217,7 @@ export default function EgitmenTakvimiPage() {
       const token = u ? await u.getIdToken() : "";
       const res = await fetch("/api/flexos/trainers", { headers: { Authorization: `Bearer ${token}` } });
       const json = res.ok ? await res.json() : { items: [] };
-      type ApiTrainer = { id: string; name: string; subes: string[]; status: string; comp: Record<string, string[]>; groups: { kod: string; egitim: string; ogrenci: number; status: string }[] };
+      type ApiTrainer = { id: string; name: string; subes: string[]; status: string; comp: Record<string, string[]>; groups: { kod: string; egitim: string; ogrenci: number; status: string; branch: string }[] };
       // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu): API bir eğitmenin TÜM gruplarını
       // (tamamlanmış/arşivlenmiş dahil) veriyor — sadece bunlardan üretilen mock ders
       // havuzunda kullanılıyorsa, tek/az grubu tamamlanmış bir eğitmen o bitmiş dersle
@@ -226,8 +226,15 @@ export default function EgitmenTakvimiPage() {
       const mapped: Instructor[] = (json.items ?? [])
         .filter((t: ApiTrainer) => t.status === "aktif")
         .map((t: ApiTrainer) => {
-          const compKeys = Object.keys(t.comp || {});
-          const brans = compKeys[0] ?? BRANSLAR[hashSeed(t.id) % BRANSLAR.length];
+          // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu: "Tasarım diye branş seçtim,
+          // Alparslan Şentürk listede kalmadı — Grafik Tasarım diye branş var ama Tasarım
+          // yok"): `trainer.comp` anahtarları (Design/Finance/Software) Eğitmenler CRUD'un
+          // KENDİ kategorileri, gerçek branş taksonomisiyle (Grafik Tasarım, Yazılım
+          // Geliştirme...) ilgisi yok. Gerçek branş, eğitmenin atandığı grupların gerçek
+          // `Group.branch` alanından geliyor (herhangi bir grubu — sadece açık olanlar değil,
+          // branş kimliği zaman içinde değişmez). Hiç atanmış grubu yoksa mock'a düşer.
+          const realBranch = (t.groups ?? []).map((g) => g.branch).find((b) => b);
+          const brans = realBranch ?? BRANSLAR[hashSeed(t.id) % BRANSLAR.length];
           const sube = t.subes?.[0] ?? SUBELER[hashSeed(t.id) % SUBELER.length];
           const acikGruplar = (t.groups ?? []).filter((g) => AKTIF_GRUP_DURUM.has(g.status));
           return { id: t.id, name: t.name, brans, sube, av: avatarFor(t.id), groups: acikGruplar };
@@ -269,6 +276,12 @@ export default function EgitmenTakvimiPage() {
     setInstrModal(null); setPlanOpen(true); setPlanDate(instrModal.iso); setPlanBrans(inst ? inst.brans : "Tümü"); setPlanPick(instrModal.id);
   };
   const planFromBlock = (iso: string, startMin: number, brans: string, instId: string) => { setInstrModal(null); setPlanOpen(true); setPlanDate(iso); setPlanStart(startMin); setPlanBrans(brans); setPlanPick(instId); };
+
+  // GERÇEK BUG FIX (2026-07-27): filtre/planla dropdown'ları sabit mock `BRANSLAR` listesini
+  // (Yazılım/Tasarım/Finans/Pazarlama/Dil) gösteriyordu — gerçek branş adları (Grafik Tasarım
+  // gibi) o listede yok, seçilince kimse eşleşmiyordu. Artık listedeki eğitmenlerin GERÇEK
+  // `brans` değerlerinden (yukarıda türetilen) türetiliyor, hep en az bir eşleşme garanti.
+  const branslarOptions = useMemo(() => Array.from(new Set(instructors.map((i) => i.brans))).sort((a, b) => a.localeCompare(b, "tr")), [instructors]);
 
   const filteredInstructors = useMemo(() => instructors.filter((i) => {
     if (fEgitmen !== "Tümü" && i.name !== fEgitmen) return false;
@@ -466,7 +479,7 @@ export default function EgitmenTakvimiPage() {
                 {[
                   { label: "Eğitmen", value: fEgitmen, set: setFEgitmen, options: ["Tümü", ...instructors.map((i) => i.name)] },
                   { label: "Şube", value: fSube, set: setFSube, options: ["Tümü", ...SUBELER] },
-                  { label: "Branş", value: fBrans, set: setFBrans, options: ["Tümü", ...BRANSLAR] },
+                  { label: "Branş", value: fBrans, set: setFBrans, options: ["Tümü", ...branslarOptions] },
                   { label: "Eğitim Türü", value: fTur, set: setFTur, options: ["Tümü", "Bireysel", "Kurumsal"] },
                   { label: "Katılım", value: fMode, set: setFMode, options: ["Tümü", "Yüz Yüze", "Online"] },
                   { label: "Durum", value: fDurum, set: setFDurum, options: ["Tümü", "Eğitimde", "Müsait", "Rezerve", "İzin", "Raporlu", "Resmi Tatil"] },
@@ -797,7 +810,7 @@ export default function EgitmenTakvimiPage() {
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 7 }}>Branş</label>
                     <select value={planBrans} onChange={(e) => { setPlanBrans(e.target.value); setPlanPick(null); }} style={selectStyle}>
-                      {["Tümü", ...BRANSLAR].map((o) => <option key={o} value={o}>{o}</option>)}
+                      {["Tümü", ...branslarOptions].map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                 </div>

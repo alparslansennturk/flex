@@ -154,6 +154,22 @@ konumlamalar (saat etiketleri, dikey grid çizgileri, ders blokları) artık 0-1
 [16px, 100%-16px] aralığına sıkışıyor. Eksen ile bloklar AYNI formülü kullandığı için hizalanma
 korunuyor (09:00 etiketi ile 09:00'da başlayan bir blok hâlâ aynı x konumunda).
 
+**12) GERÇEK BUG — Branş filtresi hiç eşleşmiyordu** (kullanıcı: "Alparslan Şentürk, Branş
+Tasarım seçtim ama listede kimse kalmadı — Grafik Tasarım diye branş var ama Tasarım yok").
+Kök neden: `instr.brans` `trainer.comp` (Eğitmenler CRUD'un kendi kategorileri — `Design/
+Finance/Software`, İngilizce, gerçek branş taksonomisiyle ilgisiz) anahtarlarından ya da hiç
+yoksa sabit mock `BRANSLAR` listesinden (`Yazılım/Tasarım/Finans/Pazarlama/Dil`, Türkçe ama
+YİNE UYDURMA) türetiliyordu — gerçek branş adları (`Group.branch`, ör. "Grafik Tasarım",
+zaten domain'de var) hiçbirinde geçmiyordu. Fix:
+- `trainers/route.ts`: `groupsByTrainer`'a `branch: g.branch` eklendi (additive, `status` ile
+  aynı desen).
+- `egitmen-takvimi/page.tsx`: `instr.brans` artık eğitmenin (açık/kapalı fark etmez, TÜM)
+  atandığı gruplardan gerçek `branch` değerinden türetiliyor, sadece hiç grubu olmayan
+  eğitmenler mock'a düşüyor.
+- Filtre + "Eğitim Planla" branş dropdown'ları artık sabit `BRANSLAR` yerine listedeki
+  eğitmenlerin GERÇEK `brans` değerlerinin (tekilleştirilmiş, `branslarOptions`) birleşimini
+  gösteriyor — dropdown'da görünen HER seçenek en az bir eğitmenle eşleşmesi garanti.
+
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
   — kullanıcıyla netleşmedi.
