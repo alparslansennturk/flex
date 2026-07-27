@@ -87,14 +87,27 @@ tarih önceden dolu şekilde yönlendiriliyor (`?trainerId=&tarih=`).
 günü de çalışılıyor, dersler var" + "Cuma'da grup eğitimi olmaz kuralı Arı Bilgi'nin kendi kuralı,
 genel bir sistem kuruyoruz, Kurumsal/Özel Ders herhangi bir günde olabiliyor"):
 - `blocksFor()`'daki `if (dow === 6) return kapalı` (Pazar) kaldırıldı — hafta görünümü artık
-  Pzt-Paz (7 sütun, önceden 6/Pzt-Cmt'ti — Hasan Öztoprak'ta görülen "sağa kaymış" görüntünün
-  muhtemel sebebi de buydu, eksik sütun yüzünden geri kalan hücreler kayık duruyordu).
-  Ay görünümü de artık Pazar'ı sayıyor (önceden `dow!==6` ile atlıyordu).
+  Pzt-Paz (7 sütun, önceden 6/Pzt-Cmt'ti). Ay görünümü de artık Pazar'ı sayıyor (önceden
+  `dow!==6` ile atlıyordu).
 - Cuma/Cumartesi "hafif" özel kuralı (`nMax = dow===5 ? 1 : 2`) kaldırıldı — artık 7 gün EŞİT
   (`nMax = 2`, gün-bazlı hiçbir özel durum yok). `isBusyAt`'teki "Kapalı gün" (Pazar) reddi de kaldırıldı.
 - **Randevu Takvimi kontrol edildi** — zaten 7 gün (Pzt-Paz) kullanıyor, Pazar'ı kapatan bir kural
   YOK, bu bug orada mevcut değildi (kullanıcının "orada da öyle" uyarısı muhtemelen genel bir
   hatırlatmaydı, kod tarafında ayrı fix gerekmedi).
+
+**9) GERÇEK CSS BUG — hafta görünümünde satırlar arası hizasızlık** (kullanıcı bulgusu: "Alparslan
+Grafik Tasarım Kursu daha uzun, Hasan Software Dersi daha kısa, Hasan'ın Salı'sı sağa/sola kaymış
+görünüyor, tüm eğitmenlerin hizalı olması gerekiyor"). Kök neden: her eğitmen satırı AYRI bir CSS
+Grid örneği (`gridTemplateColumns:"210px repeat(7,1fr)"`), gün hücrelerinde `min-width: 0` YOKTU —
+tarayıcı varsayılan `min-width: auto` ile içeriğin (uzun eğitim adı) doğal genişliğinin altına
+küçülmeyi reddediyordu, `overflow:hidden`/`ellipsis` çipte olsa bile ETKİSİZ kalıyordu (bu klasik
+bir CSS Grid/Flexbox tuzağı — ellipsis çalışması için ATA elemanların da küçülebilir olması lazım).
+Sonuç: içeriği daha uzun olan satır (Alparslan) daha GENİŞ satır oluyordu, kısa içerikli satır
+(Hasan) dar kalıyordu — sütun sınırları satırlar arasında hizasız görünüyordu. Fix: gün hücresine
+VE eğitmen-bilgi sütununa `minWidth: 0, overflow: "hidden"` eklendi — artık her satır gerçekten
+aynı `1fr` paylarına sıkışıyor, taşan metin kırpılıyor, tüm satırlar hizalı.
+**Not:** bir önceki maddede (8) "Hasan'ın kaymasının sebebi eksik Pazar sütunuydu" diye yazmıştım —
+YANLIŞ tahmindi, asıl sebep bu `min-width` bug'ıydı.
 
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak

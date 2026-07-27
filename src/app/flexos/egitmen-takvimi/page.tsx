@@ -504,7 +504,7 @@ export default function EgitmenTakvimiPage() {
                   <div style={{ maxHeight: 600, overflowY: "auto" }}>
                     {filteredInstructors.map((inst) => (
                       <div key={inst.id} style={{ display: "grid", gridTemplateColumns: "210px repeat(7,1fr)", borderBottom: "1px solid #F2F4F7" }}>
-                        <div onClick={() => openInstr(inst.id, isoDate(weekDates.find((d) => isoDate(d) === todayISO) || weekDates[0]))} style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 16px", borderRight: "1px solid #EEF0F3", cursor: "pointer" }}>
+                        <div onClick={() => openInstr(inst.id, isoDate(weekDates.find((d) => isoDate(d) === todayISO) || weekDates[0]))} style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 16px", borderRight: "1px solid #EEF0F3", cursor: "pointer", minWidth: 0, overflow: "hidden" }}>
                           <div style={{ width: 38, height: 38, borderRadius: 11, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13.5, fontWeight: 800, background: `linear-gradient(135deg,${inst.av[0]},${inst.av[1]})` }}>{initials(inst.name)}</div>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{inst.name}</div>
@@ -515,7 +515,16 @@ export default function EgitmenTakvimiPage() {
                           const dISO = isoDate(d);
                           const isT = dISO === todayISO;
                           const { dayType, blocks } = blocksFor(inst, dISO);
-                          const cellStyle: React.CSSProperties = { padding: "10px 10px", borderLeft: i === 0 ? "none" : "1px solid #F2F4F7", minHeight: 92, cursor: "pointer", background: isT ? "rgba(40,103,189,.03)" : "transparent" };
+                          // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu): `minWidth: 0` YOKTU —
+                          // CSS Grid hücreleri varsayılan `min-width: auto` ile içeriğin (uzun bir
+                          // eğitim adı, ör. "Grafik Tasarım Kursu") sarmayan/kırpılmayan doğal
+                          // genişliğinin ALTINA küçülmeyi reddediyordu. Her eğitmen SATIRI ayrı bir
+                          // grid örneği olduğu için, içeriği daha uzun olan satır (Alparslan) daha
+                          // GENİŞ satır oluyordu, kısa içerikli satır (Hasan) ise dar kalıyordu —
+                          // sütun sınırları satırlar arasında hizasız görünüyordu ("Salı sağa/sola
+                          // kaymış" gibi). `minWidth: 0` ile hücre gerçekten `1fr` payına sıkışıyor,
+                          // taşan metin `ellipsis` ile kırpılıyor (çip metninde zaten vardı).
+                          const cellStyle: React.CSSProperties = { padding: "10px 10px", borderLeft: i === 0 ? "none" : "1px solid #F2F4F7", minHeight: 92, minWidth: 0, overflow: "hidden", cursor: "pointer", background: isT ? "rgba(40,103,189,.03)" : "transparent" };
                           if (dayType === "izin" || dayType === "rapor" || dayType === "tatil") {
                             const m = BLK[dayType];
                             return (
