@@ -187,6 +187,44 @@ branşı var, ileride değişecek"). 12'deki fix'te hâlâ 2 gerçek hata vardı
   `egitmen-takvimi/page.tsx` artık mock atarken bile bu GERÇEK kataloğdan seçiyor (`BRANSLAR`
   sadece kataloğ boşsa/istek başarısızsa son çare fallback olarak kalıyor).
 
+### ✅ Grup Ekle'de GERÇEK eğitmen müsaitlik kontrolü (2026-07-27)
+
+Kullanıcı: "Grup Ekle'de zaten eğitmen seçebiliyorum ama filtrelenmiyor. Eğitim Planlama beni
+tatmin etmedi. Eğitmen seçtiğimde seçtiğim tarihe göre müsait olanları listelemesi gerekiyor.
+Hatta tarih ve seans seçmeden eğitmen seçtirmemesi lazım." — Eğitmen Takvimi'ndeki "Eğitim
+Planla" modalı (mock/ayrı bir akış) tatmin etmeyince, müsaitlik kontrolü asıl kullanılan
+CANLI "Grup Ekle" formunun (`GroupFormSheet.tsx`) İÇİNE, GERÇEK veriyle taşındı. İki karar
+kullanıcıya soruldu ve netleşti: (1) dolu eğitmenler dropdown'dan **tamamen çıkarılır**
+(gri/uyarı değil, hiç görünmez), (2) müsaitlik SADECE **çakışan gerçek gruplara** göre
+hesaplanır (`Trainer.availability` haftalık alanı KULLANILMIYOR — hâlâ hiçbir yerde
+doldurulmuyor, ayrı bir karar gerektirir).
+
+**Yapıldı:**
+- `trainers/route.ts`: her grup girdisine `id` + `schedule: {days,startTime,endTime}` eklendi
+  (branch/status ile aynı additive desen) — eğitmenin GERÇEK atanmış gruplarının gün/saat
+  bilgisi artık bu uçtan geliyor.
+- `GroupFormSheet.tsx`:
+  - Eğitmen `<select>` **Tarih VE Seans seçilene kadar disabled** ("Önce tarih ve seans
+    seçin" placeholder'ı), JSX sırası da değişti (Seans artık Eğitmen'den ÖNCE render
+    ediliyor, form akışı da mantıksal sıraya uygun).
+  - `availableTrainerOptions` (`useMemo`) — seçili seansın `days`+`startTime/endTime`'ı ile
+    HERHANGI bir eğitmenin (düzenlenen grubun KENDİSİ hariç, `g.id !== editingGroup?.id`)
+    aktif (`planned/enrolling/active/postponed`) başka bir grubunun gün+saat aralığı
+    çakışıyorsa o eğitmen listeden düşer.
+  - Seans/tarih değiştirilince önceden seçili eğitmen artık uygun değilse otomatik temizlenir
+    + toast uyarısı ("Seçtiğiniz eğitmen bu seansta müsait değil...").
+  - Gün indeksleri: `SeansDoc.days`/`Group.schedule.days` İKİSİ DE ISO-bazlı (0=Pazartesi,
+    `groupDisplay.ts`'teki 2026-07-13 bug notuyla aynı kural) — dönüşüm GEREKMİYOR, doğrudan
+    karşılaştırılabiliyor. Saat karşılaştırması basit `"HH:MM"` string→dakika (`toMin`).
+- **Bilinçli sınırlama**: tarih ARALIĞI (kursun `startDate`/`endDate`) çakışması KONTROL
+  EDİLMİYOR, sadece haftalık gün+saat kalıbı — bir seans kalıcı bir taahhüt olduğu için
+  (haftada Salı-Perşembe 19:00 gibi) bu, pratikte doğru davranış; iki kursun TARİH aralığı
+  hiç kesişmese bile aynı haftalık slotu paylaşamazlar zaten.
+- `Eğitmen Takvimi`'ndeki "Eğitim Planla" modalı DOKUNULMADI — hâlâ mock/keşif amaçlı bir
+  ön-adım olarak duruyor (tıklayınca yine Grup Ekle'ye yönlendiriyor), ama artık asıl/GERÇEK
+  kontrol orada değil BURADA. İleride sadeleştirilebilir/kaldırılabilir — kullanıcı henüz
+  karar vermedi.
+
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
   — kullanıcıyla netleşmedi.

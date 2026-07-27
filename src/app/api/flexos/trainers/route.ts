@@ -143,7 +143,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     // Şentürk'ü test etti, tek grubu tamamlanmıştı, sistem yine de onu dolu gösterdi).
     // Bu alan zaten tüketen SADECE Eğitmen Takvimi filtreliyor — burada FİLTRELEMİYORUZ,
     // Eğitmenler sayfası gibi başka tüketiciler geçmiş grupları görmek isteyebilir.
-    const groupsByTrainer = new Map<string, Array<{ kod: string; egitim: string; ogrenci: number; status: string; branch: string }>>();
+    const groupsByTrainer = new Map<string, Array<{ id: string; kod: string; egitim: string; ogrenci: number; status: string; branch: string; schedule: { days: number[]; startTime?: string; endTime?: string } }>>();
     for (const g of groups) {
       if (!g.trainerId) continue;
       const list = groupsByTrainer.get(g.trainerId) ?? [];
@@ -157,11 +157,15 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       // education/branchId yoksa düşülür.
       const branch = edu?.branchId ? branchMap.get(edu.branchId)?.name ?? "" : g.branch ?? "";
       list.push({
+        id: g.id,
         kod: g.code,
         egitim: edu?.name ?? "",
         ogrenci: enrolledByGroup.get(g.id) ?? 0,
         status: g.status,
         branch,
+        // 2026-07-27 eklendi — Grup Ekle'de "eğitmen tarih+seans'a göre müsait mi" gerçek
+        // kontrolü için (id/branch ile aynı additive desen).
+        schedule: { days: g.schedule?.days ?? [], startTime: g.schedule?.startTime, endTime: g.schedule?.endTime },
       });
       groupsByTrainer.set(g.trainerId, list);
     }

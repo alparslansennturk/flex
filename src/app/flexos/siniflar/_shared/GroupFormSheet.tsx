@@ -13,7 +13,7 @@
  * hiç ayrılmadan, doğrudan render eder.
  */
 
-import React, { useCallback, useEffect, useRef, useState, CSSProperties } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, CSSProperties } from "react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
@@ -21,6 +21,19 @@ import { useGroupCatalog, type EducationDoc } from "./useGroupCatalog";
 import { type GroupApiItem, DAY_ABBR, formatSeansLabel } from "./groupDisplay";
 
 type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
+
+interface TrainerOption {
+  id: string;
+  name: string;
+  groups: { id: string; status: string; schedule: { days: number[]; startTime?: string; endTime?: string } }[];
+}
+
+// Eğitmen Takvimi'ndeki (`egitmen-takvimi/page.tsx`) mock `isBusyAt` ile AYNI durum kümesi —
+// tamamlanmış/iptal edilmiş gruplar bir eğitmeni "meşgul" saymaz.
+const AKTIF_GRUP_DURUM = new Set(["planned", "enrolling", "active", "postponed"]);
+const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const timeOverlap = (aStart: string, aEnd: string, bStart: string, bEnd: string) =>
+  toMin(aStart) < toMin(bEnd) && toMin(bStart) < toMin(aEnd);
 
 export interface GroupFormSheetProps {
   open: boolean;
@@ -53,7 +66,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
   const [editOrigSchedule, setEditOrigSchedule] = useState<{ days?: number[]; startTime?: string; endTime?: string } | null>(null);
   const [seansOpen, setSeansOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [trainerOptions, setTrainerOptions] = useState<{ id: string; name: string }[]>([]);
+  const [trainerOptions, setTrainerOptions] = useState<TrainerOption[]>([]);
   const [officeOptions, setOfficeOptions] = useState<{ id: string; name: string }[]>([]);
   const [labOptions, setLabOptions] = useState<{ id: string; name: string }[]>([]);
 
@@ -90,7 +103,7 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
         const ofJson = ofRes.ok ? await ofRes.json() : { items: [] };
         const labJson = labRes.ok ? await labRes.json() : { items: [] };
         if (!ac.signal.aborted) {
-          setTrainerOptions((trJson.items ?? []).filter((t: { status?: string }) => t.status !== "pasif").map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
+          setTrainerOptions((trJson.items ?? []).filter((t: { status?: string }) => t.status !== "pasif").map((t: TrainerOption) => ({ id: t.id, name: t.name, groups: t.groups ?? [] })));
           setOfficeOptions(ofJson.items ?? []);
           setLabOptions((labJson.items ?? []).map((l: { id: string; name: string }) => ({ id: l.id, name: l.name })));
         }
@@ -189,11 +202,36 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
   const onBransChange = (id: string) => { setFBrans(id); setFEğitim(""); setFBölüm(""); setSections([]); };
   const onEğitimChange = (id: string) => { setFEğitim(id); setFBölüm(""); setSections([]); };
 
+  // 2026-07-27 kullanıcı isteği: "eğitim tarih ve seans seçmeden eğitmen seçtirmemesi lazım,
+  // seçtiğim tarihe göre eğitmenlerin müsait olanlarını listelemesi gerekiyor" — Eğitmen alanı
+  // artık Seans seçilmeden AÇILMIYOR, ve listede SADECE o seansla (gün+saat) çakışan GERÇEK
+  // başka bir grubu olmayan eğitmenler görünüyor (dolu olanlar tamamen gizleniyor, çıkarılıyor).
+  const selSeans = fSeansIdx >= 0 ? seanslar[fSeansIdx] : null;
+  const canPickTrainer = !!fTarih && !!selSeans;
+  const availableTrainerOptions = useMemo(() => {
+    if (!selSeans) return trainerOptions;
+    return trainerOptions.filter((t) => !t.groups.some((g) =>
+      g.id !== editingGroup?.id &&
+      AKTIF_GRUP_DURUM.has(g.status) &&
+      g.schedule.days.some((d) => selSeans.days.includes(d)) &&
+      g.schedule.startTime && g.schedule.endTime &&
+      timeOverlap(g.schedule.startTime, g.schedule.endTime, selSeans.startTime, selSeans.endTime)
+    ));
+  }, [trainerOptions, selSeans, editingGroup?.id]);
+
+  // Seans/tarih değişince seçili eğitmen artık müsait değilse (ör. kullanıcı seansı
+  // değiştirdi) seçim sessizce yanlış kalmasın — temizlenir + uyarılır.
+  useEffect(() => {
+    if (fEğitmen && selSeans && !availableTrainerOptions.some((t) => t.id === fEğitmen)) {
+      setFEğitmen("");
+      toast.error("Seçtiğiniz eğitmen bu seansta müsait değil, eğitmen seçimi temizlendi.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableTrainerOptions]);
+
   const onSave = async () => {
     if (!fKod.trim()) { toast.error("Grup kodu zorunludur."); return; }
     setSaving(true);
-
-    const selSeans = fSeansIdx >= 0 ? seanslar[fSeansIdx] : null;
     const fallbackSchedule = !selSeans ? editOrigSchedule : null;
 
     const body = {
@@ -382,20 +420,23 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
                       <input type="date" value={fTarih} onChange={(e) => setFTarih(e.target.value)} style={S.inp} />
                     </label>
 
-                    <label style={S.fieldWrap}>
-                      <span style={S.lbl}>Eğitmen <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
-                      <SelectW>
-                        <select value={fEğitmen} onChange={(e) => setFEğitmen(e.target.value)} style={S.sel}>
-                          <option value="">{trainerOptions.length ? "Eğitmen seçin" : "Eğitmen yok — önce Eğitmenler'den ekleyin"}</option>
-                          {trainerOptions.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
-                      </SelectW>
-                    </label>
-
                     <SeansPicker
                       seanslar={seanslar} fSeansIdx={fSeansIdx} setFSeansIdx={setFSeansIdx}
                       seansOpen={seansOpen} setSeansOpen={setSeansOpen} seansDisplay={seansDisplay}
                     />
+
+                    <label style={S.fieldWrap}>
+                      <span style={S.lbl}>Eğitmen <span style={{ fontWeight: 500, color: "#AEB4C0" }}>(opsiyonel)</span></span>
+                      <SelectW>
+                        <select value={fEğitmen} onChange={(e) => setFEğitmen(e.target.value)} disabled={!canPickTrainer}
+                          style={{ ...S.sel, background: !canPickTrainer ? "#f1f5f9" : "#fff", cursor: !canPickTrainer ? "not-allowed" : "pointer" }}>
+                          <option value="">
+                            {!canPickTrainer ? "Önce tarih ve seans seçin" : availableTrainerOptions.length ? "Eğitmen seçin" : "Bu seansta müsait eğitmen yok"}
+                          </option>
+                          {canPickTrainer && availableTrainerOptions.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      </SelectW>
+                    </label>
 
                     <label style={S.fieldWrap}>
                       <span style={S.lbl}>Ders Saati</span>
