@@ -135,6 +135,15 @@ belirtilmeyen), kartın o an ne kadar genişse (`FlexPageContent`'in responsive 
 sınıfı) tam onu dolduruyor — 1440x900'de veya başka herhangi bir ekranda TAHMİNE gerek
 kalmadan, formülle (yüzde pozisyonlama sayesinde) inşa gereği tam oturuyor.
 
+**11b) Ama bu kez 22:00 etiketi ekrandan taştı** (kullanıcı: "22.00 görünmüyor, scrollda da yok,
+ekran dışında kaldı — tamamını ekran içine sığdır"). Kök neden farklı bir bug: saat ekseni
+etiketleri `left:100%` + `transform:translateX(-50%)` ile ORTALANIYORDU — yani "22:00" metninin
+YARISI 100%'ün ÖTESİNE taşıyordu, ve kalender kartının kendisi `overflow:hidden` (satır ~492,
+köşe yuvarlama için — kaldırılamaz) olduğu için o taşan yarı kırpılıyordu (aynı sorun 09:00'ın
+sol yarısı için de geçerliydi, sadece daha az fark ediliyordu). Fix: ilk etiket sola
+(`translateX(0)`), son etiket sağa (`translateX(-100%)`) yaslanıyor, aradakiler hâlâ ortalanıyor
+— piksel değil, index'e göre formül.
+
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
   — kullanıcıyla netleşmedi.

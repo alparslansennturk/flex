@@ -581,7 +581,13 @@ export default function EgitmenTakvimiPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD" }}>
                   <div style={{ padding: "12px 18px", fontSize: 11.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", borderRight: "1px solid #EEF0F3", display: "flex", alignItems: "flex-end" }}>Eğitmen</div>
                   <div style={{ position: "relative", height: 38 }}>
-                    {axisHours.map((h) => <span key={h.label} style={{ position: "absolute", bottom: 8, left: h.leftPct + "%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#AEB4C0" }}>{h.label}</span>)}
+                    {axisHours.map((h, i) => {
+                      // Uç saatleri (09/22) ortalarsak yarısı kartın overflow:hidden kenarından
+                      // taşıp kırpılıyordu (kullanıcı bulgusu: "22.00 ekran dışında kaldı") —
+                      // ilk etiket sola, son etiket sağa yaslanır, aradakiler ortalanır.
+                      const anchor = i === 0 ? "translateX(0)" : i === axisHours.length - 1 ? "translateX(-100%)" : "translateX(-50%)";
+                      return <span key={h.label} style={{ position: "absolute", bottom: 8, left: h.leftPct + "%", transform: anchor, fontSize: 11, fontWeight: 600, color: "#AEB4C0" }}>{h.label}</span>;
+                    })}
                   </div>
                 </div>
                 {/* aynı çift-scroll düzeltmesi (bkz. Hafta görünümündeki AYNI not) */}
