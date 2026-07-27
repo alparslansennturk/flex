@@ -46,6 +46,15 @@ const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz"
 // (09:00) — o 1 saatlik boş/kullanılmayan tampon yatay scroll'a sebep oluyordu ("08:00
 // kaldır ya da 09:00 sola çek, yatay scroll olmasın"). Eksen artık WORK_START'la aynı.
 const AX_START = 9 * 60, AX_END = 22 * 60;
+// 2026-07-27 kullanıcı bulgusu: 09:00/22:00 etiket+bloklar timeline'ın tam kenarına
+// yapışıyordu ("sağdan/soldan en az 16px padding olmalı"). Yüzde konumlamayı 0-100%
+// yerine [AXIS_PAD, 100%-AXIS_PAD] aralığına sıkıştırıyoruz — absolute-positioned
+// elemanlar parent'ın padding'ini otomatik hesaba katmadığı için (containing block =
+// padding box, left:0% zaten padding'in İÇİNDE değil dış kenarında), gerçek çözüm
+// px+% karışık calc() formülü, sabit bir kaydırma değil.
+const AXIS_PAD = 16;
+const axisLeft = (pct: number) => `calc(${AXIS_PAD}px + (100% - ${AXIS_PAD * 2}px) * ${pct / 100})`;
+const axisWidth = (pct: number) => `calc((100% - ${AXIS_PAD * 2}px) * ${pct / 100})`;
 // 2026-07-27 kullanıcı düzeltmesi: gerçek seanslar 09:00'da başlayıp 19:00'da BAŞLAYAN akşam
 // dersleri 21:30'a kadar sürebiliyor (Lab Utilizasyon'daki gerçek Seans verisiyle doğrulandı)
 // — önceki 09:00-18:00 varsayımı yanlıştı, en geç başlangıç 17:30 çıkıyordu.
@@ -581,13 +590,7 @@ export default function EgitmenTakvimiPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD" }}>
                   <div style={{ padding: "12px 18px", fontSize: 11.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", borderRight: "1px solid #EEF0F3", display: "flex", alignItems: "flex-end" }}>Eğitmen</div>
                   <div style={{ position: "relative", height: 38 }}>
-                    {axisHours.map((h, i) => {
-                      // Uç saatleri (09/22) ortalarsak yarısı kartın overflow:hidden kenarından
-                      // taşıp kırpılıyordu (kullanıcı bulgusu: "22.00 ekran dışında kaldı") —
-                      // ilk etiket sola, son etiket sağa yaslanır, aradakiler ortalanır.
-                      const anchor = i === 0 ? "translateX(0)" : i === axisHours.length - 1 ? "translateX(-100%)" : "translateX(-50%)";
-                      return <span key={h.label} style={{ position: "absolute", bottom: 8, left: h.leftPct + "%", transform: anchor, fontSize: 11, fontWeight: 600, color: "#AEB4C0" }}>{h.label}</span>;
-                    })}
+                    {axisHours.map((h) => <span key={h.label} style={{ position: "absolute", bottom: 8, left: axisLeft(h.leftPct), transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#AEB4C0" }}>{h.label}</span>)}
                   </div>
                 </div>
                 {/* aynı çift-scroll düzeltmesi (bkz. Hafta görünümündeki AYNI not) */}
@@ -608,20 +611,22 @@ export default function EgitmenTakvimiPage() {
                             </div>
                           </div>
                           <div onClick={() => openInstr(inst.id, dayISO)} style={{ position: "relative", height: 78, cursor: "pointer", background: dayType === "tatil" ? "#FBFAFE" : "transparent" }}>
-                            {axisHours.map((h) => <div key={h.label} style={{ position: "absolute", top: 0, bottom: 0, left: h.leftPct + "%", width: 1, background: "#F2F4F7" }} />)}
+                            {axisHours.map((h) => <div key={h.label} style={{ position: "absolute", top: 0, bottom: 0, left: axisLeft(h.leftPct), width: 1, background: "#F2F4F7" }} />)}
                             {vis.map((b, bi) => {
                               const m = BLK[b.type];
-                              const left = ((b.startMin - AX_START) / span) * 100;
-                              const width = (b.dur / span) * 100;
+                              const leftPct = ((b.startMin - AX_START) / span) * 100;
+                              const widthPct = (b.dur / span) * 100;
+                              const left = axisLeft(leftPct);
+                              const width = axisWidth(widthPct);
                               const isFull = b.type === "izin" || b.type === "rapor" || b.type === "tatil";
                               const isFree = b.type === "musait";
                               let title: string, sub: string, showSub: boolean;
-                              if (isFree) { title = "Müsait"; sub = fmtTime(b.startMin) + "–" + fmtTime(b.startMin + b.dur); showSub = width > 10; }
+                              if (isFree) { title = "Müsait"; sub = fmtTime(b.startMin) + "–" + fmtTime(b.startMin + b.dur); showSub = widthPct > 10; }
                               else if (isFull) { title = m.label; sub = ""; showSub = false; }
-                              else { title = b.egitim || ""; sub = (b.online ? "Online" : b.salon) + " · " + entityOf(b); showSub = width > 14; }
+                              else { title = b.egitim || ""; sub = (b.online ? "Online" : b.salon) + " · " + entityOf(b); showSub = widthPct > 14; }
                               const stripe = b.type === "rezerve" ? `repeating-linear-gradient(135deg,${m.bg} 0,${m.bg} 8px,#FBEED6 8px,#FBEED6 14px)` : isFree ? `repeating-linear-gradient(135deg,${m.bg} 0,${m.bg} 9px,#DDF1E6 9px,#DDF1E6 16px)` : m.bg;
                               return (
-                                <div key={bi} onClick={(e) => { e.stopPropagation(); openInstr(inst.id, dayISO); }} style={{ position: "absolute", top: 8, bottom: 8, left: `calc(${left}% + 2px)`, width: `calc(${width}% - 4px)`, background: stripe, border: "1px solid " + m.border, borderLeft: "3px solid " + m.dot, borderRadius: 8, padding: "6px 8px", overflow: "hidden", cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", gap: 1, boxShadow: "0 1px 2px rgba(15,31,61,.05)" }}>
+                                <div key={bi} onClick={(e) => { e.stopPropagation(); openInstr(inst.id, dayISO); }} style={{ position: "absolute", top: 8, bottom: 8, left: `calc(${left} + 2px)`, width: `calc(${width} - 4px)`, background: stripe, border: "1px solid " + m.border, borderLeft: "3px solid " + m.dot, borderRadius: 8, padding: "6px 8px", overflow: "hidden", cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", gap: 1, boxShadow: "0 1px 2px rgba(15,31,61,.05)" }}>
                                   <div style={{ fontSize: 10.5, fontWeight: 800, color: m.color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
                                   {showSub && <div style={{ fontSize: 9.5, fontWeight: 600, color: "#6F7B87", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
                                 </div>

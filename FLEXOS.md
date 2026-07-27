@@ -143,6 +143,16 @@ köşe yuvarlama için — kaldırılamaz) olduğu için o taşan yarı kırpıl
 sol yarısı için de geçerliydi, sadece daha az fark ediliyordu). Fix: ilk etiket sola
 (`translateX(0)`), son etiket sağa (`translateX(-100%)`) yaslanıyor, aradakiler hâlâ ortalanıyor
 — piksel değil, index'e göre formül.
+**Not (düzeltme, aynı gün):** bu da yanlış teşhisti — sorun "kenara yapışma" değil, kullanıcının
+asıl istediği "sol/sağdan en az 16px padding" idi (22:00 hâlâ tam kenara yapışıktı, sadece
+merkezleme kırpılmıyordu). Kök neden: absolute-positioned elemanların containing block'ı
+parent'ın PADDING BOX'ı — yani parent'a `padding` verilse bile `left:0%`/`left:100%` o padding'i
+otomatik hesaba katmıyor (padding box'ın dış kenarına hizalanıyor). Gerçek çözüm: yeni `AXIS_PAD`
+(16, dosyanın kendi içindeki mevcut `padding:"0 16px"` birimleriyle tutarlı) sabiti + `axisLeft()`/
+`axisWidth()` yardımcıları — `calc(16px + (100% - 32px) * pct/100)` formülüyle TÜM yüzde
+konumlamalar (saat etiketleri, dikey grid çizgileri, ders blokları) artık 0-100% yerine
+[16px, 100%-16px] aralığına sıkışıyor. Eksen ile bloklar AYNI formülü kullandığı için hizalanma
+korunuyor (09:00 etiketi ile 09:00'da başlayan bir blok hâlâ aynı x konumunda).
 
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
