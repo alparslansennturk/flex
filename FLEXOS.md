@@ -37,22 +37,29 @@ et" denince dosya tekrar okunup kalanı bitirildi).
   `isBusyAt()` ile HER eğitmen için o saat aralığında müsait mi kontrol ediliyor: müsaitse yeşil
   "Müsait" rozeti + seçilebilir, değilse gri rozette NEDEN gösteriliyor ("İzinli"/"Raporlu"/
   "Dolu · 10:00 Full-Stack Web"/"Çalışma saati dışı") ve satır tıklanamaz hale geliyor.
-- Veri TAMAMEN mock (`blocksFor()` — tasarımdaki `Component` sınıfının deterministik seed'li mock
-  üreticisiyle birebir aynı mantık, TS'e çevrildi), 8 sabit eğitmen — gerçek Trainer/müsaitlik
-  verisine HİÇ bağlı değil. tsc/eslint temiz.
+- **GERÇEK EĞİTMEN LİSTESİNE BAĞLANDI** (kullanıcı: "dummy kalsın şu anda ama azalt, gerçek veriye
+  bağla" — Lab Utilizasyon'daki "gerçek liste + mock seans" desenin aynısı): `GET /api/flexos/trainers`
+  (aynı `trainer.read` kapısı, Eğitmenler sayfasının kullandığı uç) ile SADECE `status:"aktif"`
+  eğitmenler çekiliyor. Her eğitmenin adı, branşı (`comp` competency anahtarları), şubesi (`subes`)
+  VE gerçekten atanmış grupları (`groups`: kod/eğitim adı/öğrenci sayısı) gerçek — mock ders
+  bloklarının İÇERİĞİ (hangi grup/eğitim/kaç öğrenci) artık bu gerçek listeden seçiliyor, sadece
+  HANGİ GÜN/SAAT'in dolu olacağı hâlâ deterministik mock (`blocksFor()`, aynı tasarım mantığı).
+  `Trainer.id` artık Firestore doc-id (string) olduğu için `hashSeed()` ile sayısal seed'e çevriliyor.
+  Yoğunluk da azaltıldı (hafta içi en fazla 2, Cumartesi en fazla 1 — önceden 3/2'ydi).
+  Hiç aktif eğitmen yoksa/yüklenirken `FlexPageLoader` gösteriliyor. tsc/eslint temiz.
+- **BAĞLANMADI (bilerek — kullanıcı "dummy kalsın" dedi):** `Trainer.availability` alanı (haftalık
+  müsaitlik dilimleri — domain'de ZATEN VAR, `TrainerAvailabilitySlot[]`, muhtemelen Eğitmenler
+  sayfasında düzenleniyor) burada HİÇ okunmuyor; gerçek ders/rezervasyon blokları da hâlâ
+  `Group.schedule`'dan türetilmiyor, mock kalıyor.
 
-**HENÜZ YAPILMADI (gerçek entegrasyon için gerekli):**
-- Gerçek veri modeli kararı: müsaitlik nasıl saklanacak (Trainer'a bağlı haftalık çalışma saatleri
-  mi, ayrı `flexos_trainer_availability` koleksiyonu mu, izin/rapor günleri nasıl girilecek/kim
-  girecek), gerçek ders/rezervasyon blokları nereden gelecek (mevcut Group.schedule'dan mı türetilecek).
+**HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
+- `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
+  — kullanıcıyla netleşmedi.
 - "Eğitim Planla" modalının SONUCU şu an hiçbir şeye yazmıyor (sadece `planPick` state'i kapanıyor)
   — gerçek entegrasyonda muhtemelen Randevu Takvimi/Grup Ekle'deki eğitmen seçimine bağlanacak.
   Hangi ekranlarda entegre olacağı (Grup Ekle'de eğitmen seçimi? Randevu Takvimi? ikisi de?)
   netleşmedi.
 - **Tarayıcıda hiç test edilmedi** (bu oturumda Claude'un tarayıcı erişimi yoktu).
-
-**Sıradaki oturumda ilk iş:** kullanıcıyla veri modelini netleştir, sonra backend (`Trainer`
-domain'ine müsaitlik alanı mı eklenecek, ayrı repo mu) + gerçek entegrasyon noktaları.
 
 ### 🔶 2026-07-27 oturumu (25) — Cmd+K Türkçe arama bug'ı + Lab Utilizasyon ince ayarlar + Öğrenci Detay Eğitim Bilgileri (gerçek bug + sertifika grid + layout)
 

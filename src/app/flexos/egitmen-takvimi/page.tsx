@@ -9,16 +9,25 @@
  * 2026-07-27 — TAM PORT: Hafta/Gün/Ay görünümleri + filtreler + "Eğitmen Günü"
  * modalı + "Eğitim Planla" modalı (tarih/saat/branş seçince SADECE müsait
  * eğitmenleri listeler — kullanıcının "eğitmen atarken müsait değilse uyarır"
- * isteğinin karşılığı bu modal). Veri TAMAMEN mock (tasarımdaki `Component`
- * sınıfının deterministik seed'li mock üreticisiyle birebir aynı mantık,
- * gerçek Trainer/müsaitlik verisine HENÜZ bağlı değil — sadece görsel port).
- * Backend/gerçek veri modeli HENÜZ YOK, bkz. FLEXOS.md.
+ * isteğinin karşılığı bu modal).
+ *
+ * VERİ: eğitmen LİSTESİ gerçek (`GET /api/flexos/trainers` — `trainer.read`
+ * ile aynı kapı, Eğitmenler sayfasının kullandığı uç), her eğitmenin GERÇEKTEN
+ * atanmış grupları (kod/eğitim adı/öğrenci sayısı) da gerçek. Kullanıcı kararı
+ * (2026-07-27): "dummy kalsın şu anda ama azalt, gerçek veriye bağla" — Lab
+ * Utilizasyon'daki "gerçek liste + mock seans" deseninin aynısı. Yani HANGİ
+ * GÜN/SAAT dolu olacağı hâlâ deterministik mock (`blocksFor`), ama İÇERİK
+ * (hangi grup, kaç öğrenci) gerçek. `Trainer.availability` alanı (haftalık
+ * müsaitlik dilimleri) zaten domain'de var ama BURADA henüz okunmuyor — sıradaki
+ * adım, bkz. FLEXOS.md.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
+import { FlexPageLoader } from "../_components/FlexSpinner";
 
 // ── sabitler (tasarımla birebir) ──
 const DOW = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -42,7 +51,7 @@ const BRANSLAR = ["Yazılım", "Tasarım", "Finans", "Pazarlama", "Dil"];
 const SUBELER = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş"];
 const SALONLAR = ["A-101", "A-102", "B-201", "C-301"];
 const FIRMALAR = ["Aselsan", "Turkcell", "Getir", "Trendyol", "Vestel"];
-const GRUPLAR = ["GRP-248", "GRP-251", "GRP-255", "GRP-259", "GRP-262"];
+// SADECE bir eğitmene HİÇ gerçek grup atanmamışsa (edge-case) yer tutucu ders adı için.
 const EG_BY_BRANS: Record<string, string[]> = {
   Yazılım: ["Full-Stack Web", "Veri Bilimi", "Python Bootcamp"],
   Tasarım: ["UI/UX Tasarım", "Grafik Tasarım"],
@@ -51,17 +60,17 @@ const EG_BY_BRANS: Record<string, string[]> = {
   Dil: ["İngilizce B2", "İş İngilizcesi"],
 };
 
-interface Instructor { id: number; name: string; brans: string; sube: string; av: [string, string] }
-const INSTRUCTORS: Instructor[] = [
-  { id: 1, name: "Mert Yılmaz", brans: "Yazılım", sube: "Kadıköy", av: ["#689adf", "#2867bd"] },
-  { id: 2, name: "Selin Aydın", brans: "Tasarım", sube: "Pendik", av: ["#F76FA3", "#F91079"] },
-  { id: 3, name: "Burak Demir", brans: "Finans", sube: "Ümraniye", av: ["#67B5B6", "#1CB5AE"] },
-  { id: 4, name: "Ece Tunç", brans: "Yazılım", sube: "Kadıköy", av: ["#8B91E6", "#4D52A6"] },
-  { id: 5, name: "Naz Erdem", brans: "Tasarım", sube: "Beşiktaş", av: ["#FFA352", "#FF7800"] },
-  { id: 6, name: "Deniz Yalın", brans: "Pazarlama", sube: "Kadıköy", av: ["#7FBF8F", "#2E8B57"] },
-  { id: 7, name: "Kaya Şahin", brans: "Yazılım", sube: "Pendik", av: ["#F0A868", "#D66500"] },
-  { id: 8, name: "Pelin Koç", brans: "Dil", sube: "Ümraniye", av: ["#9B8CFF", "#6C5CE7"] },
-];
+/** Gerçek `Trainer` kaydından türetilen eğitmen — sadece kimlik (ad/branş/şube/
+ * atanmış gerçek gruplar) gerçek, PROGRAM/SAAT hâlâ mock (kullanıcı kararı,
+ * 2026-07-27: "dummy kalsın ama azalt, gerçek veriye bağla" — Lab Utilizasyon'daki
+ * "gerçek liste + mock seans" deseninin aynısı). */
+interface Instructor {
+  id: string; name: string; brans: string; sube: string; av: [string, string];
+  /** Bu eğitmene GERÇEKTEN atanmış gruplar (kod/eğitim adı/öğrenci sayısı) — mock
+   * ders bloklarının içeriği (hangi grup/eğitim/kaç öğrenci) buradan seçiliyor,
+   * sadece HANGİ GÜN/SAAT işleneceği hâlâ deterministik mock. */
+  groups: { kod: string; egitim: string; ogrenci: number }[];
+}
 
 // ── yardımcılar ──
 function isoDate(d: Date) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
@@ -72,27 +81,46 @@ function fmtTime(m: number) { return String(Math.floor(m / 60)).padStart(2, "0")
 function initials(name: string) { return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toLocaleUpperCase("tr"); }
 function rnd(seed: number) { const x = Math.sin(seed) * 10000; return x - Math.floor(x); }
 function entityOf(b: Block) { return b.tur === "Kurumsal" ? b.firma : b.grup; }
+/** Firestore doc ID (string) → sayısal seed. Gerçek `Trainer.id` artık kullanıcı
+ * numarası değil UUID benzeri bir string olduğu için mock üreticinin `id*7919`
+ * gibi aritmetiğine sokabilmek için kısa/sabit bir hash gerekiyor. */
+function hashSeed(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return (h % 96000) + 1;
+}
+const AV_PALETTES: Array<[string, string]> = [
+  ["#689adf", "#2867bd"], ["#F76FA3", "#F91079"], ["#67B5B6", "#1CB5AE"], ["#8B91E6", "#4D52A6"],
+  ["#FFA352", "#FF7800"], ["#7FBF8F", "#2E8B57"], ["#F0A868", "#D66500"], ["#9B8CFF", "#6C5CE7"],
+];
+function avatarFor(id: string): [string, string] { return AV_PALETTES[hashSeed(id) % AV_PALETTES.length]; }
 
 interface Block { type: BlockType; startMin: number; dur: number; egitim?: string; tur?: string; online?: boolean; firma?: string; grup?: string; salon?: string; ogrenci?: number }
 type DayType = "kapali" | "tatil" | "izin" | "rapor" | "aktif";
 
 /** Bir eğitmenin bir gündeki TÜM blokları (ders/rezerve/izin/rapor/tatil/boş) —
- * deterministik seed'li mock, tasarımdaki `blocksFor` ile birebir aynı mantık. */
+ * HANGİ GÜN/SAAT'in dolu olacağı deterministik seed'li mock (tasarımdaki
+ * `blocksFor` ile aynı mantık), ama ders bloğunun İÇERİĞİ (grup/eğitim/öğrenci
+ * sayısı) bu eğitmene GERÇEKTEN atanmış bir gruptan seçiliyor — hiç atanmış
+ * grubu yoksa jenerik bir yer tutucuya düşer. */
 function blocksFor(instr: Instructor, dateISO: string): { dayType: DayType; blocks: Block[] } {
   const d = parseISO(dateISO);
   const dow = (d.getDay() + 6) % 7;
   if (dow === 6) return { dayType: "kapali", blocks: [] };
+  const idSeed = hashSeed(instr.id);
   const base = d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate();
-  const seed = instr.id * 7919 + base;
+  const seed = idSeed * 7919 + base;
   const r = rnd(seed);
   if (r < 0.07) return { dayType: "izin", blocks: [{ type: "izin", startMin: WORK_START, dur: WORK_END - WORK_START }] };
   if (r < 0.12) return { dayType: "rapor", blocks: [{ type: "rapor", startMin: WORK_START, dur: WORK_END - WORK_START }] };
 
   const sessions: Block[] = [];
-  const nMax = dow === 5 ? 2 : 3;
+  // 2026-07-27 kullanıcı isteği: "azalt" — hafta içi en fazla 2, Cumartesi en fazla 1
+  // (önceki sürümde 3/2'ydi, Lab Utilizasyon'daki aynı azaltma deseni).
+  const nMax = dow === 5 ? 1 : 2;
   const nS = 1 + Math.floor(rnd(seed * 3) * nMax);
   let cursor = WORK_START + Math.floor(rnd(seed * 5) * 2) * 30;
-  const branEgs = EG_BY_BRANS[instr.brans];
+  const pool = instr.groups.length ? instr.groups : [{ kod: "Ders", egitim: EG_BY_BRANS[instr.brans]?.[0] ?? instr.brans + " Dersi", ogrenci: 10 }];
   for (let k = 0; k < nS; k++) {
     const sk = seed * 13 + k * 101;
     const dur = [90, 120, 150][Math.floor(rnd(sk) * 3)];
@@ -100,13 +128,13 @@ function blocksFor(instr: Instructor, dateISO: string): { dayType: DayType; bloc
     const isRez = rnd(sk * 3) > 0.86;
     const tur = rnd(sk * 5) > 0.5 ? "Kurumsal" : "Bireysel";
     const online = rnd(sk * 7) > 0.68;
-    const eg = branEgs[Math.floor(rnd(sk * 9) * branEgs.length)];
+    const g = pool[Math.floor(rnd(sk * 17) * pool.length)];
     sessions.push({
-      type: isRez ? "rezerve" : "ders", startMin: cursor, dur, egitim: eg, tur, online,
+      type: isRez ? "rezerve" : "ders", startMin: cursor, dur, egitim: g.egitim, tur, online,
       firma: FIRMALAR[Math.floor(rnd(sk * 11) * FIRMALAR.length)],
-      grup: GRUPLAR[Math.floor(rnd(sk * 17) * GRUPLAR.length)],
+      grup: g.kod,
       salon: online ? "Online" : SALONLAR[Math.floor(rnd(sk * 13) * SALONLAR.length)],
-      ogrenci: 6 + Math.floor(rnd(sk * 19) * 16),
+      ogrenci: g.ogrenci || 6 + Math.floor(rnd(sk * 19) * 16),
     });
     cursor += dur + [0, 30, 60][Math.floor(rnd(sk * 23) * 3)];
   }
@@ -148,6 +176,31 @@ export default function EgitmenTakvimiPage() {
   const TODAY = useMemo(() => new Date(), []);
   const todayISO = isoDate(TODAY);
 
+  // ── gerçek eğitmen listesi (Firestore) — program/saat verisi hâlâ mock ──
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [loadingInstructors, setLoadingInstructors] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const u = auth.currentUser;
+      const token = u ? await u.getIdToken() : "";
+      const res = await fetch("/api/flexos/trainers", { headers: { Authorization: `Bearer ${token}` } });
+      const json = res.ok ? await res.json() : { items: [] };
+      type ApiTrainer = { id: string; name: string; subes: string[]; status: string; comp: Record<string, string[]>; groups: { kod: string; egitim: string; ogrenci: number }[] };
+      const mapped: Instructor[] = (json.items ?? [])
+        .filter((t: ApiTrainer) => t.status === "aktif")
+        .map((t: ApiTrainer) => {
+          const compKeys = Object.keys(t.comp || {});
+          const brans = compKeys[0] ?? BRANSLAR[hashSeed(t.id) % BRANSLAR.length];
+          const sube = t.subes?.[0] ?? SUBELER[hashSeed(t.id) % SUBELER.length];
+          return { id: t.id, name: t.name, brans, sube, av: avatarFor(t.id), groups: t.groups ?? [] };
+        });
+      if (!cancelled) { setInstructors(mapped); setLoadingInstructors(false); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const [view, setView] = useState<ViewKey>("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [dayISO, setDayISO] = useState(todayISO);
@@ -160,33 +213,33 @@ export default function EgitmenTakvimiPage() {
   const [fMode, setFMode] = useState("Tümü");
   const [fDurum, setFDurum] = useState("Tümü");
 
-  const [instrModal, setInstrModal] = useState<{ id: number; iso: string } | null>(null);
+  const [instrModal, setInstrModal] = useState<{ id: string; iso: string } | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [planDate, setPlanDate] = useState(todayISO);
   const [planStart, setPlanStart] = useState(WORK_START + 60);
   const [planDur, setPlanDur] = useState(120);
   const [planBrans, setPlanBrans] = useState("Tümü");
-  const [planPick, setPlanPick] = useState<number | null>(null);
+  const [planPick, setPlanPick] = useState<string | null>(null);
 
   const goPrev = () => { if (view === "week") setWeekOffset((v) => v - 1); else if (view === "day") setDayISO(isoDate(addDays(parseISO(dayISO), -1))); else setMonthOffset((v) => v - 1); };
   const goNext = () => { if (view === "week") setWeekOffset((v) => v + 1); else if (view === "day") setDayISO(isoDate(addDays(parseISO(dayISO), 1))); else setMonthOffset((v) => v + 1); };
   const goToday = () => { setWeekOffset(0); setMonthOffset(0); setDayISO(todayISO); };
   const clearFilters = () => { setFEgitmen("Tümü"); setFSube("Tümü"); setFBrans("Tümü"); setFTur("Tümü"); setFMode("Tümü"); setFDurum("Tümü"); };
-  const openInstr = (id: number, iso: string) => setInstrModal({ id, iso });
+  const openInstr = (id: string, iso: string) => setInstrModal({ id, iso });
   const openPlan = () => { setPlanOpen(true); setPlanPick(null); };
   const planForInstr = () => {
     if (!instrModal) return;
-    const inst = INSTRUCTORS.find((x) => x.id === instrModal.id);
+    const inst = instructors.find((x) => x.id === instrModal.id);
     setInstrModal(null); setPlanOpen(true); setPlanDate(instrModal.iso); setPlanBrans(inst ? inst.brans : "Tümü"); setPlanPick(instrModal.id);
   };
-  const planFromBlock = (iso: string, startMin: number, brans: string, instId: number) => { setInstrModal(null); setPlanOpen(true); setPlanDate(iso); setPlanStart(startMin); setPlanBrans(brans); setPlanPick(instId); };
+  const planFromBlock = (iso: string, startMin: number, brans: string, instId: string) => { setInstrModal(null); setPlanOpen(true); setPlanDate(iso); setPlanStart(startMin); setPlanBrans(brans); setPlanPick(instId); };
 
-  const filteredInstructors = useMemo(() => INSTRUCTORS.filter((i) => {
+  const filteredInstructors = useMemo(() => instructors.filter((i) => {
     if (fEgitmen !== "Tümü" && i.name !== fEgitmen) return false;
     if (fSube !== "Tümü" && i.sube !== fSube) return false;
     if (fBrans !== "Tümü" && i.brans !== fBrans) return false;
     return true;
-  }), [fEgitmen, fSube, fBrans]);
+  }), [instructors, fEgitmen, fSube, fBrans]);
 
   const blockVisible = (b: Block) => {
     if (fDurum !== "Tümü" && BLK[b.type].label !== fDurum) return false;
@@ -206,7 +259,7 @@ export default function EgitmenTakvimiPage() {
   // ---- stat kartları (bugün anlık durumu) ----
   const stats = useMemo(() => {
     let musaitCount = 0, dersVeren = 0, izinli = 0, toplamDersDk = 0, aktif = 0, capDen = 0, capNum = 0;
-    INSTRUCTORS.forEach((i) => {
+    instructors.forEach((i) => {
       const { dayType, blocks } = blocksFor(i, todayISO);
       if (dayType === "kapali") return;
       if (dayType === "izin" || dayType === "rapor" || dayType === "tatil") { if (dayType !== "tatil") izinli++; return; }
@@ -226,7 +279,7 @@ export default function EgitmenTakvimiPage() {
       { label: "Toplam Ders Saati", value: Math.round(toplamDersDk / 60) + " sa", color: "#4D52A6", bg: "#E6E7FA" },
       { label: "Doluluk", value: "%" + doluluk, color: "#7A3EAF", bg: "#EDE0FB" },
     ];
-  }, [todayISO]);
+  }, [instructors, todayISO]);
 
   // ---- Hafta ----
   const weekMon = useMemo(() => addDays(mondayOf(TODAY), weekOffset * 7), [TODAY, weekOffset]);
@@ -248,7 +301,7 @@ export default function EgitmenTakvimiPage() {
       const dow = (d.getDay() + 6) % 7;
       let avail = 0, ders = 0, leave = 0, activeN = 0;
       if (dow !== 6) {
-        INSTRUCTORS.forEach((inst) => {
+        instructors.forEach((inst) => {
           const { dayType, blocks } = blocksFor(inst, dISO);
           if (dayType === "izin" || dayType === "rapor") { leave++; return; }
           if (dayType === "tatil") return;
@@ -260,7 +313,7 @@ export default function EgitmenTakvimiPage() {
       out.push({ iso: dISO, num: d.getDate(), inMonth, isToday: dISO === todayISO, avail, ders, leave, pct: activeN ? Math.round((avail / activeN) * 100) : 0 });
     }
     return out;
-  }, [monthStart, monthBase, todayISO]);
+  }, [instructors, monthStart, monthBase, todayISO]);
 
   let rangeLabel: string;
   if (view === "week") {
@@ -275,7 +328,7 @@ export default function EgitmenTakvimiPage() {
   // ---- Eğitmen Günü modalı verisi ----
   const instrModalData = useMemo(() => {
     if (!instrModal) return null;
-    const inst = INSTRUCTORS.find((x) => x.id === instrModal.id);
+    const inst = instructors.find((x) => x.id === instrModal.id);
     if (!inst) return null;
     const iso = instrModal.iso;
     const d = parseISO(iso);
@@ -290,7 +343,7 @@ export default function EgitmenTakvimiPage() {
     const dayChipMeta = dayType === "izin" ? BLK.izin : dayType === "rapor" ? BLK.rapor : dayType === "tatil" ? BLK.tatil : BLK.musait;
     const program = blocks.slice().sort((a, b) => a.startMin - b.startMin);
     return { inst, iso, d, dayType, ders, dersDk, freeDk, ogr, dolulukI, dayStatusLabel, dayChipMeta, program };
-  }, [instrModal]);
+  }, [instructors, instrModal]);
 
   // ---- Eğitim Planla modalı verisi ----
   const startOptions = useMemo(() => { const out: number[] = []; for (let m = WORK_START; m <= WORK_END - 30; m += 30) out.push(m); return out; }, []);
@@ -298,14 +351,25 @@ export default function EgitmenTakvimiPage() {
   const slotEnd = planStart + planDur;
   const planD = parseISO(planDate);
   const planSlotLabel = `${planD.getDate()} ${MONTHS[planD.getMonth()]}, ${fmtTime(planStart)}–${fmtTime(slotEnd)}`;
-  const planCandidates = useMemo(() => INSTRUCTORS.filter((i) => planBrans === "Tümü" || i.brans === planBrans).map((inst) => {
+  const planCandidates = useMemo(() => instructors.filter((i) => planBrans === "Tümü" || i.brans === planBrans).map((inst) => {
     const reason = isBusyAt(inst, planDate, planStart, slotEnd);
     return { inst, available: reason === null, reason };
-  }), [planBrans, planDate, planStart, slotEnd]);
+  }), [instructors, planBrans, planDate, planStart, slotEnd]);
   const planAvailCount = planCandidates.filter((c) => c.available).length;
 
   const viewTabs: { key: ViewKey; label: string }[] = [{ key: "day", label: "Gün" }, { key: "week", label: "Hafta" }, { key: "month", label: "Ay" }];
   const legend = (Object.keys(BLK) as BlockType[]).map((k) => BLK[k]);
+
+  if (loadingInstructors) {
+    return (
+      <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden" }}>
+        <FlexSidebar active="egitmen-takvimi" />
+        <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: "#EEF0F3" }}>
+          <FlexPageLoader />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden", fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -361,7 +425,7 @@ export default function EgitmenTakvimiPage() {
             <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16, padding: "18px 20px", marginBottom: 16, boxShadow: "0 1px 3px rgba(15,31,61,.05)" }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 14 }}>
                 {[
-                  { label: "Eğitmen", value: fEgitmen, set: setFEgitmen, options: ["Tümü", ...INSTRUCTORS.map((i) => i.name)] },
+                  { label: "Eğitmen", value: fEgitmen, set: setFEgitmen, options: ["Tümü", ...instructors.map((i) => i.name)] },
                   { label: "Şube", value: fSube, set: setFSube, options: ["Tümü", ...SUBELER] },
                   { label: "Branş", value: fBrans, set: setFBrans, options: ["Tümü", ...BRANSLAR] },
                   { label: "Eğitim Türü", value: fTur, set: setFTur, options: ["Tümü", "Bireysel", "Kurumsal"] },
