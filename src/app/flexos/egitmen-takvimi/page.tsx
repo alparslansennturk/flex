@@ -120,8 +120,12 @@ type DayType = "kapali" | "tatil" | "izin" | "rapor" | "aktif";
  * grubu yoksa jenerik bir yer tutucuya düşer. */
 function blocksFor(instr: Instructor, dateISO: string): { dayType: DayType; blocks: Block[] } {
   const d = parseISO(dateISO);
-  const dow = (d.getDay() + 6) % 7;
-  if (dow === 6) return { dayType: "kapali", blocks: [] };
+  // 2026-07-27 kullanıcı düzeltmesi: Pazar "kapalı" varsayımı YANLIŞTI — kurum gerçekte
+  // 7 gün çalışıyor, Pazar günü de ders var. "Cuma hafif/kapalı" gibi gün-bazlı kurallar
+  // da BİLEREK konulmadı: bu belirli bir müşterinin (Arı Bilgi) kendi iş kuralı — "genel
+  // bir sistem kuruyoruz", Kurumsal/Özel Ders gibi türler herhangi bir günde olabilir.
+  // Bu yüzden mock üretici artık haftanın 7 gününe de EŞİT davranıyor, gün bazlı özel
+  // durum yok (izin/rapor hâlâ eğitmen bazında rastgele — bu genel/makul bir varsayım).
   const idSeed = hashSeed(instr.id);
   const base = d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate();
   const seed = idSeed * 7919 + base;
@@ -130,9 +134,9 @@ function blocksFor(instr: Instructor, dateISO: string): { dayType: DayType; bloc
   if (r < 0.12) return { dayType: "rapor", blocks: [{ type: "rapor", startMin: WORK_START, dur: WORK_END - WORK_START }] };
 
   const sessions: Block[] = [];
-  // 2026-07-27 kullanıcı isteği: "azalt" — hafta içi en fazla 2, Cumartesi en fazla 1
-  // (önceki sürümde 3/2'ydi, Lab Utilizasyon'daki aynı azaltma deseni).
-  const nMax = dow === 5 ? 1 : 2;
+  // 2026-07-27: yoğunluk azaltıldı (önceki sürümde 3'tü) — ama hangi GÜN olduğuna göre
+  // değişmiyor artık (yukarıdaki not: gün-bazlı özel kural yok, 7 gün eşit).
+  const nMax = 2;
   const nS = 1 + Math.floor(rnd(seed * 3) * nMax);
   let cursor = WORK_START + Math.floor(rnd(seed * 5) * 2) * 30;
   const pool = instr.groups.length ? instr.groups : [{ kod: "Ders", egitim: EG_BY_BRANS[instr.brans]?.[0] ?? instr.brans + " Dersi", ogrenci: 10 }];
@@ -177,8 +181,6 @@ function isBusyAt(instr: Instructor, dateISO: string, startMin: number, endMin: 
     }
   }
   if (startMin < WORK_START || endMin > WORK_END) return "Çalışma saati dışı";
-  const dow = (parseISO(dateISO).getDay() + 6) % 7;
-  if (dow === 6) return "Kapalı gün";
   return null;
 }
 
@@ -305,7 +307,9 @@ export default function EgitmenTakvimiPage() {
 
   // ---- Hafta ----
   const weekMon = useMemo(() => addDays(mondayOf(TODAY), weekOffset * 7), [TODAY, weekOffset]);
-  const weekDates = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(weekMon, i)), [weekMon]);
+  // 2026-07-27 kullanıcı düzeltmesi: Pazar dahil 7 gün (eskiden Pzt-Cmt 6 gün varsayılmıştı —
+  // "Pazar günü de çalışılıyor, dersler var" bulgusu).
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekMon, i)), [weekMon]);
 
   // ---- Gün ----
   const dayD = parseISO(dayISO);
@@ -320,18 +324,17 @@ export default function EgitmenTakvimiPage() {
       const d = addDays(monthStart, i);
       const dISO = isoDate(d);
       const inMonth = d.getMonth() === monthBase.getMonth();
-      const dow = (d.getDay() + 6) % 7;
+      // 2026-07-27 kullanıcı düzeltmesi: Pazar artık kapalı sayılmıyor (bkz. blocksFor),
+      // ay heatmap'i de 7 günü de sayıyor — eskiden Pazar hiç hesaba katılmıyordu.
       let avail = 0, ders = 0, leave = 0, activeN = 0;
-      if (dow !== 6) {
-        instructors.forEach((inst) => {
-          const { dayType, blocks } = blocksFor(inst, dISO);
-          if (dayType === "izin" || dayType === "rapor") { leave++; return; }
-          if (dayType === "tatil") return;
-          activeN++;
-          if (blocks.some((b) => b.type === "musait")) avail++;
-          ders += blocks.filter((b) => b.type === "ders" || b.type === "rezerve").length;
-        });
-      }
+      instructors.forEach((inst) => {
+        const { dayType, blocks } = blocksFor(inst, dISO);
+        if (dayType === "izin" || dayType === "rapor") { leave++; return; }
+        if (dayType === "tatil") return;
+        activeN++;
+        if (blocks.some((b) => b.type === "musait")) avail++;
+        ders += blocks.filter((b) => b.type === "ders" || b.type === "rezerve").length;
+      });
       out.push({ iso: dISO, num: d.getDate(), inMonth, isToday: dISO === todayISO, avail, ders, leave, pct: activeN ? Math.round((avail / activeN) * 100) : 0 });
     }
     return out;
@@ -339,7 +342,7 @@ export default function EgitmenTakvimiPage() {
 
   let rangeLabel: string;
   if (view === "week") {
-    const f = weekDates[0], l = weekDates[5];
+    const f = weekDates[0], l = weekDates[6];
     rangeLabel = f.getMonth() === l.getMonth() ? `${f.getDate()} – ${l.getDate()} ${MONTHS[f.getMonth()]} ${f.getFullYear()}` : `${f.getDate()} ${MONTHS[f.getMonth()]} – ${l.getDate()} ${MONTHS[l.getMonth()]}`;
   } else if (view === "day") {
     rangeLabel = `${dayD.getDate()} ${MONTHS[dayD.getMonth()]} ${dayD.getFullYear()} · ${DOW_FULL[(dayD.getDay() + 6) % 7]}`;
@@ -484,8 +487,8 @@ export default function EgitmenTakvimiPage() {
           <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 18, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,31,61,.05)" }}>
             {view === "week" && (
               <div style={{ overflowX: "auto" }}>
-                <div style={{ minWidth: 1080 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "210px repeat(6,1fr)", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD" }}>
+                <div style={{ minWidth: 1240 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "210px repeat(7,1fr)", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD" }}>
                     <div style={{ padding: "13px 18px", fontSize: 11.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", borderRight: "1px solid #EEF0F3", display: "flex", alignItems: "center" }}>Eğitmen</div>
                     {weekDates.map((d, i) => {
                       const iso = isoDate(d);
@@ -500,7 +503,7 @@ export default function EgitmenTakvimiPage() {
                   </div>
                   <div style={{ maxHeight: 600, overflowY: "auto" }}>
                     {filteredInstructors.map((inst) => (
-                      <div key={inst.id} style={{ display: "grid", gridTemplateColumns: "210px repeat(6,1fr)", borderBottom: "1px solid #F2F4F7" }}>
+                      <div key={inst.id} style={{ display: "grid", gridTemplateColumns: "210px repeat(7,1fr)", borderBottom: "1px solid #F2F4F7" }}>
                         <div onClick={() => openInstr(inst.id, isoDate(weekDates.find((d) => isoDate(d) === todayISO) || weekDates[0]))} style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 16px", borderRight: "1px solid #EEF0F3", cursor: "pointer" }}>
                           <div style={{ width: 38, height: 38, borderRadius: 11, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13.5, fontWeight: 800, background: `linear-gradient(135deg,${inst.av[0]},${inst.av[1]})` }}>{initials(inst.name)}</div>
                           <div style={{ minWidth: 0 }}>

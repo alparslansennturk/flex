@@ -83,6 +83,19 @@ tarih önceden dolu şekilde yönlendiriliyor (`?trainerId=&tarih=`).
   olduğu için ("dummy kalsın" kararı korunuyor) bazen yine de rastgele dolu çıkabilir — ama artık
   YANLIŞ/bitmiş bir dersle gerekçelendirilmiyor.
 
+**8) Pazar "kapalı" varsayımı YANLIŞTI + gün-bazlı özel kurallar kaldırıldı** (kullanıcı: "Pazar
+günü de çalışılıyor, dersler var" + "Cuma'da grup eğitimi olmaz kuralı Arı Bilgi'nin kendi kuralı,
+genel bir sistem kuruyoruz, Kurumsal/Özel Ders herhangi bir günde olabiliyor"):
+- `blocksFor()`'daki `if (dow === 6) return kapalı` (Pazar) kaldırıldı — hafta görünümü artık
+  Pzt-Paz (7 sütun, önceden 6/Pzt-Cmt'ti — Hasan Öztoprak'ta görülen "sağa kaymış" görüntünün
+  muhtemel sebebi de buydu, eksik sütun yüzünden geri kalan hücreler kayık duruyordu).
+  Ay görünümü de artık Pazar'ı sayıyor (önceden `dow!==6` ile atlıyordu).
+- Cuma/Cumartesi "hafif" özel kuralı (`nMax = dow===5 ? 1 : 2`) kaldırıldı — artık 7 gün EŞİT
+  (`nMax = 2`, gün-bazlı hiçbir özel durum yok). `isBusyAt`'teki "Kapalı gün" (Pazar) reddi de kaldırıldı.
+- **Randevu Takvimi kontrol edildi** — zaten 7 gün (Pzt-Paz) kullanıyor, Pazar'ı kapatan bir kural
+  YOK, bu bug orada mevcut değildi (kullanıcının "orada da öyle" uyarısı muhtemelen genel bir
+  hatırlatmaydı, kod tarafında ayrı fix gerekmedi).
+
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
   — kullanıcıyla netleşmedi.
