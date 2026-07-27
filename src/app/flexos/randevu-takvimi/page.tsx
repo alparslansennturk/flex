@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
-import FlexHeader from "../_components/FlexHeader";
+import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader } from "../_components/FlexSpinner";
 import { formatTrPhone } from "@/app/lib/phone";
@@ -368,9 +368,10 @@ export default function RandevuTakvimiPage() {
           icon={<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /></svg>}
           title="Randevu Takvimi"
           subtitle="Öğrenci adaylarını satış danışmanlarıyla buluşturun."
+          maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
         />
 
-        <div style={{ padding: "24px 32px 48px", maxWidth: 1220, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <FlexPageContent style={{ padding: "24px 0 48px" }}>
 
           {/* ── section header ── */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 18 }}>
@@ -567,8 +568,8 @@ export default function RandevuTakvimiPage() {
               </div>
             )}
           </div>
-        </div>
-        <Footer mini />
+        </FlexPageContent>
+        <Footer mini containerClassName={FLEX_PAGE_FOOTER_CLASS} />
       </main>
 
       {/* ── oluştur/düzenle modalı ── */}

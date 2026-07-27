@@ -16,6 +16,13 @@
  * ama Eğitmen Tek Başına modunda bu capability'ler `EGITMEN_STANDALONE_EXTRA`'dan
  * gelirse (packages.ts) düzenleme burada da doğru şekilde açılır, özel bir rol
  * kontrolü YAZILMADI (capability tek doğruluk kaynağı).
+ *
+ * DÜZENLEME (2026-07-27, kullanıcı bulgusu): tasarımın 940px genişliği artık BİREBİR
+ * kopyalanmıyor — sonradan eklenen "Not" alanı (`StudentNotes`, tasarımda hiç yoktu) +
+ * sertifika grid'i (2+ modüllü eğitimlerde yan yana 2 kart) tasarımın öngördüğünden daha
+ * fazla yer istiyordu, sonuç dikey/uzun bir modal + küçük ekranda scroll'du. 940→1040px
+ * + sol sütun 300→260px (bkz. `StudentGenelBilgiler` 2 sütunlu grid'i) ile sağ taraf daha
+ * geniş, iki sütun birbirine yakın yükseklikte bitiyor.
  */
 
 import { AnimatePresence, motion } from "framer-motion";
@@ -101,7 +108,7 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
           initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }}
           transition={{ duration: 0.24, ease: [0.2, 0.8, 0.3, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-[940px] bg-white rounded-[20px] shadow-[0_30px_70px_-20px_rgba(15,31,61,.5)] overflow-hidden flex flex-col"
+          className="w-full max-w-[1040px] bg-white rounded-[20px] shadow-[0_30px_70px_-20px_rgba(15,31,61,.5)] overflow-hidden flex flex-col"
           style={{ maxHeight: "calc(100vh - 40px)" }}
         >
           {/* HEADER */}
@@ -183,8 +190,14 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
             {!person ? (
               <div className="absolute inset-0 flex items-center justify-center"><FlexSpinner /></div>
             ) : (
-              <div className="p-6 grid gap-6 items-start" style={{ gridTemplateColumns: "minmax(0,300px) minmax(0,1fr)" }}>
-                <div>
+              <div className="p-6 grid gap-6" style={{ gridTemplateColumns: "minmax(0,260px) minmax(0,1fr)" }}>
+                {/* 2026-07-27: `items-start` KALDIRILDI — grid'in varsayılan `stretch`'i sol/sağ
+                    sütunu her zaman AYNI yüksekliğe zorluyor (sağ taraf içerik miktarına göre
+                    değişken: 1 vs 2 sertifika modülü, not girilmiş/girilmemiş vb.). Sol sütun
+                    `flex flex-col h-full` + Not alanı `flex-1` ile bu stretch'lenmiş yüksekliği
+                    dolduruyor — sabit bir piksel farkını tahmin etmek yerine, hangi taraf daha
+                    uzunsa diğeri KENDİLİĞİNDEN ona göre ayarlanıyor. */}
+                <div className="flex flex-col h-full">
                   <div className="text-[12px] font-extrabold text-[#414B59] uppercase tracking-wide mb-3">Genel Bilgiler</div>
                   <StudentGenelBilgiler
                     person={person} poolStatus={poolStatus} subeler={subeler} compact

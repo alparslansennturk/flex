@@ -183,8 +183,17 @@ export async function getEducationSummaryForPerson(
     const canGrade = can(actor, "grade.read", target);
     if (!canAttendance && !canGrade) continue; // başka eğitmenin grubu — bu modülü hiç gösterme
 
+    // `enr.educationId ?? group.educationId` — AYNI fallback deseni `enrollment-service.ts`'te
+    // de kullanılıyor. GERÇEK BUG (2026-07-27): sadece `enr.educationId`'ye bakılıyordu, ama
+    // eski backfill kayıtlarında (createdBy: "backfill-script"/"backfill-grades-script") bu
+    // alan hiç set edilmemiş — oysa Group.educationId her zaman dolu. Sonuç: education null'a
+    // düşüyor, `trainingName` de `group.branch` fallback'ine düşüyor — bu alan bölüme özel
+    // değil (aynı eğitimin FARKLI bölümlerindeki gruplarda bile aynı/benzer olabiliyor), bu
+    // yüzden "Eğitim Bilgileri" dropdown'ında "Grafik Tasarım Kursu - Grafik-1" yerine
+    // "Grafik-1 - Grafik-1" gibi yanlış/tekrarlı görünen etiketler çıkıyordu.
+    const educationId = enr.educationId ?? group.educationId;
     const [education, section, trainer] = await Promise.all([
-      enr.educationId ? deps.educations.getById(enr.educationId, actor.tenantId) : Promise.resolve(null),
+      educationId ? deps.educations.getById(educationId, actor.tenantId) : Promise.resolve(null),
       group.sectionId ? deps.sections.getById(group.sectionId, actor.tenantId) : Promise.resolve(null),
       group.trainerId ? deps.trainers.getById(group.trainerId, actor.tenantId) : Promise.resolve(null),
     ]);

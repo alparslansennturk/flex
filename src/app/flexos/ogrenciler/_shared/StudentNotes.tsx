@@ -58,7 +58,12 @@ export function StudentNotes({
   };
 
   return (
-    <div className="mt-3.5 bg-[#F7F8FA] border border-[#EEF0F3] rounded-[13px] p-4">
+    // `flex-1 flex flex-col` — sadece bir flex/stretch ebeveyni varsa (bkz. `StudentDetailModal`)
+    // etkili olur, elsewhere (`StudentDetailPanel`, düz `<div>` içinde) no-op'tur. Modal'da bu
+    // alan, sağ taraftaki (yoklama+sertifika) sütunla AYNI yükseklikte bitene kadar büyür —
+    // textarea de `flex-1` olduğu için fazla boşluk BOŞ PADDING değil, daha uzun bir kutuya
+    // dönüşüyor (2026-07-27, kullanıcı isteği: "not alanı esnek olsa, duruma göre ayarlasa").
+    <div className="mt-3.5 bg-[#F7F8FA] border border-[#EEF0F3] rounded-[13px] p-4 flex-1 flex flex-col">
       <div className="flex items-center justify-between gap-3 mb-2.5">
         <div className="flex items-center gap-2 text-[#8E95A3]">
           <StickyNote size={15} />
@@ -77,7 +82,7 @@ export function StudentNotes({
             onChange={(e) => setValue(e.target.value)}
             placeholder="Örn. bir sebeple dondurdu, bu yüzden grupsuz…"
             rows={5}
-            className="w-full bg-white border border-[#DCE3EC] rounded-[8px] px-2.5 py-2 text-[13.5px] font-medium text-[#1E222B] outline-none focus:border-[#2867bd] resize-y"
+            className="w-full flex-1 min-h-[90px] bg-white border border-[#DCE3EC] rounded-[8px] px-2.5 py-2 text-[13.5px] font-medium text-[#1E222B] outline-none focus:border-[#2867bd] resize-y"
           />
           <div className="flex justify-end mt-2">
             <button
@@ -91,7 +96,7 @@ export function StudentNotes({
           </div>
         </>
       ) : (
-        <div className="text-[13.5px] font-medium text-[#1E222B] whitespace-pre-wrap break-words">
+        <div className="flex-1 text-[13.5px] font-medium text-[#1E222B] whitespace-pre-wrap break-words">
           {value || "—"}
         </div>
       )}

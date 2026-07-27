@@ -13,6 +13,15 @@ import { useUser } from '@/app/context/UserContext';
 import StudentDetailModal, { type ModalStudent } from '@/app/components/dashboard/student-management/StudentDetailModal';
 import { StudentDetailModal as FlexosStudentDetailModal } from '@/app/flexos/ogrenciler/_shared/StudentDetailModal';
 
+// Türkçe İ/I/ı/i normalizasyonu — JS'in locale-bağımsız toLowerCase()'i "İ"yi düz
+// "i" değil "i" + combining dot (i̇) yapıyor, bu da kullanıcı düz "i" yazınca
+// eşleşmeyi kırıyor ("İrem" gibi adlarda arama "irem" ile bulamıyordu). Aranan
+// metin ve sorgu ikisi de bu fonksiyondan geçmeli ki İ/I/i/ı farkı arama için
+// önemsiz olsun.
+function trLower(s: string): string {
+  return s.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i');
+}
+
 // ─── Sabit Aksiyon Kataloğu ───────────────────────────────────────────────────
 
 interface StaticAction {
@@ -386,7 +395,7 @@ export default function QuickSearch() {
 
   // ── Akıllı arama & sıralama ─────────────────────────────────────────────────
   useEffect(() => {
-    const q = debouncedQuery.trim().toLowerCase();
+    const q = trLower(debouncedQuery.trim());
     if (!q) { setResults([]); setSelectedIndex(0); return; }
 
     const tokens = q.split(/\s+/);
@@ -394,9 +403,9 @@ export default function QuickSearch() {
 
     // 1 — Eşleşen gruplar
     const matchedGroups = allGroups.filter(g =>
-      g.code.toLowerCase().includes(q) ||
-      tokens.some(t => g.code.toLowerCase().includes(t)) ||
-      g.branch.toLowerCase().includes(q)
+      trLower(g.code).includes(q) ||
+      tokens.some(t => trLower(g.code).includes(t)) ||
+      trLower(g.branch).includes(q)
     );
 
     // 2 — Bağlamsal aksiyonlar (grup + keyword) — SADECE legacy (eski /attend,
@@ -406,7 +415,7 @@ export default function QuickSearch() {
       const primaryGroup = matchedGroups[0];
       const groupActions = buildGroupActions(primaryGroup.id, primaryGroup.code);
       groupActions.forEach(a => {
-        if (tokens.some(t => a.keyword.includes(t) || a.title.toLowerCase().includes(t))) {
+        if (tokens.some(t => a.keyword.includes(t) || trLower(a.title).includes(t))) {
           contextualActions.push({
             id:       a.id,
             type:     'action',
@@ -426,7 +435,7 @@ export default function QuickSearch() {
       .filter(a =>
         tokens.some(t =>
           a.keywords.some(k => k.includes(t)) ||
-          a.title.toLowerCase().includes(t)
+          trLower(a.title).includes(t)
         )
       )
       .map(a => ({
@@ -459,8 +468,8 @@ export default function QuickSearch() {
     // KALDIRILDI (kullanıcı kararı — modal sadece eğitmende kalsın). Eğitmen (bu capability
     // yok) hâlâ TEK satır, her zaman modal.
     const matchedStudents = allStudents.filter(s =>
-      s.title.toLowerCase().includes(q) ||
-      tokens.every(t => s.title.toLowerCase().includes(t))
+      trLower(s.title).includes(q) ||
+      tokens.every(t => trLower(s.title).includes(t))
     );
     let studentResults: SearchResult[];
     if (isFlexos) {

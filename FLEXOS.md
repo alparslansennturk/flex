@@ -16,7 +16,71 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-26 oturumu (24) — Yetki modeli sadeleştirmesi + Lab Utilizasyon (tasarım portu + tam backend) (EN GÜNCEL)
+### 🔶 2026-07-27 oturumu (25) — Cmd+K Türkçe arama bug'ı + Lab Utilizasyon ince ayarlar + Öğrenci Detay Eğitim Bilgileri (gerçek bug + sertifika grid + layout) (EN GÜNCEL)
+
+**1) Cmd+K — Türkçe İ/I arama bug'ı (GERÇEK BUG, bulundu+düzeltildi):**
+`QuickSearch.tsx`'te arama karşılaştırması JS'in locale-bağımsız `.toLowerCase()`'ini kullanıyordu.
+Türkçe'de büyük "İ"nin küçüğü "i"dir ama JS'in varsayılan `toLowerCase()`'i bunu düz "i" değil
+"i" + görünmez combining-dot karakterine çeviriyor — kullanıcı "irem"/"ilayda" yazınca "İrem"/
+"İlayda" adlı öğrenciler hiç bulunmuyordu (büyük İ ile yazınca tesadüfen eşleşiyordu, o yüzden
+"bazen çalışıyor bazen çalışmıyor" gibi görünüyordu). Yeni `trLower()` yardımcı fonksiyonu
+(`toLocaleLowerCase('tr-TR')` + noktasız ı→i katlaması) hem sorgu hem öğrenci/grup/aksiyon
+adlarında kullanılıyor artık. Gerçek Firestore verisiyle (İrem İlayda Arslanoğlu) doğrulandı.
+
+**2) Lab Utilizasyon ince ayarlar:**
+- Günlük görünümde tek lab varken sütun `1fr` yüzünden ekranın sonuna kadar geriliyordu — sabit
+  piksel sütun genişliğine (`colWidth`) geçildi, kaç sütun varsa o kadar doğal genişlikte duruyor.
+- Mock seans üretici artık **gerçek "Seans" (`flexos_seanslar`) kayıtlarından** (haftalık gün+saat
+  kalıbı) seçim yapıyor — tenant'ta tanımlı seans yoksa eski sabit gride düşüyor; yoğunluk da
+  azaltıldı (hafta içi en fazla 2, Cuma en fazla 1).
+- Ders kartına tıklayınca küçük bir detay modalı (framer-motion animasyonlu) — grup/lab/eğitmen/
+  öğrenci + mock grup başlangıç-bitiş tarihi + "Müsait Olunacak Tarih".
+- "Rapor Al" (eskiden ölü buton) artık Liste görünümündeki haftalık seansları CSV olarak indiriyor.
+
+**3) Randevu Takvimi — merkezi genişlik:** Header 1920px sabit, içerik elle 1220px'e sabitlenmişti
+(hizasızdı). İkisi de `FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS`'a çekildi (Eğitmen Ana Sayfa/Lab
+Utilizasyon ile aynı desen).
+
+**4) Öğrenci Detay — "Eğitim Bilgileri" — GERÇEK BUG (bulundu+düzeltildi):**
+`person-education-summary-service.ts`, sadece `enr.educationId`'ye bakıyordu — ama eski backfill
+enrollment'larında (`createdBy: "backfill-script"`) bu alan hiç set edilmemiş, oysa `Group.educationId`
+her zaman dolu. Sonuç: `education` null'a düşüyor, `trainingName` `group.branch`'e (bölüme özel
+olmayan, bazen aynı) düşüyor — dropdown'da "Grafik-1 - Grafik-1" gibi yanlış/tekrarlı etiketler
+çıkıyordu. Fix: `enr.educationId ?? group.educationId` (`enrollment-service.ts`'teki AYNI desen).
+Gerçek Firestore verisiyle doğrulandı — artık "Grafik Tasarım Kursu - Grafik-2" doğru çıkıyor.
+Bu, eski backfill enrollment'ı olan HER öğrenciyi düzeltir, tek öğrenciye özel değil.
+
+**5) Sertifika bölümü — Claude Design'daki çoklu-modül grid'i geri geldi:** 2026-07-16'da "tek kart
+yeterli" gerekçesiyle sadeleştirilmişti; kullanıcı `Öğrenci Bilgi Modal.dc.html`'i (DesignSync ile
+okundu) hatırlayıp geri istedi. Aynı eğitimin (aynı `trainingName`) birden fazla modülü varsa hepsi
+dropdown'dan BAĞIMSIZ yan yana gösteriliyor artık (`StudentEgitimBilgileri.tsx::CertCard`/
+`CertSection`) — sadece yoklama/donut seçili moda özel kaldı. Not sayacı da design'daki gibi
+gerçek: skor 0'dan hedefe `requestAnimationFrame` ile cubic ease-out sayıyor, bar da AYNI sayaçtan
+besleniyor (öncekinden farklı, sadece bar CSS-transition'lıydı). Renk kuralı (3 kademeli 90/50 eşiği)
+design'ın 2 kademelisinden BİLEREK farklı bırakıldı (2026-07-16 kararı).
+
+**6) Öğrenci Detay Modal — layout (kullanıcı: "sen dikey yaptın, tasarım daha yatay"):**
+Modal 940px→1040px, sol sütun 300px→260px. Modalda soldaki Not alanı (`StudentNotes`, tasarımda
+hiç yoktu) sağdaki yoklama+sertifikadan uzun kalıyordu — Telefon+Adres modalda (HER ZAMAN eğitmen
+bağlamı) tamamen kaldırıldı (Eğitim Op/yöneticinin gördüğü ayrı sayfa/panelde kalıyor), sertifika
+kartı fontları küçültüldü, ve son çare olarak grid `stretch` + Not alanı `flex-1` ile sağ tarafla
+OTOMATİK aynı hizada bitecek şekilde kuruldu (sabit piksel tahmini yerine).
+
+**7) Öğrenci Detay TAM SAYFA — Eğitim Bilgileri yeniden düzenlendi (modal'a DOKUNULMADI, ayrı):**
+Grup bilgisi üstte tam genişlik sabit kaldı; altında yoklama (donut+bilgiler) %40, sertifika %60
+yan yana (`grid minmax(0,40%) minmax(0,1fr)`) — kullanıcı: "yoklama kartı tam genişlik gereksiz yer
+kaplıyordu". Saat rakamları küçük ekranda (768px altı) 14.5px→13px. "Derse Katılım" altındaki
+"Xs. yüz yüze · Ys. online" satırı artık HER ZAMAN açık metin değil — 0/0 ise hiç gösterilmiyor,
+gerçek veri varsa rakamın yanındaki küçük mavi "!" rozetine hover/tap ile açılan bir popover'da.
+Bu popover'ın JS (state+mouseenter/leave+dışarı-tıklama overlay) sürümü kullanıcıda güvenilir
+açılmadı (birkaç tur denendi, çözülemedi) — sonunda TAMAMEN CSS'e (`group`/`group-hover:`, bu
+projede zaten `dashboard/page.tsx` gibi yerlerde kanıtlanmış desen) geçilince çalıştı. **Ders:**
+hover/tooltip gibi basit etkileşimlerde JS state yerine önce CSS-only çözüm denenmeli.
+
+Tarayıcıda test edilmedi (bu oturumda Claude'un tarayıcı erişimi yoktu, kullanıcı kendi
+tarayıcısında adım adım doğruladı). tsc/eslint tüm oturum boyunca temiz tutuldu.
+
+### 🔶 2026-07-26 oturumu (24) — Yetki modeli sadeleştirmesi + Lab Utilizasyon (tasarım portu + tam backend)
 
 **1) Yetki modeli sadeleştirmesi** (kullanıcı: "yetki kısmı çok karmaşık, daha basit olmalı"):
 - **Satış Yap artık tek başına yeterli** — `sale.create` + `sale.cancel` + `person.create` +

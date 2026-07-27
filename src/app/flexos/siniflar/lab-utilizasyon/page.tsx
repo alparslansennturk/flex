@@ -32,6 +32,31 @@ const SESSION_GRID = [
 const TODAY = new Date(2026, 6, 16); // 16 Temmuz 2026 — tasarım referans tarihi
 const ANCHOR = new Date(2026, 6, 16);
 
+// Gerçek "Seans" (haftalık ders kalıbı, flexos_seanslar) kayıtlarından türetilen
+// gün+saat aralıkları — mock doluluk üretici artık rastgele saat üretmek yerine
+// bunlardan seçim yapıyor, tenant'ta hiç seans tanımlı değilse SESSION_GRID'e düşer.
+interface SeansSlot { dow: number; s: number; e: number }
+let SEANS_POOL: SeansSlot[] = [];
+function slotsForDow(dow: number): { s: number; e: number }[] {
+  const real = SEANS_POOL.filter((sl) => sl.dow === dow && sl.s >= AX_START && sl.e <= AX_END && sl.e > sl.s);
+  return real.length ? real : SESSION_GRID;
+}
+
+// Kart detay modalı için mock grup program tarihleri — hangi kart/tarih tıklanırsa
+// tıklansın aynı grup adı için aynı sonucu verir (deterministik, gerçek kayıt yok).
+function groupProgramDates(groupName: string): { start: Date; end: Date } {
+  const seed = (Math.max(0, GROUPS.indexOf(groupName)) + 1) * 733;
+  const weeksElapsed = 2 + Math.floor(rnd(seed) * 10); // 2-11 hafta önce başlamış
+  const weeksRemaining = 4 + Math.floor(rnd(seed * 3) * 12); // 4-15 hafta sonra bitecek
+  return { start: addDays(TODAY, -weeksElapsed * 7), end: addDays(TODAY, weeksRemaining * 7) };
+}
+function fmtDateTr(d: Date): string {
+  return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear();
+}
+function monthsFromToday(d: Date): number {
+  return Math.max(0, Math.round((d.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+}
+
 interface Lab { id: string; name: string; type: string; capacity: number; sube: string }
 const GROUPS = ["GRP-248 Web", "GRP-251 UI/UX", "GRP-255 Veri", "GRP-259 Grafik", "GRP-262 Python", "GRP-264 Mobil", "GRP-270 Siber"];
 const INSTRUCTORS = ["Mert Yılmaz", "Selin Aydın", "Burak Demir", "Ece Tunç", "Naz Erdem", "Kaya Şahin"];
@@ -59,6 +84,10 @@ function addDays(d: Date, n: number): Date {
 function fmtTime(m: number): string {
   return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
 }
+function toMin(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
 function rnd(seed: number): number {
   const x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
@@ -71,26 +100,29 @@ function sessionsFor(labs: Lab[], labId: string, dateISO: string): SessionBlock[
   const dow = (d.getDay() + 6) % 7;
   if (dow === 6) return [];
   const li = labs.findIndex((l) => l.id === labId);
+  if (li < 0) return [];
   const base = d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate();
   const seed = (li + 1) * 911 + base;
   const out: SessionBlock[] = [];
-  const nMax = dow === 5 ? 2 : 3;
+  const slots = slotsForDow(dow);
+  if (!slots.length) return [];
+  // azaltılmış yoğunluk: hafta içi en fazla 2, Cuma en fazla 1 seans
+  const nMax = Math.min(slots.length, dow === 5 ? 1 : 2);
   const n = 1 + Math.floor(rnd(seed) * nMax);
-  let cur = AX_START + 30 + Math.floor(rnd(seed * 3) * 3) * 30;
-  for (let k = 0; k < n; k++) {
+  const order = slots.map((_, i) => i).sort((a, b) => rnd(seed * 17 + a * 31) - rnd(seed * 17 + b * 31));
+  const chosen = order.slice(0, n).sort((a, b) => a - b);
+  const lab = labs[li];
+  chosen.forEach((idx, k) => {
+    const g = slots[idx];
     const sk = seed * 13 + k * 97;
-    const dur = [120, 150, 180][Math.floor(rnd(sk) * 3)];
-    if (cur + dur > AX_END) break;
-    const lab = labs[li];
     out.push({
-      start: cur, dur,
+      start: g.s, dur: g.e - g.s,
       group: GROUPS[Math.floor(rnd(sk * 5) * GROUPS.length)],
       instructor: INSTRUCTORS[Math.floor(rnd(sk * 7) * INSTRUCTORS.length)],
       students: Math.max(6, Math.min(lab.capacity, 8 + Math.floor(rnd(sk * 9) * lab.capacity))),
       conflict: false,
     });
-    cur += dur + [30, 60, 90][Math.floor(rnd(sk * 11) * 3)];
-  }
+  });
   return out.sort((a, b) => a.start - b.start);
 }
 function freeGaps(sessions: SessionBlock[]): { start: number; dur: number }[] {
@@ -121,7 +153,7 @@ function firstFreeSession(labs: Lab[], labId: string, weekMon: Date): { dow: str
     if ((dd.getDay() + 6) % 7 === 6) continue;
     const dISO = isoDate(dd);
     const ss = sessionsFor(labs, labId, dISO);
-    for (const g of SESSION_GRID) {
+    for (const g of slotsForDow((dd.getDay() + 6) % 7)) {
       const free = !ss.some((b) => b.start < g.e && g.s < b.start + b.dur);
       if (free) return { dow: DOW[i], dowFull: DOW_FULL[i], from: g.s, to: g.e, num: dd.getDate() };
     }
@@ -221,6 +253,8 @@ export default function LabUtilizasyonPage() {
   const [officeOptions, setOfficeOptions] = useState<{ id: string; name: string }[]>([]);
   const [loadingLabs, setLoadingLabs] = useState(true);
   const [labModalOpen, setLabModalOpen] = useState(false);
+  // ders kartına tıklayınca açılan küçük detay modalı (mock program tarihleri dahil)
+  const [cardDetail, setCardDetail] = useState<{ group: string; instructor: string; students: string; timeText: string; labName: string } | null>(null);
   const [newLabName, setNewLabName] = useState("");
   const [newLabType, setNewLabType] = useState<"windows" | "mac">("windows");
   const [newLabCapacity, setNewLabCapacity] = useState("");
@@ -235,12 +269,14 @@ export default function LabUtilizasyonPage() {
 
   const loadLabs = React.useCallback(async () => {
     const headers = await authHeaders();
-    const [labsRes, officesRes] = await Promise.all([
+    const [labsRes, officesRes, seansRes] = await Promise.all([
       fetch("/api/flexos/labs", { headers }),
       fetch("/api/flexos/branch-offices", { headers }),
+      fetch("/api/flexos/seanslar", { headers }),
     ]);
     const labsJson = labsRes.ok ? await labsRes.json() : { items: [] };
     const officesJson = officesRes.ok ? await officesRes.json() : { items: [] };
+    const seansJson = seansRes.ok ? await seansRes.json() : { items: [] };
     const offices: { id: string; name: string }[] = officesJson.items ?? [];
     const officeMap = new Map(offices.map((o) => [o.id, o.name]));
     setOfficeOptions(offices);
@@ -251,6 +287,14 @@ export default function LabUtilizasyonPage() {
       capacity: l.capacity,
       sube: officeMap.get(l.branchOfficeId) ?? "",
     })));
+    // gerçek Seans (haftalık ders kalıbı) kayıtlarını gün+saat aralıklarına aç —
+    // mock doluluk üretici artık rastgele saat yerine bunlardan seçim yapıyor
+    const pool: SeansSlot[] = [];
+    (seansJson.items ?? []).forEach((sn: { days: number[]; startTime: string; endTime: string }) => {
+      const s = toMin(sn.startTime), e = toMin(sn.endTime);
+      sn.days.forEach((dow) => pool.push({ dow, s, e }));
+    });
+    SEANS_POOL = pool;
     setLoadingLabs(false);
   }, []);
 
@@ -382,15 +426,15 @@ export default function LabUtilizasyonPage() {
   const hourLabels: { label: string; top: string }[] = [];
   for (let h = 8; h <= 20; h++) hourLabels.push({ label: String(h).padStart(2, "0") + ":00", top: (((h * 60 - AX_START) / 60) * HOURH) + "px" });
 
-  interface Block { group: string; instructor: string; students: string; isConflict: boolean; showDetail: boolean; timeText: string; top: number; height: number }
-  const buildBlocks = (labId: string, dISO: string): Block[] => {
+  interface Block { group: string; instructor: string; students: string; isConflict: boolean; showDetail: boolean; timeText: string; top: number; height: number; dISO: string; labName: string }
+  const buildBlocks = (labId: string, dISO: string, labName: string): Block[] => {
     const ss = sessionsFor(labs, labId, dISO);
     return ss.map((b) => {
       const top = ((b.start - AX_START) / 60) * HOURH;
       const h = (b.dur / 60) * HOURH - 4;
       return {
         group: b.group, instructor: b.instructor, students: String(b.students), isConflict: b.conflict, showDetail: h > 54,
-        timeText: fmtTime(b.start) + "–" + fmtTime(b.start + b.dur), top, height: h,
+        timeText: fmtTime(b.start) + "–" + fmtTime(b.start + b.dur), top, height: h, dISO, labName,
       };
     });
   };
@@ -405,17 +449,22 @@ export default function LabUtilizasyonPage() {
       const dISO = isoDate(d);
       const isT = dISO === todayISO;
       colHeads.push({ top: DOW[i], bottom: String(d.getDate()), isToday: isT });
-      tlColumns.push({ isToday: isT, blocks: buildBlocks(sel.id, dISO) });
+      tlColumns.push({ isToday: isT, blocks: buildBlocks(sel.id, dISO, sel.name) });
     }
   } else if (isDayV) {
     tlCols = labs.length;
     const isT = dayISO === todayISO;
     labs.forEach((l) => {
       colHeads.push({ top: l.name, bottom: l.type + " · " + l.capacity, isToday: false });
-      tlColumns.push({ isToday: isT, blocks: buildBlocks(l.id, dayISO) });
+      tlColumns.push({ isToday: isT, blocks: buildBlocks(l.id, dayISO, l.name) });
     });
   }
   const gutter = 64;
+  // Fixed per-column width (not 1fr) so the grid keeps its natural size instead of
+  // stretching to fill the card — otherwise a single day-view lab column (or a
+  // handful of week-view days) blows up to the full width of the container.
+  const colWidth = isDayV ? 170 : 128;
+  const timelineWidth = gutter + tlCols * colWidth;
 
   // ---- aylık heatmap ----
   const monthBase = new Date(ANCHOR.getFullYear(), ANCHOR.getMonth() + s.monthOffset, 1);
@@ -522,6 +571,21 @@ export default function LabUtilizasyonPage() {
   const busyCountAll = filteredItems.filter((x) => !x.free).length;
   const durTxt = (m: number) => { const h = m / 60; return (Number.isInteger(h) ? h : h.toFixed(1)) + " saat"; };
   const onPlanFromSlot = (dISO: string, start: number, dur: number) => patch({ slotsOpen: false, planOpen: true, planDate: dISO, planStart: String(start), planDur: String(Math.min(240, Math.max(90, dur))) });
+  // "Rapor Al" — Liste görünümündeki (bu haftanın seansları) aynı satırları CSV olarak indirir.
+  const exportListCsv = () => {
+    if (!sel || listRows.length === 0) { toast.info("Aktarılacak seans bulunmuyor."); return; }
+    const header = ["Gün", "Saat", "Laboratuvar", "Grup", "Eğitmen", "Öğrenci", "Durum"];
+    const escape = (v: string) => '"' + v.replace(/"/g, '""') + '"';
+    const rows = listRows.map((r) => [r.day, r.time, r.lab, r.group, r.instructor, r.students, r.conflict ? "Çakışma" : "Rezerve"]);
+    const csv = "﻿" + [header, ...rows].map((row) => row.map(escape).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lab-utilizasyon_${sel.name.replace(/[^\p{L}\p{N}]+/gu, "-")}_${isoDate(weekMon)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   const calColumns = slotDays.slice(0, 6).map((day) => ({ d: day.d, items: filteredItems.filter((x) => x.num === day.d.getDate()) }));
   const totalFreeMin = freeItems.reduce((a, x) => a + x.dur, 0);
   const firstFree = freeItems[0];
@@ -565,7 +629,7 @@ export default function LabUtilizasyonPage() {
                 Filtreler
                 {activeFilterCount > 0 && <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: T.brand, color: "#fff", fontSize: 10.5, fontWeight: 800 }}>{activeFilterCount}</span>}
               </button>
-              <button style={ghostBtnStyle}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>Rapor Al</button>
+              <button onClick={exportListCsv} style={ghostBtnStyle}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>Rapor Al</button>
               <button onClick={() => patch({ slotsOpen: true })} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 15px", borderRadius: 11, border: "1px solid " + T.brandBorder, background: T.brandBg, color: T.brand, fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>Uygun Seansları Göster
               </button>
@@ -709,8 +773,8 @@ export default function LabUtilizasyonPage() {
                 {/* WEEK / DAY TIMELINE */}
                 {(isWeekV || isDayV) && (
                   <div style={{ overflowX: "auto" }}>
-                    <div style={{ minWidth: (isDayV ? 900 : 960) + "px" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: gutter + "px repeat(" + tlCols + ",minmax(150px,1fr))", borderBottom: "1px solid " + T.border, background: "#FBFCFD"}}>
+                    <div style={{ width: timelineWidth + "px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: gutter + "px repeat(" + tlCols + "," + colWidth + "px)", borderBottom: "1px solid " + T.border, background: "#FBFCFD"}}>
                         <div style={{ padding: "10px 8px", fontSize: 11, fontWeight: 700, color: T.mutedC, display: "flex", alignItems: "flex-end", justifyContent: "flex-end", textAlign: "right" }}>{isDayV ? "Lab" : "Saat"}</div>
                         {colHeads.map((c, i) => (
                           <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "10px 6px", borderLeft: "1px solid " + T.gridC, background: c.isToday ? "#EFF5FE" : "transparent" }}>
@@ -721,7 +785,7 @@ export default function LabUtilizasyonPage() {
                           </div>
                         ))}
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: gutter + "px repeat(" + tlCols + ",minmax(150px,1fr))" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: gutter + "px repeat(" + tlCols + "," + colWidth + "px)" }}>
                         <div style={{ position: "relative", borderRight: "1px solid " + T.gridC, height: bodyH + "px" }}>
                           {hourLabels.map((h) => <span key={h.label} style={{ position: "absolute", top: h.top, right: 10, transform: "translateY(-50%)", fontSize: 11, fontWeight: 600, color: T.mutedC }}>{h.label}</span>)}
                         </div>
@@ -730,7 +794,7 @@ export default function LabUtilizasyonPage() {
                             {hourLabels.map((h) => <div key={h.label} style={{ position: "absolute", left: 0, right: 0, top: h.top, height: 1, background: T.gridC }} />)}
                             {col.isToday && <div style={{ position: "absolute", left: 0, right: 0, top: (((NOW_MIN - AX_START) / 60) * HOURH) + "px", height: 2, background: "#FF5A5F", zIndex: 6 }} />}
                             {col.blocks.map((b, bi) => (
-                              <div key={bi} style={{
+                              <div key={bi} onClick={() => setCardDetail({ group: b.group, instructor: b.instructor, students: b.students, timeText: b.timeText, labName: b.labName })} style={{
                                 position: "absolute", top: b.top + "px", left: "calc(4px + 0px)", right: "calc(4px + 0px)", height: b.height + "px", borderRadius: 9, padding: "7px 9px", overflow: "hidden",
                                 display: "flex", flexDirection: "column", gap: 2, cursor: "pointer", zIndex: b.isConflict ? 4 : 2,
                                 background: b.isConflict ? `repeating-linear-gradient(135deg,${T.confBg} 0,${T.confBg} 9px,#F7DEDC 9px,#F7DEDC 16px)` : T.busyBg,
@@ -1030,6 +1094,63 @@ export default function LabUtilizasyonPage() {
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {cardDetail && (() => {
+          const { start, end } = groupProgramDates(cardDetail.group);
+          return (
+            <motion.div
+              key="card-detail-ov"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+              onClick={() => setCardDetail(null)}
+              style={{ position: "fixed", inset: 0, zIndex: 150, background: "rgba(10,20,35,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+            >
+              <motion.div
+                key="card-detail-panel"
+                onClick={(e) => e.stopPropagation()}
+                initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.98 }}
+                transition={{ type: "spring", damping: 28, stiffness: 320 }}
+                style={{ width: "100%", maxWidth: 480, background: T.panel, borderRadius: 20, boxShadow: "0 30px 80px -20px rgba(10,20,35,.6)", border: "1px solid " + T.border, overflow: "hidden" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "20px 24px", borderBottom: "1px solid " + T.border }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cardDetail.group}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.mutedC, marginTop: 3 }}>{cardDetail.labName} · {cardDetail.timeText}</div>
+                  </div>
+                  <button onClick={() => setCardDetail(null)} style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid " + T.border, background: T.panel, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text2, flex: "0 0 auto" }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                    <span style={{ color: T.mutedC, fontWeight: 600 }}>Eğitmen</span>
+                    <span style={{ color: T.text, fontWeight: 700 }}>{cardDetail.instructor}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                    <span style={{ color: T.mutedC, fontWeight: 600 }}>Öğrenci</span>
+                    <span style={{ color: T.text, fontWeight: 700 }}>{cardDetail.students}</span>
+                  </div>
+                  <div style={{ height: 1, background: T.border2, margin: "4px 0" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                    <span style={{ color: T.mutedC, fontWeight: 600 }}>Grup Başlangıç Tarihi</span>
+                    <span style={{ color: T.text, fontWeight: 700 }}>{fmtDateTr(start)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                    <span style={{ color: T.mutedC, fontWeight: 600 }}>Grup Bitiş Tarihi</span>
+                    <span style={{ color: T.text, fontWeight: 700 }}>{fmtDateTr(end)}</span>
+                  </div>
+                  <div style={{ marginTop: 4, padding: "13px 16px", borderRadius: 13, background: T.brandBg, border: "1px solid " + T.brandBorder }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.brand }}>Müsait Olunacak Tarih</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginTop: 4 }}>
+                      {fmtDateTr(end)} <span style={{ fontWeight: 600, color: T.mutedC, fontSize: 13.5 }}>(~{monthsFromToday(end)} ay sonra)</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       <LabAddModal
         open={labModalOpen} onClose={() => setLabModalOpen(false)}

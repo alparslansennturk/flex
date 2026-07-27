@@ -14,6 +14,14 @@
  * Host (`StudentDetailTabsPanel`/`StudentDetailModal`) düzenlenebilirliği `person.edit`/
  * `person.pii.write` capability'sine göre açar/kapar — bu bileşen SADECE görünümü çizer,
  * yetki kararı vermez.
+ *
+ * DÜZENLEME (2026-07-27, kullanıcı bulgusu — 2026-07-23'teki kararın YERİNİ ALIYOR):
+ * modal (compact) HER ZAMAN eğitmen bağlamı (`StudentDetailModal` başlığında "Eğitmen
+ * görünümü" yazıyor) — kullanıcı kararı: eğitmen öğrencinin telefonunu/adresini HİÇBİR
+ * ZAMAN görmemeli, capability'ye bakılmaksızın. Telefon + Adres artık SADECE non-compact'ta
+ * (Eğitim Op/yönetici — `StudentDetailPanel`/`StudentDetailTabsPanel`, ayrı sayfa/panel)
+ * gösteriliyor; modal'da hiç render edilmiyor (yer de açılıyor, sol/sağ hizası düzeliyor).
+ * Doğum Tarihi modalda kalıyor (telefon/adres gibi hassas iletişim bilgisi değil).
  */
 
 import { User, IdCard, Calendar, VenusAndMars, Phone, Mail, MapPin, Home, CalendarCheck, CircleCheck } from "lucide-react";
@@ -44,41 +52,37 @@ export function StudentGenelBilgiler({
   // HER ZAMAN eğitmen bağlamı) Doğum Tarihi VE Kayıt Tarihi yok — kullanıcı doğru
   // tespit etti: "Kayıt Tarihi" aslında satış/kayıt olayının tarihi, eğitmen
   // bağlamında dolduruk bir alan olurdu, ders tarihleri zaten Eğitim Bilgileri'nde
-  // var. Modal kasıtlı olarak 4 alanla kalıyor. Telefon zaten SADECE non-compact'ta
-  // (admin/eğitim-op bağlamı — Öğrenci Havuzu/Sınıflar admin akışı, modal DEĞİL)
-  // gösteriliyor, dokunulmadı (eğitmen telefon göremez kuralı zaten buradan geliyordu).
+  // var.
   const fields: Field[] = [
     { label: "Ad Soyad", value: fullName || "—", icon: <User size={18} /> },
     { label: "E-posta", value: person.pii?.email || "—", icon: <Mail size={18} />, key: "email", inputType: "text" },
     { label: "Şube", value: sube, icon: <MapPin size={18} /> },
     ...(compact ? [] : [{ label: "TC Kimlik No", value: person.pii?.idNo || "—", icon: <IdCard size={18} /> }]),
     { label: "Cinsiyet", value: person.gender ? (GENDER_LABEL[person.gender] ?? person.gender) : "—", icon: <VenusAndMars size={18} /> },
-    // Telefon/Doğum Tarihi/Adres — düzenlenebilir 3'lü, compact (modal) dahil HER YERDE
-    // görünür (2026-07-23: eğitmen tek-başına modunda `person.read.pii`/`person.edit`
-    // varsa bu bilgiyi görmeli/düzenleyebilmeli — capability zaten kapılıyor, alan
-    // gizlemeye gerek yok). Kayıt Tarihi + Durum SADECE non-compact'ta kalır (düzenleme
-    // dışı, sayfa/panel bağlamına özel).
-    { label: "Telefon", value: person.pii?.phone || "—", icon: <Phone size={18} />, key: "phone" as EditableKey, inputType: "text" as const },
+    // Telefon/Adres — 2026-07-27: eğitmen (modal = HER ZAMAN eğitmen bağlamı) bunları
+    // hiç görmemeli, SADECE non-compact'ta (Eğitim Op/yönetici sayfa/panel) gösterilir.
+    ...(compact ? [] : [{ label: "Telefon", value: person.pii?.phone || "—", icon: <Phone size={18} />, key: "phone" as EditableKey, inputType: "text" as const }]),
     { label: "Doğum Tarihi", value: fmtDateLong(person.birthDate), icon: <Calendar size={18} />, key: "birthDate" as EditableKey, inputType: "date" as const },
     ...(compact
       ? []
       : [
           { label: "Kayıt Tarihi", value: fmtDateLong(person.createdAt?.slice(0, 10)), icon: <CalendarCheck size={18} /> },
           { label: "Durum", value: status.label, icon: <CircleCheck size={18} /> },
+          { label: "Adres", value: person.pii?.address || "—", icon: <Home size={18} />, key: "address" as EditableKey, inputType: "text" as const, wide: true },
         ]),
-    { label: "Adres", value: person.pii?.address || "—", icon: <Home size={18} />, key: "address" as EditableKey, inputType: "text" as const, wide: !compact },
   ];
 
   return (
     <div className={compact ? "flex flex-col gap-2.5" : "grid grid-cols-3 gap-3.5"}>
       {fields.map((f) => {
         const isEditableField = editing && f.key && draft && onDraftChange;
+        const isNameRow = compact && f.label === "Ad Soyad";
         return (
           <div
             key={f.label}
-            className={`flex items-center gap-3 bg-[#F7F8FA] border border-[#EEF0F3] rounded-[13px] ${compact ? "p-3" : "p-4"} ${f.wide ? "col-span-3" : ""}`}
+            className={`flex items-center gap-3 bg-[#F7F8FA] border border-[#EEF0F3] rounded-[13px] ${isNameRow ? "p-2" : compact ? "p-3" : "p-4"} ${f.wide ? "col-span-3" : ""}`}
           >
-            <div className={`rounded-[10px] shrink-0 flex items-center justify-center bg-[#EAF1FB] text-[#205297] ${compact ? "w-9 h-9" : "w-[38px] h-[38px]"}`}>
+            <div className={`rounded-[10px] shrink-0 flex items-center justify-center bg-[#EAF1FB] text-[#205297] ${isNameRow ? "w-7 h-7" : compact ? "w-9 h-9" : "w-[38px] h-[38px]"}`}>
               {f.icon}
             </div>
             <div className="min-w-0 flex-1">
