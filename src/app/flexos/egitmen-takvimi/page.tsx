@@ -216,7 +216,12 @@ export default function EgitmenTakvimiPage() {
       const u = auth.currentUser;
       const token = u ? await u.getIdToken() : "";
       const res = await fetch("/api/flexos/trainers", { headers: { Authorization: `Bearer ${token}` } });
-      const json = res.ok ? await res.json() : { items: [] };
+      const json = res.ok ? await res.json() : { items: [], branches: [] };
+      // 2026-07-27 eklendi (2. tur — kullanıcı bulgusu: "Finans ve Grafik-1 diye branş yok"):
+      // gerçek branş kataloğu — hiç grubu olmayan (dolayısıyla gerçek branşı bulunamayan) bir
+      // eğitmene mock branş atanacaksa artık uydurma bir isim (`BRANSLAR`) yerine bu GERÇEK
+      // listeden seçilir.
+      const realBranches: string[] = json.branches ?? [];
       type ApiTrainer = { id: string; name: string; subes: string[]; status: string; comp: Record<string, string[]>; groups: { kod: string; egitim: string; ogrenci: number; status: string; branch: string }[] };
       // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu): API bir eğitmenin TÜM gruplarını
       // (tamamlanmış/arşivlenmiş dahil) veriyor — sadece bunlardan üretilen mock ders
@@ -234,7 +239,7 @@ export default function EgitmenTakvimiPage() {
           // `Group.branch` alanından geliyor (herhangi bir grubu — sadece açık olanlar değil,
           // branş kimliği zaman içinde değişmez). Hiç atanmış grubu yoksa mock'a düşer.
           const realBranch = (t.groups ?? []).map((g) => g.branch).find((b) => b);
-          const brans = realBranch ?? BRANSLAR[hashSeed(t.id) % BRANSLAR.length];
+          const brans = realBranch ?? (realBranches.length ? realBranches[hashSeed(t.id) % realBranches.length] : BRANSLAR[hashSeed(t.id) % BRANSLAR.length]);
           const sube = t.subes?.[0] ?? SUBELER[hashSeed(t.id) % SUBELER.length];
           const acikGruplar = (t.groups ?? []).filter((g) => AKTIF_GRUP_DURUM.has(g.status));
           return { id: t.id, name: t.name, brans, sube, av: avatarFor(t.id), groups: acikGruplar };

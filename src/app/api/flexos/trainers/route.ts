@@ -8,7 +8,7 @@ import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
-import { firestoreEducationRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { createTrainer, type CreateTrainerInput } from "@/app/lib/domain/services/trainer-service";
 import { generateActivationCode } from "@/app/lib/user-validation";
 import { buildFlexosActivationEmail } from "@/app/lib/server/flexos-activation-email";
@@ -114,17 +114,19 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
   }
 
   try {
-    const items = await cachedRead(`trainers:${actor.tenantId}:${actor.uid}`, TRAINERS_CACHE_TTL_MS, async () => {
-    const [trainers, groups, educations] = await Promise.all([
+    const payload = await cachedRead(`trainers:${actor.tenantId}:${actor.uid}`, TRAINERS_CACHE_TTL_MS, async () => {
+    const [trainers, groups, educations, branches] = await Promise.all([
       firestoreTrainerRepo.list(actor.tenantId),
       firestoreGroupRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
+      firestoreBranchRepo.list(actor.tenantId),
     ]);
     // 2026-07-12 ACİL kota fix (bkz. groups/route.ts'teki aynı fix): tenant-genelinde
     // sınırsız enrollment okuması yerine SADECE görüntülenen grupların enrollment'ları.
     const enrollments = await firestoreEnrollmentRepo.listByGroupIds(groups.map((g) => g.id), actor.tenantId);
 
     const eduMap = new Map(educations.map((e) => [e.id, e]));
+    const branchMap = new Map(branches.map((b) => [b.id, b]));
 
     // Grup başına öğrenci sayısı — groups/route.ts ile AYNI kural (active+completed),
     // bkz. oradaki 2026-07-11 tutarlılık notu.
@@ -145,39 +147,50 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     for (const g of groups) {
       if (!g.trainerId) continue;
       const list = groupsByTrainer.get(g.trainerId) ?? [];
+      const edu = g.educationId ? eduMap.get(g.educationId) : undefined;
+      // 2026-07-27 (2. tur — kullanıcı bulgusu: "Finans ve Grafik-1 diye branş görünüyor,
+      // öyle branş yok"): `Group.branch` (ham denormalize alan) yazma tarafında HİÇ
+      // doldurulmuyor (GroupFormSheet POST'unda böyle bir alan yok) — bazı eski/backfill
+      // kayıtlarında yanlışlıkla bölüm adı (ör. "Grafik-1") kalmış, güvenilmez. `groups/
+      // route.ts` GET'in yaptığı AYNI çözümleme kullanılmalı: eğitimin `branchId`'si →
+      // gerçek `branches` koleksiyonundaki isim (ör. "Grafik Tasarım"), ham alana SADECE
+      // education/branchId yoksa düşülür.
+      const branch = edu?.branchId ? branchMap.get(edu.branchId)?.name ?? "" : g.branch ?? "";
       list.push({
         kod: g.code,
-        egitim: g.educationId ? eduMap.get(g.educationId)?.name ?? "" : "",
+        egitim: edu?.name ?? "",
         ogrenci: enrolledByGroup.get(g.id) ?? 0,
         status: g.status,
-        // 2026-07-27 eklendi (Eğitmen Takvimi bug): eğitmenin GERÇEK branşı `trainer.comp`
-        // anahtarlarından (Design/Finance/Software — Eğitmenler CRUD'un kendi kategorileri,
-        // gerçek branş taksonomisiyle İLGİSİZ) değil, atandığı grupların gerçek `branch`
-        // alanından (ör. "Grafik Tasarım") türetilmeli.
-        branch: g.branch ?? "",
+        branch,
       });
       groupsByTrainer.set(g.trainerId, list);
     }
 
     const allowRate = can(actor, "trainer.rate.read");
 
-    return trainers.map((t) => ({
-      id: t.id,
-      name: t.name,
-      email: t.email,
-      phone: t.phone ?? "",
-      subes: t.branchOffices ?? [],
-      status: t.status,
-      comp: t.competencies ?? {},
-      ucret: allowRate ? (t.hourlyRate ?? null) : null,
-      rateLocked: !allowRate, // UI: ücret yetkisi yok mu
-      musaitlik: t.availability ?? [],
-      notes: t.notes ?? [],
-      groups: groupsByTrainer.get(t.id) ?? [],
-    }));
+    return {
+      items: trainers.map((t) => ({
+        id: t.id,
+        name: t.name,
+        email: t.email,
+        phone: t.phone ?? "",
+        subes: t.branchOffices ?? [],
+        status: t.status,
+        comp: t.competencies ?? {},
+        ucret: allowRate ? (t.hourlyRate ?? null) : null,
+        rateLocked: !allowRate, // UI: ücret yetkisi yok mu
+        musaitlik: t.availability ?? [],
+        notes: t.notes ?? [],
+        groups: groupsByTrainer.get(t.id) ?? [],
+      })),
+      // 2026-07-27 eklendi (Eğitmen Takvimi bug — "Finans/Grafik-1 diye branş yok"):
+      // gerçek branş kataloğu (`branches` koleksiyonu) — tüketiciler artık mock/uydurma
+      // branş adı üretmek yerine buradan seçebilir.
+      branches: branches.map((b) => b.name),
+    };
     });
 
-    return NextResponse.json({ items });
+    return NextResponse.json(payload);
   } catch (e) {
     console.error("[flexos/trainers GET] hata:", e);
     return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });

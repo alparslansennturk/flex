@@ -170,6 +170,23 @@ zaten domain'de var) hiçbirinde geçmiyordu. Fix:
   eğitmenlerin GERÇEK `brans` değerlerinin (tekilleştirilmiş, `branslarOptions`) birleşimini
   gösteriyor — dropdown'da görünen HER seçenek en az bir eğitmenle eşleşmesi garanti.
 
+**13) GERÇEK BUG (12'nin devamı) — "Finans" ve "Grafik-1" diye branş yoktu** (kullanıcı: "Branş
+saçma, Finans ve Grafik-1 diye görünüyor, böyle branşlar yok, şu anda Grafik Tasarım ve Yazılım
+branşı var, ileride değişecek"). 12'deki fix'te hâlâ 2 gerçek hata vardı:
+- **"Finans"** → 12'de eklenen `g.branch ?? ""` ham alanı bulunamayınca `BRANSLAR` mock
+  listesinden (`Yazılım/Tasarım/Finans/Pazarlama/Dil` — UYDURMA) hash ile seçiliyordu.
+- **"Grafik-1"** (daha kötüsü, GERÇEK VERİDE bozukluk) → `Group.branch` ham alanı yazma
+  tarafında (`GroupFormSheet`/`groups POST`) HİÇ doldurulmuyor; bazı eski/backfill kayıtlarında
+  yanlışlıkla BÖLÜM adı (`"Grafik-1"`, branş değil) kalmış. `groups/route.ts` GET'in ZATEN
+  doğru yaptığı çözümleme (`edu.branchId → branches koleksiyonundaki gerçek isim`) `trainers/
+  route.ts`'te uygulanmıyordu, ham (güvenilmez) `g.branch`'e güveniliyordu.
+- Fix: `trainers/route.ts` artık `firestoreBranchRepo.list()` + aynı `edu?.branchId ?
+  branchMap.get(edu.branchId)?.name ?? "" : g.branch ?? ""` çözümlemesini kullanıyor (`groups/
+  route.ts` ile birebir aynı mantık) VE yanıta gerçek branş kataloğunu da ekliyor
+  (`{ items, branches: string[] }` — additive, eski `items`-only tüketiciler etkilenmez).
+  `egitmen-takvimi/page.tsx` artık mock atarken bile bu GERÇEK kataloğdan seçiyor (`BRANSLAR`
+  sadece kataloğ boşsa/istek başarısızsa son çare fallback olarak kalıyor).
+
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
   — kullanıcıyla netleşmedi.
