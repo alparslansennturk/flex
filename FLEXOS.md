@@ -119,6 +119,13 @@ padding 15→11px + font 25→22px, toolbar/legend/stat-grid alt boşlukları 14
 piksel-kesin "hiç scroll olmasın" garantisi verilemiyor (tarayıcıda test edilmedi) ama en azından
 çift/üst-üste-binen scrollbar sorunu kesin çözüldü.
 
+**11) Gün görünümünde yatay scroll** (kullanıcı: "08:00 kaldır ya da 09:00 sola çek, tam sığsın,
+yatay scroll olmasın"): saat ekseni 08:00'dan başlıyordu ama gerçek mesai `WORK_START` (09:00) —
+o 1 saatlik kullanılmayan tampon, 1440x900'de (sidebar 252px + sayfanın %94 içerik payı ≈ 1117px)
+`minWidth:1120`'yi zar zor aşıp gereksiz yatay scroll'a sebep oluyordu. `AX_START` 08:00→09:00
+(artık `WORK_START` ile aynı — mock'ta zaten hiçbir ders 09:00'dan önce başlamıyor, kesilen bir
+şey yok), eksen 1 saat kısaldığı için `minWidth` 1120→1040'a indirildi.
+
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
   — kullanıcıyla netleşmedi.

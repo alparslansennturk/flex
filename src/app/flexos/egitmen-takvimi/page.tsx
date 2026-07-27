@@ -42,7 +42,10 @@ import { FlexPageLoader } from "../_components/FlexSpinner";
 const DOW = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 const DOW_FULL = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-const AX_START = 8 * 60, AX_END = 22 * 60;
+// 2026-07-27 kullanıcı isteği: eksen 08:00'dan başlıyordu ama gerçek mesai WORK_START
+// (09:00) — o 1 saatlik boş/kullanılmayan tampon yatay scroll'a sebep oluyordu ("08:00
+// kaldır ya da 09:00 sola çek, yatay scroll olmasın"). Eksen artık WORK_START'la aynı.
+const AX_START = 9 * 60, AX_END = 22 * 60;
 // 2026-07-27 kullanıcı düzeltmesi: gerçek seanslar 09:00'da başlayıp 19:00'da BAŞLAYAN akşam
 // dersleri 21:30'a kadar sürebiliyor (Lab Utilizasyon'daki gerçek Seans verisiyle doğrulandı)
 // — önceki 09:00-18:00 varsayımı yanlıştı, en geç başlangıç 17:30 çıkıyordu.
@@ -313,7 +316,7 @@ export default function EgitmenTakvimiPage() {
 
   // ---- Gün ----
   const dayD = parseISO(dayISO);
-  const axisHours = useMemo(() => { const out: { label: string; leftPct: number }[] = []; for (let h = 8; h <= 22; h++) out.push({ label: String(h).padStart(2, "0"), leftPct: ((h * 60 - AX_START) / (AX_END - AX_START)) * 100 }); return out; }, []);
+  const axisHours = useMemo(() => { const out: { label: string; leftPct: number }[] = []; for (let h = 9; h <= 22; h++) out.push({ label: String(h).padStart(2, "0"), leftPct: ((h * 60 - AX_START) / (AX_END - AX_START)) * 100 }); return out; }, []);
 
   // ---- Ay ----
   const monthBase = useMemo(() => new Date(TODAY.getFullYear(), TODAY.getMonth() + monthOffset, 1), [TODAY, monthOffset]);
@@ -570,7 +573,9 @@ export default function EgitmenTakvimiPage() {
 
             {view === "day" && (
               <div style={{ overflowX: "auto" }}>
-                <div style={{ minWidth: 1120 }}>
+                {/* 1440x900'de (sidebar 252px + %94 içerik payı) 1120px sınırda yatay scroll'a
+                    sebep oluyordu — eksen 08:00→09:00'a çekilince (1 saat kısaldı) 1040 yeterli. */}
+                <div style={{ minWidth: 1040 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD" }}>
                     <div style={{ padding: "12px 18px", fontSize: 11.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", borderRight: "1px solid #EEF0F3", display: "flex", alignItems: "flex-end" }}>Eğitmen</div>
                     <div style={{ position: "relative", height: 38 }}>
