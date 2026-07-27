@@ -572,19 +572,21 @@ export default function EgitmenTakvimiPage() {
             )}
 
             {view === "day" && (
-              <div style={{ overflowX: "auto" }}>
-                {/* 1440x900'de (sidebar 252px + %94 içerik payı) 1120px sınırda yatay scroll'a
-                    sebep oluyordu — eksen 08:00→09:00'a çekilince (1 saat kısaldı) 1040 yeterli. */}
-                <div style={{ minWidth: 1040 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD" }}>
-                    <div style={{ padding: "12px 18px", fontSize: 11.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", borderRight: "1px solid #EEF0F3", display: "flex", alignItems: "flex-end" }}>Eğitmen</div>
-                    <div style={{ position: "relative", height: 38 }}>
-                      {axisHours.map((h) => <span key={h.label} style={{ position: "absolute", bottom: 8, left: h.leftPct + "%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#AEB4C0" }}>{h.label}</span>)}
-                    </div>
+              // 2026-07-27 kullanıcı düzeltmesi: sabit piksel `minWidth` (1120, sonra 1040) YİNE
+              // BİR TAHMİNDİ — ekseni zaten yüzdeyle (`left:%`) konumlanıyor, sabit bir piksel
+              // genişlik VERMEYE hiç gerek yok. `overflowX:auto` + `minWidth` sarmalayıcısı TAMAMEN
+              // kaldırıldı — grid artık kartın o an ne kadar genişse ONA (100%) sığıyor, hangi
+              // ekran boyutunda olursa olsun tam oturuyor, tahmine/piksel ayarına gerek kalmadı.
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", borderBottom: "1px solid #EEF0F3", background: "#FBFCFD" }}>
+                  <div style={{ padding: "12px 18px", fontSize: 11.5, fontWeight: 700, color: "#8E95A3", textTransform: "uppercase", letterSpacing: ".05em", borderRight: "1px solid #EEF0F3", display: "flex", alignItems: "flex-end" }}>Eğitmen</div>
+                  <div style={{ position: "relative", height: 38 }}>
+                    {axisHours.map((h) => <span key={h.label} style={{ position: "absolute", bottom: 8, left: h.leftPct + "%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#AEB4C0" }}>{h.label}</span>)}
                   </div>
-                  {/* aynı çift-scroll düzeltmesi (bkz. Hafta görünümündeki AYNI not) */}
-                  <div>
-                    {filteredInstructors.map((inst) => {
+                </div>
+                {/* aynı çift-scroll düzeltmesi (bkz. Hafta görünümündeki AYNI not) */}
+                <div>
+                  {filteredInstructors.map((inst) => {
                       const { dayType, blocks } = blocksFor(inst, dayISO);
                       const vis = blocks.filter(blockVisible);
                       const ders = blocks.filter((b) => b.type === "ders" || b.type === "rezerve");
@@ -625,7 +627,6 @@ export default function EgitmenTakvimiPage() {
                     })}
                   </div>
                 </div>
-              </div>
             )}
 
             {view === "month" && (

@@ -125,6 +125,15 @@ o 1 saatlik kullanılmayan tampon, 1440x900'de (sidebar 252px + sayfanın %94 i�
 `minWidth:1120`'yi zar zor aşıp gereksiz yatay scroll'a sebep oluyordu. `AX_START` 08:00→09:00
 (artık `WORK_START` ile aynı — mock'ta zaten hiçbir ders 09:00'dan önce başlamıyor, kesilen bir
 şey yok), eksen 1 saat kısaldığı için `minWidth` 1120→1040'a indirildi.
+**Not (düzeltme, aynı gün):** bu `1040` de yine bir piksel TAHMİNİYDİ, sadece daha küçük bir
+tahmin — kullanıcı haklı olarak reddetti ("09.00 yaptın, 08.00 devreden çıkınca tam sığması
+gerekirdi, naptın sen?"). Proje kuralı [[feedback_layout_sizing_deterministic]] burada da
+uygulanmalıydı. Gerçek çözüm: sabit piksel `minWidth`'e HİÇ gerek yok — saat ekseni zaten
+yüzde-bazlı (`left: h.leftPct + "%"`) konumlanıyor, dış `overflowX:auto` + `minWidth:1040`
+sarmalayıcısı tamamen kaldırıldı. Artık Gün görünümü grid'i sade bir `<div>` (piksel genişlik
+belirtilmeyen), kartın o an ne kadar genişse (`FlexPageContent`'in responsive `w-[94%]`
+sınıfı) tam onu dolduruyor — 1440x900'de veya başka herhangi bir ekranda TAHMİNE gerek
+kalmadan, formülle (yüzde pozisyonlama sayesinde) inşa gereği tam oturuyor.
 
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
