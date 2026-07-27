@@ -16,42 +16,43 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 YARIM KALDI (haftalık limit dolmadan yetişen kadarı) — Eğitmen Takvimi, sadece Hafta görünümü
+### 🔶 Eğitmen Takvimi — tasarım portu TAMAMLANDI (Hafta+Gün+Ay+2 modal), backend HENÜZ YOK
 
 Kullanıcı: "eğitmen atarken müsait değilse kırmızı ile uyarır falan" — eğitmen atama akışlarında
 müsaitlik kontrolü/uyarısı istiyor. Kaynak tasarım Claude Design'da: proje "Flex-Eğitim Yönetimi"
 (`5a086110-600f-4bc4-85ae-2fedacbf8ce0`), dosya **`Eğitmen Takvimi.dc.html`** (~80KB, DesignSync
-ile tam okundu). Haftalık kullanım limiti dolmadan (~20dk kala) sadece şu kadarı yetişti:
+ile tam okundu, iki turda — önce haftalık limit dolmadan sadece Hafta görünümü yetişmişti, "devam
+et" denince dosya tekrar okunup kalanı bitirildi).
 
-**YAPILDI:**
-- Yeni sayfa `src/app/flexos/egitmen-takvimi/page.tsx` — gerçek sidebar/header (Lab Utilizasyon/
-  Randevu Takvimi deseniyle aynı), Sidebar'a "Gruplar" akordiyonunun altına eklendi (kullanıcı
-  isteği: "gruplar altına konumlandır") — `FlexSidebar.tsx`'e `"egitmen-takvimi"` nav key'i.
-- SADECE **Hafta (resource grid)** görünümü portlandı: stat kartları (6 tanesi), toolbar (hafta
-  gezinme, Bugün butonu), legend (6 durum rengi: Eğitimde/Müsait/Rezerve/İzin/Raporlu/Resmi Tatil),
-  eğitmen satırları × 6 gün grid'i, her hücrede ders çipleri veya durum rozeti.
-- Veri TAMAMEN mock (deterministik seed'li, tasarımdaki `Component` sınıfının aynı mantığı) — 8
-  sabit eğitmen, gerçek Trainer/müsaitlik verisine HİÇ bağlı değil.
+**YAPILDI — `src/app/flexos/egitmen-takvimi/page.tsx` (tek dosya, ~700 satır):**
+- Gerçek sidebar/header (Lab Utilizasyon/Randevu Takvimi deseniyle aynı), Sidebar'da "Gruplar"
+  akordiyonunun altına eklendi (kullanıcı isteği) — `FlexSidebar.tsx`'e `"egitmen-takvimi"` nav key'i.
+- **3 görünüm de çalışıyor**: Hafta (eğitmen×gün resource grid), Gün (saat ekseninde timeline,
+  absolute-positioned bloklar), Ay (7x5 heatmap, müsaitlik yüzde barı, güne tıklayınca Gün'e atlıyor).
+- **Filtreler** (Eğitmen/Şube/Branş/Eğitim Türü/Katılım/Durum) + legend (6 durum rengi).
+- **"Eğitmen Günü" modalı** — bir eğitmenin bir günkü özet kutuları (ders sayısı/saati, öğrenci,
+  boş saat, doluluk, izin durumu) + tüm günün program listesi, her boş aralıkta "Bu saate planla"
+  butonu (Eğitim Planla modalını o saatle önceden doldurulmuş açıyor).
+- **"Eğitim Planla" modalı** (asıl istenen özellik) — tarih/başlangıç/süre/branş seçilince
+  `isBusyAt()` ile HER eğitmen için o saat aralığında müsait mi kontrol ediliyor: müsaitse yeşil
+  "Müsait" rozeti + seçilebilir, değilse gri rozette NEDEN gösteriliyor ("İzinli"/"Raporlu"/
+  "Dolu · 10:00 Full-Stack Web"/"Çalışma saati dışı") ve satır tıklanamaz hale geliyor.
+- Veri TAMAMEN mock (`blocksFor()` — tasarımdaki `Component` sınıfının deterministik seed'li mock
+  üreticisiyle birebir aynı mantık, TS'e çevrildi), 8 sabit eğitmen — gerçek Trainer/müsaitlik
+  verisine HİÇ bağlı değil. tsc/eslint temiz.
 
-**HENÜZ YAPILMADI (dosyayı tekrar DesignSync ile okuyup devam et):**
-- **Gün görünümü** (saat ekseninde timeline, `dayHeadGrid`/`dayRowGrid`) — toolbar'da buton var
-  ama `disabled` (tıklanmıyor).
-- **Ay görünümü** (7x5 heatmap, müsaitlik barı) — toolbar'da buton var ama `disabled`.
-- **"Eğitmen Günü" modalı** — bir eğitmenin bir günkü programının detayı (satırdaki bir güne
-  tıklayınca açılıyordu tasarımda) — HİÇ yok.
-- **"Eğitim Planla" modalı** — tarih/saat/branş seçince sistemin SADECE müsait eğitmenleri
-  listelediği panel (kullanıcının asıl istediği "kırmızı uyarı" mantığının karşılığı BURADA) —
-  toolbar'daki buton `disabled`, modal hiç yazılmadı.
-- **Gerçek veri modeli** hiç kararlaştırılmadı: müsaitlik nasıl saklanacak (Trainer'a bağlı
-  haftalık çalışma saatleri mi, ayrı `flexos_trainer_availability` koleksiyonu mu, izin/rapor
-  günleri nasıl girilecek), hangi ekranlarda entegre olacağı (Grup Ekle'de eğitmen seçimi?
-  Randevu Takvimi? ikisi de?) — backend SIFIR kod.
-- tsc/eslint bu haliyle temiz, ama **tarayıcıda hiç test edilmedi** (oturum vakti bitti).
+**HENÜZ YAPILMADI (gerçek entegrasyon için gerekli):**
+- Gerçek veri modeli kararı: müsaitlik nasıl saklanacak (Trainer'a bağlı haftalık çalışma saatleri
+  mi, ayrı `flexos_trainer_availability` koleksiyonu mu, izin/rapor günleri nasıl girilecek/kim
+  girecek), gerçek ders/rezervasyon blokları nereden gelecek (mevcut Group.schedule'dan mı türetilecek).
+- "Eğitim Planla" modalının SONUCU şu an hiçbir şeye yazmıyor (sadece `planPick` state'i kapanıyor)
+  — gerçek entegrasyonda muhtemelen Randevu Takvimi/Grup Ekle'deki eğitmen seçimine bağlanacak.
+  Hangi ekranlarda entegre olacağı (Grup Ekle'de eğitmen seçimi? Randevu Takvimi? ikisi de?)
+  netleşmedi.
+- **Tarayıcıda hiç test edilmedi** (bu oturumda Claude'un tarayıcı erişimi yoktu).
 
-**Sıradaki oturumda ilk iş:** `Eğitmen Takvimi.dc.html`'i DesignSync ile tekrar oku (satır
-262'den itibaren Gün görünümü, 301'den Ay, 336'dan modaller, 488'den script/mock data class'ı —
-bu oturumda tamamı okunmuştu ama context'te kalmadı), veri modelini kullanıcıyla netleştir,
-kalan görünümleri+modalleri aynı dosyaya ekle.
+**Sıradaki oturumda ilk iş:** kullanıcıyla veri modelini netleştir, sonra backend (`Trainer`
+domain'ine müsaitlik alanı mı eklenecek, ayrı repo mu) + gerçek entegrasyon noktaları.
 
 ### 🔶 2026-07-27 oturumu (25) — Cmd+K Türkçe arama bug'ı + Lab Utilizasyon ince ayarlar + Öğrenci Detay Eğitim Bilgileri (gerçek bug + sertifika grid + layout)
 
