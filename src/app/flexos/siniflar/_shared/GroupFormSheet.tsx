@@ -29,9 +29,12 @@ export interface GroupFormSheetProps {
   onClose: () => void;
   /** Kaydetme başarılı olunca (host kendi listesini/detayını yeniden çeker). */
   onSaved: () => void;
+  /** SADECE yeni grup açılırken uygulanır (editingGroup varsa yok sayılır) — Eğitmen
+   * Takvimi'nin "Eğitim Planla"sından gelen eğitmen/tarih ön-doldurması (2026-07-27). */
+  prefill?: { trainerId?: string; tarih?: string } | null;
 }
 
-export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }: GroupFormSheetProps) {
+export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, prefill }: GroupFormSheetProps) {
   const [eğitimTipi, setEğitimTipi] = useState<EğitimTipi>("standart");
   const [fŞube, setFŞube] = useState("");
   const [fLab, setFLab] = useState("");
@@ -113,7 +116,12 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved }:
     if (prefilledForRef.current === key) return;
     prefilledForRef.current = key;
 
-    if (!editingGroup) { resetForm(); return; }
+    if (!editingGroup) {
+      resetForm();
+      if (prefill?.trainerId) setFEğitmen(prefill.trainerId);
+      if (prefill?.tarih) setFTarih(prefill.tarih);
+      return;
+    }
 
     const raw = editingGroup;
     setEğitimTipi((raw.type as EğitimTipi) || "standart");

@@ -52,14 +52,26 @@ et" denince dosya tekrar okunup kalanı bitirildi).
   sayfasında düzenleniyor) burada HİÇ okunmuyor; gerçek ders/rezervasyon blokları da hâlâ
   `Group.schedule`'dan türetilmiyor, mock kalıyor.
 
+**6) "Eğitim Planla" → Grup Ekle'ye aktarım** (kullanıcı: "eğitim planlama ile grup ekleme aslında
+benzer şeyler"): "Eğitimi Planla" butonu artık ayrı/sahte bir kayıt YARATMIYOR — müsait eğitmen
+seçilip onaylanınca kullanıcı GERÇEK "Grup Ekle" formuna (`/flexos/siniflar`) seçilen eğitmen +
+tarih önceden dolu şekilde yönlendiriliyor (`?trainerId=&tarih=`).
+- `siniflar/page.tsx`: `useSearchParams` ile bu query param'ları okuyor, varsa Yeni Grup sheet'ini
+  otomatik açıyor (bu yüzden sayfa artık `<Suspense>` içine alındı — Next.js'in `useSearchParams`
+  zorunluluğu, `KitapPage`'deki AYNI desen).
+- `GroupFormSheet.tsx`: yeni `prefill?: { trainerId; tarih }` prop'u — SADECE yeni grup açılırken
+  (editingGroup yoksa) `fEğitmen`/`fTarih`'i dolduruyor.
+- **Saat/süre BİLEREK taşınmıyor** — Grup Ekle'de zaman serbest girilmiyor, önceden tanımlı "Seans"
+  (gün+saat kalıbı) kütüphanesinden seçiliyor; Eğitmen Takvimi'nde seçilen dakika hassasiyetinin
+  (herhangi bir saat, 30dk artışlarla) orada karşılığı olmayabilir — kullanıcı Seans'ı orada kendi
+  seçiyor. Bu nedenle akış TAM otomatik değil, sadece "eğitmen+tarihi tekrar girme" adımını atlıyor.
+
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
   — kullanıcıyla netleşmedi.
-- "Eğitim Planla" modalının SONUCU şu an hiçbir şeye yazmıyor (sadece `planPick` state'i kapanıyor)
-  — gerçek entegrasyonda muhtemelen Randevu Takvimi/Grup Ekle'deki eğitmen seçimine bağlanacak.
-  Hangi ekranlarda entegre olacağı (Grup Ekle'de eğitmen seçimi? Randevu Takvimi? ikisi de?)
-  netleşmedi.
-- **Tarayıcıda hiç test edilmedi** (bu oturumda Claude'un tarayıcı erişimi yoktu).
+- **Tarayıcıda hiç test edilmedi** (bu oturumda Claude'un tarayıcı erişimi yoktu) — özellikle
+  `/flexos/siniflar?trainerId=&tarih=` akışının gerçekten sheet'i açıp doğru alanları doldurduğu
+  hiç doğrulanmadı.
 
 ### 🔶 2026-07-27 oturumu (25) — Cmd+K Türkçe arama bug'ı + Lab Utilizasyon ince ayarlar + Öğrenci Detay Eğitim Bilgileri (gerçek bug + sertifika grid + layout)
 

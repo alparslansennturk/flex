@@ -20,9 +20,18 @@
  * (hangi grup, kaç öğrenci) gerçek. `Trainer.availability` alanı (haftalık
  * müsaitlik dilimleri) zaten domain'de var ama BURADA henüz okunmuyor — sıradaki
  * adım, bkz. FLEXOS.md.
+ *
+ * "EĞİTİM PLANLA" → GRUP EKLE (2026-07-27, kullanıcı: "eğitim planlama ile grup
+ * ekleme aslında benzer şeyler"): müsait bir eğitmen seçilip onaylanınca ayrı bir
+ * sahte kayıt YARATILMIYOR — kullanıcı GERÇEK "Grup Ekle" formuna (`/flexos/siniflar`)
+ * seçilen eğitmen + tarih önceden dolu şekilde yönlendiriliyor (`?trainerId=&tarih=`,
+ * bkz. `siniflar/page.tsx` + `GroupFormSheet`'in `prefill` prop'u). Saat/süre BİLEREK
+ * taşınmıyor — Grup Ekle'de zaman serbest girilmiyor, önceden tanımlı "Seans"
+ * kütüphanesinden seçiliyor, buradaki dakika hassasiyetinin orada karşılığı olmayabilir.
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../_components/FlexHeader";
@@ -173,6 +182,7 @@ const selectStyle: React.CSSProperties = { width: "100%", padding: "10px 30px 10
 type ViewKey = "day" | "week" | "month";
 
 export default function EgitmenTakvimiPage() {
+  const router = useRouter();
   const TODAY = useMemo(() => new Date(), []);
   const todayISO = isoDate(TODAY);
 
@@ -783,11 +793,17 @@ export default function EgitmenTakvimiPage() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 11, padding: "16px 26px", borderTop: "1px solid #EEF0F3", background: "#FBFCFD", flex: "0 0 auto" }}>
                 <button onClick={() => setPlanOpen(false)} style={{ padding: "11px 20px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#414B59", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
                 <button
-                  onClick={() => { if (planPick != null) setPlanOpen(false); }}
+                  // 2026-07-27 kullanıcı kararı: "eğitim planlama ile grup ekleme aslında benzer
+                  // şeyler" — bu buton artık ayrı/sahte bir kayıt oluşturmuyor, seçilen müsait
+                  // eğitmeni + tarihi GERÇEK "Grup Ekle" formuna (`/flexos/siniflar`) taşıyor.
+                  // Saat/süre burada taşınmıyor (Grup Ekle'de saat serbest değil, önceden
+                  // tanımlı "Seans" kütüphanesinden seçiliyor — burada seçilen dakika hassasiyeti
+                  // orada karşılığı olmayabilir, o yüzden kullanıcı orada Seans'ı kendi seçiyor).
+                  onClick={() => { if (planPick != null) router.push(`/flexos/siniflar?trainerId=${encodeURIComponent(planPick)}&tarih=${encodeURIComponent(planDate)}`); }}
                   disabled={planPick == null}
                   style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: planPick != null ? "linear-gradient(135deg,#2867bd,#205297)" : "#CDD2DA", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: planPick != null ? "pointer" : "not-allowed", boxShadow: planPick != null ? "0 8px 18px -8px rgba(32,82,151,.5)" : "none" }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>Eğitimi Planla
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>Grup Ekle&apos;ye Aktar
                 </button>
               </div>
             </div>

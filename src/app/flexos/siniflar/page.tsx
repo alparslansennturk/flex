@@ -13,8 +13,8 @@
  * POST /api/flexos/groups ile grup oluşturma.
  */
 
-import React, { useEffect, useState, useCallback, CSSProperties, useRef } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState, useCallback, CSSProperties, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
@@ -28,8 +28,9 @@ import GroupFormSheet from "./_shared/GroupFormSheet";
 import { type DisplayGroup, type GroupApiItem, toDisplayGroup } from "./_shared/groupDisplay";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
 
-export default function SınıflarPage() {
+function SınıflarPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [standaloneMode, setStandaloneMode] = useState<boolean | null>(null);
   const { caps } = useCapabilities();
@@ -41,6 +42,16 @@ export default function SınıflarPage() {
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  // Eğitmen Takvimi'nin "Eğitim Planla" modalından `?trainerId=&tarih=` ile gelindiğinde
+  // Yeni Grup sheet'i bu eğitmen+tarih önceden dolu şekilde otomatik açılır (2026-07-27
+  // kullanıcı isteği: "eğitim planlama ile grup ekleme aslında benzer şeyler").
+  const [prefill, setPrefill] = useState<{ trainerId?: string; tarih?: string } | null>(null);
+  useEffect(() => {
+    const trainerId = searchParams.get("trainerId") || undefined;
+    const tarih = searchParams.get("tarih") || undefined;
+    if (trainerId || tarih) { setPrefill({ trainerId, tarih }); setShowForm(true); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const mainRef = useRef<HTMLElement>(null);
 
@@ -104,7 +115,7 @@ export default function SınıflarPage() {
   // -- edit — form state/katalog artık `GroupFormSheet` içinde, burada sadece hangi
   // ham grubun düzenlendiğini seçiyoruz. --
   const editGroup = (g: DisplayGroup) => { setEditingId(g.id); setShowForm(true); };
-  const cancelEdit = () => { setEditingId(null); setShowForm(false); };
+  const cancelEdit = () => { setEditingId(null); setShowForm(false); setPrefill(null); };
   const editingRawGroup = editingId ? rawGroups.find((r) => r.id === editingId) ?? null : null;
 
   // -- loading guard --
@@ -165,8 +176,17 @@ export default function SınıflarPage() {
         editingGroup={editingRawGroup}
         onClose={cancelEdit}
         onSaved={loadGroups}
+        prefill={editingRawGroup ? null : prefill}
       />
     </div>
+  );
+}
+
+export default function SınıflarPage() {
+  return (
+    <Suspense fallback={<FlexPageLoader />}>
+      <SınıflarPageInner />
+    </Suspense>
   );
 }
 
