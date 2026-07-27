@@ -16,7 +16,44 @@
 
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
-### 🔶 2026-07-27 oturumu (25) — Cmd+K Türkçe arama bug'ı + Lab Utilizasyon ince ayarlar + Öğrenci Detay Eğitim Bilgileri (gerçek bug + sertifika grid + layout) (EN GÜNCEL)
+### 🔶 YARIM KALDI (haftalık limit dolmadan yetişen kadarı) — Eğitmen Takvimi, sadece Hafta görünümü
+
+Kullanıcı: "eğitmen atarken müsait değilse kırmızı ile uyarır falan" — eğitmen atama akışlarında
+müsaitlik kontrolü/uyarısı istiyor. Kaynak tasarım Claude Design'da: proje "Flex-Eğitim Yönetimi"
+(`5a086110-600f-4bc4-85ae-2fedacbf8ce0`), dosya **`Eğitmen Takvimi.dc.html`** (~80KB, DesignSync
+ile tam okundu). Haftalık kullanım limiti dolmadan (~20dk kala) sadece şu kadarı yetişti:
+
+**YAPILDI:**
+- Yeni sayfa `src/app/flexos/egitmen-takvimi/page.tsx` — gerçek sidebar/header (Lab Utilizasyon/
+  Randevu Takvimi deseniyle aynı), Sidebar'a "Gruplar" akordiyonunun altına eklendi (kullanıcı
+  isteği: "gruplar altına konumlandır") — `FlexSidebar.tsx`'e `"egitmen-takvimi"` nav key'i.
+- SADECE **Hafta (resource grid)** görünümü portlandı: stat kartları (6 tanesi), toolbar (hafta
+  gezinme, Bugün butonu), legend (6 durum rengi: Eğitimde/Müsait/Rezerve/İzin/Raporlu/Resmi Tatil),
+  eğitmen satırları × 6 gün grid'i, her hücrede ders çipleri veya durum rozeti.
+- Veri TAMAMEN mock (deterministik seed'li, tasarımdaki `Component` sınıfının aynı mantığı) — 8
+  sabit eğitmen, gerçek Trainer/müsaitlik verisine HİÇ bağlı değil.
+
+**HENÜZ YAPILMADI (dosyayı tekrar DesignSync ile okuyup devam et):**
+- **Gün görünümü** (saat ekseninde timeline, `dayHeadGrid`/`dayRowGrid`) — toolbar'da buton var
+  ama `disabled` (tıklanmıyor).
+- **Ay görünümü** (7x5 heatmap, müsaitlik barı) — toolbar'da buton var ama `disabled`.
+- **"Eğitmen Günü" modalı** — bir eğitmenin bir günkü programının detayı (satırdaki bir güne
+  tıklayınca açılıyordu tasarımda) — HİÇ yok.
+- **"Eğitim Planla" modalı** — tarih/saat/branş seçince sistemin SADECE müsait eğitmenleri
+  listelediği panel (kullanıcının asıl istediği "kırmızı uyarı" mantığının karşılığı BURADA) —
+  toolbar'daki buton `disabled`, modal hiç yazılmadı.
+- **Gerçek veri modeli** hiç kararlaştırılmadı: müsaitlik nasıl saklanacak (Trainer'a bağlı
+  haftalık çalışma saatleri mi, ayrı `flexos_trainer_availability` koleksiyonu mu, izin/rapor
+  günleri nasıl girilecek), hangi ekranlarda entegre olacağı (Grup Ekle'de eğitmen seçimi?
+  Randevu Takvimi? ikisi de?) — backend SIFIR kod.
+- tsc/eslint bu haliyle temiz, ama **tarayıcıda hiç test edilmedi** (oturum vakti bitti).
+
+**Sıradaki oturumda ilk iş:** `Eğitmen Takvimi.dc.html`'i DesignSync ile tekrar oku (satır
+262'den itibaren Gün görünümü, 301'den Ay, 336'dan modaller, 488'den script/mock data class'ı —
+bu oturumda tamamı okunmuştu ama context'te kalmadı), veri modelini kullanıcıyla netleştir,
+kalan görünümleri+modalleri aynı dosyaya ekle.
+
+### 🔶 2026-07-27 oturumu (25) — Cmd+K Türkçe arama bug'ı + Lab Utilizasyon ince ayarlar + Öğrenci Detay Eğitim Bilgileri (gerçek bug + sertifika grid + layout)
 
 **1) Cmd+K — Türkçe İ/I arama bug'ı (GERÇEK BUG, bulundu+düzeltildi):**
 `QuickSearch.tsx`'te arama karşılaştırması JS'in locale-bağımsız `.toLowerCase()`'ini kullanıyordu.

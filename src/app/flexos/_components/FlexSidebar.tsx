@@ -53,6 +53,7 @@ export type FlexNavKey =
   | "ogrenci-havuzu"
   | "siniflar"
   | "lab-utilizasyon"
+  | "egitmen-takvimi"
   | "odev-yonetimi"
   | "odev-teslimi"
   | "egitmenler"
@@ -96,7 +97,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
   // Gruplar (2026-07-26 kullanıcı kararı: "Sınıflar" tek link'ten akordiyona — Grup
   // Ekle + Lab Utilizasyon. "siniflar" active key'i KORUNDU (mevcut Grup Ekle/Liste/
   // Detay sayfaları hâlâ bunu geçiyor, 4 dosyada değişiklik gerekmesin diye).
-  const gruplarActive = active === "siniflar" || active === "lab-utilizasyon";
+  const gruplarActive = active === "siniflar" || active === "lab-utilizasyon" || active === "egitmen-takvimi";
   const [gruplarOpen, setGruplarOpen] = useState(gruplarActive);
 
   // 2026-07-22 kullanıcı bulgusu (sınıftaki TV'ye bağlı, kısa/ölçeklenmiş çözünürlüklü
@@ -470,6 +471,7 @@ export default function FlexSidebar({ active }: { active?: FlexNavKey }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "2px 0 2px 14px" }}>
                     <SubItem label="Grup Ekle" active={active === "siniflar"} onClick={go("/flexos/siniflar")} />
                     <SubItem label="Lab Utilizasyon" active={active === "lab-utilizasyon"} onClick={go("/flexos/siniflar/lab-utilizasyon")} />
+                    <SubItem label="Eğitmen Takvimi" active={active === "egitmen-takvimi"} onClick={go("/flexos/egitmen-takvimi")} />
                   </div>
                 </motion.div>
               )}
