@@ -406,19 +406,21 @@ export default function EgitmenTakvimiPage() {
           subtitle="Eğitmen müsaitlik ve programını tek ekrandan yönetin."
           maxWidthClassName={FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS}
         />
-        <FlexPageContent style={{ padding: "22px 0 48px" }}>
+        {/* 2026-07-27 kullanıcı isteği: 1440x900'e mümkün olduğunca tek ekranda sığsın diye
+            dikey boşluklar hafifçe sıkılaştırıldı (22→16, 18→12, 14→10). */}
+        <FlexPageContent style={{ padding: "16px 0 32px" }}>
           {/* STAT KARTLARI */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 13, marginBottom: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 13, marginBottom: 12 }}>
             {stats.map((s) => (
-              <div key={s.label} style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 14, padding: "15px 16px", boxShadow: "0 1px 3px rgba(15,31,61,.05)" }}>
+              <div key={s.label} style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 14, padding: "11px 14px", boxShadow: "0 1px 3px rgba(15,31,61,.05)" }}>
                 <span style={{ fontSize: 11.5, fontWeight: 600, color: "#6F7B87" }}>{s.label}</span>
-                <div style={{ fontSize: 25, fontWeight: 800, color: "#1E222B", letterSpacing: "-.6px", marginTop: 10 }}>{s.value}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "#1E222B", letterSpacing: "-.6px", marginTop: 6 }}>{s.value}</div>
               </div>
             ))}
           </div>
 
           {/* TOOLBAR */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <button onClick={goPrev} style={navBtnStyle}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
@@ -475,7 +477,7 @@ export default function EgitmenTakvimiPage() {
           )}
 
           {/* LEGEND */}
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
             {legend.map((l) => (
               <span key={l.key} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 600, color: "#6F7B87" }}>
                 <span style={{ width: 9, height: 9, borderRadius: 3, background: l.dot }} />{l.label}
@@ -501,7 +503,10 @@ export default function EgitmenTakvimiPage() {
                       );
                     })}
                   </div>
-                  <div style={{ maxHeight: 600, overflowY: "auto" }}>
+                  {/* 2026-07-27 kullanıcı bulgusu: burada AYRICA `maxHeight+overflowY:auto` vardı —
+                      sayfanın kendisi (`<main>`) zaten scroll ediyor, ikisi üst üste binip "2 scroll"
+                      görünümü oluşturuyordu. Kaldırıldı, tek (sayfa seviyesi) scroll'a bırakıldı. */}
+                  <div>
                     {filteredInstructors.map((inst) => (
                       <div key={inst.id} style={{ display: "grid", gridTemplateColumns: "210px repeat(7,1fr)", borderBottom: "1px solid #F2F4F7" }}>
                         <div onClick={() => openInstr(inst.id, isoDate(weekDates.find((d) => isoDate(d) === todayISO) || weekDates[0]))} style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 16px", borderRight: "1px solid #EEF0F3", cursor: "pointer", minWidth: 0, overflow: "hidden" }}>
@@ -572,7 +577,8 @@ export default function EgitmenTakvimiPage() {
                       {axisHours.map((h) => <span key={h.label} style={{ position: "absolute", bottom: 8, left: h.leftPct + "%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#AEB4C0" }}>{h.label}</span>)}
                     </div>
                   </div>
-                  <div style={{ maxHeight: 620, overflowY: "auto" }}>
+                  {/* aynı çift-scroll düzeltmesi (bkz. Hafta görünümündeki AYNI not) */}
+                  <div>
                     {filteredInstructors.map((inst) => {
                       const { dayType, blocks } = blocksFor(inst, dayISO);
                       const vis = blocks.filter(blockVisible);

@@ -109,6 +109,16 @@ aynı `1fr` paylarına sıkışıyor, taşan metin kırpılıyor, tüm satırlar
 **Not:** bir önceki maddede (8) "Hasan'ın kaymasının sebebi eksik Pazar sütunuydu" diye yazmıştım —
 YANLIŞ tahmindi, asıl sebep bu `min-width` bug'ıydı.
 
+**10) Gün görünümünde çift scroll + 1440x900'e sığdırma:** kullanıcı bulgusu — Gün görünümü
+seçilince altta 2 scrollbar üst üste biniyordu. Kök neden: Hafta VE Gün görünümlerinin satır
+listesinde AYRICA `maxHeight` + `overflowY:auto` vardı, ama sayfanın kendisi (`<main>`) zaten
+kendi `overflowY:auto`'suyla scroll ediyordu — ikisi üst üste biniyordu. İç scroll'lar kaldırıldı,
+tek (sayfa seviyesi) scroll'a bırakıldı. Ayrıca "mümkünse tek ekrana sığsın (1440x900)" isteğiyle
+dikey boşluklar hafifçe sıkılaştırıldı: `FlexPageContent` padding 22→16px, stat kartları
+padding 15→11px + font 25→22px, toolbar/legend/stat-grid alt boşlukları 14-18→10-12px. Tam
+piksel-kesin "hiç scroll olmasın" garantisi verilemiyor (tarayıcıda test edilmedi) ama en azından
+çift/üst-üste-binen scrollbar sorunu kesin çözüldü.
+
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak
   — kullanıcıyla netleşmedi.
