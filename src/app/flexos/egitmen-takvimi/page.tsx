@@ -42,8 +42,14 @@ import { FlexPageLoader } from "../_components/FlexSpinner";
 const DOW = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 const DOW_FULL = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-const AX_START = 8 * 60, AX_END = 20 * 60;
-const WORK_START = 9 * 60, WORK_END = 18 * 60;
+const AX_START = 8 * 60, AX_END = 22 * 60;
+// 2026-07-27 kullanıcı düzeltmesi: gerçek seanslar 09:00'da başlayıp 19:00'da BAŞLAYAN akşam
+// dersleri 21:30'a kadar sürebiliyor (Lab Utilizasyon'daki gerçek Seans verisiyle doğrulandı)
+// — önceki 09:00-18:00 varsayımı yanlıştı, en geç başlangıç 17:30 çıkıyordu.
+const WORK_START = 9 * 60, WORK_END = 22 * 60;
+// "Başlangıç" dropdown'ında son seçenek — WORK_END'den bağımsız (WORK_END sadece derslerin
+// EN GEÇ biteceği an, en geç BAŞLAYABİLECEĞİ an değil).
+const LATEST_START = 19 * 60;
 
 type BlockType = "ders" | "musait" | "rezerve" | "izin" | "rapor" | "tatil";
 const BLK: Record<BlockType, { key: BlockType; label: string; color: string; bg: string; border: string; dot: string }> = {
@@ -197,14 +203,20 @@ export default function EgitmenTakvimiPage() {
       const token = u ? await u.getIdToken() : "";
       const res = await fetch("/api/flexos/trainers", { headers: { Authorization: `Bearer ${token}` } });
       const json = res.ok ? await res.json() : { items: [] };
-      type ApiTrainer = { id: string; name: string; subes: string[]; status: string; comp: Record<string, string[]>; groups: { kod: string; egitim: string; ogrenci: number }[] };
+      type ApiTrainer = { id: string; name: string; subes: string[]; status: string; comp: Record<string, string[]>; groups: { kod: string; egitim: string; ogrenci: number; status: string }[] };
+      // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu): API bir eğitmenin TÜM gruplarını
+      // (tamamlanmış/arşivlenmiş dahil) veriyor — sadece bunlardan üretilen mock ders
+      // havuzunda kullanılıyorsa, tek/az grubu tamamlanmış bir eğitmen o bitmiş dersle
+      // "hâlâ meşgul" gösteriliyordu. Sadece hâlâ AÇIK/DEVAM EDEN gruplar havuza giriyor.
+      const AKTIF_GRUP_DURUM = new Set(["planned", "enrolling", "active", "postponed"]);
       const mapped: Instructor[] = (json.items ?? [])
         .filter((t: ApiTrainer) => t.status === "aktif")
         .map((t: ApiTrainer) => {
           const compKeys = Object.keys(t.comp || {});
           const brans = compKeys[0] ?? BRANSLAR[hashSeed(t.id) % BRANSLAR.length];
           const sube = t.subes?.[0] ?? SUBELER[hashSeed(t.id) % SUBELER.length];
-          return { id: t.id, name: t.name, brans, sube, av: avatarFor(t.id), groups: t.groups ?? [] };
+          const acikGruplar = (t.groups ?? []).filter((g) => AKTIF_GRUP_DURUM.has(g.status));
+          return { id: t.id, name: t.name, brans, sube, av: avatarFor(t.id), groups: acikGruplar };
         });
       if (!cancelled) { setInstructors(mapped); setLoadingInstructors(false); }
     })();
@@ -297,7 +309,7 @@ export default function EgitmenTakvimiPage() {
 
   // ---- Gün ----
   const dayD = parseISO(dayISO);
-  const axisHours = useMemo(() => { const out: { label: string; leftPct: number }[] = []; for (let h = 8; h <= 20; h++) out.push({ label: String(h).padStart(2, "0"), leftPct: ((h * 60 - AX_START) / (AX_END - AX_START)) * 100 }); return out; }, []);
+  const axisHours = useMemo(() => { const out: { label: string; leftPct: number }[] = []; for (let h = 8; h <= 22; h++) out.push({ label: String(h).padStart(2, "0"), leftPct: ((h * 60 - AX_START) / (AX_END - AX_START)) * 100 }); return out; }, []);
 
   // ---- Ay ----
   const monthBase = useMemo(() => new Date(TODAY.getFullYear(), TODAY.getMonth() + monthOffset, 1), [TODAY, monthOffset]);
@@ -356,7 +368,7 @@ export default function EgitmenTakvimiPage() {
   }, [instructors, instrModal]);
 
   // ---- Eğitim Planla modalı verisi ----
-  const startOptions = useMemo(() => { const out: number[] = []; for (let m = WORK_START; m <= WORK_END - 30; m += 30) out.push(m); return out; }, []);
+  const startOptions = useMemo(() => { const out: number[] = []; for (let m = WORK_START; m <= LATEST_START; m += 30) out.push(m); return out; }, []);
   const durOptions = [{ v: 60, l: "1 saat" }, { v: 90, l: "1.5 saat" }, { v: 120, l: "2 saat" }, { v: 150, l: "2.5 saat" }, { v: 180, l: "3 saat" }];
   const slotEnd = planStart + planDur;
   const planD = parseISO(planDate);
@@ -803,7 +815,7 @@ export default function EgitmenTakvimiPage() {
                   disabled={planPick == null}
                   style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 11, border: "none", background: planPick != null ? "linear-gradient(135deg,#2867bd,#205297)" : "#CDD2DA", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: planPick != null ? "pointer" : "not-allowed", boxShadow: planPick != null ? "0 8px 18px -8px rgba(32,82,151,.5)" : "none" }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>Grup Ekle&apos;ye Aktar
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>Devam Et
                 </button>
               </div>
             </div>

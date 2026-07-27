@@ -65,6 +65,23 @@ tarih önceden dolu şekilde yönlendiriliyor (`?trainerId=&tarih=`).
   (gün+saat kalıbı) kütüphanesinden seçiliyor; Eğitmen Takvimi'nde seçilen dakika hassasiyetinin
   (herhangi bir saat, 30dk artışlarla) orada karşılığı olmayabilir — kullanıcı Seans'ı orada kendi
   seçiyor. Bu nedenle akış TAM otomatik değil, sadece "eğitmen+tarihi tekrar girme" adımını atlıyor.
+- Buton metni "Grup Ekle'ye Aktar" → **"Devam Et"** (kullanıcıya "garip geldi").
+
+**7) 3 kullanıcı testi bulgusu, hepsi düzeltildi:**
+- **Saat aralığı yanlıştı**: 09:00-18:00 varsaymıştım (en geç başlangıç 17:30 çıkıyordu), gerçekte
+  19:00 başlangıçlı akşam dersleri var (21:30'a kadar sürüyor — Lab Utilizasyon'daki gerçek Seans
+  verisiyle doğrulandı). `WORK_END` 18:00→22:00, "Başlangıç" dropdown'ı artık ayrı bir `LATEST_START`
+  (19:00) sabitiyle sınırlı (WORK_END'e bağlı DEĞİL — WORK_END sadece "en geç biteceği an").
+  Gün görünümünün saat ekseni de (`AX_END`) 20:00→22:00 genişletildi.
+- **GERÇEK BUG** (kullanıcı bulgusu — "biten grubum var, tamamlanmış gruba bakıyorsa büyük hata"):
+  `GET /api/flexos/trainers`'ın döndürdüğü `groups` listesi bir eğitmenin TÜM gruplarını (tamamlanmış/
+  arşivlenmiş dahil) içeriyordu, DURUM alanı hiç yoktu. Mock ders havuzu bu listeden İÇERİK seçtiği
+  için, tek/az grubu tamamlanmış bir eğitmen (ör. Alparslan Şentürk) o BİTMİŞ dersle hâlâ meşgulmüş
+  gibi gösteriliyordu. Fix: API artık her grup için `status` de döndürüyor (`route.ts` — SADECE ekleme,
+  mevcut tüketicileri filtrelemeyecek şekilde geriye dönük uyumlu), Eğitmen Takvimi tarafında sadece
+  `planned/enrolling/active/postponed` durumundaki gruplar havuza giriyor. Not: program hâlâ mock
+  olduğu için ("dummy kalsın" kararı korunuyor) bazen yine de rastgele dolu çıkabilir — ama artık
+  YANLIŞ/bitmiş bir dersle gerekçelendirilmiyor.
 
 **HENÜZ YAPILMADI (gerçek entegrasyon için gerekli, sıradaki adım):**
 - `Trainer.availability` (zaten var olan alan) buraya bağlanacak mı, yoksa mock program mı kalacak

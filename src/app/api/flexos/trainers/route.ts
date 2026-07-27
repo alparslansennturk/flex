@@ -135,8 +135,13 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
       }
     }
 
-    // trainerId → atanmış gruplar
-    const groupsByTrainer = new Map<string, Array<{ kod: string; egitim: string; ogrenci: number }>>();
+    // trainerId → atanmış gruplar. `status` dahil (2026-07-27 eklendi — Eğitmen Takvimi
+    // mock ders üretici tamamlanmış/arşivlenmiş grupları da havuza katıp bitmiş bir
+    // dersi hâlâ "devam ediyor" gibi gösteriyordu, gerçek bug: kullanıcı Alparslan
+    // Şentürk'ü test etti, tek grubu tamamlanmıştı, sistem yine de onu dolu gösterdi).
+    // Bu alan zaten tüketen SADECE Eğitmen Takvimi filtreliyor — burada FİLTRELEMİYORUZ,
+    // Eğitmenler sayfası gibi başka tüketiciler geçmiş grupları görmek isteyebilir.
+    const groupsByTrainer = new Map<string, Array<{ kod: string; egitim: string; ogrenci: number; status: string }>>();
     for (const g of groups) {
       if (!g.trainerId) continue;
       const list = groupsByTrainer.get(g.trainerId) ?? [];
@@ -144,6 +149,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         kod: g.code,
         egitim: g.educationId ? eduMap.get(g.educationId)?.name ?? "" : "",
         ogrenci: enrolledByGroup.get(g.id) ?? 0,
+        status: g.status,
       });
       groupsByTrainer.set(g.trainerId, list);
     }
