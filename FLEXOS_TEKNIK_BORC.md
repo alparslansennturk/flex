@@ -34,10 +34,18 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
      Date.getDay() karışıklığı), 15dk erken-başlatma penceresi (sınır dahil),
      3 günlük düzenleme penceresi + org-scope bypass, kapalı kayıt silinemez,
      spam-önleme (kapanmamış kayıtta log yok) — hepsi ayrı ayrı test edildi.
-   **Kapsam dışı bırakılan (takip):** `submission-service.ts` (1105 satır,
-   en büyük domain servisi) henüz test edilmedi — sonraki oturumda ele
-   alınmalı. Testler CI'a bağlanmadı (CI yapılandırması bu repoda yok),
-   sadece `npm test` ile elle çalıştırılıyor.
+   **`submission-service.test.ts` eklendi (2026-07-28, üçüncü oturum, 13 test)**
+   — `getMaxUploads` (upload hakkı kuralı), `combineOdevYuzdesi` (Ödev Notu
+   ağırlıklı ortalama formülü — **gerçek bir davranış doğrulandı: `proje`
+   kategorisi şu an hiç dolmadığı için ağırlıklandırma pratikte hiç devreye
+   girmiyor, tek dolu kategori olduğu gibi %100 ağırlıkla kullanılıyor**),
+   `computeOdevYuzdeleri` (draft/proje-kind hariç tutma, published/closed/
+   archived'ın hepsinin dahil olması, notsuz teslimlerin sayılmaması, çoklu
+   ödev toplamı). Toplam **64 test, hepsi geçiyor**, `tsc` temiz. Kapsam dışı
+   kalan (dosya-yükleme akışları — `initUpload`/`completeUpload`/
+   `gradeBatch` vb. — daha fazla mock altyapısı gerektiriyor, sonraki
+   oturumda ele alınabilir). Testler CI'a bağlanmadı (CI yapılandırması bu
+   repoda yok), sadece `npm test` ile elle çalıştırılıyor.
 2. [x] **connect-service.ts içindeki 5 N+1 sorgu zinciri** — ✅ 2026-07-28 tamamlandı:
    `findExistingDm` (artık `listMembershipsForUid` kesişimi), `listStarredMessages`
    (toplu `getConversationsByIds`+`listMembershipsForUid`), `updateConversationMeta`
