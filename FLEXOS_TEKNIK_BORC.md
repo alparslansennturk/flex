@@ -159,8 +159,18 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
     `NotificationSoundSettings.tsx` (SSR/hydration mismatch'i önlemek için
     bilinçli, doğru) ve `GroupTable.tsx` (guard'lı tek-seferlik init, doğru) —
     ikisi de güvenli, bug değil.
-12. [ ] Zero `React.memo` — en azından 1000+ satırlık büyük sayfalarda (aktivite-merkezi,
-    egitmenler, lab-utilizasyon) memoization ekle.
+12. [ ] **Zero `React.memo` — ÖNCEKİ ÇERÇEVE HATALIYDI, düzeltildi (2026-07-28):**
+    bu 3 dosya (aktivite-merkezi, egitmenler, lab-utilizasyon) sayfa-seviyesi
+    route component'leri — `React.memo` bir component'i SADECE onu re-render
+    eden bir PARENT varsa ve prop'lar aynı kalıyorsa faydalı; bir route'un
+    kendi `page.tsx`'i hiçbir parent tarafından yeniden render edilmiyor,
+    yani bu 3 dosyaya doğrudan memo eklemek **sıfır fayda** sağlardı. Gerçek
+    engel: bu sayfalar hâlâ TEK dev component (alt component'lere bölünmemiş
+    — `aktivite-merkezi/page.tsx`'te sadece küçük sunum yardımcıları var, satır
+    listesi gibi tekrarlanan bir alt component YOK). Yani bu madde madde 6/7/8/15/19
+    (component bölme) TAMAMLANMADAN anlamlı şekilde yapılamaz — önce böl, sonra
+    tekrarlanan liste/satır component'lerine memo ekle. Kod değişikliği
+    YAPILMADI (yanlış olurdu), sıra madde 15/19'a bağlı.
 13. [x] **Ağır kütüphane code-splitting** — ✅ 2026-07-28 tamamlandı, ama kapsam
     düzeltildi: orijinal "33 dosya" sayısı recharts+framer-motion'ı karıştırıyordu.
     Gerçekte sadece **2 dosya recharts kullanıyor** (`satislar/dashboard/page.tsx`,
