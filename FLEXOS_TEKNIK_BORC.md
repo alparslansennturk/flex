@@ -41,7 +41,16 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
    girmiyor, tek dolu kategori olduğu gibi %100 ağırlıkla kullanılıyor**),
    `computeOdevYuzdeleri` (draft/proje-kind hariç tutma, published/closed/
    archived'ın hepsinin dahil olması, notsuz teslimlerin sayılmaması, çoklu
-   ödev toplamı). Toplam **64 test, hepsi geçiyor**, `tsc` temiz. Kapsam dışı
+   ödev toplamı). **+17 test daha eklendi (dördüncü oturum):** `retract`
+   (sahiplik kontrolü/ForbiddenError, notlandırılmış/geri-çekilemez durum/
+   son-tarih-geçti engelleri, dosyaların soft-delete + storage'dan silinmesi),
+   `updateSubmissionStatus` (geçersiz durum reddi, assigned-scope yetki,
+   revision/completed'da doğru bildirim başlığı, ara durumlarda HİÇ bildirim
+   gitmemesi, authUid yoksa sessizce atlanması), `gradeSubmission` (notun
+   ödevin KENDİ `maxPuan`'ına göre sınırlanması — sabit 100 değil, sınırda
+   değer kabul), `gradeManually` (dijital iz yoksa yeni "completed" Submission
+   açma vs. gerçek teslim varsa üzerine yazıp YENİ doküman açmama). Toplam
+   **81 test, hepsi geçiyor**, `tsc`+`eslint` temiz. Kapsam dışı
    kalan (dosya-yükleme akışları — `initUpload`/`completeUpload`/
    `gradeBatch` vb. — daha fazla mock altyapısı gerektiriyor, sonraki
    oturumda ele alınabilir). Testler CI'a bağlanmadı (CI yapılandırması bu
