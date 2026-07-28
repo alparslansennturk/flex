@@ -26,6 +26,7 @@ import GroupTable from "./_shared/GroupTable";
 import { useGroupCatalog, type EducationDoc } from "./_shared/useGroupCatalog";
 import { type DisplayGroup, type GroupApiItem, DAY_ABBR, toDisplayGroup, formatSeansLabel, initials, avatarStyle } from "./_shared/groupDisplay";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface StudentGroupDetail { groupId: string; enrollmentId: string; status: string }
 
@@ -109,12 +110,6 @@ export default function EgitmenSiniflarPanel() {
   // gerçek kişi silme (`DELETE /api/flexos/persons/[id]`) personId ister — ayrı takip.
   const [silPersonId, setSilPersonId] = useState<string | null>(null);
   const [studentActionBusy, setStudentActionBusy] = useState(false);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   // -- Katalog (Branş→Eğitim→Bölüm cascade + Seans kütüphanesi) — Full ile aynı hook. --
   const { branches, educations, sections, seanslar, loadingEdu, loadingSec, isSectioned, setEducations, setSections } =

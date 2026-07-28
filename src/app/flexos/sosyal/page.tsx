@@ -11,14 +11,10 @@ import { ArrowLeft, Users, ChevronRight, Check } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import SocialGameScreen from "./SocialGameScreen";
 import type { AssignmentData, Student, StudentDraw } from "./types";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const ACCENT = "#a855f7";
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 function splitName(fullName: string): { name: string; lastName: string } {
   const parts = fullName.trim().split(/\s+/);

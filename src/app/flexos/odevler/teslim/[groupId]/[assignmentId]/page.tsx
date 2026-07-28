@@ -31,6 +31,7 @@ import {
 import FlexSidebar from "../../../../_components/FlexSidebar";
 import FlexHeader from "../../../../_components/FlexHeader";
 import type { RosterItem } from "../../../../siniflar/_shared/groupDisplay";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 type SubmissionStatus = "submitted" | "reviewing" | "revision" | "completed" | "retracted";
 
@@ -66,11 +67,6 @@ function formatBytes(b: number) {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export default function OdevTeslimDetayPage() {
   const router = useRouter();

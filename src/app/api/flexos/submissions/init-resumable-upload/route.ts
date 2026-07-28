@@ -14,7 +14,7 @@ import { submissionDrive } from "@/app/lib/server/submission-drive";
 import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { notifyUser } from "@/app/lib/server/flexos-notify";
 import { initUpload, type InitUploadInput } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/submissions/init-resumable-upload — öğrenci-tarafı, capability
@@ -59,9 +59,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       folderPath: session.folderPath,
     });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/submissions/init-resumable-upload] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/submissions/init-resumable-upload");
   }
 });

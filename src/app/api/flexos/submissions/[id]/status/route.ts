@@ -7,8 +7,8 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { notifyUser } from "@/app/lib/server/flexos-notify";
 import { updateSubmissionStatus } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import type { SubmissionStatus } from "@/app/lib/domain/core/submission";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * PATCH /api/flexos/submissions/[id]/status — gated (`submission.status.write`).
@@ -35,9 +35,6 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     });
     return NextResponse.json({ id: submission.id, status: submission.status });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/submissions/[id]/status PATCH] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/submissions/[id]/status");
   }
 });

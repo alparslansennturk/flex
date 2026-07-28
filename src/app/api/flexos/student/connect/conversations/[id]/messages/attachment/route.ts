@@ -5,9 +5,9 @@ import { connectDeps } from "@/app/lib/server/connect-deps";
 import { sendMessage } from "@/app/lib/domain/services/connect-service";
 import { notifyNewMessage } from "@/app/lib/domain/services/connect-push-service";
 import { firestoreConnectPushRepo } from "@/app/lib/server/connect-push-repo.firestore";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { buildObjectPath, uploadBufferToPath } from "@/app/lib/googlestorage";
 import { ALLOWED_MIME_TYPES } from "@/app/types/storage";
+import { apiError } from "@/app/lib/server/api-error";
 
 const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 
@@ -44,9 +44,6 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
     return NextResponse.json({ id: message.id }, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[student/connect/.../messages/attachment POST] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/student/connect/conversations/[id]/messages/attachment");
   }
 });

@@ -10,6 +10,7 @@ import { createCase, type CreateCaseInput } from "@/app/lib/domain/services/case
 import type { CaseChannel, CaseType } from "@/app/lib/domain/crm/case";
 import type { Person } from "@/app/lib/domain/core/person";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/cases — tüm talepler (kişi bilgisi join'li).
@@ -165,9 +166,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     broadcast(actor.tenantId, { type: "activities.changed", id: result.case.id });
     return NextResponse.json({ id: result.case.id, activityId: result.activity.id }, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/cases POST]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/cases");
   }
 });

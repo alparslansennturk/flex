@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, Edit2, Check, X, Cloud, Leaf, Wand2, Gem, Loader2, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const CAT_ORDER = ["Gök", "Yer", "Obje 1", "Obje 2"] as const;
 type Category = (typeof CAT_ORDER)[number];
@@ -29,11 +30,6 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 function ItemForm({
   category, initial, onSave, onCancel,

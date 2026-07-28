@@ -6,8 +6,8 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestoreSettingsRepo } from "@/app/lib/server/settings-repo.firestore";
 import { transferEnrollment } from "@/app/lib/domain/services/enrollment-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/enrollments/[id]/transfer — bir kaydı başka bir gruba "taşır".
@@ -53,9 +53,6 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
       saleId: sale.id,
     });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/enrollments/:id/transfer POST]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/enrollments/[id]/transfer");
   }
 });

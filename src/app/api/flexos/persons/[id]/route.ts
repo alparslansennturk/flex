@@ -10,12 +10,12 @@ import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firest
 import { firestoreEducationRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { derivePaymentStatus, derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
 import { deletePerson } from "@/app/lib/domain/services/person-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { invalidateCache } from "@/app/lib/server/read-cache";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { DEFAULT_TENANT } from "@/app/lib/server/auth-actor";
 import type { PersonPII } from "@/app/lib/domain/core/person";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * Kapanan/silinen bir hesabın Auth + öksüz canlı `users/{uid}` izini temizler (best-effort).
@@ -258,13 +258,6 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, { params }: { p
     broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/persons DELETE] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/persons/[id]");
   }
 });

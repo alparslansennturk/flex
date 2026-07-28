@@ -9,9 +9,9 @@ import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firest
 import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firestore";
 import { saveGrades, getGradesByGroup, type SaveGradesInput } from "@/app/lib/domain/services/grade-service";
 import { computeOdevYuzdeleri } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/grades?groupId=... — grubun notlarını getirir (gated `grade.read`).
@@ -36,10 +36,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
     const canOverrideLock = widestScope(actor, "grade.write") === "org";
     return NextResponse.json({ items, odev, canOverrideLock });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/grades GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/grades");
   }
 });
 
@@ -67,9 +64,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     invalidateActivityLogCache(actor.tenantId);
     return NextResponse.json({ items }, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/grades POST] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/grades");
   }
 });

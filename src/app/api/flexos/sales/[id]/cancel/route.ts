@@ -4,8 +4,8 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { cancelSale } from "@/app/lib/domain/services/sale-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/sales/[id]/cancel — satış iptali (soft).
@@ -38,13 +38,6 @@ export const POST = withAuth(async (req: NextRequest, caller, { params }: { para
       cancelledEnrollments: result.cancelledEnrollments,
     });
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/sales/[id]/cancel] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/sales/[id]/cancel");
   }
 });

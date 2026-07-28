@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { DEFAULT_TENANT } from "@/app/lib/server/auth-actor";
 import { firestoreUploadSessionRepo } from "@/app/lib/server/upload-session-repo.firestore";
 import { getSessionForChunk } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/submissions/upload-chunk — sadece proxy: doğrulanan `sessionUri`'ye
@@ -48,9 +48,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
     return NextResponse.json({ error: "Depolama chunk yükleme hatası." }, { status: 502 });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/submissions/upload-chunk] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/submissions/upload-chunk");
   }
 });

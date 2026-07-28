@@ -3,8 +3,8 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreEducationRepo, firestoreSectionRepo, firestoreTrackRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { updateEducation, deleteEducation, type UpdateEducationInput } from "@/app/lib/domain/services/catalog-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** GET /api/flexos/educations/[id] — tek eğitim (düzenleme için ön-doldurma). */
 export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
@@ -30,10 +30,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     broadcast(actor.tenantId, { type: "educations.changed", id: edu.id });
     return NextResponse.json({ id: edu.id, onSale: edu.onSale ?? false });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/educations/:id]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/educations/[id]");
   }
 });
 
@@ -47,9 +44,6 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
     broadcast(actor.tenantId, { type: "educations.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/educations/:id DELETE]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/educations/[id]");
   }
 });

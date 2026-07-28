@@ -5,9 +5,9 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAttendanceRepo } from "@/app/lib/server/attendance-repo.firestore";
 import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { saveAttendance, deleteAttendance, type SaveAttendanceInput } from "@/app/lib/domain/services/attendance-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * PATCH /api/flexos/attendance/[id] — yoklama kaydet (Kaydet) / kapat (Dersi Bitir) /
@@ -46,14 +46,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     invalidateActivityLogCache(actor.tenantId);
     return NextResponse.json({ id: record.id, attendanceClosed: record.attendanceClosed });
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/attendance/:id PATCH]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/attendance/[id]");
   }
 });
 
@@ -77,13 +70,6 @@ export const DELETE = withAuth(async (req: NextRequest, caller, ctx: { params: P
     broadcast(actor.tenantId, { type: "attendance.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/attendance/:id DELETE]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/attendance/[id]");
   }
 });

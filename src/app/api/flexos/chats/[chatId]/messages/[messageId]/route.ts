@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { firestoreChatRepo } from "@/app/lib/server/chat-repo.firestore";
 import { editChatMessage, deleteChatMessage } from "@/app/lib/domain/services/comment-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 const deps = { chats: firestoreChatRepo };
 
@@ -20,10 +20,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     await editChatMessage(caller.uid, chatId, messageId, body.text, deps);
     return NextResponse.json({ success: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/chats/[chatId]/messages/[messageId] PATCH] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/chats/[chatId]/messages/[messageId]");
   }
 });
 
@@ -34,9 +31,6 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
     await deleteChatMessage(caller.uid, chatId, messageId, deps);
     return NextResponse.json({ success: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/chats/[chatId]/messages/[messageId] DELETE] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/chats/[chatId]/messages/[messageId]");
   }
 });

@@ -245,17 +245,19 @@ async function findExistingDm(
   targetUid: string,
   deps: ConnectDeps,
 ): Promise<ConnectConversation | null> {
-  const memberships = await deps.conversations.listMembershipsForUid(principal.uid);
+  // Önceden her DM için ayrı `getMember` çağrısı vardı (N+1) — principal'ın kaç DM'i
+  // varsa o kadar sıralı okuma. `listMembershipsForUid` targetUid için de zaten var,
+  // tek ek çağrıyla (paralel) hedefin üyesi olduğu konuşma ID'leri kesişim alınarak bulunur.
+  const [memberships, targetMemberships] = await Promise.all([
+    deps.conversations.listMembershipsForUid(principal.uid),
+    deps.conversations.listMembershipsForUid(targetUid),
+  ]);
   if (memberships.length === 0) return null;
-  const convs = await deps.conversations.getConversationsByIds(
-    memberships.map((m) => m.conversationId),
-    principal.tenantId,
-  );
-  for (const c of convs.filter((c) => c.type === "dm")) {
-    const member = await deps.conversations.getMember(c.id, targetUid);
-    if (member) return c;
-  }
-  return null;
+  const targetConvIds = new Set(targetMemberships.map((m) => m.conversationId));
+  const sharedIds = memberships.map((m) => m.conversationId).filter((id) => targetConvIds.has(id));
+  if (sharedIds.length === 0) return null;
+  const convs = await deps.conversations.getConversationsByIds(sharedIds, principal.tenantId);
+  return convs.find((c) => c.type === "dm") ?? null;
 }
 
 /**
@@ -749,11 +751,25 @@ export async function listStarredMessages(
   deps: ConnectDeps,
 ): Promise<{ conversation: ConnectConversation; message: ConnectMessage }[]> {
   const raw = await deps.conversations.listStarredMessages(principal.uid);
+  if (raw.length === 0) return [];
+
+  // Önceden her yıldızlı mesaj için ayrı ayrı `getConversationById` + `getMember`
+  // (N+1) vardı — çok yıldızlı mesajı olan kullanıcıda sıralı okuma sayısı katlanıyordu.
+  // Konuşmalar tek `getConversationsByIds` ile, üyelikler tek `listMembershipsForUid`
+  // ile toplu çekilip döngü sadece bellekte Map lookup yapıyor.
+  const conversationIds = [...new Set(raw.map((r) => r.conversationId))];
+  const [conversations, memberships] = await Promise.all([
+    deps.conversations.getConversationsByIds(conversationIds, principal.tenantId),
+    deps.conversations.listMembershipsForUid(principal.uid),
+  ]);
+  const conversationMap = new Map(conversations.map((c) => [c.id, c]));
+  const memberMap = new Map(memberships.map((m) => [m.conversationId, m.member]));
+
   const results: { conversation: ConnectConversation; message: ConnectMessage }[] = [];
   for (const { conversationId, message } of raw) {
-    const conversation = await deps.conversations.getConversationById(conversationId, principal.tenantId);
+    const conversation = conversationMap.get(conversationId);
     if (!conversation) continue;
-    const member = await deps.conversations.getMember(conversationId, principal.uid);
+    const member = memberMap.get(conversationId) ?? null;
     try {
       assertCanRead(conversation, member);
     } catch {
@@ -1034,21 +1050,31 @@ export async function updateConversationMeta(
   if (input.adminUids !== undefined) {
     const oldAdmins = new Set(conversation.admins);
     const newAdmins = new Set(updated.admins);
-    for (const uid of updated.admins) {
-      if (oldAdmins.has(uid)) continue;
-      const existing = await deps.conversations.getMember(conversationId, uid);
-      await deps.conversations.saveMember(conversationId, {
-        ...(existing ?? { uid, realm: conversation.realm, joinedAt: nowISO() }),
-        role: "admin",
-      });
-    }
-    for (const uid of conversation.admins) {
-      if (newAdmins.has(uid) || uid === conversation.ownerUid) continue;
-      const existing = await deps.conversations.getMember(conversationId, uid);
-      if (existing && existing.role === "admin") {
-        await deps.conversations.saveMember(conversationId, { ...existing, role: "member" });
-      }
-    }
+    // Önceden terfi/görevden alma edilen HER uid için ayrı `getMember` vardı (N+1) —
+    // tüm üye listesi zaten AYNI konuşma için tek `listMembers` çağrısıyla gelebiliyor,
+    // sonrasında sadece bellekte Map lookup + paralel yazım yapılıyor.
+    const allMembers = await deps.conversations.listMembers(conversationId);
+    const memberByUid = new Map(allMembers.map((m) => [m.uid, m]));
+
+    const toPromote = updated.admins.filter((uid) => !oldAdmins.has(uid));
+    const toDemote = conversation.admins.filter((uid) => !newAdmins.has(uid) && uid !== conversation.ownerUid);
+
+    await Promise.all([
+      ...toPromote.map((uid) => {
+        const existing = memberByUid.get(uid);
+        return deps.conversations.saveMember(conversationId, {
+          ...(existing ?? { uid, realm: conversation.realm, joinedAt: nowISO() }),
+          role: "admin",
+        });
+      }),
+      ...toDemote.map((uid) => {
+        const existing = memberByUid.get(uid);
+        if (existing && existing.role === "admin") {
+          return deps.conversations.saveMember(conversationId, { ...existing, role: "member" });
+        }
+        return Promise.resolve();
+      }),
+    ]);
   }
 
   // Topluluğa YENİ eklenen grubun rosteru, bağlı "Genel Duyuru" kanalına GERÇEKTEN
@@ -1057,20 +1083,30 @@ export async function updateConversationMeta(
   // görmez). `announcementChannelId` yoksa (eski topluluklar) sessizce atlanır —
   // childIds yine de güncellenir, sadece otomatik köprü kurulamaz.
   if (input.childIds !== undefined && conversation.announcementChannelId) {
+    const announcementChannelId = conversation.announcementChannelId;
     const oldChildren = new Set(conversation.childIds ?? []);
     const newlyAdded = updated.childIds!.filter((id) => !oldChildren.has(id));
-    for (const groupConvId of newlyAdded) {
-      const roster = await deps.conversations.listMembers(groupConvId);
-      for (const m of roster) {
-        const existing = await deps.conversations.getMember(conversation.announcementChannelId, m.uid);
-        if (existing) continue; // zaten okuyucu (ör. başka bir gruptan zaten eklenmiş)
-        await deps.conversations.saveMember(conversation.announcementChannelId, {
-          uid: m.uid,
-          realm: "trainer_student",
-          role: "member",
-          joinedAt: nowISO(),
-        });
-      }
+    if (newlyAdded.length > 0) {
+      // Önceden her yeni grubun HER öğrencisi için ayrı `getMember` + koşullu `saveMember`
+      // vardı (N+1) — 30 kişilik bir sınıf eklendiğinde 30+ sıralı okuma/yazma demekti.
+      // Rosterler ve duyuru kanalının mevcut üyeleri paralel/tek çağrıyla çekilip, sadece
+      // GERÇEKTEN eksik olan üyeler için paralel yazım yapılıyor.
+      const [rosters, announcementMembers] = await Promise.all([
+        Promise.all(newlyAdded.map((groupConvId) => deps.conversations.listMembers(groupConvId))),
+        deps.conversations.listMembers(announcementChannelId),
+      ]);
+      const existingUids = new Set(announcementMembers.map((m) => m.uid));
+      const newUids = [...new Set(rosters.flat().map((m) => m.uid))].filter((uid) => !existingUids.has(uid));
+      await Promise.all(
+        newUids.map((uid) =>
+          deps.conversations.saveMember(announcementChannelId, {
+            uid,
+            realm: "trainer_student",
+            role: "member",
+            joinedAt: nowISO(),
+          }),
+        ),
+      );
     }
   }
 

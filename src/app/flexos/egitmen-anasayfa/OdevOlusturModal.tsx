@@ -63,6 +63,7 @@ import { ASSIGNMENT_ICONS, ASSIGNMENT_ICON_KEYS, ASSIGNMENT_KIND_OPTIONS } from 
 import { uploadAssignmentAttachment } from "../odevler/_shared/uploadAssignmentAttachment";
 import type { EditableAttachment } from "../odevler/_shared/EditAssignmentModal";
 import { mapStatus } from "../siniflar/_shared/groupDisplay";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface GroupItem {
   id: string; code: string; branch: string;
@@ -75,11 +76,6 @@ const ICON_KEYS = ASSIGNMENT_ICON_KEYS;
 const PUAN_HIZLI = [100, 150, 200, 250, 300];
 const TURLER = ASSIGNMENT_KIND_OPTIONS;
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 /** Kütüphane'den "Ödevi Başlat" ile açılınca şablonun alanlarıyla ön-doldurma. */
 export interface AssignmentPrefill {

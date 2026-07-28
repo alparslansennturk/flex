@@ -9,7 +9,7 @@ import { firestoreCommentRepo } from "@/app/lib/server/comment-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { notifyUser } from "@/app/lib/server/flexos-notify";
 import { listGeneralCommentsForStaff, postGeneralComment } from "@/app/lib/domain/services/comment-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 const deps = {
   assignments: firestoreAssignmentRepo,
@@ -29,10 +29,7 @@ export const GET = withAuth(async (_req: NextRequest, caller, ctx: { params: Pro
     const items = await listGeneralCommentsForStaff(actor, id, deps);
     return NextResponse.json({ items });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/assignments/[id]/comments GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/assignments/[id]/comments");
   }
 });
 
@@ -51,9 +48,6 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     const comment = await postGeneralComment(actor, id, body.text, deps);
     return NextResponse.json({ id: comment.id }, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/assignments/[id]/comments POST] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/assignments/[id]/comments");
   }
 });

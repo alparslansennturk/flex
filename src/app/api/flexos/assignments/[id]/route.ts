@@ -7,10 +7,10 @@ import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.fir
 import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { submissionDrive } from "@/app/lib/server/submission-drive";
 import { updateAssignment, deleteAssignment, type UpdateAssignmentInput } from "@/app/lib/domain/services/assignment-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { notifyAssignmentPublished } from "@/app/lib/server/assignment-mail";
 import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/assignments/[id] — tekil ödev (ör. `/flexos/kolaj` çekiliş ekranının
@@ -74,10 +74,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
 
     return NextResponse.json({ id: assignment.id, mail });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/assignments/:id PATCH]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/assignments/[id]");
   }
 });
 
@@ -95,9 +92,6 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/assignments/:id DELETE]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/assignments/[id]");
   }
 });

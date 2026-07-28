@@ -15,9 +15,9 @@ import { buildFlexosActivationEmail } from "@/app/lib/server/flexos-activation-e
 import { sendMail } from "@/app/lib/email";
 import type { Trainer } from "@/app/lib/domain/core/trainer";
 import type { FlexosUser } from "@/app/lib/domain/core/flexos-user";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
+import { apiError } from "@/app/lib/server/api-error";
 
 // Trainers GET ağır (4 koleksiyon: trainers+groups+educations+enrollments) ve yoklama
 // akışında sık çekiliyor (2026-07-13 ölçüm: tek başına 51 okuma). `ucret` alanı actor'ın
@@ -226,13 +226,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     broadcast(actor.tenantId, { type: "trainers.changed", id: result.trainer.id });
     return NextResponse.json({ id: result.trainer.id, rateDropped: result.rateDropped }, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/trainers POST] beklenmeyen hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/trainers");
   }
 });

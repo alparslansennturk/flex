@@ -23,6 +23,7 @@ import { motion } from "framer-motion";
 import { X, Loader2, UploadCloud, FileText, ExternalLink } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
 import { uploadAssignmentAttachment, ATTACHMENT_MAX_MB } from "./uploadAssignmentAttachment";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 export type AssignmentStatus = "draft" | "published" | "closed" | "archived";
 
@@ -45,11 +46,6 @@ export interface EditableAssignment {
 
 interface UploadJob { id: string; fileName: string; progress: number; status: "uploading" | "success" | "error"; error?: string }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface Props {
   /** null ise modal kapalı — açmak için bir `EditableAssignment` ver. */

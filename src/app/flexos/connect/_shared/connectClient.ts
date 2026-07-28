@@ -7,6 +7,7 @@
  */
 import { collection, documentId, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/app/lib/firebase";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 export type ConnectRealm = "staff" | "trainer_student";
 export type ConnectConversationType = "channel" | "group" | "community" | "dm";
@@ -100,11 +101,6 @@ export interface DirectoryUser {
   title?: string;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 function base(personId?: string): string {
   return personId ? "/api/flexos/student/connect" : "/api/flexos/connect";

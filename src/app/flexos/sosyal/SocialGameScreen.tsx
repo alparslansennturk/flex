@@ -25,14 +25,10 @@ import StudentPanel from "./StudentPanel";
 import { SlotReel } from "./SlotReel";
 import { generateSocialPdf, type SocialPdfData } from "./generateSocialPdf";
 import type { Student, StudentDraw, SocialPool, SMBrand, SMFormat, SocialDrawItem } from "./types";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const ACCENT = "#a855f7";
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 function todayTR() {
   const d = new Date();

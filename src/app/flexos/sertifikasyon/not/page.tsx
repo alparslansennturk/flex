@@ -65,6 +65,7 @@ import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 import { GroupSelectPanel, groupColor, firstActiveGroupId } from "../_shared/GroupSelectPanel";
 import { StudentDetailModal } from "../../ogrenciler/_shared/StudentDetailModal";
 import { StudentDetailPanel } from "../../ogrenciler/_shared/StudentDetailPanel";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const PANEL_T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
 
@@ -94,11 +95,6 @@ function clamp100(raw: string): string {
   return String(n);
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export default function SertifikaNotuPage() {
   const [groups, setGroups] = useState<GroupItem[]>([]);

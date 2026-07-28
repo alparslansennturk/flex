@@ -17,6 +17,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 // ── sabitler (tasarımla birebir) ──
 const DOW = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -260,12 +261,6 @@ export default function LabUtilizasyonPage() {
   const [newLabCapacity, setNewLabCapacity] = useState("");
   const [newLabOffice, setNewLabOffice] = useState("");
   const [savingLab, setSavingLab] = useState(false);
-
-  const authHeaders = async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  };
 
   const loadLabs = React.useCallback(async () => {
     const headers = await authHeaders();

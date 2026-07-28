@@ -50,6 +50,7 @@ import { AttachmentView } from "./_shared/AttachmentView";
 import { useCloseDropdownsOnOutsideClick } from "./_shared/useCloseDropdownsOnOutsideClick";
 import { computePopoverPosition, type PopoverPosition } from "./_shared/popoverPosition";
 import { usePresenceHeartbeat } from "./_shared/usePresenceHeartbeat";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
@@ -63,11 +64,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }

@@ -6,9 +6,9 @@ import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firest
 import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firestore";
 import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { gradeBatch, type BatchGradeItem } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/submissions/batch-grade — bir ödevin TÜM öğrenci notlarını TEK istekte
@@ -45,9 +45,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     invalidateActivityLogCache(actor.tenantId);
     return NextResponse.json(result);
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/submissions/batch-grade POST] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/submissions/batch-grade");
   }
 });

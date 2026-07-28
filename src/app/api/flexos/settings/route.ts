@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreSettingsRepo } from "@/app/lib/server/settings-repo.firestore";
 import { getSettings, updateSettings, type UpdateSettingsInput } from "@/app/lib/domain/services/settings-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** GET /api/flexos/settings — sistem anahtarlarını okur (standaloneMode dahil). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
@@ -32,13 +32,6 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
     const settings = await updateSettings(actor, body, firestoreSettingsRepo);
     return NextResponse.json(settings);
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/settings PATCH] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/settings");
   }
 });

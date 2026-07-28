@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { formatTrPhone } from "@/app/lib/phone";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
 import { useCapabilities } from "../_components/useCapabilities";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 /* ── Types ── */
 interface TrainerNote {
@@ -147,12 +148,6 @@ export default function EgitmenlerPage() {
   const [compDraft, setCompDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   /* ── eğitmen listesini gerçek API'den yükle ── */
   const loadTrainers = useCallback(async (signal?: AbortSignal) => {

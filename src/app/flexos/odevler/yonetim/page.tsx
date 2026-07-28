@@ -48,6 +48,7 @@ import BookPoolPanel from "../_shared/BookPoolPanel";
 import SocialPoolPanel from "../_shared/SocialPoolPanel";
 import GlobalLibraryPanel from "../_shared/GlobalLibraryPanel";
 import EditAssignmentModal, { type EditableAssignment, type EditableAttachment } from "../_shared/EditAssignmentModal";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 type AssignmentStatus = "draft" | "published" | "closed" | "archived";
 type MgmtTab = "templates" | "active" | "archive" | "pool" | "globalLibrary";
@@ -98,11 +99,6 @@ function fmtDate(iso?: string): string {
   return d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export default function OdevYonetimiPage() {
   const [tab, setTab] = useState<MgmtTab>("templates");

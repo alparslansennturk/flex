@@ -57,6 +57,7 @@ import EditAssignmentModal, { type EditableAssignment, type EditableAttachment }
 import { ASSIGNMENT_ICONS } from "../odevler/_shared/assignmentIcons";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
 import { isoWeekday } from "../siniflar/_shared/groupDisplay";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 // ── API şekilleri ──
 interface GroupItem {
@@ -839,12 +840,6 @@ export default function EgitmenAnaSayfaPage() {
     update();
     return () => ro.disconnect();
   }, [authed, sharedLoaded]);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const computeAttendPulse = useCallback(async () => {
     const key = todayKeyRef.current;

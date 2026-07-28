@@ -8,7 +8,7 @@ import { firestoreSubmissionFileRepo } from "@/app/lib/server/submission-file-re
 import { submissionDrive } from "@/app/lib/server/submission-drive";
 import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { retract } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** POST /api/flexos/submissions/retract — öğrenci kendi teslimini geri çeker. */
 export const POST = withAuth(async (req: NextRequest, caller) => {
@@ -33,9 +33,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     );
     return NextResponse.json({ success: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/submissions/retract] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/submissions/retract");
   }
 });

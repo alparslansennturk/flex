@@ -35,6 +35,7 @@ import Footer from "@/app/components/layout/Footer";
 import { uploadAssignmentAttachment } from "../../_shared/uploadAssignmentAttachment";
 import type { RosterItem } from "../../../siniflar/_shared/groupDisplay";
 import EditAssignmentModal, { type EditableAssignment, type AssignmentStatus } from "../../_shared/EditAssignmentModal";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 type MainTab = "students" | "assignments";
 type Filter = "all" | "active" | "completed" | "archived";
@@ -86,11 +87,6 @@ function fmtCreatedAt(iso?: string): string {
   return `${day}.${month}.${d.getFullYear()} ${weekday}.`;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export default function OdevTeslimiGroupPage() {
   const router = useRouter();

@@ -7,8 +7,8 @@ import {
   updateCertificateSettings,
   type UpdateCertificateSettingsInput,
 } from "@/app/lib/domain/services/certificate-settings-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** GET /api/flexos/certificate-settings — sertifika hesaplama ayarını okur (herkes okuyabilir). */
 export const GET = withAuth(async (_req: NextRequest, caller) => {
@@ -36,9 +36,6 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
     broadcast(actor.tenantId, { type: "settings.changed" });
     return NextResponse.json(settings);
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/certificate-settings PATCH] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/certificate-settings");
   }
 });

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { auth } from "@/app/lib/firebase";
 import type { TrainingSummary } from "@/app/lib/domain/services/person-education-summary-service";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 export interface SaleSummary { id: string; educationName: string; status: string; soldPrice: number; financingFee: number; guardian: { name: string; idNo?: string } | null; date: string }
 export interface PaymentLine { id: string; saleId: string; method: string; amount: number; installmentNo: number | null; installmentTotal: number | null; dueDate: string | null; paidAt: string | null; status: string }
@@ -29,11 +30,6 @@ export interface PersonDetail {
   totals: { expected: number; paid: number; remaining: number; rollup: string | null };
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export function useStudentDetail(personId: string | null) {
   const [person, setPerson] = useState<PersonDetail | null>(null);

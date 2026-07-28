@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreViewModeRepo } from "@/app/lib/server/view-mode-repo.firestore";
 import { setViewMode } from "@/app/lib/domain/services/view-access-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/view-access/mode — görünüm modunu (Core/Full) sunucuda kalıcı
@@ -26,9 +26,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     // istek zaten Firestore'dan taze okuyacağı için burada ekstra bir şey yapmaya gerek yok.
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/view-access/mode POST]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/view-access/mode");
   }
 });

@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { setMyHourlyRate } from "@/app/lib/domain/services/trainer-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * PATCH /api/flexos/trainers/me/rate — çağıranın KENDİ ders saati ücretini günceller.
@@ -29,9 +29,6 @@ export const PATCH = withAuth(async (req: NextRequest, caller) => {
     const trainer = await setMyHourlyRate(actor, body.hourlyRate, firestoreTrainerRepo);
     return NextResponse.json({ id: trainer.id, hourlyRate: trainer.hourlyRate });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/trainers/me/rate PATCH]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/trainers/me/rate");
   }
 });

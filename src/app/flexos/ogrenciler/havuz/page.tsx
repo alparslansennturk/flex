@@ -31,6 +31,7 @@ import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 import { StudentDetailTabsPanel } from "../_shared/StudentDetailTabsPanel";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 // Öğrenciye tıklayınca detay paneli sağdan kayarak açılır — Yoklama Detay /
 // Satış Listesi ile AYNI "liste↔detay kayması" deseni (2026-07-23, admin/op
@@ -225,12 +226,6 @@ export default function OgrenciHavuzuPage() {
   //    sadece net bir uyarı gösterir — asıl güvenlik sunucu tarafında.
   const [deleteTarget, setDeleteTarget] = useState<{ student: Student; enrollmentId: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const loadStudents = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);

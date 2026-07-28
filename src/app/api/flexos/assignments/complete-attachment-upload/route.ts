@@ -6,7 +6,7 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreUploadSessionRepo } from "@/app/lib/server/upload-session-repo.firestore";
 import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { completeAttachmentUpload } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/assignments/[id]/complete-attachment-upload — yüklemeyi tamamlar,
@@ -34,9 +34,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     const last = assignment.attachments[assignment.attachments.length - 1];
     return NextResponse.json({ attachment: last });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/assignments/[id]/complete-attachment-upload] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/assignments/complete-attachment-upload");
   }
 });

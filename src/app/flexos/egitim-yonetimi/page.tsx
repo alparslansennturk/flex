@@ -21,6 +21,7 @@ import { FlexPageLoader } from "../_components/FlexSpinner";
 import Footer from "@/app/components/layout/Footer";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
 import { useRequireCapability } from "../_shared/useRequireCapability";
+import { authHeadersJson } from "@/app/lib/client/auth-headers";
 
 // ── API tipleri (ileride genişleyecek alanlar opsiyonel) ──────────────────────
 interface EducationDoc {
@@ -184,12 +185,7 @@ export default function EgitimYonetimiPage() {
     setSelected((s) =>
       allSelected ? s.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...s, ...pageIds])),
     );
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-  }, []);
-
+  
   const askDelete = (ids: string[]) => {
     const names = ids.map((id) => educations.find((e) => e.id === id)?.name ?? id);
     setDeleteModal({ ids, names });
@@ -199,7 +195,7 @@ export default function EgitimYonetimiPage() {
     if (!deleteModal) return;
     setBusy(true);
     try {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       const results = await Promise.all(
         deleteModal.ids.map((id) => fetch(`/api/flexos/educations/${id}`, { method: "DELETE", headers })),
       );

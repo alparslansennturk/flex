@@ -5,8 +5,8 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { updateGroupStatus, deleteGroup } from "@/app/lib/domain/services/group-service";
 import type { GroupStatus } from "@/app/lib/domain/core/group";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * PATCH /api/flexos/groups/[id] — grup güncelle.
@@ -34,11 +34,8 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
       broadcast(actor.tenantId, { type: "groups.changed", id: group.id });
       return NextResponse.json({ id: group.id, status: group.status });
     } catch (e) {
-      if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-      if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-      console.error("[flexos/groups/:id PATCH status]", e);
-      return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
-    }
+    return apiError(e, "flexos/groups/[id]");
+  }
   }
 
   // Genel alan güncelleme
@@ -86,9 +83,6 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
     broadcast(actor.tenantId, { type: "groups.changed", id: id });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/groups/:id DELETE]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/groups/[id]");
   }
 });

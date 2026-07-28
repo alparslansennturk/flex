@@ -5,8 +5,8 @@ import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firest
 import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { createEnrollment, type CreateEnrollmentInput } from "@/app/lib/domain/services/enrollment-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/enrollments — kişiyi bir gruba kaydet (gated).
@@ -32,13 +32,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     broadcast(actor.tenantId, { type: "students.changed", id: enrollment.id });
     return NextResponse.json({ id: enrollment.id }, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/enrollments] beklenmeyen hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/enrollments");
   }
 });

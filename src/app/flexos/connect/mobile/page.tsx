@@ -54,6 +54,7 @@ import {
 import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
 import { QUICK_REACTIONS, QUICK_EMOJIS } from "@/app/flexos/connect/_shared/EmojiPicker";
 import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 // Bazı Promise'ler (SW aktivasyonu, FCM token isteği) başarısız olduğunda REJECT
 // etmek yerine sonsuza kadar askıda kalabiliyor (özellikle iOS Safari'de) — bu
@@ -69,11 +70,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);

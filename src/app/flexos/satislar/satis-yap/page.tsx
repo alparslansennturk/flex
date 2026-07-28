@@ -28,6 +28,7 @@ import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 // ── Katalog API tipleri (GET /api/flexos/{branches,educations,sections,tracks}) ──
 interface BranchDoc { id: string; name: string; order?: number }
@@ -123,12 +124,6 @@ export default function SatisYapPage() {
   const [tracks, setTracks] = useState<TrackDoc[]>([]);
   const [loadingEdu, setLoadingEdu] = useState(false);
   const [loadingTree, setLoadingTree] = useState(false);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   // auth + branşlar + paketler
   useEffect(() => {

@@ -34,6 +34,7 @@ import { FlexPageLoader } from "../_components/FlexSpinner";
 import { formatTrPhone } from "@/app/lib/phone";
 import { FLEX_MESSAGES } from "@/app/lib/messages";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { authHeadersJson } from "@/app/lib/client/auth-headers";
 
 // ─── Sözlükler ────────────────────────────────────────────────────────────────
 
@@ -288,18 +289,13 @@ export default function AktiviteMerkeziPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [meName, setMeName] = useState("Ben");                          // giriş yapan kullanıcı adı
 
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
-  }, []);
-
+  
   const loadBackend = useCallback(async () => {
     try {
       const u = auth.currentUser;
       const meUid = u?.uid;
       const me = u?.displayName || u?.email || "Ben";
-      const res = await fetch("/api/flexos/cases", { headers: await authHeaders() });
+      const res = await fetch("/api/flexos/cases", { headers: await authHeadersJson() });
       if (!res.ok) return;
       const json = await res.json();
       const items: CaseApiItem[] = json.items ?? [];
@@ -314,7 +310,7 @@ export default function AktiviteMerkeziPage() {
         return row;
       }));
     } catch { /* sessiz — dummy liste yine de görünür */ }
-  }, [authHeaders]);
+  }, [authHeadersJson]);
 
   // expand panel draft
   const [draftNote,       setDraftNote]       = useState("");
@@ -448,7 +444,7 @@ export default function AktiviteMerkeziPage() {
         : undefined;
       const patchCase = async (payload: Record<string, unknown>) =>
         fetch(`/api/flexos/cases/${caseId}`, {
-          method: "PATCH", headers: await authHeaders(), body: JSON.stringify(payload),
+          method: "PATCH", headers: await authHeadersJson(), body: JSON.stringify(payload),
         });
       try {
         // Kapalı talebe aktivite EKLENEMEZ → önce yeniden aç.
@@ -466,7 +462,7 @@ export default function AktiviteMerkeziPage() {
         // alanı hiç gönderilmiyordu).
         const res = await fetch("/api/flexos/activities", {
           method: "POST",
-          headers: await authHeaders(),
+          headers: await authHeadersJson(),
           body: JSON.stringify({
             caseId,
             type: "not",
@@ -506,7 +502,7 @@ export default function AktiviteMerkeziPage() {
         toast.error(e instanceof Error ? e.message : FLEX_MESSAGES['system/save-failed'].text);
       }
     }
-  }, [draftNote, draftSonrakiTip, draftTarih, draftSaat, draftSorumlu, draftGonderildi, meName, authHeaders, loadBackend]);
+  }, [draftNote, draftSonrakiTip, draftTarih, draftSaat, draftSorumlu, draftGonderildi, meName, authHeadersJson, loadBackend]);
 
   const handleEkle = async () => {
     if (!ekleForm.ad.trim() || !ekleForm.soyad.trim()) {
@@ -522,7 +518,7 @@ export default function AktiviteMerkeziPage() {
       // Yeni talep → backend (persons + flexos_cases + flexos_activities)
       const res = await fetch("/api/flexos/cases", {
         method: "POST",
-        headers: await authHeaders(),
+        headers: await authHeadersJson(),
         body: JSON.stringify({
           personData: {
             firstName: ekleForm.ad.trim(),

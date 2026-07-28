@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,9 +18,9 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FLEX_CONTENT_MAX_WIDTH } from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
 import { isoWeekday } from "../siniflar/_shared/groupDisplay";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 // ── types (API şekilleri) ──
 interface GroupSchedule {
@@ -55,6 +56,10 @@ interface ActivityItem {
   note: string | null;
   createdAt: string;
 }
+
+// `recharts` (ağır kütüphane) sadece bu donut GERÇEKTEN render olunca yüklensin diye
+// dynamic import — `ssr:false` zaten gerekli (ResponsiveContainer tarayıcı ölçümüne bağlı).
+const DonutRing = dynamic(() => import("../_shared/charts/DonutRing"), { ssr: false });
 
 const DONUT_PALETTE = ["#3A7BD5", "#FF8D28", "#009F3E", "#7C3AED", "#F91079", "#0E5D59"];
 const YAKLASAN_YAKIN_GUN = 4; // bu kadar gün ve altı "yakın" vurgusu alır
@@ -164,12 +169,6 @@ export default function EgitimOperasyonAnasayfaPage() {
     const update = () => setIsCompactRow(mq.matches);
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
-  }, []);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
   }, []);
 
   const loadAll = useCallback(async (signal?: AbortSignal) => {
@@ -326,25 +325,7 @@ export default function EgitimOperasyonAnasayfaPage() {
 
             <div style={{ display: "flex", alignItems: "center", gap: 40, flexWrap: "wrap", flex: 1, justifyContent: "center" }}>
               <div style={{ position: "relative", width: 216, height: 216, flex: "0 0 auto" }}>
-                <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 216, height: 216 }}>
-                  <PieChart>
-                    <Pie
-                      data={donut.pieData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={58}
-                      outerRadius={108}
-                      startAngle={90}
-                      endAngle={90 - 360 * revealProgress}
-                      paddingAngle={0}
-                      stroke="#fff"
-                      strokeWidth={2}
-                      isAnimationActive={false}
-                    >
-                      {donut.pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
+                <DonutRing pieData={donut.pieData} revealProgress={revealProgress} />
                 <div style={{ position: "absolute", inset: 50, background: "#fff", borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 1px #F2F4F7", pointerEvents: "none" }}>
                   <div style={{ fontSize: 28, fontWeight: 800, color: "#1E222B", letterSpacing: "-.7px", lineHeight: 1 }}>{donutTotalAnimated}</div>
                   <div style={{ fontSize: 11, color: "#8E95A3", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>Aktif Sınıf</div>

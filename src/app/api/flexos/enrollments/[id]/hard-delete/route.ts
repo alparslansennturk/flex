@@ -4,8 +4,8 @@ import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreGradeRepo } from "@/app/lib/server/grade-repo.firestore";
 import { deleteEnrollment } from "@/app/lib/domain/services/enrollment-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * DELETE /api/flexos/enrollments/[id]/hard-delete — TEK bir kaydı TAMAMEN siler
@@ -29,9 +29,6 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
     broadcast(actor.tenantId, { type: "students.changed", id });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/enrollments/:id/hard-delete DELETE]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/enrollments/[id]/hard-delete");
   }
 });

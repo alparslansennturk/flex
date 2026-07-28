@@ -7,15 +7,11 @@
  */
 import { auth } from "@/app/lib/firebase";
 import type { EditableAttachment } from "./EditAssignmentModal";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const CHUNK_SIZE = 256 * 1024;
 export const ATTACHMENT_MAX_MB = 50;
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export async function uploadAssignmentAttachment(
   assignmentId: string,

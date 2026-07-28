@@ -46,6 +46,7 @@ import { initials, avatarStyle, isoWeekday, toJsWeekdays } from "@/app/flexos/si
 import { useRealtimeSync } from "@/app/flexos/_shared/useRealtimeSync";
 import type { ExceptionReason, ExceptionScope, LessonException } from "@/app/lib/domain/core/lesson-exception";
 import { calcEstimatedEndDate } from "@/app/lib/domain/services/schedule-calc";
+import { authHeadersJson } from "@/app/lib/client/auth-headers";
 import {
   CalendarCheck, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown,
   CheckCheck, Users, Wifi, CalendarOff, AlertCircle,
@@ -182,11 +183,6 @@ function countWeekdaysInMonth(year: number, month: number, weekDays: number[], h
   return count;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-}
 
 // ── ExceptionModal ("Ders Olmadı" — sebep seç) ─────────────────────────────────
 // UI canlıdan portlandı; kayıt `POST/DELETE /api/flexos/lesson-exceptions` ile kalıcı.
@@ -353,7 +349,7 @@ export default function AttendanceCore({
 
   const loadException = useCallback(async () => {
     if (!selectedGroupId) { setException(null); return; }
-    const headers = await authHeaders();
+    const headers = await authHeadersJson();
     const res = await fetch(`/api/flexos/lesson-exceptions?groupId=${selectedGroupId}&date=${dateKey}`, { headers });
     if (res.ok) {
       const j = await res.json();
@@ -365,7 +361,7 @@ export default function AttendanceCore({
 
   const handleSaveException = async (input: SaveExceptionFormInput) => {
     if (!selectedGroupId) return;
-    const headers = await authHeaders();
+    const headers = await authHeadersJson();
     const res = await fetch("/api/flexos/lesson-exceptions", {
       method: "POST", headers,
       body: JSON.stringify({ groupId: selectedGroupId, date: dateKey, ...input }),
@@ -378,7 +374,7 @@ export default function AttendanceCore({
   };
   const handleDeleteException = async () => {
     if (!exception) return;
-    const headers = await authHeaders();
+    const headers = await authHeadersJson();
     const res = await fetch(`/api/flexos/lesson-exceptions/${exception.id}`, { method: "DELETE", headers });
     if (res.ok) {
       setShowExModal(false);
@@ -389,7 +385,7 @@ export default function AttendanceCore({
 
   // ── Groups + tatiller yükle ──────────────────────────────────────────────
   const loadGroupsAndHolidays = useCallback(async () => {
-    const headers = await authHeaders();
+    const headers = await authHeadersJson();
     const [gRes, meRes, hRes] = await Promise.all([
       fetch("/api/flexos/groups", { headers }),
       fetch("/api/flexos/me", { headers }),
@@ -489,7 +485,7 @@ export default function AttendanceCore({
     setRosterLoaded(false);
     (async () => {
       try {
-        const headers = await authHeaders();
+        const headers = await authHeadersJson();
         const res = await fetch(`/api/flexos/groups/${selectedGroupId}/roster`, { headers });
         if (res.ok) {
           const j = await res.json();
@@ -506,7 +502,7 @@ export default function AttendanceCore({
   // fetch'i gerekmiyor — sadece yoklama kayıtları çekiliyor.
   const loadAllTimeRecords = useCallback(async () => {
     if (!selectedGroupId) { setAllTimeRecords([]); return; }
-    const headers = await authHeaders();
+    const headers = await authHeadersJson();
     const res = await fetch(`/api/flexos/attendance?groupId=${selectedGroupId}`, { headers });
     if (res.ok) {
       const j = await res.json();
@@ -527,7 +523,7 @@ export default function AttendanceCore({
   useEffect(() => {
     if (mode !== "detail" || !isOrgScope || !selectedGroupId) { setMonthCancelledCount(0); return; }
     (async () => {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       const [y, m] = selectedMonthKey.split("-");
       const from = `${y}-${m}-01`, to = `${y}-${m}-31`;
       const res = await fetch(`/api/flexos/lesson-exceptions?from=${from}&to=${to}`, { headers });
@@ -544,7 +540,7 @@ export default function AttendanceCore({
     if (!selectedGroupId) { setRecord(null); setEntries({}); setSaved(false); return; }
     setLoadingRecord(true);
     try {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       const res = await fetch(`/api/flexos/attendance?groupId=${selectedGroupId}&date=${dateKey}`, { headers });
       if (res.ok) {
         const j = await res.json();
@@ -603,7 +599,7 @@ export default function AttendanceCore({
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleStartLesson = async () => {
     if (!selectedGroupId) return;
-    const headers = await authHeaders();
+    const headers = await authHeadersJson();
     const res = await fetch("/api/flexos/attendance", {
       method: "POST", headers, body: JSON.stringify({ groupId: selectedGroupId, date: dateKey }),
     });
@@ -624,7 +620,7 @@ export default function AttendanceCore({
     if (!selectedGroupId || !record) return;
     setSaving(true);
     try {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       const res = await fetch(`/api/flexos/attendance/${record.id}`, {
         method: "PATCH", headers,
         body: JSON.stringify({ groupId: selectedGroupId, date: dateKey, entries, close }),
@@ -652,7 +648,7 @@ export default function AttendanceCore({
     if (!selectedGroupId) return;
     if (record?.attendanceClosed) { setEntries({}); return; } // sadece yerel — Güncelle ile persist edilir
     if (!record) { setEntries({}); return; }
-    const headers = await authHeaders();
+    const headers = await authHeadersJson();
     await fetch(`/api/flexos/attendance/${record.id}?groupId=${selectedGroupId}&date=${dateKey}`, {
       method: "DELETE", headers,
     });

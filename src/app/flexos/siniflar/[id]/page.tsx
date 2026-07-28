@@ -48,6 +48,7 @@ import {
   toDisplayGroup, fmtTrDate, initials, avatarStyle,
 } from "../_shared/groupDisplay";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 // Admin/op için öğrenci detayı artık tam sayfa yönlendirmesi yerine sağdan
 // kayan panel — Öğrenci Havuzu/Satış Listesi ile AYNI desen (2026-07-23).
@@ -112,12 +113,6 @@ export default function SinifDetayPage() {
     const raf = requestAnimationFrame(() => setRevealed(true));
     return () => cancelAnimationFrame(raf);
   }, [loading, group, groupId]);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);

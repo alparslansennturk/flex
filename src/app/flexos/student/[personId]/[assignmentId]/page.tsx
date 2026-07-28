@@ -21,6 +21,7 @@ import {
   MoreHorizontal, Pencil,
 } from "lucide-react";
 import StudentSidebar from "../../_components/StudentSidebar";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 /* ── Types ── */
 
@@ -110,11 +111,6 @@ function deadlineMeta(dueDate?: string) {
   return { text: `${diff} gün kaldı`, danger: false, warn: false };
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 /* ── Page ── */
 

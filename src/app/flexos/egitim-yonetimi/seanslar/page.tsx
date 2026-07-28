@@ -13,6 +13,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 /**
  * Seans veri modeli — yapısal (düz text değil).
@@ -76,12 +77,6 @@ export default function SeanslarPage() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const fetchSeanslar = useCallback(async () => {
     setLoading(true);
