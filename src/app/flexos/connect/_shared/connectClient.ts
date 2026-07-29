@@ -142,10 +142,30 @@ export async function postMessage(
   return null;
 }
 
+/** Dosyayı imzalı URL'e DOĞRUDAN PUT eder (Vercel fonksiyonuna hiç uğramaz).
+ * `XMLHttpRequest` KASITLI (fetch upload progress vermiyor). */
+function putFileDirect(uploadUrl: string, file: File, mimeType: string, onProgress?: (pct: number) => void): Promise<{ error?: string } | null> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl);
+    xhr.setRequestHeader("Content-Type", mimeType);
+    xhr.upload.onprogress = (e) => {
+      if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) { resolve(null); return; }
+      resolve({ error: `Depolamaya yükleme başarısız (${xhr.status}).` });
+    };
+    xhr.onerror = () => resolve({ error: "Ağ hatası — yükleme başarısız." });
+    xhr.send(file);
+  });
+}
+
 /** Dosya eki + opsiyonel metin gönder (Faz 2 madde 5 — 2026-07-18, WhatsApp gibi
- * metin BOŞ olabilir). `XMLHttpRequest` KASITLI kullanılıyor (fetch upload progress
- * vermiyor) — `onProgress` gerçek yüzdeyi (`upload.onprogress`) raporlar. `Content-Type`
- * BİLEREK set edilmiyor, tarayıcı `FormData` sınırını (boundary) kendisi ekler. */
+ * metin BOŞ olabilir). 2026-07-29: eski tek-istekli multipart POST (Vercel'in
+ * ~4.5MB gövde sınırına takılıp büyük fotoğraflarda "yüklenemedi" hatası
+ * veriyordu) yerine 3 adımlı signed-URL akışı — sign → tarayıcıdan DOĞRUDAN
+ * GCS'e PUT → onay (mesaj kaydı). */
 export async function sendMessageWithAttachment(
   conversationId: string,
   file: File,
@@ -154,26 +174,26 @@ export async function sendMessageWithAttachment(
   onProgress?: (pct: number) => void,
 ): Promise<{ error?: string } | null> {
   const headers = await authHeaders();
-  const form = new FormData();
-  form.append("file", file);
-  form.append("text", text);
+  const mimeType = file.type || "application/octet-stream";
 
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${base(personId)}/conversations/${conversationId}/messages/attachment${qs(personId)}`);
-    if (headers.Authorization) xhr.setRequestHeader("Authorization", headers.Authorization);
-    xhr.upload.onprogress = (e) => {
-      if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) { resolve(null); return; }
-      let error = "Yüklenemedi.";
-      try { error = (JSON.parse(xhr.responseText) as { error?: string }).error ?? error; } catch { /* boş yanıt olabilir */ }
-      resolve({ error });
-    };
-    xhr.onerror = () => resolve({ error: "Ağ hatası." });
-    xhr.send(form);
+  const signRes = await fetch(`${base(personId)}/conversations/${conversationId}/messages/attachment/sign${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType }),
   });
+  if (!signRes.ok) return (await signRes.json().catch(() => ({ error: "Yükleme başlatılamadı." }))) as { error?: string };
+  const { uploadUrl, objectPath } = (await signRes.json()) as { uploadUrl: string; objectPath: string };
+
+  const putErr = await putFileDirect(uploadUrl, file, mimeType, onProgress);
+  if (putErr) return putErr;
+
+  const confirmRes = await fetch(`${base(personId)}/conversations/${conversationId}/messages${qs(personId)}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ text, attachment: { storagePath: objectPath, fileName: file.name, fileSize: file.size, mimeType } }),
+  });
+  if (!confirmRes.ok) return (await confirmRes.json().catch(() => ({ error: "Yükleme tamamlanamadı." }))) as { error?: string };
+  return null;
 }
 
 /** Mesaj düzenle — SADECE yazar (WhatsApp, 2026-07-18). */

@@ -82,7 +82,6 @@ const ACCEPTED = [
 ].join(",");
 
 const MAX_MB = 250;
-const CHUNK_SIZE = 256 * 1024;
 const POLL_MS = 6000;
 
 type JobStatus = "pending" | "uploading" | "success" | "error";
@@ -203,7 +202,14 @@ export default function FlexosStudentAssignmentDetail() {
   /* ── Upload ── */
 
   function pickFiles(incoming: FileList | File[]) {
-    const valid = Array.from(incoming).filter((f) => f.size <= MAX_MB * 1024 * 1024);
+    const valid: File[] = [];
+    for (const f of Array.from(incoming)) {
+      if (f.size > MAX_MB * 1024 * 1024) {
+        toast.error(`"${f.name}" çok büyük (${(f.size / 1024 / 1024).toFixed(0)} MB) — maks ${MAX_MB} MB.`);
+        continue;
+      }
+      valid.push(f);
+    }
     setPickedFiles((prev) => [...prev, ...valid]);
   }
   function removeFile(index: number) {
@@ -230,31 +236,27 @@ export default function FlexosStudentAssignmentDetail() {
         const json = await initRes.json().catch(() => ({})) as { error?: string };
         throw new Error(json.error ?? "Upload başlatılamadı.");
       }
-      const { uploadId } = await initRes.json() as { uploadId: string };
+      const { uploadId, uploadUrl } = await initRes.json() as { uploadId: string; uploadUrl: string };
 
-      let uploadedBytes = 0;
-      const totalBytes = file.size;
+      // Doğrudan GCS'e PUT (2026-07-29) — Vercel proxy'li chunk yükleme yerine
+      // (eskiden `upload-chunk` route'una 256KB'lık parçalar halinde gidiyordu,
+      // büyük dosyalarda yüzlerce istek demekti). `XMLHttpRequest` KASITLI
+      // (fetch upload ilerlemesi vermiyor).
       const mimeType = file.type || "application/octet-stream";
-
-      while (uploadedBytes < totalBytes) {
-        const start = uploadedBytes;
-        const end = Math.min(start + CHUNK_SIZE, totalBytes);
-        const chunk = file.slice(start, end);
-
-        const chunkRes = await fetch("/api/flexos/submissions/upload-chunk", {
-          method: "POST",
-          headers: { ...headers, "x-upload-id": uploadId, "content-range": `bytes ${start}-${end - 1}/${totalBytes}`, "x-file-type": mimeType },
-          body: chunk,
-        });
-        if (!chunkRes.ok) {
-          const json = await chunkRes.json().catch(() => ({})) as { error?: string };
-          throw new Error(json.error ?? `Chunk yükleme başarısız (${chunkRes.status})`);
-        }
-        const result = await chunkRes.json() as { status: string; uploadedBytes?: number };
-        if (result.status === "complete") uploadedBytes = totalBytes;
-        else uploadedBytes = result.uploadedBytes ?? end;
-        updateJob(index, { progress: Math.round((uploadedBytes / totalBytes) * 100) });
-      }
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl);
+        xhr.setRequestHeader("Content-Type", mimeType);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) updateJob(index, { progress: Math.round((e.loaded / e.total) * 100) });
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Depolamaya yükleme başarısız (${xhr.status}).`));
+        };
+        xhr.onerror = () => reject(new Error("Ağ hatası — yükleme başarısız."));
+        xhr.send(file);
+      });
 
       const completeRes = await fetch("/api/flexos/submissions/complete-upload", {
         method: "POST",

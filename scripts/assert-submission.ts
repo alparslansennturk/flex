@@ -208,6 +208,8 @@ function makeFakeStorage(): StorageDeps {
   return {
     buildObjectPath(segments, fileName) { return [...segments, fileName].join("/"); },
     async initResumableUploadSession(objectPath) { return `https://fake-gcs.example/session/${objectPath}`; },
+    async createSignedUploadUrl(objectPath) { return `https://fake-gcs.example/signed/${objectPath}`; },
+    async makeObjectPublic() {},
     async deleteObject() { storageDeleteCalls++; },
     publicUrl(objectPath) { return `https://fake-gcs.example/${objectPath}`; },
   };

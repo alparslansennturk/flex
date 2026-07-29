@@ -142,12 +142,16 @@ export interface InitUploadResult {
   session: UploadSession;
   currentUploads: number;
   maxUploads: number;
+  /** Tarayıcının doğrudan PUT edeceği V4 imzalı URL (2026-07-29 — Vercel proxy'siz). */
+  uploadUrl: string;
 }
 
 /**
- * Resumable upload başlat — öğrenci-tarafı, capability sistemi DIŞINDA (sahiplik
- * kontrolü: `person.authUid === requesterUid`). Canlıdaki `init-resumable-upload`
- * route'unun TEK canonical karşılığı.
+ * Doğrudan-yükleme (signed URL) başlat — öğrenci-tarafı, capability sistemi DIŞINDA
+ * (sahiplik kontrolü: `person.authUid === requesterUid`). Canlıdaki `init-resumable-upload`
+ * route'unun TEK canonical karşılığı (2026-07-29: chunk-proxy yerine tek seferlik
+ * signed URL — `session.sessionUri` artık bir GCS resumable session değil, imzalı
+ * PUT URL'i tutuyor; alan adı geriye dönük uyumluluk için değiştirilmedi).
  */
 export async function initUpload(input: InitUploadInput, deps: SubmissionDeps): Promise<InitUploadResult> {
   const { tenantId } = input;
@@ -181,7 +185,7 @@ export async function initUpload(input: InitUploadInput, deps: SubmissionDeps): 
     group, assignment.title, `${person.firstName} ${person.lastName}`, tenantId, deps,
   );
   const objectPath = deps.storage.buildObjectPath([SUBMISSIONS_STORAGE_ROOT, ...folderSegments], actualFileName);
-  const sessionUri = await deps.storage.initResumableUploadSession(objectPath, input.mimeType);
+  const uploadUrl = await deps.storage.createSignedUploadUrl(objectPath, input.mimeType);
 
   const session: UploadSession = {
     id: deps.uploadSessions.nextId(),
@@ -195,17 +199,20 @@ export async function initUpload(input: InitUploadInput, deps: SubmissionDeps): 
     actualFileName,
     fileSize: input.fileSize,
     mimeType: input.mimeType,
-    sessionUri,
+    sessionUri: uploadUrl,
     objectPath,
     folderPath: folderSegments.join("/"),
     status: "uploading",
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    // İmzalı URL 60dk'da bitiyor (bkz. `createSignedUploadUrl`) — session'ı da
+    // aynı pencereye çektik, eskiden resumable oturum 7 gün canlı kalabildiği
+    // için 7 gündü ama artık tek-seferlik PUT'ta anlamı yok.
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     createdAt: nowISO(),
     createdBy: input.requesterUid,
   };
   await deps.uploadSessions.save(session);
 
-  return { session, currentUploads, maxUploads };
+  return { session, currentUploads, maxUploads, uploadUrl };
 }
 
 export interface GetChunkSessionInput {
@@ -260,6 +267,11 @@ export async function completeUpload(input: CompleteUploadInput, deps: Submissio
 
   if (!session.objectPath) throw new ValidationError("Depolama yolu bulunamadı.");
   const storagePath = session.objectPath;
+  // Signed URL ile yüklenen nesne varsayılan PRİVATE (bkz. `createSignedUploadUrl`
+  // yorumu) — `publicUrl()`'ün eskisi gibi çalışması için burada açıkça public
+  // yapılıyor (eski resumable akışta `predefinedAcl:"publicRead"` upload ANINDA
+  // uygulanıyordu, artık onay adımında uygulanıyor).
+  await deps.storage.makeObjectPublic(storagePath);
   const webViewLink = deps.storage.publicUrl(storagePath);
 
   const now = nowISO();
