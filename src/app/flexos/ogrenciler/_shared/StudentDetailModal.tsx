@@ -27,7 +27,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Mail, MapPin, Pencil } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { useStudentDetail } from "./useStudentDetail";
@@ -40,11 +40,28 @@ import { initials, avatarGradient, statusMeta } from "./studentShared";
 
 const EMPTY_DRAFT: EditableDraft = { birthDate: "", phone: "", email: "", address: "" };
 
+/** Kısa ekran yüksekliği (2026-07-29 kullanıcı bulgusu) — `Sidebar.tsx::useCompact`
+ * ile AYNI desen. 900px'te sorun yoktu, 750px altında modal içeriği (min-h-[620px]
+ * body + header) viewport'a sığmıyor, scroll da olmadığı için alt kısım kesiliyordu.
+ * Kullanıcı kararı: scroll EKLEMEDEN, içeriği (font/padding/ikon oranlı) küçülterek
+ * sığdır. */
+function useWindowHeight() {
+  const [h, setH] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 0));
+  useEffect(() => {
+    const onResize = () => setH(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return h;
+}
+
 export function StudentDetailModal({ personId, onClose }: { personId: string; onClose: () => void }) {
   const { caps } = useCapabilities();
   const { person, trainings, poolStatus, subeler, loading, reload } = useStudentDetail(personId);
   const fullName = person ? `${person.firstName} ${person.lastName}`.trim() : "";
   const [c1, c2] = avatarGradient(personId);
+  const windowHeight = useWindowHeight();
+  const shortViewport = windowHeight > 0 && windowHeight < 750;
   const status = statusMeta(poolStatus);
 
   const canEdit = caps.has("person.edit");
@@ -54,6 +71,29 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<EditableDraft>(EMPTY_DRAFT);
+
+  // Kısa ekranda SABİT bir küçültme oranı yetmiyordu (2026-07-29 kullanıcı bulgusu:
+  // notu girilmiş bir öğrencide sertifika bölümü — "Geçti/Kaldı" rozeti + varsa ödev
+  // ağırlığı satırı — daha uzun, sabit 0.8 zoom bazen yine sığdırmıyordu). Bunun yerine
+  // GERÇEK içerik yüksekliğini ölçüp mevcut alana göre `zoom` oranını dinamik hesaplıyoruz
+  // — kaç sertifika modülü/not girilmiş olursa olsun her zaman sığar. Genişlik de AYNI
+  // orana göre daralır (kullanıcı isteği: sabit 1040px'te küçültülmüş içerik etrafında
+  // boşluk kalıp "yayılmış" görünmesin).
+  const bodyOuterRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [zoomFactor, setZoomFactor] = useState(1);
+  useLayoutEffect(() => {
+    if (!shortViewport || !person) { setZoomFactor(1); return; }
+    const outer = bodyOuterRef.current;
+    const content = contentRef.current;
+    if (!outer || !content) return;
+    content.style.zoom = "1"; // doğal (küçültülmemiş) yüksekliği ölç
+    const natural = content.scrollHeight;
+    const available = outer.clientHeight;
+    const factor = available > 0 && natural > available ? Math.max(0.6, Math.min(1, available / natural)) : 1;
+    content.style.zoom = String(factor);
+    setZoomFactor(factor);
+  }, [shortViewport, person, trainings, editing, canReadNote, windowHeight]);
 
   const startEdit = () => {
     if (!person) return;
@@ -109,35 +149,38 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
           transition={{ duration: 0.24, ease: [0.2, 0.8, 0.3, 1] }}
           onClick={(e) => e.stopPropagation()}
           className="w-full max-w-[1040px] bg-white rounded-[20px] shadow-[0_30px_70px_-20px_rgba(15,31,61,.5)] overflow-hidden flex flex-col"
-          style={{ maxHeight: "calc(100vh - 40px)" }}
+          style={{ maxHeight: "calc(100vh - 40px)", maxWidth: shortViewport ? Math.round(1040 * zoomFactor) : undefined }}
         >
-          {/* HEADER */}
-          <div className="p-6 shrink-0" style={{ background: "linear-gradient(135deg,#EAF1FB,#F4F7FC)", borderBottom: "1px solid #EEF0F3" }}>
+          {/* HEADER — kısa ekranda (bkz. `windowHeight`/`shortViewport`) padding/avatar/font küçülür,
+              modal içeriğinin altta kesilmesi/scroll gerekmesi yerine viewport'a sığması için. */}
+          <div className={shortViewport ? "p-3.5 shrink-0" : "p-6 shrink-0"} style={{ background: "linear-gradient(135deg,#EAF1FB,#F4F7FC)", borderBottom: "1px solid #EEF0F3" }}>
             <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-[17px] min-w-0">
+            <div className={shortViewport ? "flex items-center gap-3 min-w-0" : "flex items-center gap-[17px] min-w-0"}>
               <div
-                className="w-[62px] h-[62px] rounded-full shrink-0 flex items-center justify-center text-white text-[22px] font-extrabold"
+                className={`rounded-full shrink-0 flex items-center justify-center text-white font-extrabold ${shortViewport ? "w-[42px] h-[42px] text-[15px]" : "w-[62px] h-[62px] text-[22px]"}`}
                 style={{ background: `linear-gradient(135deg,${c1},${c2})`, boxShadow: "0 10px 22px -10px rgba(15,31,61,.4)" }}
               >
                 {fullName ? initials(fullName) : ""}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h2 className="m-0 text-[21px] font-extrabold tracking-tight text-[#1E222B]">
+                  <h2 className={`m-0 font-extrabold tracking-tight text-[#1E222B] ${shortViewport ? "text-[16px]" : "text-[21px]"}`}>
                     {fullName || "Yükleniyor…"}
                     {person?.isOnlineStudent && <span className="ml-1.5 text-[13px] font-bold text-blue-500">(O)</span>}
                   </h2>
                   {person && (
-                    <span className="inline-flex items-center px-4 py-1 rounded-full text-[12px] font-bold" style={{ color: status.color, background: status.background }}>
+                    <span className={`inline-flex items-center rounded-full font-bold ${shortViewport ? "px-2.5 py-0.5 text-[10.5px]" : "px-4 py-1 text-[12px]"}`} style={{ color: status.color, background: status.background }}>
                       {status.label}
                     </span>
                   )}
                 </div>
-                <div className="text-[12.5px] text-[#6F7B87] font-semibold mt-1.5 flex items-center gap-3 flex-wrap">
-                  <span>Öğrenci bilgi kartı · Eğitmen görünümü</span>
-                  {person?.pii?.email && <span className="inline-flex items-center gap-1"><Mail size={12} />{person.pii.email}</span>}
-                  {subeler.length > 0 && <span className="inline-flex items-center gap-1"><MapPin size={12} />{subeler.join(", ")}</span>}
-                </div>
+                {!shortViewport && (
+                  <div className="text-[12.5px] text-[#6F7B87] font-semibold mt-1.5 flex items-center gap-3 flex-wrap">
+                    <span>Öğrenci bilgi kartı · Eğitmen görünümü</span>
+                    {person?.pii?.email && <span className="inline-flex items-center gap-1"><Mail size={12} />{person.pii.email}</span>}
+                    {subeler.length > 0 && <span className="inline-flex items-center gap-1"><MapPin size={12} />{subeler.join(", ")}</span>}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -185,12 +228,21 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
           {/* BODY — 2026-07-16 GERÇEK BUG FIX: yüklenme durumunda burası sadece küçük bir
               spinner bloğuydu, veri gelince modal aniden gerçek içerik boyutuna sıçrıyordu
               ("daracık açılıp sonra büyüyor"). `min-h` artık HER İKİ dalda da sabit — modal
-              kutusu en baştan gerçek boyutuna yakın açılıyor, veri gelince sıçrama olmuyor. */}
-          <div className="flex-1 overflow-y-auto min-h-[620px] relative">
+              kutusu en baştan gerçek boyutuna yakın açılıyor, veri gelince sıçrama olmuyor.
+              2026-07-29 fix: kısa ekranda (`shortViewport`) bu `min-h-[620px]` dış kutunun
+              `maxHeight: calc(100vh-40px)`'iyle çakışıp altı kesiliyordu (scroll aktive
+              olamıyordu çünkü içerik zaten kendi min-height'ı yüzünden hiç küçülmüyordu) —
+              kısa ekranda min-height kaldırılıp `zoom` ile içerik oranlı küçültülüyor
+              (kullanıcı kararı: scroll değil, küçültme). */}
+          <div ref={bodyOuterRef} className={shortViewport ? "flex-1 overflow-y-auto relative" : "flex-1 overflow-y-auto min-h-[620px] relative"}>
             {!person ? (
               <div className="absolute inset-0 flex items-center justify-center"><FlexSpinner /></div>
             ) : (
-              <div className="p-6 grid gap-6" style={{ gridTemplateColumns: "minmax(0,260px) minmax(0,1fr)" }}>
+              <div
+                ref={contentRef}
+                className={shortViewport ? "p-4 grid gap-4" : "p-6 grid gap-6"}
+                style={{ gridTemplateColumns: "minmax(0,260px) minmax(0,1fr)", zoom: shortViewport ? zoomFactor : undefined }}
+              >
                 {/* 2026-07-27: `items-start` KALDIRILDI — grid'in varsayılan `stretch`'i sol/sağ
                     sütunu her zaman AYNI yüksekliğe zorluyor (sağ taraf içerik miktarına göre
                     değişken: 1 vs 2 sertifika modülü, not girilmiş/girilmemiş vb.). Sol sütun
