@@ -262,6 +262,34 @@ export default function FlexConnectPage() {
     fetchPushSettings().then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, []);
 
+  // Sessiz otomatik onarım (2026-07-29) — mobildeki AYNI mantık (bkz.
+  // `connect/mobile/page.tsx`): izin zaten "granted" ve kullanıcı bildirimleri
+  // açık tutmuşsa, tarayıcının push aboneliği bir şekilde (site verisi
+  // temizlenmesi, tarayıcı güncellemesi vb.) kaybolmuşsa kullanıcıya hiçbir
+  // toast göstermeden arka planda yeniden kurulur.
+  useEffect(() => {
+    if (!notifPush) return;
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    (async () => {
+      try {
+        const messaging = await getMessagingIfSupported();
+        if (!messaging) return;
+        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+        if (!vapidKey) return;
+        const registration = await navigator.serviceWorker.ready;
+        const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+        if (existingSub) return;
+        const token = await getOrRefreshPushToken(vapidKey, registration, messaging);
+        if (!token) return;
+        pushTokenRef.current = token;
+        await registerPushToken(token);
+      } catch (e) {
+        console.error("[connect] sessiz push onarımı başarısız:", e);
+      }
+    })();
+  }, [notifPush]);
+
   async function toggleNotifSound() {
     if (notifSoundLoading) return;
     setNotifSoundLoading(true);
@@ -278,6 +306,23 @@ export default function FlexConnectPage() {
       console.error("[connect] service worker kaydı başarısız:", err);
     });
   }, []);
+
+  /**
+   * `getToken()` çağırır; SADECE hata verirse (ör. eski/uyumsuz bir VAPID key'den
+   * kalma push subscription çakışması) mevcut aboneliği temizleyip tekrar dener.
+   * Önceden bu temizlik HER çağrıda koşulsuz yapılıyordu — bkz. mobildeki AYNI
+   * fix'in gerekçesi (2026-07-29 kullanıcı bulgusu).
+   */
+  async function getOrRefreshPushToken(vapidKey: string, registration: ServiceWorkerRegistration, messaging: Awaited<ReturnType<typeof getMessagingIfSupported>>): Promise<string | null> {
+    if (!messaging) return null;
+    try {
+      return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği");
+    } catch {
+      const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+      if (existingSub) await existingSub.unsubscribe().catch(() => {});
+      return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (temizlik sonrası)");
+    }
+  }
 
   async function toggleNotifPush() {
     if (notifPushLoading) return;
@@ -296,13 +341,7 @@ export default function FlexConnectPage() {
       const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
       if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı.", { id: toastId }); return; }
       const registration = await withTimeout(navigator.serviceWorker.ready, 8000, "Servis çalışanı hazır olma");
-      const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-      if (existingSub) await existingSub.unsubscribe().catch(() => {});
-      const token = await withTimeout(
-        getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }),
-        8000,
-        "FCM token isteği",
-      );
+      const token = await getOrRefreshPushToken(vapidKey, registration, messaging);
       if (!token) { toast.error("Cihaz kaydı alınamadı (token boş döndü).", { id: toastId }); return; }
       const registered = await registerPushToken(token);
       if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene.", { id: toastId }); return; }
