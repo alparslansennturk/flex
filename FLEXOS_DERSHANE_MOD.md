@@ -43,11 +43,29 @@ Sertifikasyon) korunuyor, mod'a göre terminoloji/etiket değişiyor:
 - (kesinleşmedi — kullanıcı UI tasarımı ilerledikçe başka relabel'lar da
   çıkabilir)
 
+## Ortak vs yeni
+
+Kullanıcı notu (2026-07-29): mevcut altyapının (kayıt, yoklama, grup/sınıf,
+öğrenci kartı, bildirim, vb.) **çoğu ortak** kalacak — dershane modu bunları
+yeniden yazmayacak, üstüne ekleyecek. Asıl yeni olan Sınav + Ölçme-
+Değerlendirme + Soru Bankası tarafı.
+
+**Modülerlik zaten FlexOS'un standart deseni** (kullanıcı teyidi: "Şu ana
+kadar FlexOS'ta hep modül yaptık") — Sınav/Ölçme-Değerlendirme'yi ayrı bir
+modül olarak kurmak yeni bir karar değil, var olan yaklaşımın doğal devamı.
+Bağımsız/eklenti gibi (mevcut Ödev/Grup mantığına sıkı bağlı olmadan, kendi
+capability'siyle açılıp kapanan) kurulması gerektiği zaten örtük kabul.
+
 ## Eksik / yeni olan gerçek iş
 
 Sınav modülü + Ölçme-Değerlendirme modülü — bunlar mevcut Ödev sisteminin
 bir varyantı OLMAYABİLİR, muhtemelen ayrı domain kavramları gerekecek:
-- Soru Bankası (kurumun kendi soru havuzu)
+- **Soru Bankası** (kurumun kendi soru havuzu) — İKİ giriş yolu olacak:
+  1. Kurum soruları **elle/manuel girecek** (kendi arayüzünden).
+  2. Kurumun elinde **PDF** varsa (mevcut soru kağıtları/kaynaklar), bunu
+     **yapay zeka destekli** bir sistemle otomatik olarak soru bankasına
+     aktaracağız (PDF → yapılandırılmış soru verisi çıkarımı). Bu ayrıca
+     tasarlanacak bir alt-sistem — henüz yöntem/model/pipeline kararı yok.
 - Deneme Sınavı / Konu Testi (kurumun uyguladığı sınav — sonuç girişi)
 - Net/Analiz Engine (doğru-yanlış-boş → net hesaplama, branş bazlı
   performans, öğrenci karnesi/veli bilgilendirme ihtimali)
