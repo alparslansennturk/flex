@@ -17,8 +17,10 @@ import { apiError } from "@/app/lib/server/api-error";
  * kimlik'i yeniden okuyordu — kota olayının bir kalemi). Artık grup+ödev+teslim listesi
  * bir kez okunur, tüm yazmalar toplanır, TEK broadcast atılır.
  *
- * `archive:true` → notlama sonrası ödev "archived"a çekilir (Ana Sayfa Ödev Parkuru'ndan
- * kalkar) ve ayrıca `assignments.changed` yayınlanır.
+ * `archive:true` → notlama sonrası ödev "closed"a çekilir (Ana Sayfa Ödev Parkuru'ndan
+ * kalkar) ve ayrıca `assignments.changed` yayınlanır. 2026-07-29 ACİL FIX: eskiden gerçek
+ * domain değeri "archived" yazılıyordu (iptal edilmiş ödev anlamına geliyor, sadece kalıcı
+ * silinebiliyordu) — bkz. `gradeBatch` yorumu.
  */
 export const POST = withAuth(async (req: NextRequest, caller) => {
   let body: { assignmentId: string; groupId: string; items: BatchGradeItem[]; archive?: boolean };

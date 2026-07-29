@@ -213,6 +213,7 @@ export default function OdevTeslimiGroupPage() {
               onEdit={(a) => setEditingAssignment({ id: a.id, title: a.title, description: a.description, dueDate: a.dueDate, status: a.status, attachments: a.attachments })}
               onAttachmentsChanged={(assignmentId, attachments) => setAssignments((prev) => prev.map((a) => (a.id === assignmentId ? { ...a, attachments } : a)))}
               onDeleted={(assignmentId) => setAssignments((prev) => prev.filter((a) => a.id !== assignmentId))}
+              onStatusChanged={(assignmentId, status) => setAssignments((prev) => prev.map((a) => (a.id === assignmentId ? { ...a, status } : a)))}
             />
           ) : (
             <div className="space-y-3">
@@ -272,8 +273,8 @@ export default function OdevTeslimiGroupPage() {
 
 /* ── Ödevler Tab ── */
 
-function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focusAssignmentId, onEdit, onAttachmentsChanged, onDeleted }: {
-  assignments: AssignmentItem[]; submissions: SubmissionRow[]; totalStudents: number; groupId: string; focusAssignmentId: string | null; onEdit: (a: AssignmentItem) => void; onAttachmentsChanged: (assignmentId: string, attachments: AssignmentAttachment[]) => void; onDeleted: (assignmentId: string) => void;
+function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focusAssignmentId, onEdit, onAttachmentsChanged, onDeleted, onStatusChanged }: {
+  assignments: AssignmentItem[]; submissions: SubmissionRow[]; totalStudents: number; groupId: string; focusAssignmentId: string | null; onEdit: (a: AssignmentItem) => void; onAttachmentsChanged: (assignmentId: string, attachments: AssignmentAttachment[]) => void; onDeleted: (assignmentId: string) => void; onStatusChanged: (assignmentId: string, status: AssignmentStatus) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -281,13 +282,15 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focu
   // İptal edilen (arşivlenen) ödevler Aktif/Tamamlanan'a hiç karışmaz — eskiden bu ayrım
   // SADECE teslim tarihine bakıyordu, `status==="archived"` hiç kontrol edilmediği için
   // iptal edilmiş ama tarihi ileride olan bir ödev hâlâ "Aktif Ödevler"de listeleniyordu.
-  // Arşivlenenler artık ayrı bir "Arşiv" sekmesinde, kalıcı silme aksiyonuyla görünüyor.
+  // Arşivlenenler artık ayrı bir "Arşiv" sekmesinde, "Geri Al"/kalıcı silme aksiyonuyla görünüyor.
   const visibleAssignments = assignments.filter((a) => a.status !== "archived");
+  // "closed" (Notları Kaydet / Ödevi Bitir ile tamamlanmış) ödev, teslim tarihi ileride
+  // olsa bile "Tamamlananlar"da görünmeli — 2026-07-29 fix, bkz. `gradeBatch` yorumu.
   const activeAssignments = visibleAssignments
-    .filter((a) => { const d = a.dueDate ? new Date(a.dueDate) : null; return d ? d >= today : true; })
+    .filter((a) => { if (a.status === "closed") return false; const d = a.dueDate ? new Date(a.dueDate) : null; return d ? d >= today : true; })
     .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   const completedAssignments = visibleAssignments
-    .filter((a) => { const d = a.dueDate ? new Date(a.dueDate) : null; return !!d && d < today; })
+    .filter((a) => { if (a.status === "closed") return true; const d = a.dueDate ? new Date(a.dueDate) : null; return !!d && d < today; })
     .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   const archivedAssignments = assignments
     .filter((a) => a.status === "archived")
@@ -328,7 +331,7 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focu
           <h2 className="text-[18px] font-bold text-text-primary mb-3">Aktif Ödevler</h2>
           <div className="space-y-3">
             {activeAssignments.map((a) => (
-              <TaskAccordion key={a.id} assignment={a} submissions={submissions.filter((s) => s.assignmentId === a.id)} totalStudents={totalStudents} groupId={groupId} isActiveSection initialOpen={a.id === focusAssignmentId} onEdit={onEdit} onAttachmentsChanged={onAttachmentsChanged} />
+              <TaskAccordion key={a.id} assignment={a} submissions={submissions.filter((s) => s.assignmentId === a.id)} totalStudents={totalStudents} groupId={groupId} isActiveSection initialOpen={a.id === focusAssignmentId} onEdit={onEdit} onAttachmentsChanged={onAttachmentsChanged} onStatusChanged={onStatusChanged} />
             ))}
           </div>
         </section>
@@ -339,7 +342,7 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focu
           <h2 className="text-[18px] font-bold text-text-primary mb-3">Tamamlananlar</h2>
           <div className="space-y-3">
             {completedAssignments.map((a) => (
-              <TaskAccordion key={a.id} assignment={a} submissions={submissions.filter((s) => s.assignmentId === a.id)} totalStudents={totalStudents} groupId={groupId} isActiveSection={false} initialOpen={a.id === focusAssignmentId} onEdit={onEdit} onAttachmentsChanged={onAttachmentsChanged} />
+              <TaskAccordion key={a.id} assignment={a} submissions={submissions.filter((s) => s.assignmentId === a.id)} totalStudents={totalStudents} groupId={groupId} isActiveSection={false} initialOpen={a.id === focusAssignmentId} onEdit={onEdit} onAttachmentsChanged={onAttachmentsChanged} onStatusChanged={onStatusChanged} />
             ))}
           </div>
         </section>
@@ -351,7 +354,7 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focu
             <h2 className="text-[18px] font-bold text-text-primary mb-3">Arşiv</h2>
             <div className="space-y-3">
               {archivedAssignments.map((a) => (
-                <ArchivedAssignmentCard key={a.id} assignment={a} onDeleted={onDeleted} />
+                <ArchivedAssignmentCard key={a.id} assignment={a} onDeleted={onDeleted} onStatusChanged={onStatusChanged} />
               ))}
             </div>
           </section>
@@ -373,10 +376,13 @@ function AssignmentsTab({ assignments, submissions, totalStudents, groupId, focu
   );
 }
 
-/** Arşivlenmiş (iptal edilmiş) ödev kartı — sadece görüntüleme + kalıcı silme, teslim/dosya
- *  yönetimi yok (TaskAccordion'un aksine, iptal edilmiş bir ödevde bunların anlamı kalmıyor). */
-function ArchivedAssignmentCard({ assignment, onDeleted }: { assignment: AssignmentItem; onDeleted: (assignmentId: string) => void }) {
+/** Arşivlenmiş (iptal edilmiş) ödev kartı — görüntüleme + "Geri Al" (2026-07-29, acil
+ *  fix — eskiden SADECE kalıcı silme vardı, yanlışlıkla arşive düşen bir ödevin kurtarılacak
+ *  hiçbir yolu yoktu) + kalıcı silme. Teslim/dosya yönetimi yok (TaskAccordion'un aksine,
+ *  iptal edilmiş bir ödevde bunların anlamı kalmıyor). */
+function ArchivedAssignmentCard({ assignment, onDeleted, onStatusChanged }: { assignment: AssignmentItem; onDeleted: (assignmentId: string) => void; onStatusChanged: (assignmentId: string, status: AssignmentStatus) => void }) {
   const [deleting, setDeleting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   async function handleDelete() {
     if (!window.confirm("Bu ödevi KALICI olarak silmek istediğine emin misin? Bu işlem geri alınamaz.")) return;
@@ -392,31 +398,81 @@ function ArchivedAssignmentCard({ assignment, onDeleted }: { assignment: Assignm
     }
   }
 
+  async function handleRestore() {
+    setRestoring(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/assignments/${assignment.id}`, {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "published" }),
+      });
+      if (!res.ok) { toast.error("Geri alınamadı."); return; }
+      toast.success("Ödev arşivden geri alındı.");
+      onStatusChanged(assignment.id, "published");
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-surface-200 p-4 flex items-center justify-between gap-4 opacity-80">
       <div className="min-w-0">
         <p className="text-[14px] font-bold text-text-primary truncate">{assignment.title}</p>
         {assignment.dueDate && <p className="text-[12px] text-surface-400 mt-0.5">{fmtEndDate(assignment.dueDate)}</p>}
       </div>
+      <div className="shrink-0 flex items-center gap-2">
+      <button
+        onClick={handleRestore}
+        disabled={restoring || deleting}
+        className="h-8 px-4 rounded-full text-[12px] font-semibold border border-status-success-200 text-status-success-600 hover:bg-status-success-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {restoring ? "Geri Alınıyor…" : "Geri Al"}
+      </button>
       <button
         onClick={handleDelete}
-        disabled={deleting}
-        className="shrink-0 h-8 px-4 rounded-full text-[12px] font-semibold border border-status-danger-200 text-status-danger-500 hover:bg-status-danger-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={deleting || restoring}
+        className="h-8 px-4 rounded-full text-[12px] font-semibold border border-status-danger-200 text-status-danger-500 hover:bg-status-danger-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {deleting ? "Siliniyor…" : "Kalıcı Sil"}
       </button>
+      </div>
     </div>
   );
 }
 
-function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActiveSection, initialOpen, onEdit, onAttachmentsChanged }: {
-  assignment: AssignmentItem; submissions: SubmissionRow[]; totalStudents: number; groupId: string; isActiveSection: boolean; initialOpen?: boolean; onEdit: (a: AssignmentItem) => void; onAttachmentsChanged: (assignmentId: string, attachments: AssignmentAttachment[]) => void;
+function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActiveSection, initialOpen, onEdit, onAttachmentsChanged, onStatusChanged }: {
+  assignment: AssignmentItem; submissions: SubmissionRow[]; totalStudents: number; groupId: string; isActiveSection: boolean; initialOpen?: boolean; onEdit: (a: AssignmentItem) => void; onAttachmentsChanged: (assignmentId: string, attachments: AssignmentAttachment[]) => void; onStatusChanged: (assignmentId: string, status: AssignmentStatus) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(!!initialOpen);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // "Arşivle" (2026-07-29) — kullanıcı isteği: notlama akışından BAĞIMSIZ, trainer'ın
+  // kendi kararıyla bir ödevi ileride silmek üzere arşive taşıyabilmesi lazım. "Notları
+  // Kaydet" artık ASLA arşivlemiyor (bkz. `gradeBatch` — "closed" kullanıyor), arşivleme
+  // SADECE bu bilinçli aksiyonla olur.
+  async function handleArchive() {
+    if (!window.confirm(`"${assignment.title}" ödevini arşive taşımak istediğine emin misin? Arşivden istersen geri alabilir ya da kalıcı silebilirsin.`)) return;
+    setArchiving(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/assignments/${assignment.id}`, {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "archived" }),
+      });
+      if (!res.ok) { toast.error("Arşivlenemedi."); return; }
+      toast.success("Ödev arşive taşındı.");
+      onStatusChanged(assignment.id, "archived");
+    } finally {
+      setArchiving(false);
+      setMenuOpen(false);
+    }
+  }
 
   // Dosya Yükle — canlıdaki AttachmentManager portu (bkz. dosya başı yorumu).
   const [expanding, setExpanding] = useState(false);
@@ -589,6 +645,13 @@ function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActi
                   className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
                 >
                   Ödevi Düzenle
+                </button>
+                <button
+                  onClick={handleArchive}
+                  disabled={archiving}
+                  className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-surface-500 hover:bg-surface-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {archiving ? "Arşivleniyor…" : "Arşivle"}
                 </button>
               </div>
             )}

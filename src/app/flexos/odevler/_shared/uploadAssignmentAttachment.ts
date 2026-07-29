@@ -1,60 +1,48 @@
 /**
  * Ödev eki yükleme — TEK paylaşımlı fonksiyon (2026-07-08). Hem "Ödevi Düzenle"
  * (`EditAssignmentModal`) hem "Ödev Oluştur" (`OdevOlusturModal`, ödev kaydedildikten
- * HEMEN sonra) buradan çağırır — chunk'lama mantığı iki yerde ayrı ayrı yazılmasın diye
- * tek kaynağa çıkarıldı. Öğrenci teslimiyle AYNI resumable-upload deseni (`upload-chunk`
- * proxy'si reuse edilir), farklı uç noktalar (`init/complete-attachment-upload`).
+ * HEMEN sonra) buradan çağırır. 2026-07-29: signed-URL akışına taşındı (tarayıcı
+ * dosyayı DOĞRUDAN GCS'e PUT eder, Vercel'e hiç uğramaz) — dosya boyutu sınırı
+ * BİLEREK KALDIRILDI (kullanıcı kararı: eğitmen kendi ders materyalini yüklerken
+ * öğrenci teslimindeki 250MB'a benzer bir tavana çarpmamalı).
  */
-import { auth } from "@/app/lib/firebase";
-import type { EditableAttachment } from "./EditAssignmentModal";
 import { authHeaders } from "@/app/lib/client/auth-headers";
-
-const CHUNK_SIZE = 256 * 1024;
-export const ATTACHMENT_MAX_MB = 50;
-
+import type { EditableAttachment } from "./EditAssignmentModal";
 
 export async function uploadAssignmentAttachment(
   assignmentId: string,
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<EditableAttachment> {
-  if (file.size > ATTACHMENT_MAX_MB * 1024 * 1024) {
-    throw new Error(`Dosya ${ATTACHMENT_MAX_MB}MB sınırını aşıyor.`);
-  }
   const headers = await authHeaders();
+  const mimeType = file.type || "application/octet-stream";
   const initRes = await fetch(`/api/flexos/assignments/${assignmentId}/init-attachment-upload`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType: file.type || "application/octet-stream" }),
+    body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType }),
   });
   if (!initRes.ok) {
     const json = await initRes.json().catch(() => ({})) as { error?: string };
     throw new Error(json.error ?? "Yükleme başlatılamadı.");
   }
-  const { uploadId } = await initRes.json() as { uploadId: string };
+  const { uploadId, uploadUrl } = await initRes.json() as { uploadId: string; uploadUrl: string };
 
-  let uploadedBytes = 0;
-  const totalBytes = file.size;
-  const mimeType = file.type || "application/octet-stream";
-
-  while (uploadedBytes < totalBytes) {
-    const start = uploadedBytes;
-    const end = Math.min(start + CHUNK_SIZE, totalBytes);
-    const chunk = file.slice(start, end);
-    const chunkRes = await fetch("/api/flexos/submissions/upload-chunk", {
-      method: "POST",
-      headers: { ...headers, "x-upload-id": uploadId, "content-range": `bytes ${start}-${end - 1}/${totalBytes}`, "x-file-type": mimeType },
-      body: chunk,
-    });
-    if (!chunkRes.ok) {
-      const json = await chunkRes.json().catch(() => ({})) as { error?: string };
-      throw new Error(json.error ?? `Chunk yükleme başarısız (${chunkRes.status})`);
-    }
-    const result = await chunkRes.json() as { status: string; uploadedBytes?: number };
-    if (result.status === "complete") uploadedBytes = totalBytes;
-    else uploadedBytes = result.uploadedBytes ?? end;
-    onProgress?.(Math.round((uploadedBytes / totalBytes) * 100));
-  }
+  // Doğrudan GCS'e PUT (bkz. dosya başı yorumu) — `XMLHttpRequest` KASITLI
+  // (fetch upload ilerlemesi vermiyor).
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl);
+    xhr.setRequestHeader("Content-Type", mimeType);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`Depolamaya yükleme başarısız (${xhr.status}).`));
+    };
+    xhr.onerror = () => reject(new Error("Ağ hatası — yükleme başarısız."));
+    xhr.send(file);
+  });
 
   const completeRes = await fetch("/api/flexos/assignments/complete-attachment-upload", {
     method: "POST",

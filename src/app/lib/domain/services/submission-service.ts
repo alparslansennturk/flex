@@ -365,18 +365,25 @@ export interface InitAttachmentUploadInput {
   mimeType: string;
 }
 
+export interface InitAttachmentUploadResult {
+  session: UploadSession;
+  uploadUrl: string;
+}
+
 /**
  * Eğitmenin ödeve referans/başlangıç dosyası eklemesi — gated `assignment.edit`
- * (2026-07-08 eklendi). Öğrenci teslimiyle AYNI resumable-upload altyapısı (chunk
- * proxy `submissions/upload-chunk` route'u ikisi için de ortak) ama farklı hedef:
- * `Submission` değil, doğrudan `Assignment.attachments`. Klasör: `.../Eğitmen`
- * (bkz. `resolveAssignmentFolderSegments`).
+ * (2026-07-08 eklendi). 2026-07-29: öğrenci teslimiyle AYNI signed-URL akışına
+ * taşındı (`createSignedUploadUrl`) — ama BİLEREK dosya boyutu sınırı YOK
+ * (kullanıcı kararı: eğitmen kendi ders materyalini yüklerken 250MB gibi bir
+ * tavana çarpmamalı; öğrenci teslimindeki 250MB sınırı kasıtlı kalıyor, bu SADECE
+ * eğitmenin kendi eki için). Hedef: `Submission` değil, doğrudan
+ * `Assignment.attachments`. Klasör: `.../Eğitmen` (bkz. `resolveAssignmentFolderSegments`).
  */
 export async function initAttachmentUpload(
   actor: Actor,
   input: InitAttachmentUploadInput,
   deps: Pick<SubmissionDeps, "assignments" | "groups" | "trainers" | "educations" | "branches" | "storage" | "uploadSessions">,
-): Promise<UploadSession> {
+): Promise<InitAttachmentUploadResult> {
   const assignment = await deps.assignments.getById(input.assignmentId, actor.tenantId);
   if (!assignment) throw new ValidationError("Ödev bulunamadı.");
   const group = await deps.groups.getById(assignment.groupId, actor.tenantId);
@@ -385,9 +392,6 @@ export async function initAttachmentUpload(
     throw new ForbiddenError("assignment.edit");
   }
 
-  if (input.fileSize > MAX_RESUMABLE_FILE_SIZE_BYTES) {
-    throw new ValidationError(`Dosya boyutu ${MAX_RESUMABLE_FILE_SIZE_LABEL} sınırını aşıyor.`);
-  }
   if (!(ALLOWED_MIME_TYPES as readonly string[]).includes(input.mimeType)) {
     throw new ValidationError(`İzin verilmeyen dosya türü: ${input.mimeType}`);
   }
@@ -399,7 +403,7 @@ export async function initAttachmentUpload(
   const actualFileName = generateActualFileName(currentCount + 1, input.fileName);
   const folderSegments = await resolveAssignmentFolderSegments(group, assignment.title, "Eğitmen", actor.tenantId, deps);
   const objectPath = deps.storage.buildObjectPath([SUBMISSIONS_STORAGE_ROOT, ...folderSegments], actualFileName);
-  const sessionUri = await deps.storage.initResumableUploadSession(objectPath, input.mimeType);
+  const uploadUrl = await deps.storage.createSignedUploadUrl(objectPath, input.mimeType);
 
   const session: UploadSession = {
     id: deps.uploadSessions.nextId(),
@@ -412,16 +416,16 @@ export async function initAttachmentUpload(
     actualFileName,
     fileSize: input.fileSize,
     mimeType: input.mimeType,
-    sessionUri,
+    sessionUri: uploadUrl,
     objectPath,
     folderPath: folderSegments.join("/"),
     status: "uploading",
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     createdAt: nowISO(),
     createdBy: actor.uid,
   };
   await deps.uploadSessions.save(session);
-  return session;
+  return { session, uploadUrl };
 }
 
 export interface CompleteAttachmentUploadInput {
@@ -450,6 +454,7 @@ export async function completeAttachmentUpload(
 
   if (!session.objectPath) throw new ValidationError("Depolama yolu bulunamadı.");
   const storagePath = session.objectPath;
+  await deps.storage.makeObjectPublic(storagePath);
 
   const attachment: AssignmentAttachment = {
     id: globalThis.crypto.randomUUID(),
@@ -878,8 +883,17 @@ export async function gradeBatch(
     });
   }
 
+  // 2026-07-29 ACİL BUG FIX: burada `status: "archived"` yazılıyordu — ama "archived" bu
+  // domain'de "İPTAL EDİLDİ, sadece kalıcı silinebilir" anlamına geliyor (bkz.
+  // `odevler/teslim/[groupId]/page.tsx::ArchivedAssignmentCard`, "Ödevi İptal Et" aksiyonu).
+  // Normal notlama akışında ödev iptal edilmiyor, TAMAMLANIYOR — doğru domain değeri
+  // `"closed"` ("Ödevi Bitir" aksiyonuyla AYNI değer, bkz. `egitmen-anasayfa/page.tsx::
+  // finishAssignment`). Yanlış değer yüzünden bir kullanıcının hâlâ not girmesi gereken
+  // ödevi geri-alınamaz arşive düşmüştü (kalıcı sil dışında hiçbir seçenek yoktu).
+  // Wire alan adı `archive`/`archived` KASITLI değiştirilmedi (geniş bir rename riski) —
+  // anlamı artık "işaretlendi/tamamlandı" (bkz. çağıran `odev-notu` sayfası).
   if (input.archive && assignment) {
-    await deps.assignments.save({ ...assignment, status: "archived", updatedAt: now, updatedBy: actor.uid });
+    await deps.assignments.save({ ...assignment, status: "closed", updatedAt: now, updatedBy: actor.uid });
     result.archived = true;
   }
   return result;
