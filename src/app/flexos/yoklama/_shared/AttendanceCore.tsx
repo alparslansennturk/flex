@@ -620,10 +620,26 @@ export default function AttendanceCore({
     if (!selectedGroupId || !record) return;
     setSaving(true);
     try {
+      // 2026-07-29 kullanıcı isteği: eğitmen bir öğrenciyi işaretleyip Kaydet'e
+      // basınca, listede hiç dokunulmamış (roster'da olup `entries`'de karşılığı
+      // olmayan) öğrenciler otomatik "gelmedi" (0 saat) sayılsın — tek tek 0'a
+      // basmak zorunda kalınmasın. SADECE boşluklar dolduruluyor, zaten işaretli
+      // olanlara dokunulmuyor — biri sonradan gelirse eğitmen üstüne tıklayıp
+      // normal şekilde günceller, bu otomatik doldurma onu ezmez.
+      const mergedEntries: Record<string, StudentEntry> = { ...entries };
+      let filledAny = false;
+      roster.forEach((p) => {
+        if (mergedEntries[p.personId] === undefined) {
+          mergedEntries[p.personId] = { hours: 0, online: isOnlinePerson(p.personId) };
+          filledAny = true;
+        }
+      });
+      if (filledAny) setEntries(mergedEntries);
+
       const headers = await authHeadersJson();
       const res = await fetch(`/api/flexos/attendance/${record.id}`, {
         method: "PATCH", headers,
-        body: JSON.stringify({ groupId: selectedGroupId, date: dateKey, entries, close }),
+        body: JSON.stringify({ groupId: selectedGroupId, date: dateKey, entries: mergedEntries, close }),
       });
       if (res.ok) {
         await loadRecord();
