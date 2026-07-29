@@ -38,6 +38,11 @@
   (yetki filtresi), Randevu Takvimi'nin bazı kısımları, Sistem Ayarları süper-admin paneli,
   Sertifika Bastır akışı, Öğrenci Profili tam-sayfa hub. Detay + gerekçe → memory
   (`flexos_roadmap_priority`, `flexos_bekleyen_tasarimlar`) ve arşiv dosyası.
+- **Beta hata bildirim sistemi (henüz kod yazılmadı, ŞİMDİ YAPILMAYACAK — 2026-07-29
+  kullanıcı kararı):** Sistem gerçek kullanıcılara (beta) açılınca, bugün kullanılan
+  "geliştirici notları" defterine benzer bir hata bildirme arayüzü HERKESE (sadece
+  trainer/admin değil) açılsın — kullanan biri hata görürse bize bildirebilsin. Sadece
+  beta açılışında gündeme alınacak, önceliksiz.
 
 ### En son tamamlanan büyük işler (özet, tam detay arşivde)
 
