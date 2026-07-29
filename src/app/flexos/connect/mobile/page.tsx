@@ -929,42 +929,32 @@ export default function FlexConnectMobile() {
     fetchPushSettings(studentPersonId ?? undefined).then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, [authUser, studentPersonId]);
 
-  // Sessiz otomatik onarım (2026-07-29) — PWA ana ekrandan silinip yeniden
-  // eklendiğinde iOS bildirim İZNİNİ koruyor (kullanıcı gözlemiyle doğrulandı)
-  // ama tarayıcının GERÇEK push aboneliğini sıfırlıyor; Ayarlar'daki anahtar ise
-  // sadece sunucudaki tercihi okuduğu için hâlâ "açık" görünüyordu — kullanıcı
-  // bir mesaj kaçırana kadar bundan haberi olmuyordu. İzin zaten "granted" ve
-  // kullanıcı bildirimleri açık tutmuşsa (`notifPush`), abonelik yoksa kullanıcıya
-  // HİÇBİR toast/soru göstermeden arka planda yeniden kurulur — iOS'ta
-  // `Notification.requestPermission()` kullanıcı jestine bağlı olduğu için izin
-  // zaten verilmemişse (permission !== "granted") burada hiçbir şey yapılamaz,
-  // o durum toggle'ın kendi akışına kalır.
+  // Push yeniden-etkinleştirme banner'ı (2026-07-29) — ÖNCE burada tamamen
+  // SESSİZ bir otomatik onarım denendi (`unsubscribe()` + `getToken()`), ama
+  // canlı testte (PWA silinip yeniden eklendi) İKİ AYRI denemede de token
+  // sunucuda hiç değişmedi — muhtemelen Firebase Messaging SDK'nın kendi iç
+  // token cache'i bizim manuel `unsubscribe()` çağrımızdan habersiz kalıp aynı
+  // (artık geçersiz) token'ı döndürmeye devam ediyor. Kullanıcının KENDİSİ
+  // Ayarlar'daki anahtarı kapatıp-açarak (`toggleNotifPush`'ın "aç" dalı)
+  // sorunu çözdüğünü doğruladı — o akış KANITLANMIŞ çalışıyor. Bu yüzden
+  // sessiz onarımı zorlamak yerine SADECE tutarsızlığı tespit edip (sunucu
+  // "açık" diyor ama tarayıcıda gerçek abonelik yok) kullanıcıya tek dokunuşluk,
+  // zaten kanıtlanmış akışı öneren görünür bir banner gösteriyoruz.
+  const [showPushReenableBanner, setShowPushReenableBanner] = useState(false);
   useEffect(() => {
     if (!authUser || studentPersonId === undefined || !isStandalone || !notifPush) return;
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     (async () => {
       try {
-        const messaging = await getMessagingIfSupported();
-        if (!messaging) return;
-        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
-        if (!vapidKey) return;
         const registration = await navigator.serviceWorker.ready;
-        // `forceRefreshPushToken` KOŞULSUZ unsubscribe+yeniden-abonelik yapıyor —
-        // `registration.pushManager.getSubscription()` REİNSTALL sonrası bile local
-        // bir abonelik objesi döndürebiliyor (2026-07-29 canlı testte doğrulandı:
-        // obje vardı, `getToken()` de onu sessizce cache'ten döndürdü, ama sunucuya
-        // push hiç ulaşmıyordu — "var görünen ama ölü" abonelik). Gereksiz Firestore
-        // yazımı olmasın diye dönen token `localStorage`'daki son kayıtlıyla aynıysa
-        // sunucuya tekrar YAZILMIYOR.
-        const token = await forceRefreshPushToken(vapidKey, registration, messaging);
-        if (!token) return;
-        pushTokenRef.current = token;
-        const lastRegistered = localStorage.getItem("flexConnectPushToken");
-        if (token === lastRegistered) return;
-        const ok = await registerPushToken(token, studentPersonId ?? undefined);
-        if (ok) localStorage.setItem("flexConnectPushToken", token);
+        const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+        if (existingSub) return; // gerçekten abone, banner gösterme
+        // Ayarlar'daki anahtar da gerçek durumu yansıtsın — kullanıcı Ayarlar'a
+        // girerse zaten "kapalı" görüp aynı kanıtlanmış "aç" akışını tetikleyebilir.
+        setNotifPush(false);
+        setShowPushReenableBanner(true);
       } catch (e) {
-        console.error("[connect-mobile] sessiz push onarımı başarısız:", e);
+        console.error("[connect-mobile] push abonelik kontrolü başarısız:", e);
       }
     })();
   }, [authUser, studentPersonId, isStandalone, notifPush]);
@@ -1081,25 +1071,6 @@ export default function FlexConnectMobile() {
       if (existingSub) await existingSub.unsubscribe().catch(() => {});
       return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (temizlik sonrası)");
     }
-  }
-
-  /**
-   * SADECE sessiz otomatik onarım için (2026-07-29): `registration.pushManager
-   * .getSubscription()` PWA silinip yeniden eklendikten SONRA bile local bir
-   * abonelik objesi döndürebiliyor — canlı testte doğrulandı, obje var ama
-   * fonksiyonel olarak ölüydü, `getToken()` de bu "var görünen ama ölü"
-   * aboneliği sessizce cache'ten döndürüp gerçek bir yenileme yapmıyordu. Bu
-   * yüzden burada `getOrRefreshPushToken`'ın aksine unsubscribe+yeniden-abonelik
-   * HER ZAMAN koşulsuz yapılıyor — ama bu SADECE app açılışında bir kez
-   * çalıştığı için (kullanıcı jestiyle tetiklenen `toggleNotifPush`'taki gibi
-   * tekrar tekrar DEĞİL), token birikmesi riski yok (aşağıda sonuç zaten
-   * `localStorage` ile karşılaştırılıp aynıysa sunucuya yazılmıyor).
-   */
-  async function forceRefreshPushToken(vapidKey: string, registration: ServiceWorkerRegistration, messaging: Awaited<ReturnType<typeof getMessagingIfSupported>>): Promise<string | null> {
-    if (!messaging) return null;
-    const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-    if (existingSub) await existingSub.unsubscribe().catch(() => {});
-    return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (sessiz onarım)");
   }
 
   /**
@@ -1342,6 +1313,20 @@ export default function FlexConnectMobile() {
                 </div>
                 {!studentPersonId && <button onClick={() => setSheetOpen(true)} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
               </div>
+              {showPushReenableBanner && (
+                <div style={{ margin: "0 16px 10px", flex: "0 0 auto" }}>
+                  <button
+                    onClick={() => { setShowPushReenableBanner(false); toggleNotifPush(); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px", borderRadius: 14, border: "none", background: T.brand, color: "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                  >
+                    <Icon k="bell" size={19} color="#fff" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700 }}>Bildirimler yeniden etkinleştirilmesi gerekiyor</div>
+                      <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.85 }}>Dokun, tekrar açalım</div>
+                    </div>
+                  </button>
+                </div>
+              )}
               <div style={{ padding: "4px 16px 12px", flex: "0 0 auto" }}>
                 <div style={searchWrapStyle}>
                   <Icon k="search" size={17} color={T.muted} />

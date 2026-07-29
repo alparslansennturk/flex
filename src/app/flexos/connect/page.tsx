@@ -266,37 +266,31 @@ export default function FlexConnectPage() {
     fetchPushSettings().then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, []);
 
-  // Sessiz otomatik onarım (2026-07-29) — mobildeki AYNI mantık (bkz.
-  // `connect/mobile/page.tsx`): izin zaten "granted" ve kullanıcı bildirimleri
-  // açık tutmuşsa, tarayıcının push aboneliği bir şekilde (site verisi
-  // temizlenmesi, tarayıcı güncellemesi vb.) kaybolmuşsa kullanıcıya hiçbir
-  // toast göstermeden arka planda yeniden kurulur.
+  // Push yeniden-etkinleştirme banner'ı (2026-07-29) — ÖNCE burada tamamen
+  // SESSİZ bir otomatik onarım denendi (`unsubscribe()` + `getToken()`), ama
+  // mobil tarafta canlı testte (PWA silinip yeniden eklendi) İKİ AYRI denemede
+  // de token sunucuda hiç değişmedi — muhtemelen Firebase Messaging SDK'nın
+  // kendi iç token cache'i bizim manuel `unsubscribe()` çağrımızdan habersiz
+  // kalıp aynı (artık geçersiz) token'ı döndürmeye devam ediyor. Kullanıcı
+  // Ayarlar'daki anahtarı kapatıp-açarak (`toggleNotifPush`'ın "aç" dalı)
+  // sorunu çözdüğünü doğruladı — o akış KANITLANMIŞ çalışıyor. Bu yüzden
+  // sessiz onarımı zorlamak yerine SADECE tutarsızlığı tespit edip (sunucu
+  // "açık" diyor ama tarayıcıda gerçek abonelik yok) kullanıcıya tek dokunuşluk,
+  // zaten kanıtlanmış akışı öneren görünür bir banner gösteriyoruz.
+  const [showPushReenableBanner, setShowPushReenableBanner] = useState(false);
   useEffect(() => {
     if (!notifPush) return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     (async () => {
       try {
-        const messaging = await getMessagingIfSupported();
-        if (!messaging) return;
-        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
-        if (!vapidKey) return;
         const registration = await navigator.serviceWorker.ready;
-        // `forceRefreshPushToken` KOŞULSUZ unsubscribe+yeniden-abonelik yapıyor —
-        // "abonelik objesi varsa dokunma" kısayolu mobildeki canlı testte YANLIŞ
-        // çıktı (obje vardı ama fonksiyonel olarak ölüydü, `getToken()` de onu
-        // sessizce cache'ten döndürüp gerçek yenileme yapmıyordu). Gereksiz
-        // Firestore yazımı olmasın diye dönen token `localStorage`'daki son
-        // kayıtlıyla aynıysa sunucuya tekrar YAZILMIYOR.
-        const token = await forceRefreshPushToken(vapidKey, registration, messaging);
-        if (!token) return;
-        pushTokenRef.current = token;
-        const lastRegistered = localStorage.getItem("flexConnectPushToken");
-        if (token === lastRegistered) return;
-        const ok = await registerPushToken(token);
-        if (ok) localStorage.setItem("flexConnectPushToken", token);
+        const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+        if (existingSub) return;
+        setNotifPush(false);
+        setShowPushReenableBanner(true);
       } catch (e) {
-        console.error("[connect] sessiz push onarımı başarısız:", e);
+        console.error("[connect] push abonelik kontrolü başarısız:", e);
       }
     })();
   }, [notifPush]);
@@ -333,15 +327,6 @@ export default function FlexConnectPage() {
       if (existingSub) await existingSub.unsubscribe().catch(() => {});
       return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (temizlik sonrası)");
     }
-  }
-
-  /** SADECE sessiz otomatik onarım için — bkz. mobildeki AYNI fonksiyonun gerekçesi
-   * (2026-07-29 canlı test bulgusu). */
-  async function forceRefreshPushToken(vapidKey: string, registration: ServiceWorkerRegistration, messaging: Awaited<ReturnType<typeof getMessagingIfSupported>>): Promise<string | null> {
-    if (!messaging) return null;
-    const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-    if (existingSub) await existingSub.unsubscribe().catch(() => {});
-    return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (sessiz onarım)");
   }
 
   async function toggleNotifPush() {
@@ -1109,6 +1094,19 @@ export default function FlexConnectPage() {
               style={{ height: 42, padding: "0 14px 0 40px", borderRadius: 12, border: "1px solid #E9EBEF", background: "#F4F5F7", color: "#1B1F26", fontSize: 14, fontWeight: 500 }}
             />
           </div>
+          {showPushReenableBanner && (
+            <button
+              onClick={() => { setShowPushReenableBanner(false); toggleNotifPush(); }}
+              className="flex items-center gap-2.5 cursor-pointer transition-all w-full text-left"
+              style={{ marginTop: 10, padding: "11px 13px", borderRadius: 12, border: "none", background: "#2867bd", color: "#fff" }}
+            >
+              <Bell size={17} />
+              <div className="flex-1 min-w-0">
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Bildirimler yeniden etkinleştirilmesi gerekiyor</div>
+                <div style={{ fontSize: 11.5, fontWeight: 500, opacity: 0.85 }}>Dokun, tekrar açalım</div>
+              </div>
+            </button>
+          )}
         </div>
 
         {directoryList === null && (
