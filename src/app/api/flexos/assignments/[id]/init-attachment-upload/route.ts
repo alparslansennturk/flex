@@ -12,9 +12,9 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 /**
  * POST /api/flexos/assignments/[id]/init-attachment-upload — eğitmenin ödeve referans
- * dosyası eklemesi (gated `assignment.edit`). Öğrenci teslimiyle AYNI resumable-upload
- * chunk proxy'sini (`/api/flexos/submissions/upload-chunk`) kullanır — `sessionUri`
- * ASLA response'a dahil edilmez.
+ * dosyası eklemesi (gated `assignment.edit`). 2026-07-29: signed-URL akışı, dosya
+ * boyutu sınırı YOK (bkz. `initAttachmentUpload` gerekçesi) — `uploadUrl` tarayıcının
+ * DOĞRUDAN PUT edebilmesi için BİLEREK response'a dahil ediliyor.
  */
 export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
   const { id: assignmentId } = await ctx.params;
@@ -26,7 +26,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   }
 
   try {
-    const session = await initAttachmentUpload(
+    const { session, uploadUrl } = await initAttachmentUpload(
       await actorFromCaller(caller),
       { assignmentId, fileName: body.fileName, fileSize: body.fileSize, mimeType: body.mimeType },
       {
@@ -39,7 +39,7 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
         storage: submissionStorage,
       },
     );
-    return NextResponse.json({ uploadId: session.id, fileName: session.actualFileName });
+    return NextResponse.json({ uploadId: session.id, fileName: session.actualFileName, uploadUrl });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });

@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { X, Loader2, UploadCloud, FileText, ExternalLink } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
-import { uploadAssignmentAttachment, ATTACHMENT_MAX_MB } from "./uploadAssignmentAttachment";
+import { uploadAssignmentAttachment } from "./uploadAssignmentAttachment";
 
 export type AssignmentStatus = "draft" | "published" | "closed" | "archived";
 
@@ -205,7 +205,7 @@ export default function EditAssignmentModal({ assignment, onClose, onSaved }: Pr
             className={`flex items-center gap-2 justify-center px-4 py-4 rounded-xl border-2 border-dashed text-[12.5px] font-semibold cursor-pointer transition-colors ${dragOver ? "border-base-primary-400 bg-base-primary-50 text-base-primary-700" : "border-surface-200 text-surface-500 hover:bg-surface-50"}`}
           >
             <UploadCloud size={16} className="shrink-0" />
-            Sürükle-bırak ya da tıkla ({ATTACHMENT_MAX_MB}MB'a kadar)
+            Sürükle-bırak ya da tıkla
             <input type="file" multiple className="hidden" onChange={(e) => e.target.files && pickFiles(e.target.files)} />
           </label>
 

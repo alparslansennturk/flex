@@ -316,7 +316,7 @@ export default function OdevNotuPage() {
         // demo ödev — sunucuya gitmez, sadece yerel olarak "kaydedildi" gösterilir.
         toast.success("Notlar kaydedildi.");
         setJustSaved(true);
-        setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "archived" } : a)));
+        setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "closed" } : a)));
         return;
       }
 
@@ -324,8 +324,10 @@ export default function OdevNotuPage() {
       const res = await fetch(`/api/flexos/submissions/batch-grade`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        // archive:true → notlama sonrası ödev "archived" olur: Ana Sayfa Ödev Parkuru'ndan
-        // kalkar ama bu sayfada listede kalır, tekrar açılıp düzenlenebilir (2026-07-11 kararı).
+        // archive:true → notlama sonrası ödev "closed" (tamamlandı) olur: Ana Sayfa Ödev
+        // Parkuru'ndan kalkar ama bu sayfada listede kalır, tekrar açılıp düzenlenebilir
+        // (2026-07-11 kararı). 2026-07-29 ACİL FIX: eskiden "archived" yazılıyordu — bu domain'de
+        // "iptal edildi, sadece kalıcı silinebilir" demek, ödev geri alınamaz arşive düşüyordu.
         body: JSON.stringify({ assignmentId: activeAssignmentId, groupId: selectedGroupId, items, archive: true }),
       });
       if (!res.ok) {
@@ -341,7 +343,7 @@ export default function OdevNotuPage() {
         toast.success("Teslim eden olmadı, ödev tamamlandı olarak işaretlendi.");
       }
       setJustSaved(true);
-      setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "archived" } : a)));
+      setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "closed" } : a)));
     } catch {
       toast.error("Kaydedilemedi.");
     } finally {
@@ -363,13 +365,14 @@ export default function OdevNotuPage() {
   const activeGrades = activeAssignmentId ? gradesByAssignment[activeAssignmentId] ?? {} : {};
 
   function assignmentStatusMeta(assignmentId: string): { label: string; color: string; bg: string; dot: string } {
-    // 2026-07-13 fix — DB gerçeğini önce kullan: "Notları Kaydet" ödevi "archived"a çekiyor
-    // (notlaması bitti demek). Client `gradesByAssignment` SADECE ödev açılınca dolduğu için,
+    // 2026-07-13 fix — DB gerçeğini önce kullan: "Notları Kaydet" ödevi "closed"a çekiyor
+    // (notlaması bitti demek — 2026-07-29'dan ÖNCE yanlışlıkla "archived" yazılıyordu, bkz.
+    // `gradeBatch` yorumu). Client `gradesByAssignment` SADECE ödev açılınca dolduğu için,
     // açılmamış ama notlanmış ödevler (özellikle Ana Sayfa'dan girip kaydedilenler) eskiden
-    // yanlışlıkla "Bekliyor" görünüyordu — kullanıcı bug'ı. Artık archived → her zaman
-    // "Tamamlandı" (tekrar açıp kaydetmeye gerek yok).
+    // yanlışlıkla "Bekliyor" görünüyordu — kullanıcı bug'ı. `archived` de (gerçekten iptal
+    // edilmiş bir ödevse) burada gösterilmeye devam eder — ikisi de "Tamamlandı" sayılır.
     const assignment = assignments.find((a) => a.id === assignmentId);
-    if (assignment?.status === "archived") {
+    if (assignment?.status === "closed" || assignment?.status === "archived") {
       return { label: "Tamamlandı", color: "#007A30", bg: "#E6F5ED", dot: "#009F3E" };
     }
     const grades = gradesByAssignment[assignmentId];
