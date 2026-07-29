@@ -229,8 +229,16 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
     liste ucu bulunamadı — bilinçli olarak "sorun yok" sonucuna varıldı.
 18. [ ] 322 ham `fetch()` çağrısının hata durumunda kullanıcıya tutarlı feedback verip
     vermediğini kontrol et — merkezi bir hata gösterimi yok.
-19. [ ] `odevler/teslim/[groupId]/page.tsx` gibi 700-780 satırlık, hem veri çekme hem
-    sunum içeren dosyaları ayır.
+19. [x] **`odevler/teslim/[groupId]/page.tsx` veri çekme + sunum ayrımı** — ✅
+    2026-07-29 tamamlandı: 830 satırlık dosya `_shared/`'a bölündü —
+    `TaskAccordion.tsx` (akordiyon + dosya yükleme, en büyük parça),
+    `AssignmentsTab.tsx` (filtre/bölümleme + ArchivedAssignmentCard),
+    `types.ts`, `format.ts`. `page.tsx` artık SADECE veri çekme + sayfa
+    iskeleti + Öğrenciler tab'ı (830 → 224 satır). `tsc`/`eslint` temiz,
+    tarayıcıda doğrulandı (accordion, dosya eki, 3-nokta menü, Öğrenciler
+    tab'ı hepsi birebir çalışıyor). `main`'e cherry-pick edildi (main'in
+    kendi lokal `authHeaders()` deseni korunarak — main'de henüz
+    `@/app/lib/client/auth-headers` merkezi dosyası yok).
 20. [ ] `connect-service.ts` gibi büyük servislerde authorization/business-logic/data-access
     ayrımını gözden geçir.
 
