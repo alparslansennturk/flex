@@ -195,44 +195,49 @@ export function StudentEgitimBilgileri({ trainings, compact = false }: { trainin
 
   return (
     <div className="flex flex-col gap-3.5">
-      {trainings.length > 1 && (
-        <div className="relative self-end">
-          <button
-            onClick={() => setDdOpen((v) => !v)}
-            className={`inline-flex items-center justify-between gap-3 rounded-[11px] border border-[#E2E5EA] bg-white font-bold text-[#1E222B] cursor-pointer ${compact ? "min-w-[230px] px-3.5 py-2.5 text-[13px]" : "min-w-[260px] px-4 py-3 text-[14px]"}`}
-          >
-            <span className="inline-flex items-center gap-2 truncate">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c1 }} />
-              {trainingLabel(cur)}
-            </span>
+      {/* 2026-07-29 kullanıcı bulgusu: bu kutu SADECE 2+ eğitimde render ediliyordu —
+          tek eğitimi olan öğrencide (ör. sadece Grafik-2) sağ üst boşluk kalıp sütun
+          daha kısa başlıyor, bu da (grid `stretch` yüzünden) modal'ın genel yüksekliğini
+          düşürüp alt hizayı bozuyordu. Artık HER ZAMAN aynı kutu render ediliyor — tek
+          fark: tek eğitimde tıklanamaz/chevron'suz, sadece bilgi etiketi. */}
+      <div className="relative self-end">
+        <button
+          onClick={() => trainings.length > 1 && setDdOpen((v) => !v)}
+          className={`inline-flex items-center justify-between gap-3 rounded-[11px] border border-[#E2E5EA] bg-white font-bold text-[#1E222B] ${trainings.length > 1 ? "cursor-pointer" : "cursor-default"} ${compact ? "min-w-[230px] px-3.5 py-2.5 text-[13px]" : "min-w-[260px] px-4 py-3 text-[14px]"}`}
+        >
+          <span className="inline-flex items-center gap-2 truncate">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c1 }} />
+            {trainingLabel(cur)}
+          </span>
+          {trainings.length > 1 && (
             <ChevronDown size={14} className={`text-[#8E95A3] shrink-0 transition-transform ${ddOpen ? "rotate-180" : ""}`} />
-          </button>
-          {ddOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setDdOpen(false)} />
-              <div className="absolute top-[calc(100%+8px)] right-0 w-[290px] bg-white border border-[#E2E5EA] rounded-[14px] shadow-[0_18px_40px_-12px_rgba(15,31,61,.22)] p-2 z-20">
-                {trainings.map((t, i) => {
-                  const [tc1] = avatarGradient(t.groupId);
-                  const active = i === idx;
-                  return (
-                    <div
-                      key={t.enrollmentId}
-                      onClick={() => { setSelIdx(i); setDdOpen(false); }}
-                      className={`flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-[10px] cursor-pointer text-[13.5px] ${active ? "bg-[#E2EAF3] text-[#205297] font-bold" : "text-[#414B59] font-medium hover:bg-[#F7F8FA]"}`}
-                    >
-                      <span className="inline-flex items-center gap-2 min-w-0 truncate">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: tc1 }} />
-                        {trainingLabel(t)}
-                      </span>
-                      {active && <Check size={15} strokeWidth={3} className="text-[#205297] shrink-0" />}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
           )}
-        </div>
-      )}
+        </button>
+        {trainings.length > 1 && ddOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setDdOpen(false)} />
+            <div className="absolute top-[calc(100%+8px)] right-0 w-[290px] bg-white border border-[#E2E5EA] rounded-[14px] shadow-[0_18px_40px_-12px_rgba(15,31,61,.22)] p-2 z-20">
+              {trainings.map((t, i) => {
+                const [tc1] = avatarGradient(t.groupId);
+                const active = i === idx;
+                return (
+                  <div
+                    key={t.enrollmentId}
+                    onClick={() => { setSelIdx(i); setDdOpen(false); }}
+                    className={`flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-[10px] cursor-pointer text-[13.5px] ${active ? "bg-[#E2EAF3] text-[#205297] font-bold" : "text-[#414B59] font-medium hover:bg-[#F7F8FA]"}`}
+                  >
+                    <span className="inline-flex items-center gap-2 min-w-0 truncate">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: tc1 }} />
+                      {trainingLabel(t)}
+                    </span>
+                    {active && <Check size={15} strokeWidth={3} className="text-[#205297] shrink-0" />}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* course meta */}
       <div className={`bg-white border border-[#E2E5EA] rounded-[14px] ${compact ? "p-4" : "p-[18px]"}`}>
