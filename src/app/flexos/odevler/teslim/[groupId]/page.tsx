@@ -616,7 +616,14 @@ function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActi
         if (e.dataTransfer.files.length) { setOpen(true); setExpanding(true); void handleFiles(e.dataTransfer.files); }
       }}
     >
-    <div className={`bg-white border rounded-2xl overflow-hidden transition-colors duration-150 ${isDragOver ? "border-[#6366f1]" : "border-surface-200"}`}>
+    {/* 2026-07-29 fix: `overflow-hidden` BURADAN kaldırıldı — ⋮ menüsündeki dropdown
+        `absolute` konumlanıyor, bu kırpma yüzünden görünmüyordu ("içerde sıkışıyor"
+        kullanıcı bulgusu, madde sayısı 2'ye çıkınca daha da belirginleşti). Köşe
+        yuvarlaklığı zaten `rounded-2xl`'in kendi arka planı/border'ı için yeterli —
+        overflow-hidden sadece çocukların köşeden taşmasını engellemek içindi, burada
+        taşan bir görsel/renk yok (hover arka planı en fazla birkaç piksel taşabilir,
+        gözle fark edilmez). */}
+    <div className={`bg-white border rounded-2xl transition-colors duration-150 ${isDragOver ? "border-[#6366f1]" : "border-surface-200"}`}>
       <div
         className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-surface-50/60 transition-colors"
         onClick={() => setOpen((v) => !v)}
@@ -640,12 +647,16 @@ function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActi
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-8 z-50 bg-white border border-surface-200 rounded-2xl shadow-xl overflow-hidden min-w-[150px]" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => { setMenuOpen(false); onEdit(assignment); }}
-                  className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
-                >
-                  Ödevi Düzenle
-                </button>
+                {/* "Ödevi Düzenle" SADECE Aktif bölümünde (2026-07-29 kullanıcı isteği) —
+                    Tamamlanan bir ödevi düzenlemenin anlamı yok. */}
+                {isActiveSection && (
+                  <button
+                    onClick={() => { setMenuOpen(false); onEdit(assignment); }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-text-primary hover:bg-surface-50 transition-colors cursor-pointer"
+                  >
+                    Ödevi Düzenle
+                  </button>
+                )}
                 <button
                   onClick={handleArchive}
                   disabled={archiving}

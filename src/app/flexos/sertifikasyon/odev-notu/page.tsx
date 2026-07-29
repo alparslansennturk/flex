@@ -34,6 +34,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Award, Check, ArrowLeft, ClipboardList, ChevronRight, Clock, Loader2 } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
@@ -418,15 +419,20 @@ export default function OdevNotuPage() {
 
           <div className="flex-1 min-w-0 h-full min-h-0 overflow-y-auto flex flex-col gap-4">
 
+        {/* VIEW 1 ↔ VIEW 2 geçişi kayarak animasyonlu (2026-07-29 kullanıcı isteği) —
+            ileri (ödev seç/puanla) sağdan gelir, geri (Geri butonu) aynı yoldan
+            soldan geri döner. `mode="wait"` — biri tam çıkmadan öteki girmiyor,
+            ikisi üst üste bindirmiyor. */}
+        <AnimatePresence mode="wait" initial={false}>
         {showLoader ? (
           /* ===== Yükleniyor: hedef görünüm (deep-link ya da puanlama) TAM veriyle hazır
              olana kadar ara/eksik hâl hiç gösterilmez ===== */
-          <div className="flex-1 flex items-center justify-center">
+          <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex-1 flex items-center justify-center">
             <Loader2 size={26} className="animate-spin text-[#AEB4C0]" />
-          </div>
+          </motion.div>
         ) : !activeAssignmentId ? (
           /* ===== VIEW 1: Ödev Seçimi ===== */
-          <div className="flex-1 flex flex-col gap-4">
+          <motion.div key="view1" initial={{ opacity: 0, x: -28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }} className="flex-1 flex flex-col gap-4">
                 {/* header gibi sticky: bu sütunun kendi scroll'u içinde top:0 */}
                 <div className="flex items-center gap-[13px] bg-white border border-[#E2E5EA] rounded-[18px] py-4 px-5 shadow-[0_4px_20px_-14px_rgba(15,31,61,0.22)] sticky z-[5]" style={{ top: 0 }}>
                   <div className="rounded-full shrink-0" style={{ width: 5, alignSelf: "stretch", minHeight: 40, background: selectedGroup ? groupColor(selectedGroup.id) : "#CDD2DA" }} />
@@ -492,10 +498,10 @@ export default function OdevNotuPage() {
                     })
                   )}
                 </div>
-          </div>
+          </motion.div>
         ) : (
           /* ===== VIEW 2: Ödev Puanlama ===== */
-          <div className="flex-1 flex flex-col gap-4">
+          <motion.div key="view2" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }} className="flex-1 flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setActiveAssignmentId(null)}
@@ -615,8 +621,9 @@ export default function OdevNotuPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
           </div>
         </div>
