@@ -114,7 +114,34 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
    günü adını gösteriyordu, mobil göstermiyordu; bu davranış farkı `showWeekday`
    parametresiyle korundu, hiçbir ekranın görünümü değişmedi. `tsc`/`eslint`
    temiz, tarayıcıda doğrulandı (masaüstü "21 Temmuz Salı", mobil "21 Temmuz").
-6. [ ] `egitim-yonetimi/ekle/page.tsx` (1.583 satır, tek dev component) — alt component'lere böl.
+6. [x] **`egitim-yonetimi/ekle/page.tsx` (1.583 satır, tek dev component)** — ✅
+   2026-07-30 TAMAMEN bitti (3 adımda). 2026-07-29:
+   **1. adım** (risksiz, saf sabitler): `_shared/types.ts`
+   (Track/Bolum/DayData/PriceRow/TabKey/FormState/INITIAL/PoolOpt/EditingTrack/
+   DragTrack), `_shared/constants.ts` (S/IC/TABS/tabStyle/tabNumStyle/globalCss/
+   SYMBOLS/addBtn, satır satır orijinaliyle karşılaştırılarak taşındı) ve
+   `_shared/RichText.tsx` (kendi başına bağımsız zengin-metin editörü + paste
+   sanitizer) çıkarıldı.
+   **2. adım** (3 basit tab, presentational split): `_shared/GenelTab.tsx`,
+   `_shared/FiyatTab.tsx`, `_shared/SertifikasyonTab.tsx` — her biri state'siz,
+   tüm state/handler'lar prop olarak container'dan (`EgitimEklePage`) geliyor.
+   2026-07-30: **3. adım** (en karmaşık kısım, İçerikler tab'ının kendisi) —
+   3 birbirini dışlayan alt görünüm ayrı component'lere bölündü:
+   `_shared/BolumTrackYoneticisi.tsx` (bölüm/track ağacı + drag-drop + inline
+   düzenleme, ~30 prop — state container'da kaldı, `onTrackTargetChange` gibi
+   inline `setForm` mantığı container'da adlandırılmış bir handler'a çıkarıldı),
+   `_shared/StandartPaketIcerik.tsx` (RichText sarmalayıcı), `_shared/
+   GunPlanlayici.tsx` (gün gün program). `page.tsx` artık sadece bu 6 component'i
+   orkestre eden bir container.
+   `page.tsx`: 1.591 → **766 satıra** indi (%52 küçüldü, 8 yeni `_shared/` dosyası).
+   `tsc --noEmit` temiz (proje genelinde). `eslint`: kalan 2 `react/no-unescaped-
+   entities` hatası (SADECE modalCfg "publish" mesajında, hiç dokunulmadı) +
+   1 önceden var olan `isSaat` unused-var uyarısı — ikisi de bu turdan önce de
+   vardı. Fiyat + Standart Paket İçerik çıkarılırken 2 tırnak/apostrof hatası da
+   ayrıca düzeltildi (5→3→3, kalanlar tamamen ilgisiz). Tarayıcıda uçtan uca
+   doğrulandı: 4 tab, RichText toolbar'ı, Track Bazlı bölüm+track ekleme/
+   düzenleme/iptal (inline edit modu dahil), Kurumsal gün planlayıcı (konu
+   ekleme dahil) birebir eskisi gibi çalıştı, console'da hata yok.
 7. [ ] `ogrenciler/havuz/page.tsx` (1.403 satır, tek dev component) — böl.
 8. [ ] `satislar/satis-yap/page.tsx` (1.345 satır) — ticari kritik akış, hem böl hem test yaz.
 9. [x] **Client tarafta paylaşılan `authHeaders`/`authHeadersJson`** — ✅ 2026-07-28
