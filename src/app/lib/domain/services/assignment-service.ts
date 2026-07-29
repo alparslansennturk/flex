@@ -168,7 +168,21 @@ export async function updateAssignment(
   if (input.subtitle !== undefined) updated.subtitle = input.subtitle.trim() || undefined;
   if (input.icon !== undefined) updated.icon = input.icon;
   if (input.dueDate !== undefined) updated.dueDate = input.dueDate;
-  if (input.status !== undefined) updated.status = input.status;
+  if (input.status !== undefined) {
+    // "Ödevi Aktife Al" (closed → published) kilit penceresi (2026-07-29 kullanıcı kararı):
+    // teslim tarihi + 24 saat geçtikten SONRA artık geri alınamaz — deadline'dan ÖNCE
+    // kapatılmış bir ödev bile olsa, deadline + 1 gün'e kadar aktife alınabilir, sonrasında
+    // KESİN kilitlenir (notlar/sertifika hesabı gibi aşağı akışların üstüne geç kalınmış bir
+    // "geri alma" gelip veriyi tutarsızlaştırmasın diye). `dueDate` yoksa (süresiz ödev)
+    // kısıt uygulanmaz.
+    if (existing.status === "closed" && input.status === "published" && existing.dueDate) {
+      const lockAt = new Date(existing.dueDate).getTime() + 24 * 60 * 60 * 1000;
+      if (Date.now() > lockAt) {
+        throw new ValidationError("Bu ödev teslim tarihinden 1 gün sonra kilitlendi, artık aktife alınamaz.");
+      }
+    }
+    updated.status = input.status;
+  }
   if (input.maxPuan !== undefined) {
     if (!Number.isFinite(input.maxPuan) || input.maxPuan <= 0) throw new ValidationError("Ödev puanı pozitif olmalı.");
     updated.maxPuan = input.maxPuan;

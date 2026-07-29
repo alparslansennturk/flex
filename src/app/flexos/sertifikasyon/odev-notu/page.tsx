@@ -366,7 +366,11 @@ export default function OdevNotuPage() {
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus }),
       });
-      if (!res.ok) { toast.error(isClosed ? "Aktife alınamadı." : "Tamamlanamadı."); return; }
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(json.error ?? (isClosed ? "Aktife alınamadı." : "Tamamlanamadı."));
+        return;
+      }
       toast.success(isClosed ? "Ödev tekrar aktif — Ana Sayfa'ya döndü." : "Ödev tamamlandı — Ana Sayfa'dan kalktı.");
       setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: nextStatus } : a)));
     } finally {
@@ -386,6 +390,10 @@ export default function OdevNotuPage() {
   const activeAssignment = assignments.find((a) => a.id === activeAssignmentId) ?? null;
   const MAX_PUAN = activeAssignment?.maxPuan ?? 100;
   const activeGrades = activeAssignmentId ? gradesByAssignment[activeAssignmentId] ?? {} : {};
+  // "Ödevi Aktife Al" kilidi — sunucudaki (`updateAssignment`) AYNI kural (2026-07-29):
+  // teslim tarihi + 24 saat geçtiyse artık geri alınamaz. `dueDate` yoksa kısıt yok.
+  const reactivateLockedAt = activeAssignment?.dueDate ? new Date(activeAssignment.dueDate).getTime() + 24 * 60 * 60 * 1000 : null;
+  const reactivateLocked = activeAssignment?.status === "closed" && reactivateLockedAt !== null && Date.now() > reactivateLockedAt;
 
   function assignmentStatusMeta(assignmentId: string): { label: string; color: string; bg: string; dot: string } {
     // 2026-07-13 fix — DB gerçeğini önce kullan: "Notları Kaydet" ödevi "closed"a çekiyor
@@ -636,7 +644,8 @@ export default function OdevNotuPage() {
                   {!activeAssignmentId?.startsWith("dummy-") && (
                     <button
                       onClick={toggleActiveAssignmentStatus}
-                      disabled={finishing}
+                      disabled={finishing || reactivateLocked}
+                      title={reactivateLocked ? "Teslim tarihinden 1 gün sonra kilitlendi, artık aktife alınamaz." : undefined}
                       className={`inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border text-[13px] font-extrabold cursor-pointer transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                         activeAssignment?.status === "closed"
                           ? "border-[#D3E3F8] bg-[#EFF5FE] text-[#205297] hover:bg-[#E3EDFB]"
@@ -645,6 +654,7 @@ export default function OdevNotuPage() {
                     >
                       {finishing
                         ? (activeAssignment?.status === "closed" ? "Aktife Alınıyor…" : "Tamamlanıyor…")
+                        : reactivateLocked ? "Kilitli (Tamamlandı)"
                         : (activeAssignment?.status === "closed" ? "Ödevi Aktife Al" : "Ödevi Tamamla")}
                     </button>
                   )}
