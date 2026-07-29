@@ -90,7 +90,11 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
     content.style.zoom = "1"; // doğal (küçültülmemiş) yüksekliği ölç
     const natural = content.scrollHeight;
     const available = outer.clientHeight;
-    const factor = available > 0 && natural > available ? Math.max(0.6, Math.min(1, available / natural)) : 1;
+    // 2026-07-29 kullanıcı bulgusu: tam sınıra göre hesaplanan oran, alt piksel
+    // yuvarlaması yüzünden birkaç piksellik taşmaya (dolayısıyla scroll'a) yol
+    // açabiliyordu — "çok çok az bir içerik yüzünden scroll çıkıyor". %3'lük bir
+    // güvenlik payı (`* 0.97`) ile ASLA tam sınırda durmuyor, scroll hiç tetiklenmiyor.
+    const factor = available > 0 && natural > available ? Math.max(0.6, Math.min(1, (available / natural) * 0.97)) : 1;
     content.style.zoom = String(factor);
     setZoomFactor(factor);
   }, [shortViewport, person, trainings, editing, canReadNote, windowHeight]);
