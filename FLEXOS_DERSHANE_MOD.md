@@ -72,12 +72,44 @@ bir varyantı OLMAYABİLİR, muhtemelen ayrı domain kavramları gerekecek:
 
 Bunların hiçbiri henüz tasarlanmadı — sadece varlığı biliniyor.
 
+## Öncelik sırası
+
+**Önce mevcut FlexOS (yeni mimari) bitecek** — Dershane modu ondan SONRA
+ele alınacak, şu an paralel bir iş değil.
+
+## Sınıflar Ligi — korumaya alınmalı
+
+Kullanıcı fikri (2026-07-29): pasif kalan "Sınıflar Ligi" (gamified öğrenci
+sıralaması/liderlik tablosu) özelliğini Dershane moduna monte etmek çok iyi
+olur — LGS yaşındaki (genç) öğrenciler için rekabet/oyunlaştırma motivasyonu
+uygun bir eşleşme.
+
+**Mevcut durum (eski sistem, FlexOS'a hiç taşınmadı):**
+`src/app/league/page.tsx`, `src/app/dashboard/league/page.tsx`,
+`src/app/api/league/route.ts` — XP/puan tabanlı öğrenci liderlik tablosu
+(sıralama, rank değişimi, tamamlanan görev, gecikme cezası; `ScoringContext`/
+`calcStudentFinalScore`'a bağlı). Bu **eski Flex Core'un** parçası —
+`middleware.ts`'teki `DEAD_OLD_ROUTE_PREFIXES` listesinde (`/league` dahil),
+yani gerçek trafiğe kapalı, sadece kod olarak duruyor (kullanıcı kararı:
+1 ay yedek tutulup silinecekti — henüz silinmedi).
+
+**Aksiyon:** Şimdilik SADECE "kaybolmasın, korumaya alınsın" notu — silme
+sırası gelirse bu üç dosya/route AYRI TUTULMALI (Dershane modu için olası
+canlandırma adayı). Gerçek entegrasyon kararı (aynen mi taşınacak, FlexOS
+domain modeline mi uyarlanacak) henüz verilmedi.
+
+(Not: `platform_expansion_status` memory kaydına bakıldı ama içeriği çok
+eski/güncel değil — league ile ilgili net bir önceki karar bulunamadı,
+bu yüzden buraya spekülatif bir referans EKLENMEDİ. Bu, tamamen bu
+konuşmadan doğan taze bir fikir olarak kabul edilmeli.)
+
 ## Sıra
 
-1. **Kullanıcı** Sınav ve Ölçme-Değerlendirme modüllerinin UI'ını kendisi
-   tasarlayacak (Claude Design veya benzeri).
-2. UI paylaşılınca gerçek domain modelleme konuşması yapılacak — özellikle
+1. **Önce mevcut FlexOS mimarisi tamamlanacak.**
+2. Sonra: **Kullanıcı** Sınav ve Ölçme-Değerlendirme modüllerinin UI'ını
+   kendisi tasarlayacak (Claude Design veya benzeri).
+3. UI paylaşılınca gerçek domain modelleme konuşması yapılacak — özellikle
    "Deneme Sınavı ayrı bir entity mi, yoksa Ödev'in bir türü mü?" kararı.
-3. Kullanıcı "koda dök" dedikten sonra implementasyon başlayacak.
+4. Kullanıcı "koda dök" dedikten sonra implementasyon başlayacak.
 
 **Şu an hiçbir kod aksiyonu yok — sadece bu plan.**
