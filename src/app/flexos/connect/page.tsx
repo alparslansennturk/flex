@@ -242,6 +242,15 @@ export default function FlexConnectPage() {
   const [myPresenceStatus, setMyPresenceStatusLocal] = useState<PresenceStatus>("online");
   const [presenceMenuOpen, setPresenceMenuOpen] = useState(false);
   usePresenceHeartbeat(true);
+  // bkz. mobildeki AYNI fix'in gerekçesi (2026-07-29) — `isPresenceOffline()`
+  // `Date.now()`'a göre türetiliyor ama karşı taraf heartbeat göndermeyi
+  // kesince yeni bir Firestore yazısı olmadığı için component yeniden render
+  // olmuyor, nokta kalıcı "çevrimiçi" görünmeye devam ediyordu.
+  const [, forcePresenceTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forcePresenceTick((t) => t + 1), 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Masaüstü push bildirimleri (2026-07-20) — mobildeki `toggleNotifPush` ile
   // AYNI akış (izin iste → FCM token al → sunucuya kaydet), iOS/standalone

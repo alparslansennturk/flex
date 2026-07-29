@@ -378,6 +378,17 @@ export default function FlexConnectMobile() {
   const [myPresenceStatus, setMyPresenceStatusLocal] = useState<PresenceStatus>("online");
   const [presenceSheetOpen, setPresenceSheetOpen] = useState(false);
   usePresenceHeartbeat(studentPersonId !== undefined, studentPersonId ?? undefined);
+  // `isPresenceOffline()` `Date.now()`'a göre TÜRETİLİYOR (bkz. connect-presence.ts) —
+  // ama karşı taraf uygulamayı kapatıp heartbeat göndermeyi kesince Firestore'da
+  // HİÇBİR yeni yazı olmuyor, `presenceMap` snapshot'ı hiç değişmiyor, dolayısıyla
+  // component de yeniden render OLMUYOR ve nokta kalıcı olarak "çevrimiçi" (yeşil)
+  // görünmeye devam ediyordu (2026-07-29 kullanıcı bulgusu). TTL'den (45sn) daha
+  // sık bir "tick" ile zorla yeniden render tetikleyip zaman aşımını yakalıyoruz.
+  const [, forcePresenceTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forcePresenceTick((t) => t + 1), 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   const loadConversations = useCallback(async () => {
     if (studentPersonId === undefined) return;
