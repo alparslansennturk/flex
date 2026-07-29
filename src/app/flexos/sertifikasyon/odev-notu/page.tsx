@@ -350,25 +350,29 @@ export default function OdevNotuPage() {
     }
   }
 
-  // "Ödevi Tamamla" (2026-07-29 kullanıcı kararı) — "Notları Kaydet"ten BAĞIMSIZ, bilinçli
-  // bir aksiyon: ödevi "closed" yapar (Ana Sayfa Ödev Parkuru'ndaki `finishAssignment`/
-  // "Ödevi Bitir" ile AYNI uç nokta). Kısmi teslim/not girme devam ederken ödev henüz
-  // "bitmiş" sayılmasın diye kaydetmeden ayrıştırıldı — trainer istediği an, istediği notla
-  // ödevi kapatabilir.
+  // "Ödevi Tamamla" ↔ "Ödevi Aktife Al" (2026-07-29 kullanıcı kararı) — "Notları
+  // Kaydet"ten BAĞIMSIZ, bilinçli bir TEK toggle: ödev "closed" değilse "Tamamla"
+  // (Ana Sayfa Ödev Parkuru'ndaki "Ödevi Bitir" ile AYNI uç nokta), "closed"sa
+  // "Aktife Al" (geri "published" — yanlışlıkla tamamlandıysa geri alınabilsin diye,
+  // kullanıcı isteği: buton GİZLENMEZ, ödev "closed"ken de yerinde durup ters işlemi
+  // sunar). Kısmi teslim/not girme devam ederken ödev otomatik "bitmiş" sayılmasın
+  // diye kaydetmeden ayrıştırıldı — trainer istediği an, istediği notla ödevi kapatır/açar.
   const [finishing, setFinishing] = useState(false);
-  async function finishActiveAssignment() {
+  async function toggleActiveAssignmentStatus() {
     if (!activeAssignmentId || activeAssignmentId.startsWith("dummy-")) return;
+    const isClosed = activeAssignment?.status === "closed";
+    const nextStatus = isClosed ? "published" : "closed";
     setFinishing(true);
     try {
       const headers = await authHeaders();
       const res = await fetch(`/api/flexos/assignments/${activeAssignmentId}`, {
         method: "PATCH",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "closed" }),
+        body: JSON.stringify({ status: nextStatus }),
       });
-      if (!res.ok) { toast.error("Tamamlanamadı."); return; }
-      toast.success("Ödev tamamlandı — Ana Sayfa'dan kalktı.");
-      setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "closed" } : a)));
+      if (!res.ok) { toast.error(isClosed ? "Aktife alınamadı." : "Tamamlanamadı."); return; }
+      toast.success(isClosed ? "Ödev tekrar aktif — Ana Sayfa'ya döndü." : "Ödev tamamlandı — Ana Sayfa'dan kalktı.");
+      setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: nextStatus } : a)));
     } finally {
       setFinishing(false);
     }
@@ -629,17 +633,23 @@ export default function OdevNotuPage() {
                 <div className="text-[12.5px] text-[#6F7B87] font-semibold">{girilenSayisi} / {roster.length} öğrenci değerlendirildi</div>
                 <div className="flex items-center gap-2.5">
                   {/* "Taslak Kaydet" kaldırıldı (2026-07-11 kullanıcı kararı: hiç işlevi
-                      yoktu, sadece "yakında" toast'ı gösteriyordu — "saçma"). "Ödevi
-                      Tamamla" (2026-07-29) — "Notları Kaydet"ten AYRI, bilinçli bir aksiyon
-                      (bkz. `finishActiveAssignment` yorumu); ödev zaten "closed"sa (ya da
-                      demo ödevse) gösterilmez. */}
-                  {activeAssignment?.status !== "closed" && !activeAssignmentId?.startsWith("dummy-") && (
+                      yoktu, sadece "yakında" toast'ı gösteriyordu — "saçma"). "Ödevi Tamamla"
+                      ↔ "Ödevi Aktife Al" (2026-07-29) — "Notları Kaydet"ten AYRI, bilinçli
+                      bir toggle (bkz. `toggleActiveAssignmentStatus` yorumu); demo ödevde
+                      gösterilmez ama "closed"ken GİZLENMEZ — ters işlemi (geri alma) sunar. */}
+                  {!activeAssignmentId?.startsWith("dummy-") && (
                     <button
-                      onClick={finishActiveAssignment}
+                      onClick={toggleActiveAssignmentStatus}
                       disabled={finishing}
-                      className="inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-extrabold cursor-pointer transition-all hover:-translate-y-0.5 hover:bg-[#F7F8FA] disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border text-[13px] font-extrabold cursor-pointer transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        activeAssignment?.status === "closed"
+                          ? "border-[#D3E3F8] bg-[#EFF5FE] text-[#205297] hover:bg-[#E3EDFB]"
+                          : "border-[#E2E5EA] bg-white text-[#414B59] hover:bg-[#F7F8FA]"
+                      }`}
                     >
-                      {finishing ? "Tamamlanıyor…" : "Ödevi Tamamla"}
+                      {finishing
+                        ? (activeAssignment?.status === "closed" ? "Aktife Alınıyor…" : "Tamamlanıyor…")
+                        : (activeAssignment?.status === "closed" ? "Ödevi Aktife Al" : "Ödevi Tamamla")}
                     </button>
                   )}
                   <button
