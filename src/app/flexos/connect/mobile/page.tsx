@@ -49,74 +49,18 @@ import {
   setConversationMuted, setConversationArchived, registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled, reportIssue, hideConversation, clearConversation,
   editMessage, deleteMessage, setMessageReaction, toggleMessageStar, sendMessageWithAttachment,
   fetchStarredMessages, type StarredMessageView,
-  subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
+  subscribeToPresence, setMyPresenceStatus,
 } from "@/app/flexos/connect/_shared/connectClient";
 import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
 import { QUICK_REACTIONS, QUICK_EMOJIS } from "@/app/flexos/connect/_shared/EmojiPicker";
 import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
 import { authHeaders } from "@/app/lib/client/auth-headers";
-
-// Bazı Promise'ler (SW aktivasyonu, FCM token isteği) başarısız olduğunda REJECT
-// etmek yerine sonsuza kadar askıda kalabiliyor (özellikle iOS Safari'de) — bu
-// durumda kullanıcıya ne hata ne de başarı geri bildirimi gitmiyordu ("hiç tepki
-// yok"). Zaman aşımı ekleyip hangi adımda takıldığını görünür kılıyoruz.
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} zaman aşımına uğradı (${ms / 1000}sn)`)), ms)),
-  ]);
-}
+import { withTimeout, initials, fmtTime, fmtFileSize, dayKey, dividerLabel as dividerLabelBase, PresenceDot } from "@/app/flexos/connect/_shared/format";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
 
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
-}
-/** Presence renk/etiket eşlemesi (2026-07-20) — masaüstündeki AYNI mantık. */
-function presenceColor(signal: PresenceSignal | undefined): string {
-  if (isPresenceOffline(signal)) return "#E5484D";
-  if (signal!.status === "online") return "#22C55E";
-  return "#F59E0B";
-}
-function presenceLabel(signal: PresenceSignal | undefined): string {
-  if (isPresenceOffline(signal)) return "Çevrimdışı";
-  if (signal!.status === "online") return "Çevrimiçi";
-  if (signal!.status === "in_class") return "Derste";
-  return "Rahatsız Etmeyin";
-}
-/** `presence===undefined` ise (öğrenci/bilinmeyen) HİÇ render edilmez. `ring`
- * halka rengi çağıran tarafın arka planına göre verilir (koyu/açık tema). */
-function PresenceDot({ signal, ring }: { signal: PresenceSignal | undefined; ring: string }) {
-  if (!signal) return null;
-  return (
-    <span
-      title={presenceLabel(signal)}
-      aria-label={presenceLabel(signal)}
-      style={{ position: "absolute", bottom: -2, right: -2, width: 11, height: 11, borderRadius: "50%", background: presenceColor(signal), boxShadow: `0 0 0 2px ${ring}` }}
-    />
-  );
-}
-function fmtFileSize(bytes: number): string {
-  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-function dayKey(iso: string): string {
-  return new Date(iso).toDateString();
-}
-function dividerLabel(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const yest = new Date();
-  yest.setDate(today.getDate() - 1);
-  if (d.toDateString() === today.toDateString()) return "Bugün";
-  if (d.toDateString() === yest.toDateString()) return "Dün";
-  return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
-}
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-}
+const dividerLabel = (iso: string) => dividerLabelBase(iso, false);
 
 type Screen = "app" | "chat" | "create" | "notif" | "help" | "password" | "starred" | "legal" | "legal-kvkk";
 type Tab = "chats" | "channels" | "staff" | "settings";

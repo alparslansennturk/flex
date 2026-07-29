@@ -39,7 +39,7 @@ import {
   subscribeToMessages, subscribeToReceipts, fetchConversationDetail, leaveConversation, subscribeToTyping, sendTypingSignal,
   setConversationPinned, setConversationArchived, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
   updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, clearConversation, fetchStarredMessages,
-  subscribeToPresence, setMyPresenceStatus, isPresenceOffline,
+  subscribeToPresence, setMyPresenceStatus,
   registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
@@ -51,19 +51,11 @@ import { useCloseDropdownsOnOutsideClick } from "./_shared/useCloseDropdownsOnOu
 import { computePopoverPosition, type PopoverPosition } from "./_shared/popoverPosition";
 import { usePresenceHeartbeat } from "./_shared/usePresenceHeartbeat";
 import { authHeaders } from "@/app/lib/client/auth-headers";
+import { withTimeout, initials, fmtTime, fmtFileSize, dayKey, dividerLabel as dividerLabelBase, presenceLabel, PresenceDot } from "./_shared/format";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
-
-// Bazı Promise'ler (SW aktivasyonu, FCM token isteği) sonsuza kadar askıda
-// kalabiliyor — `connect/mobile/page.tsx`'teki AYNI yardımcı, aynı gerekçe.
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} zaman aşımına uğradı (${ms / 1000}sn)`)), ms)),
-  ]);
-}
-
+const dividerLabel = (iso: string) => dividerLabelBase(iso, true);
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
@@ -87,56 +79,6 @@ const NAV: { key: NavKey; label: string; Icon: IconComponent }[] = [
 ];
 
 type ListFilter = "all" | "unread" | "pinned";
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
-}
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-}
-function fmtFileSize(bytes: number): string {
-  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-function dayKey(iso: string): string {
-  return new Date(iso).toDateString();
-}
-/** Mesaj listesindeki tarih ayraç pilleri ("Bugün"/"Dün"/"12 Temmuz Cumartesi") — tasarımda vardı. */
-function dividerLabel(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
-  const dOnly = new Date(d); dOnly.setHours(0, 0, 0, 0);
-  if (dOnly.getTime() === today.getTime()) return "Bugün";
-  if (dOnly.getTime() === yesterday.getTime()) return "Dün";
-  return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
-}
-
-/** Presence renk/etiket eşlemesi (2026-07-20) — SADECE personel için anlamlı.
- * "in_class"/"dnd" AYNI turuncu renk, ayrım tooltip'le yapılır. */
-function presenceColor(signal: PresenceSignal | undefined): string {
-  if (isPresenceOffline(signal)) return "#E5484D";
-  if (signal!.status === "online") return "#22C55E";
-  return "#F59E0B";
-}
-function presenceLabel(signal: PresenceSignal | undefined): string {
-  if (isPresenceOffline(signal)) return "Çevrimdışı";
-  if (signal!.status === "online") return "Çevrimiçi";
-  if (signal!.status === "in_class") return "Derste";
-  return "Rahatsız Etmeyin";
-}
-/** Avatar köşesine presence noktası — `presence===undefined` ise (öğrenci/bilinmeyen) HİÇ render edilmez. */
-function PresenceDot({ signal }: { signal: PresenceSignal | undefined }) {
-  if (!signal) return null;
-  return (
-    <span
-      title={presenceLabel(signal)}
-      aria-label={presenceLabel(signal)}
-      className="absolute"
-      style={{ bottom: -2, right: -2, width: 11, height: 11, borderRadius: "50%", background: presenceColor(signal), boxShadow: "0 0 0 2px #fff" }}
-    />
-  );
-}
 
 /** Personel/Öğrenciler dizini tek satırı — hem düz liste hem departman
  * (unvan) gruplu görünümde reuse edilir (2026-07-20). */
