@@ -925,34 +925,23 @@ export default function FlexConnectMobile() {
     fetchPushSettings(studentPersonId ?? undefined).then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, [authUser, studentPersonId]);
 
-  // Push yeniden-etkinleştirme banner'ı (2026-07-29) — ÖNCE burada tamamen
-  // SESSİZ bir otomatik onarım denendi (`unsubscribe()` + `getToken()`), ama
-  // canlı testte (PWA silinip yeniden eklendi) İKİ AYRI denemede de token
-  // sunucuda hiç değişmedi — muhtemelen Firebase Messaging SDK'nın kendi iç
-  // token cache'i bizim manuel `unsubscribe()` çağrımızdan habersiz kalıp aynı
-  // (artık geçersiz) token'ı döndürmeye devam ediyor. Kullanıcının KENDİSİ
-  // Ayarlar'daki anahtarı kapatıp-açarak (`toggleNotifPush`'ın "aç" dalı)
-  // sorunu çözdüğünü doğruladı — o akış KANITLANMIŞ çalışıyor. Bu yüzden
-  // sessiz onarımı zorlamak yerine SADECE tutarsızlığı tespit edip (sunucu
-  // "açık" diyor ama tarayıcıda gerçek abonelik yok) kullanıcıya tek dokunuşluk,
-  // zaten kanıtlanmış akışı öneren görünür bir banner gösteriyoruz.
+  // Push yeniden-etkinleştirme banner'ı (2026-07-29) — İKİ FARKLI async
+  // "gerçekten abone mi" kontrolü (`getSubscription()` varsa dokunma, sonra
+  // koşulsuz unsubscribe+getToken) canlı testte GÜVENİLMEZ çıktı — ikisinde de
+  // token sunucuda hiç değişmedi, PWA reinstall sonrası banner bile
+  // görünmedi. Basitleştirildi: hiçbir async abonelik kontrolü YOK, sadece
+  // `localStorage`'da bu TARAYICI ÖRNEĞİNİN daha önce gerçekten bir token
+  // kaydettiğine dair iz var mı bakılıyor (senkron, güvenilir). Yoksa — sunucu
+  // "açık" dese bile (PWA silinip yeniden eklenmiş, ya da hiç açılmamış) —
+  // banner gösterilir; kullanıcı dokununca kanıtlanmış `toggleNotifPush` "aç"
+  // akışı çalışır (bkz. `registerPushToken` sonrası `localStorage` yazımı).
   const [showPushReenableBanner, setShowPushReenableBanner] = useState(false);
   useEffect(() => {
     if (!authUser || studentPersonId === undefined || !isStandalone || !notifPush) return;
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    (async () => {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-        if (existingSub) return; // gerçekten abone, banner gösterme
-        // Ayarlar'daki anahtar da gerçek durumu yansıtsın — kullanıcı Ayarlar'a
-        // girerse zaten "kapalı" görüp aynı kanıtlanmış "aç" akışını tetikleyebilir.
-        setNotifPush(false);
-        setShowPushReenableBanner(true);
-      } catch (e) {
-        console.error("[connect-mobile] push abonelik kontrolü başarısız:", e);
-      }
-    })();
+    if (localStorage.getItem("flexConnectPushToken")) return; // bu cihaz zaten kayıtlı
+    setNotifPush(false);
+    setShowPushReenableBanner(true);
   }, [authUser, studentPersonId, isStandalone, notifPush]);
 
   async function toggleNotifSound() {
@@ -1107,6 +1096,7 @@ export default function FlexConnectMobile() {
       const registered = await registerPushToken(token, studentPersonId ?? undefined);
       if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene.", { id: toastId }); return; }
       pushTokenRef.current = token;
+      localStorage.setItem("flexConnectPushToken", token);
       await setPushNotificationsEnabled(true, studentPersonId ?? undefined);
       setNotifPush(true);
       toast.success("Bildirimler açıldı.", { id: toastId });
