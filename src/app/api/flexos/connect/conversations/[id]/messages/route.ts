@@ -6,6 +6,7 @@ import { buildMessageViews } from "@/app/lib/server/connect-view";
 import { listMessages, listMembers, sendMessage } from "@/app/lib/domain/services/connect-service";
 import { notifyNewMessage } from "@/app/lib/domain/services/connect-push-service";
 import { firestoreConnectPushRepo } from "@/app/lib/server/connect-push-repo.firestore";
+import { makeObjectPublic, publicUrl } from "@/app/lib/googlestorage";
 import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 
 /**
@@ -43,7 +44,12 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   const principal = await staffPrincipalFromCaller(caller);
   if (!principal) return NextResponse.json({ error: "Yetki yok." }, { status: 403 });
 
-  let body: { text?: string; replyTo?: { messageId: string; authorUid: string; authorName: string; textSnippet: string } };
+  let body: {
+    text?: string;
+    replyTo?: { messageId: string; authorUid: string; authorName: string; textSnippet: string };
+    /** Signed-URL akışıyla ÖNCEDEN GCS'e yüklenmiş dosyanın onayı (2026-07-29). */
+    attachment?: { storagePath: string; fileName: string; fileSize: number; mimeType: string };
+  };
   try {
     body = await req.json();
   } catch {
@@ -51,7 +57,13 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
   }
 
   try {
-    const message = await sendMessage(principal, id, body.text ?? "", connectDeps, undefined, body.replyTo);
+    let attachments;
+    if (body.attachment) {
+      const { storagePath, fileName, fileSize, mimeType } = body.attachment;
+      await makeObjectPublic(storagePath);
+      attachments = [{ storagePath, webViewLink: publicUrl(storagePath), fileName, fileSize, mimeType }];
+    }
+    const message = await sendMessage(principal, id, body.text ?? "", connectDeps, attachments, body.replyTo);
     await notifyNewMessage(id, message, principal.uid, principal.tenantId, connectDeps, firestoreConnectPushRepo);
     return NextResponse.json({ id: message.id }, { status: 201 });
   } catch (e) {

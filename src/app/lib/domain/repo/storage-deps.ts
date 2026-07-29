@@ -9,8 +9,14 @@
 export interface StorageDeps {
   /** Segment dizisinden tek bir object path oluşturur (gerçek "klasör" yok). */
   buildObjectPath(pathSegments: string[], fileName: string): string;
-  /** Resumable upload oturumu açar, GCS'in döndürdüğü `sessionUri`'yi verir. */
+  /** Resumable upload oturumu açar, GCS'in döndürdüğü `sessionUri`'yi verir.
+   * @deprecated 2026-07-29 — yeni kod `createSignedUploadUrl` kullanır (Vercel
+   * proxy'siz doğrudan yükleme), sadece geriye dönük uyumluluk için kaldı. */
   initResumableUploadSession(objectPath: string, mimeType: string): Promise<string>;
+  /** V4 imzalı YAZMA URL'i — tarayıcı doğrudan bu URL'e PUT eder. */
+  createSignedUploadUrl(objectPath: string, mimeType: string): Promise<string>;
+  /** Signed URL ile yüklenen nesne varsayılan PRİVATE'tir — onay adımında çağrılır. */
+  makeObjectPublic(objectPath: string): Promise<void>;
   /** Dosyayı GCS'ten kalıcı sil (404'ü sessizce yutar). */
   deleteObject(objectPath: string): Promise<void>;
   /** Public URL — upload anında zaten `publicRead` olduğu için ayrı bir izin adımı yok. */

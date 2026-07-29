@@ -79,12 +79,47 @@ export async function uploadBufferToPath(
 }
 
 /**
+ * V4 imzalı YAZMA URL'i (2026-07-29) — tarayıcı bu URL'e dosyayı DOĞRUDAN PUT
+ * eder, Vercel fonksiyonuna hiç uğramaz (`upload-chunk` proxy'sindeki gibi
+ * N+1 istek/Vercel gövde sınırı yok). Bucket CORS'unda PUT+Content-Type
+ * response header'ı açık olmalı (2026-07-29'da eklendi, önceden sadece GET
+ * vardı). Süre 60dk — 250MB'lık ödev dosyaları yavaş bağlantıda bile bu
+ * pencerede biter (~70KB/sn gibi kötümser bir hızda dahi yeter), ama imza
+ * kalıcı değil.
+ */
+export async function createSignedUploadUrl(objectPath: string, mimeType: string): Promise<string> {
+  const file = adminStorage.bucket().file(objectPath);
+  const [url] = await file.getSignedUrl({
+    version: "v4",
+    action: "write",
+    expires: Date.now() + 60 * 60 * 1000,
+    contentType: mimeType,
+  });
+  return url;
+}
+
+/**
+ * Signed URL ile YAPILAN yüklemeler `predefinedAcl` ALAMAZ (imza sadece
+ * PUT'u yetkilendirir, ACL'i değil) — bu yüzden `uploadBufferToPath`'in
+ * aksine nesne varsayılan olarak PRİVATE kalır. Yükleme onaylandıktan
+ * SONRA (mesaj/teslim kaydı yazılırken) çağrılıp `publicUrl()`'ün eskisiyle
+ * AYNI şekilde çalışmasını sağlar.
+ */
+export async function makeObjectPublic(objectPath: string): Promise<void> {
+  await adminStorage.bucket().file(objectPath).makePublic();
+}
+
+/**
  * Resumable upload oturumu başlatır — Drive'daki `initResumableSession` ile
  * AYNI amaç: büyük dosyalarda client'ın (mevcut proxy route üzerinden) chunk
  * chunk yükleyebileceği bir `sessionUri` döner. GCS'in resumable protokolü
  * Drive'ınkiyle BİREBİR aynı HTTP akışını (Content-Range, 308/200) kullanıyor
  * — çağıran proxy route'ta sadece tamamlanma yanıtının alan adı değişir
  * (Drive `{id}`, GCS `{name}`).
+ *
+ * NOT (2026-07-29): submission upload akışı `createSignedUploadUrl`'e taşındı,
+ * bu fonksiyon artık YENİ kod tarafından kullanılmıyor — geriye dönük uyumluluk
+ * için (varsa yarım kalmış eski upload session'ları) silinmedi.
  */
 export async function initResumableUploadSession(
   objectPath: string,

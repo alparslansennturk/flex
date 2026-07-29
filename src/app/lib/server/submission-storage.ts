@@ -1,6 +1,8 @@
 import {
   buildObjectPath,
   initResumableUploadSession,
+  createSignedUploadUrl,
+  makeObjectPublic,
   deleteObject,
   publicUrl,
 } from "../googlestorage";
@@ -18,6 +20,14 @@ export const submissionStorage: StorageDeps = {
 
   async initResumableUploadSession(objectPath, mimeType) {
     return initResumableUploadSession(objectPath, mimeType);
+  },
+
+  async createSignedUploadUrl(objectPath, mimeType) {
+    return createSignedUploadUrl(objectPath, mimeType);
+  },
+
+  async makeObjectPublic(objectPath) {
+    await makeObjectPublic(objectPath);
   },
 
   async deleteObject(objectPath) {

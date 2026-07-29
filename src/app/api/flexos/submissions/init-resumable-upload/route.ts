@@ -19,8 +19,10 @@ import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 /**
  * POST /api/flexos/submissions/init-resumable-upload — öğrenci-tarafı, capability
  * sistemi DIŞINDA (sahiplik: `person.authUid === caller.uid`). Canlıdaki
- * `init-resumable-upload` route'unun TEK canonical karşılığı — `sessionUri` ASLA
- * response'a dahil edilmez.
+ * `init-resumable-upload` route'unun TEK canonical karşılığı. 2026-07-29: artık
+ * Vercel proxy'li chunk yükleme değil, tek seferlik V4 imzalı URL — bu yüzden
+ * (eski davranışın aksine) `uploadUrl` BİLEREK response'a dahil ediliyor, tarayıcı
+ * doğrudan bu URL'e PUT edecek.
  */
 export const POST = withAuth(async (req: NextRequest, caller) => {
   let body: Omit<InitUploadInput, "requesterUid" | "tenantId">;
@@ -31,7 +33,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
   }
 
   try {
-    const { session, currentUploads, maxUploads } = await initUpload(
+    const { session, currentUploads, maxUploads, uploadUrl } = await initUpload(
       { ...body, requesterUid: caller.uid, tenantId: DEFAULT_TENANT },
       {
         assignments: firestoreAssignmentRepo,
@@ -52,6 +54,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
 
     return NextResponse.json({
       uploadId: session.id,
+      uploadUrl,
       actualFileName: session.actualFileName,
       currentUploads: currentUploads + 1,
       maxUploads,
