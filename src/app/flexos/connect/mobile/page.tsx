@@ -936,19 +936,6 @@ export default function FlexConnectMobile() {
   // banner gösterilir; kullanıcı dokununca kanıtlanmış `toggleNotifPush` "aç"
   // akışı çalışır (bkz. `registerPushToken` sonrası `localStorage` yazımı).
   const [showPushReenableBanner, setShowPushReenableBanner] = useState(false);
-  // GEÇİCİ TEŞHİS (2026-07-29) — Web Inspector'a kablosuz erişim zor olduğu için
-  // gerçek değerleri ekranda gösteriyoruz, teşhis bitince kaldırılacak.
-  const [pushDebug, setPushDebug] = useState<string[]>([]);
-  useEffect(() => {
-    setPushDebug([
-      `authUser: ${authUser ? "var" : "YOK"}`,
-      `studentPersonId: ${String(studentPersonId)}`,
-      `isStandalone: ${String(isStandalone)}`,
-      `notifPush: ${String(notifPush)}`,
-      `Notification.permission: ${typeof Notification !== "undefined" ? Notification.permission : "n/a"}`,
-      `localStorage token: ${typeof window !== "undefined" && localStorage.getItem("flexConnectPushToken") ? "VAR" : "YOK"}`,
-    ]);
-  }, [authUser, studentPersonId, isStandalone, notifPush]);
   useEffect(() => {
     if (!authUser || studentPersonId === undefined || !isStandalone || !notifPush) return;
     if (typeof Notification === "undefined") return;
@@ -1270,11 +1257,6 @@ export default function FlexConnectMobile() {
 
   return (
     <div className="fc-shell-ios-fill" style={shellStyle}>
-      {pushDebug.length > 0 && (
-        <div style={{ position: "fixed", top: "max(4px, env(safe-area-inset-top))", left: 4, right: 4, zIndex: 99999, background: "rgba(0,0,0,.85)", color: "#0f0", fontSize: 9.5, fontFamily: "monospace", padding: "6px 8px", borderRadius: 8, lineHeight: 1.5 }}>
-          {pushDebug.map((l, i) => <div key={i}>{l}</div>)}
-        </div>
-      )}
       {authUser === null && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: isIOS ? T.bg : T.bg2 }}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
