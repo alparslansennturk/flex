@@ -951,7 +951,14 @@ export default function FlexConnectMobile() {
   }, [authUser, studentPersonId, isStandalone, notifPush]);
   useEffect(() => {
     if (!authUser || studentPersonId === undefined || !isStandalone || !notifPush) return;
-    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (typeof Notification === "undefined") return;
+    // ÖNEMLİ (2026-07-29 canlı ekran görüntüsüyle doğrulandı): reinstall sonrası
+    // `Notification.permission` GERÇEKTEN "default"a sıfırlanıyor (önceki
+    // varsayım — "izin kalıcı kalıyor" — YANLIŞTI, kullanıcının ilk gözlemi
+    // yanıltıcıydı). Bu yüzden burada permission==="granted" ŞARTI ARANMIYOR —
+    // izin ne olursa olsun (default/denied/granted) token yoksa banner
+    // gösterilir; dokununca `toggleNotifPush` zaten gerekirse native izin
+    // popup'ını kullanıcı jestiyle tetikler.
     if (localStorage.getItem("flexConnectPushToken")) return; // bu cihaz zaten kayıtlı
     setNotifPush(false);
     setShowPushReenableBanner(true);
