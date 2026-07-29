@@ -83,7 +83,14 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
   const contentRef = useRef<HTMLDivElement>(null);
   const [zoomFactor, setZoomFactor] = useState(1);
   useLayoutEffect(() => {
+    // `trainings` `person`'dan SONRA gelir (Eğitim Bilgileri kendi küçük spinner'ıyla
+    // ayrı yükleniyor, bkz. `loading && trainings.length === 0` render dalı) — `loading`
+    // beklenmeden ölçüm yapılırsa, henüz kısa (spinner'lı) içeriğe göre YANLIŞ bir zoom
+    // hesaplanıp, `trainings` gelince (özellikle 2 sertifika modülü varsa) modal ikinci
+    // kez, gözle görülür şekilde küçülüyordu ("en son biraz daha yükselme hareketi
+    // yapıyor" — kullanıcı bulgusu, 2026-07-29). Tam veri gelene kadar bekleniyor.
     if (!shortViewport || !person) { setZoomFactor(1); return; }
+    if (loading) return; // henüz `trainings` yüklenmedi — eksik içeriğe göre yanlış ölçüm yapma
     const outer = bodyOuterRef.current;
     const content = contentRef.current;
     if (!outer || !content) return;
@@ -97,7 +104,7 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
     const factor = available > 0 && natural > available ? Math.max(0.6, Math.min(1, (available / natural) * 0.97)) : 1;
     content.style.zoom = String(factor);
     setZoomFactor(factor);
-  }, [shortViewport, person, trainings, editing, canReadNote, windowHeight]);
+  }, [shortViewport, person, trainings, loading, editing, canReadNote, windowHeight]);
 
   const startEdit = () => {
     if (!person) return;
