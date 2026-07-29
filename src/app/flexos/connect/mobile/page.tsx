@@ -929,6 +929,38 @@ export default function FlexConnectMobile() {
     fetchPushSettings(studentPersonId ?? undefined).then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, [authUser, studentPersonId]);
 
+  // Sessiz otomatik onarım (2026-07-29) — PWA ana ekrandan silinip yeniden
+  // eklendiğinde iOS bildirim İZNİNİ koruyor (kullanıcı gözlemiyle doğrulandı)
+  // ama tarayıcının GERÇEK push aboneliğini sıfırlıyor; Ayarlar'daki anahtar ise
+  // sadece sunucudaki tercihi okuduğu için hâlâ "açık" görünüyordu — kullanıcı
+  // bir mesaj kaçırana kadar bundan haberi olmuyordu. İzin zaten "granted" ve
+  // kullanıcı bildirimleri açık tutmuşsa (`notifPush`), abonelik yoksa kullanıcıya
+  // HİÇBİR toast/soru göstermeden arka planda yeniden kurulur — iOS'ta
+  // `Notification.requestPermission()` kullanıcı jestine bağlı olduğu için izin
+  // zaten verilmemişse (permission !== "granted") burada hiçbir şey yapılamaz,
+  // o durum toggle'ın kendi akışına kalır.
+  useEffect(() => {
+    if (!authUser || studentPersonId === undefined || !isStandalone || !notifPush) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    (async () => {
+      try {
+        const messaging = await getMessagingIfSupported();
+        if (!messaging) return;
+        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+        if (!vapidKey) return;
+        const registration = await navigator.serviceWorker.ready;
+        const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+        if (existingSub) return; // abonelik zaten canlı, dokunma
+        const token = await getOrRefreshPushToken(vapidKey, registration, messaging);
+        if (!token) return;
+        pushTokenRef.current = token;
+        await registerPushToken(token, studentPersonId ?? undefined);
+      } catch (e) {
+        console.error("[connect-mobile] sessiz push onarımı başarısız:", e);
+      }
+    })();
+  }, [authUser, studentPersonId, isStandalone, notifPush]);
+
   async function toggleNotifSound() {
     if (notifSoundLoading) return;
     setNotifSoundLoading(true);
@@ -1025,6 +1057,25 @@ export default function FlexConnectMobile() {
   }
 
   /**
+   * `getToken()` çağırır; SADECE hata verirse (ör. eski/uyumsuz bir VAPID key'den
+   * kalma push subscription çakışması) mevcut aboneliği temizleyip tekrar dener.
+   * Önceden bu temizlik HER çağrıda koşulsuz yapılıyordu — yani "Bildirimleri Aç"a
+   * her basışta (hatta zaten geçerli bir abonelik varken bile) yeni bir FCM token
+   * üretiliyor, eskisi sunucudaki `tokens` dizisinde ölü olarak birikiyordu
+   * (2026-07-29 kullanıcı bulgusu: "her açıp kapattığımda yeni token mı alacak").
+   */
+  async function getOrRefreshPushToken(vapidKey: string, registration: ServiceWorkerRegistration, messaging: Awaited<ReturnType<typeof getMessagingIfSupported>>): Promise<string | null> {
+    if (!messaging) return null;
+    try {
+      return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği");
+    } catch {
+      const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+      if (existingSub) await existingSub.unsubscribe().catch(() => {});
+      return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (temizlik sonrası)");
+    }
+  }
+
+  /**
    * Bildirimlere izin ver + FCM token kaydet (2026-07-19) — WhatsApp'taki gibi
    * kullanıcı jestiyle (butona basınca) tetiklenir, sayfa açılır açılmaz OTOMATİK
    * SORULMAZ (iOS Safari standalone bunu zaten şart koşuyor). Kapatmada token
@@ -1057,16 +1108,7 @@ export default function FlexConnectMobile() {
       const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
       if (!vapidKey) { toast.error("Bildirim altyapısı henüz yapılandırılmadı.", { id: toastId }); return; }
       const registration = await withTimeout(navigator.serviceWorker.ready, 8000, "Servis çalışanı hazır olma");
-      // Önceki bir denemeden (farklı VAPID key/eski kurulum) kalmış push subscription
-      // varsa getToken() Safari'de sessizce/anlaşılmaz bir hatayla patlıyor
-      // ("applicationServerKey" çakışması) — önce temizle.
-      const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-      if (existingSub) await existingSub.unsubscribe().catch(() => {});
-      const token = await withTimeout(
-        getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }),
-        8000,
-        "FCM token isteği",
-      );
+      const token = await getOrRefreshPushToken(vapidKey, registration, messaging);
       if (!token) { toast.error("Cihaz kaydı alınamadı (token boş döndü).", { id: toastId }); return; }
       const registered = await registerPushToken(token, studentPersonId ?? undefined);
       if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene.", { id: toastId }); return; }
