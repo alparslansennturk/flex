@@ -17,8 +17,7 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
 > 🔧 **Teknik borç / kod kalitesi checklist'i** → `FLEXOS_TEKNIK_BORC.md` (2026-07-28 kod
-> incelemesinden çıkan 20 maddelik liste, 2/20 tamamlandı — connect-service.ts + person-
-> education-summary-service.ts N+1 fix'leri, tarayıcı testi bekliyor).
+> incelemesinden çıkan 20 maddelik liste, 11/20 tamamlandı — detay o dosyada).
 > 📚 **Tam oturum geçmişi (2026-06-09 → 2026-07-27, ~3460 satır)** → `FLEXOS_OTURUM_ARSIVI.md`
 > (2026-07-28'de buraya taşındı, dosya 4383 satıra şişmişti — hiçbir içerik silinmedi).
 > Aşağıdaki blok sadece **güncel durumun kısa özeti**; tarih bazlı tam detay için arşive bak.
@@ -31,9 +30,17 @@
 - **Eğitmen Hakediş** — Full mod bitti + kullanıcı testinden 4 gerçek düzeltme yapıldı;
   **Core mod (eğitmenin kendi görünümü) henüz yapılmadı.**
 - **Özel Ders** — sadece tasarım konuşuldu, hiç kod yazılmadı.
+- **Dershane/LGS-Üni hazırlık modu (2026-07-29, kullanıcı kararı — henüz kod
+  YOK):** FlexOS'u bilişim kursu dışında LGS/üniversite hazırlık dershaneleri
+  pazarına da açma kararı. Ayrı ürün DEĞİL — mevcut Görünüm Anahtarı/capability
+  desenindeki gibi YENİ BİR MOD (Eğitmen→Öğretmen, Grup→Sınıf gibi terminoloji
+  relabel'ı, alttaki domain aynı kalıyor). Asıl yeni iş: Sınav modülü + Ölçme-
+  Değerlendirme modülü (Soru Bankası, Deneme Sınavı, Net/Analiz Engine) — bunlar
+  mevcut Ödev sisteminin varyantı olmayabilir, ayrı domain kavramları gerekebilir,
+  henüz tasarlanmadı. Kullanıcı ÖNCE bu iki modülün UI'ını kendisi tasarlayacak,
+  sonra "koda dök" diyecek — şu an hiçbir kod aksiyonu YOK, sadece plan aşaması.
 - **Teknik borç / kod kalitesi** → `FLEXOS_TEKNIK_BORC.md` (2026-07-28 incelemesi, 20 madde,
-  2/20 tamamlandı — connect-service.ts + person-education-summary-service.ts N+1 fix'leri,
-  tarayıcıda kısmen doğrulandı, detay o dosyada).
+  11/20 tamamlandı, detay o dosyada).
 - **Uzun süredir bekleyen, hâlâ sıfır kod (öncelik değil):** Finans modülü, Şube Aşama-2
   (yetki filtresi), Randevu Takvimi'nin bazı kısımları, Sistem Ayarları süper-admin paneli,
   Sertifika Bastır akışı, Öğrenci Profili tam-sayfa hub. Detay + gerekçe → memory

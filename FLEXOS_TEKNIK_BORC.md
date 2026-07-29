@@ -107,8 +107,13 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
    (kısmen — bkz. commit diff), egitmen-anasayfa/bootstrap, persons/[id]/
    education-summary, view-access + view-access/verify, connect/conversations
    ailesi (birkaç dosya, mesaj/üye route'ları).
-5. [ ] `connect/page.tsx` (2.470) ve `connect/mobile/page.tsx` (2.382) — ortak yardımcı
-   fonksiyonları (`fmtTime`, `fmtFileSize`, `dayKey`, `dividerLabel` vb.) `_shared`'a çıkar.
+5. [x] **`connect/page.tsx` ve `connect/mobile/page.tsx` ortak yardımcılar** — ✅
+   2026-07-29 tamamlandı: `withTimeout`/`initials`/`fmtTime`/`fmtFileSize`/`dayKey`/
+   `presenceColor`/`presenceLabel`/`PresenceDot` birebir kopyalanmıştı, tek yerde
+   (`_shared/format.tsx`) toplandı. `dividerLabel` TEK istisna — masaüstü hafta
+   günü adını gösteriyordu, mobil göstermiyordu; bu davranış farkı `showWeekday`
+   parametresiyle korundu, hiçbir ekranın görünümü değişmedi. `tsc`/`eslint`
+   temiz, tarayıcıda doğrulandı (masaüstü "21 Temmuz Salı", mobil "21 Temmuz").
 6. [ ] `egitim-yonetimi/ekle/page.tsx` (1.583 satır, tek dev component) — alt component'lere böl.
 7. [ ] `ogrenciler/havuz/page.tsx` (1.403 satır, tek dev component) — böl.
 8. [ ] `satislar/satis-yap/page.tsx` (1.345 satır) — ticari kritik akış, hem böl hem test yaz.
