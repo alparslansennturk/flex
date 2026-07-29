@@ -56,7 +56,7 @@ function useWindowHeight() {
 }
 
 export function StudentDetailModal({ personId, onClose }: { personId: string; onClose: () => void }) {
-  const { caps } = useCapabilities();
+  const { caps, loaded: capsLoaded } = useCapabilities();
   const { person, trainings, poolStatus, subeler, loading, reload } = useStudentDetail(personId);
   const fullName = person ? `${person.firstName} ${person.lastName}`.trim() : "";
   const [c1, c2] = avatarGradient(personId);
@@ -89,8 +89,15 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
     // hesaplanıp, `trainings` gelince (özellikle 2 sertifika modülü varsa) modal ikinci
     // kez, gözle görülür şekilde küçülüyordu ("en son biraz daha yükselme hareketi
     // yapıyor" — kullanıcı bulgusu, 2026-07-29). Tam veri gelene kadar bekleniyor.
+    //
+    // İKİNCİ kaynak (aynı gün, ikinci bulgu): `useCapabilities` KENDİ başına ayrı bir
+    // async çağrı (`/api/flexos/me`) — `canReadNote` ilk render'da HER ZAMAN false
+    // (capsCache soğukken), sonra true'ya döner. Bu, `StudentNotes` panelini SONRADAN
+    // mount ediyordu — özellikle notu girilmiş (sertifika bölümü uzun) öğrencilerde bu
+    // geç panel sol sütunu sağdakinden de uzun yapıp satırı tekrar büyütüyordu. `caps`
+    // yüklenmeden de ölçüm yapılmıyor.
     if (!shortViewport || !person) { setZoomFactor(1); return; }
-    if (loading) return; // henüz `trainings` yüklenmedi — eksik içeriğe göre yanlış ölçüm yapma
+    if (loading || !capsLoaded) return; // trainings/caps tam gelmeden eksik içeriğe göre yanlış ölçüm yapma
     const outer = bodyOuterRef.current;
     const content = contentRef.current;
     if (!outer || !content) return;
@@ -104,7 +111,7 @@ export function StudentDetailModal({ personId, onClose }: { personId: string; on
     const factor = available > 0 && natural > available ? Math.max(0.6, Math.min(1, (available / natural) * 0.97)) : 1;
     content.style.zoom = String(factor);
     setZoomFactor(factor);
-  }, [shortViewport, person, trainings, loading, editing, canReadNote, windowHeight]);
+  }, [shortViewport, person, trainings, loading, capsLoaded, editing, canReadNote, windowHeight]);
 
   const startEdit = () => {
     if (!person) return;

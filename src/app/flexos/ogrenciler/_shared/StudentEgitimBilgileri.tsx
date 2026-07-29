@@ -112,7 +112,13 @@ function CertCard({ label, cert }: { label: string; cert: CertificateSummary }) 
       </div>
       <div className="flex items-center gap-3.5">
         <div className="flex items-end gap-1.5 shrink-0">
-          <span className="text-[32px] leading-none font-extrabold tracking-tight tabular-nums" style={{ color }}>
+          {/* `min-w-[3ch]` — `shown` 0'dan hedefe RAF ile ~900ms'de sayıyor (`useCountUp`),
+              1 haneden ("0") 2-3 haneye ("87") büyürken sabit genişlik olmazsa sağdaki
+              `flex-1 min-w-0` detay metnini sıkıştırıp SATIR KAYDIRIYORDU — bu da kartın
+              (dolayısıyla modal'ın) sayaç bitene kadar birkaç piksel büyümesine yol açıyordu
+              (2026-07-29 kullanıcı bulgusu: sadece not girilmiş/graded öğrencide, çünkü
+              notu boş olan kartta hedef 0 olduğu için `shown` hiç değişmiyor). */}
+          <span className="text-[32px] leading-none font-extrabold tracking-tight tabular-nums text-right inline-block min-w-[3ch]" style={{ color }}>
             {cert.toplamNot == null ? "—" : shown}
           </span>
           <span className="text-[12.5px] font-bold text-[#AEB4C0] mb-0.5">/ 100</span>
