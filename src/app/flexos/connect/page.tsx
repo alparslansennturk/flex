@@ -275,7 +275,10 @@ export default function FlexConnectPage() {
   useEffect(() => {
     if (!notifPush) return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (typeof Notification === "undefined") return;
+    // bkz. mobildeki AYNI fix'in gerekçesi — permission==="granted" ŞARTI
+    // ARANMIYOR (2026-07-29 canlı testte reinstall sonrası "default"a
+    // sıfırlandığı doğrulandı).
     if (localStorage.getItem("flexConnectPushToken")) return;
     setNotifPush(false);
     setShowPushReenableBanner(true);
