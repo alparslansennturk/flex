@@ -317,7 +317,6 @@ export default function OdevNotuPage() {
         // demo ödev — sunucuya gitmez, sadece yerel olarak "kaydedildi" gösterilir.
         toast.success("Notlar kaydedildi.");
         setJustSaved(true);
-        setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "closed" } : a)));
         return;
       }
 
@@ -325,30 +324,53 @@ export default function OdevNotuPage() {
       const res = await fetch(`/api/flexos/submissions/batch-grade`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        // archive:true → notlama sonrası ödev "closed" (tamamlandı) olur: Ana Sayfa Ödev
-        // Parkuru'ndan kalkar ama bu sayfada listede kalır, tekrar açılıp düzenlenebilir
-        // (2026-07-11 kararı). 2026-07-29 ACİL FIX: eskiden "archived" yazılıyordu — bu domain'de
-        // "iptal edildi, sadece kalıcı silinebilir" demek, ödev geri alınamaz arşive düşüyordu.
-        body: JSON.stringify({ assignmentId: activeAssignmentId, groupId: selectedGroupId, items, archive: true }),
+        // 2026-07-29 kullanıcı kararı: "Notları Kaydet" artık ödevin durumuna HİÇ dokunmuyor
+        // (archive KALDIRILDI) — notlar birden fazla kez, kısmi olarak kaydedilebilir.
+        // Ödevi Ana Sayfa'dan (ve "Tamamlandı" durumuna) düşürmek AYRI, bilinçli bir aksiyon:
+        // aşağıdaki "Ödevi Tamamla" butonu (`finishAssignment`).
+        body: JSON.stringify({ assignmentId: activeAssignmentId, groupId: selectedGroupId, items }),
       });
       if (!res.ok) {
         toast.error("Kaydedilemedi.");
         return;
       }
-      const result = (await res.json()) as { graded: number; created: number; skipped: number; archived: boolean };
+      const result = (await res.json()) as { graded: number; created: number; skipped: number };
       if (result.created > 0) {
         toast.warning(`${result.created} öğrenci gerçek teslim kaydı olmadan elle notlandı (dijital iz yok). Notlar yine de kaydedildi.`);
       } else if (result.graded > 0) {
         toast.success("Notlar kaydedildi.");
       } else {
-        toast.success("Teslim eden olmadı, ödev tamamlandı olarak işaretlendi.");
+        toast.success("Not girilmedi (hiç teslim eden yok).");
       }
       setJustSaved(true);
-      setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "closed" } : a)));
     } catch {
       toast.error("Kaydedilemedi.");
     } finally {
       setSavingGrades(false);
+    }
+  }
+
+  // "Ödevi Tamamla" (2026-07-29 kullanıcı kararı) — "Notları Kaydet"ten BAĞIMSIZ, bilinçli
+  // bir aksiyon: ödevi "closed" yapar (Ana Sayfa Ödev Parkuru'ndaki `finishAssignment`/
+  // "Ödevi Bitir" ile AYNI uç nokta). Kısmi teslim/not girme devam ederken ödev henüz
+  // "bitmiş" sayılmasın diye kaydetmeden ayrıştırıldı — trainer istediği an, istediği notla
+  // ödevi kapatabilir.
+  const [finishing, setFinishing] = useState(false);
+  async function finishActiveAssignment() {
+    if (!activeAssignmentId || activeAssignmentId.startsWith("dummy-")) return;
+    setFinishing(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/flexos/assignments/${activeAssignmentId}`, {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "closed" }),
+      });
+      if (!res.ok) { toast.error("Tamamlanamadı."); return; }
+      toast.success("Ödev tamamlandı — Ana Sayfa'dan kalktı.");
+      setAssignments((prev) => prev.map((a) => (a.id === activeAssignmentId ? { ...a, status: "closed" } : a)));
+    } finally {
+      setFinishing(false);
     }
   }
 
@@ -607,8 +629,19 @@ export default function OdevNotuPage() {
                 <div className="text-[12.5px] text-[#6F7B87] font-semibold">{girilenSayisi} / {roster.length} öğrenci değerlendirildi</div>
                 <div className="flex items-center gap-2.5">
                   {/* "Taslak Kaydet" kaldırıldı (2026-07-11 kullanıcı kararı: hiç işlevi
-                      yoktu, sadece "yakında" toast'ı gösteriyordu — "saçma") — tek gerçek
-                      aksiyon "Notları Kaydet". */}
+                      yoktu, sadece "yakında" toast'ı gösteriyordu — "saçma"). "Ödevi
+                      Tamamla" (2026-07-29) — "Notları Kaydet"ten AYRI, bilinçli bir aksiyon
+                      (bkz. `finishActiveAssignment` yorumu); ödev zaten "closed"sa (ya da
+                      demo ödevse) gösterilmez. */}
+                  {activeAssignment?.status !== "closed" && !activeAssignmentId?.startsWith("dummy-") && (
+                    <button
+                      onClick={finishActiveAssignment}
+                      disabled={finishing}
+                      className="inline-flex items-center gap-1.5 py-[11px] px-5 rounded-[11px] border border-[#E2E5EA] bg-white text-[#414B59] text-[13px] font-extrabold cursor-pointer transition-all hover:-translate-y-0.5 hover:bg-[#F7F8FA] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {finishing ? "Tamamlanıyor…" : "Ödevi Tamamla"}
+                    </button>
+                  )}
                   <button
                     onClick={saveGrades}
                     disabled={savingGrades || activeAssignmentId?.startsWith("dummy-")}

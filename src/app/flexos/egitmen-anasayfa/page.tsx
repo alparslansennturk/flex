@@ -512,11 +512,14 @@ function OdevParkuru({ groups, templates, assignments, setAssignments, refetchAs
   const groupCodes = useMemo(() => Object.fromEntries(groups.map((g) => [g.id, g.code])), [groups]);
   const loaded = sharedLoaded;
 
-  // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması). "closed" (Ödevi
-  // Bitir sonrası, not girişi bekleyen) da burada kalır — kart kaybolmaz, sadece görünümü
-  // "Bekliyor/Not Girişi" ikili butona döner (canlıdaki `task.status === "completed"` davranışı).
+  // Aktif ödevler — en yeni solda (canlıdaki createdAt DESC sıralaması). 2026-07-29
+  // kullanıcı kararı: "closed" (Ödevi Bitir / Ödev Notu'ndaki "Ödevi Tamamla" sonrası)
+  // artık Ana Sayfa'dan TAMAMEN kalkar — eskiden burada "Bekliyor/Not Girişi" rozetiyle
+  // kalmaya devam ediyordu, ama "Notları Kaydet" artık status'a hiç dokunmadığı için
+  // (bkz. `odev-notu/page.tsx`) bu, notlar zaten girilmiş bir ödevin hâlâ "not girişi
+  // bekliyor" gibi görünmesine yol açıyordu — kafa karıştırıcıydı.
   const activeAssignments = assignments
-    .filter((a) => a.status === "published" || a.status === "closed")
+    .filter((a) => a.status === "published")
     .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 
   // Kullanılmamış şablonlar — deterministik karıştırma (canlıdaki id-hash %7 deseni)
