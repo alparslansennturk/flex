@@ -238,6 +238,32 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
   ilgisiz (`deleteConversation`'a hiç dokunulmadı). Gerçek kullanımda (biri
   kanaldayken başka biri siliyorsa) tekrar görülürse araştırılmalı.
 
+- **`/flexos/connect/mobile` — React hydration mismatch (#418), KAPATILDI/
+  framework davranışı olarak not edildi (2026-07-29, çok geniş kapsamlı
+  izolasyon turu).** `LoadingBoundary name="mobile/"` — server ilk HTML'de
+  gerçek içerik yerine boş bir `<script id="_R_">` "resume" işaretçisi
+  gönderiyor, client hydrate ederken mismatch bulup tüm ağacı client-side
+  yeniden render ediyor ("Recoverable Error" — kullanıcı görsel olarak hiçbir
+  şey fark etmiyor, gerçek Vercel production'da da doğrulandı). **Tam
+  izolasyon matrisi denendi, HİÇBİRİ değiştirmedi:** Chrome eklentisi (curl ile
+  ham HTML'de de aynı marker — eklenti değil), CSP `unsafe-eval` (eklendi/
+  test edildi/geri alındı, etkisiz), `force-dynamic`/`revalidate=0`/
+  `connection()` (üçü de aynı hatayı veriyor, route gerçekten statik `○`
+  olsa BİLE hata duruyor), `"use client"` page.tsx → Server Component
+  sarmalayıcı (params/searchParams promise sorunu gitti ama mismatch başka
+  katmanda tekrar çıktı), `SplashGate`/`AnimatePresence` bypass, layout.tsx'in
+  TAMAMEN silinmesi, page.tsx'in sıfır state/hook/browser-API'li tek satır
+  statik `<div>`'e indirgenmesi (en minimal kombinasyonda BİLE hata aynen
+  duruyor) — Turbopack/webpack ikisinde de, dev/production build ikisinde de
+  birebir aynı. Next.js 16.1.1→16.2.12'ye yükseltildi (81/81 test geçti,
+  regresyon yok), hatayı değiştirmedi. **Sonuç: uygulama kodundan tamamen
+  bağımsız, route path'ine (`mobile/` segment adı) özgü bir Next.js App
+  Router streaming/Suspense davranışı — muhtemelen framework hatası, elimizde
+  fixleyecek bir kod lever'ı kalmadı.** Kullanıcı kararı: daha fazla zaman
+  harcanmayacak, üretken işlere dönülecek. Next.js'te resmi bir bug/fix
+  çıkarsa veya production'da GERÇEK bir kullanıcı etkisi gözlenirse tekrar
+  ele alınacak.
+
 ## Notlar
 
 - Sunum aşamasında (gerçek trafik yok) hiçbiri acil değil — sadece #2/#3 (N+1) ve #4
