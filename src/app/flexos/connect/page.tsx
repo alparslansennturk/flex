@@ -282,12 +282,19 @@ export default function FlexConnectPage() {
         const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!vapidKey) return;
         const registration = await navigator.serviceWorker.ready;
-        const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-        if (existingSub) return;
-        const token = await getOrRefreshPushToken(vapidKey, registration, messaging);
+        // `forceRefreshPushToken` KOŞULSUZ unsubscribe+yeniden-abonelik yapıyor —
+        // "abonelik objesi varsa dokunma" kısayolu mobildeki canlı testte YANLIŞ
+        // çıktı (obje vardı ama fonksiyonel olarak ölüydü, `getToken()` de onu
+        // sessizce cache'ten döndürüp gerçek yenileme yapmıyordu). Gereksiz
+        // Firestore yazımı olmasın diye dönen token `localStorage`'daki son
+        // kayıtlıyla aynıysa sunucuya tekrar YAZILMIYOR.
+        const token = await forceRefreshPushToken(vapidKey, registration, messaging);
         if (!token) return;
         pushTokenRef.current = token;
-        await registerPushToken(token);
+        const lastRegistered = localStorage.getItem("flexConnectPushToken");
+        if (token === lastRegistered) return;
+        const ok = await registerPushToken(token);
+        if (ok) localStorage.setItem("flexConnectPushToken", token);
       } catch (e) {
         console.error("[connect] sessiz push onarımı başarısız:", e);
       }
@@ -326,6 +333,15 @@ export default function FlexConnectPage() {
       if (existingSub) await existingSub.unsubscribe().catch(() => {});
       return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (temizlik sonrası)");
     }
+  }
+
+  /** SADECE sessiz otomatik onarım için — bkz. mobildeki AYNI fonksiyonun gerekçesi
+   * (2026-07-29 canlı test bulgusu). */
+  async function forceRefreshPushToken(vapidKey: string, registration: ServiceWorkerRegistration, messaging: Awaited<ReturnType<typeof getMessagingIfSupported>>): Promise<string | null> {
+    if (!messaging) return null;
+    const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+    if (existingSub) await existingSub.unsubscribe().catch(() => {});
+    return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (sessiz onarım)");
   }
 
   async function toggleNotifPush() {

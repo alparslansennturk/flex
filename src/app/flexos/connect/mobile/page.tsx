@@ -949,12 +949,20 @@ export default function FlexConnectMobile() {
         const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!vapidKey) return;
         const registration = await navigator.serviceWorker.ready;
-        const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-        if (existingSub) return; // abonelik zaten canlı, dokunma
-        const token = await getOrRefreshPushToken(vapidKey, registration, messaging);
+        // `forceRefreshPushToken` KOŞULSUZ unsubscribe+yeniden-abonelik yapıyor —
+        // `registration.pushManager.getSubscription()` REİNSTALL sonrası bile local
+        // bir abonelik objesi döndürebiliyor (2026-07-29 canlı testte doğrulandı:
+        // obje vardı, `getToken()` de onu sessizce cache'ten döndürdü, ama sunucuya
+        // push hiç ulaşmıyordu — "var görünen ama ölü" abonelik). Gereksiz Firestore
+        // yazımı olmasın diye dönen token `localStorage`'daki son kayıtlıyla aynıysa
+        // sunucuya tekrar YAZILMIYOR.
+        const token = await forceRefreshPushToken(vapidKey, registration, messaging);
         if (!token) return;
         pushTokenRef.current = token;
-        await registerPushToken(token, studentPersonId ?? undefined);
+        const lastRegistered = localStorage.getItem("flexConnectPushToken");
+        if (token === lastRegistered) return;
+        const ok = await registerPushToken(token, studentPersonId ?? undefined);
+        if (ok) localStorage.setItem("flexConnectPushToken", token);
       } catch (e) {
         console.error("[connect-mobile] sessiz push onarımı başarısız:", e);
       }
@@ -1073,6 +1081,25 @@ export default function FlexConnectMobile() {
       if (existingSub) await existingSub.unsubscribe().catch(() => {});
       return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (temizlik sonrası)");
     }
+  }
+
+  /**
+   * SADECE sessiz otomatik onarım için (2026-07-29): `registration.pushManager
+   * .getSubscription()` PWA silinip yeniden eklendikten SONRA bile local bir
+   * abonelik objesi döndürebiliyor — canlı testte doğrulandı, obje var ama
+   * fonksiyonel olarak ölüydü, `getToken()` de bu "var görünen ama ölü"
+   * aboneliği sessizce cache'ten döndürüp gerçek bir yenileme yapmıyordu. Bu
+   * yüzden burada `getOrRefreshPushToken`'ın aksine unsubscribe+yeniden-abonelik
+   * HER ZAMAN koşulsuz yapılıyor — ama bu SADECE app açılışında bir kez
+   * çalıştığı için (kullanıcı jestiyle tetiklenen `toggleNotifPush`'taki gibi
+   * tekrar tekrar DEĞİL), token birikmesi riski yok (aşağıda sonuç zaten
+   * `localStorage` ile karşılaştırılıp aynıysa sunucuya yazılmıyor).
+   */
+  async function forceRefreshPushToken(vapidKey: string, registration: ServiceWorkerRegistration, messaging: Awaited<ReturnType<typeof getMessagingIfSupported>>): Promise<string | null> {
+    if (!messaging) return null;
+    const existingSub = await registration.pushManager.getSubscription().catch(() => null);
+    if (existingSub) await existingSub.unsubscribe().catch(() => {});
+    return await withTimeout(getToken(messaging, { vapidKey, serviceWorkerRegistration: registration }), 8000, "FCM token isteği (sessiz onarım)");
   }
 
   /**
