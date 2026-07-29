@@ -30,6 +30,14 @@ export default function NotificationToastListener() {
   const router      = useRouter();
   const seenIds       = useRef(new Set<string>());
   const isInitialLoad = useRef(true);
+  // Aynı gönderenden art arda gelen mesaj bildirimleri TEK toast'ta birikir
+  // (2026-07-29 kullanıcı bulgusu: yoklama alırken bir öğrenci art arda birkaç
+  // mesaj attığında alt alta N ayrı toast yığılıyor, Sonner'ın varsayılan
+  // `visibleToasts=3` limiti yüzünden kuyruktakiler sıraya giremeyip ekranda
+  // SÜRESİZ kalmış gibi görünüyordu). Gönderen bazlı SABİT id ile `toast()`
+  // her seferinde aynı toast'ı GÜNCELLER, yeni yığın oluşturmaz — WhatsApp'ın
+  // kilit ekranı gruplaması gibi.
+  const messageToastCounts = useRef(new Map<string, number>());
   // Ref'ler: subscription closure'ı her navigasyonda yeniden kurulmadan
   // her zaman güncel pathname ve router'a erişebilsin.
   const pathnameRef = useRef(pathname);
@@ -53,6 +61,7 @@ export default function NotificationToastListener() {
     // subscribeAt/saat karşılaştırması YOK — sunucu/tarayıcı saat farkından etkilenmez.
     seenIds.current.clear();
     isInitialLoad.current = true;
+    messageToastCounts.current.clear();
 
     const unsub = NotificationRealtimeService.subscribe(uid, (notifications) => {
       // İlk snapshot (isInitialLoad=true): eski bildirimler bastırılır ama
@@ -86,16 +95,36 @@ export default function NotificationToastListener() {
 
         hasNew = true;
         const icon = TYPE_ICON[n.type] ?? '🔔';
-        const toastId = toast(`${icon} ${n.title}`, {
-          description: n.preview,
-          duration: 6000,
-          ...(n.actionUrl && n.actionUrl !== '/' ? {
-            // 2026-07-25 kullanıcı bulgusu: "Git"e bastım ama toast ekranda kaldı
-            // (yoklama alırken). Sonner action tıklamasında normalde kendi kendine
-            // kapanıyor, ama garanti olsun diye burada da açıkça `dismiss` çağrılıyor.
-            action: { label: 'Git →', onClick: () => { routerRef.current.push(n.actionUrl); toast.dismiss(toastId); } },
-          } : {}),
-        });
+
+        if (n.type === 'message') {
+          // Gönderen bazlı SABİT id — aynı kişiden gelen sonraki mesajlar YENİ bir
+          // toast açmak yerine BUNU günceller (bkz. üstteki `messageToastCounts` notu).
+          const groupId = `msg-toast-${n.senderId}`;
+          const count = (messageToastCounts.current.get(groupId) ?? 0) + 1;
+          messageToastCounts.current.set(groupId, count);
+          const label = count > 1 ? `${n.title} (${count} mesaj)` : n.title;
+          toast(`${icon} ${label}`, {
+            id: groupId,
+            description: n.preview,
+            duration: 6000,
+            onAutoClose: () => messageToastCounts.current.delete(groupId),
+            onDismiss: () => messageToastCounts.current.delete(groupId),
+            ...(n.actionUrl && n.actionUrl !== '/' ? {
+              action: { label: 'Git →', onClick: () => { routerRef.current.push(n.actionUrl); toast.dismiss(groupId); } },
+            } : {}),
+          });
+        } else {
+          const toastId = toast(`${icon} ${n.title}`, {
+            description: n.preview,
+            duration: 6000,
+            ...(n.actionUrl && n.actionUrl !== '/' ? {
+              // 2026-07-25 kullanıcı bulgusu: "Git"e bastım ama toast ekranda kaldı
+              // (yoklama alırken). Sonner action tıklamasında normalde kendi kendine
+              // kapanıyor, ama garanti olsun diye burada da açıkça `dismiss` çağrılıyor.
+              action: { label: 'Git →', onClick: () => { routerRef.current.push(n.actionUrl); toast.dismiss(toastId); } },
+            } : {}),
+          });
+        }
       }
 
       if (hasNew) playNotificationSound();
