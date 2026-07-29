@@ -266,33 +266,19 @@ export default function FlexConnectPage() {
     fetchPushSettings().then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, []);
 
-  // Push yeniden-etkinleştirme banner'ı (2026-07-29) — ÖNCE burada tamamen
-  // SESSİZ bir otomatik onarım denendi (`unsubscribe()` + `getToken()`), ama
-  // mobil tarafta canlı testte (PWA silinip yeniden eklendi) İKİ AYRI denemede
-  // de token sunucuda hiç değişmedi — muhtemelen Firebase Messaging SDK'nın
-  // kendi iç token cache'i bizim manuel `unsubscribe()` çağrımızdan habersiz
-  // kalıp aynı (artık geçersiz) token'ı döndürmeye devam ediyor. Kullanıcı
-  // Ayarlar'daki anahtarı kapatıp-açarak (`toggleNotifPush`'ın "aç" dalı)
-  // sorunu çözdüğünü doğruladı — o akış KANITLANMIŞ çalışıyor. Bu yüzden
-  // sessiz onarımı zorlamak yerine SADECE tutarsızlığı tespit edip (sunucu
-  // "açık" diyor ama tarayıcıda gerçek abonelik yok) kullanıcıya tek dokunuşluk,
-  // zaten kanıtlanmış akışı öneren görünür bir banner gösteriyoruz.
+  // Push yeniden-etkinleştirme banner'ı (2026-07-29) — İKİ FARKLI async
+  // "gerçekten abone mi" kontrolü canlı testte GÜVENİLMEZ çıktı (bkz. mobildeki
+  // AYNI fonksiyonun gerekçesi). Basitleştirildi: async abonelik kontrolü YOK,
+  // sadece `localStorage`'da bu TARAYICI ÖRNEĞİNİN daha önce gerçekten bir
+  // token kaydettiğine dair iz var mı bakılıyor (senkron, güvenilir).
   const [showPushReenableBanner, setShowPushReenableBanner] = useState(false);
   useEffect(() => {
     if (!notifPush) return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    (async () => {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        const existingSub = await registration.pushManager.getSubscription().catch(() => null);
-        if (existingSub) return;
-        setNotifPush(false);
-        setShowPushReenableBanner(true);
-      } catch (e) {
-        console.error("[connect] push abonelik kontrolü başarısız:", e);
-      }
-    })();
+    if (localStorage.getItem("flexConnectPushToken")) return;
+    setNotifPush(false);
+    setShowPushReenableBanner(true);
   }, [notifPush]);
 
   async function toggleNotifSound() {
@@ -351,6 +337,7 @@ export default function FlexConnectPage() {
       const registered = await registerPushToken(token);
       if (!registered) { toast.error("Cihaz sunucuya kaydedilemedi — tekrar dene.", { id: toastId }); return; }
       pushTokenRef.current = token;
+      localStorage.setItem("flexConnectPushToken", token);
       await setPushNotificationsEnabled(true);
       setNotifPush(true);
       toast.success("Bildirimler açıldı.", { id: toastId });
