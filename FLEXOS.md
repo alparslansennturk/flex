@@ -30,15 +30,8 @@
 - **Eğitmen Hakediş** — Full mod bitti + kullanıcı testinden 4 gerçek düzeltme yapıldı;
   **Core mod (eğitmenin kendi görünümü) henüz yapılmadı.**
 - **Özel Ders** — sadece tasarım konuşuldu, hiç kod yazılmadı.
-- **Dershane/LGS-Üni hazırlık modu (2026-07-29, kullanıcı kararı — henüz kod
-  YOK):** FlexOS'u bilişim kursu dışında LGS/üniversite hazırlık dershaneleri
-  pazarına da açma kararı. Ayrı ürün DEĞİL — mevcut Görünüm Anahtarı/capability
-  desenindeki gibi YENİ BİR MOD (Eğitmen→Öğretmen, Grup→Sınıf gibi terminoloji
-  relabel'ı, alttaki domain aynı kalıyor). Asıl yeni iş: Sınav modülü + Ölçme-
-  Değerlendirme modülü (Soru Bankası, Deneme Sınavı, Net/Analiz Engine) — bunlar
-  mevcut Ödev sisteminin varyantı olmayabilir, ayrı domain kavramları gerekebilir,
-  henüz tasarlanmadı. Kullanıcı ÖNCE bu iki modülün UI'ını kendisi tasarlayacak,
-  sonra "koda dök" diyecek — şu an hiçbir kod aksiyonu YOK, sadece plan aşaması.
+- **Dershane/LGS-Üni hazırlık modu** → `FLEXOS_DERSHANE_MOD.md` (2026-07-29,
+  kullanıcı kararı, henüz kod YOK — sadece plan aşaması, detay o dosyada).
 - **Teknik borç / kod kalitesi** → `FLEXOS_TEKNIK_BORC.md` (2026-07-28 incelemesi, 20 madde,
   11/20 tamamlandı, detay o dosyada).
 - **Uzun süredir bekleyen, hâlâ sıfır kod (öncelik değil):** Finans modülü, Şube Aşama-2
