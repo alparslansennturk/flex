@@ -16,110 +16,34 @@
  *   alanlar — wiring adımında modele eklenecek/eşlenecek (bkz. FLEXOS.md Durum bloğu).
  */
 
-import React, { useEffect, useMemo, useState, useCallback, CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { auth } from "@/app/lib/firebase";
-import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
-import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
+import { FlexPageLoader } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 import { StudentDetailTabsPanel } from "../_shared/StudentDetailTabsPanel";
+import { authHeaders } from "@/app/lib/client/auth-headers";
+import {
+  StatusKey, Student, StudentGroup, PersonApiItem, GroupOption, ScheduleLite, schedulesOverlapClient,
+} from "./_shared/types";
+import { S, IC, globalCss } from "./_shared/constants";
+import { FilterPanel } from "./_shared/FilterPanel";
+import { StudentTable } from "./_shared/StudentTable";
+import { AssignGroupModal } from "./_shared/AssignGroupModal";
+import { TransferGroupModal } from "./_shared/TransferGroupModal";
+import { DeleteEnrollmentModal } from "./_shared/DeleteEnrollmentModal";
 
 // Öğrenciye tıklayınca detay paneli sağdan kayarak açılır — Yoklama Detay /
 // Satış Listesi ile AYNI "liste↔detay kayması" deseni (2026-07-23, admin/op
 // için tam sayfa yönlendirmesi yerine; eğitmen görünümü Sınıflar'da AYNEN kaldı).
 const PANEL_T = { type: "tween" as const, duration: 0.3, ease: [0.4, 0, 0.2, 1] as const };
-
-// ── Durum & Branş sözlükleri (tasarımdan) ────────────────────────────────────
-type StatusKey =
-  | "beklemede" | "aktif" | "grupsuz" | "tekrar" | "mezun" | "pasif" | "donduruldu" | "iptal";
-
-const ST: Record<StatusKey, { label: string; hint: string; color: string; background: string; dot: string }> = {
-  beklemede: { label: "Beklemede", hint: "Ödeme bekleniyor", color: "#8A5A00", background: "#FFF3DC", dot: "#FFB020" },
-  aktif: { label: "Aktif", hint: "Ödeme yapıldı", color: "#007A30", background: "#E6F5ED", dot: "#009F3E" },
-  grupsuz: { label: "Grupsuz", hint: "Gruba atanmadı", color: "#205297", background: "#DDE8F8", dot: "#3A7BD5" },
-  tekrar: { label: "Tekrar", hint: "Tekrar isteyen", color: "#652980", background: "#E6D1F0", dot: "#652980" },
-  mezun: { label: "Mezun", hint: "Eğitimi tamamladı", color: "#285253", background: "#CBE6E6", dot: "#4FA3A5" },
-  pasif: { label: "Pasif", hint: "Kaydı pasif", color: "#6F7B87", background: "#EEF0F3", dot: "#AEB4C0" },
-  donduruldu: { label: "Donduruldu", hint: "Kayıt donduruldu", color: "#0E5D59", background: "#AFF3F0", dot: "#1CB5AE" },
-  iptal: { label: "İptal", hint: "Satış iptal edildi", color: "#991b1b", background: "#fef2f2", dot: "#dc2626" },
-};
-
-const BRANS_COLORS: Record<string, { color: string; background: string; dot: string }> = {
-  Design: { color: "#B80E57", background: "#FED7E9", dot: "#F91079" },
-  Finance: { color: "#0E5D59", background: "#AFF3F0", dot: "#1CB5AE" },
-  Software: { color: "#4D52A6", background: "#DDE0FA", dot: "#6F74D8" },
-};
-const BRANS_FALLBACK = { color: "#414B59", background: "#EEF0F3", dot: "#8E95A3" };
-const BRANS = new Proxy(BRANS_COLORS, {
-  get: (t, k: string) => t[k] ?? BRANS_FALLBACK,
-});
-
-const AV_PALETTES: Array<[string, string]> = [
-  ["#689adf", "#2867bd"], ["#FFA352", "#FF7800"], ["#67B5B6", "#1CB5AE"], ["#8B91E6", "#4D52A6"], ["#F76FA3", "#F91079"],
-];
-
-const PAGE_SIZE = 8;
-
-interface StudentGroup { label: string; branch: string; educationName?: string; groupId: string; enrollmentId: string }
-interface StudentEducation { educationId: string; name: string; status: string }
-/** Kişinin grupsuz+aktif bir kaydı — "Gruba Ata"nın atayabileceği aday (bir paket satışında birden fazla olabilir). */
-interface AssignableEnrollment { enrollmentId: string; educationId: string | null; educationName: string }
-interface Student {
-  id: string; name: string; email: string; phone: string;
-  status: StatusKey; subeler: string[]; gender: string; branches: string[];
-  groups: StudentGroup[];
-  educations: StudentEducation[];
-  assignableEnrollments: AssignableEnrollment[];
-}
-
-/** API'den gelen ham havuz kaydı (GET /api/flexos/persons). */
-interface PersonApiItem {
-  id: string; name: string; email: string; phone: string;
-  status: string; branches?: string[]; groups?: StudentGroup[];
-  educations?: StudentEducation[];
-  assignableEnrollments?: AssignableEnrollment[];
-  gender?: string; subeler?: string[];
-}
-
-/**
- * Modal'daki atanabilir/hedef grup seçeneği.
- * `enrollmentId` — Gruba Ata akışında bu grup seçilirse HANGİ grupsuz kaydın PATCH'leneceği
- * (kişinin birden fazla branştan grupsuz kaydı olabilir, her aday kendi enrollment'ına bağlı).
- * `conflictWith` — doluysa bu grup kişinin AKTİF başka bir grubuyla gün/saat çakışıyor demektir,
- * satır seçilemez (disabled+tooltip) gösterilir.
- */
-interface GroupOption { id: string; code: string; sub: string; educationId?: string; sectionId?: string; enrollmentId?: string; conflictWith?: string }
-
-/** Grubun ham programı (GET /api/flexos/groups'tan gelir). */
-interface ScheduleLite { days: number[]; startTime?: string; endTime?: string }
-
-function parseHM(t?: string): number | null {
-  if (!t) return null;
-  const [h, m] = t.split(".").map((n) => Number(n));
-  if (!Number.isFinite(h)) return null;
-  return h * 60 + (Number.isFinite(m) ? m : 0);
-}
-
-/** İki grup programı çakışıyor mu (client; server `schedulesOverlap` ile aynı mantık). */
-function schedulesOverlapClient(a: ScheduleLite, b: ScheduleLite): boolean {
-  if (!a.days.some((d) => b.days.includes(d))) return false;
-  const aStart = parseHM(a.startTime), aEnd = parseHM(a.endTime);
-  const bStart = parseHM(b.startTime), bEnd = parseHM(b.endTime);
-  if (aStart == null || aEnd == null || bStart == null || bEnd == null) return false;
-  return aStart < bEnd && bStart < aEnd;
-}
-
-function initials(name: string) {
-  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toLocaleUpperCase("tr");
-}
 
 export default function OgrenciHavuzuPage() {
   const router = useRouter();
@@ -170,9 +94,6 @@ export default function OgrenciHavuzuPage() {
   }, [myOfficeName, subeFilterInitialized]);
 
   const [openDropdown, setOpenDropdown] = useState<null | "sube" | "brans" | "egitim">(null);
-  const [hoveredBrans, setHoveredBrans] = useState<string | null>(null);
-  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
-  const [hoveredEdu, setHoveredEdu] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
   // ── İşlem — 3 nokta menüsü (Gruba Ata / Grup Değiştir) ──
@@ -225,12 +146,6 @@ export default function OgrenciHavuzuPage() {
   //    sadece net bir uyarı gösterir — asıl güvenlik sunucu tarafında.
   const [deleteTarget, setDeleteTarget] = useState<{ student: Student; enrollmentId: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const loadStudents = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -489,6 +404,7 @@ export default function OgrenciHavuzuPage() {
     setStatusFilter([]); setSubeFilter("Tümü"); setBransFilter("Tümü"); setEgitimFilter("Tümü");
     setPStatus([]); setPSube("Tümü"); setPBrans("Tümü"); setPEgitim("Tümü"); setQuery(""); setPage(1); setOpenDropdown(null);
   };
+  const handleQueryChange = (v: string) => { setQuery(v); setPage(1); };
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("tr");
     return students.filter((st) => {
@@ -500,12 +416,6 @@ export default function OgrenciHavuzuPage() {
       return true;
     });
   }, [students, query, statusFilter, subeFilter, bransFilter, egitimFilter]);
-
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const curPage = Math.min(page, totalPages);
-  const startIdx = (curPage - 1) * PAGE_SIZE;
-  const pageStudents = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
   // Branş listesini gerçek öğrenci verisinden türet
   const BRANS_LIST = useMemo(() => {
@@ -561,504 +471,52 @@ export default function OgrenciHavuzuPage() {
         <FlexPageContent className="pt-6 pb-12">
           {/* section chip */}
           <div style={{ display: "flex", alignItems: "center", marginBottom: 22 }}>
-            <span style={S.countChip}>{total} öğrenci</span>
+            <span style={S.countChip}>{filtered.length} öğrenci</span>
           </div>
 
-          {/* ============ FILTER PANEL ============ */}
-          <div style={S.filterPanel}>
-            {/* DURUM */}
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
-              <span style={S.sectionLabel}>Durum</span>
-              <div style={{ flex: 1, height: 1, background: "#EEF0F3" }} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginBottom: 18 }}>
-              {(Object.keys(ST) as StatusKey[]).map((k) => {
-                const o = ST[k];
-                const checked = pStatus.includes(k);
-                return (
-                  <div key={k} className="oh-chip" onClick={() => togglePStatus(k)} title={o.hint}
-                    style={{ ...S.statusChip, border: checked ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: checked ? "#EFF3FA" : "#fff" }}>
-                    <span style={{ ...S.statusCheck, border: checked ? "1.5px solid #2867bd" : "1.5px solid #CDD2DA", background: checked ? "#2867bd" : "#fff" }}>
-                      {checked && <span dangerouslySetInnerHTML={{ __html: IC.checkWhite }} />}
-                    </span>
-                    <span style={{ width: 9, height: 9, borderRadius: "50%", background: o.dot, flex: "0 0 auto" }} />
-                    <span style={{ fontSize: 13.5, fontWeight: 600, color: "#414B59", whiteSpace: "nowrap" }}>{o.label}</span>
-                  </div>
-                );
-              })}
-            </div>
+          <FilterPanel
+            subeList={subeList}
+            bransList={BRANS_LIST}
+            egitimList={EGITIM_LIST}
+            openDropdown={openDropdown}
+            toggleDropdown={toggleDropdown}
+            pStatus={pStatus}
+            togglePStatus={togglePStatus}
+            pSube={pSube}
+            setPSube={setPSube}
+            pBrans={pBrans}
+            setPBrans={setPBrans}
+            pEgitim={pEgitim}
+            setPEgitim={setPEgitim}
+            query={query}
+            setQuery={handleQueryChange}
+            setOpenDropdown={setOpenDropdown}
+            anyFilter={anyFilter}
+            applyFilters={applyFilters}
+            clearFilters={clearFilters}
+          />
 
-            {/* Şube / Branş row */}
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
-              {/* ŞUBE */}
-              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
-                <span style={S.sectionLabel}>Şube</span>
-                <button className="oh-select" style={{ ...S.selectBtn, minWidth: 190 }} onClick={() => toggleDropdown("sube")}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.pin }} />{pSube}
-                  </span>
-                  <span dangerouslySetInnerHTML={{ __html: IC.chevDown }} />
-                </button>
-                {openDropdown === "sube" && (
-                  <div style={{ ...S.dropdown, width: 200 }}>
-                    {subeList.map((v) => (
-                      <div key={v} className="oh-ddrow" style={pSube === v ? S.ddActive : S.ddBase} onClick={() => { setPSube(v); setOpenDropdown(null); }}>
-                        <span>{v}</span>
-                        {pSube === v && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* BRANŞ */}
-              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
-                <span style={S.sectionLabel}>Branş</span>
-                <button className="oh-select" style={{ ...S.selectBtn, minWidth: 180 }} onClick={() => toggleDropdown("brans")}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.checkSmall }} />{pBrans}
-                  </span>
-                  <span dangerouslySetInnerHTML={{ __html: IC.chevDown }} />
-                </button>
-                {openDropdown === "brans" && (
-                  <div style={{ ...S.dropdown, width: 200 }}>
-                    {BRANS_LIST.map((v) => (
-                      <div key={v} className="oh-ddrow" style={pBrans === v ? S.ddActive : S.ddBase} onClick={() => { setPBrans(v); setOpenDropdown(null); }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: v === "Tümü" ? "#CDD2DA" : (BRANS[v]?.dot ?? BRANS_FALLBACK.dot) }} />
-                          {v}
-                        </span>
-                        {pBrans === v && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* EĞİTİM */}
-              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
-                <span style={S.sectionLabel}>Eğitim</span>
-                <button className="oh-select" style={{ ...S.selectBtn, minWidth: 200 }} onClick={() => toggleDropdown("egitim")}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 9, overflow: "hidden", maxWidth: 160, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.checkSmall }} />
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pEgitim}</span>
-                  </span>
-                  <span dangerouslySetInnerHTML={{ __html: IC.chevDown }} />
-                </button>
-                {openDropdown === "egitim" && (
-                  <div style={{ ...S.dropdown, width: 240 }}>
-                    {EGITIM_LIST.map((v) => (
-                      <div key={v} className="oh-ddrow" style={pEgitim === v ? S.ddActive : S.ddBase} onClick={() => { setPEgitim(v); setOpenDropdown(null); }}>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{v}</span>
-                        {pEgitim === v && <span dangerouslySetInnerHTML={{ __html: IC.checkBlue }} />}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* İSİM ARAMA — 2026-07-17 kullanıcı isteği: Eğitim'den hemen sonra (Filtrele
-                  butonuna YAKIN DURMASIN — önceki turda 48px marginRight ile Filtrele'ye
-                  yaklaştırılmıştı, kullanıcı geri aldı). Diğer filtreler gibi `flexShrink:0`
-                  — Temizle butonu görününce sıkışması gereken SADECE aşağıdaki spacer. */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 7, flexShrink: 0 }}>
-                <span style={S.sectionLabel}>İsim ara</span>
-                <div style={{ position: "relative", width: 220 }}>
-                  <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "#8E95A3", pointerEvents: "none", display: "flex" }}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.search }} />
-                  </span>
-                  <input
-                    value={query}
-                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                    placeholder="Öğrenci adı…"
-                    style={{ ...S.selectBtn, width: "100%", paddingLeft: 36, fontWeight: 500 }}
-                  />
-                </div>
-              </div>
-
-              {/* 2026-07-17 GERÇEK BUG fix: Temizle görününce Filtrele aşağı satıra kayıyordu
-                  (satır `flexWrap:wrap`, hiçbir öğe küçülmüyordu, taşan son öğe alt satıra
-                  düşüyordu). Tek esnek öğe bu spacer — Temizle'nin kapladığı genişliği
-                  0'a kadar küçülerek karşılar, diğer hiçbir filtre/buton kaymaz/küçülmez. */}
-              <div style={{ flex: 1, minWidth: 0 }} />
-
-              {anyFilter && (
-                <button className="oh-clear" style={{ ...S.clearBtn, flexShrink: 0 }} onClick={clearFilters}>
-                  <span dangerouslySetInnerHTML={{ __html: IC.x }} />
-                  Temizle
-                </button>
-              )}
-
-              <button className="oh-filter" style={{ ...S.filterBtn, flexShrink: 0 }} onClick={applyFilters}>
-                <span dangerouslySetInnerHTML={{ __html: IC.funnel }} />
-                Filtrele
-              </button>
-            </div>
-          </div>
-
-          {/* ============ TABLE ============ */}
-          <div style={S.tableCard}>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                <thead>
-                  <tr style={{ background: "#F7F8FA", borderBottom: "1px solid #EEF0F3" }}>
-                    <th className="oh-col-name"  style={S.th}>Ad Soyad</th>
-                    <th className="oh-col-brans" style={{ ...S.th, paddingLeft: 8 }}>Branş</th>
-                    <th className="oh-col-edu"   style={S.th}>Eğitim</th>
-                    <th className="oh-col-stat"  style={S.th}>Durum</th>
-                    <th className="oh-wide-col oh-col-email" style={S.th}>E-posta</th>
-                    <th className="oh-wide-col oh-col-phone" style={S.th}>Telefon</th>
-                    <th className="oh-col-grup"  style={S.th}>Grup</th>
-                    <th className="oh-col-islem" style={{ ...S.th, textAlign: "right" }}>İşlem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageStudents.map((st) => {
-                    const ss = ST[st.status];
-                    const idHash = st.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-                    const pal = AV_PALETTES[idHash % AV_PALETTES.length];
-                    const branchCount = st.branches.length;
-                    const activeBrans = st.branches[0] ?? "—";
-                    const popupOpen = hoveredBrans === st.id && branchCount > 1;
-                    const groups = st.groups;
-                    const groupCount = groups.length;
-                    const hasGroup = groupCount > 0;
-                    const groupPopupOpen = hoveredGroup === st.id && groupCount > 1;
-                    return (
-                      <tr key={st.id} className="oh-row" style={{ borderBottom: "1px solid #EEF0F3", cursor: "pointer" }} onClick={() => openStudentPanel(st.id)}>
-                        {/* Ad Soyad */}
-                        <td style={S.cell}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <span style={{ ...S.avatarSm, background: `linear-gradient(135deg,${pal[0]},${pal[1]})` }}>{initials(st.name)}</span>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{st.name}</span>
-                          </div>
-                        </td>
-                        {/* Branş */}
-                        <td style={{ ...S.cell, paddingLeft: 8 }}>
-                          <div
-                            style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 8, cursor: "default" }}
-                            onMouseEnter={() => setHoveredBrans(st.id)}
-                            onMouseLeave={() => setHoveredBrans(null)}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <span style={{ ...S.bransBadge, color: (BRANS[activeBrans] ?? BRANS_FALLBACK).color, background: (BRANS[activeBrans] ?? BRANS_FALLBACK).background }}>
-                              <span style={{ width: 7, height: 7, borderRadius: "50%", background: (BRANS[activeBrans] ?? BRANS_FALLBACK).dot, flex: "0 0 auto" }} />
-                              {activeBrans}
-                            </span>
-                            {branchCount > 1 && <span style={S.branchBadge}>+{branchCount - 1}</span>}
-                            {popupOpen && (
-                              <div style={S.branchPopup}>
-                                <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", padding: "4px 9px 7px" }}>
-                                  Branşlar ({branchCount})
-                                </div>
-                                {st.branches.map((b, bi) => {
-                                  const c = BRANS[b] ?? BRANS_FALLBACK;
-                                  return (
-                                    <div key={b} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 9px", borderRadius: 8, background: bi === 0 ? "#EFF3FA" : "transparent" }}>
-                                      <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: c.dot }} />
-                                      <span style={{ fontSize: 13, fontWeight: 600, color: "#414B59" }}>{b}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        {/* Eğitim */}
-                        <td style={S.cell} onClick={(e) => e.stopPropagation()}>
-                          {st.educations.length === 0 ? (
-                            <span style={{ fontSize: 13, color: "#CDD2DA" }}>—</span>
-                          ) : (
-                            <div
-                              style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, cursor: "default" }}
-                              onMouseEnter={() => setHoveredEdu(st.id)}
-                              onMouseLeave={() => setHoveredEdu(null)}
-                            >
-                              <span style={{ fontSize: 13, fontWeight: 600, color: "#414B59", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                                title={st.educations[0].name}>
-                                {st.educations[0].name}
-                              </span>
-                              {st.educations.length > 1 && (
-                                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, borderRadius: 10, background: "#2867bd", color: "#fff", fontSize: 11, fontWeight: 700, padding: "0 5px" }}>
-                                  +{st.educations.length - 1}
-                                </span>
-                              )}
-                              {hoveredEdu === st.id && st.educations.length > 1 && (
-                                <div style={{ ...S.branchPopup, minWidth: 200 }}>
-                                  <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", padding: "4px 9px 7px" }}>
-                                    Eğitimler ({st.educations.length})
-                                  </div>
-                                  {st.educations.map((edu, ei) => (
-                                    <div key={edu.educationId} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 9px", borderRadius: 8, background: ei === 0 ? "#EFF3FA" : "transparent" }}>
-                                      <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "0 0 auto", background: "#3A7BD5" }} />
-                                      <span style={{ fontSize: 13, fontWeight: 600, color: "#414B59" }}>{edu.name}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        {/* Durum */}
-                        <td style={S.cell}>
-                          <span style={{ ...S.statusBadge, color: ss.color, background: ss.background }}>
-                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: ss.dot, flex: "0 0 auto" }} />
-                            {ss.label}
-                          </span>
-                        </td>
-                        {/* E-posta — geniş ekran */}
-                        <td className="oh-wide-col" style={S.cell}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>{st.email}</span></td>
-                        {/* Telefon — geniş ekran */}
-                        <td className="oh-wide-col" style={S.cell}><span style={{ fontSize: 13, color: "#6F7B87", fontWeight: 600, whiteSpace: "nowrap" }}>{st.phone ? formatTrPhone(st.phone) : "—"}</span></td>
-                        {/* Grup */}
-                        <td style={S.cell} onClick={(e) => e.stopPropagation()}>
-                          {groupCount === 0 ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#8E95A3", fontStyle: "italic", whiteSpace: "nowrap" }}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.alert }} />
-                              Atanmadı
-                            </span>
-                          ) : groupCount === 1 ? (
-                            <span style={S.groupChip}>
-                              <span dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                              {groups[0].label}
-                            </span>
-                          ) : (
-                            <div
-                              style={{ position: "relative", display: "inline-flex", cursor: "default", paddingBottom: 9 }}
-                              onMouseEnter={() => setHoveredGroup(st.id)}
-                              onMouseLeave={() => setHoveredGroup(null)}
-                            >
-                              <span style={S.groupChip}>
-                                <span dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                                {groupCount} Grup
-                                <span style={S.branchBadge}>{groupCount}</span>
-                              </span>
-                              {groupPopupOpen && (
-                                <div style={{ ...S.branchPopup, top: "100%" }}>
-                                  <div style={{ fontSize: 10.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", padding: "4px 9px 7px" }}>
-                                    Gruplar ({groupCount})
-                                  </div>
-                                  {groups.map((g) => {
-                                    const c = BRANS[g.branch] ?? BRANS_FALLBACK;
-                                    return (
-                                      <div key={g.groupId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "7px 9px", borderRadius: 8 }}>
-                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-                                          <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: c.dot }} />
-                                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1E222B" }}>{g.label}</span>
-                                        </span>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: "#8E95A3", whiteSpace: "nowrap" }}>{g.branch}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        {/* İşlem — 3 nokta menü: Gruba Ata / Grup Değiştir / Tamamen Sil */}
-                        <td style={{ ...S.cell, textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                          {(canAssignGroup || canTransfer || canDeleteEnrollment) ? (() => {
-                            const canAssign = canAssignGroup && st.assignableEnrollments.length > 0;
-                            const canDoTransfer = canTransfer && hasGroup;
-                            // Kişinin TÜM enrollment'ları (gruplu + grupsuz) — hard-delete adayı.
-                            // Sunucu satışa bağlı/notlu olanları zaten reddeder, bu sadece liste.
-                            const deleteCandidates = [
-                              ...st.groups.map((g) => ({ enrollmentId: g.enrollmentId, label: g.label, sub: g.branch })),
-                              ...st.assignableEnrollments.map((a) => ({ enrollmentId: a.enrollmentId, label: a.educationName, sub: "Grupsuz" })),
-                            ];
-                            const menuOpen = actionMenuOpen === st.id;
-                            const step = menuOpen ? actionMenuStep : "root";
-                            const closeMenu = () => { setActionMenuOpen(null); setActionMenuStep("root"); setActionMenuPos(null); };
-                            const menuContent = (
-                              <>
-                                {step === "root" ? (
-                                  <>
-                                    {canAssignGroup && (
-                                      <button
-                                        className={canAssign ? "oh-ddrow" : undefined}
-                                        disabled={!canAssign}
-                                        title={canAssign ? "" : "Atanabilir grupsuz kayıt yok"}
-                                        onClick={() => { closeMenu(); openAssign(st); }}
-                                        style={{ ...S.menuItem, color: canAssign ? "#1E222B" : "#CDD2DA", cursor: canAssign ? "pointer" : "not-allowed" }}
-                                      >
-                                        <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
-                                        Gruba Ata
-                                      </button>
-                                    )}
-                                    {canTransfer && (
-                                      <button
-                                        className={canDoTransfer ? "oh-ddrow" : undefined}
-                                        disabled={!canDoTransfer}
-                                        title={canDoTransfer ? "" : "Grup değiştirmek için önce bir gruba atanmış olmalı"}
-                                        onClick={() => {
-                                          if (!canDoTransfer) return;
-                                          if (groupCount === 1) { closeMenu(); openTransfer(st, groups[0]); }
-                                          else setActionMenuStep("pickGroup");
-                                        }}
-                                        style={{ ...S.menuItem, color: canDoTransfer ? "#1E222B" : "#CDD2DA", cursor: canDoTransfer ? "pointer" : "not-allowed" }}
-                                      >
-                                        <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
-                                        Grup Değiştir
-                                      </button>
-                                    )}
-                                    {canDeleteEnrollment && deleteCandidates.length > 0 && (
-                                      <button
-                                        className="oh-ddrow"
-                                        title="Kaydı kalıcı olarak sil (satışa bağlı/notlu kayıtlar reddedilir)"
-                                        onClick={() => {
-                                          if (deleteCandidates.length === 1) {
-                                            closeMenu();
-                                            openDelete(st, deleteCandidates[0].enrollmentId, deleteCandidates[0].label);
-                                          } else {
-                                            setActionMenuStep("pickDelete");
-                                          }
-                                        }}
-                                        style={{ ...S.menuItem, color: "#D93636" }}
-                                      >
-                                        <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                                        Tamamen Sil
-                                      </button>
-                                    )}
-                                  </>
-                                ) : step === "pickDelete" ? (
-                                  <>
-                                    <button
-                                      onClick={() => setActionMenuStep("root")}
-                                      className="oh-ddrow"
-                                      style={{ ...S.menuItem, color: "#8E95A3", fontWeight: 700, fontSize: 11.5, letterSpacing: ".02em" }}
-                                    >
-                                      <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />
-                                      HANGİ KAYIT SİLİNSİN?
-                                    </button>
-                                    {deleteCandidates.map((d) => (
-                                      <button
-                                        key={d.enrollmentId}
-                                        onClick={() => { closeMenu(); openDelete(st, d.enrollmentId, d.label); }}
-                                        className="oh-ddrow"
-                                        style={{ ...S.menuItem, justifyContent: "space-between", color: "#D93636" }}
-                                      >
-                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                                          <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                                          {d.label}
-                                        </span>
-                                        <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600 }}>{d.sub}</span>
-                                      </button>
-                                    ))}
-                                  </>
-                                ) : (
-                                  <>
-                                    <button
-                                      onClick={() => setActionMenuStep("root")}
-                                      className="oh-ddrow"
-                                      style={{ ...S.menuItem, color: "#8E95A3", fontWeight: 700, fontSize: 11.5, letterSpacing: ".02em" }}
-                                    >
-                                      <span dangerouslySetInnerHTML={{ __html: IC.chevLeftSm }} />
-                                      HANGİ GRUPTAN TAŞINSIN?
-                                    </button>
-                                    {groups.map((g) => {
-                                      const c = BRANS[g.branch] ?? BRANS_FALLBACK;
-                                      return (
-                                        <button
-                                          key={g.groupId}
-                                          onClick={() => { closeMenu(); openTransfer(st, g); }}
-                                          className="oh-ddrow"
-                                          style={{ ...S.menuItem, justifyContent: "space-between", color: "#1E222B" }}
-                                        >
-                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: c.dot, flex: "0 0 auto" }} />
-                                            {g.label}
-                                          </span>
-                                          <span style={{ fontSize: 11.5, color: "#8E95A3", fontWeight: 600 }}>{g.branch}</span>
-                                        </button>
-                                      );
-                                    })}
-                                  </>
-                                )}
-                              </>
-                            );
-                            return (
-                              <div data-oh-actionmenu={st.id} style={{ position: "relative", display: "inline-flex" }}>
-                                <button
-                                  className="oh-iconbtn"
-                                  title="İşlemler"
-                                  onClick={(e) => {
-                                    if (menuOpen) { closeMenu(); return; }
-                                    const r = e.currentTarget.getBoundingClientRect();
-                                    const openUp = window.innerHeight - r.bottom < 260;
-                                    setActionMenuPos({ top: r.bottom + 6, bottom: window.innerHeight - r.top + 6, right: window.innerWidth - r.right, openUp });
-                                    setActionMenuOpen(st.id); setActionMenuStep("root"); setOpenDropdown(null);
-                                  }}
-                                  style={S.dotsBtn}
-                                >
-                                  <span dangerouslySetInnerHTML={{ __html: IC.dots }} />
-                                </button>
-                                {menuOpen && actionMenuPos && createPortal(
-                                  <div
-                                    data-oh-actionmenu={st.id}
-                                    style={{
-                                      ...S.actionMenu,
-                                      position: "fixed",
-                                      top: actionMenuPos.openUp ? "auto" : actionMenuPos.top,
-                                      bottom: actionMenuPos.openUp ? actionMenuPos.bottom : "auto",
-                                      right: actionMenuPos.right,
-                                      left: "auto",
-                                    }}
-                                  >
-                                    {menuContent}
-                                  </div>,
-                                  document.body
-                                )}
-                              </div>
-                            );
-                          })() : (
-                            <span style={{ fontSize: 12, color: "#AEB4C0" }}>—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* loading */}
-            {loading && pageStudents.length === 0 && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center" }}>
-                <FlexSpinner />
-                <div style={{ fontSize: 13.5, color: "#8E95A3" }}>Öğrenciler yükleniyor…</div>
-              </div>
-            )}
-
-            {/* empty state */}
-            {!loading && pageStudents.length === 0 && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 20px", textAlign: "center" }}>
-                <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.searchBig }} />
-                <div style={{ fontSize: 15.5, fontWeight: 700, color: "#414B59" }}>{students.length === 0 ? "Henüz öğrenci yok" : "Sonuç bulunamadı"}</div>
-                <div style={{ fontSize: 13.5, color: "#8E95A3", maxWidth: 320 }}>{students.length === 0 ? "İlk satışı yaptığınızda öğrenciler burada görünecek." : "Seçili filtrelere uygun öğrenci yok. Filtreleri temizleyip tekrar deneyin."}</div>
-              </div>
-            )}
-
-            {/* pagination */}
-            {pageStudents.length > 0 && (
-              <div style={S.pagination}>
-                <div style={{ fontSize: 13, color: "#6F7B87", fontWeight: 500 }}>
-                  <strong style={{ color: "#1E222B", fontWeight: 700 }}>{total}</strong> öğrenciden{" "}
-                  <strong style={{ color: "#1E222B", fontWeight: 700 }}>{total ? startIdx + 1 : 0}–{startIdx + pageStudents.length}</strong> arası gösteriliyor
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <button style={{ ...S.pageArrow, cursor: curPage > 1 ? "pointer" : "not-allowed", opacity: curPage > 1 ? 1 : 0.4 }} onClick={() => setPage(Math.max(1, curPage - 1))}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.chevLeft }} />
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} style={p === curPage ? S.pageCur : S.pageReg} onClick={() => setPage(p)}>{p}</button>
-                  ))}
-                  <button style={{ ...S.pageArrow, cursor: curPage < totalPages ? "pointer" : "not-allowed", opacity: curPage < totalPages ? 1 : 0.4 }} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>
-                    <span dangerouslySetInnerHTML={{ __html: IC.chevRight }} />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <StudentTable
+            filtered={filtered}
+            hasAnyStudents={students.length > 0}
+            loading={loading}
+            page={page}
+            setPage={setPage}
+            canAssignGroup={canAssignGroup}
+            canTransfer={canTransfer}
+            canDeleteEnrollment={canDeleteEnrollment}
+            actionMenuOpen={actionMenuOpen}
+            actionMenuStep={actionMenuStep}
+            actionMenuPos={actionMenuPos}
+            setActionMenuOpen={setActionMenuOpen}
+            setActionMenuStep={setActionMenuStep}
+            setActionMenuPos={setActionMenuPos}
+            setOpenDropdown={setOpenDropdown}
+            onRowClick={openStudentPanel}
+            onOpenAssign={openAssign}
+            onOpenTransfer={openTransfer}
+            onOpenDelete={openDelete}
+          />
         </FlexPageContent>
         </motion.div>
 
@@ -1074,330 +532,42 @@ export default function OgrenciHavuzuPage() {
       {/* click-away overlay */}
       {openDropdown && <div onClick={() => setOpenDropdown(null)} style={{ position: "fixed", inset: 0, zIndex: 15, background: "transparent" }} />}
 
-      {/* ============ GRUBA ATA MODAL ============ */}
       {assignTarget && (
-        <div style={S.modalOverlay} onClick={closeAssign}>
-          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
-            {/* head */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DDE8F8", color: "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
-                  dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>Gruba Ata</h3>
-                  <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
-                    <strong style={{ color: "#414B59", fontWeight: 700 }}>{assignTarget.name}</strong> için bir grup seçin.
-                  </p>
-                </div>
-              </div>
-              <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={closeAssign}>
-                <span dangerouslySetInnerHTML={{ __html: IC.x }} />
-              </button>
-            </div>
-
-            {/* body */}
-            <div style={{ padding: 16, maxHeight: 360, overflowY: "auto" }}>
-              {loadingGroups ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "40px 20px" }}>
-                  <FlexSpinner />
-                  <div style={{ fontSize: 13, color: "#8E95A3" }}>Gruplar yükleniyor…</div>
-                </div>
-              ) : groupOptions.length === 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "40px 20px", textAlign: "center" }}>
-                  <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: "#414B59" }}>Henüz grup yok</div>
-                  <div style={{ fontSize: 13, color: "#8E95A3", maxWidth: 280 }}>Önce Sınıflar sayfasından bir grup oluşturun.</div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {groupOptions.map((g) => {
-                    const sel = selectedGroupId === g.id;
-                    const blocked = !!g.conflictWith;
-                    return (
-                      <div key={g.id} className={blocked ? undefined : "oh-grow"}
-                        onClick={() => { if (!blocked) setSelectedGroupId(g.id); }}
-                        title={blocked ? `${g.conflictWith} grubuyla saat/gün çakışıyor` : undefined}
-                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: blocked ? "not-allowed" : "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff", opacity: blocked ? 0.45 : 1 }}>
-                        <span style={{ width: 18, height: 18, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
-                        <span style={{ width: 34, height: 34, borderRadius: 9, background: "#f1f5f9", color: "#6F7B87", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
-                          dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{g.code}</div>
-                          <div style={{ fontSize: 12.5, color: blocked ? "#B42318" : "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {blocked ? `${g.conflictWith} ile çakışıyor` : g.sub}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* footer */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "16px 24px 20px", borderTop: "1px solid #EEF0F3" }}>
-              <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={closeAssign} disabled={assigning}>Vazgeç</button>
-              <button className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || assigning ? 0.55 : 1, pointerEvents: !selectedGroupId || assigning ? "none" : "auto" }} onClick={confirmAssign}>
-                <span dangerouslySetInnerHTML={{ __html: IC.userPlus }} />
-                {assigning ? "Atanıyor…" : "Gruba Ata"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AssignGroupModal
+          assignTarget={assignTarget}
+          groupOptions={groupOptions}
+          loadingGroups={loadingGroups}
+          selectedGroupId={selectedGroupId}
+          setSelectedGroupId={setSelectedGroupId}
+          assigning={assigning}
+          onClose={closeAssign}
+          onConfirm={confirmAssign}
+        />
       )}
 
-      {/* ============ GRUP DEĞİŞTİR MODAL (zaten gruplu kaydı taşır) ============ */}
       {transferTarget && (
-        <div style={S.modalOverlay} onClick={closeTransfer}>
-          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
-            {/* head */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DDE8F8", color: "#205297", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
-                  dangerouslySetInnerHTML={{ __html: IC.transfer }} />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>Grup Değiştir</h3>
-                  <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
-                    <strong style={{ color: "#414B59", fontWeight: 700 }}>{transferTarget.student.name}</strong> için <strong style={{ color: "#414B59", fontWeight: 700 }}>{transferTarget.groupLabel}</strong> yerine yeni bir grup seçin.
-                  </p>
-                </div>
-              </div>
-              <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={closeTransfer}>
-                <span dangerouslySetInnerHTML={{ __html: IC.x }} />
-              </button>
-            </div>
-
-            {/* body */}
-            <div style={{ padding: 16, maxHeight: 360, overflowY: "auto" }}>
-              {loadingGroups ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "40px 20px" }}>
-                  <FlexSpinner />
-                  <div style={{ fontSize: 13, color: "#8E95A3" }}>Gruplar yükleniyor…</div>
-                </div>
-              ) : groupOptions.length === 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "40px 20px", textAlign: "center" }}>
-                  <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: "#414B59" }}>Taşınabilecek başka grup yok</div>
-                  <div style={{ fontSize: 13, color: "#8E95A3", maxWidth: 280 }}>Önce Sınıflar sayfasından uygun bir grup oluşturun.</div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {groupOptions.map((g) => {
-                    const sel = selectedGroupId === g.id;
-                    const blocked = !!g.conflictWith;
-                    return (
-                      <div key={g.id} className={blocked ? undefined : "oh-grow"}
-                        onClick={() => { if (!blocked) setSelectedGroupId(g.id); }}
-                        title={blocked ? `${g.conflictWith} grubuyla saat/gün çakışıyor` : undefined}
-                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, cursor: blocked ? "not-allowed" : "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff", opacity: blocked ? 0.45 : 1 }}>
-                        <span style={{ width: 18, height: 18, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
-                        <span style={{ width: 34, height: 34, borderRadius: 9, background: "#f1f5f9", color: "#6F7B87", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
-                          dangerouslySetInnerHTML={{ __html: IC.groupIcon }} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: "#1E222B", whiteSpace: "nowrap" }}>{g.code}</div>
-                          <div style={{ fontSize: 12.5, color: blocked ? "#B42318" : "#8E95A3", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {blocked ? `${g.conflictWith} ile çakışıyor` : g.sub}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {!loadingGroups && groupOptions.length > 0 && (
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid #EEF0F3" }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#414B59", marginBottom: 3 }}>
-                    <strong style={{ color: "#414B59" }}>{transferTarget.groupLabel}</strong>&apos;daki kayıt nasıl kapansın?
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "#8E95A3", marginBottom: 9 }}>Sistem bunu bilemez — hangisi olduğunu siz seçmelisiniz.</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {([
-                      { key: "completed" as const, title: "Modül/Ders tamamlandı — Mezun", desc: "Öğrenci bu bölümü/dersi bitirdi, sertifika/not burada donar." },
-                      { key: "cancelled" as const, title: "Sadece sınıf değişikliği — Mezun DEĞİL", desc: "Ders henüz bitmedi, başka bir sebeple (saat/lokasyon vb.) sınıf değişti." },
-                    ]).map((opt) => {
-                      const sel = transferCloseAs === opt.key;
-                      return (
-                        <div key={opt.key} className="oh-grow" onClick={() => setTransferCloseAs(opt.key)}
-                          style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "11px 14px", borderRadius: 12, cursor: "pointer", border: sel ? "1.5px solid #2867bd" : "1.5px solid #E2E5EA", background: sel ? "#EFF3FA" : "#fff" }}>
-                          <span style={{ width: 18, height: 18, marginTop: 1, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "5px solid #2867bd" : "2px solid #CDD2DA", transition: "all .12s" }} />
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1E222B" }}>{opt.title}</div>
-                            <div style={{ fontSize: 12, color: "#8E95A3", fontWeight: 500, marginTop: 2, lineHeight: 1.4 }}>{opt.desc}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* footer */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "16px 24px 20px", borderTop: "1px solid #EEF0F3" }}>
-              <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={closeTransfer} disabled={transferring}>Vazgeç</button>
-              <button className="oh-filter" style={{ ...S.filterBtn, opacity: !selectedGroupId || !transferCloseAs || transferring ? 0.55 : 1, pointerEvents: !selectedGroupId || !transferCloseAs || transferring ? "none" : "auto" }} onClick={confirmTransfer}>
-                <span dangerouslySetInnerHTML={{ __html: IC.transfer }} />
-                {transferring ? "Taşınıyor…" : "Gruba Taşı"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TransferGroupModal
+          transferTarget={transferTarget}
+          groupOptions={groupOptions}
+          loadingGroups={loadingGroups}
+          selectedGroupId={selectedGroupId}
+          setSelectedGroupId={setSelectedGroupId}
+          transferCloseAs={transferCloseAs}
+          setTransferCloseAs={setTransferCloseAs}
+          transferring={transferring}
+          onClose={closeTransfer}
+          onConfirm={confirmTransfer}
+        />
       )}
 
-      {/* ============ TAMAMEN SİL ONAY MODAL (hard-delete, geri alınamaz) ============ */}
       {deleteTarget && (
-        <div style={S.modalOverlay} onClick={closeDelete}>
-          <div style={{ ...S.modal, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-            {/* head */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 16px", borderBottom: "1px solid #EEF0F3" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#FEE2E2", color: "#D93636", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}
-                  dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, letterSpacing: "-.3px", color: "#1E222B" }}>Kaydı Tamamen Sil</h3>
-                  <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#8E95A3", fontWeight: 500 }}>
-                    <strong style={{ color: "#414B59", fontWeight: 700 }}>{deleteTarget.student.name}</strong> — {deleteTarget.label}
-                  </p>
-                </div>
-              </div>
-              <button className="oh-iconbtn" style={{ ...S.bellBtn, width: 36, height: 36 }} onClick={closeDelete} disabled={deleting}>
-                <span dangerouslySetInnerHTML={{ __html: IC.x }} />
-              </button>
-            </div>
-
-            {/* body */}
-            <div style={{ padding: "18px 24px" }}>
-              <div style={{ display: "flex", gap: 10, padding: "12px 14px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #FECACA" }}>
-                <span style={{ color: "#D93636", flex: "0 0 auto" }} dangerouslySetInnerHTML={{ __html: IC.alert }} />
-                <p style={{ margin: 0, fontSize: 13, color: "#991B1B", fontWeight: 500, lineHeight: 1.5 }}>
-                  Bu işlem <strong>geri alınamaz</strong> — kayıt veritabanından tamamen silinir (gruptan çıkarmadan farklı).
-                  Öğrenci ve diğer kayıtları etkilenmez. Bu kayıt bir satışa bağlıysa veya notu girilmişse sunucu
-                  işlemi zaten reddedecektir.
-                </p>
-              </div>
-            </div>
-
-            {/* footer */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 11, padding: "4px 24px 20px" }}>
-              <button className="oh-clear" style={{ ...S.selectBtn, border: "1px solid #E2E5EA", color: "#6F7B87" }} onClick={closeDelete} disabled={deleting}>Vazgeç</button>
-              <button
-                style={{ ...S.filterBtn, background: "linear-gradient(135deg,#EF4444,#D93636)", boxShadow: "0 8px 18px -8px rgba(217,54,54,.5)", opacity: deleting ? 0.6 : 1, pointerEvents: deleting ? "none" : "auto" }}
-                onClick={confirmDelete}
-              >
-                <span dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                {deleting ? "Siliniyor…" : "Tamamen Sil"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteEnrollmentModal
+          deleteTarget={deleteTarget}
+          deleting={deleting}
+          onClose={closeDelete}
+          onConfirm={confirmDelete}
+        />
       )}
-
     </div>
   );
 }
-
-// ── stiller ───────────────────────────────────────────────────────────────────
-const S: Record<string, CSSProperties> = {
-  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#1E222B", fontFamily: "'Inter', system-ui, sans-serif", background: "#EEF0F3" },
-  main: { flex: 1, height: "100%", overflow: "hidden", background: "#EEF0F3", display: "flex", flexDirection: "column" },
-  header: { position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px max(36px, calc((100% - 1920px) / 2 + 36px))", background: "#fff", borderBottom: "1px solid #E2E5EA", boxShadow: "0 1px 2px rgba(15,31,61,.04)" },
-  headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
-  bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#414B59", transition: "all .14s" },
-  bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
-  avatar: { width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#FF8D28,#D66500)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(214,101,0,.5)" },
-  countChip: { fontSize: 12.5, fontWeight: 700, color: "#205297", background: "#DDE8F8", padding: "3px 10px", borderRadius: 999 },
-  filterPanel: { position: "relative", zIndex: 20, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16, padding: "18px 20px", boxShadow: "0 1px 2px rgba(15,31,61,.04)", marginBottom: 18 },
-  sectionLabel: { fontSize: 11.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em" },
-  statusChip: { display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, cursor: "pointer", transition: "all .14s" },
-  statusCheck: { position: "relative", width: 17, height: 17, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" },
-  selectBtn: { display: "inline-flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 15px", borderRadius: 11, border: "1px solid #E2E5EA", background: "#fff", color: "#1E222B", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
-  dropdown: { position: "absolute", top: "calc(100% + 8px)", left: 0, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 14, boxShadow: "0 18px 40px -12px rgba(15,31,61,.22)", padding: 8, zIndex: 60, animation: "oh-ddin .15s cubic-bezier(.2,.8,.3,1)" },
-  ddBase: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 11px", borderRadius: 9, cursor: "pointer", fontSize: 14, fontWeight: 500, color: "#414B59" },
-  ddActive: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 11px", borderRadius: 9, cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#205297", background: "#E2EAF3" },
-  clearBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "11px 14px", borderRadius: 11, border: "1px dashed #F3B0B0", background: "#fff", color: "#D93636", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", transition: "all .14s" },
-  filterBtn: { display: "inline-flex", alignItems: "center", gap: 9, padding: "12px 22px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)", transition: "filter .14s" },
-  tableCard: { background: "#fff", border: "1px solid #E2E5EA", borderRadius: 18, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,31,61,.05)" },
-  th: { padding: "14px 24px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#8E95A3", letterSpacing: ".02em" },
-  cell: { padding: "15px 24px", verticalAlign: "middle" },
-  avatarSm: { width: 36, height: 36, borderRadius: "50%", flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12.5, fontWeight: 700 },
-  statusBadge: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 16px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
-  bransBadge: { display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 11px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" },
-  groupChip: { display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 8, background: "#f1f5f9", border: "1px solid #E2E5EA", fontSize: 13, fontWeight: 700, color: "#414B59", whiteSpace: "nowrap" },
-  transferIconBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", cursor: "pointer", flex: "0 0 auto" },
-  assignBtn: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, border: "none", background: "transparent", fontSize: 13, fontWeight: 600, fontFamily: "inherit", transition: "all .13s" },
-  dotsBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E5EA", background: "#fff", color: "#6F7B87", cursor: "pointer", flex: "0 0 auto" },
-  actionMenu: { position: "absolute", top: "calc(100% + 6px)", right: 0, left: "auto", minWidth: 190, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 18px 40px -12px rgba(15,31,61,.26)", padding: 6, zIndex: 60, animation: "oh-ddin .14s cubic-bezier(.2,.8,.3,1)" },
-  menuItem: { display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 10px", borderRadius: 8, border: "none", background: "transparent", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", textAlign: "left", transition: "background .12s" },
-  branchBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, padding: "0 5px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: "#fff", background: "#2867bd", boxShadow: "0 3px 8px -3px rgba(40,103,189,.55)", flex: "0 0 auto" },
-  branchPopup: { position: "absolute", top: "calc(100% + 9px)", left: 0, minWidth: 172, background: "#fff", border: "1px solid #E2E5EA", borderRadius: 12, boxShadow: "0 18px 40px -12px rgba(15,31,61,.26)", padding: 8, zIndex: 50, animation: "oh-ddin .14s cubic-bezier(.2,.8,.3,1)" },
-  emptyIcon: { width: 58, height: 58, borderRadius: 16, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#8E95A3" },
-  pagination: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", padding: "16px 24px", borderTop: "1px solid #EEF0F3", background: "#F7F8FA" },
-  pageArrow: { width: 38, height: 38, borderRadius: 10, border: "1px solid #e6e9f0", background: "#fff", color: "#414B59", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" },
-  pageCur: { minWidth: 38, height: 38, padding: "0 12px", borderRadius: 10, border: "1px solid #2867bd", background: "#2867bd", color: "#fff", fontWeight: 700, fontSize: 14, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 6px 14px -6px rgba(40,103,189,.5)" },
-  pageReg: { minWidth: 38, height: 38, padding: "0 12px", borderRadius: 10, border: "1px solid #e6e9f0", background: "#fff", color: "#414B59", fontWeight: 600, fontSize: 14, fontFamily: "inherit", cursor: "pointer" },
-  modalOverlay: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,.45)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "oh-ddin .14s ease" },
-  modal: { width: "100%", maxWidth: 440, background: "#fff", borderRadius: 18, boxShadow: "0 28px 60px -16px rgba(15,31,61,.4)", overflow: "hidden", display: "flex", flexDirection: "column" },
-  fieldLabel: { fontSize: 11.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", marginBottom: 6 },
-  fieldValue: { fontSize: 14.5, fontWeight: 600, color: "#1E222B", lineHeight: 1.4 },
-  payStat: { padding: "13px 15px", borderRadius: 13, border: "1px solid #E2E5EA", background: "#fff" },
-  payStatLbl: { fontSize: 11.5, fontWeight: 700, color: "#8E95A3", letterSpacing: ".03em", marginBottom: 5 },
-  payStatVal: { fontSize: 17, fontWeight: 800, letterSpacing: "-.3px" },
-  payecHead: { fontSize: 12.5, fontWeight: 800, color: "#414B59", letterSpacing: ".02em", marginBottom: 10, textTransform: "uppercase" },
-  input: { width: "100%", padding: "11px 14px", borderRadius: 11, border: "1.5px solid #E2E5EA", background: "#F7F8FA", fontSize: 14, fontWeight: 600, color: "#1E222B", fontFamily: "inherit", outline: "none", transition: "border-color .14s" },
-};
-
-// ── ikonlar (lucide, design'dan birebir) ──────────────────────────────────────
-const sv = (inner: string, attrs = 'width="19" height="19"') =>
-  `<svg ${attrs} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-const IC = {
-  headerUsers: sv('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', 'width="23" height="23" stroke="#fff"'),
-  bell: sv('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 'width="20" height="20"'),
-  pin: sv('<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>', 'width="16" height="16" stroke="#8E95A3"'),
-  checkSmall: sv('<path d="M7.59 13.41 11 17l9-9"/><path d="M3 12l3.59 3.59"/>', 'width="16" height="16" stroke="#8E95A3"'),
-  chevDown: sv('<path d="m6 9 6 6 6-6"/>', 'width="15" height="15" stroke="#8E95A3" stroke-width="2.3"'),
-  checkWhite: sv('<path d="M20 6 9 17l-5-5"/>', 'width="11" height="11" stroke="#fff" stroke-width="3.4"'),
-  checkBlue: sv('<path d="M20 6 9 17l-5-5"/>', 'width="15" height="15" stroke="#205297" stroke-width="3"'),
-  x: sv('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 'width="14" height="14" stroke-width="2.3"'),
-  funnel: sv('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 'width="17" height="17"'),
-  groupIcon: sv('<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>', 'width="14" height="14" stroke="#6F7B87"'),
-  transfer: sv('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>', 'width="13" height="13"'),
-  alert: sv('<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>', 'width="13" height="13"'),
-  eye: sv('<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>', 'width="15" height="15"'),
-  userPlus: sv('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>', 'width="15" height="15"'),
-  dots: sv('<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>', 'width="16" height="16" fill="currentColor" stroke="none"'),
-  chevLeftSm: sv('<path d="m15 18-6-6 6-6"/>', 'width="13" height="13" stroke-width="2.4"'),
-  searchBig: sv('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', 'width="26" height="26" stroke-width="1.8"'),
-  search: sv('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', 'width="15" height="15" stroke-width="2"'),
-  chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
-  chevRight: sv('<path d="m9 18 6-6-6-6"/>', 'width="17" height="17" stroke-width="2.2"'),
-  pencil: sv('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>', 'width="14" height="14"'),
-  checkWhiteLg: sv('<path d="M20 6 9 17l-5-5"/>', 'width="15" height="15" stroke="#fff" stroke-width="2.8"'),
-  idCard: sv('<rect width="18" height="14" x="3" y="5" rx="2"/><path d="M7 15h4M15 11h2M15 15h2M7 11h.01"/><circle cx="9" cy="11" r="0"/>', 'width="15" height="15"'),
-  wallet: sv('<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>', 'width="15" height="15"'),
-  lock: sv('<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', 'width="13" height="13"'),
-  cash: sv('<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>', 'width="14" height="14" stroke="#6F7B87"'),
-  trash: sv('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>', 'width="13" height="13"'),
-};
-
-const globalCss = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-@keyframes oh-ddin{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
-.oh-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#2867bd;animation:oh-spin 1s linear infinite}@keyframes oh-spin{to{transform:rotate(360deg)}}
-.oh-chip:hover{border-color:#CDD2DA}
-.oh-select:hover{border-color:#CDD2DA;background:#F7F8FA}
-.oh-clear:hover{background:#FFECEC}
-.oh-filter:hover{filter:brightness(1.05)}
-.oh-ddrow:hover{background:#F5F7FB}
-.oh-row:hover{background:#F7F8FA}
-.oh-iconbtn:hover{background:#F7F8FA;color:#1E222B}
-.oh-assign:hover{color:#2867bd;background:#EFF3FA}
-.oh-grow:hover{border-color:#92b6e8 !important;background:#F7F8FA}
-@media(max-width:1599px){.oh-wide-col{display:none}}
-.oh-col-name{width:220px}.oh-col-brans{width:130px}.oh-col-edu{width:170px}.oh-col-stat{width:120px}
-.oh-col-email{width:190px}.oh-col-phone{width:155px}.oh-col-grup{width:150px}.oh-col-islem{width:115px}
-@media(max-width:1599px){
-  .oh-col-name{width:186px}.oh-col-brans{width:108px}.oh-col-edu{width:148px}.oh-col-stat{width:106px}
-  .oh-col-grup{width:126px}.oh-col-islem{width:96px}
-}
-`;
