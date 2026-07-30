@@ -17,7 +17,7 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
 > 🔧 **Teknik borç / kod kalitesi checklist'i** → `FLEXOS_TEKNIK_BORC.md` (2026-07-28 kod
-> incelemesinden çıkan 20 maddelik liste, 13/20 tamamlandı — detay o dosyada).
+> incelemesinden çıkan 20 maddelik liste, 16/20 tamamlandı — detay o dosyada).
 > 📚 **Tam oturum geçmişi (2026-06-09 → 2026-07-27, ~3460 satır)** → `FLEXOS_OTURUM_ARSIVI.md`
 > (2026-07-28'de buraya taşındı, dosya 4383 satıra şişmişti — hiçbir içerik silinmedi).
 > Aşağıdaki blok sadece **güncel durumun kısa özeti**; tarih bazlı tam detay için arşive bak.
@@ -33,7 +33,7 @@
 - **Dershane/LGS-Üni hazırlık modu** → `FLEXOS_DERSHANE_MOD.md` (2026-07-29,
   kullanıcı kararı, henüz kod YOK — sadece plan aşaması, detay o dosyada).
 - **Teknik borç / kod kalitesi** → `FLEXOS_TEKNIK_BORC.md` (2026-07-28 incelemesi, 20 madde,
-  13/20 tamamlandı, detay o dosyada).
+  16/20 tamamlandı, detay o dosyada).
 - **Uzun süredir bekleyen, hâlâ sıfır kod (öncelik değil):** Finans modülü, Şube Aşama-2
   (yetki filtresi), Randevu Takvimi'nin bazı kısımları, Sistem Ayarları süper-admin paneli,
   Sertifika Bastır akışı, Öğrenci Profili tam-sayfa hub. Detay + gerekçe → memory

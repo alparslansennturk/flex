@@ -142,8 +142,58 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
    doğrulandı: 4 tab, RichText toolbar'ı, Track Bazlı bölüm+track ekleme/
    düzenleme/iptal (inline edit modu dahil), Kurumsal gün planlayıcı (konu
    ekleme dahil) birebir eskisi gibi çalıştı, console'da hata yok.
-7. [ ] `ogrenciler/havuz/page.tsx` (1.403 satır, tek dev component) — böl.
-8. [ ] `satislar/satis-yap/page.tsx` (1.345 satır) — ticari kritik akış, hem böl hem test yaz.
+7. [x] **`ogrenciler/havuz/page.tsx` (1.403 satır, tek dev component)** — ✅ 2026-07-30
+   tamamlandı: 8 dosyaya bölündü — `_shared/types.ts` (StatusKey/ST/BRANS sözlükleri/
+   Student/GroupOption tipleri + `schedulesOverlapClient` çakışma mantığı),
+   `_shared/constants.ts` (S/IC/globalCss), `_shared/FilterPanel.tsx` (Durum çipleri +
+   Şube/Branş/Eğitim dropdown'ları + isim arama, state'siz), `_shared/StudentTable.tsx`
+   (tablo + satırlar + sayfalama — en büyük parça, hover popup state'leri (branş/grup/
+   eğitim) container'dan BURAYA taşındı çünkü hiçbir yerde paylaşılmıyordu; 3-nokta işlem
+   menüsü state'i (`actionMenuOpen/Step/Pos`) ise container'da KALDI çünkü filtre
+   dropdown'ıyla çift yönlü kapatma bağımlılığı var), `_shared/GroupOptionsList.tsx`
+   (Gruba Ata + Grup Değiştir modallerinin ortak çakışma-farkında grup listesi, kod
+   tekrarı bu bölme sırasında ayrıca temizlendi), `_shared/AssignGroupModal.tsx`,
+   `_shared/TransferGroupModal.tsx`, `_shared/DeleteEnrollmentModal.tsx`.
+   `page.tsx`: 1.398 → **573 satıra** indi (%59 küçüldü). `tsc --noEmit` temiz, `eslint`
+   sadece bölünmeden ÖNCE de var olan 4 `authHeaders` exhaustive-deps uyarısı gösteriyor
+   (yeni hata yok). Tarayıcıda uçtan uca doğrulandı (local dev + Claude in Chrome, gerçek
+   admin oturumu): isim arama (anında filtre), Durum çip filtresi (Aktif tek başına 5
+   sonuç), satıra tıklayınca öğrenci detay paneli sağdan doğru kayıyor + gerçek veri
+   gösteriyor, branş/eğitim/grup çoklu-değer hover popup'ları (Kaan Berk Demirel'in 2
+   grubu) doğru açılıyor, 3-nokta menüsü `document.body` portal'ıyla doğru konumda
+   açılıyor, tek gruplu kayıtta Grup Değiştir direkt modalı açıyor, çok gruplu kayıtta
+   önce "HANGİ GRUPTAN TAŞINSIN?" ara adımı çıkıyor, Gruba Ata/Grup Değiştir modalları
+   boş-grup durumunu doğru gösteriyor. Konsolda hata yok.
+8. [x] **`satislar/satis-yap/page.tsx` (1.345 satır) — ticari kritik akış, hem böl hem test yaz** —
+   ✅ 2026-07-30 tamamlandı. Bölme (9 dosya): `_shared/types.ts` (katalog tipleri +
+   `ageFrom`/`fmtTL`/`TAKSIT_PRESETS`), `_shared/constants.ts` (S/IC/globalCss/tabStyle/…),
+   `_shared/ui.tsx` (SectionTitle/Label/SelectWrap), `_shared/GenelBilgilerTab.tsx`,
+   `_shared/EgitimTab.tsx` (en büyük parça — Bireysel/Paket modu, branş→eğitim→track
+   ağacı, 34 prop), `_shared/OdemeTab.tsx`. **Asıl amaç — kritik finansal mantığı SAF
+   fonksiyonlara çıkarıp test etmek:** `_shared/pricing.ts` (`calcBundleDiscount`,
+   `calcBrutBase` — paket/track-bazlı/full-paket/hibrit fiyat kaynağı seçimi,
+   `calcSalePricing` — kampanya %/sabit indirim, yönetici ek indirimi %/TL kırpma
+   guard'ları, KDV, senet vade farkı FLAT hesabı, sıfırKilit tüm tutarları kilitleme)
+   ve `_shared/buildSaleRequestBody.ts` (form state → API gövdesi: PII sadece dolu
+   alanlar, guardian SADECE 18-altı+veli-adı-dolu, ödeme satırları upfront/senet
+   ayrımı). **26 yeni vitest testi** yazıldı (`pricing.test.ts` 15, `buildSaleRequestBody.
+   test.ts` 11) — kampanya indirimi brütü aşamıyor, ek indirim %100'e kırpılıyor, kalan
+   negatife düşmüyor, senet vade farkı doğru formülle, sıfırKilit her şeyi 0'lıyor,
+   guardian/PII/ödeme-planı eşleme kuralları tek tek doğrulandı. Proje toplamı artık
+   **107 test** (81 eski + 26 yeni), hepsi geçiyor. `page.tsx`: 1.340 → **535 satıra**
+   indi (%60 küçüldü). `tsc --noEmit` temiz, `eslint` sadece bölünmeden ÖNCE de var olan
+   `nthApplied` (kullanılmayan, orijinalde de ölü kod) + 4 `authHeaders` exhaustive-deps
+   uyarısı gösteriyor (yeni hata yok — `useCallback`/`isTc` gibi bölme sonrası ortaya
+   çıkan 2 kullanılmayan değişken ayrıca temizlendi). Tarayıcıda uçtan uca doğrulandı
+   (local dev + Claude in Chrome, gerçek admin oturumu): Genel Bilgiler formu, branş
+   seçilince gerçek katalogdan Eğitim dropdown'ının açılması (`Grafik Tasarım Kursu`,
+   177 saat/Bölümlü/Sertifikalı), Full Paket↔Track Bazlı geçişi, track ağacında tekil
+   track kaldırma (6→5 track, 206→176 saat, bölüm checkbox'ı doğru indeterminate oldu),
+   3 sekme arası state kaybı olmadan geçiş, Ödeme sekmesinde finansal özet kartının
+   (KDV %10 dahil) doğru render olması. Konsolda hata yok. (Not: test verisinde
+   track'lerin `listPrice` alanı boş olduğu için Eğitim Tutarı 0 TL göründü — bu
+   seed/demo veri eksikliği, refactor'dan bağımsız, orijinal formülle birebir aynı
+   davranış.)
 9. [x] **Client tarafta paylaşılan `authHeaders`/`authHeadersJson`** — ✅ 2026-07-28
    tamamlandı: `src/app/lib/client/auth-headers.ts` eklendi (56 dosyada birebir
    kopyalanmış Firebase-token→Authorization-header fonksiyonu tek yerde). Codemod
@@ -200,7 +250,7 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
     `NotificationSoundSettings.tsx` (SSR/hydration mismatch'i önlemek için
     bilinçli, doğru) ve `GroupTable.tsx` (guard'lı tek-seferlik init, doğru) —
     ikisi de güvenli, bug değil.
-12. [ ] **Zero `React.memo` — ÖNCEKİ ÇERÇEVE HATALIYDI, düzeltildi (2026-07-28):**
+12. [x] **Zero `React.memo` — ÖNCEKİ ÇERÇEVE HATALIYDI, düzeltildi (2026-07-28):**
     bu 3 dosya (aktivite-merkezi, egitmenler, lab-utilizasyon) sayfa-seviyesi
     route component'leri — `React.memo` bir component'i SADECE onu re-render
     eden bir PARENT varsa ve prop'lar aynı kalıyorsa faydalı; bir route'un
@@ -211,7 +261,58 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
     listesi gibi tekrarlanan bir alt component YOK). Yani bu madde madde 6/7/8/15/19
     (component bölme) TAMAMLANMADAN anlamlı şekilde yapılamaz — önce böl, sonra
     tekrarlanan liste/satır component'lerine memo ekle. Kod değişikliği
-    YAPILMADI (yanlış olurdu), sıra madde 15/19'a bağlı.
+    YAPILMADI (yanlış olurdu). **Güncelleme (2026-07-30): 6/7/8/15/19'un HEPSİ
+    bitti** — engel artık kalkmış durumda, madde şimdi anlamlı şekilde ele
+    alınabilir (hangi tekrarlanan liste/satır component'lerine memo gerçekten
+    fayda sağlar — ör. StudentTable satırı, ActivityRow, TrainerTable satırı —
+    tek tek değerlendirilmeli).
+
+    **✅ 2026-07-30 tamamlandı — gerçek değerlendirme + uygulama:** Salt
+    `React.memo()` sarmak çoğu yerde YİNE sıfır fayda sağlardı çünkü (a) alt
+    diziler (`pageActs`/`pageItems`) `useMemo` OLMADAN `.slice()` ile her
+    render'da YENİ dizi referansı üretiyordu, (b) satıra özel callback'ler
+    (`() => expand(a)` gibi) `.map()` içinde her render'da YENİDEN
+    oluşturuluyordu — ikisi de memo'nun prop-karşılaştırmasını anında geçersiz
+    kılar. Bu yüzden önce prop zincirini KARARLI hale getirmek gerekti:
+    - **`aktivite-merkezi` → `ActivityRow`** (en yüksek kazanç — 10 satırlık
+      sayfada aksiyon notuna her tuş vuruşu ÖNCEDEN TÜM satırları yeniden
+      render ediyordu, çünkü taslak alanları (`draftNote` vb.) ayrı prop
+      olarak TÜM satırlara geçiyordu). Çözüm: taslak alanları TEK
+      `DraftBundle` nesnesinde topladım (`_shared/types.ts`), genişletilMEMİŞ
+      satırlara sabit `EMPTY_DRAFT` referansı geçiyor — artık SADECE
+      genişletilmiş satır tuş vuruşunda yeniden render oluyor. `expand`/
+      `saveAct` id-tabanlı hale getirilip (`(id: number) =>`) `allActs`
+      içinde arama yapacak şekilde değiştirildi, `onBadgeClick`/
+      `onToggleDiger`/`onToggleGecmis`/`onCancel` `useCallback` ile sabit
+      referans aldı, `pageActs` `useMemo`'landı. `ActivityRow` artık
+      `React.memo` ile export ediliyor.
+    - **`egitmenler` → `TrainerTable`**: `pageItems` `useMemo`'landı,
+      `openDetail`/`activeStudents` `useCallback` aldı (detay sheet'te not
+      yazarken TrainerTable artık yeniden render OLMUYOR). `TrainerTable`
+      `React.memo` ile export ediliyor.
+    - **`lab-utilizasyon` → `LabRail`: BİLİNÇLİ OLARAK ATLANDI.** `labItems`
+      hesaplaması, `authed===null` ve `loadingLabs||labs.length===0` gibi İKİ
+      erken `return`'DEN SONRA yer alıyor (boş `labs` durumunda
+      `labs.find(...)` çökmesin diye). Hook Kuralları gereği `useMemo`'yu
+      etkili kılmak için bu hesaplamayı HER İKİ erken return'den ÖNCEYE
+      taşımak (ve `todayISO`/`weekMon`'u da aynı şekilde yukarı çekip
+      dosyanın geri kalanındaki tüm kullanımlarını güncellemek) gerekirdi —
+      bu "memo ekle" kapsamının çok ötesinde, riskli bir yeniden yapılanma.
+      `LabRail` tek bir örnek (satır listesi DEĞİL, ActivityRow gibi 10x
+      tekrar eden bir yapı değil), yani kazanç da düşük — risk/kazanç oranı
+      uygun değildi, bilinçli olarak dokunulmadı.
+
+    `tsc --noEmit` ve proje geneli `vitest` (107/107) temiz. `eslint`'te SADECE
+    bölünme turlarından beri var olan pre-existing `authHeaders`/
+    `authHeadersJson` exhaustive-deps uyarıları kaldı (yeni uyarı sıfır).
+    Tarayıcıda doğrulandı (gerçek admin oturumu): aktivite-merkezi'nde bir
+    satır genişletilip nota yazılırken diğer satırların bozulmadığı, satır
+    değiştirince taslağın doğru satıra taşındığı (önceki satırın notu
+    sızmadı) ve egitmenler'de detay sheet'te not yazarken tablonun sağlıklı
+    kaldığı doğrulandı. (Konsolda ilk okumada "export bulunamadı" gibi eski
+    hatalar görüldü — bunlar düzenleme sırasındaki ARA/kırık derleme
+    durumlarından o sekmenin Sentry arabelleğinde kalan STALE kayıtlar
+    olduğu, taze bir sekmede sıfır hata görülerek doğrulandı.)
 13. [x] **Ağır kütüphane code-splitting** — ✅ 2026-07-28 tamamlandı, ama kapsam
     düzeltildi: orijinal "33 dosya" sayısı recharts+framer-motion'ı karıştırıyordu.
     Gerçekte sadece **2 dosya recharts kullanıyor** (`satislar/dashboard/page.tsx`,
@@ -242,8 +343,72 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
     `yoklama/al|detay/page.tsx`, `siniflar/lab-utilizasyon/page.tsx`,
     `egitmen-takvimi/page.tsx` — bunlar çok kullanıcılı/paylaşımlı operasyon
     ekranları, staleness gerçek kafa karışıklığına yol açabilir.
-15. [ ] `siniflar/lab-utilizasyon/page.tsx` (1.264), `aktivite-merkezi/page.tsx` (1.262),
-    `egitmenler/page.tsx` (1.234) — aynı dev-component deseni, böl.
+15. [x] `siniflar/lab-utilizasyon/page.tsx` (1.264), `aktivite-merkezi/page.tsx` (1.262),
+    `egitmenler/page.tsx` (1.234) — aynı dev-component deseni, böl. **✅ 2026-07-30
+    üçü de tamamlandı.**
+    **`lab-utilizasyon/page.tsx` ✅ 2026-07-30 tamamlandı:**
+    15 dosyaya bölündü — `_shared/types.ts` (Lab/SessionBlock/PageState/Block/ListRow/
+    RawItem tipleri + DOW/MONTHS/AX_START gibi sabitler), `_shared/mockEngine.ts`
+    (deterministik seed'li mock doluluk motoru — `sessionsFor`/`freeGaps`/`dayUtil`/
+    `weekUtil`/`monthUtil`/`firstFreeSession` vb., modül-seviyesi `SEANS_POOL` mutable
+    state artık `setSeansPool()` ile enjekte ediliyor, davranış aynen korundu),
+    `_shared/theme.tsx` (Theme/T/heatColor/Icon/labIconPaths/stil sabitleri),
+    `_shared/LabAddModal.tsx`, `_shared/Toolbar.tsx`, `_shared/FilterPanel.tsx`,
+    `_shared/LabRail.tsx`, `_shared/HeroSection.tsx`, `_shared/ViewCardHeader.tsx`,
+    `_shared/TimelineView.tsx` (haftalık/günlük ızgara), `_shared/MonthHeatmapView.tsx`,
+    `_shared/ListTableView.tsx`, `_shared/PlanModal.tsx`, `_shared/SlotsModal.tsx`,
+    `_shared/CardDetailModal.tsx`. **Dikkat edilen ince nokta:** "Uygun Seanslar"
+    modalının Liste ve Takvim görünümleri "Bu Seansı Planla" tıklamasında tarihi
+    FARKLI yollarla çözüyordu (liste: `weekMon + DOW_FULL.indexOf(dowFull)` — 2 haftalık
+    aralıkta 2. hafta için teorik olarak yanlış olabilecek pre-existing bir kısayol;
+    takvim: doğrudan `col.d`) — bölme sırasında bu ikisi YANLIŞLIKLA tek bir ortak yola
+    birleştirilmişti, fark edilip geri ayrıldı (orijinal davranış bozulmadan korundu).
+    `page.tsx`: 1.259 → **490 satıra** indi (%61 küçüldü). `tsc --noEmit` VE `eslint`
+    tertemiz (yeni uyarı sıfır). Tarayıcıda uçtan uca doğrulandı (local dev + Claude in
+    Chrome, gerçek admin oturumu, 2 gerçek lab: VIP/Başarı C): Günlük/Haftalık/Aylık/
+    Liste'nin 4'ü de gerçek veriyle doğru render oluyor, ders bloğuna tıklayınca kart
+    detay modalı (mock grup tarihleriyle) açılıyor, Filtreler paneli, Planlama Yap
+    (uygun lab önerisi doğru), Uygun Seansları Göster (liste+takvim, filtre, "Bu Seansı
+    Planla" → doğru tarihle Planlama Yap'a aktarıyor), Laboratuvar Ekle modalı hepsi
+    çalıştı. Konsolda hata yok.
+    **`aktivite-merkezi/page.tsx` ✅ 2026-07-30 tamamlandı:**
+    7 dosyaya bölündü — `_shared/types.ts` (KanalKey/TipKey/DurumKey sözlükleri,
+    AktiviteRow/EkleForm tipleri), `_shared/caseAdapter.ts` (backend Case↔UI satırı
+    eşlemesi — `caseToRow`, kanal/tip/durum mapping tabloları, saf fonksiyon),
+    `_shared/ui.tsx` (Dd/DdItem/LabeledField/ChevIcon/Req + S/FONT/CSS),
+    `_shared/FilterBar.tsx`, `_shared/ActivityRow.tsx` (en büyük parça — ana satır +
+    genişleyen aksiyon paneli: müşteri mesajı/gelecek randevu, Geçmiş Aksiyonlar
+    accordion, Durum/Tarih/Saat/Sorumlu kontrolleri, Diğer Aktiviteler accordion, 28
+    prop), `_shared/EkleModal.tsx`, `_shared/Pagination.tsx`. `page.tsx`: 1.258 →
+    **451 satıra** indi (%64 küçüldü). `tsc --noEmit` temiz, `eslint`'teki 2 uyarı
+    (`authHeadersJson` exhaustive-deps, `loadBackend`+`saveAct`) bölünmeden ÖNCE de
+    vardı (doğrulandı — orijinal dosyada aynı 2 satır). Tarayıcıda uçtan uca
+    doğrulandı (gerçek admin oturumu, 6 gerçek talep): satır genişletme (aksiyon
+    paneli gerçek veriyle — Gelecek Randevu kutusu, Durum/Tarih/Saat/Sorumlu doğru
+    ön-dolduruluyor, native tarih seçici "Randevu Oluşturulacak" durumunda otomatik
+    açılıyor), İptal ile panel kapanması, Kanal filtre dropdown'ı + Temizle rozeti,
+    "Yeni Talep" (Aktivite Ekle) modalı hepsi çalıştı. Konsolda hata yok. (Kaydet
+    butonuna gerçek bir PATCH/POST tetikleyip veri değiştirmedim — sadece UI/state
+    akışı doğrulandı, backend yazma yolu zaten dokunulmamış saf taşıma.)
+    **`egitmenler/page.tsx` ✅ 2026-07-30 tamamlandı — madde 15'in son dosyası, üçü de
+    bitti:** 9 dosyaya bölündü — `_shared/types.ts` (Trainer/FormState/ApiTrainer
+    tipleri, BRANS_COLORS/STATUS_MAP/AV_PALETTES/PAGE_SIZE), `_shared/constants.ts`
+    (S/IC/globalCss), `_shared/FilterDropdown.tsx`, `_shared/SummaryCards.tsx`,
+    `_shared/FilterPanel.tsx`, `_shared/TrainerTable.tsx` (satırlar + Yetkinlik/Gruplar
+    hover popup'ları — portal state'i container'dan buraya taşındı, hiçbir yerde
+    paylaşılmıyordu), `_shared/DetailSheet.tsx` (en büyük parça — İletişim/Ücret/
+    Yetkinlik ağacı/Performans placeholder + Gruplar/Müsaitlik/Notlar, 9 prop),
+    `_shared/FormSheet.tsx` (Ekle/Düzenle bottom sheet, tag editörü dahil),
+    `_shared/DeleteModal.tsx`. `page.tsx`: 1.229 → **422 satıra** indi (%66 küçüldü).
+    `tsc --noEmit` temiz, `eslint`'teki tek uyarı (`authHeaders` exhaustive-deps)
+    bölünmeden ÖNCE de vardı (orijinalde aynı satır doğrulandı). Tarayıcıda uçtan uca
+    doğrulandı (gerçek admin oturumu, 2 gerçek eğitmen): özet kartları, Yetkinlik/
+    Gruplar hover popup'ları (portal ile doğru konumda, gerçek grup/öğrenci verisiyle),
+    satır tıklayınca Detay sheet (Ücret blur/reveal, Yetkinlik ağacı, Notlar bölümü),
+    Düzenle → Form Sheet'in mevcut veriyle ön dolması, Sil onay modalının doğru isimle
+    açılması hepsi çalıştı. Konsolda hata yok. (Kaydet/Evet-sil'e basıp gerçek yazma
+    tetiklemedim — sadece UI/state akışı doğrulandı, aynı gerekçeyle aktivite-merkezi
+    gibi.)
 16. [ ] `connect-service.ts` (1.118) ve `submission-service.ts` (1.105) — tek dosyada çok
     fazla sorumluluk, alt-domain'lere (messaging/presence/roster gibi) bölünmeli.
 17. [x] **API list endpoint pagination/limit denetimi** — ✅ 2026-07-28 doğrulandı,
