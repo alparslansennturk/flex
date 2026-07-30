@@ -17,56 +17,26 @@
  * KALAN EKSİK: kampanya katalog entity'si yok (statik); tahsilat okuma ucu Finans modülünde.
  */
 
-import React, { useEffect, useState, useCallback, useMemo, CSSProperties } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
-import { formatTrPhone } from "@/app/lib/phone";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
-import { FlexPageLoader, FlexSpinner } from "../../_components/FlexSpinner";
+import { FlexPageLoader } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
-
-// ── Katalog API tipleri (GET /api/flexos/{branches,educations,sections,tracks}) ──
-interface BranchDoc { id: string; name: string; order?: number }
-interface EducationDoc {
-  id: string; name: string; branchId: string;
-  audience?: "individual" | "corporate";
-  structure?: "single" | "sectioned"; // sectioned → Track Bazlı satışa müsait
-  outline?: string[];
-  listPrice?: number; vatRate?: number; onSale?: boolean;
-  deliveryMode?: "in_person" | "online" | "hybrid";
-  deliveryOptions?: { mode: "in_person" | "online"; listPrice: number }[]; // hibrit eğitimde teslim şekli başına fiyat
-}
-interface SectionDoc { id: string; educationId: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
-interface TrackDoc { id: string; educationId: string; sectionId?: string; name: string; order: number; hours?: number; listPrice?: number; sellable?: boolean }
-interface BundleItem { educationId: string; name: string; brans: string; listPrice: number; vatRate?: number }
-interface BundleDoc  { id: string; name: string; status: string; bundlePrice: number; vatRate?: number; items: BundleItem[] }
-interface CampaignDoc { id: string; name: string; discountType: "percent" | "fixed" | "nth"; discountValue: number; nthN?: number; startDate: string; endDate: string; status: string }
-
-const TODAY = new Date(2026, 5, 19); // 19 Haziran 2026 — tasarım referans tarihi
-function ageFrom(dateStr: string): number | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-  let age = TODAY.getFullYear() - d.getFullYear();
-  const m = TODAY.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && TODAY.getDate() < d.getDate())) age--;
-  return age;
-}
-
-type Step = "genel" | "egitim" | "odeme";
-type Uyruk = "TC" | "Yabanci";
-type OdemeSatir = { tip: string; tutar: string; taksit: string };
-
-// taksit dropdown presetleri — listede olmayan değer (4, 7…) "Özel" sayı kutusunu açar
-const TAKSIT_PRESETS = ["1", "2", "3", "6", "9", "12"];
-
-function fmtTL(n: number): string {
-  return new Intl.NumberFormat("tr-TR").format(Math.round(n)) + " TL";
-}
+import { authHeaders } from "@/app/lib/client/auth-headers";
+import {
+  BranchDoc, EducationDoc, SectionDoc, TrackDoc, BundleDoc, CampaignDoc,
+  Step, Uyruk, OdemeSatir, ageFrom,
+} from "./_shared/types";
+import { S, IC, globalCss, tabStyle, tabNum } from "./_shared/constants";
+import { calcBundleDiscount, calcBrutBase, calcSalePricing } from "./_shared/pricing";
+import { buildSaleRequestBody } from "./_shared/buildSaleRequestBody";
+import { GenelBilgilerTab } from "./_shared/GenelBilgilerTab";
+import { EgitimTab } from "./_shared/EgitimTab";
+import { OdemeTab } from "./_shared/OdemeTab";
 
 export default function SatisYapPage() {
   const router = useRouter();
@@ -110,7 +80,7 @@ export default function SatisYapPage() {
   const [satisModu, setSatisModu] = useState<"bireysel" | "paket">("bireysel");
   const [paketId, setPaketId] = useState("");
   const [bundles, setBundles] = useState<BundleDoc[]>([]);
-  const [loadingBundles, setLoadingBundles] = useState(false);
+  const [loadingBundles] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignDoc[]>([]);
   const [nthApplied, setNthApplied] = useState(false); // ek kayıt indirimi otomatik uygulandı mı
   // TC no eşleşen mevcut kişi — satıcıya "zaten kayıtlı" bilgisini göstermek için (2026-07-23)
@@ -123,12 +93,6 @@ export default function SatisYapPage() {
   const [tracks, setTracks] = useState<TrackDoc[]>([]);
   const [loadingEdu, setLoadingEdu] = useState(false);
   const [loadingTree, setLoadingTree] = useState(false);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   // auth + branşlar + paketler
   useEffect(() => {
@@ -237,10 +201,12 @@ export default function SatisYapPage() {
   // branş değişince eğitim + seçimleri sıfırla
   const onBransChange = (id: string) => { setBrans(id); setEgitim(""); setSections([]); setTracks([]); setTrackSel({}); setSatisModeli("full"); setTeslimSekli("in_person"); };
   const onEgitimChange = (id: string) => { setEgitim(id); setTrackSel({}); setSatisModeli("full"); setTeslimSekli("in_person"); };
+  const onSelectBireysel = () => setSatisModu("bireysel");
+  const onSelectPaket = () => {
+    setSatisModu("paket"); setEgitim(""); setBrans(""); setSections([]); setTracks([]); setTrackSel({}); setKampanya("");
+  };
 
   // ── türetilmiş değerler ──
-  const isTc = uyruk === "TC";
-  const isYabanci = uyruk === "Yabanci";
   const age = ageFrom(dogumTarihi);
   const isMinor = age !== null && age >= 0 && age < 18;
 
@@ -311,63 +277,36 @@ export default function SatisYapPage() {
     ? "Bu eğitim bölümlere ayrılmıştır; her bölüm kendi grubu, yoklaması ve sertifikasıyla işlenir. Full Paket'te tüm bölümler dahildir."
     : "Bu program; alanında uzman eğitmenler eşliğinde uygulamalı projeler ve gerçek sektör örnekleriyle yürütülür.";
 
-  // ── ÖDEME (FAZ-1 = UI) hesapları ──────────────────────────────────────────────
+  // ── ÖDEME hesapları — kritik finansal mantık _shared/pricing.ts'te (test edilebilir, saf) ──
   // Tekrar / Sınıf Değişimi → ücretsiz işlem (0 TL kilit).
   const sifirKilit = satisNedeni === "Tekrar Öğrencisi" || satisNedeni === "Sınıf Değişimi";
-  // Brüt matrah (KDV HARİÇ) = gerçek katalog listPrice'ından türetilir.
-  const bundleIndTotal = satisModu === "paket" ? (selBundle?.items.reduce((s, i) => s + (i.listPrice ?? 0), 0) ?? 0) : 0;
-  const bundleDisc     = bundleIndTotal - (selBundle?.bundlePrice ?? 0);
-  const bundleDiscPct  = bundleIndTotal > 0 ? Math.round((bundleDisc / bundleIndTotal) * 100) : 0;
+  const { bundleDisc, bundleDiscPct } = calcBundleDiscount(selBundle?.items, selBundle?.bundlePrice);
 
-  const brutBase = satisModu === "paket"
-    ? (selBundle?.bundlePrice ?? 0)
-    : showTrackTree
-      ? treeTracks.filter((t) => trackOn(t.id)).reduce((s, t) => s + (t.listPrice ?? 0), 0)
-      : trackBased
-        ? (eduFullPrice ?? sections.reduce((s, x) => s + (x.listPrice ?? 0), 0))
-        : (eduFullPrice ?? 0);
-  const brut = sifirKilit ? 0 : brutBase; // KDV hariç matrah
+  const brutBase = calcBrutBase({
+    satisModu,
+    bundlePrice: selBundle?.bundlePrice ?? 0,
+    showTrackTree,
+    selectedTracksPrice: treeTracks.filter((t) => trackOn(t.id)).reduce((s, t) => s + (t.listPrice ?? 0), 0),
+    trackBased,
+    eduFullPrice,
+    sectionsPrice: sections.reduce((s, x) => s + (x.listPrice ?? 0), 0),
+  });
   const kdvOrani = satisModu === "paket"
     ? (selBundle?.vatRate ?? selBundle?.items[0]?.vatRate ?? 10)
     : (selEdu?.vatRate ?? 0);
 
   // Kampanya bireysel satışa özeldir — paket modunda devre dışı
-  const selCampaign = campaigns.find((c) => c.id === kampanya) ?? null;
-  const kampanyaIndTutar = (!sifirKilit && satisModu === "bireysel" && selCampaign)
-    ? selCampaign.discountType === "percent" ? Math.round((brut * selCampaign.discountValue) / 100)
-    : selCampaign.discountType === "fixed"   ? Math.min(selCampaign.discountValue, brut)
-    : 0
-    : 0;
-  const hasKampanyaInd = kampanyaIndTutar > 0;
-  const kampanyaEtiket = selCampaign?.discountType === "percent" ? `%${selCampaign.discountValue}` : selCampaign?.discountType === "fixed" ? `${fmtTL(selCampaign.discountValue)} sabit` : "";
-  const afterKampanya = brut - kampanyaIndTutar;
+  const selCampaign = satisModu === "bireysel" ? (campaigns.find((c) => c.id === kampanya) ?? null) : null;
+  const kampanyaEtiket = selCampaign?.discountType === "percent" ? `%${selCampaign.discountValue}` : selCampaign?.discountType === "fixed" ? `${selCampaign.discountValue} TL sabit` : "";
 
-  const elRaw = parseFloat(elIndirim) || 0;
-  let elIndirimTutar = 0;
-  if (!sifirKilit && elRaw > 0) {
-    elIndirimTutar = elIndirimMod === "yuzde"
-      ? Math.round((afterKampanya * Math.min(elRaw, 100)) / 100)
-      : Math.min(elRaw, afterKampanya);
-  }
-  const elIndirimVar = elIndirimTutar > 0;
-  const indirimliMatrah = Math.max(0, afterKampanya - elIndirimTutar); // KDV hariç, indirimli
-  const kdvTutar = Math.round(indirimliMatrah * kdvOrani / 100);
-  const net = indirimliMatrah + kdvTutar; // KDV DAHİL toplam = öğrencinin ödeyeceği
-
-  const alinan = sifirKilit ? 0 : odemeSatirlari.reduce((a, o) => a + (parseFloat(o.tutar) || 0), 0);
-  const kalan = Math.max(0, net - alinan);
-
-  // senet vade farkı hesabı (FLAT: kalan × aylık% × taksit sayısı)
-  const hasSenet = odemeSatirlari.some((o) => o.tip === "Senet");
-  const senetSatir = odemeSatirlari.find((o) => o.tip === "Senet");
-  const senetTaksitN = senetSatir ? (parseInt(senetSatir.taksit) || 1) : 0;
-  const vadeFarkiPct = parseFloat(senetVadeFarki) || 0;
-  const vadeFarkiTutar = hasSenet && kalan > 0 && vadeFarkiPct > 0
-    ? Math.round(kalan * (vadeFarkiPct / 100) * senetTaksitN)
-    : 0;
-  const toplamBeklenen = net + vadeFarkiTutar; // net + vade farkı (tahsil edilecek tam tutar)
-
-  const kalanSifir = kalan <= 0;
+  const pricing = calcSalePricing({
+    brutBase, sifirKilit, kdvOrani, campaign: selCampaign,
+    elIndirim, elIndirimMod, odemeSatirlari, senetVadeFarki,
+  });
+  const {
+    brut, kampanyaIndTutar, hasKampanyaInd, elIndirimTutar, elIndirimVar, indirimliMatrah,
+    kdvTutar, net, alinan, kalan, hasSenet, senetTaksitN, vadeFarkiTutar, kalanSifir,
+  } = pricing;
 
   // ödeme satır handler'ları
   const updateOdeme = (i: number, key: keyof OdemeSatir, val: string) =>
@@ -407,61 +346,11 @@ export default function SatisYapPage() {
       toast.error("En az bir track seçmelisiniz."); return;
     }
 
-    // cinsiyet → domain Gender
-    const genderMap: Record<string, string> = { "Kadın": "female", "Erkek": "male", "Belirtmek istemiyorum": "other" };
-    const gender = cinsiyet ? genderMap[cinsiyet] || undefined : undefined;
-
-    // PII bloğu
-    const idType = isTc ? "tc" as const : "passport" as const;
-    const idNo = isTc ? tcNo.trim() : pasaportNo.trim();
-    const pii: Record<string, string> = {};
-    if (idNo) { pii.idType = idType; pii.idNo = idNo; }
-    if (telefon.trim()) pii.phone = telefon.trim();
-    if (eposta.trim()) pii.email = eposta.trim();
-    if (adres.trim()) pii.address = adres.trim();
-
-    // guardian (18 altı)
-    const guardian = isMinor && veliAd.trim()
-      ? { name: veliAd.trim(), idNo: veliTc.trim() || undefined }
-      : undefined;
-
-    // satış tipi map
-    const saleTypeMap: Record<string, string> = { "Yeni Satış": "new_sale", "Tekrar Öğrencisi": "repeat", "Sınıf Değişimi": "transfer" };
-
-    // ödeme satırları → PaymentPlanInput
-    const methodMap: Record<string, string> = {
-      "Nakit": "cash", "Kredi Kartı": "card", "Havale/EFT": "transfer",
-    };
-    const upfrontRows = odemeSatirlari
-      .filter((o) => o.tip !== "Senet" && (parseFloat(o.tutar) || 0) > 0)
-      .map((o) => ({ method: methodMap[o.tip] || "cash", amount: parseFloat(o.tutar) }));
-    const senetRow = odemeSatirlari.find((o) => o.tip === "Senet");
-    const senetCount = senetRow ? (parseInt(senetRow.taksit) || 0) : 0;
-
-    const payment = (upfrontRows.length > 0 || senetCount > 0) ? {
-      upfront: upfrontRows.length > 0 ? upfrontRows : undefined,
-      senet: senetCount > 0 ? {
-        count: senetCount,
-        monthlyRatePct: parseFloat(senetVadeFarki) || 0,
-      } : undefined,
-    } : undefined;
-
-    const body = {
-      firstName: ad.trim(),
-      lastName: soyad.trim(),
-      birthDate: dogumTarihi || undefined,
-      gender,
-      pii: Object.keys(pii).length > 0 ? pii : undefined,
-      type: saleTypeMap[satisNedeni] || "new_sale",
-      customerType: satisTipi === "Kurumsal" ? "corporate" : "individual",
-      educationId: satisModu === "bireysel" ? egitim : undefined,
-      bundleId:    satisModu === "paket"    ? paketId : undefined,
-      campaignId:  satisModu === "bireysel" && kampanya ? kampanya : undefined,
-      trackIds: selectedTrackIds,
-      soldPrice: net,
-      guardian,
-      payment,
-    };
+    const body = buildSaleRequestBody({
+      ad, soyad, dogumTarihi, cinsiyet, uyruk, tcNo, pasaportNo, telefon, eposta, adres,
+      isMinor, veliAd, veliTc, satisNedeni, satisTipi, satisModu, egitim, paketId, kampanya,
+      selectedTrackIds, net, odemeSatirlari, senetVadeFarki,
+    });
 
     setSaving(true);
     try {
@@ -471,7 +360,7 @@ export default function SatisYapPage() {
       const json = await res.json();
       if (!res.ok) { toast.error(json.error || "Satış kaydedilemedi."); return; }
       const payMsg = json.paymentCount > 0
-        ? ` (${json.paymentCount} ödeme kaydı${json.financingFee > 0 ? `, vade farkı ${fmtTL(json.financingFee)}` : ""})`
+        ? ` (${json.paymentCount} ödeme kaydı${json.financingFee > 0 ? `, vade farkı ${json.financingFee} TL` : ""})`
         : "";
       toast.success(`Satış başarıyla kaydedildi!${payMsg}`);
       router.push("/flexos/ogrenciler/havuz");
@@ -569,612 +458,53 @@ export default function SatisYapPage() {
           <div style={S.card}>
             <div style={{ padding: "30px 32px 40px" }}>
 
-              {/* ===== TAB 1: GENEL BİLGİLER ===== */}
               {isGenel && (
-                <>
-                  <SectionTitle>Kişisel Bilgiler</SectionTitle>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 26 }}>
-                    <div>
-                      <Label>Adı</Label>
-                      <input type="text" value={ad} onChange={(e) => setAd(e.target.value)} placeholder="Örn: Ayşe" style={S.input} />
-                    </div>
-                    <div>
-                      <Label>Soyadı</Label>
-                      <input type="text" value={soyad} onChange={(e) => setSoyad(e.target.value)} placeholder="Örn: Yılmaz" style={S.input} />
-                    </div>
-                    <div>
-                      <Label>Doğum Tarihi</Label>
-                      <input type="date" value={dogumTarihi} onChange={(e) => setDogumTarihi(e.target.value)} style={S.input} />
-                    </div>
-                    <div>
-                      <Label>Cinsiyet</Label>
-                      <SelectWrap>
-                        <select value={cinsiyet} onChange={(e) => setCinsiyet(e.target.value)} style={S.select}>
-                          <option value="">Seçiniz</option>
-                          <option value="Kadın">Kadın</option>
-                          <option value="Erkek">Erkek</option>
-                          <option value="Belirtmek istemiyorum">Belirtmek istemiyorum</option>
-                        </select>
-                      </SelectWrap>
-                    </div>
-                  </div>
-
-                  <SectionTitle>Uyruk &amp; Kimlik</SectionTitle>
-                  <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
-                    <div onClick={() => setUyruk("TC")} style={uyrukCard(isTc)}>
-                      <span style={uyrukRadio(isTc)}>{isTc && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#4f46e5" }} />}</span>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>T.C. Vatandaşı</span>
-                    </div>
-                    <div onClick={() => setUyruk("Yabanci")} style={uyrukCard(isYabanci)}>
-                      <span style={uyrukRadio(isYabanci)}>{isYabanci && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#4f46e5" }} />}</span>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>Yabancı Uyruklu</span>
-                    </div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: existingPerson ? 12 : 26 }}>
-                    <div style={{ opacity: isTc ? 1 : 0.5 }}>
-                      <Label withLock={isYabanci}>T.C. Kimlik No</Label>
-                      <input type="text" maxLength={11} value={tcNo} onChange={(e) => setTcNo(e.target.value)} disabled={isYabanci} placeholder="11 haneli kimlik no"
-                        style={{ ...S.input, background: isTc ? "#f8fafc" : "#f1f5f9", cursor: isTc ? "text" : "not-allowed" }} />
-                    </div>
-                    <div style={{ opacity: isYabanci ? 1 : 0.5 }}>
-                      <Label withLock={isTc}>Pasaport No</Label>
-                      <input type="text" value={pasaportNo} onChange={(e) => setPasaportNo(e.target.value)} disabled={isTc} placeholder="Pasaport numarası"
-                        style={{ ...S.input, background: isYabanci ? "#f8fafc" : "#f1f5f9", cursor: isYabanci ? "text" : "not-allowed" }} />
-                    </div>
-                  </div>
-
-                  {existingPerson && (
-                    <div style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "13px 16px", borderRadius: 12, background: "#eff6ff", border: "1px solid #bfdbfe", marginBottom: 26 }}>
-                      <span style={{ color: "#2563eb", marginTop: 1, flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: IC.infoCircle }} />
-                      <div style={{ fontSize: 13, color: "#1e40af", lineHeight: 1.5 }}>
-                        <strong>{existingPerson.name || "Bu kişi"} sistemde kayıtlı.</strong>{" "}
-                        {existingPerson.enrollments.length > 0 ? (
-                          <>Daha önce/hâlen: {existingPerson.enrollments.map((e, i) => (
-                            <span key={i}>{i > 0 ? ", " : ""}{e.educationName} ({e.statusLabel})</span>
-                          ))}. Yeni bir eğitim için satışa normal şekilde devam edebilirsiniz.</>
-                        ) : (
-                          <>Önceki kayıtlarında aktif bir eğitim görünmüyor. Satışa normal şekilde devam edebilirsiniz.</>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 18 yaş altı — öğrenci adı listeye gider; sözleşme veli adına (framer-motion açılır/kapanır) */}
-                  <AnimatePresence initial={false}>
-                    {isMinor && (
-                      <motion.div
-                        key="minor-card"
-                        initial={{ height: 0, opacity: 0, marginBottom: 0 }}
-                        animate={{ height: "auto", opacity: 1, marginBottom: 26 }}
-                        exit={{ height: 0, opacity: 0, marginBottom: 0 }}
-                        transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
-                        style={{ overflow: "hidden" }}
-                      >
-                        <div style={S.minorCard}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
-                            <span style={S.minorIcon} dangerouslySetInnerHTML={{ __html: IC.alert }} />
-                            <div style={{ fontSize: 14.5, fontWeight: 800, color: "#9a3412" }}>18 Yaş Altı — Veli Sözleşmesi</div>
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 14 }}>
-                            <div>
-                              <Label>Veli Adı Soyadı</Label>
-                              <input type="text" value={veliAd} onChange={(e) => setVeliAd(e.target.value)} placeholder="Sözleşmeyi imzalayan veli" style={S.inputWarn} />
-                            </div>
-                            <div>
-                              <Label>Veli T.C. Kimlik No</Label>
-                              <input type="text" maxLength={11} value={veliTc} onChange={(e) => setVeliTc(e.target.value)} placeholder="11 haneli kimlik no" style={S.inputWarn} />
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <SectionTitle>İletişim &amp; Durum</SectionTitle>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18, marginBottom: 26 }}>
-                    <div>
-                      <Label>Telefon No</Label>
-                      <input type="tel" inputMode="tel" value={telefon} onChange={(e) => setTelefon(formatTrPhone(e.target.value))} placeholder="0 (5__) ___ __ __" style={S.input} />
-                    </div>
-                    <div>
-                      <Label>E-Posta Adresi</Label>
-                      <input type="email" value={eposta} onChange={(e) => setEposta(e.target.value)} placeholder="ornek@eposta.com" style={S.input} />
-                    </div>
-                    <div>
-                      <Label>Çalışma Durumu</Label>
-                      <SelectWrap>
-                        <select value={calismaDurumu} onChange={(e) => setCalismaDurumu(e.target.value)} style={S.select}>
-                          <option value="">Seçiniz</option>
-                          <option value="Öğrenci">Öğrenci</option>
-                          <option value="Çalışıyor">Çalışıyor</option>
-                          <option value="Çalışmıyor">Çalışmıyor</option>
-                          <option value="Serbest Meslek">Serbest Meslek</option>
-                        </select>
-                      </SelectWrap>
-                    </div>
-                  </div>
-
-                  <SectionTitle>Adres</SectionTitle>
-                  <div>
-                    <Label>Açık Adres</Label>
-                    <textarea value={adres} onChange={(e) => setAdres(e.target.value)} rows={3} placeholder="Mahalle, cadde, sokak, no, ilçe / il…" style={S.textarea} />
-                  </div>
-                </>
+                <GenelBilgilerTab
+                  ad={ad} setAd={setAd} soyad={soyad} setSoyad={setSoyad}
+                  dogumTarihi={dogumTarihi} setDogumTarihi={setDogumTarihi}
+                  cinsiyet={cinsiyet} setCinsiyet={setCinsiyet}
+                  uyruk={uyruk} setUyruk={setUyruk} tcNo={tcNo} setTcNo={setTcNo}
+                  pasaportNo={pasaportNo} setPasaportNo={setPasaportNo}
+                  existingPerson={existingPerson}
+                  isMinor={isMinor} veliAd={veliAd} setVeliAd={setVeliAd} veliTc={veliTc} setVeliTc={setVeliTc}
+                  telefon={telefon} setTelefon={setTelefon} eposta={eposta} setEposta={setEposta}
+                  calismaDurumu={calismaDurumu} setCalismaDurumu={setCalismaDurumu}
+                  adres={adres} setAdres={setAdres}
+                />
               )}
 
-              {/* ===== TAB 2: EĞİTİM ===== */}
               {isEgitim && (
-                <>
-                  {/* Satış Modu toggle */}
-                  <div style={{ display: "flex", gap: 8, marginBottom: 22 }}>
-                    <button
-                      onClick={() => { setSatisModu("bireysel"); setPaketId(""); }}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 40, padding: "0 18px", borderRadius: 10, border: "none", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, cursor: "pointer", transition: "all .15s",
-                        ...(satisModu === "bireysel" ? { background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", boxShadow: "0 4px 12px -4px rgba(32,82,151,.4)" } : { background: "#eef2f8", color: "#64748b" }) }}>
-                      <span dangerouslySetInnerHTML={{ __html: IC.user }} />
-                      Bireysel Eğitim
-                    </button>
-                    <button
-                      onClick={() => { setSatisModu("paket"); setEgitim(""); setBrans(""); setSections([]); setTracks([]); setTrackSel({}); setKampanya(""); }}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 40, padding: "0 18px", borderRadius: 10, border: "none", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, cursor: "pointer", transition: "all .15s",
-                        ...(satisModu === "paket" ? { background: "linear-gradient(135deg,#2867bd,#205297)", color: "#fff", boxShadow: "0 4px 12px -4px rgba(32,82,151,.4)" } : { background: "#eef2f8", color: "#64748b" }) }}>
-                      <span dangerouslySetInnerHTML={{ __html: IC.layers }} />
-                      Paket Satışı
-                    </button>
-                  </div>
-
-                  {/* ── BİREYSEL MOD: Branş + Eğitim + Kampanya ── */}
-                  {satisModu === "bireysel" && (<>
-                  <SectionTitle>Eğitim &amp; Kampanya</SectionTitle>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 16 }}>
-                    <div>
-                      <Label>Branş</Label>
-                      <SelectWrap small>
-                        <select value={brans} onChange={(e) => onBransChange(e.target.value)} style={S.selectSm}>
-                          <option value="">Branş Seçin</option>
-                          {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                        </select>
-                      </SelectWrap>
-                    </div>
-                    <div style={{ opacity: !brans ? 0.5 : 1 }}>
-                      <Label withLock={!brans}>Eğitim</Label>
-                      <SelectWrap small>
-                        <select value={egitim} onChange={(e) => onEgitimChange(e.target.value)} disabled={!brans || loadingEdu}
-                          style={{ ...S.selectSm, fontSize: 13, background: !brans ? "#f1f5f9" : "#f8fafc", cursor: !brans ? "not-allowed" : "pointer" }}>
-                          <option value="">{loadingEdu ? "Yükleniyor…" : educations.length ? "Eğitim Seçin" : "Bu branşta eğitim yok"}</option>
-                          {educations.map((ed) => <option key={ed.id} value={ed.id}>{ed.name}</option>)}
-                        </select>
-                      </SelectWrap>
-                    </div>
-                    <div>
-                      <Label>Kampanya</Label>
-                      <SelectWrap small>
-                        <select value={kampanya} onChange={(e) => setKampanya(e.target.value)} style={S.selectSm}>
-                          <option value="">Kampanya Seçin</option>
-                          {campaigns.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                          <option value="erken">Erken Kayıt — %15 İndirim</option>
-                          <option value="referans">Referans İndirimi — %10</option>
-                        </select>
-                      </SelectWrap>
-                    </div>
-                  </div>
-                  </>)}
-
-                  {/* ── PAKET MOD: Paket seçici ── */}
-                  {satisModu === "paket" && (<>
-                  <SectionTitle>Paket Seçimi</SectionTitle>
-                  <div style={{ marginBottom: 20 }}>
-                    <Label>Paket</Label>
-                    <SelectWrap small>
-                      <select value={paketId} onChange={(e) => setPaketId(e.target.value)} style={{ ...S.selectSm, maxWidth: 420 }}>
-                        <option value="">{loadingBundles ? "Yükleniyor…" : bundles.length ? "Paket Seçin" : "Aktif paket bulunamadı"}</option>
-                        {bundles.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
-                    </SelectWrap>
-                  </div>
-
-                  {/* Paket içerik kartı */}
-                  {selBundle && (
-                    <div style={{ border: "1px solid #dce6f5", borderRadius: 16, overflow: "hidden", marginBottom: 16, animation: "sy-slide .25s ease" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "15px 20px", background: "linear-gradient(135deg,#f0f5ff,#e8f0ff)", borderBottom: "1px solid #dce6f5" }}>
-                        <span style={{ ...S.boxIcon, background: "#dbe3ff", color: "#1e3a8a" }} dangerouslySetInnerHTML={{ __html: IC.layers }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14.5, fontWeight: 800, color: "#0f1f3d" }}>{selBundle.name}</div>
-                          <div style={{ fontSize: 12.5, color: "#64748b", fontWeight: 500 }}>{selBundle.items.length} eğitim dahil</div>
-                        </div>
-                      </div>
-                      <div style={{ padding: "12px 20px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-                        {selBundle.items.map((item, idx) => (
-                          <div key={item.educationId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 11, background: "#f8fafc", border: "1px solid #eef1f6" }}>
-                            <span style={{ width: 24, height: 24, borderRadius: 6, background: "#EBF2FF", color: "#205297", fontWeight: 800, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{idx + 1}</span>
-                            <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: "#1e293b" }}>{item.name}</span>
-                            <span style={{ fontSize: 11.5, fontWeight: 600, color: "#64748b", background: "#eef2f8", padding: "2px 9px", borderRadius: 7, flexShrink: 0 }}>{item.brans}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  </>)}
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24, maxWidth: 860, ...(satisModu === "paket" ? { display: "none" } : {}) }}>
-                    <div>
-                      <Label>Satış Tipi</Label>
-                      <SelectWrap small>
-                        <select value={satisNedeni} onChange={(e) => setSatisNedeni(e.target.value)} style={S.selectSm}>
-                          <option value="Yeni Satış">Yeni Satış</option>
-                          <option value="Tekrar Öğrencisi">Tekrar Öğrencisi</option>
-                          <option value="Sınıf Değişimi">Sınıf Değişimi</option>
-                        </select>
-                      </SelectWrap>
-                    </div>
-                    <div style={{ opacity: modelLocked ? 0.6 : 1 }}>
-                      <Label withLock={modelLocked}>Satış Modeli</Label>
-                      <SelectWrap small>
-                        <select value={effModel} onChange={(e) => setSatisModeli(e.target.value as "full" | "track")} disabled={modelLocked}
-                          style={{ ...S.selectSm, background: modelLocked ? "#f1f5f9" : "#f8fafc", cursor: modelLocked ? "not-allowed" : "pointer" }}>
-                          <option value="full">Full Paket</option>
-                          <option value="track">Track Bazlı</option>
-                        </select>
-                      </SelectWrap>
-                    </div>
-                    <div style={{ opacity: teslimLocked ? 0.6 : 1 }}>
-                      <Label withLock={teslimLocked}>Eğitim Modeli</Label>
-                      <SelectWrap small>
-                        <select value={teslimSekli} onChange={(e) => setTeslimSekli(e.target.value as "in_person" | "online")} disabled={teslimLocked}
-                          style={{ ...S.selectSm, background: teslimLocked ? "#f1f5f9" : "#f8fafc", cursor: teslimLocked ? "not-allowed" : "pointer" }}>
-                          {(teslimLocked || hybridOptions.some((o) => o.mode === "in_person")) && <option value="in_person">Yüz Yüze</option>}
-                          {(teslimLocked || hybridOptions.some((o) => o.mode === "online")) && <option value="online">Online</option>}
-                        </select>
-                      </SelectWrap>
-                    </div>
-                  </div>
-
-                  {/* Empty state */}
-                  {hicSecimYok && (
-                    <div style={S.emptyBox}>
-                      <div style={S.emptyIcon} dangerouslySetInnerHTML={{ __html: IC.boxBig }} />
-                      <div style={{ fontSize: 14.5, fontWeight: 700, color: "#334155" }}>Henüz eğitim seçilmedi</div>
-                      <div style={{ fontSize: 13, color: "#94a3b8", maxWidth: 320 }}>Önce branş, ardından eğitim seçtiğinizde içerik ve kapsam burada görüntülenir.</div>
-                    </div>
-                  )}
-
-                  {/* Track ağacı yükleniyor */}
-                  {showTrackTree && loadingTree && (
-                    <div style={{ ...S.emptyBox, padding: "36px 20px" }}>
-                      <FlexSpinner />
-                      <div style={{ fontSize: 13, color: "#94a3b8" }}>İçerik yükleniyor…</div>
-                    </div>
-                  )}
-
-                  {/* Track Bazlı seçim ağacı — bölümler + trackler tek tek (lacivert checkbox) */}
-                  {showTrackTree && !loadingTree && tree.length > 0 && (
-                    <div style={{ border: "1px solid #e9edf4", borderRadius: 16, overflow: "hidden", marginBottom: 16, animation: "sy-slide .25s ease" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "15px 20px", background: "linear-gradient(135deg,#f4f7ff,#eef2ff)", borderBottom: "1px solid #e4e9f7" }}>
-                        <span style={{ ...S.boxIcon, background: "#dbe3ff", color: "#1e3a8a" }} dangerouslySetInnerHTML={{ __html: IC.layers }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14.5, fontWeight: 800, color: "#0f1f3d" }}>Bölüm &amp; Track Seçimi</div>
-                          <div style={{ fontSize: 12.5, color: "#64748b", fontWeight: 500 }}>Kursiyere satılacak bölümleri ve track&apos;leri tek tek seçin.</div>
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#1e3a8a", background: "#dbe3ff", padding: "4px 11px", borderRadius: 999 }}>{selTrackCount} track · {selTrackSaat} saat</span>
-                      </div>
-                      <div style={{ padding: "12px 20px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
-                        {tree.map((node) => {
-                          const ids = node.tracks.map((t) => t.id);
-                          const allOn = allOnOf(ids);
-                          const someOn = someOnOf(ids);
-                          return (
-                            <div key={node.sec.id}>
-                              {/* Bölüm satırı */}
-                              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 11, background: someOn ? "#f5f7ff" : "#f8fafc", border: "1px solid #e9edf4" }}>
-                                <span style={{ width: 30, height: 30, borderRadius: 8, background: "#fff", border: "1px solid #e6eaf1", color: "#1e3a8a", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }} dangerouslySetInnerHTML={{ __html: IC.folderSm }} />
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 14, fontWeight: 800, color: "#0f1f3d" }}>{node.sec.name}</div>
-                                  <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>{node.tracks.length} track{node.sec.hours ? ` · ${node.sec.hours} saat` : ""}</div>
-                                </div>
-                                {ids.length > 0 && (
-                                  <span onClick={() => setManyTracks(ids, !allOn)} style={navyBox(allOn, someOn && !allOn)}>
-                                    {allOn ? <span dangerouslySetInnerHTML={{ __html: IC.check }} /> : someOn ? <span style={{ width: 10, height: 2.5, borderRadius: 2, background: "#fff" }} /> : null}
-                                  </span>
-                                )}
-                              </div>
-                              {/* Track satırları */}
-                              {node.tracks.length > 0 && (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2, margin: "4px 0 0 14px", paddingLeft: 14, borderLeft: "1px solid #e9edf4" }}>
-                                  {node.tracks.map((t) => {
-                                    const on = trackOn(t.id);
-                                    return (
-                                      <div key={t.id} onClick={() => toggleTrack(t.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, cursor: "pointer", userSelect: "none", background: on ? "#f8faff" : "transparent", transition: "background .14s" }}>
-                                        <div style={{ flex: 1 }}>
-                                          <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1e293b" }}>{t.name}</div>
-                                        </div>
-                                        {t.hours ? <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b", background: "#eef2f8", padding: "3px 9px", borderRadius: 8, flex: "0 0 auto" }}>{t.hours} saat</span> : null}
-                                        <span style={navyBox(on, false)}>{on && <span dangerouslySetInnerHTML={{ __html: IC.check }} />}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Eğitim İçeriği */}
-                  {showIcerik && !showTrackTree && (
-                    <div style={{ border: "1px solid #e9edf4", borderRadius: 16, overflow: "hidden", marginBottom: 2, animation: "sy-slide .25s ease" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "15px 20px", background: "linear-gradient(135deg,#fffaf4,#fff5ec)", borderBottom: "1px solid #f3e8da" }}>
-                        <span style={{ ...S.boxIcon, background: "#ffedd5", color: "#c2410c" }} dangerouslySetInnerHTML={{ __html: IC.bookSm }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14.5, fontWeight: 800, color: "#0f1f3d" }}>Eğitim İçeriği</div>
-                          <div style={{ fontSize: 12.5, color: "#64748b", fontWeight: 500 }}>{icerikBaslik}</div>
-                        </div>
-                      </div>
-                      <div style={{ padding: "18px 20px 20px" }}>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
-                          {fullHours > 0 && <span style={S.chip}><span dangerouslySetInnerHTML={{ __html: IC.clock }} />{fullHours} saat</span>}
-                          <span style={S.chip}><span dangerouslySetInnerHTML={{ __html: IC.signal }} />{trackBased ? "Bölümlü Eğitim" : "Tek Eğitim"}</span>
-                          <span style={{ ...S.chip, color: "#15803d", background: "#dcfce7" }}><span dangerouslySetInnerHTML={{ __html: IC.awardGreen }} />Sertifikalı</span>
-                        </div>
-                        <p style={{ margin: "0 0 18px", fontSize: 13.5, color: "#475569", lineHeight: 1.65 }}>{icerikOzet}</p>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 10 }}>{trackBased ? "BÖLÜMLER" : "PROGRAM İÇERİĞİ"}</div>
-                        {trackBased ? (
-                          programItems.length === 0 ? (
-                            <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500, padding: "4px 2px" }}>Bu eğitim için içerik bilgisi henüz girilmemiş.</div>
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              {programItems.map((m) => (
-                                <div key={m.no} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", background: "#f8fafc", border: "1px solid #eef1f6", borderRadius: 12 }}>
-                                  <span style={{ width: 28, height: 28, borderRadius: 8, background: "#fff", border: "1px solid #e6eaf1", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 800, flex: "0 0 auto" }}>{m.no}</span>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1e293b" }}>{m.name}</div>
-                                    {m.topics && <div style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>{m.topics}</div>}
-                                  </div>
-                                  {m.sure && <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b", background: "#eef2f8", padding: "4px 10px", borderRadius: 8, flex: "0 0 auto" }}>{m.sure}</span>}
-                                </div>
-                              ))}
-                            </div>
-                          )
-                        ) : selEdu?.outline?.[0] ? (
-                          <>
-                            <style>{`.sy-rt h1,.sy-rt h2,.sy-rt h3,.sy-rt h4,.sy-rt h5,.sy-rt h6{margin:12px 0 6px;font-weight:700;color:#0f1f3d}.sy-rt h1{font-size:17px}.sy-rt h2{font-size:15.5px}.sy-rt h3{font-size:14px}.sy-rt h4,.sy-rt h5,.sy-rt h6{font-size:13.5px}.sy-rt p{margin:0 0 10px}.sy-rt ul,.sy-rt ol{margin:6px 0 10px;padding-left:20px}.sy-rt li{margin-bottom:4px}.sy-rt strong{font-weight:700}.sy-rt em{font-style:italic}`}</style>
-                            <div className="sy-rt" style={{ fontSize: 13.5, color: "#1e293b", lineHeight: 1.65 }} dangerouslySetInnerHTML={{ __html: selEdu.outline[0] }} />
-                          </>
-                        ) : (
-                          <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500, padding: "4px 2px" }}>Bu eğitim için içerik bilgisi henüz girilmemiş.</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </>
+                <EgitimTab
+                  satisModu={satisModu} onSelectBireysel={onSelectBireysel} onSelectPaket={onSelectPaket}
+                  branches={branches} brans={brans} onBransChange={onBransChange}
+                  educations={educations} egitim={egitim} onEgitimChange={onEgitimChange} loadingEdu={loadingEdu}
+                  kampanya={kampanya} setKampanya={setKampanya} campaigns={campaigns}
+                  paketId={paketId} setPaketId={setPaketId} bundles={bundles} loadingBundles={loadingBundles} selBundle={selBundle}
+                  satisNedeni={satisNedeni} setSatisNedeni={setSatisNedeni}
+                  effModel={effModel} setSatisModeli={setSatisModeli} modelLocked={modelLocked}
+                  teslimSekli={teslimSekli} setTeslimSekli={setTeslimSekli} teslimLocked={teslimLocked} hybridOptions={hybridOptions}
+                  hicSecimYok={hicSecimYok}
+                  showTrackTree={showTrackTree} loadingTree={loadingTree} tree={tree}
+                  selTrackCount={selTrackCount} selTrackSaat={selTrackSaat}
+                  trackOn={trackOn} toggleTrack={toggleTrack} allOnOf={allOnOf} someOnOf={someOnOf} setManyTracks={setManyTracks}
+                  showIcerik={showIcerik} icerikBaslik={icerikBaslik} icerikOzet={icerikOzet}
+                  fullHours={fullHours} trackBased={trackBased} programItems={programItems} selEdu={selEdu}
+                />
               )}
 
-              {/* ===== TAB 3: ÖDEME ===== */}
               {isOdeme && (
-                <>
-                  <SectionTitle>Finansal Özet &amp; İndirim</SectionTitle>
-
-                  {/* 0 TL kilit uyarısı */}
-                  {sifirKilit && (
-                    <div style={S.sifirKilitBox}>
-                      <span style={S.sifirKilitIcon} dangerouslySetInnerHTML={{ __html: IC.lockBlue }} />
-                      <div>
-                        <div style={{ fontSize: 13.5, fontWeight: 800, color: "#1e40af" }}>Ücretsiz İşlem — {satisNedeni}</div>
-                        <div style={{ fontSize: 12, color: "#3b5b8c", fontWeight: 500 }}>Bu satış nedeni için ek ücret alınmaz; tüm tutarlar 0 TL.</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* özet kartı */}
-                  <div style={{ border: "1px solid #e3e8f0", borderRadius: 14, background: "#fff", overflow: "hidden", marginBottom: 20 }}>
-                    {/* Ana fiyat */}
-                    {/* Paket modu: bireysel satış ile birebir aynı S.ozetRow stili */}
-                    {satisModu === "paket" && selBundle ? (<>
-                      {selBundle.items.map((item) => (
-                        <React.Fragment key={item.educationId}>
-                          <div style={S.ozetRow}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>{item.name} (KDV Hariç)</span>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" as const }}>{fmtTL(item.listPrice ?? 0)}</span>
-                          </div>
-                          <div style={S.ozetSep} />
-                        </React.Fragment>
-                      ))}
-                      <div style={S.ozetRow}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>Paket Fiyatı (KDV Hariç)</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" as const }}>{fmtTL(brut)}</span>
-                      </div>
-                      <div style={S.ozetSep} />
-                      <div style={S.ozetRow}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#64748b" }}>
-                          İndirim
-                          {bundleDiscPct > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 999 }}>%{bundleDiscPct}</span>}
-                        </span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#15803d", minWidth: 110, textAlign: "right" as const }}>− {fmtTL(bundleDisc)}</span>
-                      </div>
-                      <div style={S.ozetSep} />
-                    </>) : (<>
-                      {/* Bireysel mod: tek satır eğitim tutarı — hibrit ise hangi modelin fiyatı olduğu belli olsun */}
-                      <div style={S.ozetRow}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>
-                          Eğitim Tutarı{!teslimLocked && (teslimSekli === "online" ? " (Online)" : " (Yüz Yüze)")} (KDV Hariç)
-                        </span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" as const }}>{fmtTL(brut)}</span>
-                      </div>
-                      <div style={S.ozetSep} />
-                      <div style={S.ozetRow}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#64748b" }}>
-                          Kampanya İndirimi
-                          {hasKampanyaInd && kampanyaEtiket && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 999 }}>{kampanyaEtiket}</span>}
-                        </span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: kampanyaIndTutar > 0 ? "#15803d" : "#0f1f3d", minWidth: 110, textAlign: "right" as const }}>{kampanyaIndTutar > 0 ? "− " + fmtTL(kampanyaIndTutar) : fmtTL(0)}</span>
-                      </div>
-                      <div style={S.ozetSep} />
-                    </>)}
-
-                    {/* Yönetici / satışçı indirimi */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", background: "#fafbfd" }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Yönetici / Satışçı İndirimi</div>
-                        <div style={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>Kampanyadan bağımsız ek indirim</div>
-                      </div>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
-                        <div style={{ display: "inline-flex", background: "#eef2f8", borderRadius: 9, padding: 3, gap: 3 }}>
-                          <button onClick={() => setElIndirimMod("yuzde")} style={segSm(elIndirimMod === "yuzde")}>%</button>
-                          <button onClick={() => setElIndirimMod("tutar")} style={segSm(elIndirimMod === "tutar")}>TL</button>
-                        </div>
-                        <div style={{ position: "relative" }}>
-                          <input type="number" value={elIndirim} onChange={(e) => setElIndirim(e.target.value)} disabled={sifirKilit} placeholder="0"
-                            style={{ width: 110, padding: "9px 32px 9px 12px", borderRadius: 10, border: "1px solid #e3e8f0", background: sifirKilit ? "#f1f5f9" : "#f8fafc", fontSize: 14, fontWeight: 700, fontFamily: "inherit", color: "#0f1f3d", outline: "none", textAlign: "right", cursor: sifirKilit ? "not-allowed" : "text" }} />
-                          <span style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "#94a3b8", pointerEvents: "none" }}>{elIndirimMod === "yuzde" ? "%" : "TL"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Uygulanan ek indirim */}
-                    {elIndirimVar && (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "9px 18px", background: "#fff8f8", borderTop: "1px dashed #f3c6c6" }}>
-                        <span style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600 }}>Uygulanan ek indirim</span>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: "#dc2626", minWidth: 110, textAlign: "right" }}>− {fmtTL(elIndirimTutar)}</span>
-                      </div>
-                    )}
-
-                    {/* İndirimli matrah + KDV + Toplam */}
-                    <div style={{ borderTop: "2px solid #e3e8f0", background: "#f8fafd" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 18px" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>İndirimli Matrah</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" }}>{fmtTL(indirimliMatrah)}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 18px 10px" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}>KDV (%{kdvOrani})</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", minWidth: 110, textAlign: "right" }}>{fmtTL(kdvTutar)}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderTop: "1px solid #e3e8f0", background: "#eef2f8" }}>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: "#0f1f3d" }}>Toplam (KDV Dahil)</span>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: "#0f1f3d", minWidth: 110, textAlign: "right" }}>{fmtTL(net)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Parçalı Ödeme kartı */}
-                  <div style={{ border: "1px solid #e3e8f0", borderRadius: 16, background: "#fcfdfe", padding: "18px 18px 6px", marginBottom: 14, boxShadow: "0 1px 2px rgba(15,31,61,.04)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 15 }}>
-                      <span style={{ width: 5, height: 18, borderRadius: 3, background: "#f97316" }} />
-                      <span style={{ fontSize: 15, fontWeight: 800, color: "#0f1f3d" }}>Ödeme Girişi</span>
-                      <span style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500 }}>— Parayı bölebilir veya boş geçebilirsiniz.</span>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 14 }}>
-                      {odemeSatirlari.map((o, i) => {
-                        const taksitli = o.tip === "Kredi Kartı" || o.tip === "Senet";
-                        // preset listede olmayan değer (örn. 4, 7) → "Özel" modu
-                        const isCustomTaksit = taksitli && !TAKSIT_PRESETS.includes(o.taksit);
-                        return (
-                          <div key={i} style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr auto", gap: 12, alignItems: "end", border: "1px solid #e9edf4", borderRadius: 14, padding: "14px 16px", background: "#fff" }}>
-                            <div>
-                              <label style={S.odemeLabel}>Ödeme Tipi</label>
-                              <SelectWrap small>
-                                <select value={o.tip} onChange={(e) => updateOdeme(i, "tip", e.target.value)} style={S.odemeSelect}>
-                                  <option value="Nakit">Nakit</option>
-                                  <option value="Kredi Kartı">Kredi Kartı</option>
-                                  <option value="Havale/EFT">Havale/EFT</option>
-                                  <option value="Senet">Senet</option>
-                                </select>
-                              </SelectWrap>
-                            </div>
-                            <div>
-                              <label style={S.odemeLabel}>Alınan Tutar</label>
-                              <div style={{ position: "relative" }}>
-                                <input type="number" value={o.tutar} onChange={(e) => updateOdeme(i, "tutar", e.target.value)} placeholder="0"
-                                  style={{ width: "100%", padding: "11px 42px 11px 13px", borderRadius: 11, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 14, fontWeight: 600, fontFamily: "inherit", color: "#0f1f3d", outline: "none" }} />
-                                <span style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 12.5, fontWeight: 700, color: "#94a3b8", pointerEvents: "none" }}>TL</span>
-                              </div>
-                            </div>
-                            <div style={{ opacity: taksitli ? 1 : 0.5 }}>
-                              <label style={{ ...S.odemeLabel, display: "flex", alignItems: "center", gap: 6 }}>
-                                Taksit Sayısı{!taksitli && <span dangerouslySetInnerHTML={{ __html: IC.lockTiny }} />}
-                              </label>
-                              <SelectWrap small>
-                                <select value={isCustomTaksit ? "custom" : o.taksit}
-                                  onChange={(e) => updateOdeme(i, "taksit", e.target.value === "custom" ? "" : e.target.value)}
-                                  disabled={!taksitli}
-                                  style={{ ...S.odemeSelect, background: taksitli ? "#f8fafc" : "#f1f5f9", cursor: taksitli ? "pointer" : "not-allowed" }}>
-                                  <option value="1">Tek Çekim</option>
-                                  <option value="2">2 Taksit</option>
-                                  <option value="3">3 Taksit</option>
-                                  <option value="6">6 Taksit</option>
-                                  <option value="9">9 Taksit</option>
-                                  <option value="12">12 Taksit</option>
-                                  <option value="custom">Özel taksit…</option>
-                                </select>
-                              </SelectWrap>
-                              {isCustomTaksit && (
-                                <div style={{ position: "relative", marginTop: 6 }}>
-                                  <input type="number" min={1} max={36} value={o.taksit} onChange={(e) => updateOdeme(i, "taksit", e.target.value)} placeholder="örn. 7" autoFocus
-                                    style={{ width: "100%", padding: "9px 44px 9px 12px", borderRadius: 11, border: "1px solid #c7d0de", background: "#fff", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", color: "#0f1f3d", outline: "none" }} />
-                                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 600, color: "#94a3b8", pointerEvents: "none" }}>taksit</span>
-                                </div>
-                              )}
-                            </div>
-                            <button onClick={() => removeOdeme(i)} title="Satırı kaldır"
-                              style={{ width: 42, height: 42, borderRadius: 11, border: "1px solid #e3e8f0", background: "#fff", color: odemeSatirlari.length > 1 ? "#94a3b8" : "#d8dee8", display: "flex", alignItems: "center", justifyContent: "center", cursor: odemeSatirlari.length > 1 ? "pointer" : "not-allowed", flex: "0 0 auto" }}
-                              dangerouslySetInnerHTML={{ __html: IC.trash }} />
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <button onClick={addOdeme} className="sy-addpay" style={S.addPayBtn}>
-                      <span dangerouslySetInnerHTML={{ __html: IC.plusSm }} />
-                      Başka Ödeme Yöntemi Ekle
-                    </button>
-
-                    {/* senet vade farkı — senet satırı varken görünür */}
-                    {hasSenet && kalan > 0 && (
-                      <div style={{ border: "1px solid #e9edf4", borderRadius: 12, padding: "14px 16px", marginBottom: 14, background: "#fefce8" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                          <label style={{ fontSize: 13.5, fontWeight: 700, color: "#713f12", whiteSpace: "nowrap" }}>Aylık Vade Farkı</label>
-                          <div style={{ position: "relative", width: 100 }}>
-                            <input type="number" min={0} max={20} step={0.5} value={senetVadeFarki}
-                              onChange={(e) => setSenetVadeFarki(e.target.value)} placeholder="0"
-                              disabled={sifirKilit}
-                              style={{ width: "100%", padding: "9px 32px 9px 12px", borderRadius: 10, border: "1px solid #d4c090", background: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", color: "#0f1f3d", outline: "none" }} />
-                            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12.5, fontWeight: 700, color: "#94a3b8", pointerEvents: "none" }}>%</span>
-                          </div>
-                          {vadeFarkiTutar > 0 && (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "#92400e" }}>
-                              Vade farkı: {fmtTL(vadeFarkiTutar)} · Senet toplamı: {fmtTL(kalan + vadeFarkiTutar)} ({senetTaksitN} taksit × {fmtTL(Math.round((kalan + vadeFarkiTutar) / senetTaksitN))})
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* finansal çıktı şeridi */}
-                    <div style={{ borderTop: "1px solid #e9edf4", margin: "0 -18px", padding: "16px 18px 18px", background: kalanSifir ? "linear-gradient(135deg,#f3fbf6,#ecfdf3)" : "linear-gradient(135deg,#fffaf4,#fff5ec)", borderRadius: "0 0 14px 14px" }}>
-                      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 360 }}>
-                          <span style={{ flex: "0 0 auto", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.infoSm }} />
-                          <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>Satış sonrası öğrenci <strong style={{ color: "#15803d", fontWeight: 700 }}>Aktif</strong> statüsünde havuza eklenir.</p>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 0 auto", minWidth: 220 }}>
-                          <div style={S.cikRow}><span style={S.cikLbl}>Toplam Tutar</span><span style={S.cikVal}>{fmtTL(net)}</span></div>
-                          {vadeFarkiTutar > 0 && (
-                            <div style={S.cikRow}><span style={{ ...S.cikLbl, color: "#92400e" }}>Vade Farkı</span><span style={{ ...S.cikVal, color: "#92400e" }}>+{fmtTL(vadeFarkiTutar)}</span></div>
-                          )}
-                          <div style={S.cikRow}><span style={S.cikLbl}>Ödenen</span><span style={S.cikVal}>{fmtTL(alinan)}</span></div>
-                          <div style={{ height: 1, background: "rgba(0,0,0,.08)", margin: "3px 0" }} />
-                          <div style={S.cikRow}>
-                            <span style={{ fontSize: 13.5, fontWeight: 800, color: "#334155" }}>Kalan</span>
-                            <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.5px", color: kalanSifir ? "#15803d" : "#b45309" }}>{fmtTL(kalan)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
+                <OdemeTab
+                  sifirKilit={sifirKilit} satisNedeni={satisNedeni} satisModu={satisModu} selBundle={selBundle}
+                  bundleDiscPct={bundleDiscPct} bundleDisc={bundleDisc} brut={brut}
+                  teslimLocked={teslimLocked} teslimSekli={teslimSekli}
+                  hasKampanyaInd={hasKampanyaInd} kampanyaEtiket={kampanyaEtiket} kampanyaIndTutar={kampanyaIndTutar}
+                  elIndirimMod={elIndirimMod} setElIndirimMod={setElIndirimMod} elIndirim={elIndirim} setElIndirim={setElIndirim}
+                  elIndirimVar={elIndirimVar} elIndirimTutar={elIndirimTutar}
+                  indirimliMatrah={indirimliMatrah} kdvOrani={kdvOrani} kdvTutar={kdvTutar} net={net}
+                  odemeSatirlari={odemeSatirlari} updateOdeme={updateOdeme} addOdeme={addOdeme} removeOdeme={removeOdeme}
+                  hasSenet={hasSenet} kalan={kalan} senetVadeFarki={senetVadeFarki} setSenetVadeFarki={setSenetVadeFarki}
+                  vadeFarkiTutar={vadeFarkiTutar} senetTaksitN={senetTaksitN} kalanSifir={kalanSifir} alinan={alinan}
+                />
               )}
             </div>
 
@@ -1203,143 +533,3 @@ export default function SatisYapPage() {
     </div>
   );
 }
-
-// ── küçük yardımcı bileşenler ──────────────────────────────────────────────────
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}>
-      <span style={{ width: 5, height: 18, borderRadius: 3, background: "#f97316" }} />
-      <span style={{ fontSize: 15, fontWeight: 800, color: "#0f1f3d" }}>{children}</span>
-    </div>
-  );
-}
-function Label({ children, withLock }: { children: React.ReactNode; withLock?: boolean }) {
-  return (
-    <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, fontWeight: 600, color: "#334155", marginBottom: 8 }}>
-      {children}
-      {withLock && <span dangerouslySetInnerHTML={{ __html: IC.lockTiny }} />}
-    </label>
-  );
-}
-function SelectWrap({ children, small }: { children: React.ReactNode; small?: boolean }) {
-  return (
-    <div style={{ position: "relative" }}>
-      {children}
-      <span style={{ position: "absolute", right: small ? 13 : 15, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: IC.chevDownGray }} />
-    </div>
-  );
-}
-
-const tabStyle = (active: boolean): CSSProperties => ({
-  display: "inline-flex", alignItems: "center", gap: 6, padding: "13px 16px", border: "none", background: "transparent", cursor: "pointer",
-  fontFamily: "inherit", fontSize: 14.5, fontWeight: active ? 700 : 600, color: active ? "#0f1f3d" : "#64748b",
-  borderBottom: active ? "2.5px solid #f97316" : "2.5px solid transparent", marginBottom: -1, whiteSpace: "nowrap", transition: "color .14s",
-});
-const tabNum = (active: boolean): CSSProperties => ({
-  width: 22, height: 22, borderRadius: 7, display: "inline-flex", alignItems: "center", justifyContent: "center",
-  fontSize: 12, fontWeight: 700, color: active ? "#fff" : "#94a3b8", background: active ? "#f97316" : "#eef2f8",
-});
-const uyrukCard = (active: boolean): CSSProperties => ({
-  display: "inline-flex", alignItems: "center", gap: 11, padding: "12px 18px", borderRadius: 12, cursor: "pointer", userSelect: "none",
-  border: active ? "1.5px solid #4f46e5" : "1.5px solid #e3e8f0", background: active ? "#f5f6ff" : "#f8fafc", transition: "all .14s",
-});
-const uyrukRadio = (active: boolean): CSSProperties => ({
-  width: 19, height: 19, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto",
-  border: active ? "1.5px solid #4f46e5" : "1.5px solid #cbd5e1", background: "#fff",
-});
-// lacivert (navy) checkbox — on=tam dolu, indet=yarım (bazı trackler seçili)
-const navyBox = (on: boolean, indet: boolean): CSSProperties => ({
-  width: 22, height: 22, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto", cursor: "pointer",
-  border: on || indet ? "1.5px solid #1e3a8a" : "1.5px solid #cbd5e1",
-  background: on || indet ? "#1e3a8a" : "#fff", transition: "all .14s",
-});
-// ödeme — % / TL küçük segment butonu
-const segSm = (on: boolean): CSSProperties => ({
-  padding: "6px 13px", border: "none", borderRadius: 8, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer",
-  background: on ? "#0f1f3d" : "transparent", color: on ? "#fff" : "#64748b", transition: "all .14s",
-});
-
-// ── stiller ────────────────────────────────────────────────────────────────────
-const S: Record<string, CSSProperties> = {
-  root: { display: "flex", width: "100%", height: "100vh", minHeight: 640, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter', system-ui, sans-serif", background: "#eef2f8" },
-  main: { flex: 1, height: "100%", overflowY: "auto", background: "#eef2f8", display: "flex", flexDirection: "column" },
-  header: { position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #e2e8f1", boxShadow: "0 2px 6px rgba(15,31,61,.04)" },
-  headerInner: { maxWidth: 1920, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, padding: "20px 36px" },
-  headerIcon: { width: 46, height: 46, borderRadius: 13, background: "linear-gradient(135deg,#2867bd,#205297)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px -8px rgba(32,82,151,.5)" },
-  bellBtn: { position: "relative", width: 44, height: 44, borderRadius: 13, border: "1px solid #e2e8f1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569", transition: "all .14s" },
-  bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "2px solid #fff" },
-  avatar: { width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#fb923c,#ea580c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, boxShadow: "0 6px 14px -6px rgba(234,88,12,.7)" },
-  segWrap: { display: "inline-flex", background: "#fff", border: "1px solid #e3e8f0", borderRadius: 13, padding: 5, gap: 5, boxShadow: "0 1px 3px rgba(15,31,61,.05)" },
-  segOn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "none", borderRadius: 10, fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer", background: "#0f1f3d", color: "#fff", boxShadow: "0 4px 10px -5px rgba(15,31,61,.6)" },
-  segOff: { display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "none", borderRadius: 10, fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer", background: "transparent", color: "#64748b" },
-  card: { background: "#fff", border: "1px solid #e9edf4", borderRadius: 18, boxShadow: "0 1px 3px rgba(15,31,61,.05)", overflow: "hidden" },
-  input: { width: "100%", padding: "12px 15px", borderRadius: 12, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 14.5, fontFamily: "inherit", color: "#1e293b", outline: "none" },
-  inputWarn: { width: "100%", padding: "12px 15px", borderRadius: 12, border: "1px solid #fcd9b6", background: "#fff", fontSize: 14.5, fontFamily: "inherit", color: "#1e293b", outline: "none" },
-  select: { width: "100%", padding: "12px 42px 12px 15px", borderRadius: 12, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 14.5, fontFamily: "inherit", color: "#1e293b", outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none", MozAppearance: "none" },
-  selectSm: { width: "100%", padding: "12px 34px 12px 13px", borderRadius: 12, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 14, fontFamily: "inherit", color: "#1e293b", outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none", MozAppearance: "none" },
-  textarea: { width: "100%", padding: "13px 15px", borderRadius: 12, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 14, fontFamily: "inherit", color: "#1e293b", outline: "none", resize: "vertical", lineHeight: 1.6 },
-  minorCard: { border: "1px solid #fcd9b6", background: "linear-gradient(135deg,#fffbf5,#fff7ed)", borderRadius: 16, padding: "20px 22px" },
-  minorIcon: { width: 34, height: 34, borderRadius: 10, background: "#ffedd5", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" },
-  emptyBox: { display: "flex", flexDirection: "column", alignItems: "center", gap: 11, padding: "46px 20px", textAlign: "center", border: "1.5px dashed #d8e0ec", borderRadius: 16 },
-  emptyIcon: { width: 50, height: 50, borderRadius: 14, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" },
-  boxIcon: { width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" },
-  chip: { display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 600, color: "#475569", background: "#f1f5f9", padding: "7px 13px", borderRadius: 10 },
-  backLink: { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 6px", border: "none", background: "transparent", color: "#64748b", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" },
-  nextBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 22px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#fb923c,#ea580c)", color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 6px 14px -7px rgba(234,88,12,.7)" },
-  // ödeme sekmesi
-  sifirKilitBox: { display: "flex", alignItems: "center", gap: 12, border: "1px solid #c7d8f5", background: "linear-gradient(135deg,#f5f9ff,#eef4fd)", borderRadius: 14, padding: "13px 16px", marginBottom: 14 },
-  sifirKilitIcon: { width: 32, height: 32, borderRadius: 10, background: "#dbeafe", color: "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" },
-  ozetRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "13px 18px" },
-  ozetSep: { height: 1, background: "#f1f5f9", margin: "0 18px" },
-  odemeLabel: { display: "block", fontSize: 12.5, fontWeight: 600, color: "#334155", marginBottom: 7 },
-  odemeSelect: { width: "100%", padding: "11px 36px 11px 13px", borderRadius: 11, border: "1px solid #e3e8f0", background: "#f8fafc", fontSize: 13.5, fontFamily: "inherit", color: "#1e293b", outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none", MozAppearance: "none" },
-  addPayBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 11, border: "1.5px dashed #c7d0de", background: "#fff", color: "#475569", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", marginBottom: 18, transition: "all .14s" },
-  cikRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 },
-  cikLbl: { fontSize: 12, fontWeight: 600, color: "#94a3b8" },
-  cikVal: { fontSize: 13, fontWeight: 700, color: "#64748b" },
-};
-
-// ── ikonlar (lucide, design'dan) ────────────────────────────────────────────────
-const sv = (inner: string, attrs = 'width="19" height="19" stroke="currentColor"') =>
-  `<svg ${attrs} viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-const IC = {
-  shoppingBag: sv('<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><line x1="3" x2="21" y1="6" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>', 'width="23" height="23" stroke="#fff" stroke-width="2"'),
-  bell: sv('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 'width="20" height="20" stroke="currentColor"'),
-  user: sv('<circle cx="12" cy="8" r="4"/><path d="M6 21v-1a6 6 0 0 1 12 0v1"/>', 'width="17" height="17" stroke="currentColor"'),
-  building: sv('<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/>', 'width="17" height="17" stroke="currentColor"'),
-  lockSm: sv('<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', 'width="13" height="13" stroke="currentColor" stroke-width="2.2"'),
-  lockTiny: sv('<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', 'width="12" height="12" stroke="#94a3b8" stroke-width="2.3"'),
-  chevDownGray: sv('<path d="m6 9 6 6 6-6"/>', 'width="17" height="17" stroke="#94a3b8" stroke-width="2.3"'),
-  alert: sv('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>', 'width="18" height="18" stroke="currentColor"'),
-  infoCircle: sv('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>', 'width="17" height="17" stroke="currentColor"'),
-  box: sv('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>', 'width="18" height="18" stroke="currentColor"'),
-  boxBig: sv('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>', 'width="24" height="24" stroke="currentColor" stroke-width="1.8"'),
-  bookSm: sv('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>', 'width="18" height="18" stroke="currentColor"'),
-  layers: sv('<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.84Z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>', 'width="18" height="18" stroke="currentColor"'),
-  folderSm: sv('<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>', 'width="16" height="16" stroke="currentColor"'),
-  check: sv('<path d="M20 6 9 17l-5-5"/>', 'width="13" height="13" stroke="#fff" stroke-width="3.2"'),
-  clock: sv('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', 'width="14" height="14" stroke="#64748b" stroke-width="2.2"'),
-  signal: sv('<path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>', 'width="14" height="14" stroke="#64748b" stroke-width="2.2"'),
-  awardGreen: sv('<path d="M15.477 12.89 17 21l-5-3-5 3 1.523-8.11"/><circle cx="12" cy="8" r="6"/>', 'width="14" height="14" stroke="#16a34a" stroke-width="2.2"'),
-  chevLeft: sv('<path d="m15 18-6-6 6-6"/>', 'width="15" height="15" stroke="currentColor" stroke-width="2.3"'),
-  arrowRight: sv('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>', 'width="16" height="16" stroke="currentColor" stroke-width="2.3"'),
-  checkWhite: sv('<path d="M20 6 9 17l-5-5"/>', 'width="16" height="16" stroke="#fff" stroke-width="2.5"'),
-  lockBlue: sv('<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', 'width="17" height="17" stroke="currentColor" stroke-width="2"'),
-  trash: sv('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 'width="16" height="16" stroke="currentColor" stroke-width="2.1"'),
-  plusSm: sv('<path d="M5 12h14"/><path d="M12 5v14"/>', 'width="16" height="16" stroke="currentColor" stroke-width="2.3"'),
-  infoSm: sv('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>', 'width="15" height="15" stroke="#94a3b8" stroke-width="2"'),
-};
-
-const globalCss = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-@keyframes sy-slide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-.sy-spin{width:40px;height:40px;border-radius:50%;border:3px solid #d6deeb;border-bottom-color:#1d4ed8;animation:sy-spin 1s linear infinite}@keyframes sy-spin{to{transform:rotate(360deg)}}
-.sy-main{scrollbar-gutter:stable}
-.sy-tabs{scrollbar-width:none;-ms-overflow-style:none}
-.sy-tabs::-webkit-scrollbar{display:none}
-.sy-iconbtn:hover{background:#f8fafc;color:#0f172a}
-.sy-back:hover{color:#0f1f3d}
-.sy-next:hover{filter:brightness(1.04)}
-.sy-addpay:hover{border-color:#94a3b8;background:#f8fafc;color:#0f1f3d}
-input:focus,select:focus,textarea:focus{border-color:#a5b4fc!important;background:#fff!important;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
-`;
