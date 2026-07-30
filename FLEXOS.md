@@ -43,6 +43,18 @@
   "geliştirici notları" defterine benzer bir hata bildirme arayüzü HERKESE (sadece
   trainer/admin değil) açılsın — kullanan biri hata görürse bize bildirebilsin. Sadece
   beta açılışında gündeme alınacak, önceliksiz.
+- **`main`/`flexos` branch ayrışması — kalıcı çözüm bekliyor (2026-07-30 kullanıcı notu:
+  "sonra kesin çözelim").** Bugüne kadar iş genelde doğrudan `main`'de yapılıyordu, bu yüzden
+  sorun hissedilmiyordu. Bugün teknik borç işi `flexos`'ta yapılıp `main`'e cherry-pick ile
+  taşındı (6 commit: `auth-headers.ts` + 5 refactor) — `main` ile `flexos` merge değil,
+  tek tek cherry-pick ile senkron oldukları için commit geçmişleri gerçekten farklı, ve
+  bazı dosyalar (ör. `FLEXOS.md`: main'de 127, flexos'ta 134 commit dokunmuş;
+  `FLEXOS_TEKNIK_BORC.md`: main'de hiç yok) çoktan çatallanmış durumda. İleride `flexos`'ta
+  yapılıp `main`'e taşınacak her iş için benzer cherry-pick çakışması riski var. Kalıcı
+  çözüm seçenekleri (henüz karar verilmedi): (a) `main`'i `flexos` ile tek seferlik
+  hizala + bundan sonra merge kullan, (b) iki branch modelini tamamen bırakıp tek branch'e
+  geç, (c) sadece kod dosyalarını değil dokümantasyonu da düzenli cherry-pick'le senkron
+  tut. Karar + uygulama sıradaki bir oturuma bırakıldı.
 
 ### En son tamamlanan büyük işler (özet, tam detay arşivde)
 
