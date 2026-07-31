@@ -86,6 +86,7 @@ const ICONS: Record<string, string> = {
   back: '<path d="m15 18-6-6 6-6"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  checkCheck: '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
   chev: '<path d="m9 18 6-6-6-6"/>',
   send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
   dots: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
@@ -1918,11 +1919,14 @@ export default function FlexConnectMobile() {
                                   <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={0} dark={dark} />
                                 ))}
                                 {m.text && <span style={{ display: "block", fontSize: 17, lineHeight: 1.45, color: T.text, fontWeight: 500, marginTop: 6 }}>{m.text}</span>}
-                                <span style={{ display: "block", textAlign: "right", fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, marginTop: 2 }}>
-                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (
-                                    <span style={{ color: m.readByAll ? (dark ? "#7FA9EC" : "#2867bd") : undefined }}>
-                                      {(m.readByAll || m.deliveredByAll) ? " ✓✓" : " ✓"}
-                                    </span>
+                                <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3, fontSize: 10, fontWeight: 600, color: m.isMine ? T.text2 : T.muted, marginTop: 2 }}>
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
+                                  {m.isMine && (
+                                    m.readByAll
+                                      ? <Icon k="checkCheck" size={14} sw={2.5} color={dark ? "#4ADE80" : "#16A34A"} />
+                                      : m.deliveredByAll
+                                        ? <Icon k="checkCheck" size={14} sw={2.5} color={T.text2} />
+                                        : <Icon k="check" size={14} sw={2.5} color={T.text2} />
                                   )}
                                 </span>
                               </>
@@ -1931,11 +1935,14 @@ export default function FlexConnectMobile() {
                               // AYNI teknik: saat "inline-flex" bir birim olarak metnin peşine eklenir.
                               <span style={{ fontSize: 17, lineHeight: 1.6, color: T.text, fontWeight: 500 }}>
                                 {m.text}
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, whiteSpace: "nowrap", verticalAlign: "bottom" }}>
-                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (
-                                    <span style={{ color: m.readByAll ? (dark ? "#7FA9EC" : "#2867bd") : undefined }}>
-                                      {(m.readByAll || m.deliveredByAll) ? " ✓✓" : " ✓"}
-                                    </span>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10, fontWeight: 600, color: m.isMine ? T.text2 : T.muted, whiteSpace: "nowrap", verticalAlign: "bottom" }}>
+                                  {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
+                                  {m.isMine && (
+                                    m.readByAll
+                                      ? <Icon k="checkCheck" size={14} sw={2.5} color={dark ? "#4ADE80" : "#16A34A"} />
+                                      : m.deliveredByAll
+                                        ? <Icon k="checkCheck" size={14} sw={2.5} color={T.text2} />
+                                        : <Icon k="check" size={14} sw={2.5} color={T.text2} />
                                   )}
                                 </span>
                               </span>
