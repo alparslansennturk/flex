@@ -26,9 +26,9 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
+  Megaphone, Users, UsersRound, Layers, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
-  ChevronDown, Reply, Copy, BellOff, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore, Eraser,
+  ChevronDown, Reply, Copy, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore, Eraser,
 } from "lucide-react";
 import { onMessage, getToken } from "firebase/messaging";
 import { auth, getMessagingIfSupported } from "@/app/lib/firebase";
@@ -40,7 +40,7 @@ import {
   setConversationPinned, setConversationArchived, editMessage, deleteMessage, setMessageReaction, toggleMessageStar, addConversationMember, sendMessageWithAttachment,
   updateConversationMeta, deleteConversationById, removeConversationMember, hideConversation, clearConversation, fetchStarredMessages,
   subscribeToPresence, setMyPresenceStatus,
-  registerPushToken, unregisterPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled,
+  registerPushToken, fetchPushSettings, setPushNotificationsEnabled, setPushSoundEnabled,
 } from "./_shared/connectClient";
 import { requestConnectWidgetReopen } from "@/app/flexos/_components/ConnectWidget";
 import { ConnectIcon } from "./_shared/ConnectIcon";
@@ -70,7 +70,8 @@ type NavKey = ConnectConversationType | "star" | "archived" | "staffDirectory" |
 
 const NAV: { key: NavKey; label: string; Icon: IconComponent }[] = [
   { key: "channel", label: "Kanallar", Icon: Megaphone },
-  { key: "group", label: "Gruplar", Icon: Users },
+  { key: "group", label: "Gruplar", Icon: UsersRound },
+  { key: "community", label: "Topluluklar", Icon: Layers },
   { key: "dm", label: "Sohbetler", Icon: ConnectIcon },
   { key: "staffDirectory", label: "Personel", Icon: Contact },
   { key: "studentDirectory", label: "Öğrenciler", Icon: GraduationCap },
@@ -147,6 +148,15 @@ export default function FlexConnectPage() {
   const [popoverPos, setPopoverPos] = useState<PopoverPosition | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
+  // "+" WhatsApp tarzı hızlı-başlat dropdown'u (2026-07-31 kullanıcı isteği) — "+"
+  // artık DOĞRUDAN modalı açmıyor, önce bu dropdown açılıyor (arama + 3 oluşturma
+  // kısayolu + Personel/Öğrenciler dizini). Oluşturma satırlarından biri seçilince
+  // `createInitialType` ayarlanıp AYNI `CreateConversationModal` açılıyor (modalın
+  // kendi Tür seçici adımı bozulmuyor, sadece varsayılan tür önceden seçili geliyor).
+  const [createDropdownOpen, setCreateDropdownOpen] = useState(false);
+  const [createDropdownPos, setCreateDropdownPos] = useState<PopoverPosition | null>(null);
+  const [createInitialType, setCreateInitialType] = useState<CreateType>("channel");
+  const [quickStartQuery, setQuickStartQuery] = useState("");
 
   // "Yıldızlı Mesajlarım" (2026-07-20) — tüm konuşmalar arası tek liste, modal olarak.
   const [starredOpen, setStarredOpen] = useState(false);
@@ -324,6 +334,7 @@ export default function FlexConnectPage() {
     () => setOpenReactionPickerId(null),
     () => setPresenceMenuOpen(false),
     () => setRowMenuOpenId(null),
+    () => setCreateDropdownOpen(false),
   ]);
 
   // Ad/açıklama/Yayıncı/grup listesi düzenleme (2026-07-18) — SADECE owner/admin,
@@ -568,6 +579,23 @@ export default function FlexConnectPage() {
     toast.success(`${label.charAt(0).toUpperCase()}${label.slice(1)} silindi.`);
     setConversations((prev) => prev.filter((c) => c.id !== selectedId));
     setSelectedId(null);
+  }
+
+  /** Arşivdeki bir kanal/grup/topluluğu KALICI silme (2026-07-31 kullanıcı isteği) —
+   * `handleDeleteConversation` ile AYNI işlem (`deleteConversationById`, sadece
+   * owner + DM hariç — sunucu zaten bunu doğruluyor), ama açık konuşmaya (`selected`)
+   * bağlı değil, satır menüsündeki HERHANGİ bir konuşma için doğrudan çalışır.
+   * SADECE Arşiv sekmesinde gösterilir (satır menüsü diğer sekmelerde bu butonu
+   * göstermez — silme zaten açık konuşmanın "..." menüsünden de yapılabiliyor). */
+  async function handleDeleteConversationRow(c: ConversationView) {
+    const label = c.type === "channel" ? "kanal" : c.type === "community" ? "topluluk" : "grup";
+    setRowMenuOpenId(null);
+    if (!window.confirm(`"${c.name || "Bu " + label}" KALICI olarak silinecek — tüm mesajlar ve dosyalar silinir. Emin misin?`)) return;
+    const result = await deleteConversationById(c.id);
+    if (!result.ok) { toast.error(result.error ?? "Silinemedi."); return; }
+    toast.success(`${label.charAt(0).toUpperCase()}${label.slice(1)} silindi.`);
+    setConversations((prev) => prev.filter((x) => x.id !== c.id));
+    if (selectedId === c.id) setSelectedId(null);
   }
 
   /** Topluluğa yeni grup ekle (2026-07-18) — sınıfın "sınıf odası" konuşması
@@ -1005,18 +1033,115 @@ export default function FlexConnectPage() {
         <div style={{ padding: "20px 20px 14px" }}>
           <div className="flex items-center justify-between mb-4">
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5, color: "#1B1F26" }}>
-              {navTab === "channel" ? "Kanallar" : navTab === "group" ? "Gruplar" : navTab === "star" ? "Favoriler"
+              {navTab === "channel" ? "Kanallar" : navTab === "group" ? "Gruplar" : navTab === "community" ? "Topluluklar" : navTab === "star" ? "Favoriler"
                 : navTab === "archived" ? "Arşiv"
                 : navTab === "staffDirectory" ? "Personel" : navTab === "studentDirectory" ? "Öğrenciler" : "Sohbetler"}
             </h1>
             {directoryList === null && (
               <button
-                onClick={() => setCreateOpen(true)} title="Yeni"
+                onClick={(e) => { setCreateDropdownPos(computePopoverPosition(e.currentTarget, "left", 480)); setQuickStartQuery(""); setCreateDropdownOpen((v) => !v); }}
+                title="Yeni Sohbet Başlat"
                 className="flex items-center justify-center cursor-pointer transition-all"
                 style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid #E4E6EB", background: "#fff", color: "#4A515C" }}
               >
                 <Plus size={18} />
               </button>
+            )}
+            {createDropdownOpen && createDropdownPos && createPortal(
+              <div
+                className="fixed flex flex-col"
+                data-connect-dropdown
+                style={{ ...createDropdownPos, zIndex: 9999, background: "#fff", border: "1px solid #E4E6EB", borderRadius: 14, boxShadow: "0 10px 30px -10px rgba(18,35,59,.3)", width: 320, maxHeight: 480, overflow: "hidden" }}
+              >
+                <div style={{ padding: "14px 16px 10px" }}>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#1B1F26" }}>Yeni Sohbet Başlat</h3>
+                </div>
+                <div style={{ padding: "0 12px 10px" }}>
+                  <div className="relative">
+                    <Search size={15} color="#A2A8B2" className="absolute pointer-events-none" style={{ left: 12, top: "50%", transform: "translateY(-50%)" }} />
+                    <input
+                      value={quickStartQuery} onChange={(e) => setQuickStartQuery(e.target.value)}
+                      placeholder="İsim ara..." autoFocus
+                      className="w-full outline-none"
+                      style={{ height: 36, padding: "0 12px 0 34px", borderRadius: 10, border: "1px solid #E9EBEF", background: "#F4F5F7", color: "#1B1F26", fontSize: 13, fontWeight: 500 }}
+                    />
+                  </div>
+                </div>
+                <div className="overflow-y-auto" style={{ flex: 1 }}>
+                  <div style={{ padding: "4px 8px" }}>
+                    {[
+                      { type: "channel" as const, label: "Yeni Kanal Oluştur", Icon: Megaphone },
+                      { type: "group" as const, label: "Yeni Grup Oluştur", Icon: UsersRound },
+                      { type: "community" as const, label: "Yeni Topluluk Oluştur", Icon: Layers },
+                    ].map((a) => (
+                      <button
+                        key={a.type}
+                        onClick={() => { setCreateInitialType(a.type); setCreateDropdownOpen(false); setCreateOpen(true); }}
+                        className="flex items-center gap-3 w-full cursor-pointer transition-colors"
+                        style={{ padding: "9px 8px", borderRadius: 10, fontSize: 13.5, fontWeight: 700, color: "#1B1F26", background: "transparent" }}
+                      >
+                        <div className="flex items-center justify-center shrink-0" style={{ width: 32, height: 32, borderRadius: 10, background: "#EAF1FB", color: "#2867bd" }}>
+                          <a.Icon size={16} />
+                        </div>
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {(() => {
+                    const q = quickStartQuery.trim().toLowerCase();
+                    const staff = q ? staffDirectoryList.filter((u) => u.name.toLowerCase().includes(q)) : staffDirectoryList;
+                    const students = q ? studentDirectoryList.filter((u) => u.name.toLowerCase().includes(q)) : studentDirectoryList;
+                    // "Sık Görüşülenler" (2026-07-31 kullanıcı isteği, WP'deki "Frequently
+                    // contacted" bölümü) — SADECE arama boşken gösterilir (WP'de de arama
+                    // yazılınca bu bölüm kaybolup tam eşleşme listesine bırakır). Ekstra
+                    // fetch YOK — zaten yüklü `conversations`'tan son mesaj tarihine göre
+                    // türetiliyor, en fazla 5 kişi.
+                    const recentContacts = !q
+                      ? conversations
+                          .filter((c): c is ConversationView & { peerUid: string; lastMessage: NonNullable<ConversationView["lastMessage"]> } =>
+                            c.type === "dm" && !!c.peerUid && !!c.lastMessage)
+                          .sort((a, b) => b.lastMessage.at.localeCompare(a.lastMessage.at))
+                          .slice(0, 5)
+                      : [];
+                    return (
+                      <>
+                        {recentContacts.length > 0 && (
+                          <div style={{ padding: "6px 8px 0" }}>
+                            <div style={{ padding: "6px 8px", fontSize: 11, fontWeight: 700, color: "#8A909B", textTransform: "uppercase", letterSpacing: ".04em" }}>Sık Görüşülenler</div>
+                            {recentContacts.map((c) => (
+                              <DirectoryRow key={c.id} u={{ uid: c.peerUid, name: c.name }} conversations={conversations} selectedId={selectedId} presence={presenceMap.get(c.peerUid)}
+                                onClick={() => { setCreateDropdownOpen(false); openDirectMessage(c.peerUid, c.realm); }} />
+                            ))}
+                          </div>
+                        )}
+                        {staff.length > 0 && (
+                          <div style={{ padding: "6px 8px 0" }}>
+                            <div style={{ padding: "6px 8px", fontSize: 11, fontWeight: 700, color: "#8A909B", textTransform: "uppercase", letterSpacing: ".04em" }}>Personel</div>
+                            {staff.map((u) => (
+                              <DirectoryRow key={u.uid} u={u} conversations={conversations} selectedId={selectedId} presence={presenceMap.get(u.uid)}
+                                onClick={() => { setCreateDropdownOpen(false); openDirectMessage(u.uid, "staff"); }} />
+                            ))}
+                          </div>
+                        )}
+                        {students.length > 0 && (
+                          <div style={{ padding: "6px 8px 8px" }}>
+                            <div style={{ padding: "6px 8px", fontSize: 11, fontWeight: 700, color: "#8A909B", textTransform: "uppercase", letterSpacing: ".04em" }}>Öğrenciler</div>
+                            {students.map((u) => (
+                              <DirectoryRow key={u.uid} u={u} conversations={conversations} selectedId={selectedId} presence={presenceMap.get(u.uid)}
+                                onClick={() => { setCreateDropdownOpen(false); openDirectMessage(u.uid, "trainer_student"); }} />
+                            ))}
+                          </div>
+                        )}
+                        {staff.length === 0 && students.length === 0 && q && (
+                          <p className="text-center" style={{ fontSize: 12.5, color: "#8A909B", padding: "14px 8px" }}>Kimse bulunamadı.</p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>,
+              document.body,
             )}
           </div>
           <div className="relative">
@@ -1117,6 +1242,11 @@ export default function FlexConnectPage() {
                         {c.type === "dm" && (
                           <button onClick={() => handleHideConversationRow(c.id, c.name)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
                             <Trash2 size={14} /> Sohbeti Sil
+                          </button>
+                        )}
+                        {navTab === "archived" && c.type !== "dm" && c.isOwner && (
+                          <button onClick={() => handleDeleteConversationRow(c)} className="flex items-center gap-2 w-full cursor-pointer transition-colors" style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#D93636", background: "transparent" }}>
+                            <Trash2 size={14} /> {c.type === "channel" ? "Kanalı Sil" : c.type === "community" ? "Topluluğu Sil" : "Grubu Sil"}
                           </button>
                         )}
                       </div>
@@ -1631,6 +1761,7 @@ export default function FlexConnectPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={(id, createdType) => { setCreateOpen(false); setNavTab(createdType); loadConversations().then(() => selectConversation(id)); }}
+        initialType={createInitialType}
       />
 
       {/* Konuşma düzenleme — "oluştur" modalıyla AYNI görünüm (2026-07-18 kullanıcı
@@ -1994,10 +2125,11 @@ export default function FlexConnectPage() {
  * korundu). Topluluk gerçek sınıflardan ≥2 seçip otomatik "Genel Duyuru" kanalı +
  * sınıf odaları (`sourceGroupId` ile dedup) oluşturur.
  */
+type CreateType = "channel" | "group" | "community";
+
 function CreateConversationModal({
-  open, onClose, onCreated,
-}: { open: boolean; onClose: () => void; onCreated: (id: string, type: ConnectConversationType) => void }) {
-  type CreateType = "channel" | "group" | "community";
+  open, onClose, onCreated, initialType,
+}: { open: boolean; onClose: () => void; onCreated: (id: string, type: ConnectConversationType) => void; initialType?: CreateType }) {
   const [type, setType] = useState<CreateType>("channel");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -2023,7 +2155,7 @@ function CreateConversationModal({
 
   useEffect(() => {
     if (!open) return;
-    setType("channel"); setName(""); setDescription(""); setChannelAudience("staff");
+    setType(initialType ?? "channel"); setName(""); setDescription(""); setChannelAudience("staff");
     setSelectedStaffUids([]); setGroupMode("class"); setSelectedGroupId(""); setRoster([]);
     setSelectedCommunityGroupIds([]);
     setDirectoryLoading(true);
@@ -2033,7 +2165,7 @@ function CreateConversationModal({
       const res = await fetch("/api/flexos/groups", { headers });
       if (res.ok) setMyGroups((await res.json() as { items: GroupItem[] }).items);
     })();
-  }, [open]);
+  }, [open, initialType]);
 
   // Sınıf seçilince roster ANINDA altına eklenir (kullanıcı isteği, 2026-07-18).
   useEffect(() => {
@@ -2195,7 +2327,7 @@ function CreateConversationModal({
               {[
                 { key: "channel" as const, label: "Kanal", desc: "Tek yönlü duyuru", Icon: Megaphone as IconComponent },
                 { key: "group" as const, label: "Grup", desc: "Karşılıklı sohbet", Icon: UsersRound as IconComponent },
-                { key: "community" as const, label: "Topluluk", desc: "Grupları birleştir", Icon: Users as IconComponent },
+                { key: "community" as const, label: "Topluluk", desc: "Grupları birleştir", Icon: Layers as IconComponent },
               ].map((t) => {
                 const sel = type === t.key;
                 return (

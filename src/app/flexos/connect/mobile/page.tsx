@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, animate } from "framer-motion";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
   reauthenticateWithCredential, EmailAuthProvider, updatePassword,
@@ -62,7 +62,7 @@ interface RosterItem { personId: string; authUid: string | null; name: string }
 
 const dividerLabel = (iso: string) => dividerLabelBase(iso, false);
 
-type Screen = "app" | "chat" | "create" | "notif" | "help" | "password" | "starred" | "legal" | "legal-kvkk";
+type Screen = "app" | "chat" | "create" | "notif" | "help" | "password" | "starred" | "archive" | "legal" | "legal-kvkk";
 type Tab = "chats" | "channels" | "staff" | "settings";
 type ThemePref = "light" | "dark" | "system";
 
@@ -103,6 +103,7 @@ const ICONS: Record<string, string> = {
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
   archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  archiveRestore: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h2"/><path d="M20 8v11a2 2 0 0 1-2 2h-2"/><path d="m9 15 3-3 3 3"/><path d="M12 12v9"/>',
   eraser: '<path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/>',
 };
 
@@ -138,6 +139,99 @@ function tokens(dark: boolean): Tokens {
 }
 
 const iconFor = (type: ConversationView["type"], key?: string) => key ?? (type === "group" ? "group" : type === "community" ? "community" : "channel");
+
+const avatarBox = (color: string, sz = 48): React.CSSProperties => ({ position: "relative", width: sz, height: sz, borderRadius: 15, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: sz * 0.34, fontWeight: 700, background: color });
+
+/**
+ * Sohbet listesi satırı — sağdan sola kaydırınca Arşivle/Temizle/(DM ise) Sil aksiyonları
+ * açılır (2026-07-22, WhatsApp gibi). 2026-07-31 kullanıcı bulgusu: hafif/kaza sonucu bir
+ * sürüklemede satır "ucu görünür" şekilde yarım açık kalıyordu — kök neden: `animate` PROP'u
+ * `isSwiped` değişmediğinde (ör. kapalıyken ufak sürükleyip bırakınca `false`→`false`) yeni
+ * bir hedef görmediği için framer-motion drag'in bıraktığı ara `x` değerini geri çekmiyordu.
+ * Çözüm: `useMotionValue` + HER `onDragEnd`'de (ve `isSwiped` dışarıdan değiştiğinde) İMPERATİF
+ * `animate()` çağrısı — hedef aynı kalsa bile x her seferinde GARANTİLİ tam 0 ya da tam
+ * `-actionsWidth`'e itiliyor, ara konumda asla kalmıyor. Ana Sohbetler listesi VE Arşiv
+ * ekranında (aynı satır görünümü, farklı veri kümesi) reuse edilir.
+ */
+function SwipeableChatRow({
+  c, isSwiped, onSwipeChange, onOpen, onArchiveToggle, onClear, onDelete, presence, T,
+}: {
+  c: ConversationView;
+  isSwiped: boolean;
+  onSwipeChange: (next: boolean) => void;
+  onOpen: () => void;
+  onArchiveToggle: () => void;
+  onClear: () => void;
+  onDelete: () => void;
+  presence?: PresenceSignal;
+  T: Tokens;
+}) {
+  const canDelete = c.type === "dm";
+  const actionsWidth = 68 /* arşiv */ + 68 /* temizle */ + (canDelete ? 68 : 0) /* sil */;
+  const x = useMotionValue(isSwiped ? -actionsWidth : 0);
+  useEffect(() => {
+    const controls = animate(x, isSwiped ? -actionsWidth : 0, { type: "spring", stiffness: 420, damping: 42 });
+    return () => controls.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSwiped, actionsWidth]);
+  return (
+    <div style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
+      <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, display: "flex", alignItems: "stretch" }}>
+        <button
+          onClick={onArchiveToggle}
+          style={{ width: 68, border: "none", background: "#D97706", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          <Icon k={c.archived ? "archiveRestore" : "archive"} size={18} sw={2} color="#fff" />
+          <span style={{ fontSize: 10, fontWeight: 700 }}>{c.archived ? "Çıkar" : "Arşivle"}</span>
+        </button>
+        <button
+          onClick={onClear}
+          style={{ width: 68, border: "none", background: "#6B7280", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          <Icon k="eraser" size={18} sw={2} color="#fff" />
+          <span style={{ fontSize: 10, fontWeight: 700 }}>Temizle</span>
+        </button>
+        {canDelete && (
+          <button
+            onClick={onDelete}
+            style={{ width: 68, border: "none", background: "#D93636", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            <Icon k="trash" size={18} sw={2} color="#fff" />
+            <span style={{ fontSize: 10, fontWeight: 700 }}>Sil</span>
+          </button>
+        )}
+      </div>
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: -actionsWidth, right: 0 }}
+        dragElastic={0.03}
+        dragMomentum={false}
+        style={{ x, position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "11px 12px", borderRadius: 16, background: T.bg, cursor: "pointer", touchAction: "pan-y" }}
+        onDragEnd={(_e, info) => {
+          const next = info.offset.x < -actionsWidth / 2;
+          animate(x, next ? -actionsWidth : 0, { type: "spring", stiffness: 420, damping: 42 });
+          onSwipeChange(next);
+        }}
+        onClick={() => { if (isSwiped) onSwipeChange(false); else onOpen(); }}
+      >
+        <div style={avatarBox(c.colorKey ?? T.brand, 48)}>
+          {c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}
+          {c.type === "dm" && <PresenceDot signal={presence} ring={T.bg} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
+            <span style={{ fontSize: 11.5, fontWeight: c.unread ? 700 : 500, color: c.unread ? T.brand : T.muted, flex: "0 0 auto", paddingLeft: 8 }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 3 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: T.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage ? `${c.lastMessage.senderName}: ${c.lastMessage.text}` : "Henüz mesaj yok"}</span>
+            {c.unreadCount > 0 && <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: T.brand, color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{c.unreadCount > 99 ? "99+" : c.unreadCount}</span>}
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function FlexConnectMobile() {
   // `100dvh` bazı tarayıcı/PWA kombinasyonlarında (2026-07-19 kullanıcı bulgusu:
@@ -772,6 +866,10 @@ export default function FlexConnectMobile() {
 
   // ── Bottom sheet + Oluştur ekranı ──
   const [sheetOpen, setSheetOpen] = useState(false);
+  // "+" WhatsApp tarzı hızlı-başlat sheet'i (2026-07-31 kullanıcı isteği, masaüstündeki
+  // dropdown'ın mobil karşılığı) — arama Personel/Öğrenciler listesini filtreler,
+  // oluşturma kartları + Arşiv girişi hep sabit kalır.
+  const [quickStartQuery, setQuickStartQuery] = useState("");
   const [createType, setCreateType] = useState<"channel" | "group" | "community">("channel");
   const [cName, setCName] = useState("");
   const [cDesc, setCDesc] = useState("");
@@ -1194,7 +1292,6 @@ export default function FlexConnectMobile() {
   const screenColStyle: React.CSSProperties = { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg };
   const searchWrapStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, height: 44, padding: "0 14px", borderRadius: 13, border: `1px solid ${T.border}`, background: T.field };
   const searchFieldStyle: React.CSSProperties = { flex: 1, border: "none", background: "transparent", outline: "none", fontSize: 14, fontWeight: 500, color: T.text };
-  const avatarBox = (color: string, sz = 48): React.CSSProperties => ({ position: "relative", width: sz, height: sz, borderRadius: 15, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: sz * 0.34, fontWeight: 700, background: color });
   // Satır (ikon+etiket) SABİT 52px — native iOS tab bar (49pt) ile aynı mertebede.
   // `env(safe-area-inset-bottom)` bilinçli olarak eklenmedi (2026-07-19 kullanıcı
   // kararı): ikonlar ekranın en dibine kadar boşluksuz oturmalı. İkonlar
@@ -1259,7 +1356,7 @@ export default function FlexConnectMobile() {
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
                   <h1 style={topTitleStyle}>Sohbetler</h1>
                 </div>
-                {!studentPersonId && <button onClick={() => setSheetOpen(true)} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
+                {!studentPersonId && <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
               </div>
               {showPushReenableBanner && (
                 <div style={{ margin: "0 16px 10px", flex: "0 0 auto" }}>
@@ -1315,63 +1412,19 @@ export default function FlexConnectMobile() {
                         </button>
                       );
                     }
-                    const canDelete = c.type === "dm";
-                    const actionsWidth = 68 /* arşiv */ + 68 /* temizle */ + (canDelete ? 68 : 0) /* sil */;
-                    const isSwiped = swipedRowId === c.id;
                     return (
-                      <div key={c.id} style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
-                        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, display: "flex", alignItems: "stretch" }}>
-                          <button
-                            onClick={() => handleToggleArchiveRow(c.id, c.archived)}
-                            style={{ width: 68, border: "none", background: "#D97706", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
-                          >
-                            <Icon k="archive" size={18} sw={2} color="#fff" />
-                            <span style={{ fontSize: 10, fontWeight: 700 }}>Arşivle</span>
-                          </button>
-                          <button
-                            onClick={() => handleClearConversationRow(c.id, c.name)}
-                            style={{ width: 68, border: "none", background: "#6B7280", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
-                          >
-                            <Icon k="eraser" size={18} sw={2} color="#fff" />
-                            <span style={{ fontSize: 10, fontWeight: 700 }}>Temizle</span>
-                          </button>
-                          {canDelete && (
-                            <button
-                              onClick={() => handleHideConversationRow(c.id, c.name)}
-                              style={{ width: 68, border: "none", background: "#D93636", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", fontFamily: "inherit" }}
-                            >
-                              <Icon k="trash" size={18} sw={2} color="#fff" />
-                              <span style={{ fontSize: 10, fontWeight: 700 }}>Sil</span>
-                            </button>
-                          )}
-                        </div>
-                        <motion.div
-                          drag="x"
-                          dragConstraints={{ left: -actionsWidth, right: 0 }}
-                          dragElastic={0.03}
-                          dragMomentum={false}
-                          animate={{ x: isSwiped ? -actionsWidth : 0 }}
-                          transition={{ type: "spring", stiffness: 420, damping: 42 }}
-                          onDragEnd={(_e, info) => setSwipedRowId(info.offset.x < -actionsWidth / 2 ? c.id : null)}
-                          onClick={() => { if (isSwiped) setSwipedRowId(null); else openChat(c.id); }}
-                          style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "11px 12px", borderRadius: 16, background: T.bg, cursor: "pointer", touchAction: "pan-y" }}
-                        >
-                          <div style={avatarBox(c.colorKey ?? T.brand, 48)}>
-                            {c.type === "dm" ? initials(c.name || "?") : <Icon k={iconFor(c.type)} size={22} sw={2} color="#fff" />}
-                            {c.type === "dm" && <PresenceDot signal={presenceMap.get(c.peerUid ?? "")} ring={T.bg} />}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                              <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "İsimsiz"}</span>
-                              <span style={{ fontSize: 11.5, fontWeight: c.unread ? 700 : 500, color: c.unread ? T.brand : T.muted, flex: "0 0 auto", paddingLeft: 8 }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 3 }}>
-                              <span style={{ fontSize: 13, fontWeight: 500, color: T.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage ? `${c.lastMessage.senderName}: ${c.lastMessage.text}` : "Henüz mesaj yok"}</span>
-                              {c.unreadCount > 0 && <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: T.brand, color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{c.unreadCount > 99 ? "99+" : c.unreadCount}</span>}
-                            </div>
-                          </div>
-                        </motion.div>
-                      </div>
+                      <SwipeableChatRow
+                        key={c.id}
+                        c={c}
+                        T={T}
+                        presence={presenceMap.get(c.peerUid ?? "")}
+                        isSwiped={swipedRowId === c.id}
+                        onSwipeChange={(next) => setSwipedRowId(next ? c.id : null)}
+                        onOpen={() => openChat(c.id)}
+                        onArchiveToggle={() => handleToggleArchiveRow(c.id, c.archived)}
+                        onClear={() => handleClearConversationRow(c.id, c.name)}
+                        onDelete={() => handleHideConversationRow(c.id, c.name)}
+                      />
                     );
                   })
                 )}
@@ -1386,7 +1439,7 @@ export default function FlexConnectMobile() {
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
                   <h1 style={topTitleStyle}>Kanallar</h1>
                 </div>
-                {!studentPersonId && <button onClick={() => setSheetOpen(true)} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
+                {!studentPersonId && <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
               </div>
               <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
                 {channelSections.length === 0 && !loadingList && <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz kanal/grup/topluluk yok.</p>}
@@ -2197,6 +2250,39 @@ export default function FlexConnectMobile() {
         </motion.div>
       )}
 
+      {/* ============ ARŞİV — liste (2026-07-31 kullanıcı isteği: mobilde arşivlenmiş
+          konuşmaları görebilecek hiçbir ekran yoktu, sadece kaydırarak arşivleme vardı) ============ */}
+      {authUser && screen === "archive" && (
+        <motion.div key="archive" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 12px", paddingTop: "max(10px, env(safe-area-inset-top))", background: T.topBar, borderBottom: `1px solid ${T.border}` }}>
+            <button onClick={() => { setScreen("app"); setTab("chats"); }} style={{ width: 38, height: 38, borderRadius: 11, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.text, flex: "0 0 auto" }}><Icon k="back" size={22} sw={2.2} /></button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, letterSpacing: "-.2px" }}>Arşiv</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px 8px" }}>
+            {(() => {
+              const archivedRows = conversations.filter((c) => c.archived);
+              if (archivedRows.length === 0) return <p style={{ textAlign: "center", fontSize: 13, color: T.muted, padding: "24px 12px" }}>Arşivde konuşma yok.</p>;
+              return archivedRows.map((c) => (
+                <SwipeableChatRow
+                  key={c.id}
+                  c={c}
+                  T={T}
+                  presence={presenceMap.get(c.peerUid ?? "")}
+                  isSwiped={swipedRowId === c.id}
+                  onSwipeChange={(next) => setSwipedRowId(next ? c.id : null)}
+                  onOpen={() => openChat(c.id)}
+                  onArchiveToggle={() => handleToggleArchiveRow(c.id, c.archived)}
+                  onClear={() => handleClearConversationRow(c.id, c.name)}
+                  onDelete={() => handleHideConversationRow(c.id, c.name)}
+                />
+              ));
+            })()}
+          </div>
+        </motion.div>
+      )}
+
       {/* ============ YASAL BİLGİLENDİRMELER — liste ============ */}
       {authUser && screen === "legal" && (
         <motion.div key="legal" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}>
@@ -2313,26 +2399,104 @@ export default function FlexConnectMobile() {
         onClick={() => setSheetOpen(false)}
         style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", background: "rgba(10,15,25,.45)", opacity: sheetOpen ? 1 : 0, visibility: sheetOpen ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}
       >
-        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 26px", paddingBottom: "max(26px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)", transform: sheetOpen ? "translateY(0)" : "translateY(30px)", transition: "transform .3s cubic-bezier(.2,.8,.3,1)" }}>
-          <div style={{ width: 40, height: 5, borderRadius: 999, background: dark ? "#33405A" : "#D4D8DF", margin: "0 auto 8px" }} />
-          <div style={{ fontSize: 16, fontWeight: 800, color: T.text, padding: "6px 18px 10px", letterSpacing: "-.3px" }}>Yeni Oluştur</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "6px 16px 8px" }}>
-            {[
-              { k: "channel" as const, title: "Yeni Kanal", desc: "Kurumsal duyurular · tek yönlü akış", tone: "#2867bd" },
-              { k: "group" as const, title: "Yeni Grup", desc: "Personel/eğitmen ile karşılıklı sohbet", tone: "#2E8B57" },
-              { k: "community" as const, title: "Yeni Topluluk", desc: "Birden çok grubu tek çatıda topla", tone: "#6C5CE7" },
-            ].map((o) => (
-              <button key={o.k} onClick={() => startCreate(o.k)} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: o.tone + (dark ? "26" : "1F"), color: o.tone }}><Icon k={o.k} size={21} sw={2} /></div>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: "82vh", display: "flex", flexDirection: "column", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 0", paddingBottom: "max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)", transform: sheetOpen ? "translateY(0)" : "translateY(30px)", transition: "transform .3s cubic-bezier(.2,.8,.3,1)" }}>
+          <div style={{ width: 40, height: 5, borderRadius: 999, background: dark ? "#33405A" : "#D4D8DF", margin: "0 auto 8px", flex: "0 0 auto" }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 10px", flex: "0 0 auto" }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: T.text, letterSpacing: "-.3px" }}>Yeni Sohbet Başlat</div>
+            <button onClick={() => setSheetOpen(false)} style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: T.card, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Icon k="close" size={16} color={T.text2} />
+            </button>
+          </div>
+          <div style={{ padding: "0 16px 12px", flex: "0 0 auto" }}>
+            <div style={searchWrapStyle}>
+              <Icon k="search" size={17} color={T.muted} />
+              <input value={quickStartQuery} onChange={(e) => setQuickStartQuery(e.target.value)} placeholder="Kişi ara..." style={searchFieldStyle} />
+            </div>
+          </div>
+          <div style={{ overflowY: "auto", padding: "0 16px 16px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              {[
+                { k: "channel" as const, title: "Yeni Kanal", desc: "Kurumsal duyurular · tek yönlü akış", tone: "#2867bd" },
+                { k: "group" as const, title: "Yeni Grup", desc: "Personel/eğitmen ile karşılıklı sohbet", tone: "#2E8B57" },
+                { k: "community" as const, title: "Yeni Topluluk", desc: "Birden çok grubu tek çatıda topla", tone: "#6C5CE7" },
+              ].map((o) => (
+                <button key={o.k} onClick={() => startCreate(o.k)} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: o.tone + (dark ? "26" : "1F"), color: o.tone }}><Icon k={o.k} size={21} sw={2} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{o.title}</div>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>{o.desc}</div>
+                  </div>
+                  <Icon k="chev" size={19} color={T.chev} />
+                </button>
+              ))}
+              <button onClick={() => { setSheetOpen(false); setScreen("archive"); }} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 14px", borderRadius: 15, border: `1px solid ${T.border}`, background: T.card, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 44, height: 44, borderRadius: 13, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: T.text2 + (dark ? "26" : "1F"), color: T.text2 }}><Icon k="archive" size={20} sw={2} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{o.title}</div>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>{o.desc}</div>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>Arşiv</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: T.text2, marginTop: 1 }}>Arşivlenmiş sohbetler</div>
                 </div>
                 <Icon k="chev" size={19} color={T.chev} />
               </button>
-            ))}
+            </div>
+
+            {quickStartQuery.trim() === "" && (() => {
+              const recentDms = conversations
+                .filter((c): c is typeof c & { peerUid: string; lastMessage: NonNullable<typeof c["lastMessage"]> } =>
+                  c.type === "dm" && !!c.peerUid && !!c.lastMessage)
+                .sort((a, b) => b.lastMessage.at.localeCompare(a.lastMessage.at))
+                .slice(0, 5);
+              if (recentDms.length === 0) return null;
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em", margin: "0 2px 8px" }}>Sık Görüşülenler</div>
+                  <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+                    {recentDms.map((c, i, arr) => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setSheetOpen(false); openDirectMessage(c.peerUid, c.realm); }}
+                        style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
+                      >
+                        <div style={avatarBox(T.brand, 42)}>{initials(c.name || "?")}<PresenceDot signal={presenceMap.get(c.peerUid ?? "")} ring={T.card} /></div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{c.name}</div>
+                        </div>
+                        <Icon k="chev" size={18} color={T.chev} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {[
+              { title: "Personel", list: staffDirectory, realm: "staff" as const },
+              { title: "Öğrenciler", list: studentDirectory, realm: "trainer_student" as const },
+            ].map(({ title, list, realm }) => {
+              const q = quickStartQuery.trim().toLowerCase();
+              const rows = q ? list.filter((p) => p.name.toLowerCase().includes(q)) : list;
+              if (rows.length === 0) return null;
+              return (
+                <div key={title} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em", margin: "0 2px 8px" }}>{title}</div>
+                  <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+                    {rows.map((p, i, arr) => (
+                      <button
+                        key={p.uid}
+                        onClick={() => { setSheetOpen(false); openDirectMessage(p.uid, realm); }}
+                        style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < arr.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
+                      >
+                        <div style={avatarBox(T.brand, 42)}>{initials(p.name)}<PresenceDot signal={presenceMap.get(p.uid)} ring={T.card} /></div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{p.name}</div>
+                        </div>
+                        <Icon k="chev" size={18} color={T.chev} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <button onClick={() => setSheetOpen(false)} style={{ width: "calc(100% - 32px)", margin: "12px 16px 0", height: 48, border: `1px solid ${T.border}`, borderRadius: 14, background: T.card, color: T.text2, fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>Vazgeç</button>
         </div>
       </div>
 
