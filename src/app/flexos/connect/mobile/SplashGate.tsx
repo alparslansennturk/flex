@@ -58,7 +58,7 @@ export default function SplashGate({ children }: { children: React.ReactNode }) 
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
           >
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={systemDark ? "/assets/Mobile-Splash-Logo-White.svg" : "/assets/Mobile-Splash-Logo.svg"}
