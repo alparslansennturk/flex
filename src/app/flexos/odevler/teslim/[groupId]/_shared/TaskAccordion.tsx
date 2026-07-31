@@ -7,17 +7,11 @@ import { toast } from "sonner";
 import {
   ClipboardList, ChevronDown, Smile, Meh, RefreshCw, ArrowRight, FileText, ExternalLink, MoreHorizontal, Plus, Upload, X,
 } from "lucide-react";
-import { auth } from "@/app/lib/firebase";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 import { uploadAssignmentAttachment } from "../../../_shared/uploadAssignmentAttachment";
 import type { AssignmentStatus } from "../../../_shared/EditAssignmentModal";
 import type { AssignmentAttachment, AssignmentItem, SubmissionRow } from "./types";
 import { fmtEndDate, fmtCreatedAt } from "./format";
-
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export function TaskAccordion({ assignment, submissions, totalStudents, groupId, isActiveSection, initialOpen, onEdit, onAttachmentsChanged, onStatusChanged }: {
   assignment: AssignmentItem; submissions: SubmissionRow[]; totalStudents: number; groupId: string; isActiveSection: boolean; initialOpen?: boolean; onEdit: (a: AssignmentItem) => void; onAttachmentsChanged: (assignmentId: string, attachments: AssignmentAttachment[]) => void; onStatusChanged: (assignmentId: string, status: AssignmentStatus) => void;

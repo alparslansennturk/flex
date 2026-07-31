@@ -3,6 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { studentPrincipalFromRequest } from "@/app/lib/server/connect-principal";
 import { buildObjectPath, createSignedUploadUrl } from "@/app/lib/googlestorage";
 import { ALLOWED_MIME_TYPES, MAX_RESUMABLE_FILE_SIZE_BYTES, MAX_RESUMABLE_FILE_SIZE_LABEL } from "@/app/types/storage";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** bkz. mobildeki AYNI (personel) route'un gerekçesi — 2026-07-29. */
 export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
@@ -32,7 +33,6 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     const uploadUrl = await createSignedUploadUrl(objectPath, mimeType);
     return NextResponse.json({ uploadUrl, objectPath });
   } catch (e) {
-    console.error("[flexos/student/connect/conversations/:id/messages/attachment/sign]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/student/connect/conversations/[id]/messages/attachment/sign");
   }
 });

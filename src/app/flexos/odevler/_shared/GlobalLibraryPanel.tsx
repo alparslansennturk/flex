@@ -12,6 +12,7 @@ import { Sparkles, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { ASSIGNMENT_ICONS } from "./assignmentIcons";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface TemplateItem {
   id: string;
@@ -32,11 +33,6 @@ const ADD_TO_LIBRARY_ENDPOINT: Record<"kolaj" | "kitap" | "sosyal", string> = {
   sosyal: "/api/flexos/social-pool/add-to-library",
 };
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export default function GlobalLibraryPanel() {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);

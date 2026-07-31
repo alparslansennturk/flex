@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Edit2, Check, X, Smartphone, Loader2, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface SMBrand { id: string; brandName: string; brandRule: string; mainSector: string; subSector: string; purposes: string[] }
 interface SMSector { id: string; name: string; subSectors: string[] }
@@ -29,11 +30,6 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 const INPUT_CLS = "w-full h-9 px-3 text-[13px] font-medium border border-surface-200 rounded-xl bg-white outline-none focus:border-base-primary-400 transition-colors text-text-primary placeholder:text-surface-400";
 const LABEL_CLS = "block text-[12px] font-bold text-surface-700 mb-1";

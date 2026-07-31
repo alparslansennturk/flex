@@ -3,8 +3,8 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { createBranch, type CreateBranchInput } from "@/app/lib/domain/services/catalog-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** POST /api/flexos/branches — branş oluştur (gated `branch.create`). */
 export const POST = withAuth(async (req: NextRequest, caller) => {
@@ -17,10 +17,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     broadcast(actor.tenantId, { type: "educations.changed", id: branch.id });
     return NextResponse.json({ id: branch.id }, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/branches]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/branches");
   }
 });
 

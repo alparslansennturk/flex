@@ -54,16 +54,11 @@ import {
 import { AttachmentView } from "@/app/flexos/connect/_shared/AttachmentView";
 import { QUICK_REACTIONS, QUICK_EMOJIS } from "@/app/flexos/connect/_shared/EmojiPicker";
 import { usePresenceHeartbeat } from "@/app/flexos/connect/_shared/usePresenceHeartbeat";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 import { withTimeout, initials, fmtTime, fmtFileSize, dayKey, dividerLabel as dividerLabelBase, PresenceDot } from "@/app/flexos/connect/_shared/format";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
-
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 const dividerLabel = (iso: string) => dividerLabelBase(iso, false);
 

@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/app/lib/firebase";
 import { useGroupCatalog, type EducationDoc } from "./useGroupCatalog";
 import { type GroupApiItem, DAY_ABBR, formatSeansLabel } from "./groupDisplay";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 type EğitimTipi = "standart" | "ozel_ders" | "kurumsal";
 
@@ -72,12 +73,6 @@ export default function GroupFormSheet({ open, editingGroup, onClose, onSaved, p
   const [labOptions, setLabOptions] = useState<{ id: string; name: string }[]>([]);
 
   const isEditing = !!editingGroup;
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const { branches, educations, sections, seanslar, loadingEdu, loadingSec, isSectioned, setEducations, setSections } =
     useGroupCatalog(fBrans, fEğitim, open);

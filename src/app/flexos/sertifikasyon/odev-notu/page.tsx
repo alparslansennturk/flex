@@ -44,6 +44,7 @@ import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../siniflar/_shared/groupDisplay";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 import { GroupSelectPanel, groupColor, GROUP_COLORS, firstActiveGroupId } from "../_shared/GroupSelectPanel";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number; status?: string }
 interface AssignmentItem { id: string; title: string; dueDate?: string; status: string; maxPuan?: number; kind?: "normal" | "proje" }
@@ -83,11 +84,6 @@ function fmtDate(iso?: string): string {
   return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 // ── Dummy veri — kullanıcı isteği: gerçek veri yok/boşken (veya Firestore
 // bağlantı sorununda) sayfayı görsel olarak deneyebilmek için. Gerçek veri

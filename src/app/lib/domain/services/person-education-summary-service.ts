@@ -165,14 +165,18 @@ export async function getEducationSummaryForPerson(
     .filter((e) => !!e.groupId)
     .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 
-  const results: TrainingSummary[] = [];
   const subeler = new Set<string>();
   const holidayDates = expandHolidayDates(await deps.holidays.list(actor.tenantId));
   const officeMap = new Map((await deps.offices.list(actor.tenantId)).map((o) => [o.id, o.name]));
 
-  for (const enr of enrollments) {
+  // Enrollment başına ayrı ayrı sıralı await (grup/eğitim/yoklama/not — her enrollment
+  // için 4-6 round-trip) N+1 gecikme yaratıyordu — çok modüllü bir öğrencide (10+ enrollment)
+  // toplam gecikme enrollment sayısıyla doğru orantılı büyüyordu. Enrollment'lar birbirinden
+  // bağımsız olduğu için `Promise.all` ile PARALEL çalıştırılıyor — okuma SAYISI aynı kalır,
+  // toplam SÜRE en yavaş tekil enrollment'a düşer.
+  const perEnrollment = await Promise.all(enrollments.map(async (enr): Promise<TrainingSummary | null> => {
     const group = await deps.groups.getById(enr.groupId as string, actor.tenantId);
-    if (!group) continue;
+    if (!group) return null;
     if (group.branchOfficeId) {
       const officeLabel = officeMap.get(group.branchOfficeId);
       if (officeLabel) subeler.add(officeLabel);
@@ -181,7 +185,7 @@ export async function getEducationSummaryForPerson(
     const target = { groupId: group.id, ownerUid: group.trainerId };
     const canAttendance = can(actor, "attendance.read", target);
     const canGrade = can(actor, "grade.read", target);
-    if (!canAttendance && !canGrade) continue; // başka eğitmenin grubu — bu modülü hiç gösterme
+    if (!canAttendance && !canGrade) return null; // başka eğitmenin grubu — bu modülü hiç gösterme
 
     // `enr.educationId ?? group.educationId` — AYNI fallback deseni `enrollment-service.ts`'te
     // de kullanılıyor. GERÇEK BUG (2026-07-27): sadece `enr.educationId`'ye bakılıyordu, ama
@@ -257,7 +261,7 @@ export async function getEducationSummaryForPerson(
       group.schedule?.startDate, totalSessionsNeeded, group.schedule?.days ?? [], holidayDates,
     );
 
-    results.push({
+    return {
       enrollmentId: enr.id,
       groupId: group.id,
       groupCode: group.code,
@@ -270,8 +274,10 @@ export async function getEducationSummaryForPerson(
       estimatedEndDate,
       isOnlineStudent,
       attendance, certificate,
-    });
-  }
+    };
+  }));
+
+  const results = perEnrollment.filter((r): r is TrainingSummary => r !== null);
 
   return { items: results, poolStatus, subeler: [...subeler] };
 }

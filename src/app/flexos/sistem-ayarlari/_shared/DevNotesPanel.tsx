@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState, CSSProperties } from "react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
+import { authHeadersJson } from "@/app/lib/client/auth-headers";
 
 type Priority = "dusuk" | "orta" | "yuksek";
 type Status = "acik" | "cozuldu";
@@ -32,11 +33,6 @@ const PRIORITY_COLOR: Record<Priority, { bg: string; fg: string }> = {
   yuksek: { bg: "#FFECEC", fg: "#D93636" },
 };
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : "";
-  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-}
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -66,7 +62,7 @@ export default function DevNotesPanel() {
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       const res = await fetch("/api/flexos/dev-notes", { headers, signal });
       if (!res.ok) throw new Error("fetch failed");
       const json = await res.json();
@@ -104,7 +100,7 @@ export default function DevNotesPanel() {
     if (!fTitle.trim()) { toast.error("Başlık zorunlu."); return; }
     setSaving(true);
     try {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       if (editId) {
         const res = await fetch(`/api/flexos/dev-notes/${editId}`, {
           method: "PATCH", headers,
@@ -135,7 +131,7 @@ export default function DevNotesPanel() {
     setBusyId(n.id);
     setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, status: next } : x))); // optimistic
     try {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       const res = await fetch(`/api/flexos/dev-notes/${n.id}`, { method: "PATCH", headers, body: JSON.stringify({ status: next }) });
       if (!res.ok) throw new Error("patch failed");
     } catch {
@@ -151,7 +147,7 @@ export default function DevNotesPanel() {
     const id = deleteId;
     setDeleteId(null);
     try {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       const res = await fetch(`/api/flexos/dev-notes/${id}`, { method: "DELETE", headers });
       if (!res.ok) throw new Error("delete failed");
       setNotes((prev) => prev.filter((x) => x.id !== id));

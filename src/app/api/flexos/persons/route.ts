@@ -18,7 +18,6 @@ import { firestoreSaleRepo } from "@/app/lib/server/sale-repo.firestore";
 import { firestoreBundleRepo } from "@/app/lib/server/bundle-repo.firestore";
 import { createPerson, type CreatePersonInput } from "@/app/lib/domain/services/person-service";
 import { derivePaymentRollup } from "@/app/lib/domain/services/payment-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
 import type { Person } from "@/app/lib/domain/core/person";
@@ -36,6 +35,7 @@ const PERSONS_CACHE_TTL_MS = 20_000;
 import type { Enrollment } from "@/app/lib/domain/core/enrollment";
 import type { Payment } from "@/app/lib/domain/eduos/payment";
 import type { Sale } from "@/app/lib/domain/eduos/sale";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/persons — Öğrenci Havuzu listesi.
@@ -381,13 +381,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       { status: 201 },
     );
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/persons] beklenmeyen hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/persons");
   }
 });

@@ -33,6 +33,7 @@ import AttendanceCore from "../_shared/AttendanceCore";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 import { isoWeekday } from "../../siniflar/_shared/groupDisplay";
 import type { TrainerEarnings } from "@/app/lib/domain/services/trainer-earnings-service";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 function fmtTL(n: number) {
   return `${n.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL`;
@@ -110,11 +111,6 @@ function countWeekdaysInRange(start: string, end: string, weekDays: number[], ho
   return count;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 // ── Alt bileşenler ────────────────────────────────────────────────────────────
 
@@ -522,6 +518,12 @@ function ReportContent() {
     return groups.filter((g) => g.trainerId === selectedInstructorId).sort((a, b) => (b.schedule.startDate ?? "").localeCompare(a.schedule.startDate ?? ""));
   }, [groups, selectedInstructorId]);
 
+  // `selectedInstructorId` bilinçli dışarıda: `instructorGroups` zaten ona bağlı bir
+  // memo, o değişince bu da değişir. `selectedGroupHistory` da bilinçli dışarıda —
+  // "Detay →" tıklanınca elle null'lanıyor (bkz. aşağı), o yüzden buradaki `!selectedGroupHistory`
+  // kontrolü her yeni eğitmen seçiminde gerçekten tetiklenir (2026-07-28 GERÇEK BUG fix:
+  // eskiden reset edilmediği için ikinci bir eğitmenin detayı açılınca önceki eğitmenin
+  // grup geçmişi donuk kalıyordu).
   useEffect(() => {
     if (selectedInstructorId && instructorGroups.length > 0 && !selectedGroupHistory) setSelectedGroupHistory(instructorGroups[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -665,7 +667,16 @@ function ReportContent() {
                         </div>
                         <div className="w-36 shrink-0 hidden lg:block"><ProgressBar value={ins.actualDone} max={ins.planned} /></div>
                         <div className="w-16 shrink-0 flex justify-end">
-                          <button onClick={() => setSelectedInstructorId(ins.instructorId)} className="text-[12px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer">Detay →</button>
+                          <button
+                            onClick={() => {
+                              setSelectedInstructorId(ins.instructorId);
+                              setSelectedGroupHistory(null);
+                              setSelectedSession(null);
+                            }}
+                            className="text-[12px] font-semibold text-base-primary-600 hover:text-base-primary-800 transition-colors cursor-pointer"
+                          >
+                            Detay →
+                          </button>
                         </div>
                       </div>
                     ))

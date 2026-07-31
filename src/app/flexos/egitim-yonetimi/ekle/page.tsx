@@ -19,6 +19,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import FlexModal from "../../_components/FlexModal";
 import Footer from "@/app/components/layout/Footer";
+import { authHeadersJson } from "@/app/lib/client/auth-headers";
 import type { Track, Bolum, DayData, PriceRow, TabKey, FormState, PoolOpt } from "./_shared/types";
 import { INITIAL } from "./_shared/types";
 import { SYMBOLS, S, IC, TABS, tabStyle, tabNumStyle, globalCss } from "./_shared/constants";
@@ -473,12 +474,7 @@ export default function EgitimEklePage() {
     const r = s.priceRows.find((x) => x.key === key);
     return r && String(r.liste).trim() !== "" ? Number(r.liste) || 0 : null;
   };
-  const authHeaders = async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-  };
-
+  
   /** Eğitimi DB'ye yazar (yoksa oluşturur, varsa günceller). publish = satışa açık mı. */
   const saveEducation = async (publish: boolean): Promise<boolean> => {
     if (!s.egitimAdi.trim()) { toast.error("Eğitim adı zorunludur."); return false; }
@@ -486,7 +482,7 @@ export default function EgitimEklePage() {
     if (publish && !s.published && !canPublish) { toast.error("Satışa başlatmak için eksik: " + publishBlockers.join(", ")); return false; }
     setBusy(true);
     try {
-      const headers = await authHeaders();
+      const headers = await authHeadersJson();
       const audience = isKurumsal ? "corporate" : "individual";
       const structure = isBireysel && !yapiStd ? "sectioned" : "single";
       const outline = isBireysel && yapiStd && s.icerikMetni.trim() ? [s.icerikMetni] : undefined;

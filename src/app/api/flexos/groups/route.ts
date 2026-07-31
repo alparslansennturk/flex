@@ -8,9 +8,9 @@ import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firest
 import { firestoreEducationRepo, firestoreSectionRepo, firestoreTrackRepo, firestoreBranchRepo, firestoreBranchOfficeRepo, firestoreLabRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { createGroup, type CreateGroupInput } from "@/app/lib/domain/services/group-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { cachedRead, invalidateCache } from "@/app/lib/server/read-cache";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** Groups GET yanıtı ağır (6 koleksiyon) ve aynı mount'ta 3× + ~7 ekranda çağrılıyor.
  *  2026-07-14: en pahalı uç olduğu için (grup/enrollment) 5dk yerine kısa 1dk TTL —
@@ -44,14 +44,7 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     broadcast(actor.tenantId, { type: "groups.changed", id: group.id });
     return NextResponse.json({ id: group.id }, { status: 201 });
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/groups] beklenmeyen hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/groups");
   }
 });
 

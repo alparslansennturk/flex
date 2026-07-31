@@ -25,15 +25,11 @@ import { usePickingEngine } from "./usePickingEngine";
 import StudentPanel from "./StudentPanel";
 import { generateKolajPdf } from "./generateKolajPdf";
 import type { Student, StudentDraw, DrawResult, CollageItem } from "./types";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const CAT_ORDER = ["Gök", "Yer", "Obje 1", "Obje 2"] as const;
 const CARD_COLORS = ["#3a7bd5", "#689adf", "#5a9ed5", "#4a84c4"];
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 function DroppedCard({ draw, index }: { draw: DrawResult; index: number }) {
   const [dropped, setDropped] = useState(false);

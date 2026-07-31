@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import { FlexSpinner } from "../../_components/FlexSpinner";
 import { useCapabilities } from "../../_components/useCapabilities";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 import {
   type DisplayGroup, type GroupStatus,
   STATUS_MAP, BRANS_COLORS, BRANS_FALLBACK,
@@ -118,12 +119,6 @@ export default function GroupTable({ groups, loading, mode, onRowClick, onEdit, 
     const raf = requestAnimationFrame(() => setRevealed(true));
     return () => cancelAnimationFrame(raf);
   }, [loading]);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const patchStatus = async (id: string, domainStatus: string, okMsg: string) => {
     try {

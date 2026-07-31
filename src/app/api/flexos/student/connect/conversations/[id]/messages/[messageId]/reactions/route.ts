@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { studentPrincipalFromRequest } from "@/app/lib/server/connect-principal";
 import { connectDeps } from "@/app/lib/server/connect-deps";
 import { setMessageReaction } from "@/app/lib/domain/services/connect-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Promise<{ id: string; messageId: string }> }) => {
   const { id, messageId } = await ctx.params;
@@ -21,9 +21,6 @@ export const POST = withAuth(async (req: NextRequest, caller, ctx: { params: Pro
     await setMessageReaction(principal, id, messageId, body.emoji ?? null, connectDeps);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[student/connect/.../messages/:messageId/reactions POST] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/student/connect/conversations/[id]/messages/[messageId]/reactions");
   }
 });

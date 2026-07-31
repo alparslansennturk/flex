@@ -11,7 +11,7 @@ import {
   deleteFlexosUser,
   type UpdateFlexosUserInput,
 } from "@/app/lib/domain/services/flexos-user-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -68,10 +68,7 @@ export const PATCH = withAuth<Ctx>(async (req: NextRequest, caller, ctx) => {
     const user = await updateFlexosUser((await actorFromCaller(caller)), id, body, firestoreFlexosUserRepo, firestoreRoleDefRepo);
     return NextResponse.json({ id: user.id });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/users/:id PATCH]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/users/[id]");
   }
 });
 
@@ -89,9 +86,6 @@ export const DELETE = withAuth<Ctx>(async (_req: NextRequest, caller, ctx) => {
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/users/:id DELETE]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/users/[id]");
   }
 });

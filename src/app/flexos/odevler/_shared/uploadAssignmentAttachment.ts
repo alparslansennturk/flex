@@ -6,14 +6,8 @@
  * BİLEREK KALDIRILDI (kullanıcı kararı: eğitmen kendi ders materyalini yüklerken
  * öğrenci teslimindeki 250MB'a benzer bir tavana çarpmamalı).
  */
-import { auth } from "@/app/lib/firebase";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 import type { EditableAttachment } from "./EditAssignmentModal";
-
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export async function uploadAssignmentAttachment(
   assignmentId: string,

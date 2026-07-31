@@ -24,6 +24,7 @@ import type { GroupApiItem } from "@/app/flexos/siniflar/_shared/groupDisplay";
 import type { Attendance } from "@/app/lib/domain/core/attendance";
 import { calcEstimatedEndDate } from "@/app/lib/domain/services/schedule-calc";
 import type { TrainerEarnings } from "@/app/lib/domain/services/trainer-earnings-service";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 function fmtTL(n: number) {
   return `${n.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL`;
@@ -134,12 +135,6 @@ export default function AttendanceDetailList({ onGroupDetail, containerClassName
   const canSeeEarnings = caps.has("trainer.earnings.read");
   const [earnings, setEarnings] = useState<TrainerEarnings | null>(null);
   const [earningsBlurred, setEarningsBlurred] = useState(true);
-
-  const authHeaders = async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  };
 
   const [selectedMonth, setSelectedMonth] = useState(() => toMonthKey(new Date()));
   const [groups, setGroups] = useState<GroupApiItem[]>([]);

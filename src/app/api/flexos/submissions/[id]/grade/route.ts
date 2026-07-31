@@ -6,9 +6,9 @@ import { firestoreSubmissionRepo } from "@/app/lib/server/submission-repo.firest
 import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firestore";
 import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.firestore";
 import { gradeSubmission } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
 import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * PATCH /api/flexos/submissions/[id]/grade — gated (`submission.grade`).
@@ -36,9 +36,6 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     invalidateActivityLogCache(actor.tenantId);
     return NextResponse.json({ id: submission.id, grade: submission.grade });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/submissions/[id]/grade PATCH] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/submissions/[id]/grade");
   }
 });

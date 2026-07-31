@@ -36,6 +36,8 @@ import FlexHeader from "../../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import type { RosterItem } from "../../../siniflar/_shared/groupDisplay";
 import EditAssignmentModal, { type EditableAssignment } from "../../_shared/EditAssignmentModal";
+import { authHeaders } from "@/app/lib/client/auth-headers";
+import { toast } from "sonner";
 import type { AssignmentItem, SubmissionRow } from "./_shared/types";
 import { AssignmentsTab } from "./_shared/AssignmentsTab";
 
@@ -47,12 +49,6 @@ interface GroupInfo {
   educationName: string;
   trainerName: string;
   enrolled: number;
-}
-
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
 }
 
 export default function OdevTeslimiGroupPage() {
@@ -101,6 +97,8 @@ export default function OdevTeslimiGroupPage() {
         const data = await subRes.json() as { items: SubmissionRow[] };
         setSubmissions(data.items);
       }
+    } catch {
+      toast.error("Grup verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }

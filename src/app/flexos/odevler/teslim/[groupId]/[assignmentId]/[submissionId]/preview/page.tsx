@@ -22,6 +22,7 @@ import {
   Send, Download, FileText, MoreHorizontal, Pencil, Trash2,
 } from "lucide-react";
 import { auth, db } from "@/app/lib/firebase";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const PdfViewer = dynamic(() => import("@/app/components/shared/PdfViewer"), { ssr: false });
 const ExcelViewer = dynamic(() => import("@/app/components/shared/ExcelViewer"), { ssr: false });
@@ -59,11 +60,6 @@ function formatBytes(b: number) {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 function StudentAvatar({ name, size = 36 }: { name: string; size?: number }) {
   return (

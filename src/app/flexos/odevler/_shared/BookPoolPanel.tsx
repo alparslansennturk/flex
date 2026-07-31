@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Edit2, Check, X, ChevronLeft, ChevronRight, BookOpen, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface BookItem {
   id: string; bookId: string; title: string; author: string; genre: string; subGenre: string;
@@ -30,11 +31,6 @@ function formatDimensions(raw: string) {
   return raw.trim().replace(/\s*x\s*/gi, " x ");
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 const EMPTY_FIELDS: Omit<BookItem, "id"> = {
   bookId: "", isbn: "", title: "", author: "", publisher: "", pageCount: "", dimensions: "", genre: "", subGenre: "", backCover: "",

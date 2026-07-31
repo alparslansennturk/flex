@@ -27,6 +27,7 @@ import GroupTable from "./_shared/GroupTable";
 import GroupFormSheet from "./_shared/GroupFormSheet";
 import { type DisplayGroup, type GroupApiItem, toDisplayGroup } from "./_shared/groupDisplay";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 function SınıflarPageInner() {
   const router = useRouter();
@@ -54,12 +55,6 @@ function SınıflarPageInner() {
   }, []);
 
   const mainRef = useRef<HTMLElement>(null);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   // -- grup listesini gerçek API'den yükle --
   const loadGroups = useCallback(async (signal?: AbortSignal) => {

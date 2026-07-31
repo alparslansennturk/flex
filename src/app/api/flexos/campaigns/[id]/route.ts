@@ -7,7 +7,7 @@ import {
   deleteCampaign,
   type UpdateCampaignInput,
 } from "@/app/lib/domain/services/campaign-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** PATCH /api/flexos/campaigns/[id] — kampanya güncelle. */
 export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
@@ -25,10 +25,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     const campaign = await updateCampaign((await actorFromCaller(caller)), id, body, firestoreCampaignRepo);
     return NextResponse.json({ id: campaign.id });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/campaigns/:id PATCH]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/campaigns/[id]");
   }
 });
 
@@ -41,9 +38,6 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
     await deleteCampaign((await actorFromCaller(caller)), id, firestoreCampaignRepo);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/campaigns/:id DELETE]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/campaigns/[id]");
   }
 });

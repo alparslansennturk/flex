@@ -10,14 +10,22 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
+import { authHeaders } from "@/app/lib/client/auth-headers";
+
+// `recharts` (ağır kütüphane) sadece bu grafikler GERÇEKTEN render olunca yüklensin
+// diye dynamic import — `ssr:false` zaten gerekli (ResponsiveContainer tarayıcı
+// ölçümüne bağlı). `DonutRing` iki sayfada (bura + egitim-operasyon-anasayfa) birebir
+// aynı kopyaydı, tek yere çıkarıldı.
+const DonutRing = dynamic(() => import("../../_shared/charts/DonutRing"), { ssr: false });
+const KotaAreaChart = dynamic(() => import("../../_shared/charts/KotaAreaChart"), { ssr: false });
 
 // ── types (API şekilleri) ──
 interface SaleItem {
@@ -232,12 +240,6 @@ export default function SatisDashboardPage() {
     // TAMAMINA geriliyordu — "daha da aşağı gitti" bug'ının gerçek sebebi buydu).
   }, [initialLoadDone]);
 
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
-
   const loadAll = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
@@ -430,25 +432,7 @@ export default function SatisDashboardPage() {
                 <div style={{ position: "relative", width: 216, height: 216, flex: "0 0 auto" }}>
                   {/* Eski conic-gradient CSS halkası yerine animasyonlu Recharts Pie/donut — legend/skala/"Diğer"
                       popup mantığı (donut useMemo) hiç değişmedi, sadece görsel halka Recharts'a taşındı. */}
-                  <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 216, height: 216 }}>
-                    <PieChart>
-                      <Pie
-                        data={donut.pieData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={58}
-                        outerRadius={108}
-                        startAngle={90}
-                        endAngle={90 - 360 * revealProgress}
-                        paddingAngle={0}
-                        stroke="#fff"
-                        strokeWidth={2}
-                        isAnimationActive={false}
-                      >
-                        {donut.pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <DonutRing pieData={donut.pieData} revealProgress={revealProgress} />
                   <div style={{ position: "absolute", inset: 50, background: "#fff", borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 1px #F2F4F7", pointerEvents: "none" }}>
                     <div style={{ fontSize: 28, fontWeight: 800, color: "#1E222B", letterSpacing: "-.7px", lineHeight: 1 }}>{donutTotalAnimated}</div>
                     <div style={{ fontSize: 11, color: "#8E95A3", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>Aktif Kayıt</div>
@@ -736,40 +720,7 @@ function SatisKotasiCard({ chartData, bugunDelta, hedefTl, yapilanTl, kalanTl, t
           clipPath: `inset(0 ${(1 - revealProgress) * 100}% 0 0)`,
         }}
       >
-        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 240, height: compact ? 72 : 96 }}>
-          <AreaChart data={chartData} margin={{ top: 8, right: 4, bottom: 4, left: 4 }} onContextMenu={(_, e) => e.preventDefault()}>
-            <defs>
-              <linearGradient id="kotaFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6F74D8" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#6F74D8" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid horizontal vertical={false} stroke="#EEF0F3" />
-            <XAxis
-              dataKey="day"
-              type="number"
-              domain={[firstDay, lastDay]}
-              ticks={[firstDay, lastDay]}
-              tickFormatter={(d: number) => (d === firstDay ? "Ay başı" : "Bugün")}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 10.5, fill: "#8E95A3", fontWeight: 600 }}
-              tickMargin={6}
-            />
-            <YAxis hide domain={[0, maxValue]} />
-            <Area
-              type="monotone"
-              dataKey="gerceklesen"
-              stroke="#6F74D8"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="url(#kotaFill)"
-              dot={false}
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <KotaAreaChart chartData={chartData} firstDay={firstDay} lastDay={lastDay} maxValue={maxValue} compact={compact} />
       </div>
 
       <div style={{ marginTop: compact ? 8 : 14, paddingTop: compact ? 8 : 12, borderTop: "1px solid #F7F8FA", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>

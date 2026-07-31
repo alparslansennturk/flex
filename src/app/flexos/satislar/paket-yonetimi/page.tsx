@@ -8,6 +8,7 @@ import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { motion, AnimatePresence } from "framer-motion";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 /* ── Types ── */
 interface BundleItem {
@@ -91,11 +92,7 @@ export default function PaketYonetimiPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
-
+  
   const loadBundles = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {

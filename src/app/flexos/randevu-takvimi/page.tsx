@@ -23,6 +23,7 @@ import { FlexPageLoader } from "../_components/FlexSpinner";
 import { formatTrPhone } from "@/app/lib/phone";
 import { useRealtimeSync } from "../_shared/useRealtimeSync";
 import type { AppointmentMeetingType, AppointmentStatus } from "@/app/lib/domain/crm/appointment";
+import { authHeadersJson } from "@/app/lib/client/auth-headers";
 
 // ─── Sabitler ──────────────────────────────────────────────────────────────
 
@@ -165,12 +166,7 @@ export default function RandevuTakvimiPage() {
   const [meName, setMeName] = useState("Ben");
   const sorumluList = useMemo(() => Array.from(new Set([meName, ...SORUMLU_LIST])), [meName]);
 
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
-  }, []);
-
+  
   // Aktivite Merkezi ile AYNI isim çözümleme (Firebase displayName genelde boş).
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (user) => {
@@ -195,14 +191,14 @@ export default function RandevuTakvimiPage() {
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/flexos/appointments", { headers: await authHeaders() });
+      const res = await fetch("/api/flexos/appointments", { headers: await authHeadersJson() });
       if (!res.ok) return;
       const json = await res.json();
       setAppointments(json.items ?? []);
     } finally {
       setReady(true);
     }
-  }, [authHeaders]);
+  }, [authHeadersJson]);
   useEffect(() => { load(); }, [load]);
   useRealtimeSync(["activities.changed"], load);
 
@@ -254,7 +250,7 @@ export default function RandevuTakvimiPage() {
     try {
       if (editing) {
         const res = await fetch(`/api/flexos/appointments/${editing.id}`, {
-          method: "PATCH", headers: await authHeaders(),
+          method: "PATCH", headers: await authHeadersJson(),
           body: JSON.stringify({ scheduledAt, assignedToName: form.consultant, meetingType: form.meetingType, note: form.note.trim() || undefined }),
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Güncellenemedi.");
@@ -266,7 +262,7 @@ export default function RandevuTakvimiPage() {
         const firstName = words[0];
         const lastName = words.slice(1).join(" ") || "-";
         const casesRes = await fetch("/api/flexos/cases", {
-          method: "POST", headers: await authHeaders(),
+          method: "POST", headers: await authHeadersJson(),
           body: JSON.stringify({
             personData: { firstName, lastName, phone: form.phone.trim() || undefined },
             channel: "telefon", type: "satis_oncesi",
@@ -275,7 +271,7 @@ export default function RandevuTakvimiPage() {
         const casesJson = await casesRes.json().catch(() => ({}));
         if (!casesRes.ok) throw new Error(casesJson.error || "Aday kaydedilemedi.");
         const actRes = await fetch("/api/flexos/activities", {
-          method: "POST", headers: await authHeaders(),
+          method: "POST", headers: await authHeadersJson(),
           body: JSON.stringify({
             caseId: casesJson.id, type: "randevu",
             appointment: { scheduledAt, assignedToName: form.consultant, meetingType: form.meetingType, note: form.note.trim() || undefined },
@@ -307,7 +303,7 @@ export default function RandevuTakvimiPage() {
     setCancelling(true);
     try {
       const res = await fetch(`/api/flexos/appointments/${cancelId}`, {
-        method: "PATCH", headers: await authHeaders(), body: JSON.stringify({ status: "iptal" }),
+        method: "PATCH", headers: await authHeadersJson(), body: JSON.stringify({ status: "iptal" }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "İptal edilemedi.");
       toast.success("Randevu iptal edildi.");

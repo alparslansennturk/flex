@@ -5,8 +5,8 @@ import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firest
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { assignToGroup, removeFromGroup, setEnrollmentStatus } from "@/app/lib/domain/services/enrollment-service";
 import type { EnrollmentStatus } from "@/app/lib/domain/core/enrollment";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * PATCH /api/flexos/enrollments/[id] — ya gruba atar ya da durum değiştirir.
@@ -45,10 +45,7 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     broadcast(actor.tenantId, { type: "students.changed", id: enrollment.id });
     return NextResponse.json({ id: enrollment.id, groupId: enrollment.groupId });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/enrollments/:id PATCH]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/enrollments/[id]");
   }
 });
 
@@ -70,9 +67,6 @@ export const DELETE = withAuth(async (_req: NextRequest, caller, ctx: { params: 
     broadcast(actor.tenantId, { type: "students.changed", id: enrollment.id });
     return NextResponse.json({ id: enrollment.id, status: enrollment.status });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/enrollments/:id DELETE]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/enrollments/[id]");
   }
 });

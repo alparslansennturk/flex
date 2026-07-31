@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreEducationRepo, firestoreSectionRepo, firestoreTrackRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { syncEducationContent, type SyncContentSectionInput } from "@/app/lib/domain/services/catalog-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * PUT /api/flexos/educations/[id]/content
@@ -34,9 +34,6 @@ export const PUT = withAuth(async (req: NextRequest, caller, ctx: { params: Prom
       tracks: result.tracks.map((t) => ({ id: t.id, name: t.name, sectionId: t.sectionId, order: t.order })),
     });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/educations/:id/content]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/educations/[id]/content");
   }
 });

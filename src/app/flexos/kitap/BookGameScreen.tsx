@@ -23,14 +23,10 @@ import StudentPanel from "./StudentPanel";
 import BookCarousel, { useCarouselSize } from "./BookCarousel";
 import { generateKitapPdf } from "./generateKitapPdf";
 import type { Student, StudentDraw, BookItem } from "./types";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 const ACCENT = "#60a5fa";
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 function cn(...inputs: (string | false | null | undefined)[]) {
   return inputs.filter(Boolean).join(" ");

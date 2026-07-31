@@ -19,6 +19,8 @@ import {
 import StudentSidebar from "../_components/StudentSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../../_components/FlexHeader";
 import { ActivityFeed, type ActivityFeedItem } from "../../_components/ActivityFeed";
+import { authHeaders } from "@/app/lib/client/auth-headers";
+import { toast } from "sonner";
 
 /* ── Types ── */
 
@@ -85,11 +87,6 @@ const STATUS_META: Record<SubmissionStatus, { label: string; cls: string; icon: 
   retracted: { label: "Geri Çekildi", cls: "text-surface-400", icon: <Clock size={44} strokeWidth={1.4} className="text-surface-300" /> },
 };
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 /* ── Page ── */
 
@@ -134,6 +131,8 @@ export default function FlexosStudentDashboard() {
         const data = await activityRes.json() as { items: ActivityFeedItem[] };
         setActivityLog(data.items);
       }
+    } catch {
+      toast.error("Sayfa verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }

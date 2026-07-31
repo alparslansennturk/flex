@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import {
   Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
-  ChevronDown, Reply, Copy, Bell, BellOff, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore, Eraser,
+  ChevronDown, Reply, Copy, BellOff, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore, Eraser,
 } from "lucide-react";
 import { onMessage, getToken } from "firebase/messaging";
 import { auth, getMessagingIfSupported } from "@/app/lib/firebase";
@@ -50,17 +50,12 @@ import { AttachmentView } from "./_shared/AttachmentView";
 import { useCloseDropdownsOnOutsideClick } from "./_shared/useCloseDropdownsOnOutsideClick";
 import { computePopoverPosition, type PopoverPosition } from "./_shared/popoverPosition";
 import { usePresenceHeartbeat } from "./_shared/usePresenceHeartbeat";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 import { withTimeout, initials, fmtTime, fmtFileSize, dayKey, dividerLabel as dividerLabelBase, presenceLabel, PresenceDot } from "./_shared/format";
 
 const TYPING_TTL_MS = 6000;
 const TYPING_SEND_THROTTLE_MS = 2000;
 const dividerLabel = (iso: string) => dividerLabelBase(iso, true);
-
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface GroupItem { id: string; code: string; branch: string; enrolled: number }
 interface RosterItem { personId: string; authUid: string | null; name: string }
@@ -218,22 +213,18 @@ export default function FlexConnectPage() {
     fetchPushSettings().then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, []);
 
-  // Push yeniden-etkinleştirme banner'ı (2026-07-29) — İKİ FARKLI async
-  // "gerçekten abone mi" kontrolü canlı testte GÜVENİLMEZ çıktı (bkz. mobildeki
-  // AYNI fonksiyonun gerekçesi). Basitleştirildi: async abonelik kontrolü YOK,
-  // sadece `localStorage`'da bu TARAYICI ÖRNEĞİNİN daha önce gerçekten bir
-  // token kaydettiğine dair iz var mı bakılıyor (senkron, güvenilir).
-  const [showPushReenableBanner, setShowPushReenableBanner] = useState(false);
+  // Push yeniden-abonelik sessiz düzeltmesi (2026-07-29) — Masaüstünde ARTIK banner
+  // GÖSTERİLMİYOR (2026-07-31 kullanıcı kararı: "Desktop'ta bildirim bannerini kaldır,
+  // sadece Mobile'da kalsın") — ama stale durum düzeltmesi kaldı: `localStorage`'da
+  // bu TARAYICI ÖRNEĞİNİN daha önce gerçekten bir token kaydettiğine dair iz yoksa
+  // (ör. reinstall/profil temizliği) `notifPush` sessizce false'a çekilir, Ayarlar
+  // modalındaki anahtar bir sonraki açılışta gerçek durumu gösterir.
   useEffect(() => {
     if (!notifPush) return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     if (typeof Notification === "undefined") return;
-    // bkz. mobildeki AYNI fix'in gerekçesi — permission==="granted" ŞARTI
-    // ARANMIYOR (2026-07-29 canlı testte reinstall sonrası "default"a
-    // sıfırlandığı doğrulandı).
     if (localStorage.getItem("flexConnectPushToken")) return;
     setNotifPush(false);
-    setShowPushReenableBanner(true);
   }, [notifPush]);
 
   async function toggleNotifSound() {

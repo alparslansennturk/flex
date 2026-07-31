@@ -18,6 +18,7 @@ import Footer from "@/app/components/layout/Footer";
 import GroupCard from "../_components/GroupCard";
 import type { GroupApiItem } from "../../siniflar/_shared/groupDisplay";
 import { mapStatus } from "../../siniflar/_shared/groupDisplay";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface AssignmentItem {
   id: string;
@@ -25,11 +26,6 @@ interface AssignmentItem {
   status: string;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export default function OdevTeslimiPage() {
   const router = useRouter();

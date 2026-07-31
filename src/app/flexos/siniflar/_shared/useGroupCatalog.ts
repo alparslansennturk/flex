@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { auth } from "@/app/lib/firebase";
 import type { SeansDoc } from "./groupDisplay";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 export interface BranchDoc { id: string; name: string; order?: number }
 export interface EducationDoc {
@@ -26,12 +27,6 @@ export function useGroupCatalog(branchId: string, educationId: string, enabled: 
   const [seanslar, setSeanslar] = useState<SeansDoc[]>([]);
   const [loadingEdu, setLoadingEdu] = useState(false);
   const [loadingSec, setLoadingSec] = useState(false);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   // -- branş listesi + seans kütüphanesi: bir kez --
   useEffect(() => {

@@ -6,7 +6,7 @@ import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreAttendanceRepo } from "@/app/lib/server/attendance-repo.firestore";
 import { firestoreSettingsRepo } from "@/app/lib/server/settings-repo.firestore";
 import { getMyTrainerEarnings } from "@/app/lib/domain/services/trainer-earnings-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/trainers/me/earnings?month=YYYY-MM — çağıranın KENDİ aylık hak edişi.
@@ -26,9 +26,6 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
     });
     return NextResponse.json(earnings);
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/trainers/me/earnings GET]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/trainers/me/earnings");
   }
 });

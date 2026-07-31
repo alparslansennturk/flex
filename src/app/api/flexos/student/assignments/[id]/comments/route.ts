@@ -6,7 +6,7 @@ import { firestorePersonRepo } from "@/app/lib/server/person-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { firestoreCommentRepo } from "@/app/lib/server/comment-repo.firestore";
 import { listGeneralCommentsForStudent } from "@/app/lib/domain/services/comment-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /** GET /api/flexos/student/assignments/[id]/comments?personId=... — genel duyurular (öğrenci, salt-okunur). */
 export const GET = withAuth(async (req: NextRequest, caller, ctx: { params: Promise<{ id: string }> }) => {
@@ -23,9 +23,6 @@ export const GET = withAuth(async (req: NextRequest, caller, ctx: { params: Prom
     });
     return NextResponse.json({ items });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/student/assignments/[id]/comments GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/student/assignments/[id]/comments");
   }
 });

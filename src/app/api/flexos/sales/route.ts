@@ -10,8 +10,8 @@ import { firestoreEducationRepo, firestoreBranchRepo, firestoreBranchOfficeRepo 
 import { firestoreBundleRepo } from "@/app/lib/server/bundle-repo.firestore";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { createSale, type CreateSaleInput } from "@/app/lib/domain/services/sale-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/sales — satış listesi.
@@ -117,13 +117,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       { status: 201 },
     );
   } catch (e) {
-    if (e instanceof ForbiddenError) {
-      return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    }
-    if (e instanceof ValidationError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    console.error("[flexos/sales] beklenmeyen hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/sales");
   }
 });

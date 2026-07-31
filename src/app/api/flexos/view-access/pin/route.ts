@@ -3,7 +3,7 @@ import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { firestoreViewPinRepo } from "@/app/lib/server/view-pin-repo.firestore";
 import { setViewPin } from "@/app/lib/domain/services/view-access-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * POST /api/flexos/view-access/pin — PIN kurar/değiştirir (kurulum ve değişiklik aynı).
@@ -21,9 +21,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     await setViewPin(actor, { newPin: body.newPin }, firestoreViewPinRepo);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/view-access/pin POST]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/view-access/pin");
   }
 });

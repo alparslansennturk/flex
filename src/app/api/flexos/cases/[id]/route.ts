@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/app/lib/with-auth";
 import { actorFromCaller } from "@/app/lib/server/auth-actor";
 import { can } from "@/app/lib/domain/access/can";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
 import { firestoreCaseRepo } from "@/app/lib/server/case-repo.firestore";
 import { firestoreActivityRepo } from "@/app/lib/server/activity-repo.firestore";
 import { updateCase, type UpdateCaseInput } from "@/app/lib/domain/services/case-service";
 import { broadcast } from "@/app/lib/server/realtime-hub";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * GET /api/flexos/cases/[id] — tekil talep + aktivite zaman çizelgesi.
@@ -44,9 +44,6 @@ export const PATCH = withAuth(async (req: NextRequest, caller, ctx: { params: Pr
     broadcast(actor.tenantId, { type: "activities.changed", id: updated.id });
     return NextResponse.json({ id: updated.id, status: updated.status });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/cases/[id] PATCH]", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/cases/[id]");
   }
 });

@@ -7,7 +7,7 @@ import { firestoreSubmissionFileRepo } from "@/app/lib/server/submission-file-re
 import { submissionDrive } from "@/app/lib/server/submission-drive";
 import { submissionStorage } from "@/app/lib/server/submission-storage";
 import { deleteFileAsStaff } from "@/app/lib/domain/services/submission-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 /**
  * DELETE /api/flexos/submissions/[id]/files/[fileId] — gated (`submission.status.write`).
@@ -29,9 +29,6 @@ export const DELETE = withAuth(async (req: NextRequest, caller, ctx: { params: P
     });
     return NextResponse.json({ success: true });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/submissions/[id]/files/[fileId] DELETE] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/submissions/[id]/files/[fileId]");
   }
 });

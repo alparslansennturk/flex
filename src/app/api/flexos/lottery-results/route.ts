@@ -6,7 +6,7 @@ import { firestoreAssignmentRepo } from "@/app/lib/server/assignment-repo.firest
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
 import { getLotteryResult, saveDraw, type SaveDrawInput } from "@/app/lib/domain/services/lottery-service";
-import { ForbiddenError, ValidationError } from "@/app/lib/domain/errors";
+import { apiError } from "@/app/lib/server/api-error";
 
 const deps = {
   results: firestoreLotteryResultRepo,
@@ -24,10 +24,7 @@ export const GET = withAuth(async (req: NextRequest, caller) => {
     const result = await getLotteryResult((await actorFromCaller(caller)), assignmentId, deps);
     return NextResponse.json({ result });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/lottery-results GET] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/lottery-results");
   }
 });
 
@@ -44,9 +41,6 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
     const result = await saveDraw((await actorFromCaller(caller)), body, deps);
     return NextResponse.json({ result });
   } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message, capability: e.capability }, { status: 403 });
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
-    console.error("[flexos/lottery-results POST] hata:", e);
-    return NextResponse.json({ error: "Sunucu hatası." }, { status: 500 });
+    return apiError(e, "flexos/lottery-results");
   }
 });

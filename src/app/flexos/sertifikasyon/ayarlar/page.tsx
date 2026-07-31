@@ -27,6 +27,7 @@ import { auth } from "@/app/lib/firebase";
 import FlexSidebar from "../../_components/FlexSidebar";
 import FlexHeader from "../../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface Weighting { odevAktif: boolean; sertifikaPct: number }
 type CertTab = "project" | "exam";
@@ -48,11 +49,6 @@ const PRESETS = [
   { label: "%50 / %50", pct: 50 },
 ];
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 export default function SertifikaAyarlariPage() {
   const [activeTab, setActiveTab] = useState<CertTab>("project");

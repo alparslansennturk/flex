@@ -14,6 +14,7 @@ import { auth } from "@/app/lib/firebase";
 import { FlexSpinner } from "../../_components/FlexSpinner";
 import { formatTrPhone } from "@/app/lib/phone";
 import { type RosterItem, fmtTrDate, initials, avatarStyle } from "./groupDisplay";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 interface RosterGroupRef { id: string; kod: string; eğitim: string; şube?: string; dolu: number; kontenjan: number }
 
@@ -33,12 +34,6 @@ export default function RosterDrawer({ group, onClose, canManage, onChanged }: R
   const [rEposta, setREposta] = useState("");
   const [rSaving, setRSaving] = useState(false);
   const [removeId, setRemoveId] = useState<string | null>(null);
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const load = useCallback(async (groupId: string) => {
     setLoading(true);

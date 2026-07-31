@@ -20,6 +20,7 @@ import Footer from "@/app/components/layout/Footer";
 import { useRealtimeSync } from "../../_shared/useRealtimeSync";
 import { useCapabilities } from "../../_components/useCapabilities";
 import { StudentDetailTabsPanel } from "../../ogrenciler/_shared/StudentDetailTabsPanel";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 
 // Öğrenciye tıklayınca detay paneli sağdan kayarak açılır — Yoklama Detay
 // (`yoklama/detay/page.tsx`) ve Sertifika Notu ile AYNI "liste↔detay kayması"
@@ -157,12 +158,6 @@ export default function SatisListePage() {
   const [showStudentPanel, setShowStudentPanel] = useState(false);
   const [panelPersonId, setPanelPersonId] = useState<string | null>(null);
   const openStudentPanel = (personId: string) => { setPanelPersonId(personId); setShowStudentPanel(true); };
-
-  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const u = auth.currentUser;
-    const token = u ? await u.getIdToken() : "";
-    return { Authorization: `Bearer ${token}` };
-  }, []);
 
   const loadSales = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);

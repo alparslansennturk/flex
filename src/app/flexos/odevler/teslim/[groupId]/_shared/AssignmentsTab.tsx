@@ -3,17 +3,11 @@
 import { useState } from "react";
 import { BookOpen } from "lucide-react";
 import { toast } from "sonner";
-import { auth } from "@/app/lib/firebase";
+import { authHeaders } from "@/app/lib/client/auth-headers";
 import type { AssignmentStatus } from "../../../_shared/EditAssignmentModal";
 import type { AssignmentAttachment, AssignmentItem, SubmissionRow } from "./types";
 import { fmtEndDate } from "./format";
 import { TaskAccordion } from "./TaskAccordion";
-
-async function authHeaders(): Promise<Record<string, string>> {
-  const u = auth.currentUser;
-  const token = u ? await u.getIdToken() : "";
-  return { Authorization: `Bearer ${token}` };
-}
 
 type Filter = "all" | "active" | "completed" | "archived";
 
