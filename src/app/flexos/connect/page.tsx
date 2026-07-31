@@ -1478,7 +1478,11 @@ export default function FlexConnectPage() {
                                 {m.text && <span style={{ display: "block", fontSize: 14, lineHeight: 1.5, color: "#26303D", fontWeight: 450, marginTop: 6 }}>{m.text}</span>}
                                 <span className="flex items-center justify-end gap-1" style={{ fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", marginTop: 3, whiteSpace: "nowrap" }}>
                                   {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
-                                  {m.isMine && (m.readByAll ? <CheckCheck size={14} strokeWidth={2.6} color="#16A34A" /> : m.deliveredByAll ? <CheckCheck size={14} strokeWidth={2.6} color="#4B5563" /> : <Check size={14} strokeWidth={2.6} color="#4B5563" />)}
+                                  {m.isMine && (
+                                    <span className="group-hover:opacity-0 transition-opacity">
+                                      {m.readByAll ? <CheckCheck size={14} strokeWidth={2.6} color="#16A34A" /> : m.deliveredByAll ? <CheckCheck size={14} strokeWidth={2.6} color="#4B5563" /> : <Check size={14} strokeWidth={2.6} color="#4B5563" />}
+                                    </span>
+                                  )}
                                 </span>
                               </>
                             ) : (
@@ -1490,7 +1494,11 @@ export default function FlexConnectPage() {
                                 {m.text}
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10.5, fontWeight: 600, color: m.isMine ? "#8AA6D8" : "#A2A8B2", whiteSpace: "nowrap", verticalAlign: "bottom" }}>
                                   {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}
-                                  {m.isMine && (m.readByAll ? <CheckCheck size={14} strokeWidth={2.6} color="#16A34A" /> : m.deliveredByAll ? <CheckCheck size={14} strokeWidth={2.6} color="#4B5563" /> : <Check size={14} strokeWidth={2.6} color="#4B5563" />)}
+                                  {m.isMine && (
+                                    <span className="group-hover:opacity-0 transition-opacity">
+                                      {m.readByAll ? <CheckCheck size={14} strokeWidth={2.6} color="#16A34A" /> : m.deliveredByAll ? <CheckCheck size={14} strokeWidth={2.6} color="#4B5563" /> : <Check size={14} strokeWidth={2.6} color="#4B5563" />}
+                                    </span>
+                                  )}
                                 </span>
                               </span>
                             )}
