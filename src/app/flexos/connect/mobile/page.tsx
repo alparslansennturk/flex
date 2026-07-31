@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion, useMotionValue, animate } from "framer-motion";
+import { motion, useMotionValue, animate, AnimatePresence } from "framer-motion";
 import {
   signOut, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence,
   reauthenticateWithCredential, EmailAuthProvider, updatePassword,
@@ -70,7 +70,7 @@ const ICONS: Record<string, string> = {
   chat: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/>',
   channel: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
   group: '<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>',
-  community: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  community: '<circle cx="5.5" cy="7" r="2.5"/><path d="M2 19.5v-.8a3.5 3.5 0 0 1 3.5-3.5"/><circle cx="18.5" cy="7" r="2.5"/><path d="M22 19.5v-.8a3.5 3.5 0 0 0-3.5-3.5"/><circle cx="12" cy="8" r="3.3"/><path d="M7 20v-1a5 5 0 0 1 10 0v1"/>',
   cap: '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   bellOff: '<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" x2="23" y1="1" y2="23"/>',
@@ -1318,7 +1318,7 @@ export default function FlexConnectMobile() {
   return (
     <div className="fc-shell-ios-fill" style={shellStyle}>
       {authUser === null && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: isIOS ? T.bg : T.bg2 }}>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: "8px 26px 20px", paddingTop: "max(8px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))", background: T.bg }}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <div style={{ width: 60, height: 60, borderRadius: 18, background: "#2867bd", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 14px 30px -12px rgba(40,103,189,.6)", marginBottom: 26 }}>
               <Icon k="chat" size={30} sw={2.1} color="#fff" />
@@ -1769,15 +1769,15 @@ export default function FlexConnectMobile() {
               : [
                   { k: "chats" as Tab, l: "Sohbetler", icon: "chat" },
                   { k: "channels" as Tab, l: "Kanallar", icon: "channel" },
-                  { k: "groups" as Tab, l: "Gruplar", icon: "group" },
                   { k: "communities" as Tab, l: "Topluluklar", icon: "community" },
+                  { k: "groups" as Tab, l: "Gruplar", icon: "group" },
                   { k: "settings" as Tab, l: "Ayarlar", icon: "settings" },
                 ]
             ).map((b, _i, arr) => {
               const active = tab === b.k;
               const compact = arr.length >= 5;
               return (
-                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: compact ? 3 : 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
+                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: compact ? 3 : 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
                   <Icon k={b.icon} size={compact ? 24 : 28} sw={active ? 2.1 : 1.8} />
                   <span style={{ fontSize: compact ? 10 : 10.5, fontWeight: active ? 800 : 600 }}>{b.l}</span>
                 </button>
@@ -1917,7 +1917,7 @@ export default function FlexConnectMobile() {
                                 {m.attachments!.map((a) => (
                                   <AttachmentView key={a.driveFileId} attachment={a} fmtFileSize={fmtFileSize} marginTop={0} dark={dark} />
                                 ))}
-                                {m.text && <span style={{ display: "block", fontSize: 16, lineHeight: 1.45, color: T.text, fontWeight: 450, marginTop: 6 }}>{m.text}</span>}
+                                {m.text && <span style={{ display: "block", fontSize: 17, lineHeight: 1.45, color: T.text, fontWeight: 500, marginTop: 6 }}>{m.text}</span>}
                                 <span style={{ display: "block", textAlign: "right", fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, marginTop: 2 }}>
                                   {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (
                                     <span style={{ color: m.readByAll ? (dark ? "#7FA9EC" : "#2867bd") : undefined }}>
@@ -1929,7 +1929,7 @@ export default function FlexConnectMobile() {
                             ) : (
                               // Metin+saat AYNI satır akışında (2026-07-20, WhatsApp gibi) — masaüstüyle
                               // AYNI teknik: saat "inline-flex" bir birim olarak metnin peşine eklenir.
-                              <span style={{ fontSize: 16, lineHeight: 1.6, color: T.text, fontWeight: 450 }}>
+                              <span style={{ fontSize: 17, lineHeight: 1.6, color: T.text, fontWeight: 500 }}>
                                 {m.text}
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 16, fontSize: 10, fontWeight: 600, color: m.isMine ? (dark ? "#7FA9EC" : "#8AA6D8") : T.muted, whiteSpace: "nowrap", verticalAlign: "bottom" }}>
                                   {m.editedAt && "Düzenlendi · "}{fmtTime(m.createdAt)}{m.isMine && (
@@ -2042,7 +2042,7 @@ export default function FlexConnectMobile() {
             <div ref={bottomRef} />
           </div>
 
-          <div style={{ flex: "0 0 auto", padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", background: T.topBar }}>
+          <div style={{ flex: "0 0 auto", padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", background: T.bg }}>
             {editingMessageId && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", marginBottom: 6, borderRadius: 10, background: T.brandBg }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: T.brand }}>Mesajı düzenliyorsun</span>
@@ -2506,11 +2506,18 @@ export default function FlexConnectMobile() {
       )}
 
       {/* ============ BOTTOM SHEET ============ */}
-      <div
-        onClick={() => setSheetOpen(false)}
-        style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", background: "rgba(10,15,25,.45)", opacity: sheetOpen ? 1 : 0, visibility: sheetOpen ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}
-      >
-        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: "82vh", display: "flex", flexDirection: "column", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 0", paddingBottom: "max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)", transform: sheetOpen ? "translateY(0)" : "translateY(30px)", transition: "transform .3s cubic-bezier(.2,.8,.3,1)" }}>
+      <AnimatePresence>
+        {sheetOpen && (
+          <motion.div
+            key="sheet-backdrop"
+            onClick={() => setSheetOpen(false)}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+            style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", background: "rgba(10,15,25,.45)" }}
+          >
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 380, damping: 38 }}
+              style={{ width: "100%", maxHeight: "82vh", display: "flex", flexDirection: "column", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 0", paddingBottom: "max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)" }}>
           <div style={{ width: 40, height: 5, borderRadius: 999, background: dark ? "#33405A" : "#D4D8DF", margin: "0 auto 8px", flex: "0 0 auto" }} />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 10px", flex: "0 0 auto" }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: T.text, letterSpacing: "-.3px" }}>Yeni Sohbet Başlat</div>
@@ -2614,16 +2621,25 @@ export default function FlexConnectMobile() {
               );
             })}
           </div>
-        </div>
-      </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Presence durum seçici (2026-07-20) — SADECE personel, "Yeni Oluştur"
           sheet'iyle AYNI bottom-sheet görsel dili. */}
-      <div
-        onClick={() => setPresenceSheetOpen(false)}
-        style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", background: "rgba(10,15,25,.45)", opacity: presenceSheetOpen ? 1 : 0, visibility: presenceSheetOpen ? "visible" : "hidden", transition: "opacity .24s ease, visibility .24s ease" }}
-      >
-        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 26px", paddingBottom: "max(26px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)", transform: presenceSheetOpen ? "translateY(0)" : "translateY(30px)", transition: "transform .3s cubic-bezier(.2,.8,.3,1)" }}>
+      <AnimatePresence>
+        {presenceSheetOpen && (
+          <motion.div
+            key="presence-sheet-backdrop"
+            onClick={() => setPresenceSheetOpen(false)}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+            style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", background: "rgba(10,15,25,.45)" }}
+          >
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 380, damping: 38 }}
+              style={{ width: "100%", background: T.bg2, borderRadius: "26px 26px 0 0", padding: "8px 0 26px", paddingBottom: "max(26px, env(safe-area-inset-bottom))", boxShadow: "0 -18px 50px -12px rgba(10,15,25,.4)" }}>
           <div style={{ width: 40, height: 5, borderRadius: 999, background: dark ? "#33405A" : "#D4D8DF", margin: "0 auto 8px" }} />
           <div style={{ fontSize: 16, fontWeight: 800, color: T.text, padding: "6px 18px 10px", letterSpacing: "-.3px" }}>Durumun</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 16px 8px" }}>
@@ -2650,8 +2666,10 @@ export default function FlexConnectMobile() {
               </button>
             ))}
           </div>
-        </div>
-      </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style jsx global>{`
         @keyframes fcType { 0%,60%,100% { transform: translateY(0); opacity:.5; } 30% { transform: translateY(-3px); opacity:1; } }
