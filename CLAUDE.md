@@ -4,7 +4,7 @@ Bu projede **iki paralel iş** yürür. Aksi belirtilmedikçe **varsayılan bağ
 
 | İş | Defter | Ne zaman |
 |----|--------|----------|
-| **Yeni mimari (VARSAYILAN)** — sıfırdan modüler inşa (Person≠Enrollment, capability modeli) | `FLEXOS.md` · kod: `src/app/lib/domain/` · branch: `flexos` | Varsayılan — her iş |
+| **Yeni mimari (VARSAYILAN)** — sıfırdan modüler inşa (Person≠Enrollment, capability modeli) | `FLEXOS.md` · kod: `src/app/lib/domain/` · branch: `main` (2026-07-31'den beri TEK branch — bkz. `FLEXOS.md`'deki branch birleştirme notu; `flexos` donuk/arşiv, `legacy-v1` eski sistemin donmuş yedeği) | Varsayılan — her iş |
 | **Canlı trainer uygulaması** — yoklama, not, ödev, bug, UI | `FLEX_CORE_LOG.md` (günlük) + `FLEX_CORE_LORE.md` (bugünkü sistemin teknik referansı) | SADECE kullanıcı açıkça "canlı uygulama / yoklama / mevcut sistem" derse |
 
 ## Çalışma kuralları
