@@ -63,7 +63,7 @@ interface RosterItem { personId: string; authUid: string | null; name: string }
 const dividerLabel = (iso: string) => dividerLabelBase(iso, false);
 
 type Screen = "app" | "chat" | "create" | "notif" | "help" | "password" | "starred" | "archive" | "legal" | "legal-kvkk";
-type Tab = "chats" | "channels" | "staff" | "settings";
+type Tab = "chats" | "channels" | "groups" | "communities" | "staff" | "settings";
 type ThemePref = "light" | "dark" | "system";
 
 const ICONS: Record<string, string> = {
@@ -1221,6 +1221,11 @@ export default function FlexConnectMobile() {
   const chatRows = (cq ? conversations.filter((c) => c.name.toLocaleLowerCase("tr").includes(cq)) : conversations).filter((c) => !c.archived);
 
   interface ChannelSection { title: string; iconKey: string; tone: string; items: ConversationView[] }
+  // Öğrenci tarafında bottom nav 4 sekme (5. sekmeye yer yok, "+" da öğrencide
+  // hiç gösterilmiyor) — bu yüzden öğrencinin TEK "Kanallar" sekmesi kanal/grup/
+  // topluluğu birlikte gösterir. Personel tarafında ise 2026-07-31 kullanıcı
+  // kararıyla (Kanallar kavramsal olarak Grupları içermez) her biri ayrı sekme:
+  // aşağıdaki `channelOnlySections`/`groupOnlySections`/`communityRows`.
   const channelSections: ChannelSection[] = [
     { title: "Kurum Duyuruları", iconKey: "channel", tone: "#2867bd", items: conversations.filter((c) => c.type === "channel" && c.realm === "staff" && !c.archived) },
     { title: "Öğrenci İşleri", iconKey: "shield", tone: "#B45309", items: conversations.filter((c) => c.type === "channel" && c.realm === "trainer_student" && !c.archived) },
@@ -1228,6 +1233,9 @@ export default function FlexConnectMobile() {
     { title: "Personel Grupları", iconKey: "group", tone: "#D66500", items: conversations.filter((c) => c.type === "group" && c.realm === "staff" && !c.archived) },
     { title: "Topluluklar", iconKey: "community", tone: "#6C5CE7", items: conversations.filter((c) => c.type === "community" && !c.archived) },
   ].filter((sec) => sec.items.length > 0);
+  const channelOnlySections: ChannelSection[] = channelSections.filter((sec) => sec.title === "Kurum Duyuruları" || sec.title === "Öğrenci İşleri");
+  const groupOnlySections: ChannelSection[] = channelSections.filter((sec) => sec.title === "Sınıf Kanalları" || sec.title === "Personel Grupları");
+  const communityRows = conversations.filter((c) => c.type === "community" && !c.archived);
 
   const sq = staffQuery.trim().toLocaleLowerCase("tr");
   const staffTabSource = staffTabView === "staff" ? staffDirectory : studentDirectory;
@@ -1432,7 +1440,9 @@ export default function FlexConnectMobile() {
             </motion.div>
           )}
 
-          {tab === "channels" && (
+          {tab === "channels" && (() => {
+            const activeSections = studentPersonId ? channelSections : channelOnlySections;
+            return (
             <motion.div key="channels" style={screenColStyle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: "easeOut" }}>
               <div style={topBarStyle}>
                 <div>
@@ -1442,8 +1452,8 @@ export default function FlexConnectMobile() {
                 {!studentPersonId && <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>}
               </div>
               <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
-                {channelSections.length === 0 && !loadingList && <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz kanal/grup/topluluk yok.</p>}
-                {channelSections.map((sec) => (
+                {activeSections.length === 0 && !loadingList && <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz kanal yok.</p>}
+                {activeSections.map((sec) => (
                   <div key={sec.title} style={{ marginBottom: 22 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                       <span style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: sec.tone + "22", color: sec.tone }}><Icon k={sec.iconKey} size={17} sw={2.1} /></span>
@@ -1473,6 +1483,92 @@ export default function FlexConnectMobile() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </motion.div>
+            );
+          })()}
+
+          {tab === "groups" && (
+            <motion.div key="groups" style={screenColStyle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: "easeOut" }}>
+              <div style={topBarStyle}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
+                  <h1 style={topTitleStyle}>Gruplar</h1>
+                </div>
+                <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
+                {groupOnlySections.length === 0 && !loadingList && <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz grup yok.</p>}
+                {groupOnlySections.map((sec) => (
+                  <div key={sec.title} style={{ marginBottom: 22 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <span style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: sec.tone + "22", color: sec.tone }}><Icon k={sec.iconKey} size={17} sw={2.1} /></span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".05em" }}>{sec.title}</span>
+                    </div>
+                    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+                      {sec.items.map((c, i) => (
+                        <button
+                          key={c.id} onClick={() => openChat(c.id)}
+                          style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < sec.items.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
+                        >
+                          <div style={{ width: 42, height: 42, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: c.unreadCount ? T.brandBg : (dark ? T.card2 : "#EEF1F5"), color: c.unreadCount ? T.brand : T.text2 }}>
+                            <Icon k={iconFor(c.type, sec.iconKey === "cap" ? sec.iconKey : c.type)} size={20} sw={2} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                              <span style={{ fontSize: 11, fontWeight: c.unreadCount ? 700 : 500, color: c.unreadCount ? T.brand : T.muted, flex: "0 0 auto" }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 2 }}>
+                              <span style={{ fontSize: 12.5, fontWeight: 500, color: T.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage ? `${c.lastMessage.senderName}: ${c.lastMessage.text}` : "Henüz mesaj yok"}</span>
+                              {c.unreadCount > 0 && <span style={{ minWidth: 19, height: 19, padding: "0 6px", borderRadius: 999, background: T.brand, color: "#fff", fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{c.unreadCount}</span>}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {tab === "communities" && (
+            <motion.div key="communities" style={screenColStyle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: "easeOut" }}>
+              <div style={topBarStyle}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: T.brand }}>Flex Connect</div>
+                  <h1 style={topTitleStyle}>Topluluklar</h1>
+                </div>
+                <button onClick={() => { setQuickStartQuery(""); setSheetOpen(true); }} style={topAddBtnStyle}><Icon k="plus" size={20} sw={2.3} /></button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 16px" }}>
+                {communityRows.length === 0 && !loadingList ? (
+                  <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.muted }}>Henüz topluluk yok.</p>
+                ) : (
+                  <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+                    {communityRows.map((c, i) => (
+                      <button
+                        key={c.id} onClick={() => openChat(c.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 13px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderBottom: i < communityRows.length - 1 ? `1px solid ${T.border2}` : "none", textAlign: "left" }}
+                      >
+                        <div style={{ width: 42, height: 42, borderRadius: 12, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: c.unreadCount ? T.brandBg : (dark ? T.card2 : "#EEF1F5"), color: c.unreadCount ? T.brand : T.text2 }}>
+                          <Icon k="community" size={20} sw={2} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                            <span style={{ fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                            <span style={{ fontSize: 11, fontWeight: c.unreadCount ? 700 : 500, color: c.unreadCount ? T.brand : T.muted, flex: "0 0 auto" }}>{c.lastMessage ? fmtTime(c.lastMessage.at) : ""}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 2 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 500, color: T.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage ? `${c.lastMessage.senderName}: ${c.lastMessage.text}` : "Henüz mesaj yok"}</span>
+                            {c.unreadCount > 0 && <span style={{ minWidth: 19, height: 19, padding: "0 6px", borderRadius: 999, background: T.brand, color: "#fff", fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{c.unreadCount}</span>}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -1656,19 +1752,34 @@ export default function FlexConnectMobile() {
             </motion.div>
           )}
 
-          {/* BOTTOM NAV */}
+          {/* BOTTOM NAV — öğrenci tarafında "+" hiç yok (yeni sohbet başlatma yetkisi
+              yok), o yüzden "Eğitmenim" sekmesi TEK erişim yolu ve nav'da kalmak
+              zorunda: 4 sekme değişmedi. Personelde ise "+" bottom sheet zaten
+              Personel/Öğrenciler'e eriştiriyor (2026-07-31), Kullanıcılar sekmesi
+              nav'dan kalkıp yerine kavramsal olarak Kanallar'dan AYRI olan Gruplar +
+              Topluluklar sekmeleri geldi — WP'deki gibi 5 sekme. */}
           <div style={bottomNavStyle}>
-            {[
-              { k: "chats" as Tab, l: "Sohbetler", icon: "chat" },
-              { k: "channels" as Tab, l: "Kanallar", icon: "channel" },
-              { k: "staff" as Tab, l: studentPersonId ? "Eğitmenim" : "Kullanıcılar", icon: "group" },
-              { k: "settings" as Tab, l: "Ayarlar", icon: "settings" },
-            ].map((b) => {
+            {(studentPersonId
+              ? [
+                  { k: "chats" as Tab, l: "Sohbetler", icon: "chat" },
+                  { k: "channels" as Tab, l: "Kanallar", icon: "channel" },
+                  { k: "staff" as Tab, l: "Eğitmenim", icon: "group" },
+                  { k: "settings" as Tab, l: "Ayarlar", icon: "settings" },
+                ]
+              : [
+                  { k: "chats" as Tab, l: "Sohbetler", icon: "chat" },
+                  { k: "channels" as Tab, l: "Kanallar", icon: "channel" },
+                  { k: "groups" as Tab, l: "Gruplar", icon: "group" },
+                  { k: "communities" as Tab, l: "Topluluklar", icon: "community" },
+                  { k: "settings" as Tab, l: "Ayarlar", icon: "settings" },
+                ]
+            ).map((b, _i, arr) => {
               const active = tab === b.k;
+              const compact = arr.length >= 5;
               return (
-                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
-                  <Icon k={b.icon} size={28} sw={active ? 2.1 : 1.8} />
-                  <span style={{ fontSize: 10.5, fontWeight: active ? 800 : 600 }}>{b.l}</span>
+                <button key={b.k} onClick={() => setTab(b.k)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: compact ? 3 : 4, border: "none", background: "transparent", cursor: "pointer", color: active ? T.brand : T.text2, fontFamily: "inherit" }}>
+                  <Icon k={b.icon} size={compact ? 24 : 28} sw={active ? 2.1 : 1.8} />
+                  <span style={{ fontSize: compact ? 10 : 10.5, fontWeight: active ? 800 : 600 }}>{b.l}</span>
                 </button>
               );
             })}
@@ -2469,15 +2580,21 @@ export default function FlexConnectMobile() {
             })()}
 
             {[
-              { title: "Personel", list: staffDirectory, realm: "staff" as const },
-              { title: "Öğrenciler", list: studentDirectory, realm: "trainer_student" as const },
-            ].map(({ title, list, realm }) => {
+              { title: "Personel", list: staffDirectory, realm: "staff" as const, view: "staff" as const },
+              { title: "Öğrenciler", list: studentDirectory, realm: "trainer_student" as const, view: "students" as const },
+            ].map(({ title, list, realm, view }) => {
               const q = quickStartQuery.trim().toLowerCase();
               const rows = q ? list.filter((p) => p.name.toLowerCase().includes(q)) : list;
               if (rows.length === 0) return null;
               return (
                 <div key={title} style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em", margin: "0 2px 8px" }}>{title}</div>
+                  <div
+                    onClick={() => { setSheetOpen(false); setStaffTabView(view); setTab("staff"); }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 2px 8px", cursor: "pointer" }}
+                  >
+                    <span style={{ fontSize: 11.5, fontWeight: 800, color: T.text2, textTransform: "uppercase", letterSpacing: ".04em" }}>{title}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: T.brand }}>Tümünü gör</span>
+                  </div>
                   <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
                     {rows.map((p, i, arr) => (
                       <button
