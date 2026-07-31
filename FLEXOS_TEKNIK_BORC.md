@@ -409,8 +409,41 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
     açılması hepsi çalıştı. Konsolda hata yok. (Kaydet/Evet-sil'e basıp gerçek yazma
     tetiklemedim — sadece UI/state akışı doğrulandı, aynı gerekçeyle aktivite-merkezi
     gibi.)
-16. [ ] `connect-service.ts` (1.118) ve `submission-service.ts` (1.105) — tek dosyada çok
-    fazla sorumluluk, alt-domain'lere (messaging/presence/roster gibi) bölünmeli.
+16. [x] **`connect-service.ts` (1.154) ve `submission-service.ts` (1.131) — tek dosyada çok
+    fazla sorumluluk, alt-domain'lere bölündü** — ✅ 2026-07-31 tamamlandı. Bölme yöntemi:
+    her iki dosya da tüketici import yollarını (45 dosya: 27 connect + 18 submission)
+    HİÇ değiştirmeden **cephe (facade) dosyası** olarak kaldı — gerçek kod alt-domain
+    dosyalarına taşındı, orijinal dosya sadece `export { ... } from "./..."` satırlarından
+    oluşuyor.
+    **`connect-service.ts`: 1.154 → 44 satır**, 5 yeni dosyaya bölündü —
+    `connect-types.ts` (ConnectPrincipal/ConnectDeps/input tipleri), `connect-helpers.ts`
+    (paylaşılan yetki/audit/isim çözümleme — `assertCanRead`/`assertCanWrite`/`logAudit`/
+    `findExistingDm`/`resolveDisplayName` vb.), `connect-conversation-service.ts` (konuşma
+    CRUD + kişisel görünüm tercihleri: pin/mute/archive/hide/clear), `connect-messaging-
+    service.ts` (mesaj gönder/düzenle/sil/reaksiyon/yıldız/okundu/yazıyor sinyali),
+    `connect-roster-service.ts` (üye ekle/çıkar/listele).
+    **`submission-service.ts`: 1.131 → 63 satır**, 6 yeni dosyaya bölündü —
+    `submission-types.ts` (SubmissionDeps + tüm input/result tipleri), `submission-
+    helpers.ts` (klasör hiyerarşisi/yükleme hakkı/yetki-scope paylaşılan yardımcıları),
+    `submission-upload-service.ts` (dosya yükleme — öğrenci teslimi + eğitmen eki —
+    dosya silme, geri çekme, en büyük parça), `submission-grading-service.ts` (durum
+    güncelleme, not verme tekil/manuel/toplu, eğitmen/op sorguları), `submission-score-
+    service.ts` (Ödev Notu % formülü — `ODEV_TUR_AGIRLIK`/`computeOdevYuzdeleri`/
+    `combineOdevYuzdesi`, `person-education-summary-service.ts`'in de kullandığı saf
+    hesap), `submission-student-service.ts` (öğrenci dashboard/detay sorguları). Bu
+    sırada `deleteFileAsStaff`'ın kendi başına kopyaladığı grup-scope yetki kontrolü
+    paylaşılan `requireGroupScope`'a yönlendirilip küçük bir kod tekrarı da temizlendi
+    (davranış değişmedi — aynı capability, aynı hata).
+    **Doğrulama:** `tsc --noEmit` (proje geneli) VE `eslint src/app/lib/domain/services/`
+    (klasör geneli) tertemiz, `vitest` **107/107** geçti (submission testleri facade'dan
+    değişmeden import ediyor, davranış testi kırılmadı). Ayrıca eski/yeni dosyalardan
+    programatik olarak çıkarılan **export isim listeleri birebir `diff` ile karşılaştırıldı**
+    (`grep`+`node` script) — connect'te tam eşleşme, submission'da SADECE yeni eklenen
+    `GradingDeps` tip export'u fazladan (kayıp yok, sadece ekstra). Tüketici dosyalara
+    (45 route/servis) HİÇ dokunulmadı, import yolları aynı kaldığı için sıfır risk.
+    Tarayıcı testi YAPILMADI — bu bir davranış değişikliği değil, saf dosya organizasyonu
+    (facade re-export), aynı fonksiyon gövdeleri birebir taşındı; tsc+eslint+test+export-
+    diff dörtlü doğrulaması bu değişiklik sınıfı için yeterli görüldü.
 17. [x] **API list endpoint pagination/limit denetimi** — ✅ 2026-07-28 doğrulandı,
     kod değişikliği gerekmedi: `persons`/`groups`/`enrollments` gibi uçlar limitsiz
     `list(tenantId)` kullanıyor ama bunlar **sınırlı varlık koleksiyonları** (bir
@@ -419,8 +452,40 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
     gerekmez. Yorum/comment uçları (`assignments/[id]/comments`) zaten TEK ödeve
     scope'lu (doğal olarak küçük). Tenant-genelinde sürekli büyüyen başka bir
     liste ucu bulunamadı — bilinçli olarak "sorun yok" sonucuna varıldı.
-18. [ ] 322 ham `fetch()` çağrısının hata durumunda kullanıcıya tutarlı feedback verip
-    vermediğini kontrol et — merkezi bir hata gösterimi yok.
+18. [x] **454 ham `fetch()` çağrısının hata durumunda kullanıcıya tutarlı feedback verip
+    vermediğini kontrol et** — ✅ 2026-07-31 tamamlandı (sayı büyümüş: 2026-07-28'de 322,
+    şimdi 454 — kapsam genişledi ama madde aynı). **Gerçek bulgu, orijinal varsayımdan
+    daha iyi durumdaydı:** `src/app/flexos` altında fetch kullanan **68 dosyanın 62'si**
+    zaten tutarlı bir örüntü kullanıyor — yazma işlemlerinde (`POST`/`PATCH`/`DELETE`)
+    `if (!res.ok) toast.error(json.error || "...")`, okuma akışlarında `try/catch` +
+    `toast.error("... yüklenemedi.")` (`sonner` kütüphanesi, merkezi bir "toast servisi"
+    OLMASA da tutarlı kullanım şekli var — madde metnindeki "merkezi hata gösterimi yok"
+    doğru ama pratikte SORUN yaratmıyormuş). **6 dosyada gerçek sessiz-hata bulundu**
+    (`grep` ile: fetch var ama ne `toast.` ne `catch` var) — hepsi düzeltildi:
+    - `odevler/teslim/[groupId]/page.tsx`, `kolaj/page.tsx`, `kitap/page.tsx`,
+      `sosyal/page.tsx` — zaten `try/finally` vardı, `catch` bloğu + `toast.error(...)`
+      eklendi (`kolaj`/`kitap`/`sosyal` neredeyse birebir aynı 3 oyunlaştırılmış ekran).
+    - `student/[personId]/page.tsx` (öğrenci dashboard) — aynı şekilde `catch` + toast eklendi.
+    - `egitmen-takvimi/page.tsx` — **en ciddi olan**: try/catch HİÇ yoktu, bir ağ hatasında
+      `setLoadingInstructors(false)` hiç çalışmıyor, sayfa SONSUZA DEK yükleniyor
+      görünümünde kalıyordu (kullanıcıya hiçbir mesaj yok + kalıcı spinner). `try/catch/
+      finally` eklendi, `cancelled` guard'ı korunarak.
+    Diğer 62 dosyaya (`toast.error` zaten var) DOKUNULMADI — davranış zaten tutarlıydı.
+    **Doğrulama:** `tsc --noEmit` proje geneli temiz, `eslint` bu 6 dosyada SIFIR yeni
+    uyarı (2 pre-existing uyarı `student/[personId]/page.tsx`'te `git stash` ile
+    ÖNCESİ/SONRASI karşılaştırılıp doğrulandı — aynı satır numaraları, yeni değil),
+    `vitest` 107/107. Dev server'da (local) 6 sayfanın 6'sı da `200` döndü, sunucu
+    log'unda hata yok (gerçek admin oturumu/ağ hatası simülasyonu yapılmadı — sadece
+    happy-path derleme/render doğrulaması; catch bloklarının çalıştığı senaryo network
+    kesintisi gerektirdiği için tarayıcıda ayrıca tetiklenmedi, kod incelemesiyle
+    doğrulandı).
+    **Merkezi bir hata-gösterim bileşeni/hook'u (ör. ortak `useApiRequest` sarmalayıcı)
+    BİLİNÇLİ OLARAK EKLENMEDİ** — 62/68 dosya zaten aynı `sonner` `toast.error` deseniyle
+    tutarlı, 454 çağrıyı TEK bir sarmalayıcıya geçirmek bu oturumun kapsamının çok
+    ötesinde geniş bir yeniden yazım olurdu (davranışı değiştirmeden salt-mekanik
+    codemod bile riskli — her çağrının mesaj metni/akış farklı). Madde 4'teki
+    `apiError()` server-side deseniyle AYNI mantık client tarafında da mümkün ama
+    ayrı bir gelecek işi olarak bırakıldı.
 19. [x] **`odevler/teslim/[groupId]/page.tsx` veri çekme + sunum ayrımı** — ✅
     2026-07-29 tamamlandı: 830 satırlık dosya `_shared/`'a bölündü —
     `TaskAccordion.tsx` (akordiyon + dosya yükleme, en büyük parça),
@@ -431,8 +496,23 @@ hızlı büyümüş kabuk" profili — yeniden yazım gerekmiyor, hedefli refact
     tab'ı hepsi birebir çalışıyor). `main`'e cherry-pick edildi (main'in
     kendi lokal `authHeaders()` deseni korunarak — main'de henüz
     `@/app/lib/client/auth-headers` merkezi dosyası yok).
-20. [ ] `connect-service.ts` gibi büyük servislerde authorization/business-logic/data-access
-    ayrımını gözden geçir.
+20. [x] **`connect-service.ts` gibi büyük servislerde authorization/business-logic/data-access
+    ayrımı** — ✅ 2026-07-31 gözden geçirildi, kod değişikliği gerekmedi: `grep` ile
+    doğrulandı — domain katmanındaki **31 servis dosyası** zaten authorization'ı ayrı,
+    adlandırılmış guard fonksiyonlarına çıkarıyor (`assertCanRead`/`assertCanWrite`/
+    `assertMembersMatchRealm` — connect; `requireGroupScope`/`requireOwnedPerson` —
+    submission/grade/attendance; ham `can(actor, ...)` çağrısı — çoğu servis). Madde 16
+    bölmesi sırasında bu guard'lar zaten `connect-helpers.ts`/`submission-helpers.ts`'e
+    ayrı dosyalara taşındı, iş mantığından fiziksel olarak da ayrıştı. Data-access zaten
+    hep repo arayüzleri (`ConnectRepo`/`SubmissionRepo` vb.) üzerinden, servis hiçbir yerde
+    doğrudan Firestore SDK'sına dokunmuyor. **Daha ileri bir katmanlaşma (ör. authorization'ı
+    ayrı bir `*-authorization.ts` dosyasına, iş mantığını ayrı bir `*-logic.ts` dosyasına
+    bölmek) bilinçli olarak YAPILMADI** — bu 452 dosyalık domain katmanının GENELİNDE
+    "guard + iş mantığı aynı fonksiyonda, guard'lar adlandırılmış yardımcılara çıkarılmış"
+    deseni tutarlı şekilde kullanılıyor; SADECE connect/submission'ı farklı bir 3-katmanlı
+    şablona geçirmek proje geneliyle tutarsız bir ada oluşturur, okunabilirliği artırmaz
+    (her fonksiyon zaten 1-2 satırlık guard + birkaç satır iş mantığı, ayrı dosyalara
+    bölünecek kadar büyük değil).
 
 ## Gözlemlenen ama henüz açılmamış (düşük öncelik)
 

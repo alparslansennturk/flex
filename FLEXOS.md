@@ -17,23 +17,16 @@
 > Bu blok **ne yapıldığını** izler (tasarım aşağıda, ilerleme burada).
 
 > 🔧 **Teknik borç / kod kalitesi checklist'i** → `FLEXOS_TEKNIK_BORC.md` (2026-07-28 kod
-> incelemesinden çıkan 20 maddelik liste, 16/20 tamamlandı — detay o dosyada).
+> incelemesinden çıkan 20 maddelik liste, 20/20 TAMAMLANDI 2026-07-31 — detay o dosyada).
 > 📚 **Tam oturum geçmişi (2026-06-09 → 2026-07-27, ~3460 satır)** → `FLEXOS_OTURUM_ARSIVI.md`
 > (2026-07-28'de buraya taşındı, dosya 4383 satıra şişmişti — hiçbir içerik silinmedi).
 > Aşağıdaki blok sadece **güncel durumun kısa özeti**; tarih bazlı tam detay için arşive bak.
 
 ### Şu an gerçekten açık olanlar
 
-- **Eğitmen Takvimi** — UI tamamlandı (Hafta+Gün+Ay görünümü + 2 modal), **backend henüz yok**
-  (müsaitlik hâlâ deterministik mock `blocksFor()`'tan geliyor, gerçek yoklama/atama verisine
-  bağlı değil).
-- **Eğitmen Hakediş** — Full mod bitti + kullanıcı testinden 4 gerçek düzeltme yapıldı;
-  **Core mod (eğitmenin kendi görünümü) henüz yapılmadı.**
 - **Özel Ders** — sadece tasarım konuşuldu, hiç kod yazılmadı.
 - **Dershane/LGS-Üni hazırlık modu** → `FLEXOS_DERSHANE_MOD.md` (2026-07-29,
   kullanıcı kararı, henüz kod YOK — sadece plan aşaması, detay o dosyada).
-- **Teknik borç / kod kalitesi** → `FLEXOS_TEKNIK_BORC.md` (2026-07-28 incelemesi, 20 madde,
-  16/20 tamamlandı, detay o dosyada).
 - **Uzun süredir bekleyen, hâlâ sıfır kod (öncelik değil):** Finans modülü, Şube Aşama-2
   (yetki filtresi), Randevu Takvimi'nin bazı kısımları, Sistem Ayarları süper-admin paneli,
   Sertifika Bastır akışı, Öğrenci Profili tam-sayfa hub. Detay + gerekçe → memory
@@ -58,6 +51,26 @@
 
 ### En son tamamlanan büyük işler (özet, tam detay arşivde)
 
+- **Eğitmen Takvimi backend'i gerçek veriye bağlandı (2026-07-31)** — ders blokları artık
+  `Group.schedule` (gün/saat/tarih aralığı) + gerçek salon (Lab)/grup/öğrenci sayısından,
+  rezerve/müsaitlik `Trainer.availability`'den, resmi tatil `Holiday` koleksiyonundan
+  hesaplanıyor (`blocksFor()` artık mock değil). İzin/Raporlu (gerçek karşılığı yok) ve
+  "Katılım" (Online/Yüz Yüze, hiç gerçek karşılığı olmayan bir ayrım) filtresi kaldırıldı.
+  Tarayıcıda gerçek admin oturumuyla doğrulandı (Grafik Tasarım Kursu, VIP salon, GRP-784,
+  5 kişi, Bireysel — hepsi doğru render oldu).
+- **Eğitmen Hakediş Core mod — GERÇEKTEN ZATEN BİTMİŞ (2026-07-31 doğrulandı)** — önceki not
+  ("Core mod henüz yapılmadı") YANLIŞTI, kullanıcı düzeltti. `trainer.earnings.read`
+  capability'si pakete değil kimliğe bağlı (`auth-actor.ts::earningsGrant`,
+  `trainerId` çözülen HERKESE veriliyor) — Core moddaki Yoklama Detay sayfasında widget
+  tarayıcıda canlı test edildi (Cmd+Option+T ile Core moda geçilip "Bu ay 24 saat ders
+  verildi — toplam hak ediliş: 24 saat" + göz ikonuyla "18.000 TL" doğru açıldı). Madde
+  listeden çıkarıldı.
+- **Teknik borç checklist'i 20/20 TAMAMLANDI (2026-07-31)** — son 3 madde: `connect-
+  service.ts`/`submission-service.ts` facade-pattern ile alt-domain dosyalarına bölündü
+  (madde 16), auth/business-logic/data-access ayrımı gözden geçirildi (madde 20, mevcut
+  desen zaten yeterli bulundu), 6 sayfada sessiz fetch hatası (özellikle `egitmen-
+  takvimi`'nde kalıcı yükleme ekranı riski) `toast.error` ile giderildi (madde 18). Detay
+  → `FLEXOS_TEKNIK_BORC.md`.
 - Grup Ekle'de gerçek eğitmen müsaitlik kontrolü + yarış durumu fix'i (2026-07-27/28).
 - Eğitmen Takvimi branş filtresi gerçek veriye bağlandı + gün görünümü padding fix'i.
 - Cmd+K arama bug'ı + Lab Utilizasyon ince ayarlar + Öğrenci Detay "Eğitim Bilgileri" gerçek
