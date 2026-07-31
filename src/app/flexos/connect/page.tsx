@@ -26,7 +26,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Megaphone, Users, UsersRound, Layers, Plus, Search, Send, X, Check, CheckCheck, Loader2,
+  Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
   ChevronDown, Reply, Copy, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore, Eraser,
 } from "lucide-react";
@@ -61,6 +61,20 @@ interface GroupItem { id: string; code: string; branch: string; enrolled: number
 interface RosterItem { personId: string; authUid: string | null; name: string }
 type IconComponent = ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
 
+/** Topluluklar için lucide'da hazır "3 kişi" ikonu yok (sadece 2 kişili Users/
+ * UsersRound var) — kullanıcı isteğiyle (2026-07-31) elle çizildi, Gruplar'ın
+ * (UsersRound, 2 kişi) ikonuyla karışmasın diye. Mobile'daki AYNI path (tutarlılık). */
+const UsersThreeIcon: IconComponent = ({ size = 24, strokeWidth = 2, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="5" cy="8" r="2.6" />
+    <path d="M2 20v-.5a4 4 0 0 1 4-4" />
+    <circle cx="19" cy="8" r="2.6" />
+    <path d="M22 20v-.5a4 4 0 0 0-4-4" />
+    <circle cx="12" cy="9" r="3.4" />
+    <path d="M17 21a5 5 0 0 0-10 0" />
+  </svg>
+);
+
 /** `star` = Favoriler (Faz 2, cross-type pinned filtresi); `staffDirectory`/
  * `studentDirectory` = Personel/Öğrenciler dizini (2026-07-18 kullanıcı isteği —
  * DM için ayrı bir "oluştur" akışı YOK, dizinden bir kişiye tıklayınca var olan
@@ -71,7 +85,7 @@ type NavKey = ConnectConversationType | "star" | "archived" | "staffDirectory" |
 const NAV: { key: NavKey; label: string; Icon: IconComponent }[] = [
   { key: "channel", label: "Kanallar", Icon: Megaphone },
   { key: "group", label: "Gruplar", Icon: UsersRound },
-  { key: "community", label: "Topluluklar", Icon: Layers },
+  { key: "community", label: "Topluluklar", Icon: UsersThreeIcon },
   { key: "dm", label: "Sohbetler", Icon: ConnectIcon },
   { key: "staffDirectory", label: "Personel", Icon: Contact },
   { key: "studentDirectory", label: "Öğrenciler", Icon: GraduationCap },
@@ -1072,7 +1086,7 @@ export default function FlexConnectPage() {
                     {[
                       { type: "channel" as const, label: "Yeni Kanal Oluştur", Icon: Megaphone },
                       { type: "group" as const, label: "Yeni Grup Oluştur", Icon: UsersRound },
-                      { type: "community" as const, label: "Yeni Topluluk Oluştur", Icon: Layers },
+                      { type: "community" as const, label: "Yeni Topluluk Oluştur", Icon: UsersThreeIcon },
                     ].map((a) => (
                       <button
                         key={a.type}
@@ -2327,7 +2341,7 @@ function CreateConversationModal({
               {[
                 { key: "channel" as const, label: "Kanal", desc: "Tek yönlü duyuru", Icon: Megaphone as IconComponent },
                 { key: "group" as const, label: "Grup", desc: "Karşılıklı sohbet", Icon: UsersRound as IconComponent },
-                { key: "community" as const, label: "Topluluk", desc: "Grupları birleştir", Icon: Layers as IconComponent },
+                { key: "community" as const, label: "Topluluk", desc: "Grupları birleştir", Icon: UsersThreeIcon },
               ].map((t) => {
                 const sel = type === t.key;
                 return (
