@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import {
   Megaphone, Users, UsersRound, Plus, Search, Send, X, Check, CheckCheck, Loader2,
   Minimize2, Info, MoreVertical, LogOut, Star, StarOff, Contact, GraduationCap, Pencil, Trash2, Smile,
-  ChevronDown, Reply, Copy, Bell, BellOff, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore, Eraser,
+  ChevronDown, Reply, Copy, BellOff, Settings, FileText, ChevronRight, ArrowLeft, Archive, ArchiveRestore, Eraser,
 } from "lucide-react";
 import { onMessage, getToken } from "firebase/messaging";
 import { auth, getMessagingIfSupported } from "@/app/lib/firebase";
@@ -213,22 +213,18 @@ export default function FlexConnectPage() {
     fetchPushSettings().then((s) => { setNotifPush(s.notificationsEnabled); setNotifSound(s.soundEnabled); });
   }, []);
 
-  // Push yeniden-etkinleştirme banner'ı (2026-07-29) — İKİ FARKLI async
-  // "gerçekten abone mi" kontrolü canlı testte GÜVENİLMEZ çıktı (bkz. mobildeki
-  // AYNI fonksiyonun gerekçesi). Basitleştirildi: async abonelik kontrolü YOK,
-  // sadece `localStorage`'da bu TARAYICI ÖRNEĞİNİN daha önce gerçekten bir
-  // token kaydettiğine dair iz var mı bakılıyor (senkron, güvenilir).
-  const [showPushReenableBanner, setShowPushReenableBanner] = useState(false);
+  // Push yeniden-abonelik sessiz düzeltmesi (2026-07-29) — Masaüstünde ARTIK banner
+  // GÖSTERİLMİYOR (2026-07-31 kullanıcı kararı: "Desktop'ta bildirim bannerini kaldır,
+  // sadece Mobile'da kalsın") — ama stale durum düzeltmesi kaldı: `localStorage`'da
+  // bu TARAYICI ÖRNEĞİNİN daha önce gerçekten bir token kaydettiğine dair iz yoksa
+  // (ör. reinstall/profil temizliği) `notifPush` sessizce false'a çekilir, Ayarlar
+  // modalındaki anahtar bir sonraki açılışta gerçek durumu gösterir.
   useEffect(() => {
     if (!notifPush) return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     if (typeof Notification === "undefined") return;
-    // bkz. mobildeki AYNI fix'in gerekçesi — permission==="granted" ŞARTI
-    // ARANMIYOR (2026-07-29 canlı testte reinstall sonrası "default"a
-    // sıfırlandığı doğrulandı).
     if (localStorage.getItem("flexConnectPushToken")) return;
     setNotifPush(false);
-    setShowPushReenableBanner(true);
   }, [notifPush]);
 
   async function toggleNotifSound() {
@@ -1031,19 +1027,6 @@ export default function FlexConnectPage() {
               style={{ height: 42, padding: "0 14px 0 40px", borderRadius: 12, border: "1px solid #E9EBEF", background: "#F4F5F7", color: "#1B1F26", fontSize: 14, fontWeight: 500 }}
             />
           </div>
-          {showPushReenableBanner && (
-            <button
-              onClick={() => { setShowPushReenableBanner(false); toggleNotifPush(); }}
-              className="flex items-center gap-2.5 cursor-pointer transition-all w-full text-left"
-              style={{ marginTop: 10, padding: "11px 13px", borderRadius: 12, border: "none", background: "#2867bd", color: "#fff" }}
-            >
-              <Bell size={17} />
-              <div className="flex-1 min-w-0">
-                <div style={{ fontSize: 13, fontWeight: 700 }}>Bildirimler yeniden etkinleştirilmesi gerekiyor</div>
-                <div style={{ fontSize: 11.5, fontWeight: 500, opacity: 0.85 }}>Dokun, tekrar açalım</div>
-              </div>
-            </button>
-          )}
         </div>
 
         {directoryList === null && (
