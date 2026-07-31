@@ -10,6 +10,7 @@ import { firestoreActivityLogRepo } from "@/app/lib/server/activity-log-repo.fir
 import { assignTask, type AssignTaskInput } from "@/app/lib/domain/services/assignment-service";
 import { notifyAssignmentPublished } from "@/app/lib/server/assignment-mail";
 import { invalidateActivityLogCache } from "@/app/api/flexos/egitmen-anasayfa/activity-log/route";
+import { broadcast } from "@/app/lib/server/realtime-hub";
 import { apiError } from "@/app/lib/server/api-error";
 
 /** bootstrap/route.ts da AYNI fonksiyonu çağırır (kod tekrarı yok). */
@@ -65,6 +66,11 @@ export const POST = withAuth(async (req: NextRequest, caller) => {
       activityLog: firestoreActivityLogRepo,
     });
     if (assignment.status === "published") invalidateActivityLogCache(actor.tenantId);
+    // 2026-08-01 kullanıcı bulgusu: yeni ödev oluşturma/başlatma HİÇ broadcast etmiyordu
+    // (SADECE PATCH/[id] route'u ediyordu) — Ana Sayfa'daki `assignments.changed` dinleyicisi
+    // (egitmen-anasayfa/page.tsx) hiç tetiklenmediği için "Ödevi Başlat"a basınca Ödev
+    // Parkuru'nda anında görünmüyordu, ancak manuel yenilemede (bootstrap yeniden çekilince) çıkıyordu.
+    broadcast(actor.tenantId, { type: "assignments.changed", id: assignment.id });
 
     // Mail duyurusu SADECE "Ödevi Başlat" (published) için — taslak sessiz kalır.
     // Best-effort: gönderim hatası ödev oluşturmayı asla başarısız kılmaz.
