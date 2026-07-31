@@ -12,6 +12,7 @@ import { auth } from "@/app/lib/firebase";
 import SocialGameScreen from "./SocialGameScreen";
 import type { AssignmentData, Student, StudentDraw } from "./types";
 import { authHeaders } from "@/app/lib/client/auth-headers";
+import { toast } from "sonner";
 
 const ACCENT = "#a855f7";
 
@@ -199,6 +200,8 @@ function SosyalPageInner() {
         setInitialDraws(draws);
         setDrawnStudentIds(draws.map((d) => d.studentId));
       }
+    } catch {
+      toast.error("Ödev verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }

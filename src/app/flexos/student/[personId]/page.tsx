@@ -20,6 +20,7 @@ import StudentSidebar from "../_components/StudentSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS } from "../../_components/FlexHeader";
 import { ActivityFeed, type ActivityFeedItem } from "../../_components/ActivityFeed";
 import { authHeaders } from "@/app/lib/client/auth-headers";
+import { toast } from "sonner";
 
 /* ── Types ── */
 
@@ -130,6 +131,8 @@ export default function FlexosStudentDashboard() {
         const data = await activityRes.json() as { items: ActivityFeedItem[] };
         setActivityLog(data.items);
       }
+    } catch {
+      toast.error("Sayfa verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
