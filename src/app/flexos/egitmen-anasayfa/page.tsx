@@ -138,7 +138,7 @@ function HomeBanner({ groupCount, studentCount }: { groupCount: number; studentC
 
 // ─── Hızlı Eylem Kartı ────────────────────────────────────────────────────────
 function QuickActionCard({
-  icon, label, href, meta, statusText,
+  icon, label, description, href, meta, statusText,
   statusColor = "bg-[#10294C] text-white",
   iconBg = "bg-[#F7F8FA]",
   iconColor = "text-[#8E95A3]",
@@ -148,8 +148,9 @@ function QuickActionCard({
 }: {
   icon: React.ReactNode;
   label: string;
+  description?: string;
   href: string | null;
-  meta?: string;
+  meta?: React.ReactNode;
   statusText: string;
   statusColor?: string;
   iconBg?: string;
@@ -176,10 +177,13 @@ function QuickActionCard({
           <div className={`w-11 h-11 rounded-xl ${iconBg} ${iconColor} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200`}>
             {icon}
           </div>
-          <p className="text-[15px] xl:text-[19px] font-bold text-[#10294C] leading-snug">{label}</p>
+          <div className="min-w-0">
+            <p className="text-[15px] xl:text-[19px] font-bold text-[#10294C] leading-snug">{label}</p>
+            {description && <p className="text-[12px] text-[#8E95A3] font-medium mt-0.5 truncate">{description}</p>}
+          </div>
         </div>
         <div className="flex items-center justify-between gap-2 mt-4">
-          {meta && <span className="text-[12px] text-[#64748B] font-medium min-w-0 truncate">{meta}</span>}
+          {meta && <span className="flex items-center gap-1.5 text-[12px] text-[#64748B] font-medium min-w-0">{meta}</span>}
           <div className="relative ml-auto shrink-0">
             {pulse && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#009F3E] rounded-full animate-ping opacity-75" />}
             <span className={`text-[12px] xl:text-[15px] font-semibold px-4 xl:px-5 py-1.5 xl:py-2 rounded-full ${statusColor} whitespace-nowrap block`}>
@@ -192,12 +196,80 @@ function QuickActionCard({
   );
 }
 
+/**
+ * "Ödev Teslimi" hızlı kartı (2026-07-31 kullanıcı isteği) — genel listeye değil
+ * DOĞRUDAN ilgili grubun/ödevin teslim inceleme ekranına (`/flexos/odevler/teslim/
+ * [groupId]/[assignmentId]`, sol tarafta öğrenci listesi) gider. Öncelik sırası:
+ * 1) Henüz incelenmemiş ("submitted") YENİ teslimi olan grup(lar)
+ * 2) (1) yoksa: deadline'ı geçmiş VE "tamamlandı" (closed) en son ödev(ler) —
+ *    kullanıcı örneği: "Raket Tasarımı tamamlandı ama teslim etmeyenler var hâlâ",
+ *    yani tam teslim şartı YOK, sadece süresi geçmiş+kapatılmış olması yeterli.
+ * 3) İkisi de yoksa: genel liste (`/flexos/odevler/teslim`).
+ * Birden fazla grup varsa sol alttaki ufak ok ile aralarında geçiş yapılabilir
+ * (tıklaması navigasyonu TETİKLEMESİN diye stopPropagation — kart genelinde tıklama
+ * zaten `router.push` yapıyor).
+ */
+function OdevTeslimiCard({ pendingSubmissions, assignments, groups }: {
+  pendingSubmissions: PendingSubmissionGroup[];
+  assignments: ParkourAssignment[];
+  groups: GroupItem[];
+}) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const groupCodeById = new Map(groups.map((g) => [g.id, g.code]));
+
+  // Öncelik 2: her grubun EN SON kapatılan ("closed") ödevi — deadline'ı geçmiş
+  // sayılır çünkü "Ödevi Bitir" aksiyonu zaten tarihi bugüne çeker (bkz. finishAssignment).
+  const completedByGroup = new Map<string, ParkourAssignment>();
+  for (const a of assignments) {
+    if (a.status !== "closed") continue;
+    const cur = completedByGroup.get(a.groupId);
+    if (!cur || (a.dueDate ?? "") > (cur.dueDate ?? "")) completedByGroup.set(a.groupId, a);
+  }
+  const completedFallback: PendingSubmissionGroup[] = Array.from(completedByGroup.values())
+    .sort((a, b) => (b.dueDate ?? "").localeCompare(a.dueDate ?? ""))
+    .map((a) => ({ groupId: a.groupId, groupCode: groupCodeById.get(a.groupId) ?? "", assignmentId: a.id, submittedAt: a.dueDate ?? "" }));
+
+  const candidates = pendingSubmissions.length > 0 ? pendingSubmissions : completedFallback;
+  const idx = Math.min(selectedIndex, Math.max(candidates.length - 1, 0));
+  const selected = candidates[idx];
+
+  return (
+    <QuickActionCard
+      icon={<ClipboardList size={20} />}
+      label="Ödev Teslimi"
+      description="Ödev detaylarını gör"
+      href={selected ? `/flexos/odevler/teslim/${selected.groupId}/${selected.assignmentId}` : "/flexos/odevler/teslim"}
+      meta={
+        selected ? (
+          <>
+            <span className="truncate">{selected.groupCode}</span>
+            {candidates.length > 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setSelectedIndex((i) => (i + 1) % candidates.length); }}
+                title="Diğer grubu göster"
+                className="w-5 h-5 rounded-full bg-[#FFF4EB] hover:bg-[#FFE4C7] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+              >
+                <ChevronRight size={12} className="text-[#FF8D28]" />
+              </button>
+            )}
+          </>
+        ) : undefined
+      }
+      statusText="İncele"
+      statusColor="bg-[#FF8D28] text-white"
+      iconBg="bg-[#FFF4EB]"
+      iconColor="text-[#FF8D28]"
+    />
+  );
+}
+
 // ─── Ödev Parkuru — canlıdaki `DesignParkour.tsx` kart mantığı (gerçek aktif ödev +
 // kullanılmamış şablon "ghost" kartı + boş placeholder), sadece GÖRÜNÜM portu —
 // aksiyonlar (Ödev Ver / Ödevi Başlat) kullanıcı kararıyla bu turda "yakında" toast.
 const MAX_PARKOUR_SLOTS = 4;
 
 interface ParkourAssignment { id: string; groupId: string; title: string; subtitle?: string; description: string; dueDate?: string; status: string; createdAt?: string; templateId?: string; attachments?: EditableAttachment[] }
+interface PendingSubmissionGroup { groupId: string; groupCode: string; assignmentId: string; submittedAt: string }
 
 function getDuration(dueDate?: string): { text: string; expired: boolean; noDate: boolean } {
   if (!dueDate) return { text: "Süresiz", expired: false, noDate: true };
@@ -811,6 +883,10 @@ export default function EgitmenAnaSayfaPage() {
   const [templates, setTemplates] = useState<AssignmentTemplateItem[]>([]);
   const [assignments, setAssignments] = useState<ParkourAssignment[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityFeedItem[]>([]);
+  // "Ödev Teslimi" kartı (2026-07-31 kullanıcı isteği) — yeni (henüz incelenmemiş)
+  // teslimi olan grup(lar), en son teslime göre sıralı. Kart tıklaması artık genel
+  // listeye değil DOĞRUDAN seçili grubun/ödevin teslim inceleme ekranına gidiyor.
+  const [pendingSubmissions, setPendingSubmissions] = useState<PendingSubmissionGroup[]>([]);
   const [sharedLoaded, setSharedLoaded] = useState(false);
   // 2026-07-15 kullanıcı düzeltmesi: aktivite sayısı arttıkça panel taşıp sayfayı
   // uzatıyordu — eski canlı sistemdeki (`dashboard/page.tsx`) AYNI çözüm: panelin üst
@@ -907,6 +983,7 @@ export default function EgitmenAnaSayfaPage() {
       setTemplates(data.templates ?? []);
       setAssignments(data.assignments ?? []);
       setActivityLog(data.activityLog ?? []);
+      setPendingSubmissions(data.pendingSubmissions ?? []);
 
       const holidayItems: HolidayItem[] = data.holidays ?? [];
       const dates = new Set<string>();
@@ -985,6 +1062,7 @@ export default function EgitmenAnaSayfaPage() {
                 <QuickActionCard
                   icon={<CalendarCheck size={20} />}
                   label="Hızlı Yoklama"
+                  description="Yoklama girişi yap"
                   href="/flexos/yoklama/al"
                   meta={attendMeta || todayFormatted}
                   statusText="Derse Git"
@@ -999,18 +1077,11 @@ export default function EgitmenAnaSayfaPage() {
                     setAttendMeta("");
                   }}
                 />
-                <QuickActionCard
-                  icon={<ClipboardList size={20} />}
-                  label="Ödev Teslimi"
-                  href="/flexos/odevler/teslim"
-                  statusText="İncele"
-                  statusColor="bg-[#FF8D28] text-white"
-                  iconBg="bg-[#FFF4EB]"
-                  iconColor="text-[#FF8D28]"
-                />
+                <OdevTeslimiCard pendingSubmissions={pendingSubmissions} assignments={assignments} groups={groups} />
                 <QuickActionCard
                   icon={<Award size={20} />}
                   label="Sertifikasyon"
+                  description="Sertifika notu ver"
                   href="/flexos/sertifikasyon/not"
                   statusText="Not Gir"
                   statusColor="bg-[#6F74D8] text-white"
