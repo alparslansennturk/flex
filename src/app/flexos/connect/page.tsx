@@ -66,12 +66,12 @@ type IconComponent = ComponentType<{ size?: number; strokeWidth?: number; color?
  * (UsersRound, 2 kişi) ikonuyla karışmasın diye. Mobile'daki AYNI path (tutarlılık). */
 const UsersThreeIcon: IconComponent = ({ size = 24, strokeWidth = 2, color = "currentColor" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="5" cy="8" r="2.6" />
-    <path d="M2 20v-.5a4 4 0 0 1 4-4" />
-    <circle cx="19" cy="8" r="2.6" />
-    <path d="M22 20v-.5a4 4 0 0 0-4-4" />
-    <circle cx="12" cy="9" r="3.4" />
-    <path d="M17 21a5 5 0 0 0-10 0" />
+    <path d="M8.2 5a4 4 0 0 0 0 7.2" />
+    <path d="M15.8 5a4 4 0 0 1 0 7.2" />
+    <circle cx="12" cy="7.6" r="3.3" />
+    <path d="M1.8 20.3a4 4 0 0 1 4.2-4" />
+    <path d="M22.2 20.3a4 4 0 0 0-4.2-4" />
+    <path d="M7.5 21a4.5 4.5 0 0 1 9 0" />
   </svg>
 );
 
