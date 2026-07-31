@@ -11,15 +11,33 @@
  * eğitmenleri listeler — kullanıcının "eğitmen atarken müsait değilse uyarır"
  * isteğinin karşılığı bu modal).
  *
- * VERİ: eğitmen LİSTESİ gerçek (`GET /api/flexos/trainers` — `trainer.read`
- * ile aynı kapı, Eğitmenler sayfasının kullandığı uç), her eğitmenin GERÇEKTEN
- * atanmış grupları (kod/eğitim adı/öğrenci sayısı) da gerçek. Kullanıcı kararı
- * (2026-07-27): "dummy kalsın şu anda ama azalt, gerçek veriye bağla" — Lab
- * Utilizasyon'daki "gerçek liste + mock seans" deseninin aynısı. Yani HANGİ
- * GÜN/SAAT dolu olacağı hâlâ deterministik mock (`blocksFor`), ama İÇERİK
- * (hangi grup, kaç öğrenci) gerçek. `Trainer.availability` alanı (haftalık
- * müsaitlik dilimleri) zaten domain'de var ama BURADA henüz okunmuyor — sıradaki
- * adım, bkz. FLEXOS.md.
+ * VERİ — 2026-07-31 TAMAMEN GERÇEK VERİYE BAĞLANDI (önceden "gerçek liste + mock
+ * seans" deseniydi, `blocksFor()` deterministik sahte üretimdi — bkz. arşiv/git
+ * geçmişi). Artık bir eğitmenin bir gündeki TÜM programı üç gerçek kaynaktan
+ * hesaplanıyor:
+ * 1. **Ders blokları** — `Group.schedule` (gün/saat/tarih aralığı, `GET /api/flexos/
+ *    trainers`'ın zaten döndürdüğü read-time join). Bir grup, o günün ISO haftanın
+ *    günü `schedule.days`'te VE tarih `[startDate,endDate]` aralığındaysa "ders" bloğu
+ *    üretir — grup kodu/eğitim adı/öğrenci sayısı/gerçek salon (labId→Lab.name) hep
+ *    gerçek. **Bilinçli sınır:** tekil gün iptalleri (`lesson-exception-service.ts`)
+ *    burada kontrol EDİLMİYOR — o kontrol `groupId+date` başına ayrı bir istek
+ *    gerektiriyor (bu takvim onlarca grup×gün'ü aynı anda gösteriyor, N+1'e girmemek
+ *    için haftalık düzenli program "kesin doğru" kabul ediliyor; tek seferlik "Ders
+ *    Olmadı" işaretlemeleri buraya yansımaz).
+ * 2. **Rezerve/müsaitlik blokları** — `Trainer.availability` (haftalık, gün-adı bazlı
+ *    dilimler, `dolu:true` = rezerve, aksi = müsait beyanı). Ders bloklarıyla
+ *    ÇAKIŞMAYAN, kalan boş zaman otomatik "müsait" sayılır (eski davranışla aynı
+ *    varsayım — beyan edilmemiş zaman serbest kabul edilir).
+ * 3. **Resmi tatil** — `GET /api/flexos/holidays` + `expandHolidayDates()` (yoklama
+ *    modülüyle AYNI fonksiyon, `lib/domain/services/schedule-calc.ts`).
+ * **İzin/Raporlu KALDIRILDI** — bunların hiçbir gerçek karşılığı yok (`TrainerLeave`
+ * gibi bir domain kavramı YOK), sahte üretmek yerine bilinçli olarak hiç üretilmiyor.
+ * `BLK`/legend/filtre seçenekleri (izin/rapor) İLERİDE gerçek bir izin sistemi
+ * eklenirse diye dokunulmadan bırakıldı — sadece hiçbir gün bu duruma düşmüyor.
+ * **"Katılım" (Online/Yüz Yüze) filtresi KALDIRILDI** — `Group` domain modelinde
+ * "online" diye bir alan hiç yok (mock'ta bile firma/online rastgele üretiliyordu,
+ * gerçek karşılığı OLMAYACAK bir ayrım), yarı-doğru bir filtre göstermektense
+ * kaldırılması tercih edildi.
  *
  * "EĞİTİM PLANLA" → GRUP EKLE (2026-07-27, kullanıcı: "eğitim planlama ile grup
  * ekleme aslında benzer şeyler"): müsait bir eğitmen seçilip onaylanınca ayrı bir
@@ -37,6 +55,9 @@ import FlexSidebar from "../_components/FlexSidebar";
 import FlexHeader, { FlexPageContent, FLEX_CONTENT_MAX_WIDTH_COMPACT_CLASS, FLEX_PAGE_FOOTER_CLASS } from "../_components/FlexHeader";
 import Footer from "@/app/components/layout/Footer";
 import { FlexPageLoader } from "../_components/FlexSpinner";
+import { toast } from "sonner";
+import { expandHolidayDates } from "@/app/lib/domain/services/schedule-calc";
+import type { TrainerAvailabilitySlot } from "@/app/lib/domain/core/trainer";
 
 // ── sabitler (tasarımla birebir) ──
 const DOW = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -76,27 +97,25 @@ const TUR_META: Record<string, { color: string; bg: string }> = { Bireysel: { co
 
 const BRANSLAR = ["Yazılım", "Tasarım", "Finans", "Pazarlama", "Dil"];
 const SUBELER = ["Kadıköy", "Pendik", "Ümraniye", "Beşiktaş"];
-const SALONLAR = ["A-101", "A-102", "B-201", "C-301"];
-const FIRMALAR = ["Aselsan", "Turkcell", "Getir", "Trendyol", "Vestel"];
-// SADECE bir eğitmene HİÇ gerçek grup atanmamışsa (edge-case) yer tutucu ders adı için.
-const EG_BY_BRANS: Record<string, string[]> = {
-  Yazılım: ["Full-Stack Web", "Veri Bilimi", "Python Bootcamp"],
-  Tasarım: ["UI/UX Tasarım", "Grafik Tasarım"],
-  Finans: ["Finansal Modelleme", "Bütçe Yönetimi"],
-  Pazarlama: ["Dijital Pazarlama", "SEO & SEM"],
-  Dil: ["İngilizce B2", "İş İngilizcesi"],
-};
 
-/** Gerçek `Trainer` kaydından türetilen eğitmen — sadece kimlik (ad/branş/şube/
- * atanmış gerçek gruplar) gerçek, PROGRAM/SAAT hâlâ mock (kullanıcı kararı,
- * 2026-07-27: "dummy kalsın ama azalt, gerçek veriye bağla" — Lab Utilizasyon'daki
- * "gerçek liste + mock seans" deseninin aynısı). */
+/** `TrainerAvailabilitySlot.gun` değerleri — `egitmenler/_shared/types.ts::GUNLER`
+ * İLE AYNI olmak ZORUNDA (Eğitmenler sayfası müsaitlik dilimlerini bu string'lerle
+ * yazıyor); farklı bir kısaltma seti (ör. "Cmt" yerine "Cts") sessizce hiç eşleşmez. */
+const GUNLER = ["Pts", "Sal", "Çar", "Per", "Cum", "Cts", "Paz"];
+
+/** Bir grubun gerçek `GroupSchedule`'ı — `GET /api/flexos/trainers`'ın read-time
+ * join'inden geliyor (bkz. `trainers/route.ts`). */
+interface InstructorGroupSchedule { days: number[]; startTime?: string; endTime?: string; startDate?: string; endDate?: string }
+
+/** Gerçek `Trainer` kaydından türetilen eğitmen — kimlik (ad/branş/şube) VE program
+ * (gruplar + müsaitlik dilimleri) artık TAMAMEN gerçek (2026-07-31). */
 interface Instructor {
   id: string; name: string; brans: string; sube: string; av: [string, string];
-  /** Bu eğitmene GERÇEKTEN atanmış gruplar (kod/eğitim adı/öğrenci sayısı) — mock
-   * ders bloklarının içeriği (hangi grup/eğitim/kaç öğrenci) buradan seçiliyor,
-   * sadece HANGİ GÜN/SAAT işleneceği hâlâ deterministik mock. */
-  groups: { kod: string; egitim: string; ogrenci: number }[];
+  /** Bu eğitmene GERÇEKTEN atanmış gruplar — ders bloklarının TEK kaynağı. */
+  groups: { kod: string; egitim: string; ogrenci: number; type: string; salon: string; schedule: InstructorGroupSchedule }[];
+  /** Haftalık müsaitlik/rezerve beyanı (`Trainer.availability`) — Eğitmenler
+   * sayfasındaki AYNI veri, burada da okunuyor. */
+  availability: TrainerAvailabilitySlot[];
 }
 
 // ── yardımcılar ──
@@ -106,8 +125,7 @@ function mondayOf(d: Date) { const x = new Date(d); const k = (x.getDay() + 6) %
 function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function fmtTime(m: number) { return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); }
 function initials(name: string) { return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toLocaleUpperCase("tr"); }
-function rnd(seed: number) { const x = Math.sin(seed) * 10000; return x - Math.floor(x); }
-function entityOf(b: Block) { return b.tur === "Kurumsal" ? b.firma : b.grup; }
+function entityOf(b: Block) { return b.grup ?? ""; }
 /** Firestore doc ID (string) → sayısal seed. Gerçek `Trainer.id` artık kullanıcı
  * numarası değil UUID benzeri bir string olduğu için mock üreticinin `id*7919`
  * gibi aritmetiğine sokabilmek için kısa/sabit bir hash gerekiyor. */
@@ -122,74 +140,83 @@ const AV_PALETTES: Array<[string, string]> = [
 ];
 function avatarFor(id: string): [string, string] { return AV_PALETTES[hashSeed(id) % AV_PALETTES.length]; }
 
-interface Block { type: BlockType; startMin: number; dur: number; egitim?: string; tur?: string; online?: boolean; firma?: string; grup?: string; salon?: string; ogrenci?: number }
+/** ISO haftanın günü — 0=Pazartesi..6=Pazar. `Group.schedule.days` bu formatta
+ * (bkz. `schedule-calc.ts::isoWeekday` — AYNI mantık, domain katmanından bu
+ * client dosyasına import edilmiyor, bilinçli tekrar). `mondayOf` de zaten aynı
+ * formülü kullanıyor (satır ~106), o yüzden dosya içinde tutarlı. */
+function isoWeekday(date: Date): number { return (date.getDay() + 6) % 7; }
+/** "HH:MM" → gün içi dakika. Gerçek veri hep iki-nokta-üst-üste formatında
+ * (bkz. `GroupFormSheet.tsx::toMin` — AYNI parser, Seans/Group.schedule zaten
+ * bu formatta yazılıyor). */
+function toMin(t: string): number { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+
+interface Block { type: BlockType; startMin: number; dur: number; egitim?: string; tur?: string; grup?: string; salon?: string; ogrenci?: number }
 type DayType = "kapali" | "tatil" | "izin" | "rapor" | "aktif";
 
-/** Bir eğitmenin bir gündeki TÜM blokları (ders/rezerve/izin/rapor/tatil/boş) —
- * HANGİ GÜN/SAAT'in dolu olacağı deterministik seed'li mock (tasarımdaki
- * `blocksFor` ile aynı mantık), ama ders bloğunun İÇERİĞİ (grup/eğitim/öğrenci
- * sayısı) bu eğitmene GERÇEKTEN atanmış bir gruptan seçiliyor — hiç atanmış
- * grubu yoksa jenerik bir yer tutucuya düşer. */
-function blocksFor(instr: Instructor, dateISO: string): { dayType: DayType; blocks: Block[] } {
-  const d = parseISO(dateISO);
-  // 2026-07-27 kullanıcı düzeltmesi: Pazar "kapalı" varsayımı YANLIŞTI — kurum gerçekte
-  // 7 gün çalışıyor, Pazar günü de ders var. "Cuma hafif/kapalı" gibi gün-bazlı kurallar
-  // da BİLEREK konulmadı: bu belirli bir müşterinin (Arı Bilgi) kendi iş kuralı — "genel
-  // bir sistem kuruyoruz", Kurumsal/Özel Ders gibi türler herhangi bir günde olabilir.
-  // Bu yüzden mock üretici artık haftanın 7 gününe de EŞİT davranıyor, gün bazlı özel
-  // durum yok (izin/rapor hâlâ eğitmen bazında rastgele — bu genel/makul bir varsayım).
-  const idSeed = hashSeed(instr.id);
-  const base = d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate();
-  const seed = idSeed * 7919 + base;
-  const r = rnd(seed);
-  if (r < 0.07) return { dayType: "izin", blocks: [{ type: "izin", startMin: WORK_START, dur: WORK_END - WORK_START }] };
-  if (r < 0.12) return { dayType: "rapor", blocks: [{ type: "rapor", startMin: WORK_START, dur: WORK_END - WORK_START }] };
+/**
+ * Bir eğitmenin bir gündeki TÜM blokları — 2026-07-31'den beri TAMAMEN gerçek
+ * veriden hesaplanıyor (bkz. dosya başı doküman yorumu):
+ * 1. Resmi tatil → tüm gün "tatil".
+ * 2. Ders blokları → `instr.groups[].schedule` (gün/saat/tarih aralığı gerçek).
+ * 3. Rezerve blokları → `instr.availability`'de o günün `dolu:true` dilimleri.
+ * 4. Kalan boş zaman (ders/rezerve'nin kapsamadığı, WORK_START-WORK_END içindeki
+ *    aralıklar) → "müsait" (beyan edilmemiş zaman serbest kabul edilir, eski
+ *    davranışla aynı varsayım).
+ * İzin/Raporlu ARTIK ÜRETİLMİYOR — gerçek karşılığı yok (bkz. dosya başı yorum).
+ */
+function blocksFor(instr: Instructor, dateISO: string, holidayDates: Set<string>): { dayType: DayType; blocks: Block[] } {
+  if (holidayDates.has(dateISO)) {
+    return { dayType: "tatil", blocks: [{ type: "tatil", startMin: WORK_START, dur: WORK_END - WORK_START }] };
+  }
+
+  const wd = isoWeekday(parseISO(dateISO));
+  const gunAdi = GUNLER[wd];
 
   const sessions: Block[] = [];
-  // 2026-07-27: yoğunluk azaltıldı (önceki sürümde 3'tü) — ama hangi GÜN olduğuna göre
-  // değişmiyor artık (yukarıdaki not: gün-bazlı özel kural yok, 7 gün eşit).
-  const nMax = 2;
-  const nS = 1 + Math.floor(rnd(seed * 3) * nMax);
-  let cursor = WORK_START + Math.floor(rnd(seed * 5) * 2) * 30;
-  const pool = instr.groups.length ? instr.groups : [{ kod: "Ders", egitim: EG_BY_BRANS[instr.brans]?.[0] ?? instr.brans + " Dersi", ogrenci: 10 }];
-  for (let k = 0; k < nS; k++) {
-    const sk = seed * 13 + k * 101;
-    const dur = [90, 120, 150][Math.floor(rnd(sk) * 3)];
-    if (cursor + dur > WORK_END) break;
-    const isRez = rnd(sk * 3) > 0.86;
-    const tur = rnd(sk * 5) > 0.5 ? "Kurumsal" : "Bireysel";
-    const online = rnd(sk * 7) > 0.68;
-    const g = pool[Math.floor(rnd(sk * 17) * pool.length)];
+  for (const g of instr.groups) {
+    const s = g.schedule;
+    if (!s.days.includes(wd) || !s.startTime || !s.endTime) continue;
+    if (s.startDate && dateISO < s.startDate) continue;
+    if (s.endDate && dateISO > s.endDate) continue;
+    const startMin = toMin(s.startTime);
+    const dur = toMin(s.endTime) - startMin;
+    if (dur <= 0) continue;
     sessions.push({
-      type: isRez ? "rezerve" : "ders", startMin: cursor, dur, egitim: g.egitim, tur, online,
-      firma: FIRMALAR[Math.floor(rnd(sk * 11) * FIRMALAR.length)],
-      grup: g.kod,
-      salon: online ? "Online" : SALONLAR[Math.floor(rnd(sk * 13) * SALONLAR.length)],
-      ogrenci: g.ogrenci || 6 + Math.floor(rnd(sk * 19) * 16),
+      type: "ders", startMin, dur, egitim: g.egitim, grup: g.kod, salon: g.salon,
+      ogrenci: g.ogrenci, tur: g.type === "kurumsal" ? "Kurumsal" : "Bireysel",
     });
-    cursor += dur + [0, 30, 60][Math.floor(rnd(sk * 23) * 3)];
   }
+  // Trainer.availability — SADECE `dolu:true` dilimler aktif bir blok üretir (rezerve,
+  // içeriği belirsiz — gerçek ders bilgisi yok). `dolu:false/undefined` dilimler zaten
+  // "beyan edilmiş müsaitlik" anlamına geliyor, aşağıdaki boşluk-doldurma ile ZATEN
+  // müsait sayılıyor, ayrıca bir blok üretmelerine gerek yok.
+  for (const slot of instr.availability) {
+    if (slot.gun !== gunAdi || !slot.dolu) continue;
+    const startMin = toMin(slot.baslangic);
+    const dur = toMin(slot.bitis) - startMin;
+    if (dur <= 0) continue;
+    sessions.push({ type: "rezerve", startMin, dur });
+  }
+
   const busy = sessions.map((s) => ({ s: s.startMin, e: s.startMin + s.dur })).sort((a, b) => a.s - b.s);
   const free: Block[] = [];
   let c = WORK_START;
-  busy.forEach((b) => { if (b.s - c >= 45) free.push({ type: "musait", startMin: c, dur: b.s - c }); c = Math.max(c, b.e); });
-  if (WORK_END - c >= 45) free.push({ type: "musait", startMin: c, dur: WORK_END - c });
+  busy.forEach((b) => { if (b.s - c >= 15) free.push({ type: "musait", startMin: c, dur: b.s - c }); c = Math.max(c, b.e); });
+  if (WORK_END - c >= 15) free.push({ type: "musait", startMin: c, dur: WORK_END - c });
   const blocks = sessions.concat(free).sort((a, b) => a.startMin - b.startMin);
   return { dayType: "aktif", blocks };
 }
 
 /** Bir eğitmenin verilen tarih+saat aralığında müsait olup olmadığı — Eğitim
  * Planla modalının kalbi: null=müsait, aksi halde "neden dolu" metni. */
-function isBusyAt(instr: Instructor, dateISO: string, startMin: number, endMin: number): string | null {
-  const { blocks } = blocksFor(instr, dateISO);
+function isBusyAt(instr: Instructor, dateISO: string, startMin: number, endMin: number, holidayDates: Set<string>): string | null {
+  const { dayType, blocks } = blocksFor(instr, dateISO, holidayDates);
+  if (dayType === "tatil") return "Resmi tatil";
   for (const b of blocks) {
     if (b.type === "musait") continue;
     const be = b.startMin + b.dur;
     if (b.startMin < endMin && startMin < be) {
-      if (b.type === "izin") return "İzinli";
-      if (b.type === "rapor") return "Raporlu";
-      if (b.type === "tatil") return "Resmi tatil";
-      return "Dolu · " + fmtTime(b.startMin) + " " + (b.egitim || "eğitim");
+      return "Dolu · " + fmtTime(b.startMin) + " " + (b.egitim || "rezerve edilmiş");
     }
   }
   if (startMin < WORK_START || endMin > WORK_END) return "Çalışma saati dışı";
@@ -206,45 +233,66 @@ export default function EgitmenTakvimiPage() {
   const TODAY = useMemo(() => new Date(), []);
   const todayISO = isoDate(TODAY);
 
-  // ── gerçek eğitmen listesi (Firestore) — program/saat verisi hâlâ mock ──
+  // ── gerçek eğitmen listesi + program (2026-07-31'den beri TAMAMEN gerçek) ──
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loadingInstructors, setLoadingInstructors] = useState(true);
+  /** Resmi tatil günleri — `GET /api/flexos/holidays` + yoklama modülüyle AYNI
+   * `expandHolidayDates` (bkz. dosya başı doküman yorumu). */
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const u = auth.currentUser;
-      const token = u ? await u.getIdToken() : "";
-      const res = await fetch("/api/flexos/trainers", { headers: { Authorization: `Bearer ${token}` } });
-      const json = res.ok ? await res.json() : { items: [], branches: [] };
-      // 2026-07-27 eklendi (2. tur — kullanıcı bulgusu: "Finans ve Grafik-1 diye branş yok"):
-      // gerçek branş kataloğu — hiç grubu olmayan (dolayısıyla gerçek branşı bulunamayan) bir
-      // eğitmene mock branş atanacaksa artık uydurma bir isim (`BRANSLAR`) yerine bu GERÇEK
-      // listeden seçilir.
-      const realBranches: string[] = json.branches ?? [];
-      type ApiTrainer = { id: string; name: string; subes: string[]; status: string; comp: Record<string, string[]>; groups: { kod: string; egitim: string; ogrenci: number; status: string; branch: string }[] };
-      // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu): API bir eğitmenin TÜM gruplarını
-      // (tamamlanmış/arşivlenmiş dahil) veriyor — sadece bunlardan üretilen mock ders
-      // havuzunda kullanılıyorsa, tek/az grubu tamamlanmış bir eğitmen o bitmiş dersle
-      // "hâlâ meşgul" gösteriliyordu. Sadece hâlâ AÇIK/DEVAM EDEN gruplar havuza giriyor.
-      const AKTIF_GRUP_DURUM = new Set(["planned", "enrolling", "active", "postponed"]);
-      const mapped: Instructor[] = (json.items ?? [])
-        .filter((t: ApiTrainer) => t.status === "aktif")
-        .map((t: ApiTrainer) => {
-          // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu: "Tasarım diye branş seçtim,
-          // Alparslan Şentürk listede kalmadı — Grafik Tasarım diye branş var ama Tasarım
-          // yok"): `trainer.comp` anahtarları (Design/Finance/Software) Eğitmenler CRUD'un
-          // KENDİ kategorileri, gerçek branş taksonomisiyle (Grafik Tasarım, Yazılım
-          // Geliştirme...) ilgisi yok. Gerçek branş, eğitmenin atandığı grupların gerçek
-          // `Group.branch` alanından geliyor (herhangi bir grubu — sadece açık olanlar değil,
-          // branş kimliği zaman içinde değişmez). Hiç atanmış grubu yoksa mock'a düşer.
-          const realBranch = (t.groups ?? []).map((g) => g.branch).find((b) => b);
-          const brans = realBranch ?? (realBranches.length ? realBranches[hashSeed(t.id) % realBranches.length] : BRANSLAR[hashSeed(t.id) % BRANSLAR.length]);
-          const sube = t.subes?.[0] ?? SUBELER[hashSeed(t.id) % SUBELER.length];
-          const acikGruplar = (t.groups ?? []).filter((g) => AKTIF_GRUP_DURUM.has(g.status));
-          return { id: t.id, name: t.name, brans, sube, av: avatarFor(t.id), groups: acikGruplar };
-        });
-      if (!cancelled) { setInstructors(mapped); setLoadingInstructors(false); }
+      try {
+        const u = auth.currentUser;
+        const token = u ? await u.getIdToken() : "";
+        const headers = { Authorization: `Bearer ${token}` };
+        const [res, hRes] = await Promise.all([
+          fetch("/api/flexos/trainers", { headers }),
+          fetch("/api/flexos/holidays", { headers }),
+        ]);
+        const json = res.ok ? await res.json() : { items: [], branches: [] };
+        // 2026-07-27 eklendi (2. tur — kullanıcı bulgusu: "Finans ve Grafik-1 diye branş yok"):
+        // gerçek branş kataloğu — hiç grubu olmayan (dolayısıyla gerçek branşı bulunamayan) bir
+        // eğitmene mock branş atanacaksa artık uydurma bir isim (`BRANSLAR`) yerine bu GERÇEK
+        // listeden seçilir.
+        const realBranches: string[] = json.branches ?? [];
+        type ApiTrainer = {
+          id: string; name: string; subes: string[]; status: string; comp: Record<string, string[]>;
+          musaitlik: TrainerAvailabilitySlot[];
+          groups: { kod: string; egitim: string; ogrenci: number; status: string; branch: string; type: string; salon: string; schedule: InstructorGroupSchedule }[];
+        };
+        // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu): API bir eğitmenin TÜM gruplarını
+        // (tamamlanmış/arşivlenmiş dahil) veriyor — sadece bunlardan üretilen ders havuzunda
+        // kullanılıyorsa, tek/az grubu tamamlanmış bir eğitmen o bitmiş dersle "hâlâ meşgul"
+        // gösteriliyordu. Sadece hâlâ AÇIK/DEVAM EDEN gruplar havuza giriyor.
+        const AKTIF_GRUP_DURUM = new Set(["planned", "enrolling", "active", "postponed"]);
+        const mapped: Instructor[] = (json.items ?? [])
+          .filter((t: ApiTrainer) => t.status === "aktif")
+          .map((t: ApiTrainer) => {
+            // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu: "Tasarım diye branş seçtim,
+            // Alparslan Şentürk listede kalmadı — Grafik Tasarım diye branş var ama Tasarım
+            // yok"): `trainer.comp` anahtarları (Design/Finance/Software) Eğitmenler CRUD'un
+            // KENDİ kategorileri, gerçek branş taksonomisiyle (Grafik Tasarım, Yazılım
+            // Geliştirme...) ilgisi yok. Gerçek branş, eğitmenin atandığı grupların gerçek
+            // `Group.branch` alanından geliyor (herhangi bir grubu — sadece açık olanlar değil,
+            // branş kimliği zaman içinde değişmez). Hiç atanmış grubu yoksa mock'a düşer.
+            const realBranch = (t.groups ?? []).map((g) => g.branch).find((b) => b);
+            const brans = realBranch ?? (realBranches.length ? realBranches[hashSeed(t.id) % realBranches.length] : BRANSLAR[hashSeed(t.id) % BRANSLAR.length]);
+            const sube = t.subes?.[0] ?? SUBELER[hashSeed(t.id) % SUBELER.length];
+            const acikGruplar = (t.groups ?? []).filter((g) => AKTIF_GRUP_DURUM.has(g.status));
+            return { id: t.id, name: t.name, brans, sube, av: avatarFor(t.id), groups: acikGruplar, availability: t.musaitlik ?? [] };
+          });
+        if (!cancelled) setInstructors(mapped);
+        if (hRes.ok) {
+          const h = await hRes.json();
+          if (!cancelled) setHolidayDates(expandHolidayDates((h.items ?? []) as { startDate: string; endDate: string }[]));
+        }
+      } catch {
+        if (!cancelled) toast.error("Eğitmen listesi yüklenemedi.");
+      } finally {
+        if (!cancelled) setLoadingInstructors(false);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -258,7 +306,6 @@ export default function EgitmenTakvimiPage() {
   const [fSube, setFSube] = useState("Tümü");
   const [fBrans, setFBrans] = useState("Tümü");
   const [fTur, setFTur] = useState("Tümü");
-  const [fMode, setFMode] = useState("Tümü");
   const [fDurum, setFDurum] = useState("Tümü");
 
   const [instrModal, setInstrModal] = useState<{ id: string; iso: string } | null>(null);
@@ -272,7 +319,7 @@ export default function EgitmenTakvimiPage() {
   const goPrev = () => { if (view === "week") setWeekOffset((v) => v - 1); else if (view === "day") setDayISO(isoDate(addDays(parseISO(dayISO), -1))); else setMonthOffset((v) => v - 1); };
   const goNext = () => { if (view === "week") setWeekOffset((v) => v + 1); else if (view === "day") setDayISO(isoDate(addDays(parseISO(dayISO), 1))); else setMonthOffset((v) => v + 1); };
   const goToday = () => { setWeekOffset(0); setMonthOffset(0); setDayISO(todayISO); };
-  const clearFilters = () => { setFEgitmen("Tümü"); setFSube("Tümü"); setFBrans("Tümü"); setFTur("Tümü"); setFMode("Tümü"); setFDurum("Tümü"); };
+  const clearFilters = () => { setFEgitmen("Tümü"); setFSube("Tümü"); setFBrans("Tümü"); setFTur("Tümü"); setFDurum("Tümü"); };
   const openInstr = (id: string, iso: string) => setInstrModal({ id, iso });
   const openPlan = () => { setPlanOpen(true); setPlanPick(null); };
   const planForInstr = () => {
@@ -299,22 +346,19 @@ export default function EgitmenTakvimiPage() {
     if (fDurum !== "Tümü" && BLK[b.type].label !== fDurum) return false;
     if (b.type === "ders" || b.type === "rezerve") {
       if (fTur !== "Tümü" && b.tur !== fTur) return false;
-      if (fMode === "Online" && !b.online) return false;
-      if (fMode === "Yüz Yüze" && b.online) return false;
     } else {
       if (fTur !== "Tümü") return false;
-      if (fMode !== "Tümü") return false;
     }
     return true;
   };
 
-  const activeFilterCount = [fEgitmen, fSube, fBrans, fTur, fMode, fDurum].filter((x) => x !== "Tümü").length;
+  const activeFilterCount = [fEgitmen, fSube, fBrans, fTur, fDurum].filter((x) => x !== "Tümü").length;
 
   // ---- stat kartları (bugün anlık durumu) ----
   const stats = useMemo(() => {
     let musaitCount = 0, dersVeren = 0, izinli = 0, toplamDersDk = 0, aktif = 0, capDen = 0, capNum = 0;
     instructors.forEach((i) => {
-      const { dayType, blocks } = blocksFor(i, todayISO);
+      const { dayType, blocks } = blocksFor(i, todayISO, holidayDates);
       if (dayType === "kapali") return;
       if (dayType === "izin" || dayType === "rapor" || dayType === "tatil") { if (dayType !== "tatil") izinli++; return; }
       aktif++;
@@ -333,7 +377,7 @@ export default function EgitmenTakvimiPage() {
       { label: "Toplam Ders Saati", value: Math.round(toplamDersDk / 60) + " sa", color: "#4D52A6", bg: "#E6E7FA" },
       { label: "Doluluk", value: "%" + doluluk, color: "#7A3EAF", bg: "#EDE0FB" },
     ];
-  }, [instructors, todayISO]);
+  }, [instructors, todayISO, holidayDates]);
 
   // ---- Hafta ----
   const weekMon = useMemo(() => addDays(mondayOf(TODAY), weekOffset * 7), [TODAY, weekOffset]);
@@ -358,7 +402,7 @@ export default function EgitmenTakvimiPage() {
       // ay heatmap'i de 7 günü de sayıyor — eskiden Pazar hiç hesaba katılmıyordu.
       let avail = 0, ders = 0, leave = 0, activeN = 0;
       instructors.forEach((inst) => {
-        const { dayType, blocks } = blocksFor(inst, dISO);
+        const { dayType, blocks } = blocksFor(inst, dISO, holidayDates);
         if (dayType === "izin" || dayType === "rapor") { leave++; return; }
         if (dayType === "tatil") return;
         activeN++;
@@ -368,7 +412,7 @@ export default function EgitmenTakvimiPage() {
       out.push({ iso: dISO, num: d.getDate(), inMonth, isToday: dISO === todayISO, avail, ders, leave, pct: activeN ? Math.round((avail / activeN) * 100) : 0 });
     }
     return out;
-  }, [instructors, monthStart, monthBase, todayISO]);
+  }, [instructors, monthStart, monthBase, todayISO, holidayDates]);
 
   let rangeLabel: string;
   if (view === "week") {
@@ -387,7 +431,7 @@ export default function EgitmenTakvimiPage() {
     if (!inst) return null;
     const iso = instrModal.iso;
     const d = parseISO(iso);
-    const { dayType, blocks } = blocksFor(inst, iso);
+    const { dayType, blocks } = blocksFor(inst, iso, holidayDates);
     const ders = blocks.filter((b) => b.type === "ders" || b.type === "rezerve");
     const free = blocks.filter((b) => b.type === "musait");
     const dersDk = ders.reduce((a, b) => a + b.dur, 0);
@@ -398,7 +442,7 @@ export default function EgitmenTakvimiPage() {
     const dayChipMeta = dayType === "izin" ? BLK.izin : dayType === "rapor" ? BLK.rapor : dayType === "tatil" ? BLK.tatil : BLK.musait;
     const program = blocks.slice().sort((a, b) => a.startMin - b.startMin);
     return { inst, iso, d, dayType, ders, dersDk, freeDk, ogr, dolulukI, dayStatusLabel, dayChipMeta, program };
-  }, [instructors, instrModal]);
+  }, [instructors, instrModal, holidayDates]);
 
   // ---- Eğitim Planla modalı verisi ----
   const startOptions = useMemo(() => { const out: number[] = []; for (let m = WORK_START; m <= LATEST_START; m += 30) out.push(m); return out; }, []);
@@ -407,9 +451,9 @@ export default function EgitmenTakvimiPage() {
   const planD = parseISO(planDate);
   const planSlotLabel = `${planD.getDate()} ${MONTHS[planD.getMonth()]}, ${fmtTime(planStart)}–${fmtTime(slotEnd)}`;
   const planCandidates = useMemo(() => instructors.filter((i) => planBrans === "Tümü" || i.brans === planBrans).map((inst) => {
-    const reason = isBusyAt(inst, planDate, planStart, slotEnd);
+    const reason = isBusyAt(inst, planDate, planStart, slotEnd, holidayDates);
     return { inst, available: reason === null, reason };
-  }), [instructors, planBrans, planDate, planStart, slotEnd]);
+  }), [instructors, planBrans, planDate, planStart, slotEnd, holidayDates]);
   const planAvailCount = planCandidates.filter((c) => c.available).length;
 
   const viewTabs: { key: ViewKey; label: string }[] = [{ key: "day", label: "Gün" }, { key: "week", label: "Hafta" }, { key: "month", label: "Ay" }];
@@ -480,13 +524,12 @@ export default function EgitmenTakvimiPage() {
           {/* FİLTRE PANELİ */}
           {filtersOpen && (
             <div style={{ background: "#fff", border: "1px solid #E2E5EA", borderRadius: 16, padding: "18px 20px", marginBottom: 16, boxShadow: "0 1px 3px rgba(15,31,61,.05)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14 }}>
                 {[
                   { label: "Eğitmen", value: fEgitmen, set: setFEgitmen, options: ["Tümü", ...instructors.map((i) => i.name)] },
                   { label: "Şube", value: fSube, set: setFSube, options: ["Tümü", ...SUBELER] },
                   { label: "Branş", value: fBrans, set: setFBrans, options: ["Tümü", ...branslarOptions] },
                   { label: "Eğitim Türü", value: fTur, set: setFTur, options: ["Tümü", "Bireysel", "Kurumsal"] },
-                  { label: "Katılım", value: fMode, set: setFMode, options: ["Tümü", "Yüz Yüze", "Online"] },
                   { label: "Durum", value: fDurum, set: setFDurum, options: ["Tümü", "Eğitimde", "Müsait", "Rezerve", "İzin", "Raporlu", "Resmi Tatil"] },
                 ].map((f) => (
                   <div key={f.label}>
@@ -549,7 +592,7 @@ export default function EgitmenTakvimiPage() {
                         {weekDates.map((d, i) => {
                           const dISO = isoDate(d);
                           const isT = dISO === todayISO;
-                          const { dayType, blocks } = blocksFor(inst, dISO);
+                          const { dayType, blocks } = blocksFor(inst, dISO, holidayDates);
                           // GERÇEK BUG FIX (2026-07-27, kullanıcı bulgusu): `minWidth: 0` YOKTU —
                           // CSS Grid hücreleri varsayılan `min-width: auto` ile içeriğin (uzun bir
                           // eğitim adı, ör. "Grafik Tasarım Kursu") sarmayan/kırpılmayan doğal
@@ -577,7 +620,7 @@ export default function EgitmenTakvimiPage() {
                               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                 {chips.map((b, ci) => {
                                   const m = BLK[b.type];
-                                  const label = b.type === "musait" ? "müsait" : b.egitim;
+                                  const label = b.type === "musait" ? "müsait" : (b.egitim || m.label);
                                   return (
                                     <div key={ci} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, color: m.color, background: m.bg, border: "1px solid " + m.border, borderRadius: 6, padding: "3px 6px" }}>
                                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: m.dot, flex: "0 0 auto" }} />
@@ -614,7 +657,7 @@ export default function EgitmenTakvimiPage() {
                 {/* aynı çift-scroll düzeltmesi (bkz. Hafta görünümündeki AYNI not) */}
                 <div>
                   {filteredInstructors.map((inst) => {
-                      const { dayType, blocks } = blocksFor(inst, dayISO);
+                      const { dayType, blocks } = blocksFor(inst, dayISO, holidayDates);
                       const vis = blocks.filter(blockVisible);
                       const ders = blocks.filter((b) => b.type === "ders" || b.type === "rezerve");
                       const metaLine = dayType === "izin" ? "İzinli" : dayType === "rapor" ? "Raporlu" : dayType === "tatil" ? "Resmi Tatil" : `${inst.brans} · ${ders.length} ders`;
@@ -641,7 +684,11 @@ export default function EgitmenTakvimiPage() {
                               let title: string, sub: string, showSub: boolean;
                               if (isFree) { title = "Müsait"; sub = fmtTime(b.startMin) + "–" + fmtTime(b.startMin + b.dur); showSub = widthPct > 10; }
                               else if (isFull) { title = m.label; sub = ""; showSub = false; }
-                              else { title = b.egitim || ""; sub = (b.online ? "Online" : b.salon) + " · " + entityOf(b); showSub = widthPct > 14; }
+                              else {
+                                title = b.egitim || m.label;
+                                sub = b.grup ? (b.salon || "Salon atanmamış") + " · " + entityOf(b) : "";
+                                showSub = widthPct > 14 && !!b.grup;
+                              }
                               const stripe = b.type === "rezerve" ? `repeating-linear-gradient(135deg,${m.bg} 0,${m.bg} 8px,#FBEED6 8px,#FBEED6 14px)` : isFree ? `repeating-linear-gradient(135deg,${m.bg} 0,${m.bg} 9px,#DDF1E6 9px,#DDF1E6 16px)` : m.bg;
                               return (
                                 <div key={bi} onClick={(e) => { e.stopPropagation(); openInstr(inst.id, dayISO); }} style={{ position: "absolute", top: 8, bottom: 8, left: `calc(${left} + 2px)`, width: `calc(${width} - 4px)`, background: stripe, border: "1px solid " + m.border, borderLeft: "3px solid " + m.dot, borderRadius: 8, padding: "6px 8px", overflow: "hidden", cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", gap: 1, boxShadow: "0 1px 2px rgba(15,31,61,.05)" }}>
@@ -741,6 +788,7 @@ export default function EgitmenTakvimiPage() {
                     const m = BLK[b.type];
                     const isDers = b.type === "ders" || b.type === "rezerve";
                     const isFree = b.type === "musait";
+                    const hasLesson = isDers && !!b.grup;
                     return (
                       <div key={bi} style={{ display: "flex", alignItems: "flex-start", gap: 13, border: "1px solid " + (isFree ? "#BFE6D0" : m.border), borderRadius: 13, padding: "13px 15px", background: isFree ? "#F3FBF6" : "#fff" }}>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, width: 62, flex: "0 0 auto", borderRadius: 11, padding: "8px 6px", background: m.bg, color: m.color, fontSize: 13.5, fontWeight: 800 }}>
@@ -748,13 +796,13 @@ export default function EgitmenTakvimiPage() {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-                            <span style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>{isDers ? b.egitim : isFree ? "Müsait Saat" : m.label}</span>
+                            <span style={{ fontSize: 14.5, fontWeight: 800, color: "#1E222B" }}>{isDers ? (b.egitim || m.label) : isFree ? "Müsait Saat" : m.label}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: m.color, background: m.bg }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: m.dot }} />{m.label}</span>
-                            {isDers && b.tur && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", color: TUR_META[b.tur].color, background: TUR_META[b.tur].bg }}>{b.tur}</span>}
+                            {hasLesson && b.tur && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", color: TUR_META[b.tur].color, background: TUR_META[b.tur].bg }}>{b.tur}</span>}
                           </div>
-                          {isDers && (
+                          {hasLesson && (
                             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 5, flexWrap: "wrap" }}>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6F7B87", fontWeight: 600 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /></svg>{b.online ? "Online" : b.salon}</span>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6F7B87", fontWeight: 600 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /></svg>{b.salon || "Salon atanmamış"}</span>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6F7B87", fontWeight: 600 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>{entityOf(b)} · {b.ogrenci} kişi</span>
                             </div>
                           )}

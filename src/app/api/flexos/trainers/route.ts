@@ -8,7 +8,7 @@ import { firestoreTrainerRepo } from "@/app/lib/server/trainer-repo.firestore";
 import { firestoreFlexosUserRepo } from "@/app/lib/server/flexos-user-repo.firestore";
 import { firestoreGroupRepo } from "@/app/lib/server/group-repo.firestore";
 import { firestoreEnrollmentRepo } from "@/app/lib/server/enrollment-repo.firestore";
-import { firestoreEducationRepo, firestoreBranchRepo } from "@/app/lib/server/catalog-repo.firestore";
+import { firestoreEducationRepo, firestoreBranchRepo, firestoreLabRepo } from "@/app/lib/server/catalog-repo.firestore";
 import { createTrainer, type CreateTrainerInput } from "@/app/lib/domain/services/trainer-service";
 import { generateActivationCode } from "@/app/lib/user-validation";
 import { buildFlexosActivationEmail } from "@/app/lib/server/flexos-activation-email";
@@ -115,11 +115,12 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
   try {
     const payload = await cachedRead(`trainers:${actor.tenantId}:${actor.uid}`, TRAINERS_CACHE_TTL_MS, async () => {
-    const [trainers, groups, educations, branches] = await Promise.all([
+    const [trainers, groups, educations, branches, labs] = await Promise.all([
       firestoreTrainerRepo.list(actor.tenantId),
       firestoreGroupRepo.list(actor.tenantId),
       firestoreEducationRepo.list(actor.tenantId),
       firestoreBranchRepo.list(actor.tenantId),
+      firestoreLabRepo.list(actor.tenantId),
     ]);
     // 2026-07-12 ACİL kota fix (bkz. groups/route.ts'teki aynı fix): tenant-genelinde
     // sınırsız enrollment okuması yerine SADECE görüntülenen grupların enrollment'ları.
@@ -127,6 +128,7 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
 
     const eduMap = new Map(educations.map((e) => [e.id, e]));
     const branchMap = new Map(branches.map((b) => [b.id, b]));
+    const labMap = new Map(labs.map((l) => [l.id, l.name]));
 
     // Grup başına öğrenci sayısı — groups/route.ts ile AYNI kural (active+completed),
     // bkz. oradaki 2026-07-11 tutarlılık notu.
@@ -143,7 +145,10 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
     // Şentürk'ü test etti, tek grubu tamamlanmıştı, sistem yine de onu dolu gösterdi).
     // Bu alan zaten tüketen SADECE Eğitmen Takvimi filtreliyor — burada FİLTRELEMİYORUZ,
     // Eğitmenler sayfası gibi başka tüketiciler geçmiş grupları görmek isteyebilir.
-    const groupsByTrainer = new Map<string, Array<{ id: string; kod: string; egitim: string; ogrenci: number; status: string; branch: string; schedule: { days: number[]; startTime?: string; endTime?: string } }>>();
+    const groupsByTrainer = new Map<string, Array<{
+      id: string; kod: string; egitim: string; ogrenci: number; status: string; branch: string; type: string; salon: string;
+      schedule: { days: number[]; startTime?: string; endTime?: string; startDate?: string; endDate?: string };
+    }>>();
     for (const g of groups) {
       if (!g.trainerId) continue;
       const list = groupsByTrainer.get(g.trainerId) ?? [];
@@ -163,9 +168,19 @@ export const GET = withAuth(async (_req: NextRequest, caller) => {
         ogrenci: enrolledByGroup.get(g.id) ?? 0,
         status: g.status,
         branch,
+        // 2026-07-31 eklendi — Eğitmen Takvimi'nin GERÇEK ders bloğu üretimi için
+        // (`groups/route.ts` GET'in yaptığı AYNI join'ler, yeni bir sorgu değil):
+        // gerçek grup tipi (Bireysel/Kurumsal filtresi için) + gerçek salon adı.
+        type: g.type,
+        salon: g.labId ? labMap.get(g.labId) ?? "" : "",
         // 2026-07-27 eklendi — Grup Ekle'de "eğitmen tarih+seans'a göre müsait mi" gerçek
-        // kontrolü için (id/branch ile aynı additive desen).
-        schedule: { days: g.schedule?.days ?? [], startTime: g.schedule?.startTime, endTime: g.schedule?.endTime },
+        // kontrolü için (id/branch ile aynı additive desen). 2026-07-31: startDate/endDate
+        // de eklendi — Eğitmen Takvimi bir dersin sadece HAFTANIN GÜNÜ'nü değil, grubun
+        // gerçekten AKTİF olduğu tarih aralığında olup olmadığını da bilmesi gerekiyor.
+        schedule: {
+          days: g.schedule?.days ?? [], startTime: g.schedule?.startTime, endTime: g.schedule?.endTime,
+          startDate: g.schedule?.startDate, endDate: g.schedule?.endDate,
+        },
       });
       groupsByTrainer.set(g.trainerId, list);
     }
