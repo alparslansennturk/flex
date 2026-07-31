@@ -1027,19 +1027,6 @@ export default function FlexConnectPage() {
               style={{ height: 42, padding: "0 14px 0 40px", borderRadius: 12, border: "1px solid #E9EBEF", background: "#F4F5F7", color: "#1B1F26", fontSize: 14, fontWeight: 500 }}
             />
           </div>
-          {showPushReenableBanner && (
-            <button
-              onClick={() => { setShowPushReenableBanner(false); toggleNotifPush(); }}
-              className="flex items-center gap-2.5 cursor-pointer transition-all w-full text-left"
-              style={{ marginTop: 10, padding: "11px 13px", borderRadius: 12, border: "none", background: "#2867bd", color: "#fff" }}
-            >
-              <Bell size={17} />
-              <div className="flex-1 min-w-0">
-                <div style={{ fontSize: 13, fontWeight: 700 }}>Bildirimler yeniden etkinleştirilmesi gerekiyor</div>
-                <div style={{ fontSize: 11.5, fontWeight: 500, opacity: 0.85 }}>Dokun, tekrar açalım</div>
-              </div>
-            </button>
-          )}
         </div>
 
         {directoryList === null && (
