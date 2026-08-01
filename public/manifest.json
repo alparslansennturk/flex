@@ -1,6 +1,6 @@
 {
-  "name": "FlexOS",
-  "short_name": "FlexOS",
+  "name": "Flex",
+  "short_name": "Flex",
   "description": "Eğitim kurumu yönetim paneli",
   "start_url": "/",
   "scope": "/",

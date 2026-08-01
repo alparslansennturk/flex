@@ -33,13 +33,13 @@ const rubik = Rubik({
  * `public/manifest.json`'a işaret ediyor (kaynak: `scripts/generate-pwa-icons.mjs`).
  */
 export const metadata: Metadata = {
-  title: "FlexOS",
+  title: "Flex",
   description: "Yönetim Paneli",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "FlexOS",
+    title: "Flex",
   },
   icons: {
     icon: [
