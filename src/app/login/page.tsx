@@ -67,7 +67,11 @@ function LoginForm() {
 
       // Token + Firestore paralel — cookie race condition önlenir, hız korunur.
       const [idToken, userDoc] = await Promise.all([user.getIdToken(), getDoc(userDocRef)]);
-      document.cookie = `flex-token=${idToken}; path=/; max-age=2592000; SameSite=Lax`;
+      // "Beni Hatırla" (2026-08-02, gerçek işleve bağlandı) — SADECE çerez süresini
+      // etkiler, persistence her koşulda local kalır (yukarıdaki yoruma bkz. — çoklu
+      // sekme bug riski).
+      const cookieAge = rememberMe ? "; max-age=2592000" : "";
+      document.cookie = `flex-token=${idToken}; path=/${cookieAge}; SameSite=Lax`;
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
@@ -96,7 +100,7 @@ function LoginForm() {
           } catch { /* sync başarısız olursa devam et */ }
           // Redirect'ten önce claims yenile — try/catch dışında, kesinlikle çalışır
           const freshToken = await auth.currentUser!.getIdToken(true);
-          document.cookie = `flex-token=${freshToken}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `flex-token=${freshToken}; path=/${cookieAge}; SameSite=Lax`;
           // 2026-07-13 canlıya alma: eski `/student/{id}` yerine FlexOS'un kendi
           // landing'i (tüm gerçek öğrenciler zaten FlexOS'a taşındı).
           router.push(await resolveFlexosLanding(freshToken));

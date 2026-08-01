@@ -66,10 +66,21 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
+      // Persistence HER ZAMAN local kalıyor — `browserSessionPersistence` geçmişte
+      // çoklu sekmede "yeni tab açılınca Firebase null dönüp diğer tab'ların
+      // cookie'sini siliyordu" bug'ına yol açmıştı (bkz. `login/page.tsx` aynı
+      // yorum), o riski tekrar almıyoruz. "Beni Hatırla" (2026-08-02'ye kadar
+      // dekoratifti, kullanıcı isteğiyle çerez süresine bağlandı — paylaşımlı sınıf
+      // bilgisayarlarında artık işaretlenmeyecek): işaretliyse 30 gün kalıcı çerez,
+      // değilse tarayıcı kapanınca düşen session çerezi (max-age YOK). NOT: bu SADECE
+      // çerezi (sunucu tarafı) etkiler — Firebase'in kendi local oturumu (istemci
+      // tarafı) her koşulda kalıcı, tam "tarayıcı kapanınca kesin çıkış" garantisi
+      // vermiyor.
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const token = await userCredential.user.getIdToken();
-      document.cookie = `flex-token=${token}; path=/; max-age=2592000; SameSite=Lax`;
+      const cookieAge = rememberMe ? "; max-age=2592000" : "";
+      document.cookie = `flex-token=${token}; path=/${cookieAge}; SameSite=Lax`;
       router.push(await resolveFlexosLanding(token));
     } catch (error: unknown) {
       const e = error as { code?: string };
